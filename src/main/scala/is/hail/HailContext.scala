@@ -577,8 +577,10 @@ class HailContext private(val sc: SparkContext,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, rg, contigRecoding)
+    contigRecoding: Option[Map[String, String]] = None,
+    arrayElementsRequired: Boolean = true): MatrixTable = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, rg, contigRecoding,
+      arrayElementsRequired)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
@@ -588,7 +590,8 @@ class HailContext private(val sc: SparkContext,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    arrayElementsRequired: Boolean = true): MatrixTable = {
 
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
@@ -597,7 +600,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZip(forceBGZ) {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, rg,
-        contigRecoding.getOrElse(Map.empty[String, String]))
+        contigRecoding.getOrElse(Map.empty[String, String]), arrayElementsRequired)
     }
   }
 

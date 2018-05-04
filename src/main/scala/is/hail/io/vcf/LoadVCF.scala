@@ -24,12 +24,12 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSig
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
-final class VCFLine(val line: String) {
+final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   var pos: Int = 0
 
-  val abs = new ArrayBuilder[String]
-  val abi = new ArrayBuilder[Int]
-  val abd = new ArrayBuilder[Double]
+  val abs = new MissingArrayBuilder[String]
+  val abi = new MissingArrayBuilder[Int]
+  val abd = new MissingArrayBuilder[Double]
 
   def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
 
@@ -386,6 +386,42 @@ final class VCFLine(val line: String) {
     s.toDouble
   }
 
+  def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      ab.addMissing()
+      pos += 1
+    } else {
+      ab += eltParser()
+    }
+  }
+
+  def parseIntArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abi.addMissing()
+      pos += 1
+    } else {
+      abi += parseIntInFormatArray()
+    }
+  }
+
+  def parseDoubleArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abd.addMissing()
+      pos += 1
+    } else {
+      abd += parseDoubleInFormatArray()
+    }
+  }
+
+  def parseStringArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abs.addMissing()
+      pos += 1
+    } else {
+      abs += parseStringInFormatArray()
+    }
+  }
+
   def parseAddFormatArrayInt(rvb: RegionValueBuilder) {
     if (formatFieldMissing()) {
       rvb.setMissing()
@@ -393,16 +429,20 @@ final class VCFLine(val line: String) {
     } else {
       assert(abi.length == 0)
 
-      abi += parseIntInFormatArray()
+      parseIntArrayElement()
+
       while (!endFormatField()) {
         pos += 1 // comma
-        abi += parseIntInFormatArray()
+        parseIntArrayElement()
       }
 
       rvb.startArray(abi.length)
       var i = 0
       while (i < abi.length) {
-        rvb.addInt(abi(i))
+        if (abi.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addInt(abi(i))
         i += 1
       }
       rvb.endArray()
@@ -418,10 +458,10 @@ final class VCFLine(val line: String) {
     } else {
       assert(abs.length == 0)
 
-      abs += parseStringInFormatArray()
+      parseStringArrayElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        abs += parseStringInFormatArray()
+        parseStringArrayElement()
       }
 
       rvb.startArray(abs.length)
@@ -443,10 +483,10 @@ final class VCFLine(val line: String) {
     } else {
       assert(abd.length == 0)
 
-      abd += parseDoubleInFormatArray()
+      parseDoubleArrayElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        abd += parseDoubleInFormatArray()
+        parseDoubleArrayElement()
       }
 
       rvb.startArray(abd.length)
@@ -718,7 +758,8 @@ object LoadVCF {
   )(lines: ContextRDD[RVDContext, WithContext[String]],
     t: Type,
     rg: Option[ReferenceGenome],
-    contigRecoding: Map[String, String]
+    contigRecoding: Map[String, String],
+    arrayElementsRequired: Boolean
   ): ContextRDD[RVDContext, RegionValue] = {
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
@@ -735,7 +776,7 @@ object LoadVCF {
             val lwc = it.next()
             val line = lwc.value
             try {
-              val vcfLine = new VCFLine(line)
+              val vcfLine = new VCFLine(line, arrayElementsRequired)
               rvb.start(t)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rg, contigRecoding)
@@ -802,7 +843,7 @@ object LoadVCF {
 
       sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
         val hConf = confBc.value.value
-        val hd = parseHeader(reader, getHeaderLines(hConf, file))
+        val hd = parseHeader(reader, getHeaderLines(hConf, file), arrayElementsRequired = arrayElementsRequired)
         val hd1 = header1Bc.value
 
         if (hd1.sampleIds.length != hd.sampleIds.length) {
@@ -872,7 +913,8 @@ object LoadVCF {
     )(ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions),
       kType,
       rg,
-      contigRecoding)
+      contigRecoding,
+      arrayElementsRequired)
 
     val rdd = OrderedRVD.coerce(
       matrixType.orvdType,
@@ -906,7 +948,7 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType, rg, contigRecoding),
+      }(lines, rowType, rg, contigRecoding, arrayElementsRequired),
       justVariants)
 
     new MatrixTable(hc,

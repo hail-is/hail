@@ -160,21 +160,6 @@ class ImportVCFSuite extends SparkSuite {
     }
   }
 
-  @Test def testMissingInfo() {
-    val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
-
-    val variants = vds.aggregateRows("AGG.map(_ => va.locus).collect()")._1.asInstanceOf[IndexedSeq[Locus]]
-    val foo = vds.aggregateRows("AGG.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
-    val bar = vds.aggregateRows("AGG.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
-
-    val vMap = (variants, foo, bar).zipped.map { case (v, f, b) => (v, (f, b)) }.toMap
-
-    assert(vMap == Map(
-      Locus("X", 16050036) -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
-      Locus("X", 16061250) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
-    ))
-  }
-
   @Test def randomExportImportIsIdentity() {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
 

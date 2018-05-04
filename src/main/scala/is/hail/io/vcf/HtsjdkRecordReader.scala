@@ -47,7 +47,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
         rvb.endArray()
       } else {
         rvb.startArray(vc.getFilters.size())
-        var fi = vc.getFilters.iterator()
+        val fi = vc.getFilters.iterator()
         while (fi.hasNext)
           rvb.addString(fi.next())
         rvb.endArray()
@@ -278,7 +278,7 @@ object HtsjdkRecordReader {
 
       case (l: java.util.List[_], TArray(_: TInt32, _)) =>
         rvb.startArray(l.size())
-        var it = l.iterator()
+        val it = l.iterator()
         while (it.hasNext) {
           it.next() match {
             case "." => rvb.setMissing()
@@ -289,7 +289,7 @@ object HtsjdkRecordReader {
         rvb.endArray()
       case (l: java.util.List[_], TArray(_: TFloat64, _)) =>
         rvb.startArray(l.size())
-        var it = l.iterator()
+        val it = l.iterator()
         while (it.hasNext) {
           it.next() match {
             case "." => rvb.setMissing()
@@ -301,7 +301,7 @@ object HtsjdkRecordReader {
         rvb.endArray()
       case (l: java.util.List[_], TArray(_: TString, _)) =>
         rvb.startArray(l.size())
-        var it = l.iterator()
+        val it = l.iterator()
         while (it.hasNext) {
           it.next() match {
             case "." => rvb.setMissing()
