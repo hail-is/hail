@@ -169,13 +169,10 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        n_entries = n_rows * n_cols
-        if n_entries >= 1 << 31:
-            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
-
-        hc = Env.hc()
-        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(hc._jhc, uri, n_rows, n_cols, True)
-        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(hc._jsc, bdm, block_size))
+        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
+            Env.hc()._jsc,
+            _breeze_fromfile(uri, n_rows, n_cols),
+            block_size))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
@@ -228,7 +225,7 @@ class BlockMatrix(object):
     @typecheck_method(entry_expr=expr_float64,
                       block_size=nullable(int))
     def from_entry_expr(cls, entry_expr, block_size=None):
-        """Create a block matrix using a matrix table entry expression.
+        """Creates a block matrix using a matrix table entry expression.
 
         Parameters
         ----------
@@ -373,6 +370,7 @@ class BlockMatrix(object):
         Notes
         -----
         The resulting file can be loaded with :meth:`BlockMatrix.read`.
+        Blocks are stored row-major.
 
         Parameters
         ----------
@@ -597,7 +595,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This function will have no effect on a dataset that was not previously
+        This function will have no effect on a block matrix that was not previously
         persisted.
 
         Returns
@@ -930,3 +928,25 @@ def _ndarray_from_jarray(ja):
     uri = local_path_uri(path)
     Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.hc()._jhc, uri, ja)
     return np.fromfile(path)
+
+
+def _breeze_fromfile(uri, n_rows, n_cols):
+    n_entries = n_rows * n_cols
+    if n_entries >= 1 << 31:
+        raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
+
+    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
+
+
+def _breeze_from_ndarray(nd):
+    if any(i == 0 for i in nd.shape):
+        raise ValueError(f'from_numpy: ndarray dimensions must be non-zero, found shape {nd.shape}')
+
+    nd = _ndarray_as_2d(nd)
+    nd = _ndarray_as_float64(nd)
+    n_rows, n_cols = nd.shape
+
+    path = new_local_temp_file()
+    uri = local_path_uri(path)
+    nd.tofile(path)
+    return _breeze_fromfile(uri, n_rows, n_cols)

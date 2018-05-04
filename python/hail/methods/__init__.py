@@ -9,6 +9,7 @@ from .statgen import linear_regression, logistic_regression, linear_mixed_regres
     split_multi_hts, balding_nichols_model, FilterAlleles, ld_prune, min_rep
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
 from .misc import rename_duplicates, maximal_independent_set, filter_intervals
+from .linear_mixed_model import LinearMixedModel
 
 __all__ = ['trio_matrix',
            'linear_regression',
@@ -57,4 +58,5 @@ __all__ = ['trio_matrix',
            'min_rep',
            'filter_intervals',
            'de_novo',
+           'LinearMixedModel'
            ]
