@@ -248,9 +248,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     log.info("in Table.value: execute:\n" + ir.Pretty(opt))
 
-    val tv = opt.execute(hc)
-    // tv.rvd.count()
-    tv
+    opt.execute(hc)
   }
 
   def this(
