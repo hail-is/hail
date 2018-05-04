@@ -1692,7 +1692,10 @@ def import_vcf(path,
     array_elements_required : :obj:`bool`
         If ``True``, all elements in an array field must be present. Set this
         parameter to ``False`` for Hail to allow array fields with missing
-        values such as ``1,.,5``.
+        values such as ``1,.,5``. In this case, the second element will be
+        missing. However, in the case of a single missing element ``.``, the
+        entire field will be missing and **not** an array with one missing 
+        element.
 
     Returns
     -------

@@ -1747,7 +1747,7 @@ class Tests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    def test_import_vcf_missing_array_elements(self):
+    def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows(locus=mt.locus, alleles=mt.alleles, FOO=mt.info.FOO, BAR=mt.info.BAR)
         expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'],
@@ -1758,6 +1758,24 @@ class Tests(unittest.TestCase):
                                                    FOO=hl.tarray(hl.tint), BAR=hl.tarray(hl.tfloat64)),
                                         key=['locus', 'alleles'])
         self.assertTrue(mt.rows()._same(expected))
+
+    def test_import_vcf_missing_format_field_elements(self):
+        mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
+        mt = mt.select_rows('locus', 'alleles').select_entries('AD', 'PL')
+
+        expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 's': 'C1046::HG02024',
+                                          'AD': [None, None], 'PL': [0, None, 180]},
+                                         {'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 's': 'C1046::HG02025',
+                                          'AD': [None, 6], 'PL': [70, None]},
+                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'], 's': 'C1046::HG02024',
+                                          'AD': [0, 0, None], 'PL': [396, None, None, 33, None, 0]},
+                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'], 's': 'C1046::HG02025',
+                                          'AD': [0, 0, 9], 'PL': [None, None, None]}],
+                                        hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr), s=hl.tstr,
+                                                   AD=hl.tarray(hl.tint), PL=hl.tarray(hl.tint)),
+                                        key=['locus', 'alleles', 's'])
+
+        self.assertTrue(mt.entries()._same(expected))
 
     def test_export_import_plink_same(self):
         mt = self.get_dataset()

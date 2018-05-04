@@ -159,7 +159,7 @@ class ImportVCFSuite extends SparkSuite {
       parseCall("""0\0""", 2) == Call2(0, 0)
     }
   }
-  
+
   @Test def randomExportImportIsIdentity() {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
 
