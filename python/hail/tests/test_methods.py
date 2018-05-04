@@ -1747,6 +1747,18 @@ class Tests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
+    def test_import_vcf_missing_array_elements(self):
+        mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
+        mt = mt.select_rows(locus=mt.locus, alleles=mt.alleles, FOO=mt.info.FOO, BAR=mt.info.BAR)
+        expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'],
+                                          'FOO': [1, None], 'BAR': [2, None, None]},
+                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'],
+                                          'FOO': [None, 2, None], 'BAR': [None, 1.0, None]}],
+                                        hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr),
+                                                   FOO=hl.tarray(hl.tint), BAR=hl.tarray(hl.tfloat64)),
+                                        key=['locus', 'alleles'])
+        self.assertTrue(mt.rows()._same(expected))
+
     def test_export_import_plink_same(self):
         mt = self.get_dataset()
         mt = mt.select_rows('locus', 'alleles',

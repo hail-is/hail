@@ -1571,7 +1571,8 @@ def get_vcf_metadata(path):
            drop_samples=bool,
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)))
+           contig_recoding=nullable(dictof(str, str)),
+           array_elements_required=bool)
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -1580,7 +1581,8 @@ def import_vcf(path,
                drop_samples=False,
                call_fields=[],
                reference_genome='default',
-               contig_recoding=None) -> MatrixTable:
+               contig_recoding=None,
+               array_elements_required=True) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1687,6 +1689,10 @@ def import_vcf(path,
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
+    array_elements_required : :obj:`bool`
+        If ``True``, all elements in an array field must be present. Set this
+        parameter to ``False`` for Hail to allow array fields with missing
+        values such as ``1,.,5``.
 
     Returns
     -------
@@ -1700,7 +1706,7 @@ def import_vcf(path,
 
     jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                    joption(min_partitions), drop_samples, jset_args(call_fields),
-                                   joption(rg), joption(contig_recoding))
+                                   joption(rg), joption(contig_recoding), array_elements_required)
 
     return MatrixTable(jmt)
 
