@@ -288,7 +288,7 @@ trait RVD {
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
-      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType), region, RegionValue()))
+      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType), region, RegionValue(region)))
 
   // Only use on CRDD's whose T is not dependent on the context
   private[rvd] def clearingRun[T: ClassTag](
