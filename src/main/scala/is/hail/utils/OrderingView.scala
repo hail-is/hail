@@ -15,7 +15,7 @@ trait OrderingView[A] {
   def isEquivalent(a: A): Boolean = compare(a) == 0
   def setBottom() { isInfinite = -1 }
   def setTop() { isInfinite = 1 }
-  protected var isInfinite: Int = -1
+  private var isInfinite: Int = -1
 }
 
 object OrderingView {
