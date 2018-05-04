@@ -100,7 +100,7 @@ profile file for your shell (e.g. ``~/.bash_profile``).
 
     export SPARK_HOME=/path/to/spark-2.2.0/
     export HAIL_HOME=/path/to/hail/
-    export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip"
+    export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$HAIL_HOME/build/distributions/hail-python.zip"
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python"
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python/lib/py4j-*-src.zip"
     ## PYSPARK_SUBMIT_ARGS is used by ipython and jupyter
