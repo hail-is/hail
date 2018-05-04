@@ -2,11 +2,16 @@ package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.{TFloat64, TInt64, TStruct}
+import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
+import is.hail.expr.{TableLiteral, TableValue}
+import is.hail.expr.types.{TFloat64, TInt64, TStruct, TableType}
 import is.hail.linalg.RowMatrix
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
@@ -19,16 +24,28 @@ object LinearMixedModel {
     new LinearMixedModel(hc,
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
-}
-
-class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
+  
   private val rowType = TStruct(
       "idx" -> TInt64(),
       "beta" -> TFloat64(),
       "sigma_sq" -> TFloat64(),
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
+  
+  def toTable(hc: HailContext,
+    orderedRVDPartitioner: OrderedRVDPartitioner,
+    rdd: RDD[RegionValue]): Table = {
+    
+    val typ = TableType(rowType, Some(FastIndexedSeq("idx")), globalType = TStruct())
+    
+    val orderedRVD = new OrderedRVD(new OrderedRVDType(Array("idx"), Array("idx"), typ.rowType),
+      orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
+    
+    new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), orderedRVD)))
+  }
+}
 
+class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
   def fit(pa_t: RowMatrix, a_t: Option[RowMatrix]): Table =
     if (a_t.isDefined) {
       assert(lmmData.yOpt.isDefined && lmmData.xOpt.isDefined)
@@ -46,7 +63,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(rowType)
+    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
     
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
       val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
@@ -105,13 +122,14 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    new Table(hc, rdd, rowType, Some(FastIndexedSeq("idx")))
+    
+    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
   }
   
   def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(rowType)
+    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
@@ -167,6 +185,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    new Table(hc, rdd, rowType, Some(FastIndexedSeq("idx")))
+    
+    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
   }
 }

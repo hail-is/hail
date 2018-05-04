@@ -4,6 +4,7 @@ from struct import unpack
 from subprocess import DEVNULL, call as syscall
 
 import numpy as np
+import pandas as pd
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1129,3 +1130,171 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
+
+    def test_summarize_variants(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
+                               1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
+                               2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT'])})
+        mt = mt.annotate_rows(**variants[mt.row_idx]).partition_rows_by('locus', 'locus', 'alleles')
+        r = hl.summarize_variants(mt, show=False)
+        self.assertEqual(r.n_variants, 3)
+        self.assertEqual(r.contigs, {'1': 1, '2': 2})
+        self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
+        self.assertEqual(r.allele_counts, {2: 1, 3: 2})
+
+    def test_linear_mixed_model(self):
+        def standardize_cols(a):
+            a = a.copy()
+            col_means = np.mean(a, axis=0, keepdims=True)
+            a -= col_means
+            col_lengths = np.linalg.norm(a, axis=0, keepdims=True)
+            col_filter = col_lengths > 0
+            return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
+
+        seed = 0
+        np.random.seed(seed)
+        n_populations = 8
+        fst = n_populations * [.9]
+        n_samples = 500
+        n_variants = 200
+        n_orig_markers = 100
+        n_culprits = 10
+        n_covariates = 3
+
+        X = np.hstack((np.ones(shape=(n_samples, 1)),
+                       np.random.normal(size=(n_samples, n_covariates - 1))))
+
+        mt = hl.balding_nichols_model(n_populations=n_populations,
+                                      n_samples=n_samples,
+                                      n_variants=n_variants,
+                                      fst=fst,
+                                      seed=seed)
+
+        pa_t_path = utils.new_temp_file(suffix='bm')
+        a_t_path = utils.new_temp_file(suffix='bm')
+
+        BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(), a_t_path)
+
+        A = BlockMatrix.read(a_t_path).T.to_numpy()
+        M = A[:,-n_orig_markers:]
+        G = standardize_cols(M)  # filters constant cols
+
+        n_markers = G.shape[1]
+
+        K = (G @ G.T) * n_samples / n_markers
+
+        beta = np.arange(n_covariates)
+        beta_stars = np.array([1] * n_culprits)
+        sigma_sq = 1
+        tau_sq = 1
+
+        y = np.random.multivariate_normal(
+            np.hstack((A[:,0:n_culprits], X)) @ np.hstack((beta_stars, beta)),
+            sigma_sq * K + tau_sq * np.eye(n_samples))
+
+        # low rank computation of S, P
+        L = G.T @ G
+        SL, V = np.linalg.eigh(L)
+        n_eigenvectors = int((SL > 1e-10).sum())
+        SL = SL[-n_eigenvectors:]
+        V = V[:, -n_eigenvectors:]
+        S = SL * (n_samples / n_markers)
+        P = (G @ (V / np.sqrt(SL))).T
+
+        # compare with full rank S, P
+        SK0, UK = np.linalg.eigh(K)
+        SK = SK0[-n_eigenvectors:]
+        PK = UK[:, -n_eigenvectors:].T
+        assert np.allclose(SK, S)
+        assert np.allclose(np.abs(PK), np.abs(P))
+
+        # build and fit model
+        Py = P @ y
+        PX = P @ X
+        PA = P @ A
+
+        model = hl.LinearMixedModel(Py, PX, S, y, X)
+        model.fit()
+
+        # check fit
+        expected_gamma = 1.4670314820536234
+        expected_log_gamma = 0.38324095908983125
+        expected_beta = np.array([9.46323649, 0.95266717, 1.99121504])
+        expected_sigma_sq = 2.2165956571916907
+        expected_tau_sq = 1.510939393126581
+        expected_h_sq = 0.5946545444294156
+
+        assert model.n == n_samples
+        assert model.f == n_covariates
+        assert model.r == n_eigenvectors
+        assert model.low_rank
+        assert np.isclose(model.optimize_result.x, expected_log_gamma)
+        assert np.isclose(model.log_gamma, expected_log_gamma)
+        assert np.isclose(model.gamma, expected_gamma)
+        assert np.allclose(model.beta, expected_beta)
+        assert np.isclose(model.sigma_sq, expected_sigma_sq)
+        assert np.isclose(model.tau_sq, expected_tau_sq)
+        assert np.isclose(model.h_sq, expected_h_sq)
+
+        # check effect sizes tend to be near 1 for first n_marker augmentations
+        BlockMatrix.from_numpy(PA).T.write(pa_t_path, force_row_major=True)
+        df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas().drop(['idx'], axis=1)
+
+        assert 0.9 < np.mean(df_lmm['beta'][:n_culprits]) < 1.1
+
+        # compare NumPy and Hail LMM per alternative
+        df_numpy = model.fit_alternatives_numpy(PA, A)
+
+        na_numpy = df_numpy.isna().any(axis=1)
+        na_lmm = df_lmm.isna().any(axis=1)
+
+        assert na_numpy.sum() <= 10  # 4
+        assert na_lmm.sum() <= 10  # 6
+        assert np.logical_xor(na_numpy, na_lmm).sum() <= 5  # 2
+
+        mask = ~(na_numpy | na_lmm)
+
+        lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
+
+        assert lmm_vs_numpy_p_value[10] < 1e-12
+        assert lmm_vs_numpy_p_value[-1] < 1e-8
+
+        # compare LinearMixedModel and LinearMixedRegression
+        y_bc = hl.literal(list(y.reshape(n_samples)))
+        cov1_bc = hl.literal(list(X[:, 1]))
+        cov2_bc = hl.literal(list(X[:, 2]))
+
+        mt = mt.annotate_cols(y = y_bc[mt.sample_idx],
+                              cov1 = cov1_bc[mt.sample_idx],
+                              cov2 = cov2_bc[mt.sample_idx])
+        mt = mt.annotate_cols(s = hl.str(mt.sample_idx)).key_cols_by('s')
+
+        mt_markers = mt.filter_rows(mt.locus.position > n_variants - n_orig_markers)
+        rrm = hl.realized_relationship_matrix(mt_markers.GT)
+        mt_lmr = hl.linear_mixed_regression(rrm, mt.y,
+                                            mt.GT.n_alt_alleles(),
+                                            [mt.cov1, mt.cov2],
+                                            n_eigenvectors=n_eigenvectors)
+
+        delta = mt_lmr.lmmreg_global.delta.collect()[0]
+        expected_delta = 1 / expected_gamma
+
+        assert np.isclose(delta, expected_delta)
+
+        ht_lmr = mt_lmr.rows()
+        df_lmr = ht_lmr.select(beta = ht_lmr.lmmreg.beta,
+                               sigma_sq = ht_lmr.lmmreg.sigma_g_squared,
+                               chi_sq = ht_lmr.lmmreg.chi_sq_stat,
+                               p_value = ht_lmr.lmmreg.p_value).to_pandas()
+
+        na_lmr = df_lmr.isna().any(axis=1)
+
+        assert na_lmr.sum() <= 10  # 6
+        assert np.logical_xor(na_numpy, na_lmm).sum() <= 5  # 0
+        mask = ~(na_lmm | na_lmr)
+
+        lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
+
+        assert lmm_vs_lmr[10] < 1e-6
+        assert lmm_vs_lmr[-1] < 1e-2
