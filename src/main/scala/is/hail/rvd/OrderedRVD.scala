@@ -799,8 +799,7 @@ object OrderedRVD {
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
             assert(partBc.value.getPartition(k) == i)
-            RVD.bytesToRegionValue(dec, region, rv)(
-              bytes)
+            RVD.bytesToRegionValue(dec, region, rv)(bytes)
           }
       })
   }
