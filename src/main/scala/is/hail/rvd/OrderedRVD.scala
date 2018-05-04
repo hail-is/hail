@@ -349,12 +349,11 @@ class OrderedRVD(
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    val newCRDD = crdd.mapPartitions { it =>
+    mapPartitionsPreservesPartitioning(typ)(it =>
       OrderedRVIterator(localType, it)
         .staircase
         .map(_.value)
-    }
-    OrderedRVD(typ, partitioner, newCRDD)
+    )
   }
 
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
