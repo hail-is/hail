@@ -69,11 +69,11 @@ You can now click on the "01-genome-wide-association-study" notebook to get star
 In the future, if you want to run:
 
  - Hail in Python use `hail`
- 
+
  - Hail in IPython use `ihail`
- 
+
  - Hail in a Jupyter Notebook use `jhail`
- 
+
 Hail will not import correctly from a normal Python interpreter, a normal IPython interpreter, nor a normal Jupyter Notebook.
 
 Running on a Spark cluster
@@ -92,56 +92,80 @@ cluster::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar archiveZip
 
-An IPython shell which can run Hail backed by the cluster can be started with
-the following command, it is important that the Spark located at ``SPARK_HOME``
-has the exact same version as provided to the previous command::
+Python and IPython need a few environment variables to correctly find Spark and
+the Hail jar. We recommend you set these environment variables in the relevant
+profile file for your shell (e.g. ``~/.bash_profile``).
 
-    SPARK_HOME=/path/to/spark/ \
-    HAIL_HOME=/path/to/hail/ \
-    PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip" \
+.. code-block:: sh
+
+    export SPARK_HOME=/path/to/spark-2.2.0/
+    export HAIL_HOME=/path/to/hail/
+    export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$HAIL_HOME/build/distributions/hail-python.zip"
+    export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python"
+    export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python/lib/py4j-*-src.zip"
+    ## PYSPARK_SUBMIT_ARGS is used by ipython and jupyter
+    export PYSPARK_SUBMIT_ARGS="\
+      --conf spark.driver.extraClassPath=\"$HAIL_HOME/build/libs/hail-all-spark.jar\" \
+      --conf spark.executor.extraClassPath=./hail-all-spark.jar \
+      pyspark-shell"
+
+If the previous environment variables are set correctly, an IPython shell which
+can run Hail backed by the cluster can be started with the following command::
+
     ipython
 
-Within the interactive shell, check that you can initialize Hail by running the
-following commands. Note that you must pass in the existing ``SparkContext``
-instance ``sc`` to the ``hail.init`` function.
-
-  .. code-block:: python
-
-    >>> import hail as hl
-    >>> hl.init(sc)
-    
-Files can be accessed from both Hadoop and Google Storage. If you're running on Google's Dataproc, you'll want to store your files in Google Storage. In most on premises clusters, you'll want to store your files in Hadoop.
-
-To convert *sample.vcf* stored in Google Storage into Hail's **.vds** format, run:
-
-  .. code-block:: python
-
-    >>> hl.import_vcf('gs:///path/to/sample.vcf').write('gs:///output/path/sample.vds')
-    
-To convert *sample.vcf* stored in Hadoop into Hail's **.vds** format, run:
-
-   .. code-block:: python
-
-    >>> hl.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
-
-It is also possible to run Hail non-interactively, by passing a Python script to
-``spark-submit``. In this case, it is not necessary to set any environment
-variables.
-
-For example,
-
-.. code-block:: text
-
-    spark-submit --jars build/libs/hail-all-spark.jar \
-                 --py-files build/distributions/hail-python.zip \
-                 hailscript.py
-
-runs the script `hailscript.py` (which reads and writes files from Hadoop):
+When using ``ipython``, you can import hail and start interacting directly
 
 .. code-block:: python
 
-    import hail as hl
-    hl.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
+    >>> import hail as hl
+    >>> mt = hl.balding_nichols_model(3, 100, 100)
+    >>> mt.aggregate_entries(hl.agg.mean(mt.GT.n_alt_alleles()))
+
+You can also interact with hail via a ``pyspark`` session, but you will need to
+pass the configuration from ``PYSPARK_SUBMIT_ARGS`` directly as well as adding
+extra configuration parameters specific to running Hail through ``pyspark``::
+
+    pyspark \
+      --conf spark.driver.extraClassPath=$HAIL_HOME/build/libs/hail-all-spark.jar \
+      --conf spark.executor.extraClassPath=./hail-all-spark.jar \
+      --conf spark.sql.files.openCostInBytes=1099511627776 \
+      --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+      --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator
+
+Moreover, unlike in ``ipython``, ``pyspark`` provides a Spark Context via the
+global variable ``sc``. For Hail to interact properly with the Spark cluster,
+you must tell hail about this special Spark Context
+
+.. code-block:: python
+
+    >>> import hail as hl
+    >>> hl.init(sc)
+
+After this initialization step, you can interact as you would in ``ipython``
+
+.. code-block:: python
+
+    >>> mt = hl.balding_nichols_model(3, 100, 100)
+    >>> mt.aggregate_entries(hl.agg.mean(mt.GT.n_alt_alleles()))
+
+It is also possible to run Hail non-interactively, by passing a Python script to
+``spark-submit``. Again, you will need to explicitly pass several configuration
+parameters to ``spark-submit``
+
+.. code-block:: sh
+
+    spark-submit \
+      --jars "$HAIL_HOME/build/libs/hail-all-spark.jar" \
+      --py-files "$HAIL_HOME/build/distributions/hail-python.zip" \
+      --conf spark.driver.extraClassPath="$HAIL_HOME/build/libs/hail-all-spark.jar" \
+      --conf spark.executor.extraClassPath=./hail-all-spark.jar \
+      --conf spark.sql.files.openCostInBytes=1099511627776 \
+      --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+      --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
+      your-hail-python-script-here.py
 
 .. _running-on-a-cloudera-cluster:
 
@@ -160,18 +184,21 @@ the same as above, except:
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
    version of Spark. The following example builds a Hail JAR for Cloudera's
    2.2.0 version of Spark::
- 
+
     ./gradlew shadowJar -Dspark.version=2.2.0.cloudera
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
 
  - On Cloudera, you can create an interactive Python shell using ``pyspark``::
- 
+
     pyspark --jars build/libs/hail-all-spark.jar \
             --py-files build/distributions/hail-python.zip \
+            --conf spark.driver.extraClassPath="build/libs/hail-all-spark.jar" \
+            --conf spark.executor.extraClassPath=./hail-all-spark.jar \
             --conf spark.sql.files.openCostInBytes=1099511627776 \
             --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+            --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
             --conf spark.hadoop.parquet.block.size=1099511627776
 
