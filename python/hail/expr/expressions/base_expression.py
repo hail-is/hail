@@ -56,7 +56,7 @@ def impute_type(x):
         return ttuple(*(impute_type(element) for element in x))
     elif isinstance(x, list):
         if len(x) == 0:
-            raise ExpressionException('Cannot impute type of empty list.')
+            raise ExpressionException("Cannot impute type of empty list. Use 'hl.empty_array' to create an empty array.")
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -65,7 +65,7 @@ def impute_type(x):
         return tarray(unified_type)
     elif isinstance(x, set):
         if len(x) == 0:
-            raise ExpressionException('Cannot impute type of empty set.')
+            raise ExpressionException("Cannot impute type of empty set. Use 'hl.empty_set' to create an empty set.")
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
         if not unified_type:
@@ -74,7 +74,7 @@ def impute_type(x):
         return tset(unified_type)
     elif isinstance(x, dict):
         if len(x) == 0:
-            raise ExpressionException('Cannot impute type of empty dict.')
+            raise ExpressionException("Cannot impute type of empty dict. Use 'hl.empty_dict' to create an empty dict.")
         kts = {impute_type(element) for element in x.keys()}
         vts = {impute_type(element) for element in x.values()}
         unified_key_type = unify_types_limited(*kts)
