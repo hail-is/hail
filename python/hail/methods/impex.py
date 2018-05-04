@@ -121,10 +121,9 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     BED, BIM and FAM files.
 
     .. include:: ../_templates/req_tvariant_w_struct_locus.rst
-
     .. include:: ../_templates/req_tstring.rst
-
     .. include:: ../_templates/req_biallelic.rst
+    .. include:: ../_templates/req_unphased_diploid_gt.rst
 
     Examples
     --------
