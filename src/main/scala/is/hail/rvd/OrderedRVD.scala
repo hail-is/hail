@@ -141,7 +141,7 @@ class OrderedRVD(
     assert(partitioner == rdd2.partitioner)
 
     val localTyp = typ
-    boundary.zipPartitions(typ, partitioner, rdd2.boundary) { (ctx, it, it2) =>
+    zipPartitions(typ, partitioner, rdd2) { (ctx, it, it2) =>
       new Iterator[RegionValue] {
         private val bit = it.buffered
         private val bit2 = it2.buffered
