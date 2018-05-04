@@ -25,12 +25,6 @@ class OrderedRVD(
 ) extends RVD {
   self =>
 
-  def this(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]
-  ) = this(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
-
   def boundary: OrderedRVD = OrderedRVD(typ, partitioner, crddBoundary)
 
   def rowType: TStruct = typ.rowType
@@ -462,7 +456,7 @@ object OrderedRVD {
   def empty(sc: SparkContext, typ: OrderedRVDType): OrderedRVD = {
     OrderedRVD(typ,
       OrderedRVDPartitioner.empty(typ),
-      sc.emptyRDD[RegionValue])
+      ContextRDD.empty[RVDContext, RegionValue](sc))
   }
 
   /**
@@ -735,15 +729,6 @@ object OrderedRVD {
     adjustBoundsAndShuffle(typ, partitioner, rvd.crdd)
   }
 
-  def adjustBoundsAndShuffle(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]
-  ): OrderedRVD = adjustBoundsAndShuffle(
-    typ,
-    partitioner,
-    ContextRDD.weaken[RVDContext](rdd))
-
   private[this] def adjustBoundsAndShuffle(
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
@@ -767,12 +752,6 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     rvd: RVD
   ): OrderedRVD = shuffle(typ, partitioner, rvd.crdd)
-
-  def shuffle(typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]
-  ): OrderedRVD =
-    shuffle(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
 
   def shuffle(
     typ: OrderedRVDType,
@@ -893,12 +872,6 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     rvd: RVD
   ): OrderedRVD = apply(typ, partitioner, rvd.crdd)
-
-  def apply(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]
-  ): OrderedRVD = apply(typ, partitioner, ContextRDD.weaken[RVDContext](rdd))
 
   def apply(
     typ: OrderedRVDType,

@@ -17,9 +17,6 @@ object UnpartitionedRVD {
 class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
-  def this(rowType: TStruct, rdd: RDD[RegionValue]) =
-    this(rowType, ContextRDD.weaken[RVDContext](rdd))
-
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
   def head(n: Long): UnpartitionedRVD =
