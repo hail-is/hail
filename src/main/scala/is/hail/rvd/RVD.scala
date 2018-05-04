@@ -138,10 +138,7 @@ object RVD {
       ContextRDD.union(sc, rvds.map(_.crdd)))
   }
 
-  val memoryCodec =
-    new PackCodecSpec(
-      new BlockingBufferSpec(32 * 1024,
-        new StreamBlockBufferSpec))
+  val memoryCodec = CodecSpec.defaultUncompressed
 
   val wireCodec = memoryCodec
 
