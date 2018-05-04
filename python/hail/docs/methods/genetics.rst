@@ -11,7 +11,8 @@ Genetics
     balding_nichols_model
     concordance
     filter_intervals
-    FilterAlleles
+    filter_alleles
+    filter_alleles_hts
     hwe_normalized_pca
     identity_by_descent
     genetic_relatedness_matrix
@@ -20,7 +21,6 @@ Genetics
     ld_prune
     mendel_errors
     de_novo
-    min_rep
     nirvana
     pc_relate
     sample_qc
@@ -36,7 +36,8 @@ Genetics
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
 .. autofunction:: filter_intervals
-.. autoclass:: FilterAlleles
+.. autofunction:: filter_alleles
+.. autofunction:: filter_alleles_hts
 .. autofunction:: hwe_normalized_pca
 .. autofunction:: identity_by_descent
 .. autofunction:: genetic_relatedness_matrix
@@ -45,7 +46,6 @@ Genetics
 .. autofunction:: ld_prune
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
-.. autofunction:: min_rep
 .. autofunction:: nirvana
 .. autofunction:: pc_relate
 .. autofunction:: sample_qc

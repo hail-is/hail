@@ -51,7 +51,8 @@ Methods
     balding_nichols_model
     concordance
     filter_intervals
-    FilterAlleles
+    filter_alleles
+    filter_alleles_hts
     genetic_relatedness_matrix
     hwe_normalized_pca
     identity_by_descent
@@ -59,7 +60,6 @@ Methods
     ld_prune
     mendel_errors
     de_novo
-    min_rep
     nirvana
     pc_relate
     realized_relationship_matrix

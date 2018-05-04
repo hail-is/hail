@@ -1438,42 +1438,36 @@ class Tests(unittest.TestCase):
         for path in paths:
             ds = hl.import_vcf(path)
             self.assertEqual(
-                hl.FilterAlleles(hl.range(0, ds.alleles.length() - 1).map(lambda i: False))
-                    .filter()
-                    .count_rows(), 0)
-            self.assertEqual(
-                hl.FilterAlleles(hl.range(0, ds.alleles.length() - 1).map(lambda i: True))
-                    .filter()
-                    .count_rows(), ds.count_rows())
+                hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
+            self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    def test_filter_alleles2(self):
+    def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
 
-        fa = hl.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "T"))
-        fa.subset_entries_hts()
         self.assertTrue(
-            hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))._same(fa.filter()))
+            hl.filter_alleles_hts(ds, lambda a, i: a == 'T', subset=True)
+                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))))
 
-        fa = hl.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
-        # test fa.annotate_rows
-        fa.annotate_rows(new_to_old=fa.new_to_old)
-        fa.subset_entries_hts()
         self.assertTrue(
-            (hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf'))
-                .annotate_rows(new_to_old=[0, 2])
-                ._same(fa.filter())))
+            hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=True)
+            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+            ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
+        )
 
-        # also test keep=False
-        fa = hl.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"), keep=False)
-        fa.downcode_entries_hts()
         self.assertTrue(
-            hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf'))._same(fa.filter()))
+            hl.filter_alleles_hts(ds, lambda a, i: a != 'G', subset=False)
+                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
+        )
 
-        fa = hl.FilterAlleles(ds.alleles[1:].map(lambda aa: aa == "G"))
-        fa.downcode_entries_hts()
+        (hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)).old_to_new.show()
         self.assertTrue(
-            hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf'))._same(fa.filter()))
+            hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
+                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+                ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
+        )
 
     def test_ld_prune(self):
         ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
@@ -1535,11 +1529,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(entries_table.count(), n_cols * n_rows)
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
-
-    def test_min_rep(self):
-        # FIXME actually test
-        ds = self.get_dataset()
-        hl.min_rep(ds).count()
 
     def test_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)

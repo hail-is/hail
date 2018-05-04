@@ -68,6 +68,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     map
     flatmap
     zip
+    zip_with_index
     flatten
     any
     all

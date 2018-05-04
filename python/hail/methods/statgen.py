@@ -10,7 +10,7 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_col_key_str, maximal_independent_set
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str, maximal_independent_set
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -2541,390 +2541,344 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                             mixture)
     return MatrixTable(jmt)
 
+@typecheck(mt=MatrixTable,f=anytype)
+def filter_alleles(mt: MatrixTable,
+                   f: Callable) -> MatrixTable:
+    """Filter alternate alleles.
 
-class FilterAlleles(object):
-    """Filter out a set of alternate alleles.  If all alternate alleles of
-    a variant are filtered out, the variant itself is filtered out.
-    `filter_expr` is an alternate allele indexed `Array[Boolean]`
-    where the booleans, combined with `keep`, determine which
-    alternate alleles to filter out.
-
-    This object has bindings for values used in the filter alleles
-    process: `old_to_new`, `new_to_old`, `new_locus`, and `new_alleles`.  Call
-    :meth:`.FilterAlleles.annotate_rows` and/or
-    :meth:`.FilterAlleles.annotate_entries` to update row-indexed and
-    row- and column-indexed fields for the new, allele-filtered
-    variant.  Finally, call :meth:`.FilterAlleles.filter` to perform
-    filter alleles.
+    .. include:: ../_templates/req_tvariant.rst
 
     Examples
     --------
-    
-    Filter alleles with zero AC count on a dataset with the HTS entry
-    schema and update the ``info.AC`` and entry fields.
+    Keep SNPs:
 
-    >>> fa = hl.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
-    >>> fa.annotate_rows(
-    ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
-    >>> newPL = hl.cond(
-    ...     hl.is_defined(dataset.PL),
-    ...     hl.range(0, hl.triangle(fa.new_alleles.length())).map(
-    ...         lambda newi: hl.bind(
-    ...             lambda newc: dataset.PL[hl.call(fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()],
-    ...             hl.unphased_diploid_gt_index_call(newi))),
-    ...     hl.null(hl.tarray(hl.tint32)))
-    >>> fa.annotate_entries(
-    ...     GT = hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
-    ...     AD = hl.cond(
-    ...         hl.is_defined(dataset.AD),
-    ...         hl.range(0, fa.new_alleles.length()).map(
-    ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
-    ...         hl.null(hl.tarray(hl.tint32))),
-    ...     GQ = hl.gq_from_pl(newPL),
-    ...     PL = newPL)
-    >>> filtered_result = fa.filter()
-    
+    >>> ds_result = hl.filter_alleles(ds, lambda allele, _: hl.is_snp(ds.alleles[0], allele))
+
+    Keep alleles with AC > 0:
+
+    >>> ds_result = hl.filter_alleles(ds, lambda _, allele_index: mt.info.AC[allele_index - 1] > 0)
+
+    Update the AC field of the resulting dataset:
+
+    >>> ds_result = ds_result.annotate_rows(info = ds_result.info.annotate(
+    ...     AC = ds_result.new_to_old.map(lambda i: ds_result.info.AC[i-1]))
+
+    Notes
+    -----
+    The following new fields are generated:
+
+     - `old_locus` (``locus``) -- The old locus, before filtering and computing
+       the minimal representation.
+     - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
+       computing the minimal representation.
+     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+       new allele index. Its length is the same as `old_alleles`. Alleles that
+       are filtered are missing.
+     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+       the old allele index. Its length is the same as the modified `alleles`
+       field.
+
+    If all alternate alleles of a variant are filtered out, the variant itself
+    is filtered out.
+
+    **Using _f_**
+
+    The `f` argument is a function or lambda evaluated per alternate allele to
+    determine whether that allele is kept. If `f` evaluates to ``True``, the
+    allele is kept. If `f` evaluates to ``False`` or missing, the allele is
+    removed.
+
+    Warning
+    -------
+    :func:`.filter_alleles` does not update any fields other than `locus` and
+    `alleles`. This means that row fields like allele count (AC) and entry
+    fields like allele depth (AD) can become meaningless unless they are also
+    updated. You can update them with :meth:`.annotate_rows` and
+    :meth:`.annotate_entries`.
+
+    See Also
+    --------
+    :func:`.filter_alleles_hts`
+
     Parameters
     ----------
-    filter_expr : :class:`.ArrayBooleanExpression`
-        Boolean filter expression.
-    keep : bool
-        If ``True``, keep alternate alleles where the corresponding
-        element of `filter_expr` is ``True``.  If False, remove the
-        alternate alleles where the corresponding element is ``True``.
-    left_aligned : bool
-        If ``True``, variants are assumed to be left aligned and have
-        unique loci.  This avoids a shuffle.  If the assumption is
-        violated, an error is generated.
-    keep_star : bool
-        If ``True``, keep variants where the only unfiltered alternate
-        alleles are ``*`` alleles.
+    mt : :class:`.MatrixTable`
+        Dataset.
+    f : callable
+        Function from (allele: :class:`StringExpression`, allele_index:
+        :class:`.Int32Expression`) to :class:`.BooleanExpression`
+
+    Returns
+    -------
+    :class:`.MatrixTable`
     """
+    require_row_key_variant(mt, 'filter_alleles')
+    inclusion = hl.range(0, hl.len(mt.alleles)).map(lambda i: (i == 0) | hl.bind(lambda ii: f(mt.alleles[ii], ii), i))
 
-    @typecheck_method(filter_expr=expr_array(expr_bool), keep=bool, left_aligned=bool, keep_star=bool)
-    def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
-        source = filter_expr._indices.source
-        if not isinstance(source, MatrixTable):
-            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-        ds = source
-        require_biallelic(ds, 'FilterAlleles')
+    # old locus, old alleles, new to old, old to new
+    mt = mt.annotate_rows(__allele_inclusion=inclusion,
+                          old_locus=mt.locus,
+                          old_alleles=mt.alleles)
+    new_to_old = (hl.zip_with_index(mt.__allele_inclusion)
+                  .filter(lambda elt: elt[1])
+                  .map(lambda elt: elt[0]))
+    old_to_new_dict = (hl.dict(hl.zip_with_index(hl.zip_with_index(mt.alleles)
+                                                 .filter(lambda elt: mt.__allele_inclusion[elt[0]]))
+                               .map(lambda elt: (elt[1][1], elt[0]))))
 
-        analyze('FilterAlleles', filter_expr, ds._row_indices)
+    old_to_new = hl.bind(lambda d: mt.alleles.map(lambda a: d.get(a)), old_to_new_dict)
+    mt = mt.annotate_rows(old_to_new=old_to_new, new_to_old=new_to_old)
+    new_locus, new_alleles = hl.min_rep(mt.locus, mt.new_to_old.map(lambda i: mt.alleles[i]))
+    mt = mt.annotate_rows(__new_locus=new_locus, __new_alleles=new_alleles)
+    mt = mt.filter_rows(hl.len(mt.__new_alleles) > 1)
+    left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
-        self._ds = ds
-        self._filter_expr = filter_expr
-        self._keep = keep
-        self._left_aligned = left_aligned
-        self._keep_star = keep_star
-        self._row_exprs = None
-        self._entry_exprs = None
+    right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
+    right = right.annotate_rows(locus=right.__new_locus, alleles=right.__new_alleles)
+    return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
-        self._old_to_new = construct_reference('oldToNew', tarray(tint32), ds._row_indices)
-        self._new_to_old = construct_reference('newToOld', tarray(tint32), ds._row_indices)
-        self._new_locus = construct_reference('newLocus', ds['locus'].dtype, ds._row_indices)
-        self._new_alleles = construct_reference('newAlleles', ds['alleles'].dtype, ds._row_indices)
 
-    @property
-    def new_to_old(self):
-        """The array of old allele indices, such that ``new_to_old[newIndex] =
-        oldIndex`` and ``new_to_old[0] == 0``. A row-indexed expression.
-        
-        Returns
-        -------
-        :class:`.ArrayInt32Expression`
-            The array of old indices.
-        """
-        return self._new_to_old
+@typecheck(mt=MatrixTable, f=anytype, subset=bool)
+def filter_alleles_hts(mt: MatrixTable,
+                       f: Callable,
+                       subset: bool = False) -> MatrixTable:
+    """Filter alternate alleles and update standard GATK entry fields.
 
-    @property
-    def old_to_new(self):
-        """The array of new allele indices. All old filtered alleles have new
-        index 0. A row-indexed expression.
-        
-        Returns
-        -------
-        :class:`.ArrayInt32Expression`
-            The array of new indices.
-        """
-        return self._old_to_new
+    Examples
+    --------
+    Filter to SNP alleles using the subset strategy:
 
-    @property
-    def new_locus(self):
-        """The new locus. A row-indexed expression.
+    >>> ds_result = hl.filter_alleles_hts(
+    ...     ds,
+    ...     lambda allele, _: hl.is_snp(ds.alleles[0], allele),
+    ...     subset=True)
 
-        Returns
-        -------
-        :class:`.LocusExpression`
-        """
-        return self._new_locus
+    Update the AC field of the resulting dataset:
 
-    @property
-    def new_alleles(self):
-        """The new alleles. A row-indexed expression.
+    >>> ds_result = ds_result.annotate_rows(info = ds_result.info.annotate(
+    ...     AC = ds_result.new_to_old.map(lambda i: ds_result.info.AC[i-1]))
 
-        Returns
-        -------
-        :class:`.ArrayStringExpression`
-        """
-        return self._new_alleles
+    Notes
+    -----
 
-    def annotate_rows(self, **named_exprs):
-        """Create or update row-indexed fields for the new, allele-filtered
-        variant.
+    :func:`.filter_alleles_hts` requires the dataset have the GATK VCF schema,
+    namely the following entry fields in this order:
 
-        Parameters
-        ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Field names and the row-indexed expressions to compute them.
-        """
-        if self._row_exprs:
-            raise RuntimeError('annotate_rows already called')
-        for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, self._ds._row_indices)
-        self._row_exprs = named_exprs
+    .. code-block:: text
 
-    def annotate_entries(self, **named_exprs):
-        """Create or update row- and column-indexed fields (entry fields) for
-        the new, allele-filtered variant.
+        GT: call
+        AD: array<int32>
+        DP: int32
+        GQ: int32
+        PL: array<int32>
 
-        Parameters
-        ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Field names and the row- and column-indexed expressions to
-            compute them.
-        """
-        if self._entry_exprs:
-            raise RuntimeError('annotate_entries already called')
-        for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, self._ds._entry_indices)
-        self._entry_exprs = named_exprs
+    Use :meth:`.MatrixTable.select_entries` to rearrange these fields if
+    necessary.
 
-    def subset_entries_hts(self):
-        """Use the subset algorithm to update the matrix table entries for the
-        new, allele-filtered variant.  
+    The following new fields are generated:
 
-        Notes
-        -----
+     - `old_locus` (``locus``) -- The old locus, before filtering and computing
+       the minimal representation.
+     - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
+       computing the minimal representation.
+     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+       new allele index. Its length is the same as `old_alleles`. Alleles that
+       are filtered are missing.
+     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+       the old allele index. Its length is the same as the modified `alleles`
+       field.
 
-        :meth:`.FilterAlleles.subset_entries_hts` requires the dataset
-        have the HTS schema, namely the following entry fields:
+    **Downcode algorithm**
 
-        .. code-block:: text
+    We will illustrate the behavior on the example genotype below
+    when filtering the first alternate allele (allele 1) at a site
+    with 1 reference allele and 2 alternate alleles.
 
-            GT: call
-            AD: array<int32>
-            DP: int32
-            GQ: int32
-            PL: array<int32>
+    .. code-block:: text
 
-        **Subset algorithm**
+      GT: 1/2
+      GQ: 10
+      AD: 0,50,35
 
-        We will illustrate the behavior on the example genotype below
-        when filtering the first alternate allele (allele 1) at a site
-        with 1 reference allele and 2 alternate alleles.
+      0 | 1000
+      1 | 1000   10
+      2 | 1000   0     20
+        +-----------------
+           0     1     2
 
-        .. code-block:: text
+    The downcode algorithm recodes occurances of filtered alleles
+    to occurances of the reference allele (e.g. 1 -> 0 in our
+    example). So the depths of filtered alleles in the AD field
+    are added to the depth of the reference allele. Where
+    downcoding filtered alleles merges distinct genotypes, the
+    minimum PL is used (since PL is on a log scale, this roughly
+    corresponds to adding probabilities). The PLs are then
+    re-normalized (shifted) so that the most likely genotype has a
+    PL of 0, and GT is set to this genotype.  If an allele is
+    filtered, this algorithm acts similarly to
+    :func:`.split_multi_hts`.
 
-          GT: 1/2
-          GQ: 10
-          AD: 0,50,35
+    The downcode algorithm would produce the following:
 
-          0 | 1000
-          1 | 1000   10
-          2 | 1000   0     20
-            +-----------------
-               0     1     2
+    .. code-block:: text
 
-        The subset algorithm subsets the AD and PL arrays
-        (i.e. removes entries corresponding to filtered alleles) and
-        then sets GT to the genotype with the minimum PL.  Note that
-        if the genotype changes (as in the example), the PLs are
-        re-normalized (shifted) so that the most likely genotype has a
-        PL of 0.  Qualitatively, subsetting corresponds to the belief
-        that the filtered alleles are not real so we should discard
-        any probability mass associated with them.
+      GT: 0/1
+      GQ: 10
+      AD: 35,50
 
-        The subset algorithm would produce the following:
+      0 | 20
+      1 | 0    10
+        +-----------
+          0    1
 
-        .. code-block:: text
+    In summary:
 
-          GT: 1/1
-          GQ: 980
-          AD: 0,50
+     - GT: Downcode filtered alleles to reference.
+     - AD: Columns of filtered alleles are eliminated and their
+       values are added to the reference column, e.g., filtering
+       alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
+     - DP: No change.
+     - PL: Downcode filtered alleles to reference, combine PLs
+       using minimum for each overloaded genotype, and shift so
+       the overall minimum PL is 0.
+     - GQ: The second-lowest PL (after shifting).
 
-          0 | 980
-          1 | 980    0
-            +-----------
-               0      1
+    **Subset algorithm**
 
-        In summary:
+    We will illustrate the behavior on the example genotype below
+    when filtering the first alternate allele (allele 1) at a site
+    with 1 reference allele and 2 alternate alleles.
 
-         - GT: Set to most likely genotype based on the PLs ignoring
-           the filtered allele(s).
-         - AD: The filtered alleles' columns are eliminated, e.g.,
-           filtering alleles 1 and 2 transforms ``25,5,10,20`` to
-           ``25,20``.
-         - DP: Unchanged.
-         - PL: Columns involving filtered alleles are eliminated and
-           the remaining columns' values are shifted so the minimum
-           value is 0.
-         - GQ: The second-lowest PL (after shifting).
-        """
-        ds = self._ds
+    .. code-block:: text
+
+      GT: 1/2
+      GQ: 10
+      AD: 0,50,35
+
+      0 | 1000
+      1 | 1000   10
+      2 | 1000   0     20
+        +-----------------
+           0     1     2
+
+    The subset algorithm subsets the AD and PL arrays
+    (i.e. removes entries corresponding to filtered alleles) and
+    then sets GT to the genotype with the minimum PL.  Note that
+    if the genotype changes (as in the example), the PLs are
+    re-normalized (shifted) so that the most likely genotype has a
+    PL of 0.  Qualitatively, subsetting corresponds to the belief
+    that the filtered alleles are not real so we should discard
+    any probability mass associated with them.
+
+    The subset algorithm would produce the following:
+
+    .. code-block:: text
+
+      GT: 1/1
+      GQ: 980
+      AD: 0,50
+
+      0 | 980
+      1 | 980    0
+        +-----------
+           0      1
+
+    In summary:
+
+     - GT: Set to most likely genotype based on the PLs ignoring
+       the filtered allele(s).
+     - AD: The filtered alleles' columns are eliminated, e.g.,
+       filtering alleles 1 and 2 transforms ``25,5,10,20`` to
+       ``25,20``.
+     - DP: Unchanged.
+     - PL: Columns involving filtered alleles are eliminated and
+       the remaining columns' values are shifted so the minimum
+       value is 0.
+     - GQ: The second-lowest PL (after shifting).
+
+    Warning
+    -------
+    :func:`.filter_alleles_hts` does not update any row fields other than
+    `locus` and `alleles`. This means that row fields like allele count (AC) can
+    become meaningless unless they are also updated. You can update them with
+    :meth:`.annotate_rows`.
+
+    See Also
+    --------
+    :func:`.filter_alleles`
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+    f : callable
+        Function from (allele: :class:`StringExpression`, allele_index:
+        :class:`.Int32Expression`) to :class:`.BooleanExpression`
+    subset : :obj:`.bool`
+        Subset PL field if ``True``, otherwise downcode PL field. The
+        calculation of GT and GQ also depend on whether one subsets or
+        downcodes the PL.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    if mt.entry.dtype != hl.hts_entry_schema:
+        raise FatalError("'filter_alleles_hts': entry schema must be the HTS entry schema:\n"
+                         "  found: {}\n"
+                         "  expected: {}\n"
+                         "  Use 'hl.filter_alleles' to split entries with non-HTS entry fields.".format(
+            mt.entry.dtype, hl.hts_entry_schema
+        ))
+
+    mt = filter_alleles(mt, f)
+
+    if subset:
         newPL = hl.cond(
-            hl.is_defined(ds.PL),
+            hl.is_defined(mt.PL),
             hl.bind(
                 lambda unnorm: unnorm - hl.min(unnorm),
-                hl.range(0, hl.triangle(self.new_alleles.length())).map(
+                hl.range(0, hl.triangle(mt.alleles.length())).map(
                     lambda newi: hl.bind(
-                        lambda newc: ds.PL[hl.call(self.new_to_old[newc[0]],
-                                                   self.new_to_old[newc[1]]).unphased_diploid_gt_index()],
+                        lambda newc: mt.PL[hl.call(mt.new_to_old[newc[0]],
+                                                   mt.new_to_old[newc[1]]).unphased_diploid_gt_index()],
                         hl.unphased_diploid_gt_index_call(newi)))),
             hl.null(tarray(tint32)))
-        self.annotate_entries(
+        return mt.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
             AD=hl.cond(
-                hl.is_defined(ds.AD),
-                hl.range(0, self.new_alleles.length()).map(
-                    lambda newi: ds.AD[self.new_to_old[newi]]),
+                hl.is_defined(mt.AD),
+                hl.range(0, mt.alleles.length()).map(
+                    lambda newi: mt.AD[mt.new_to_old[newi]]),
                 hl.null(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)
-
-    def downcode_entries_hts(self):
-        """Use the downcode algorithm to update the matrix table entries for
-        the new, allele-filtered variant.  
-
-        Notes
-        ------
-
-        :meth:`.FilterAlleles.downcode_entries_hts` requires the dataset have the
-        HTS schema, namely the following entry fields:
-
-        .. code-block:: text
-
-            GT: call
-            AD: array<int32>
-            DP: int32
-            GQ: int32
-            PL: array<int32>
-
-        **Downcode algorithm**
-
-        We will illustrate the behavior on the example genotype below
-        when filtering the first alternate allele (allele 1) at a site
-        with 1 reference allele and 2 alternate alleles.
-
-        .. code-block:: text
-
-          GT: 1/2
-          GQ: 10
-          AD: 0,50,35
-
-          0 | 1000
-          1 | 1000   10
-          2 | 1000   0     20
-            +-----------------
-               0     1     2
-
-        The downcode algorithm recodes occurances of filtered alleles
-        to occurances of the reference allele (e.g. 1 -> 0 in our
-        example). So the depths of filtered alleles in the AD field
-        are added to the depth of the reference allele. Where
-        downcoding filtered alleles merges distinct genotypes, the
-        minimum PL is used (since PL is on a log scale, this roughly
-        corresponds to adding probabilities). The PLs are then
-        re-normalized (shifted) so that the most likely genotype has a
-        PL of 0, and GT is set to this genotype.  If an allele is
-        filtered, this algorithm acts similarly to
-        :func:`.split_multi_hts`.
-
-        The downcode algorithm would produce the following:
-
-        .. code-block:: text
-
-          GT: 0/1
-          GQ: 10
-          AD: 35,50
-
-          0 | 20
-          1 | 0    10
-            +-----------
-              0    1
-
-        In summary:
-
-         - GT: Downcode filtered alleles to reference.
-         - AD: Columns of filtered alleles are eliminated and their
-           values are added to the reference column, e.g., filtering
-           alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
-         - DP: No change.
-         - PL: Downcode filtered alleles to reference, combine PLs
-           using minimum for each overloaded genotype, and shift so
-           the overall minimum PL is 0.
-         - GQ: The second-lowest PL (after shifting).
-        """
-        ds = self._ds
+    # otherwise downcode
+    else:
+        mt = mt.annotate_rows(__old_to_new_no_na = mt.old_to_new.map(lambda x: hl.or_else(x, 0)))
         newPL = hl.cond(
-            hl.is_defined(ds.PL),
-            (hl.range(0, hl.triangle(hl.len(self.new_alleles)))
-                .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(ds.alleles)))
-                                         .filter(lambda oldi: hl.bind(
-                lambda oldc: hl.call(self.old_to_new[oldc[0]],
-                                     self.old_to_new[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
+            hl.is_defined(mt.PL),
+            (hl.range(0, hl.triangle(hl.len(mt.alleles)))
+             .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(mt.old_alleles)))
+                                      .filter(lambda oldi: hl.bind(
+                lambda oldc: hl.call(mt.__old_to_new_no_na[oldc[0]],
+                                     mt.__old_to_new_no_na[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
                 hl.unphased_diploid_gt_index_call(oldi)))
-                                         .map(lambda oldi: ds.PL[oldi])))),
+                                      .map(lambda oldi: mt.PL[oldi])))),
             hl.null(tarray(tint32)))
-        self.annotate_entries(
-            GT=hl.call(self.old_to_new[ds.GT[0]],
-                       self.old_to_new[ds.GT[1]]), AD=hl.cond(
-                hl.is_defined(ds.AD),
-                (hl.range(0, hl.len(self.new_alleles))
-                    .map(lambda newi: hl.sum(hl.range(0, hl.len(ds.alleles))
-                                             .filter(lambda oldi: self.old_to_new[oldi] == newi)
-                                             .map(lambda oldi: ds.AD[oldi])))),
+        return mt.annotate_entries(
+            GT=hl.call(mt.__old_to_new_no_na[mt.GT[0]],
+                       mt.__old_to_new_no_na[mt.GT[1]]),
+            AD=hl.cond(
+                hl.is_defined(mt.AD),
+                (hl.range(0, hl.len(mt.alleles))
+                 .map(lambda newi: hl.sum(hl.range(0, hl.len(mt.old_alleles))
+                                          .filter(lambda oldi: mt.__old_to_new_no_na[oldi] == newi)
+                                          .map(lambda oldi: mt.AD[oldi])))),
                 hl.null(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
-            PL=newPL)
-
-    def filter(self):
-        """Perform the filter alleles, returning a new matrix table.
-
-        Returns
-        -------
-        :class:`.MatrixTable`
-            Returns a matrix table with alleles filtered.
-        """
-        if not self._row_exprs:
-            self._row_exprs = {}
-        if not self._entry_exprs:
-            self._entry_exprs = {}
-
-        base, cleanup = self._ds._process_joins(*itertools.chain(
-            [self._filter_expr], self._row_exprs.values(), self._entry_exprs.values()))
-
-        filter_hql = self._filter_expr._ast.to_hql()
-
-        row_hqls = []
-        for k, v in self._row_exprs.items():
-            row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
-            check_collisions(base._fields, k, base._row_indices)
-        row_hql = ',\n'.join(row_hqls)
-
-        entry_hqls = []
-        for k, v in self._entry_exprs.items():
-            entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
-            check_collisions(base._fields, k, base._entry_indices)
-        entry_hql = ',\n'.join(entry_hqls)
-
-        m = MatrixTable(
-            Env.hail().methods.FilterAlleles.apply(
-                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep,
-                self._left_aligned, self._keep_star))
-        return cleanup(m)
+            PL=newPL).drop('__old_to_new_no_na')
 
 @typecheck(ds=MatrixTable,
            r2=numeric,
@@ -3036,37 +2990,3 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
         hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
 
     return pruned_ds.rows().select('locus', 'alleles')
-
-
-@typecheck(ds=MatrixTable,
-           left_aligned=bool)
-def min_rep(ds, left_aligned=False) -> MatrixTable:
-    """Gives minimal, left-aligned representation of alleles. 
-
-    .. include:: ../_templates/req_tvariant.rst
-
-    Notes
-    -----
-    Note that this can change the variant position.
-
-    Examples
-    --------
-
-    Simple trimming of a multi-allelic site, no change in variant
-    position `1:10000:TAA:TAA,AA` => `1:10000:TA:T,A`
-
-    Trimming of a bi-allelic site leading to a change in position
-    `1:10000:AATAA,AAGAA` => `1:10002:T:G`
-
-    Parameters
-    ----------
-    left_aligned : bool
-        If ``True``, variants are assumed to be left aligned and have
-        unique loci.  This avoids a shuffle.  If the assumption is
-        violated, an error is generated.
-
-    Returns
-    -------
-    :class:`.MatrixTable`
-    """
-    return MatrixTable(ds._jvds.minRep(left_aligned))

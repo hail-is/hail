@@ -685,6 +685,11 @@ object FunctionRegistry {
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
   registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
 
+  register("min_rep", { (l: Locus, a: IndexedSeq[String]) =>
+    val (newLocus, newAlleles) = VariantMethods.minRep(l, a)
+    Row(newLocus, newAlleles)
+  })(
+    locusHr(RG), arrayHr(stringHr), new HailRep[Row] { def typ = TTuple(TLocus(RG), TArray(TString())) })
   registerField("contig", { (x: Locus) => x.contig })(locusHr(RG), stringHr)
   registerField("position", { (x: Locus) => x.position })(locusHr(RG), int32Hr)
   registerField("start", { (x: Interval) => x.start })(intervalHr(TTHr), TTHr)

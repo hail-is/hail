@@ -2534,6 +2534,25 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 
         return bind(_, [hl.len(a) for a in arrays])
 
+@typecheck(a=expr_array())
+def zip_with_index(a):
+    """Returns an array of (index, element) tuples.
+
+    Examples
+    --------
+    >>> hl.zip_with_index(['A', 'B', 'C']).value
+    [(0, 'A'), (1, 'B'), (2, 'C')]
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression`
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Array of (index, element) tuples.
+    """
+    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i])), a)
 
 @typecheck(f=func_spec(1, expr_any),
            collection=expr_oneof(expr_set(), expr_array()))
@@ -3705,6 +3724,35 @@ def mendel_error_code(locus, is_female, father, mother, child):
             .when(locus.in_y_nonpar() & (~is_female), hemi_y_cond)
             .or_missing()
             )
+
+@typecheck(locus=expr_locus(), alleles=expr_array(expr_str))
+def min_rep(locus, alleles):
+    """Computes the minimal representation of a (locus, alleles) polymorphism.
+
+    Examples
+    --------
+    >>> hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']).value
+    (Locus(contig=1, position=100000, reference_genome=GRCh37), ['TA', 'T'])
+
+    >>> hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']).value
+    (Locus(contig=1, position=100002, reference_genome=GRCh37), ['T', 'C'])
+
+    Notes
+    -----
+    Computing the minimal representation can cause the locus shift right (the
+    position can increase).
+
+    Parameters
+    ----------
+    locus : :class:`.LocusExpression`
+    alleles : :class:`.ArrayExpression` of type :py:data:`.tstr`
+
+    Returns
+    -------
+    :class:`.TupleExpression`
+        Tuple of (:class:`.LocusExpression`, :class:`.ArrayExpression` of type :py:data:`.tstr`)
+    """
+    return _func('min_rep', hl.ttuple(locus.dtype, alleles.dtype), locus, alleles)
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
