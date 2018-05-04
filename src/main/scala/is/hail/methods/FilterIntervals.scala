@@ -27,8 +27,7 @@ object FilterIntervals {
         it.filter { rv =>
           ctx.rvb.start(pkType)
           ctx.rvb.selectRegionValue(rowType, pkRowFieldIdx, rv)
-          rv.set(ctx.region, ctx.rvb.end())
-          pkUR.set(rv)
+          pkUR.set(ctx.region, ctx.rvb.end())
           !intervalsBc.value.contains(pkType.ordering, pkUR)
         }
       }))
