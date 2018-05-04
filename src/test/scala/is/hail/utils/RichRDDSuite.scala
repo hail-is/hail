@@ -11,10 +11,10 @@ class RichRDDSuite extends SparkSuite {
 
   @Test def testHead() {
     val r = sc.parallelize(0 until 1024, numSlices = 20)
-    val partitionRanges = r.countPerPartition().scanLeft(Range(0, 0)) { case (x, c) => Range(x.end, x.end + c.toInt) }
+    val partitionRanges = r.countPerPartition().scanLeft(Range(0, 1)) { case (x, c) => Range(x.end, x.end + c.toInt + 1) }
 
     def getExpectedNumPartitions(n: Int): Int =
-      partitionRanges.indexWhere(_.contains(math.max(0, n - 1)))
+      partitionRanges.indexWhere(_.contains(n))
 
     for (n <- Array(0, 15, 200, 562, 1024, 2000)) {
       val t = r.head(n)
