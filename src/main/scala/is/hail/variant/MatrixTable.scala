@@ -1005,22 +1005,21 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val partBc = sparkContext.broadcast(rvd.partitioner)
     val ktSignature = kt.signature
     val ktKeyFieldIdx = kt.keyFieldIdx.get(0)
+    val pType = coerce[TInterval](ktSignature.types(ktKeyFieldIdx)).pointType
     val ktValueFieldIdx = kt.valueFieldIdx
     val partitionKeyedIntervals = kt.rvd.boundary.crdd
       .cflatMap { (ctx, rv) =>
         val region = ctx.region
-        val rv2 = RegionValue(region)
-        val rvb = ctx.rvb
-        rvb.start(ktSignature)
-        rvb.addRegionValue(ktSignature, rv)
-        rv2.setOffset(rvb.end())
+        val r = SafeRow(ktSignature, rv)
         val ur = new UnsafeRow(ktSignature, rv)
         val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
-          val wrappedInterval = interval.copy(start = Row(interval.start), end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, rv2))
+          val wrappedInterval = interval.copy(
+            start = Row(Annotation.copy(pType, interval.start)),
+            end = Row(Annotation.copy(pType, interval.end)))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
         } else
           Iterator()
       }
@@ -1040,8 +1039,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       zipRDD
     ) { case (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
-        intervals.map { rv =>
-          val r = SafeRow(ktSignature, rv)
+        intervals.map { r =>
           val interval = r.getAs[Interval](ktKeyFieldIdx)
           (interval, Row.fromSeq(ktValueFieldIdx.map(r.get)))
         }.toArray
