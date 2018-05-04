@@ -1,13 +1,9 @@
 package is.hail.utils
 
 import is.hail.SparkSuite
-import is.hail.annotations.{OrderedRVIterator, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.{TArray, TInt32, TStruct}
-import is.hail.rvd.OrderedRVDType
 import org.testng.annotations.Test
 
 import scala.collection.generic.Growable
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class FlipbookIteratorSuite extends SparkSuite {
