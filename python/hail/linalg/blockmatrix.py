@@ -52,7 +52,8 @@ class BlockMatrix(object):
     A block matrix is a distributed analogue of a two-dimensional
     `NumPy ndarray
     <https://docs.scipy.org/doc/numpy/reference/arrays.ndarray.html>`__ with
-    shape ``(n_rows, n_cols)`` and dtype ``float64``. Import the class with:
+    shape ``(n_rows, n_cols)`` and NumPy dtype ``float64``.
+    Import the class with:
 
     >>> from hail.linalg import BlockMatrix
 
@@ -237,11 +238,14 @@ class BlockMatrix(object):
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
 
+        Notes
+        -----
+        If any values are missing, an error message is returned.
+
         Parameters
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
-            All values must be non-missing.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
@@ -266,7 +270,7 @@ class BlockMatrix(object):
         --------
         Create a block matrix with 10 rows, 20 columns, and standard normal entries:
 
-        >>> a = BlockMatrix.random(10, 20)
+        >>> bm = BlockMatrix.random(10, 20)
 
         Parameters
         ----------
@@ -400,7 +404,6 @@ class BlockMatrix(object):
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
-            All values must be non-missing.
         path: :obj:`str`
             Path for output.
         block_size: :obj:`int`, optional
