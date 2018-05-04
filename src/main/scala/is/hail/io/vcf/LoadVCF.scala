@@ -395,6 +395,33 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
+  def parseIntArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abi.addMissing()
+      pos += 1
+    } else {
+      abi += parseIntInFormatArray()
+    }
+  }
+
+  def parseDoubleArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abd.addMissing()
+      pos += 1
+    } else {
+      abd += parseDoubleInFormatArray()
+    }
+  }
+
+  def parseStringArrayElement() {
+    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+      abs.addMissing()
+      pos += 1
+    } else {
+      abs += parseStringInFormatArray()
+    }
+  }
+
   def parseAddFormatArrayInt(rvb: RegionValueBuilder) {
     if (formatFieldMissing()) {
       rvb.setMissing()
@@ -402,11 +429,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     } else {
       assert(abi.length == 0)
 
-      parseArrayElement(abi, parseIntInFormatArray)
+      parseIntArrayElement()
 
       while (!endFormatField()) {
         pos += 1 // comma
-        parseArrayElement(abi, parseIntInFormatArray)
+        parseIntArrayElement()
       }
 
       rvb.startArray(abi.length)
@@ -431,10 +458,10 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     } else {
       assert(abs.length == 0)
 
-      parseArrayElement(abs, parseStringInFormatArray)
+      parseStringArrayElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        parseArrayElement(abs, parseStringInFormatArray)
+        parseStringArrayElement()
       }
 
       rvb.startArray(abs.length)
@@ -456,10 +483,10 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     } else {
       assert(abd.length == 0)
 
-      parseArrayElement(abd, parseDoubleInFormatArray)
+      parseDoubleArrayElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        parseArrayElement(abd, parseDoubleInFormatArray)
+        parseDoubleArrayElement()
       }
 
       rvb.startArray(abd.length)
