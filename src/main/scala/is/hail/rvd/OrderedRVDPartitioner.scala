@@ -107,6 +107,9 @@ class OrderedRVDPartitioner(
   def getPartition(key: Any): Int =
     getPartitionPK(new UnsafeRow(kType, key.asInstanceOf[RegionValue]))
 
+  def getSafePartition(key: Any): Int =
+    getPartitionPK(key)
+
 
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
     val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, rangeBounds)
@@ -172,7 +175,7 @@ class OrderedRVDPartitioner(
     new Partitioner {
       def numPartitions: Int = selfBc.value.numPartitions
 
-      def getPartition(key: Any): Int = selfBc.value.getPartition(key)
+      def getPartition(key: Any): Int = selfBc.value.getSafePartition(key)
     }
   }
 }

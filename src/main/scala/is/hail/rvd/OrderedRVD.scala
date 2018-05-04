@@ -768,14 +768,14 @@ object OrderedRVD {
           wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
           val bytes =
             RVD.regionValueToBytes(enc, ctx)(rv)
-          (wkrv.value, bytes)
+          (SafeRow(typ.kType, wkrv.value).asInstanceOf[Any], bytes)
         }
-      }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
+      }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kType.ordering.toOrdering)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
           val region = ctx.region
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
-            assert(partBc.value.getPartition(k) == i)
+            assert(partBc.value.getSafePartition(k) == i)
             RVD.bytesToRegionValue(dec, region, rv)(bytes)
           }
       })
