@@ -411,7 +411,7 @@ case class MatrixRead(
   override val partitionCounts: Option[Array[Long]],
   dropCols: Boolean,
   dropRows: Boolean,
-  f: (HailContext) => MatrixValue) extends MatrixIR {
+  f: (MatrixRead) => MatrixValue) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -420,7 +420,7 @@ case class MatrixRead(
     this
   }
 
-  def execute(hc: HailContext): MatrixValue = f(hc)
+  def execute(hc: HailContext): MatrixValue = f(this)
 
   override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
 }

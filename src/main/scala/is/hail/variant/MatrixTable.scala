@@ -129,17 +129,18 @@ object MatrixTable {
 
     val typ = spec.matrix_type
 
-    val f: (HailContext) => MatrixValue = { hc =>
-        val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
+    val f: (MatrixRead) => MatrixValue = { mr =>
+      val hc = HailContext.get
+      val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
 
-        val colAnnotations =
-          if (dropCols)
-            IndexedSeq.empty[Annotation]
-          else
-            Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
+      val colAnnotations =
+        if (dropCols)
+          IndexedSeq.empty[Annotation]
+        else
+          Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
 
       val rvd =
-        if (dropRows)
+        if (mr.dropRows)
           OrderedRVD.empty(hc.sc, typ.orvdType)
         else {
           val fullRowType = typ.rvRowType
@@ -147,10 +148,10 @@ object MatrixTable {
           val localEntriesIndex = typ.entriesIdx
 
           val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
-          if (dropCols) {
+          if (mr.dropCols) {
             rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
-              var rv2b = new RegionValueBuilder()
-              var rv2 = RegionValue()
+              val rv2b = new RegionValueBuilder()
+              val rv2 = RegionValue()
 
               it.map { rv =>
                 rv2b.set(rv.region)
@@ -204,7 +205,7 @@ object MatrixTable {
         BroadcastRow(globals, typ.globalType, hc.sc),
         BroadcastIndexedSeq(colAnnotations, TArray(typ.colType), hc.sc),
         rvd)
-      }
+    }
 
     new MatrixTable(hc,
       MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, f))
@@ -267,12 +268,16 @@ object MatrixTable {
       rowType = TStruct("row_idx" -> TInt32()),
       entryType = TStruct.empty())
 
-    val f: (HailContext) => MatrixValue = { hc =>
+    val f: (MatrixRead) => MatrixValue = { mr =>
+      val hc = HailContext.get
       val localRVType = typ.rvRowType
       val localPartCounts = partCounts
       val partStarts = partCounts.scanLeft(0)(_ + _)
+      val localNCols = if (mr.dropCols) 0 else nCols
 
-      val rvd =
+      val rvd = if (mr.dropRows)
+        OrderedRVD.empty(hc.sc, typ.orvdType)
+      else {
         OrderedRVD(typ.orvdType,
           new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
             typ.rowKeyStruct,
@@ -296,9 +301,9 @@ object MatrixTable {
                   rvb.addInt(j)
 
                   // entries field
-                  rvb.startArray(nCols)
+                  rvb.startArray(localNCols)
                   var i = 0
-                  while (i < nCols) {
+                  while (i < localNCols) {
                     rvb.startStruct()
                     rvb.endStruct()
                     i += 1
@@ -310,11 +315,12 @@ object MatrixTable {
                   rv
                 }
             })
+      }
 
       MatrixValue(typ,
         BroadcastRow(Row(), typ.globalType, hc.sc),
         BroadcastIndexedSeq(
-          Iterator.range(0, nCols)
+          Iterator.range(0, localNCols)
             .map(Row(_))
             .toFastIndexedSeq,
           TArray(typ.colType),
@@ -322,7 +328,7 @@ object MatrixTable {
         rvd)
     }
 
-    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)), dropRows = false, dropCols = false, f))
+    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)), dropRows = false, dropCols = false, f = f))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
