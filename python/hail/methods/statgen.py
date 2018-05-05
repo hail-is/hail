@@ -2552,11 +2552,11 @@ def filter_alleles(mt: MatrixTable,
     --------
     Keep SNPs:
 
-    >>> ds_result = hl.filter_alleles(ds, lambda allele, _: hl.is_snp(ds.alleles[0], allele))
+    >>> ds_result = hl.filter_alleles(ds, lambda allele, i: hl.is_snp(ds.alleles[0], allele))
 
     Keep alleles with AC > 0:
 
-    >>> ds_result = hl.filter_alleles(ds, lambda _, allele_index: mt.info.AC[allele_index - 1] > 0)
+    >>> ds_result = hl.filter_alleles(ds, lambda a, allele_index: ds.info.AC[allele_index - 1] > 0)
 
     Update the AC field of the resulting dataset:
 
@@ -2587,6 +2587,22 @@ def filter_alleles(mt: MatrixTable,
     determine whether that allele is kept. If `f` evaluates to ``True``, the
     allele is kept. If `f` evaluates to ``False`` or missing, the allele is
     removed.
+
+    `f` is a function that takes two arguments: the allele string (of type
+    :class:`.StringExpression`) and the allele index (of type
+    :class:`.Int32Expression`), and returns a boolean expression. This can
+    be either a defined function or a lambda. For example, these two usages
+    are equivalent:
+
+    (with a lambda)
+
+    >>> ds_result = hl.filter_alleles(ds, lambda allele, i: hl.is_snp(ds.alleles[0], allele))
+
+    (with a defined function)
+
+    >>> def filter_f(allele, allele_index):
+    ...     return hl.is_snp(ds.alleles[0], allele)
+    >>> ds_result = hl.filter_alleles(ds, filter_f)
 
     Warning
     -------
@@ -2660,6 +2676,8 @@ def filter_alleles_hts(mt: MatrixTable,
 
     Notes
     -----
+    For usage of the _f_ argument, see the :func:`.filter_alleles`
+    documentation.
 
     :func:`.filter_alleles_hts` requires the dataset have the GATK VCF schema,
     namely the following entry fields in this order:
