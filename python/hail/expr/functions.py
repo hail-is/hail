@@ -1786,7 +1786,10 @@ def _is_valid_allele(s) -> BooleanExpression:
     return s.matches(r'^([ACGT]+)|(\*)|(<[\w:-]+>)$')
 
 
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
+_base_regex = "^([ACGTNM])+$"
+_symbolic_regex = "^<.*>$"
+_breakend_regex = "^((\\[.*\\[.+)|(\\].*\\].+)|(.+\\[.*\\[)|(.+\\].*\\]))$"
+_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic", "Breakend"]
 _allele_enum = {i: v for i, v in enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
@@ -1794,26 +1797,25 @@ _allele_ints = {v: k for k, v in _allele_enum.items()}
 @typecheck(ref=expr_str, alt=expr_str)
 def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
-                   hl.cond(_is_valid_allele(r) & _is_valid_allele(a),
+                   hl.cond(r.matches(_base_regex),
                            hl.case()
-                           .when((ref[0] == '<') | (alt[0] == '<'), _allele_ints['Symbolic'])
-                           .when(r.length() == a.length(),
-                                        hl.cond(r.length() == 1,
-                                                hl.cond((r == "*") | (a == "*"),
-                                                        _allele_ints["Star"],
-                                                        _allele_ints["SNP"]),
-                                                hl.cond(hamming(r, a) == 1,
-                                                        _allele_ints["SNP"],
-                                                        _allele_ints["MNP"])
-                                                )
-                                        )
-                           .when((r == "*") | (a == "*"), _allele_ints["Star"])
-                           .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
-                                 _allele_ints["Insertion"])
-                           .when((r[0] == a[0]) & r.endswith(a[1:]),
-                                 _allele_ints["Deletion"])
-                           .default(_allele_ints["Complex"]),
-                           _allele_ints["Unknown"]),
+                           .when(a.matches(_base_regex), hl.case()
+                                 .when(r.length() == a.length(),
+                                       hl.cond(r.length() == 1,
+                                               _allele_ints['SNP'],
+                                               hl.cond(hamming(r, a) == 1,
+                                                       _allele_ints['SNP'],
+                                                       _allele_ints['MNP'])))
+                                 .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
+                                       _allele_ints["Insertion"])
+                                 .when((r[0] == a[0]) & r.endswith(a[1:]),
+                                       _allele_ints["Deletion"])
+                                 .default(_allele_ints['Complex']))
+                           .when(a == '*', _allele_ints['Star'])
+                           .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
+                           .when(a.matches(_breakend_regex), _allele_ints['Breakend'])
+                           .default(_allele_ints['Unknown']),
+                           _allele_ints['Unknown']),
                    ref, alt)
 
 
