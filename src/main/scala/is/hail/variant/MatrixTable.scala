@@ -804,61 +804,73 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def aggregateRowsByKey(aggExpr: String): MatrixTable = {
-    val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, aggExpr)
-    val newRowType = matrixType.orvdType.kType
-    val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
-      rowPartitionKey, rowKey, newRowType, newEntryType)
+  def aggregateRowsByKey(expr: String, oldAggExpr: String): MatrixTable = {
+    val ec = colEC
 
-    val newRVType = newMatrixType.rvRowType
-    val localRVType = rvRowType
-    val selectIdx = matrixType.orvdType.kRowFieldIdx
-    val keyOrd = matrixType.orvdType.kRowOrd
+    val rowsAST = Parser.parseToAST(expr, ec)
 
-    val newRVD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
-      new Iterator[RegionValue] {
-        var isEnd = false
-        var current: RegionValue = null
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
-        val region = ctx.region
-        val rvb = ctx.rvb
-        val newRV = RegionValue(region)
+    rowsAST.toIR(Some("AGG")) match {
+      case Some(x) if useIR(this.rowAxis, rowsAST) =>
+        new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
 
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
+      case _ =>
+        log.warn(s"group_rows_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
+
+        val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, aggExpr)
+        val newRowType = matrixType.orvdType.kType
+        val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
+          rowPartitionKey, rowKey, newRowType, newEntryType)
+
+        val newRVType = newMatrixType.rvRowType
+        val localRVType = rvRowType
+        val selectIdx = matrixType.orvdType.kRowFieldIdx
+        val keyOrd = matrixType.orvdType.kRowOrd
+
+        val newRVD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
+          new Iterator[RegionValue] {
+            var isEnd = false
+            var current: RegionValue = null
+            val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
+            val region = ctx.region
+            val rvb = ctx.rvb
+            val newRV = RegionValue(region)
+
+            def hasNext: Boolean = {
+              if (isEnd || (current == null && !it.hasNext)) {
+                isEnd = true
+                return false
+              }
+              if (current == null)
+                current = it.next()
+              true
+            }
+
+            def next(): RegionValue = {
+              if (!hasNext)
+                throw new java.util.NoSuchElementException()
+              rvRowKey.setSelect(localRVType, selectIdx, current)
+              var aggs = zero()
+              while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+                aggs = seqOp(aggs, current)
+                current = null
+              }
+              rvb.start(newRVType)
+              rvb.startStruct()
+              var i = 0
+              while (i < newRowType.size) {
+                rvb.addField(newRowType, rvRowKey.value, i)
+                i += 1
+              }
+              resultOp(aggs, rvb)
+              rvb.endStruct()
+              newRV.setOffset(rvb.end())
+              newRV
+            }
           }
-          if (current == null)
-            current = it.next()
-          true
-        }
+        })
 
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-          rvRowKey.setSelect(localRVType, selectIdx, current)
-          var aggs = zero()
-          while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-            aggs = seqOp(aggs, current)
-            current = null
-          }
-          rvb.start(newRVType)
-          rvb.startStruct()
-          var i = 0
-          while (i < newRowType.size) {
-            rvb.addField(newRowType, rvRowKey.value, i)
-            i += 1
-          }
-          resultOp(aggs, rvb)
-          rvb.endStruct()
-          newRV.setOffset(rvb.end())
-          newRV
-        }
-      }
-    })
-
-    copyMT(rvd = newRVD, matrixType = newMatrixType)
+        copyMT(rvd = newRVD, matrixType = newMatrixType)
+    }
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {

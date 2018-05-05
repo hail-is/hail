@@ -10,6 +10,7 @@ import is.hail.io._
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
 import is.hail.methods.Aggregators
+import is.hail.methods.Aggregators.ColFunctions
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
@@ -705,6 +706,77 @@ case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     groupF(prev)
+  }
+}
+
+case class MatrixAggregateRowsByKey(child: MatrixIR, aggExpr: IR) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child, aggExpr)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = newChildren match {
+    case Seq(child: MatrixIR, aggExpr: IR) =>
+      MatrixAggregateRowsByKey(child, aggExpr)
+  }
+
+  private[this] val ColFunctions(zero, seqOp, resultOp, newEntryType) =
+    Aggregators.makeColFunctions(this, aggExpr)
+
+  val typ: MatrixType = child.typ.copyParts(
+    rowType = child.typ.orvdType.kType,
+    entryType = newEntryType
+  )
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val newRVType = typ.rvRowType
+    val newRowType = typ.rowType
+    val rvType = child.typ.rvRowType
+    val selectIdx = child.typ.orvdType.kRowFieldIdx
+    val keyOrd = child.typ.orvdType.kRowOrd
+    val newRVD = prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
+      new Iterator[RegionValue] {
+        var isEnd = false
+        var current: RegionValue = null
+        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
+        val region = ctx.region
+        val rvb = ctx.rvb
+        val newRV = RegionValue(region)
+
+        def hasNext: Boolean = {
+          if (isEnd || (current == null && !it.hasNext)) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+          true
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          rvRowKey.setSelect(rvType, selectIdx, current)
+          var aggs = zero()
+          while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+            aggs = seqOp(aggs, current)
+            current = null
+          }
+          rvb.start(newRVType)
+          rvb.startStruct()
+          var i = 0
+          while (i < newRowType.size) {
+            rvb.addField(newRowType, rvRowKey.value, i)
+            i += 1
+          }
+          resultOp(aggs, rvb)
+          rvb.endStruct()
+          newRV.setOffset(rvb.end())
+          newRV
+        }
+      }
+    })
+
+    prev.copy(rvd = newRVD, typ = typ)
   }
 }
 
