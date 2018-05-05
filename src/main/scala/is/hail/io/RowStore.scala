@@ -939,13 +939,13 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
                 entriesEN.writeByte(1)
                 entriesEN.writeRegionValue(region, rvb.end())
 
+                ctx.region.clear()
+
                 rowCount += 1
               }
 
               rowsEN.writeByte(0) // end
               entriesEN.writeByte(0)
-
-              ctx.region.clear()
 
               Iterator.single(f -> rowCount)
             }
