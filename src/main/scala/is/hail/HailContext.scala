@@ -541,14 +541,16 @@ class HailContext private(val sc: SparkContext,
     t: TStruct,
     codecSpec: CodecSpec,
     partFiles: Array[String]
-  ): ContextRDD[RVDContext, RegionValue] =
+  ): ContextRDD[RVDContext, RegionValue] = {
+    val makeDec = codecSpec.buildDecoder(t)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
         val (is, m) = it.next
         assert(!it.hasNext)
-        HailContext.readRowsPartition(codecSpec.buildDecoder(t))(ctx, is, m)
+        HailContext.readRowsPartition(makeDec)(ctx, is, m)
       }
+  }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
