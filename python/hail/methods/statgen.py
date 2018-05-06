@@ -2560,8 +2560,8 @@ def filter_alleles(mt: MatrixTable,
 
     Update the AC field of the resulting dataset:
 
-    >>> ds_result = ds_result.annotate_rows(info = ds_result.info.annotate(
-    ...     AC = ds_result.new_to_old.map(lambda i: ds_result.info.AC[i-1]))
+    >>> updated_info = ds_result.info.annotate(AC = ds_result.new_to_old.map(lambda i: ds_result.info.AC[i-1])
+    >>> ds_result = ds_result.annotate_rows(info = updated_info)
 
     Notes
     -----
