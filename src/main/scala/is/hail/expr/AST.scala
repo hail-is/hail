@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ToIRErr._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
@@ -267,7 +268,7 @@ sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty)
     }
   }
 
-  def toIR(agg: Option[String] = None): Option[IR]
+  def toIR(agg: Option[String] = None): ToIRErr[IR]
 }
 
 case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
@@ -287,14 +288,14 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 
   override def typecheckThis(): Type = t
 
-  def toIR(agg: Option[String] = None): Option[IR] = (t, value) match {
-    case (t: TInt32, x: Int) => Some(ir.I32(x))
-    case (t: TInt64, x: Long) => Some(ir.I64(x))
-    case (t: TFloat32, x: Float) => Some(ir.F32(x))
-    case (t: TFloat64, x: Double) => Some(ir.F64(x))
-    case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
-    case (t: TString, x: String) => Some(ir.Str(x))
-    case (t, null) => Some(ir.NA(t))
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = (t, value) match {
+    case (t: TInt32, x: Int) => success(ir.I32(x))
+    case (t: TInt64, x: Long) => success(ir.I64(x))
+    case (t: TFloat32, x: Float) => success(ir.F32(x))
+    case (t: TFloat64, x: Double) => success(ir.F64(x))
+    case (t: TBoolean, x: Boolean) => success(if (x) ir.True() else ir.False())
+    case (t: TString, x: String) => success(ir.Str(x))
+    case (t, null) => success(ir.NA(t))
     case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
   }
 }
@@ -344,10 +345,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         }
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
     s <- lhs.toIR(agg)
-    t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
-    f <- t.selfField(rhs)
+    t <- whenOfType[TStruct](lhs)
+    f <- fromOption(this, "$t must have field $rhs", t.selfField(rhs))
   } yield ir.GetField(s, rhs)
 }
 
@@ -379,8 +380,9 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     yield
       CompilationHelp.arrayToWrappedArray(convertedArray)
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
-    irElements <- anyFailAllFail(elements.map(_.toIR(agg))).filter(_ => elements.map(_.`type`).distinct.length == 1)
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
+    irElements <- all(elements.map(_.toIR(agg)))
+    if elements.map(_.`type`).distinct.length == 1
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
@@ -396,7 +398,7 @@ abstract class BaseStructConstructor(posn: Position, elements: Array[AST]) exten
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
 
-  def toIR(agg: Option[String] = None): Option[IR]
+  def toIR(agg: Option[String] = None): ToIRErr[IR]
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends BaseStructConstructor(posn, elements) {
@@ -406,8 +408,8 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
     TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
-    irElements <- anyFailAllFail[Array](elements.map(x => x.toIR(agg).map(ir => (x.`type`, ir))))
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
+    irElements <- all(elements.map(x => x.toIR(agg).map(ir => (x.`type`, ir))))
     fields = names.zip(irElements).map { case (x, (y, z)) => (x, z) }
   } yield ir.MakeStruct(fields)
 }
@@ -419,8 +421,8 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
     TTuple(types)
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
-    irElements <- anyFailAllFail[Array](elements.map(x => x.toIR(agg)))
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
+    irElements <- all(elements.map(x => x.toIR(agg)))
   } yield ir.MakeTuple(irElements)
 }
 
@@ -511,7 +513,7 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = None
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = fail(this)
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -521,7 +523,7 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 
   def compile() = throw new UnsupportedOperationException
 
-  def toIR(agg: Option[String] = None): Option[IR] = None
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = fail(this)
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
@@ -706,21 +708,24 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
 
-  private[this] def tryIRConversion(agg: Option[String]): Option[IR] =
+  private[this] def tryIRConversion(agg: Option[String]): ToIRErr[IR] =
     for {
-      irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
-      ir <- tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-        IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
-          .map { irf => irf(irArgs) })
+      irArgs <- all(args.map(_.toIR(agg)))
+      ir <- fromOption(
+        this,
+        "no function or primop found for $fn",
+        tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
+          IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
+            .map { irf => irf(irArgs) }))
     } yield ir
 
-  def toIR(agg: Option[String] = None): Option[IR] = {
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = {
     fn match {
       case "merge" | "select" | "drop" | "index" =>
-        None
+        fail(this)
       case "annotate" =>
         if (!args(1).isInstanceOf[StructConstructor])
-          return None
+          return fail(this, "annotate only supports annotating a struct literal")
         tryIRConversion(agg)
       case _ =>
         tryIRConversion(agg)
@@ -816,32 +821,38 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = {
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = {
     (lhs.`type`, method, args: IndexedSeq[AST]) match {
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {
           a <- lhs.toIR(agg)
           b <- body.toIR(agg)
-          result <- optMatch((t, m)) {
-            case (_: TAggregable, "map") => ir.AggMap(a, name, b)
-            case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
-            case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
-            case (_: TArray, "map") => ir.ArrayMap(a, name, b)
-            case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
-            case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
-            case (_: TArray, "exists") =>
-              val v = ir.genUID()
-              ir.ArrayFold(a, ir.False(), v, name, ir.ApplySpecial("||", FastSeq(ir.Ref(v, TBoolean()), b)))
-            case (_: TArray, "forall") =>
-              val v = ir.genUID()
-              ir.ArrayFold(a, ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
-          }
+          result <- fromOption(
+            this,
+            "no method $m on type $t",
+            optMatch((t, m)) {
+              case (_: TAggregable, "map") => ir.AggMap(a, name, b)
+              case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
+              case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
+              case (_: TArray, "map") => ir.ArrayMap(a, name, b)
+              case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
+              case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
+              case (_: TArray, "exists") =>
+                val v = ir.genUID()
+                ir.ArrayFold(a, ir.False(), v, name, ir.ApplySpecial("||", FastSeq(ir.Ref(v, TBoolean()), b)))
+              case (_: TArray, "forall") =>
+                val v = ir.genUID()
+                ir.ArrayFold(a, ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
+            })
         } yield result
       case _ =>
         for {
-          irs <- anyFailAllFail((lhs +: args).map(_.toIR(agg)))
-          ir <- IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
-              .map { irf => irf(irs) }
+          irs <- all((lhs +: args).map(_.toIR(agg)))
+          ir <- fromOption(
+            this,
+            "no method $m on type $t",
+            IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
+              .map { irf => irf(irs) })
         } yield ir
     }
   }
@@ -864,8 +875,8 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
-    irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR(agg).map(irY => (x, irY)) })
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
+    irBindings <- all(bindings.map { case (x, y) => y.toIR(agg).map(irY => (x, irY)) })
     irBody <- body.toIR(agg)
   } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x) }
 }
@@ -896,12 +907,12 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
   def compile() = CM.lookup(symbol)
 
-  def toIR(agg: Option[String] = None): Option[IR] = agg match {
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = agg match {
     case Some(x) if x == symbol =>
       assert(typeWithMissingness != null)
-      Some(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
+      success(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
     case _ =>
-      Some(ir.Ref(symbol, typeWithMissingness))
+      success(ir.Ref(symbol, typeWithMissingness))
   }
 }
 
@@ -936,7 +947,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     ) yield result
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = for {
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
     condition <- cond.toIR(agg)
     consequent <- thenTree.toIR(agg)
     alternate <- elseTree.toIR(agg)
