@@ -452,9 +452,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         !ast.`type`.isInstanceOf[TStruct] ||
           ast.`type`.asInstanceOf[TStruct].size < 500 &&
             globalType.size < 3 &&
+            (colType.size < 1 ||
             colType.size == 1 &&
             Set(TInt32(), +TInt32(), TString(), +TString())
-              .contains(colType.types(0))
+              .contains(colType.types(0)))
     }
   }
 
