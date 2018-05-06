@@ -236,13 +236,11 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
         serialize(
           it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, _, _), combOp)) } }
     val aggregatePartitionOfVs = clean { (it: Iterator[V]) =>
-      using(mkc()) { c =>
-        serialize(
-          it.map(deserialize).fold(deserialize(zeroValue))(combOp)) } }
+      serialize(
+        it.map(deserialize).fold(deserialize(zeroValue))(combOp)) }
     val combOpV = clean { (l: V, r: V) =>
-      using(mkc()) { c =>
-        serialize(
-          combOp(deserialize(l), deserialize(r))) } }
+      serialize(
+        combOp(deserialize(l), deserialize(r))) }
 
     var reduced: RDD[V] =
       rdd.mapPartitions(
