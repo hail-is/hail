@@ -268,6 +268,27 @@ sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty)
     }
   }
 
+  def toIROptNoWarning(agg: Option[String] = None): Option[IR] =
+    toIR(agg).toOption
+
+  def toIROpt(agg: Option[String] = None): Option[IR] = toIR(agg) match {
+    case ToIRSuccess(ir) => Some(ir)
+    case ToIRFailure(fails) =>
+      val context = Thread.currentThread().getStackTrace().drop(2).take(5)
+      val caller = context(0)
+      val widerContextString = context.map("  " + _).mkString("\n")
+      val reasons = fails.map { case (ir, message, context) =>
+        s"$message, $ir, $context"
+      }.map("  " + _).mkString("\n")
+      log.warn(s"""[${caller} found no AST to IR conversion for:
+                  |${ PrettyAST(this, 2) }
+                  |due to the following errors:
+                  |$reasons
+                  |in
+                  |$widerContextString""".stripMargin)
+      None
+  }
+
   def toIR(agg: Option[String] = None): ToIRErr[IR]
 }
 
@@ -382,7 +403,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
   def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
     irElements <- all(elements.map(_.toIR(agg)))
-    if elements.map(_.`type`).distinct.length == 1
+    elementTypes = elements.map(_.`type`).distinct
+    _ <- blameWhen(this, "elements must have same type, found: $elementTypes",  elementTypes.length != 1)
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
@@ -957,7 +979,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
 // PrettyAST(ast) gives a pretty-print of an AST tree
 
 object  PrettyAST {
-  def apply(rootAST: AST): String = {
+  def apply(rootAST: AST, depth: Int = 0): String = {
     val sb = new StringBuilder()
 
     def putDeepAST(ast: AST, depth: Int) {
@@ -973,7 +995,7 @@ object  PrettyAST {
       if (depth > 0) sb.append("\n")
     }
 
-    putDeepAST(rootAST, 0)
+    putDeepAST(rootAST, depth)
     sb.toString()
   }
 

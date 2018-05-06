@@ -18,9 +18,13 @@ object ToIRErr {
       case (ToIRFailure(irs), ToIRFailure(moreIrs)) => fail(irs ++ moreIrs)
     }
   def success[T](t: T): ToIRErr[T] = ToIRSuccess(t)
-  def fail[T](ir: AST, message: String = null): ToIRErr[T] =
-    ToIRFailure(Seq((ir, message)))
-  def fail[T](irs: Seq[(AST, String)]): ToIRErr[T] = ToIRFailure(irs)
+  def fail[T](ir: AST): ToIRErr[T] =
+    ToIRFailure(Seq((ir, null, getCaller())))
+  def fail[T](ir: AST, message: String): ToIRErr[T] =
+    ToIRFailure(Seq((ir, message, getCaller())))
+  def fail[T](ir: AST, message: String, blame: StackTraceElement): ToIRErr[T] =
+    ToIRFailure(Seq((ir, message, blame)))
+  def fail[T](irs: Seq[(AST, String, StackTraceElement)]): ToIRErr[T] = ToIRFailure(irs)
   def whenOfType[T: ClassTag](a: AST): ToIRErr[T] =
     a.`type` match {
       case t: T => success(t)
@@ -31,12 +35,16 @@ object ToIRErr {
     case Some(t) => success(t)
     case None => fail(blame, message)
   }
+  def blameWhen(blame: AST, message: String, condition: Boolean): ToIRErr[Unit] =
+    if (condition) fail(blame, message) else success(())
+  private[expr] def getCaller(): StackTraceElement =
+    Thread.currentThread().getStackTrace()(2)
 }
 
 trait ToIRErr[T] {
   def map[U](f: T => U): ToIRErr[U]
   def flatMap[U](f: T => ToIRErr[U]): ToIRErr[U]
-  def filter(p: T => Boolean): ToIRErr[T]
+  def toOption: Option[T]
 }
 
 case class ToIRSuccess[T](value: T) extends ToIRErr[T] {
@@ -44,30 +52,32 @@ case class ToIRSuccess[T](value: T) extends ToIRErr[T] {
     ToIRSuccess(f(value))
   def flatMap[U](f: T => ToIRErr[U]): ToIRErr[U] =
     f(value)
-  def filter(p: T => Boolean): ToIRErr[T] =
-    // heh, no IR to blame here
-    //
-    // better solution possible if Scala for notation allowed actions that return unit, a la:
-    // for {
-    //   x <- rhs.toIR
-    //   blameUnless(blamedIr, message, x.isInstanceOf[T])
-    // } yield x
-    //
-    // only current option is
-    //
-    // for {
-    //   x <- rhs.toIR
-    //   _ <- blameUnless(...)
-    // } yield x
-    //
-    if (p(value)) this
-    else ToIRErr.fail(null, Thread.currentThread().getStackTrace()(2).toString())
+  // def filter(p: T => Boolean): ToIRErr[T] =
+  //   // heh, no IR to blame here
+  //   //
+  //   // better solution possible if Scala for notation allowed actions that return unit, a la:
+  //   // for {
+  //   //   x <- rhs.toIR
+  //   //   blameUnless(blamedIr, message, x.isInstanceOf[T])
+  //   // } yield x
+  //   //
+  //   // only current option is
+  //   //
+  //   // for {
+  //   //   x <- rhs.toIR
+  //   //   _ <- blameUnless(...)
+  //   // } yield x
+  //   //
+  //   if (p(value)) this
+  //   else ToIRErr.fail(null, null, ToIRErr.getCaller())
+  def toOption: Option[T] = Some(value)
 }
 
-case class ToIRFailure[T](incovertible: Seq[(AST, String)]) extends ToIRErr[T] {
+case class ToIRFailure[T](incovertible: Seq[(AST, String, StackTraceElement)]) extends ToIRErr[T] {
   // as is safe because this class contains no `T`s
   def as[U]: ToIRErr[U] = this.asInstanceOf[ToIRErr[U]]
   def map[U](f: T => U): ToIRErr[U] = as[U]
   def flatMap[U](f: T => ToIRErr[U]): ToIRErr[U] = as[U]
-  def filter(p: T => Boolean): ToIRErr[T] = this
+  // def filter(p: T => Boolean): ToIRErr[T] = this
+  def toOption: Option[T] = None
 }

@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, ir}
+import is.hail.expr.{EvalContext, Parser, ir, ToIRSuccess, ToIRFailure}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
@@ -683,7 +683,7 @@ class HailContext private(val sc: SparkContext,
     val ec = EvalContext()
     val ast = Parser.parseToAST(expr, ec)
     ast.toIR() match {
-      case Some(body) =>
+      case ToIRSuccess(body) =>
         Region.scoped { region =>
           val t = ast.`type`
           t match {
@@ -709,7 +709,7 @@ class HailContext private(val sc: SparkContext,
               (v2, t)
           }
         }
-      case None =>
+      case ToIRFailure(_) =>
         val (t, f) = Parser.eval(ast, ec)
         (f(), t)
     }
