@@ -51,10 +51,10 @@ object RVDSpec {
               val r = SafeRow(rowType, rv.region, rv.offset)
               ctx.region.clear()
               r
-            }
+            }.toFastIndexedSeq
         }
       }
-    }.toFastIndexedSeq
+    }
   }
 }
 
