@@ -927,8 +927,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.is_complex("A", "TATGC")))
         self.assertTrue(hl.eval_expr(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval_expr(hl.is_star("A", "*")))
-        self.assertTrue(hl.eval_expr(hl.is_star("*", "ATC")))
-        self.assertTrue(hl.eval_expr(hl.is_star("*", "A")))
         self.assertTrue(hl.eval_expr(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_strand_ambiguous("G", "T")))
 
