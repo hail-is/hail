@@ -12,37 +12,6 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
 
-    registerIR("size", TArray(tv("T")))(ArrayLen)
-
-    registerIR("sum", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val sum = genUID()
-      val v = genUID()
-      val zero = Cast(I64(0), t)
-      ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
-    }
-
-    val arrayOps =
-      Array(
-        ("*", ApplyBinaryPrimOp(Multiply(), _, _)),
-        ("/", ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-        ("//", ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-        ("+", ApplyBinaryPrimOp(Add(), _, _)),
-        ("-", ApplyBinaryPrimOp(Subtract(), _, _)),
-        ("**", { (ir1: IR, ir2: IR) => Apply("**", Seq(ir1,ir2)) }),
-        ("%", { (ir1: IR, ir2: IR) => Apply("%", Seq(ir1,ir2)) }))
-
-    for ((stringOp, irOp) <- arrayOps) {
-      registerIR(stringOp, TArray(tnum("T")), tv("T")) { (a, c) =>
-        val i = genUID()
-        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
-      }
-
-      registerIR(stringOp, tnum("T"), TArray(tv("T"))) { (c, a) =>
-        val i = genUID()
-        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
-      }
-    }
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
@@ -50,92 +19,15 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("min", TAggregable(tnum("T")))(ApplyAggOp(_, Min(), FastSeq()))
 
-    registerIR("product", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val product = genUID()
-      val v = genUID()
-      val one = Cast(I64(1), t)
-      ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
-    }
-
     registerIR("count", TAggregable(tv("T"))) { agg =>
       val uid = genUID()
       ApplyAggOp(AggMap(agg, uid, I32(0)), Count(), Seq())
     }
 
-    registerIR("min", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val min = genUID()
-      val value = genUID()
-      val body = If(IsNA(Ref(min, t)),
-        Ref(value, t),
-        If(IsNA(Ref(value, t)),
-          Ref(min, t),
-          If(ApplyBinaryPrimOp(LT(), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
-      ArrayFold(a, NA(t), min, value, body)
-    }
-
-    registerIR("max", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val max = genUID()
-      val value = genUID()
-      val body = If(IsNA(Ref(max, t)),
-        Ref(value, t),
-        If(IsNA(Ref(value, t)),
-          Ref(max, t),
-          If(ApplyBinaryPrimOp(GT(), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
-      ArrayFold(a, NA(t), max, value, body)
-    }
-
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
     registerIR("isMissing", tv("T")) { a => IsNA(a) }
 
-    registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
-
-    registerIR("[:]", TArray(tv("T"))) { (a) => a }
-
-    registerIR("[*:]", TArray(tv("T")), TInt32()) { (a, i) =>
-      val idx = genUID()
-      ArrayMap(
-        ArrayRange(If(ApplyBinaryPrimOp(LT(), i, I32(0)),
-          ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-          i),
-          ArrayLen(a),
-          I32(1)),
-        idx,
-        ArrayRef(a, Ref(idx, TInt32())))
-    }
-
-    registerIR("[:*]", TArray(tv("T")), TInt32()) { (a, i) =>
-      val idx = genUID()
-      ArrayMap(
-        ArrayRange(I32(0),
-          If(ApplyBinaryPrimOp(LT(), i, I32(0)),
-            ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-            i),
-          I32(1)),
-        idx,
-        ArrayRef(a, Ref(idx, TInt32())))
-    }
-
-    registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32()) { (a, i, j) =>
-      val idx = genUID()
-      ArrayMap(
-        ArrayRange(
-          If(ApplyBinaryPrimOp(LT(), i, I32(0)),
-            ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-            i),
-          If(ApplyBinaryPrimOp(LT(), j, I32(0)),
-            ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
-            j),
-          I32(1)),
-        idx,
-        ArrayRef(a, Ref(idx, TInt32())))
-    }
-
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
-
-    registerIR("[:]", TString()) { (a) => a }
 
     registerIR("range", TInt32(), TInt32(), TInt32())(ArrayRange)
 
@@ -147,6 +39,26 @@ object UtilFunctions extends RegistryFunctions {
       InsertFields(s, annotations.asInstanceOf[MakeStruct].fields)
     }
 
+    registerCode("toInt32", TBoolean(), TInt32()) { case (_, x: Code[Boolean]) => x.toI }
+    registerCode("toInt64", TBoolean(), TInt64()) { case (_, x: Code[Boolean]) => x.toI.toL }
+    registerCode("toFloat32", TBoolean(), TFloat32()) { case (_, x: Code[Boolean]) => x.toI.toF }
+    registerCode("toFloat64", TBoolean(), TFloat64()) { case (_, x: Code[Boolean]) => x.toI.toD }
+    registerCode("toInt32", TString(), TInt32()) { case (mb, x: Code[Long]) =>
+      wrapArg[String](mb, TString())(x).invoke[Int]("toInt")
+    }
+    registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
+      wrapArg[String](mb, TString())(x).invoke[Long]("toLong")
+    }
+    registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
+      wrapArg[String](mb, TString())(x).invoke[Float]("toFloat")
+    }
+    registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
+      wrapArg[String](mb, TString())(x).invoke[Double]("toDouble")
+    }
+    registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
+      wrapArg[String](mb, TString())(x).invoke[Boolean]("toBoolean")
+    }
+    
     val compareOps = Array(
       ("==", CodeOrdering.equiv),
       ("<", CodeOrdering.lt),

@@ -49,6 +49,9 @@ object StringFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
     val thisClass = getClass
+
+    registerIR("[:]", TString())(_)
+
     registerWrappedStringScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedStringScalaFunction("lower", TString(), TString())(thisClass, "lower")
     registerWrappedStringScalaFunction("strip", TString(), TString())(thisClass, "strip")

@@ -67,6 +67,7 @@ object IRFunctionRegistry {
   CallFunctions.registerAll()
   GenotypeFunctions.registerAll()
   MathFunctions.registerAll()
+  ArrayFunctions.registerAll()
   UtilFunctions.registerAll()
   StringFunctions.registerAll()
 }
@@ -88,24 +89,27 @@ abstract class RegistryFunctions {
   def tnum(name: String): TVariable =
     tv(name, _.isInstanceOf[TNumeric])
 
-  def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
-    case _: TBoolean => { case c: Code[Boolean] => c }
-    case _: TInt32 => { case c: Code[Int] => c }
-    case _: TInt64 => { case c: Code[Long] => c }
-    case _: TFloat32 => { case c: Code[Float] => c }
-    case _: TFloat64 => { case c: Code[Double] => c }
-    case _: TString => { case c: Code[Long] =>
-      Code.invokeScalaObject[Region, Long, String](
-        TString.getClass, "loadString",
-        mb.getArg[Region](1), c)
-    }
-    case t => {
-      case c: Code[Long] =>
-        Code.invokeScalaObject[Type, Region, Long, Any](
-          UnsafeRow.getClass, "read",
-          mb.getType(t),
+  def wrapArg[T](mb: EmitMethodBuilder, t: Type): Code[_] => Code[T] = {
+    val c: Code[_] => Code[_] = t match {
+      case _: TBoolean => { case c: Code[Boolean] => c }
+      case _: TInt32 => { case c: Code[Int] => c }
+      case _: TInt64 => { case c: Code[Long] => c }
+      case _: TFloat32 => { case c: Code[Float] => c }
+      case _: TFloat64 => { case c: Code[Double] => c }
+      case _: TString => { case c: Code[Long] =>
+        Code.invokeScalaObject[Region, Long, String](
+          TString.getClass, "loadString",
           mb.getArg[Region](1), c)
+      }
+      case t => {
+        case c: Code[Long] =>
+          Code.invokeScalaObject[Type, Region, Long, Any](
+            UnsafeRow.getClass, "read",
+            mb.getType(t),
+            mb.getArg[Region](1), c)
+      }
     }
+    { arg: Code[_] => coerce[T](c(arg)) }
   }
 
   def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {

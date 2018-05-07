@@ -1568,7 +1568,7 @@ object FunctionRegistry {
     registerMethod("signum", ev.signum _)
 
     register("-", ev.negate _)
-    register("+", (x: T) => x)
+//    register("+", (x: T) => x)
 
     registerMethod("toInt32", ev.toInt _)
     registerMethod("toInt64", ev.toLong _)
