@@ -37,6 +37,14 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArraySort(a) =>
+      Array(a)
+    case ToSet(a) =>
+      Array(a)
+    case ToDict(a) =>
+      Array(a)
+    case ToArray(a) =>
+      Array(a)
     case ArrayMap(a, name, body) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValueBuilder, SafeIndexedSeq}
+import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.expr.ir._
@@ -41,53 +41,182 @@ class OrderingSuite {
   }
 
   @Test def testRandomOpsAgainstExtended() {
-    val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), t.genNonmissingValue, t.genNonmissingValue))
+    val compareGen = for {
+      t <- Type.genArb
+      a1 <- t.genNonmissingValue
+      a2 <- t.genNonmissingValue
+    } yield (t, a1, a2)
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
 
-      rvb.start(t)
-      rvb.addAnnotation(t, a1)
-      val v1 = rvb.end()
+        rvb.start(t)
+        rvb.addAnnotation(t, a1)
+        val v1 = rvb.end()
 
-      rvb.start(t)
-      rvb.addAnnotation(t, a2)
-      val v2 = rvb.end()
+        rvb.start(t)
+        rvb.addAnnotation(t, a2)
+        val v2 = rvb.end()
 
-      val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
-      val fcompare = getStagedOrderingFunction[Int](t, "compare")
-      val result = java.lang.Integer.signum(fcompare(region, v1, v2))
+        val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
+        val fcompare = getStagedOrderingFunction[Int](t, "compare")
+        val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
-      assert(result == compare, s"compare expected: $compare vs $result")
+        assert(result == compare, s"compare expected: $compare vs $result")
 
 
-      val equiv = t.ordering.equiv(a1, a2)
-      val fequiv = getStagedOrderingFunction[Boolean](t, "equiv")
+        val equiv = t.ordering.equiv(a1, a2)
+        val fequiv = getStagedOrderingFunction[Boolean](t, "equiv")
 
-      assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
+        assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
-      val lt = t.ordering.lt(a1, a2)
-      val flt = getStagedOrderingFunction[Boolean](t, "lt")
+        val lt = t.ordering.lt(a1, a2)
+        val flt = getStagedOrderingFunction[Boolean](t, "lt")
 
-      assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
+        assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
-      val lteq = t.ordering.lteq(a1, a2)
-      val flteq = getStagedOrderingFunction[Boolean](t, "lteq")
+        val lteq = t.ordering.lteq(a1, a2)
+        val flteq = getStagedOrderingFunction[Boolean](t, "lteq")
 
-      assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
+        assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
-      val gt = t.ordering.gt(a1, a2)
-      val fgt = getStagedOrderingFunction[Boolean](t, "gt")
+        val gt = t.ordering.gt(a1, a2)
+        val fgt = getStagedOrderingFunction[Boolean](t, "gt")
 
-      assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
+        assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
-      val gteq = t.ordering.gteq(a1, a2)
-      val fgteq = getStagedOrderingFunction[Boolean](t, "gteq")
+        val gteq = t.ordering.gteq(a1, a2)
+        val fgteq = getStagedOrderingFunction[Boolean](t, "gteq")
 
-      assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
+        assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
+      }
 
       true
     }
     p.check()
+  }
+
+  @Test def testSortOnRandomArray() {
+    val compareGen = for {
+      elt <- Type.genArb
+      a <- TArray(elt).genNonmissingValue
+    } yield (elt, a)
+    val p = Prop.forAll(compareGen) { case (t, a) =>
+      val ir = ArraySort(GetTupleElement(In(0, TTuple(TArray(t))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+
+        rvb.start(TTuple(TArray(t)))
+        rvb.startTuple()
+        rvb.addAnnotation(TArray(t), a)
+        rvb.endTuple()
+        val off = rvb.end()
+
+        val res = f(region, off, false)
+        val actual = SafeIndexedSeq(TArray(t), region, res)
+        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering)
+        expected == actual
+      }
+    }
+    p.check()
+  }
+
+  @Test def testToSetOnRandomDuplicatedArray() {
+    val compareGen = for {
+      elt <- Type.genArb
+      a <- TArray(elt).genNonmissingValue
+    } yield (elt, a)
+    val p = Prop.forAll(compareGen) { case (t, a) =>
+      val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
+      val ir = ToSet(GetTupleElement(In(0, TTuple(TArray(t))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      Region.scoped[Boolean] { region =>
+        val rvb = new RegionValueBuilder(region)
+
+        rvb.start(TTuple(TArray(t)))
+        rvb.startTuple()
+        rvb.addAnnotation(TArray(t), array)
+        rvb.endTuple()
+        val off = rvb.end()
+
+        val res = f(region, off, false)
+        val actual = SafeIndexedSeq(TArray(t), region, res)
+        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering).distinct
+
+        expected == actual
+      }
+    }
+    p.check()
+  }
+
+  @Test def testToDictOnRandomDuplicatedArray() {
+    val compareGen = for {
+      kt <- Type.genArb
+      vt <- Type.genArb
+      telt = TTuple(kt, vt)
+      a <- TArray(telt).genNonmissingValue
+    } yield (telt, a)
+    val p = Prop.forAll(compareGen) { case (telt: TTuple, a) =>
+      val array: IndexedSeq[Row] = a.asInstanceOf[IndexedSeq[Row]] ++ a.asInstanceOf[IndexedSeq[Row]]
+      val ir = ToDict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+
+      Emit(ir, fb)
+
+      val f = fb.result()()
+
+      Region.scoped[Boolean] { region =>
+        val rvb = new RegionValueBuilder(region)
+
+        rvb.start(TTuple(TArray(telt)))
+        rvb.startTuple()
+        rvb.addAnnotation(TArray(telt), array)
+        rvb.endTuple()
+        val off = rvb.end()
+
+        val res = f(region, off, false)
+        val actual = SafeIndexedSeq(TArray(telt), region, res)
+        val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
+        val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
+        val expectedKeys = expectedMap.keys.toIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
+
+        expectedKeys == actualKeys
+      }
+    }
+    p.check()
+  }
+
+  @Test def testSortOnMissingArray() {
+    val tarray = TArray(TStruct("key" -> TInt32(), "value" -> TInt32()))
+    val irs: Array[IR => IR] = Array(ArraySort(_), ToSet(_), ToDict(_))
+
+    for (irF <- irs) {
+      val ir = IsNA(irF(NA(tarray)))
+      val fb = EmitFunctionBuilder[Region, Long, Boolean, Boolean]
+      Emit(ir, fb)
+
+      val f = fb.result()()
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+
+        rvb.start(tarray)
+        rvb.startArray(0)
+        rvb.endArray()
+        val off = rvb.end()
+
+        assert(f(region, off, false))
+      }
+    }
   }
 }

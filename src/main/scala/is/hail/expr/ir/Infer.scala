@@ -19,6 +19,15 @@ object Infer {
       case x@ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         -coerce[TArray](a.typ).elementType
+      case x@ArraySort(a) =>
+        a.typ
+      case x@ToSet(a) =>
+        TSet(coerce[TArray](a.typ).elementType)
+      case x@ToDict(a) =>
+        val elt = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
+        TDict(elt.types(0), elt.types(1))
+      case x@ToArray(a) =>
+        TArray(coerce[TContainer](a.typ).elementType)
       case x@ArrayMap(a, name, body) =>
         TArray(-body.typ)
       case x@ArrayFilter(a, name, cond) =>

@@ -75,6 +75,12 @@ final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
+
+final case class ArraySort(a: IR) extends InferIR
+final case class ToSet(a: IR) extends InferIR
+final case class ToDict(a: IR) extends InferIR
+final case class ToArray(a: IR) extends InferIR
+
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)
   def elementTyp: Type = typ.elementType

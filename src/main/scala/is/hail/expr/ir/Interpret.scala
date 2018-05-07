@@ -205,6 +205,24 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
+      case ArraySort(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
+      case ToSet(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].toSet
+      case ToDict(a) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
