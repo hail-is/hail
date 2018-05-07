@@ -93,6 +93,11 @@ abstract class RegistryFunctions {
     case _: TInt64 => { case c: Code[Long] => c }
     case _: TFloat32 => { case c: Code[Float] => c }
     case _: TFloat64 => { case c: Code[Double] => c }
+    case _: TString => { case c: Code[Long] =>
+      Code.invokeScalaObject[Region, Long, String](
+        TString.getClass, "loadString",
+        mb.getArg[Region](1), c)
+    }
     case t => {
       case c: Code[Long] =>
         Code.invokeScalaObject[Type, Region, Long, Any](
