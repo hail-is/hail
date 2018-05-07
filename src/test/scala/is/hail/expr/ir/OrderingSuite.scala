@@ -43,7 +43,7 @@ class OrderingSuite {
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
-      a1 = t.genNonmissingValue
+      a1 <- t.genNonmissingValue
       a2 <- t.genNonmissingValue
     } yield (t, a1, a2)
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
