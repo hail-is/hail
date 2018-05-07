@@ -134,7 +134,7 @@ object MatrixTable {
       val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
 
       val colAnnotations =
-        if (dropCols)
+        if (mr.dropCols)
           IndexedSeq.empty[Annotation]
         else
           Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
