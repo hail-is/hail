@@ -488,7 +488,7 @@ class BlockMatrix(object):
     @typecheck_method(starts=sequenceof(int),
                       stops=sequenceof(int),
                       blocks_only=bool)
-    def sparsify_row_intervals(self, starts, stops, blocks_only=True):
+    def sparsify_row_intervals(self, starts, stops, blocks_only=False):
         """Creates a sparse block matrix by filtering to an interval for each row.
 
         Examples
@@ -521,7 +521,7 @@ class BlockMatrix(object):
 
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4],
-        ...                            blocks_only=False)
+        ...                            blocks_only=True)
         ...    .to_numpy())
 
         .. code-block:: text
