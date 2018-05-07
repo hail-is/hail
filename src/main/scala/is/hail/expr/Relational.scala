@@ -1543,10 +1543,9 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
 
   private val columnIdx = child.typ.rowType.fieldIdx(column)
   private val columnType = child.typ.rowType.types(columnIdx).asInstanceOf[TContainer]
+  private val rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.elementType)
 
-  val typ: TableType =
-    child.typ.copy(
-      rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.elementType))
+  val typ: TableType = child.typ.copy(rowType = rowType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
@@ -1572,27 +1571,40 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
           ir.Ref("i", TInt32())))))
     assert(resultType == typ.rowType)
 
-    TableValue(typ, prev.globals,
-      prev.rvd.boundary.mapPartitions(typ.rowType, { (ctx, it) =>
-        val rv2 = RegionValue()
-        it.flatMap { rv =>
-          val isMissing = isMissingF()(rv.region, rv.offset, false)
-          if (isMissing)
-            Iterator.empty
-          else {
-            val n = lengthF()(rv.region, rv.offset, false)
-            Iterator.range(0, n)
-              .map { i =>
-                ctx.rvb.start(childRowType)
-                ctx.rvb.addRegionValue(childRowType, rv)
-                val incomingRow = ctx.rvb.end()
-                val off = explodeF()(ctx.region, incomingRow, false, i, false)
-                rv2.set(ctx.region, off)
-                rv2
-              }
-          }
+    val itF: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] = { (ctx, it) =>
+      val rv2 = RegionValue()
+      it.flatMap { rv =>
+        val isMissing = isMissingF()(rv.region, rv.offset, false)
+        if (isMissing)
+          Iterator.empty
+        else {
+          val n = lengthF()(rv.region, rv.offset, false)
+          Iterator.range(0, n)
+            .map { i =>
+              ctx.rvb.start(childRowType)
+              ctx.rvb.addRegionValue(childRowType, rv)
+              val incomingRow = ctx.rvb.end()
+              val off = explodeF()(ctx.region, incomingRow, false, i, false)
+              rv2.set(ctx.region, off)
+              rv2
+            }
         }
-      }))
+      }
+    }
+
+    val newRVD: RVD = prev.rvd.boundary match {
+      case rvd: UnpartitionedRVD =>
+        rvd.mapPartitions(typ.rowType, itF)
+      case orvd: OrderedRVD =>
+        if (orvd.typ.key.contains(column))
+          orvd.mapPartitions(typ.rowType, itF)
+        else
+          orvd.mapPartitionsPreservesPartitioning(
+            orvd.typ.copy(rowType = rowType),
+            itF)
+    }
+
+    TableValue(typ, prev.globals, newRVD)
   }
 }
 
