@@ -760,10 +760,11 @@ object OrderedRVD {
   ): OrderedRVD = {
     val localType = typ
     val partBc = partitioner.broadcast(crdd.sparkContext)
+    val enc = RVD.wireCodec.buildEncoder(localType.rowType)
+    val dec = RVD.wireCodec.buildDecoder(localType.rowType)
     OrderedRVD(typ,
       partitioner,
       crdd.cmapPartitions { (ctx, it) =>
-        val enc = RVD.wireCodec.buildEncoder(localType.rowType)
         it.map { rv =>
           val wkrv = WritableRegionValue(typ.kType)
           wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
@@ -773,7 +774,6 @@ object OrderedRVD {
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kOrd)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
-          val dec = RVD.wireCodec.buildDecoder(localType.rowType)
           val region = ctx.region
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
