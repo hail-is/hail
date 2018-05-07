@@ -41,34 +41,32 @@ object ExportGen {
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
       val gpView = new ArrayGenotypeView(fullRowType)
-      val vView = new RegionValueVariant(fullRowType)
-      val vaView = new GenAnnotationView(fullRowType)
+      val v = new RegionValueVariant(fullRowType)
+      val va = new GenAnnotationView(fullRowType)
 
       it.map { rv =>
         gpView.setRegion(rv)
-        vView.setRegion(rv)
-        vaView.setRegion(rv)
+        v.setRegion(rv)
+        va.setRegion(rv)
 
-        val contig = vView.contig()
-        val alleles = vView.alleles()
+        val contig = v.contig()
+        val alleles = v.alleles()
         val a0 = alleles(0)
         val a1 = alleles(1)
 
-        val varid = vaView.varid()
-        val rsid = vaView.rsid()
-
-        val vstring = VariantMethods.locusAllelesToString(vView.locus(), alleles)
-
+        val varid = va.varid()
+        val rsid = va.rsid()
+        
         if (spaceRegex.findFirstIn(contig).isDefined)
-          fatal(s"Invalid contig found at '$vstring' -- no white space allowed: '$contig'")
+          fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$contig'")
         if (spaceRegex.findFirstIn(a0).isDefined)
-          fatal(s"Invalid allele found at '$vstring' -- no white space allowed: '$a0'")
+          fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a0'")
         if (spaceRegex.findFirstIn(a1).isDefined)
-          fatal(s"Invalid allele found at '$vstring' -- no white space allowed: '$a1'")
+          fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a1'")
         if (spaceRegex.findFirstIn(varid).isDefined)
-          fatal(s"Invalid 'varid' found at '$vstring' -- no white space allowed: '$varid'")
+          fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$varid'")
         if (spaceRegex.findFirstIn(rsid).isDefined)
-          fatal(s"Invalid 'rsid' found at '$vstring' -- no white space allowed: '$rsid'")
+          fatal(s"Invalid 'rsid' found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$rsid'")
 
 
         sb.clear()
@@ -78,7 +76,7 @@ object ExportGen {
         sb += ' '
         sb.append(rsid)
         sb += ' '
-        sb.append(vView.position())
+        sb.append(v.position())
         sb += ' '
         sb.append(a0)
         sb += ' '
@@ -89,7 +87,7 @@ object ExportGen {
           gpView.setGenotype(i)
           if (gpView.hasGP) {
             if (gpView.getGPLength() != 3)
-              fatal(s"Invalid 'gp' at variant '$vstring' and sample index $i. The array must have length equal to 3.")
+              fatal(s"Invalid 'gp' at variant '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' and sample index $i. The array must have length equal to 3.")
             sb += ' '
             sb.append(formatDouble(gpView.getGP(0), precision))
             sb += ' '
@@ -112,9 +110,6 @@ class GenAnnotationView(rowType: TStruct) extends View {
 
   private val rsidIdx = rsidField.index
   private val varidIdx = varidField.index
-
-  private val trsid = rsidField.typ.asInstanceOf[TString]
-  private val tvarid = varidField.typ.asInstanceOf[TString]
 
   private var region: Region = _
   private var rsidOffset: Long = _

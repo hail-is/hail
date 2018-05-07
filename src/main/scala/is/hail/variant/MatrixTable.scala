@@ -15,6 +15,8 @@ import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.sparkextras.ContextRDD
+import is.hail.io.gen.ExportGen
+import is.hail.io.plink.ExportPlink
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -2167,11 +2169,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def exportPlink(path: String) {
-    ir.Interpret(ir.MatrixWrite(ast, _.exportPlink(path)))
+    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportPlink(mv, path)))
   }
 
   def exportGen(path: String, precision: Int = 4) {
-    ir.Interpret(ir.MatrixWrite(ast, _.exportGen(path, precision)))
+    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportGen(mv, path, precision)))
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {

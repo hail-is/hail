@@ -172,10 +172,6 @@ case class MatrixValue(
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def exportPlink(path: String): Unit = ExportPlink(this, path)
-
-  def exportGen(path: String, precision: Int = 4): Unit = ExportGen(this, path, precision)
-
   def rowsRVD(): OrderedRVD = {
     val localRowType = typ.rowType
     val fullRowType = typ.rvRowType

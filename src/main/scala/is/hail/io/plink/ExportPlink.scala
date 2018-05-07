@@ -23,16 +23,14 @@ object ExportPlink {
     val a1 = alleles(1)
     val varid = a.varid()
 
-    val vstring = VariantMethods.locusAllelesToString(v.locus(), v.alleles())
-
     if (spaceRegex.findFirstIn(contig).isDefined)
-      fatal(s"Invalid contig found at '$vstring' -- no white space allowed: '$contig'")
+      fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$contig'")
     if (spaceRegex.findFirstIn(a0).isDefined)
-      fatal(s"Invalid allele found at '$vstring' -- no white space allowed: '$a0'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a0'")
     if (spaceRegex.findFirstIn(a1).isDefined)
-      fatal(s"Invalid allele found at '$vstring' -- no white space allowed: '$a1'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a1'")
     if (spaceRegex.findFirstIn(varid).isDefined)
-      fatal(s"Invalid 'varid' found at '$vstring' -- no white space allowed: '$varid'")
+      fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$varid'")
 
     osw.write(contig)
     osw.write('\t')
@@ -128,15 +126,11 @@ class BimAnnotationView(rowType: TStruct) extends View {
   private val varidIdx = varidField.index
   private val posMorganIdx = posMorganField.index
 
-  private val tvarid = varidField.typ.asInstanceOf[TString]
-  private val tposm = posMorganField.typ.asInstanceOf[TInt32]
-
   private var region: Region = _
   private var varidOffset: Long = _
   private var posMorganOffset: Long = _
 
   private var cachedVarid: String = _
-  private var cachedRsid: String = _
 
   def setRegion(region: Region, offset: Long) {
     this.region = region
