@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -87,6 +87,31 @@ abstract class RegistryFunctions {
 
   def tnum(name: String): TVariable =
     tv(name, _.isInstanceOf[TNumeric])
+
+  def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+    case _: TInt32 => { case c: Code[Int] => c }
+    case _: TInt64 => { case c: Code[Long] => c }
+    case _: TFloat32 => { case c: Code[Float] => c }
+    case _: TFloat64 => { case c: Code[Double] => c }
+    case t => {
+      case c: Code[Long] =>
+        Code.invokeScalaObject[Type, Region, Long, Any](
+          UnsafeRow.getClass, "read",
+          mb.getType(t),
+          mb.getArg[Region](1), c)
+    }
+  }
+
+  def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+    case _: TInt32 => { case c: Code[Int] => c }
+    case _: TInt64 => { case c: Code[Long] => c }
+    case _: TFloat32 => { case c: Code[Float] => c }
+    case _: TFloat64 => { case c: Code[Double] => c }
+    case _: TString => { case c: Code[String] =>
+      mb.getArg[Region](1).load().appendString(c)
+    }
+    case _ => ???
+  }
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type, isDet: Boolean)(impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
