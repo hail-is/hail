@@ -7,16 +7,18 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
   private var found: Boolean = false
 
   def seqOp(i: Boolean, missing: Boolean) {
-    found = true
-    if (i > max)
+    if (!missing && (i > max || !found)) {
+      found = true
       max = i
+    }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxBooleanAggregator]
-    if (that.max > max)
+    if (that.found && (that.max > max || !found)) {
+      found = true
       max = that.max
-    found = found | that.found
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -39,16 +41,18 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
   private var found: Boolean = false
 
   def seqOp(i: Int, missing: Boolean) {
-    found = true
-    if (i > max)
+    if (!missing && (i > max || !found)) {
+      found = true
       max = i
+    }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxIntAggregator]
-    if (that.max > max)
+    if (that.found && (that.max > max || !found)) {
+      found = true
       max = that.max
-    found = found | that.found
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -71,16 +75,18 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
   private var found: Boolean = false
 
   def seqOp(i: Long, missing: Boolean) {
-    found = true
-    if (i > max)
+    if (!missing && (i > max || !found)) {
+      found = true
       max = i
+    }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxLongAggregator]
-    if (that.max > max)
+    if (that.found && (that.max > max || !found)) {
+      found = true
       max = that.max
-    found = found | that.found
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -103,16 +109,18 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
   private var found: Boolean = false
 
   def seqOp(i: Float, missing: Boolean) {
-    found = true
-    if (i > max)
+    if (!missing && (i > max || !found)) {
+      found = true
       max = i
+    }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxFloatAggregator]
-    if (that.max > max)
+    if (that.found && (that.max > max || !found)) {
+      found = true
       max = that.max
-    found = found | that.found
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -135,16 +143,18 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
   private var found: Boolean = false
 
   def seqOp(i: Double, missing: Boolean) {
-    found = true
-    if (i > max)
+    if (!missing && (i > max || !found)) {
+      found = true
       max = i
+    }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val that = agg2.asInstanceOf[RegionValueMaxDoubleAggregator]
-    if (that.max > max)
+    if (that.found && (that.max > max || !found)) {
+      found = true
       max = that.max
-    found = found | that.found
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
