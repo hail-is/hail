@@ -10,7 +10,11 @@ import is.hail.expr.types.coerce
 
 object UtilFunctions extends RegistryFunctions {
 
+  def parseBoolean(s: String): Boolean = s.toBoolean
+
   def registerAll() {
+    val thisClass = getClass
+
     registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
 
 
@@ -45,19 +49,24 @@ object UtilFunctions extends RegistryFunctions {
     registerCode("toFloat32", TBoolean(), TFloat32()) { case (_, x: Code[Boolean]) => x.toI.toF }
     registerCode("toFloat64", TBoolean(), TFloat64()) { case (_, x: Code[Boolean]) => x.toI.toD }
     registerCode("toInt32", TString(), TInt32()) { case (mb, x: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Int]("toInt")
+      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+      Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", s)
     }
     registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Long]("toLong")
+      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+      Code.invokeStatic[java.lang.Integer, String, Long]("parseLong", s)
     }
     registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Float]("toFloat")
+      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+      Code.invokeStatic[java.lang.Integer, String, Float]("parseFloat", s)
     }
     registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Double]("toDouble")
+      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+      Code.invokeStatic[java.lang.Integer, String, Double]("parseDouble", s)
     }
     registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Boolean]("toBoolean")
+      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+      Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
     val compareOps = Array(
