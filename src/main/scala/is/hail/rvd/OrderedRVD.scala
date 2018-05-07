@@ -61,9 +61,7 @@ class OrderedRVD(
   ): OrderedRVD = OrderedRVD(newTyp, partitioner, crdd.cmapPartitions(f))
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
-    OrderedRVD(typ,
-      partitioner,
-      crdd.filter(p))
+    OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
@@ -272,7 +270,7 @@ class OrderedRVD(
       OrderedRVD.empty(sparkContext, typ)
     else {
       val sub = subsetPartitions(newPartitionIndices)
-      sub.copy(rdd = sub.crdd.filter(pred))
+      filter(pred)
     }
   }
 

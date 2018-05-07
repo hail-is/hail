@@ -22,7 +22,8 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
   def head(n: Long): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crdd.head(n))
 
-  def filter(f: (RegionValue) => Boolean): UnpartitionedRVD = new UnpartitionedRVD(rowType, crdd.filter(f))
+  def filter(f: (RegionValue) => Boolean): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, crddBoundary.filter(f))
 
   def persist(level: StorageLevel): UnpartitionedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
