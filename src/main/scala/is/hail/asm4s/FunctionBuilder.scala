@@ -289,7 +289,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     val localName = name.replaceAll("/", ".")
 
     assert(TaskContext.get() == null,
-      "PackDecoder compilation should happen on master, but happened on worker")
+      "FunctionBuilder emission should happen on master, but happened on worker")
 
     new (() => F) with java.io.Serializable {
       @transient
