@@ -317,13 +317,27 @@ trait RVD {
     seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = crdd.treeAggregate(zeroValue, seqOp, combOp, depth)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
+      val u2 = seqOp(u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
+  }
 
   def aggregate[U: ClassTag](
     zeroValue: U
   )(seqOp: (U, RegionValue) => U,
     combOp: (U, U) => U
-  ): U = crdd.aggregate(zeroValue, seqOp, combOp)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
+      val u2 = seqOp(u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.aggregate(zeroValue, clearingSeqOp, combOp)
+  }
 
   def count(): Long =
     crdd.cmapPartitions { (ctx, it) =>

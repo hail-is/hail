@@ -159,13 +159,13 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   // FIXME: delete when region values are non-serializable
   def aggregate[U: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U
   ): U = aggregate[U, U](zero, seqOp, combOp, x => x, x => x)
 
   def aggregate[U: ClassTag, V: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U
@@ -173,7 +173,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val zeroValue = ExposedUtils.clone(zero, sparkContext)
     val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
-        serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp, combOp)) } }
+        serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp(c, _, _), combOp)) } }
     var result = zero
     val localCombiner = { (_: Int, v: V) =>
       result = combOp(result, deserialize(v)) }
@@ -195,27 +195,27 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       case (None, None) => None
     }
 
-    treeAggregate(Option.empty, seqOp, combOp, depth)
+    treeAggregate(Option.empty, (c, u: Option[T], v) => seqOp(u, v), combOp, depth)
       .getOrElse(throw new RuntimeException("nothing in the RDD!"))
   }
 
   // FIXME: delete when region values are non-serializable
   def treeAggregate[U: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U
   ): U = treeAggregate(zero, seqOp, combOp, 2)
 
   def treeAggregate[U: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U,
     depth: Int
   ): U = treeAggregate[U, U](zero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
 
   def treeAggregate[U: ClassTag, V: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U
@@ -223,7 +223,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def treeAggregate[U: ClassTag, V: ClassTag](
     zero: U,
-    seqOp: (U, T) => U,
+    seqOp: (C, U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U,
@@ -234,15 +234,13 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val aggregatePartitionOfContextTs = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
-          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp, combOp)) } }
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, _, _), combOp)) } }
     val aggregatePartitionOfVs = clean { (it: Iterator[V]) =>
-      using(mkc()) { c =>
-        serialize(
-          it.map(deserialize).fold(deserialize(zeroValue))(combOp)) } }
+      serialize(
+        it.map(deserialize).fold(deserialize(zeroValue))(combOp)) }
     val combOpV = clean { (l: V, r: V) =>
-      using(mkc()) { c =>
-        serialize(
-          combOp(deserialize(l), deserialize(r))) } }
+      serialize(
+        combOp(deserialize(l), deserialize(r))) }
 
     var reduced: RDD[V] =
       rdd.mapPartitions(
