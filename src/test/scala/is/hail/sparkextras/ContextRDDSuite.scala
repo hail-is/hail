@@ -5,7 +5,10 @@ import org.testng.annotations.Test
 
 class ContextRDDSuite extends SparkSuite {
   val intplus = (x: Int, y: Int) => x + y
+  val cintplus = (_: TrivialContext, x: Int, y: Int) => x + y
   def intplusarraylength[T] = (x: Int, y: Array[T]) => x + y.length
+  def cintplusarraylength[T] =
+    (_: TrivialContext, x: Int, y: Array[T]) => x + y.length
 
   private[this] def intDatasets(partitions: Int) = Seq(
     "1,2,3,4" -> Seq(1,2,3,4),
@@ -21,7 +24,7 @@ class ContextRDDSuite extends SparkSuite {
       (name, data) <- intDatasets(partitions)
     } {
       assert(
-        data.aggregate[Int](0, _ + _, _ + _) == data.run.collect().sum,
+        data.aggregate[Int](0, (_, x, y) => x + y, _ + _) == data.run.collect().sum,
         s"name, partitions: $partitions")
     }
   }
@@ -34,7 +37,7 @@ class ContextRDDSuite extends SparkSuite {
       depth <- Seq(2, 3, 5)
     } {
       assert(
-        data.treeAggregate[Int](0, intplus, intplus, depth = depth) == data.run.collect().sum,
+        data.treeAggregate[Int](0, cintplus, intplus, depth = depth) == data.run.collect().sum,
         s"$name, partitions: $partitions, depth: $depth")
     }
   }
@@ -55,7 +58,10 @@ class ContextRDDSuite extends SparkSuite {
       (name, data) <- seqDatasets(partitions)
     } {
       assert(
-        data.aggregate[Int](0, _ + _.length, _ + _)
+        data.aggregate[Int](
+          0,
+          cintplusarraylength[Int],
+          _ + _)
           ==
           data.run.collect().map(_.length).sum,
         s"$name, partitions: $partitions")
@@ -72,7 +78,7 @@ class ContextRDDSuite extends SparkSuite {
       assert(
         data.treeAggregate[Int](
           0,
-          intplusarraylength[Int],
+          cintplusarraylength[Int],
           intplus,
           depth = 3)
           ==
