@@ -618,6 +618,8 @@ object EmitPackDecoder {
   }
 
   def apply(t: Type): () => AsmFunction2[Region, InputBuffer, Long] = {
+    assert(TaskContext.get() == null,
+      "PackDecoder compilation should happen on master, but happened on worker")
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
     val region = fb.arg2
