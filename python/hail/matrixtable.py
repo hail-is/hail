@@ -722,6 +722,78 @@ class MatrixTable(ExprContainer):
 
         return self._select_rows(caller, key_struct=hl.struct(**key_fields), pk_size=len(pk_dict))
 
+    @typecheck_method(partition_key=oneof(str, sequenceof(str)),
+                      keys=oneof(str, Expression),
+                      named_keys=Expression)
+    def partition_rows_by(self, partition_key, *keys, **named_keys) -> 'MatrixTable':
+        """Key rows by a new set of fields, specifying a partition key.
+
+        Examples
+        --------
+
+        >>> dataset_result = dataset.partition_rows_by('locus', 'locus', 'alleles')
+        >>> dataset_result = dataset.partition_rows_by(['locus'], 'locus', 'alleles')
+        >>> dataset_result = dataset.partition_rows_by(['locus'],
+        ...                                            dataset['locus'],
+        ...                                            dataset['alleles'])
+
+        All of these expressions key the dataset by the 'locus' and 'allele'
+        fields, partitioning by 'locus'.
+
+        >>> dataset_result = dataset.partition_rows_by(['contig', 'position']
+        ...                                      contig=dataset['locus'].contig,
+        ...                                      position=dataset['locus'].position,
+        ...                                      alleles=dataset['alleles'])
+
+        This keys the dataset by the newly defined fields, 'contig' and 'position',
+        and the 'alleles' field. The old row key field, 'locus', is preserved as
+        a non-key field.
+
+        Notes
+        -----
+        To specify a partition key, use :meth:`.MatrixTable.partition_rows_by`.
+
+        This method needs specify all the fields of a new row key. The old
+        key fields may be overwritten by newly-assigned fields, as described in
+        :meth:`.Table.annotate`. If not overwritten, they are preserved as non-key
+        row fields.
+
+        See :meth:`.Table.select` for more information about how to define new row
+        key fields.
+
+        Parameters
+        ----------
+        partition_key : :obj:`str`, or :obj:`list` of :obj:`str`.
+            Row fields to use as partition key. Must be a prefix of new row_key.
+        keys : varargs of :obj:`str` or :class:`.Expression`.
+            Row fields to key by.
+        named_keys : keyword args of :class:`.Expression`.
+            Row fields to key by.
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        keys = get_select_exprs("MatrixTable.key_rows_by",
+                                keys, named_keys, self._row_indices,
+                                protect_keys=False)
+        partition_key = wrap_to_tuple(partition_key)
+        if len(partition_key) > len(keys):
+            raise ValueError("MatrixTable.partition_rows_by requires partition_key to be prefix of row key.")
+
+        key_names = list(keys.keys())
+        for i, pk in enumerate(partition_key):
+            if key_names[i] != pk:
+                raise ExpressionException(
+                    "MatrixTable.partition_rows_by requires partition_key to be "
+                    "prefix of row key; found mismatch at key {}: '{}' vs '{}'"
+                        .format(i, pk, key_names[i]))
+
+        pks = dict(keys.items()[:len(partition_key)])
+        other_ks = dict(keys.items()[len(partition_key):])
+
+        return self._key_rows_by("MatrixTable.key_rows_by", pks, other_ks)
+
+
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=Expression)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
@@ -754,6 +826,8 @@ class MatrixTable(ExprContainer):
 
         See :meth:`.Table.select` for more information about how to define new row
         key fields.
+
+        To specify a partition key, use :meth:`.MatrixTable.partition_rows_by`.
 
         Parameters
         ----------
