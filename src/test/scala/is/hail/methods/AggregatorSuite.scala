@@ -4,8 +4,8 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.utils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
