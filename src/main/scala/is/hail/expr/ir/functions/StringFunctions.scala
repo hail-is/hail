@@ -69,8 +69,8 @@ object StringFunctions extends RegistryFunctions {
       val missing = s.m || r.m || Code(
         out := Code.invokeScalaObject[String, String, IndexedSeq[String]](
           thisClass, "firstMatchIn",
-          coerce[String](wrapArg(mb, TString())(s.value[Long])),
-          coerce[String](wrapArg(mb, TString())(r.value[Long]))),
+          asm4s.coerce[String](wrapArg(mb, TString())(s.value[Long])),
+          asm4s.coerce[String](wrapArg(mb, TString())(r.value[Long]))),
         nout.isNull)
       val value =
         nout.ifNull(

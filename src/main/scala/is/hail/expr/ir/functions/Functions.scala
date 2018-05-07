@@ -89,6 +89,7 @@ abstract class RegistryFunctions {
     tv(name, _.isInstanceOf[TNumeric])
 
   def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+    case _: TBoolean => { case c: Code[Boolean] => c }
     case _: TInt32 => { case c: Code[Int] => c }
     case _: TInt64 => { case c: Code[Long] => c }
     case _: TFloat32 => { case c: Code[Float] => c }
@@ -108,6 +109,7 @@ abstract class RegistryFunctions {
   }
 
   def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+    case _: TBoolean => { case c: Code[Boolean] => c }
     case _: TInt32 => { case c: Code[Int] => c }
     case _: TInt64 => { case c: Code[Long] => c }
     case _: TFloat32 => { case c: Code[Float] => c }
@@ -115,7 +117,6 @@ abstract class RegistryFunctions {
     case _: TString => { case c: Code[String] =>
       mb.getArg[Region](1).load().appendString(c)
     }
-    case _ => ???
   }
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type, isDet: Boolean)(impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]) {
