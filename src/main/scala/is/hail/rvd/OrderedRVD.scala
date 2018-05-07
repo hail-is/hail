@@ -878,14 +878,16 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     codec: CodecSpec,
     rdd: RDD[Array[Byte]]
-  ): OrderedRVD = apply(
-    typ,
-    partitioner,
-    ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
-      val dec = codec.buildDecoder(typ.rowType)
-      val rv = RegionValue()
-      it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
-    })
+  ): OrderedRVD = {
+    val dec = codec.buildDecoder(typ.rowType)
+    apply(
+      typ,
+      partitioner,
+      ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+        val rv = RegionValue()
+        it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
+      })
+  }
 
   def apply(
     typ: OrderedRVDType,

@@ -191,13 +191,15 @@ object LoadGDB {
       }.toArray
     }
 
+    val makeDec = rvCodec.buildDecoder(localRowType)
+
     val recordCRDD = ContextRDD.parallelize[RVDContext](sc, records, nPartitions)
       .cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rv = RegionValue(region)
         it.map { bytes =>
           val bais = new ByteArrayInputStream(bytes)
-          val dec = rvCodec.buildDecoder(localRowType)(bais)
+          val dec = makeDec(bais)
           rv.setOffset(dec.readRegionValue(region))
           rv
         }
