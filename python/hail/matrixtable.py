@@ -1507,9 +1507,17 @@ class MatrixTable(ExprContainer):
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
-        Note
-        ----
-        Not implemented.
+        Notes
+        -----
+        This method adds new global fields according to `named_exprs`, and
+        drops all global fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_globals`,
+        :meth:`.MatrixTable.annotate_globals`
 
         Parameters
         ----------
@@ -1519,16 +1527,37 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        fields_referenced = set()
+        for k, v in named_exprs.items():
+            check_collisions(self._fields, k, self._global_indices)
+            for name, inds in get_refs(v).items():
+                if inds == self._global_indices:
+                    fields_referenced.add(name)
+        fields_referenced = fields_referenced - set(named_exprs.keys())
+
+        return self._select_globals('MatrixTable.transmute_globals',
+                                    self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_rows(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
+        Notes
+        -----
+        This method adds new row fields according to `named_exprs`, and drops
+        all row fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
         Note
         ----
-        Not implemented.
+        This method supports aggregation over columns.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_rows`,
+        :meth:`.MatrixTable.annotate_rows`
 
         Parameters
         ----------
@@ -1538,17 +1567,37 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        fields_referenced = set()
+        for k, v in named_exprs.items():
+            check_collisions(self._fields, k, self._row_indices)
+            for name, inds in get_refs(v).items():
+                if inds == self._row_indices:
+                    fields_referenced.add(name)
+        fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        raise NotImplementedError()
+        return self._select_rows('MatrixTable.transmute_rows',
+                                 self.row.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
+        Notes
+        -----
+        This method adds new column fields according to `named_exprs`, and
+        drops all column fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
         Note
         ----
-        Not implemented.
+        This method supports aggregation over rows.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_cols`,
+        :meth:`.MatrixTable.annotate_cols`
 
         Parameters
         ----------
@@ -1558,16 +1607,33 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        fields_referenced = set()
+        for k, v in named_exprs.items():
+            check_collisions(self._fields, k, self._col_indices)
+            for name, inds in get_refs(v).items():
+                if inds == self._col_indices:
+                    fields_referenced.add(name)
+        fields_referenced = fields_referenced - set(named_exprs.keys())
+
+        return self._select_cols('MatrixTable.transmute_cols',
+                                 self.col.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
-        Note
-        ----
-        Not implemented.
+        Notes
+        -----
+        This method adds new entry fields according to `named_exprs`, and
+        drops all entry fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_entries`,
+        :meth:`.MatrixTable.annotate_entries`
 
         Parameters
         ----------
@@ -1577,9 +1643,18 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        fields_referenced = set()
+        for k, v in named_exprs.items():
+            check_collisions(self._fields, k, self._entry_indices)
+            for name, inds in get_refs(v).items():
+                if inds == self._entry_indices:
+                    fields_referenced.add(name)
+        fields_referenced = fields_referenced - set(named_exprs.keys())
+
+        return self._select_entries('MatrixTable.transmute_entries',
+                                   self.entry.annotate(**named_exprs).drop(*fields_referenced))
 
     @typecheck_method(expr=expr_any)
     def aggregate_rows(self, expr) -> Any:
@@ -2737,7 +2812,7 @@ class MatrixTable(ExprContainer):
         return self._jvds.same(other._jvds, tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
-    def _select_entries(self, caller, s):
+    def _select_entries(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._entry_indices)
         return cleanup(MatrixTable(base._jvds.selectEntries(s._ast.to_hql())))
@@ -2786,7 +2861,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(base._jvds.selectCols(col._ast.to_hql(), new_key)))
 
     @typecheck_method(caller=str, s=expr_struct())
-    def _select_globals(self, caller, s):
+    def _select_globals(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
         return cleanup(MatrixTable(base._jvds.selectGlobals(s._ast.to_hql())))
