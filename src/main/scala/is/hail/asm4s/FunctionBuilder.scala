@@ -1,21 +1,19 @@
 package is.hail.asm4s
 
 import java.io._
-
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
 import java.util
 
-import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
-
-import scala.collection.mutable
-import scala.collection.generic.Growable
-import scala.language.implicitConversions
-import scala.language.higherKinds
 import scala.collection.JavaConverters._
+import scala.collection.generic.Growable
+import scala.collection.mutable
+import scala.language.{higherKinds, implicitConversions}
 
 import is.hail.utils._
+import org.apache.spark.TaskContext
+import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 
 object FunctionBuilder {
   val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
@@ -289,6 +287,9 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def result(print: Option[PrintWriter] = None): () => F = {
     val bytes = classAsBytes(print)
     val localName = name.replaceAll("/", ".")
+
+    assert(TaskContext.get() == null,
+      "PackDecoder compilation should happen on master, but happened on worker")
 
     new (() => F) with java.io.Serializable {
       @transient
