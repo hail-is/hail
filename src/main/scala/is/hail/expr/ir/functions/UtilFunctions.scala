@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -44,21 +45,21 @@ object UtilFunctions extends RegistryFunctions {
     registerCode("toFloat32", TBoolean(), TFloat32()) { case (_, x: Code[Boolean]) => x.toI.toF }
     registerCode("toFloat64", TBoolean(), TFloat64()) { case (_, x: Code[Boolean]) => x.toI.toD }
     registerCode("toInt32", TString(), TInt32()) { case (mb, x: Code[Long]) =>
-      wrapArg[String](mb, TString())(x).invoke[Int]("toInt")
+      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Int]("toInt")
     }
     registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
-      wrapArg[String](mb, TString())(x).invoke[Long]("toLong")
+      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Long]("toLong")
     }
     registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
-      wrapArg[String](mb, TString())(x).invoke[Float]("toFloat")
+      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Float]("toFloat")
     }
     registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
-      wrapArg[String](mb, TString())(x).invoke[Double]("toDouble")
+      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Double]("toDouble")
     }
     registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
-      wrapArg[String](mb, TString())(x).invoke[Boolean]("toBoolean")
+      asm4s.coerce[String](wrapArg(mb, TString())(x)).invoke[Boolean]("toBoolean")
     }
-    
+
     val compareOps = Array(
       ("==", CodeOrdering.equiv),
       ("<", CodeOrdering.lt),

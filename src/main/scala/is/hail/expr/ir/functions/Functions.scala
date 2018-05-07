@@ -36,22 +36,21 @@ object IRFunctionRegistry {
 
   def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
     type Conversion = (Seq[Type], Seq[IR] => IR)
-    val findIR: (Conversion, Seq[Type]) => Boolean =
-    { case ((ts, _), t2s) =>
-      ts.length == args.length && {
-        ts.foreach(_.clear())
-        (ts, t2s).zipped.forall(_.unify(_))
-      }
+    val findIR: (Conversion, Seq[Type]) => Boolean = {
+      case ((ts, _), t2s) =>
+        ts.length == args.length && {
+          ts.foreach(_.clear())
+          (ts, t2s).zipped.forall(_.unify(_))
+        }
     }
     val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map(_._2)
 
-    val validMethods = lookupFunction(name, args).map { f =>
-      { irArgs: Seq[IR] =>
-        f match {
-          case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
-          case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
-        }
+    val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>
+      f match {
+        case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
+        case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
       }
+    }
     }
 
     (validIR, validMethods) match {
@@ -89,27 +88,25 @@ abstract class RegistryFunctions {
   def tnum(name: String): TVariable =
     tv(name, _.isInstanceOf[TNumeric])
 
-  def wrapArg[T](mb: EmitMethodBuilder, t: Type): Code[_] => Code[T] = {
-    val c: Code[_] => Code[_] = t match {
-      case _: TBoolean => { case c: Code[Boolean] => c }
-      case _: TInt32 => { case c: Code[Int] => c }
-      case _: TInt64 => { case c: Code[Long] => c }
-      case _: TFloat32 => { case c: Code[Float] => c }
-      case _: TFloat64 => { case c: Code[Double] => c }
-      case _: TString => { case c: Code[Long] =>
+  def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+    case _: TBoolean => { case c: Code[Boolean] => c }
+    case _: TInt32 => { case c: Code[Int] => c }
+    case _: TInt64 => { case c: Code[Long] => c }
+    case _: TFloat32 => { case c: Code[Float] => c }
+    case _: TFloat64 => { case c: Code[Double] => c }
+    case _: TString => {
+      case c: Code[Long] =>
         Code.invokeScalaObject[Region, Long, String](
           TString.getClass, "loadString",
           mb.getArg[Region](1), c)
-      }
-      case t => {
-        case c: Code[Long] =>
-          Code.invokeScalaObject[Type, Region, Long, Any](
-            UnsafeRow.getClass, "read",
-            mb.getType(t),
-            mb.getArg[Region](1), c)
-      }
     }
-    { arg: Code[_] => coerce[T](c(arg)) }
+    case t => {
+      case c: Code[Long] =>
+        Code.invokeScalaObject[Type, Region, Long, Any](
+          UnsafeRow.getClass, "read",
+          mb.getType(t),
+          mb.getArg[Region](1), c)
+    }
   }
 
   def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
@@ -118,8 +115,9 @@ abstract class RegistryFunctions {
     case _: TInt64 => { case c: Code[Long] => c }
     case _: TFloat32 => { case c: Code[Float] => c }
     case _: TFloat64 => { case c: Code[Double] => c }
-    case _: TString => { case c: Code[String] =>
-      mb.getArg[Region](1).load().appendString(c)
+    case _: TString => {
+      case c: Code[String] =>
+        mb.getArg[Region](1).load().appendString(c)
     }
   }
 

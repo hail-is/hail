@@ -9,7 +9,7 @@ object ArrayFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
-    val arrayOps =
+    val arrayOps: Array[(String, (IR, IR) => IR)] =
       Array(
         ("*", ApplyBinaryPrimOp(Multiply(), _, _)),
         ("/", ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),

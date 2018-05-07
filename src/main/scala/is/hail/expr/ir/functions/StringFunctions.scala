@@ -20,7 +20,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerCode(mname, argTypes, rType, isDet = true) { (mb, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
-      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => wrapArg(mb, t)(a) } )(ct(rType))
+      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => wrapArg(mb, t)(a) }.asInstanceOf[Array[Code[_]]] )(ct(rType))
       unwrapReturn(mb, rType)(out)
     }
   }
