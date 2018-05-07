@@ -340,7 +340,7 @@ class TableTests(unittest.TestCase):
 
         t2 = kt.key_by('e')
         t2 = t2.select(t2.a)
-        self.assertEqual(list(t2.row), ['a'])
+        self.assertEqual(list(t2.row), ['e', 'a'])
         self.assertEqual(list(t2.key), ['e'])
 
         self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
@@ -443,17 +443,18 @@ class TableTests(unittest.TestCase):
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
 
         ktd = kt.drop('idx')
-        self.assertEqual(list(ktd.row), ['sq', 'bar'])
+        self.assertEqual(list(ktd.row), ['foo', 'sq', 'bar'])
+        ktd = ktd.key_by(None).drop('foo')
         self.assertEqual(ktd.key, None)
 
-        self.assertEqual(list(kt.drop(kt['idx']).row), ['sq', 'bar'])
+        self.assertEqual(list(kt.drop(kt['idx']).row), ['foo', 'sq', 'bar'])
 
-        d = kt.drop(*list(kt.row))
+        d = kt.key_by(None).drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
         self.assertEqual(d.key, None)
 
         self.assertTrue(kt.drop()._same(kt))
-        self.assertTrue(kt.drop(*list(kt.row))._same(kt.select()))
+        self.assertTrue(kt.drop(*list(kt.row_value))._same(kt.select()))
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
@@ -576,7 +577,8 @@ class TableTests(unittest.TestCase):
     def test_range_table(self):
         t = hl.utils.range_table(26, n_partitions = 5)
         self.assertEqual(t.globals.dtype, hl.tstruct())
-        self.assertEqual(t.row.dtype, hl.tstruct())
+        self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
+        self.assertEqual(t.row_value.dtype, hl.tstruct())
         self.assertEqual(list(t.key), ['idx'])
         
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
@@ -614,7 +616,7 @@ class MatrixTests(unittest.TestCase):
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
-        expected_schema = hl.tstruct(apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64, y4=hl.tint32)
+        expected_schema = hl.tstruct(s=hl.tstr, apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64, y4=hl.tint32)
 
         self.assertTrue(schema_eq(vds.col.dtype, expected_schema),
                         "expected: " + str(vds.col.dtype) + "\nactual: " + str(expected_schema))
@@ -751,7 +753,7 @@ class MatrixTests(unittest.TestCase):
                           hl.Struct(col_idx=1, foo=[2, 3]),
                           hl.Struct(col_idx=2, foo=[4, 5, 6])])
         self.assertListEqual(
-            grouped.entries().select('row_idx', 'col_idx', 'bar')
+            grouped.entries().select('bar')
                 .order_by('row_idx', 'col_idx').collect(),
             [hl.Struct(row_idx=0, col_idx=0, bar=[0]),
              hl.Struct(row_idx=0, col_idx=1, bar=[0, 0]),
@@ -1114,8 +1116,9 @@ class MatrixTests(unittest.TestCase):
     def test_to_table_on_various_fields(self):
         mt = self.get_vds()
 
-        self.assertEqual(mt.row.take(1), mt.rows().key_by().drop(*mt.row_key).take(1))
+        self.assertEqual(mt.row.take(1), mt.rows().take(1))
         self.assertEqual(mt.row_key.take(1), mt.rows().select().take(1))
+        self.assertEqual(mt.row_value.take(1), mt.rows().key_by().drop(*mt.row_key).take(1))
         self.assertEqual(mt['locus'].take(1), [mt.rows().key_by('locus').select().take(1)[0].locus])
         self.assertEqual(mt['s'].take(1), [mt.cols().key_by('s').select().take(1)[0].s])
         self.assertEqual(mt.annotate_cols(foo=5).foo.take(1), [5])
@@ -1149,8 +1152,8 @@ class MatrixTests(unittest.TestCase):
     def test_range_matrix_table(self):
         mt = hl.utils.range_matrix_table(13, 7, n_partitions = 5)
         self.assertEqual(mt.globals.dtype, hl.tstruct())
-        self.assertEqual(mt.row.dtype, hl.tstruct())
-        self.assertEqual(mt.col.dtype, hl.tstruct())
+        self.assertEqual(mt.row.dtype, hl.tstruct(row_idx = hl.tint32))
+        self.assertEqual(mt.col.dtype, hl.tstruct(col_idx = hl.tint32))
         self.assertEqual(mt.entry.dtype, hl.tstruct())
 
         self.assertEqual(list(mt.row_key), ['row_idx'])
@@ -1163,7 +1166,7 @@ class MatrixTests(unittest.TestCase):
     def test_make_table(self):
         mt = hl.utils.range_matrix_table(3, 2)
         mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
-        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+        mt = mt.key_cols_by(col_idx = hl.str(mt.col_idx))
 
         t = hl.Table.parallelize(
             [{'row_idx': 0, '0.x': 0, '1.x': 0},
@@ -1177,7 +1180,7 @@ class MatrixTests(unittest.TestCase):
     def test_make_table_empty_entry_field(self):
         mt = hl.utils.range_matrix_table(3, 2)
         mt = mt.select_entries(**{'':  mt.row_idx * mt.col_idx})
-        mt = mt.select_cols(col_idx = hl.str(mt.col_idx))
+        mt = mt.key_cols_by(col_idx = hl.str(mt.col_idx))
 
         t = mt.make_table()
         self.assertEqual(

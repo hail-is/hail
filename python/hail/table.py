@@ -385,11 +385,9 @@ class Table(ExprContainer):
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
-                value_struct = hl.bind(lambda k, v: k.concat(v),
-                                       self.key.drop(*[f for f in new_key if f in list(self.key)]),
-                                       self.row.drop(*[f for f in new_key if f in list(self.row)]))
+                value_struct = self.row.drop(*[f for f in new_key if f in list(self.row)])
 
-        row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
+        row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct) if key_struct else value_struct
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices)
 
@@ -610,12 +608,12 @@ class Table(ExprContainer):
         fields_referenced = set()
         for k, v in e.items():
             for name, inds in get_refs(v).items():
-                if inds == self._row_indices and name not in self.key:
+                if inds == self._row_indices and (self.key is None or name not in self.key):
                     fields_referenced.add(name)
 
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return self._select(caller, value_struct=self.row.annotate(**e).drop(*fields_referenced))
+        return self._select(caller, value_struct=self.row_value.annotate(**e).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -644,7 +642,7 @@ class Table(ExprContainer):
         """
         caller = "Table.annotate"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select(caller, value_struct=self.row.annotate(**e))
+        return self._select(caller, value_struct=self.row_value.annotate(**e))
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
@@ -846,7 +844,7 @@ class Table(ExprContainer):
             # need to drop row fields
             for f in fields_to_drop:
                 check_keys(f, self._row_indices)
-            new_row_fields = [f for f in table.row if
+            new_row_fields = [f for f in table.row_value if
                               f not in fields_to_drop]
             table = table.select(*new_row_fields)
 
@@ -1242,7 +1240,7 @@ class Table(ExprContainer):
                                   .add_col_index(index_uid)
                                   .key_cols_by(*uids)
                                   .cols()
-                                  .select(*uids, index_uid)
+                                  .select(index_uid)
                                   .distinct()
                                   .join(self, 'inner')
                                   .key_by(index_uid)
@@ -1287,8 +1285,11 @@ class Table(ExprContainer):
                     all_uids.extend(j.temp_vars)
                     used_uids.add(j.uid)
 
-        if left is not self and original_key is not None:
-            left = left.key_by(*original_key)
+        if left is not self:
+            if original_key is not None:
+                left = left.key_by(*original_key)
+            else:
+                left = left.key_by(None)
 
         def cleanup(table):
             remaining_uids = [uid for uid in all_uids if uid in table._fields]
@@ -1812,7 +1813,7 @@ class Table(ExprContainer):
         table = self
         if row_key_map or row_value_map:
             new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
-            new_values = {row_value_map.get(k, k): v for k, v in table.row.items()}
+            new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
                                   key_struct=hl.struct(**new_keys) if new_keys else None,
                                   value_struct=hl.struct(**new_values))
@@ -2126,6 +2127,29 @@ class Table(ExprContainer):
 
     @property
     def row(self) -> 'StructExpression':
+        """Returns a struct expression of all row-indexed fields, including keys.
+
+        Examples
+        --------
+        The data type of the row struct:
+
+        >>> table1.row.dtype
+        dtype('struct{HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
+
+        The number of row fields:
+
+        >>> len(table1.row)
+        7
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all row fields.
+        """
+        return self._row
+
+    @property
+    def row_value(self) -> 'StructExpression':
         """Returns a struct expression including all non-key row-indexed fields.
 
         Examples
@@ -2145,7 +2169,7 @@ class Table(ExprContainer):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return self._row.drop(*list(self.key))
+        return self._row.drop(*self.key.keys()) if self.key else self._row
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,

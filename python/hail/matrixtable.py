@@ -585,7 +585,7 @@ class MatrixTable(ExprContainer):
 
     @property
     def row(self):
-        """Returns a struct expression including all row-indexed fields.
+        """Returns a struct expression of all row-indexed fields, including keys.
 
         Examples
         --------
@@ -602,11 +602,32 @@ class MatrixTable(ExprContainer):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return self._row.drop(*list(self.row_key))
+        return self._row
+
+    @property
+    def row_value(self):
+        """Returns a struct expression including all non-key row-indexed fields.
+
+        Examples
+        --------
+
+        Get the first five non-key row field names:
+
+        .. doctest::
+
+            >>> list(dataset.row)[:5]
+            ['rsid', 'qual', 'filters']
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all row fields, minus keys.
+        """
+        return self._row.drop(*self.row_key)
 
     @property
     def col(self):
-        """Returns a struct expression including all column-indexed fields.
+        """Returns a struct expression of all column-indexed fields, including keys.
 
         Examples
         --------
@@ -623,7 +644,28 @@ class MatrixTable(ExprContainer):
         :class:`.StructExpression`
             Struct of all column fields.
         """
-        return self._col.drop(*list(self.col_key))
+        return self._col
+
+    @property
+    def col_value(self):
+        """Returns a struct expression including all non-key column-indexed fields.
+
+        Examples
+        --------
+
+        Get all non-key column field names:
+
+        .. doctest::
+
+            >>> list(dataset.col_value)
+            ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all column fields, minus keys.
+        """
+        return self._col.drop(*self.col_key)
 
     @property
     def entry(self):
@@ -826,7 +868,7 @@ class MatrixTable(ExprContainer):
 
         caller = "MatrixTable.annotate_rows"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select_rows(caller, value_struct=self.row.annotate(**e))
+        return self._select_rows(caller, value_struct=self.row_value.annotate(**e))
 
     def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
@@ -872,7 +914,7 @@ class MatrixTable(ExprContainer):
         """
         caller = "MatrixTable.annotate_cols"
         e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        return self._select_cols(caller, value_struct=self.col.annotate(**e))
+        return self._select_cols(caller, value_struct=self.col_value.annotate(**e))
 
     def annotate_entries(self, **named_exprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
@@ -1196,11 +1238,11 @@ class MatrixTable(ExprContainer):
 
         row_fields = [check_key(field, list(self.row_key)) for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            m = m._select_rows("MatrixTable.drop", value_struct=m.row.drop(*row_fields))
+            m = m._select_rows("MatrixTable.drop", value_struct=m.row_value.drop(*row_fields))
 
         col_fields = [check_key(field, list(self.col_key)) for field in fields_to_drop if self._fields[field]._indices == self._col_indices]
         if col_fields:
-            m = m._select_cols("MatrixTable.drop", value_struct=m.col.drop(*col_fields))
+            m = m._select_cols("MatrixTable.drop", value_struct=m.col_value.drop(*col_fields))
 
         entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
         if entry_fields:
@@ -2230,13 +2272,15 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(*all_exprs)
         jmt = base._jvds
         if row_exprs:
-            row_struct = self.row_key.concat(self.row.annotate(**row_exprs))
+            row_key = None if len(set(self.row_key) & set(row_exprs.keys())) == 0 else self.row_key
+            row_struct = self.row.annotate(**row_exprs)
             analyze("MatrixTable.annotate_rows", row_struct, self._row_indices)
-            jmt = jmt.selectRows(row_struct._ast.to_hql(), None)
+            jmt = jmt.selectRows(row_struct._ast.to_hql(), row_key)
         if col_exprs:
-            col_struct = self.col_key.concat(self.col.annotate(**col_exprs))
+            col_key = None if len(set(self.col_key) & set(col_exprs.keys())) == 0 else self.col_key
+            col_struct = self.col.annotate(**col_exprs)
             analyze("MatrixTable.annotate_cols", col_struct, self._col_indices)
-            jmt = jmt.selectCols(col_struct._ast.to_hql(), None)
+            jmt = jmt.selectCols(col_struct._ast.to_hql(), col_key)
         if entry_exprs:
             entry_struct = self.entry.annotate(**entry_exprs)
             analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
@@ -2661,9 +2705,7 @@ class MatrixTable(ExprContainer):
             key_names = list(key_struct.keys())
             new_key = (key_names[:pk_size], key_names[pk_size:])
             if value_struct is None:
-                value_struct = hl.bind(lambda k, v: k.concat(v),
-                                       self.row_key.drop(*[f for f in key_names if f in list(self.row_key)]),
-                                       self.row.drop(*[f for f in key_names if f in list(self.row)]))
+                value_struct = self.row.drop(*[f for f in key_names if f in list(self.row)])
 
         row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
         base, cleanup = self._process_joins(row)
@@ -2683,9 +2725,7 @@ class MatrixTable(ExprContainer):
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
-                value_struct = hl.bind(lambda k, v: k.concat(v),
-                                       self.col_key.drop(*[f for f in new_key if f in list(self.col_key)]),
-                                       self.col.drop(*[f for f in new_key if f in list(self.col)]))
+                value_struct = self.col.drop(*[f for f in new_key if f in list(self.col)])
 
         col = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
         base, cleanup = self._process_joins(col)

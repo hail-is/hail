@@ -281,8 +281,10 @@ def check_field_uniqueness(fields):
 
 def check_keys(name, indices):
     from hail.expr.expressions import ExpressionException
+    if indices.key is None:
+        return
     if name in set(indices.key):
-        msg = "cannot overwrite key field {} with annotate or select; use key_by to modify keys.".format(repr(name))
+        msg = "cannot overwrite key field {} with annotate, select or drop; use key_by to modify keys.".format(repr(name))
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
 
@@ -296,7 +298,7 @@ def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
         if not e._indices == indices:
             raise ExpressionException("method '{}' parameter 'exprs' expects {}-indexed fields,"
                                   " found indices {}".format(caller, list(indices.axes), list(e._indices.axes)))
-        if e._ast.is_nested_field:
+        if not e._ast.is_nested_field:
             raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
         if protect_keys:
             check_keys(e._ast.name, indices)
@@ -314,7 +316,7 @@ def get_annotate_exprs(caller, named_exprs, indices):
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     for k, v in named_exprs.items():
         check_keys(k, indices)
-        if k in indices.key.keys():
+        if indices.key and k in indices.key.keys():
             raise ExpressionException("'{}' cannot overwrite key field: {}"
                                       .format(caller, repr(k)))
         check_collisions(indices.source._fields, k, indices)
