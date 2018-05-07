@@ -2985,13 +2985,13 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     correlation_matrix = (block_matrix @ (block_matrix.T))
 
     locally_pruned_rows = locally_pruned_ds.rows()
-    entries = correlation_matrix._filtered_entries_table(
-        locally_pruned_rows.select(contig=locally_pruned_rows.locus.contig, pos=locally_pruned_rows.locus.position)
-            .key_by("contig"), window, False)
+    locally_pruned_rows = locally_pruned_rows.key_by(contig=locally_pruned_rows.locus.contig)
+    locally_pruned_rows = locally_pruned_rows.select(pos=locally_pruned_rows.locus.position)
+    entries = correlation_matrix._filtered_entries_table(locally_pruned_rows, window, False)
 
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i != entries.j) & (entries.i < entries.j))
 
-    index_table = sites_only_table.add_index().select('locus', 'idx').key_by('idx')
+    index_table = sites_only_table.add_index().key_by('idx').select('locus')
     entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
     entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
@@ -3006,4 +3006,4 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     pruned_ds = locally_pruned_ds.filter_rows(
         hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
 
-    return pruned_ds.rows().select('locus', 'alleles')
+    return pruned_ds.rows().select()

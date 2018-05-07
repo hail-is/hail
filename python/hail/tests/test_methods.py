@@ -581,7 +581,7 @@ class Tests(unittest.TestCase):
         # Locus("22", 16117940)  # MAC    7
         # Locus("22", 16117953)  # MAC   21
 
-        mt = mt.select_rows(*mt.row_key, 'wald', 'lrt', 'firth', 'score')
+        mt = mt.select_rows('wald', 'lrt', 'firth', 'score')
         results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.row))))
 
         self.assertAlmostEqual(results[16060511].wald.beta, -0.097476, places=4)
@@ -687,7 +687,7 @@ class Tests(unittest.TestCase):
         e_cols = (e_cols.group_by(fam=e_cols.fam.fam_id)
             .aggregate(data=hl.agg.collect(hl.struct(role=hl.case()
                                                      .when(e_cols.is_dad, 1).when(e_cols.is_mom, 2).default(0),
-                                                     sa=hl.struct(**e_cols.key, **e_cols.row.select(*mt.col))))))
+                                                     sa=hl.struct(**e_cols.row.select(*mt.col))))))
         e_cols = e_cols.filter(hl.len(e_cols.data) == 3).select('data').explode('data')
 
         t_cols = hl.trio_matrix(mt, ped, complete_trios=True).cols()
@@ -953,10 +953,10 @@ class Tests(unittest.TestCase):
         hkin = hl.pc_relate(mt.GT, 0.00, k=2).cache()
         rkin = self._R_pc_relate(mt, 0.00).cache()
 
-        self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3), absolute=True)
-        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1e-2), absolute=True)
-        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2e-2), absolute=True)
-        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1e-2), absolute=True)
+        self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3, absolute=True))
+        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1e-2, absolute=True))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
@@ -1019,21 +1019,29 @@ class Tests(unittest.TestCase):
         self.assertEqual(men.key.dtype, hl.tstruct(locus=mt.locus.dtype,
                                                    alleles=hl.tarray(hl.tstr),
                                                    s=hl.tstr))
-        self.assertEqual(men.row.dtype, hl.tstruct(fam_id=hl.tstr,
+        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
+                                                   alleles=hl.tarray(hl.tstr),
+                                                   s=hl.tstr,
+                                                   fam_id=hl.tstr,
                                                    mendel_code=hl.tint))
         self.assertEqual(fam.key.dtype, hl.tstruct(pat_id=hl.tstr,
                                                    mat_id=hl.tstr))
-        self.assertEqual(fam.row.dtype, hl.tstruct(fam_id=hl.tstr,
+        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
+                                                   mat_id=hl.tstr,
+                                                   fam_id=hl.tstr,
                                                    children=hl.tint,
                                                    errors=hl.tint64,
                                                    snp_errors=hl.tint64))
         self.assertEqual(ind.key.dtype, hl.tstruct(s=hl.tstr))
-        self.assertEqual(ind.row.dtype, hl.tstruct(fam_id=hl.tstr,
+        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
+                                                   fam_id=hl.tstr,
                                                    errors=hl.tint64,
                                                    snp_errors=hl.tint64))
         self.assertEqual(var.key.dtype, hl.tstruct(locus=mt.locus.dtype,
                                                    alleles=hl.tarray(hl.tstr)))
-        self.assertEqual(var.row.dtype, hl.tstruct(errors=hl.tint64))
+        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
+                                                   alleles=hl.tarray(hl.tstr),
+                                                   errors=hl.tint64))
 
         self.assertEqual(men.count(), 41)
         self.assertEqual(fam.count(), 2)
@@ -1188,7 +1196,7 @@ class Tests(unittest.TestCase):
         t = hl.import_bed(bed_file, reference_genome='GRCh37')
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
         self.assertTrue(list(t.key.dtype) == ['interval'])
-        self.assertTrue(list(t.row.dtype) == ['target'])
+        self.assertTrue(list(t.row.dtype) == ['interval','target'])
 
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')
@@ -1211,12 +1219,12 @@ class Tests(unittest.TestCase):
         bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
         bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
         self.assertTrue(list(bed2.key.dtype) == ['interval'])
-        self.assertTrue(list(bed2.row.dtype) == ['target'])
+        self.assertTrue(list(bed2.row.dtype) == ['interval','target'])
 
         interval_list1 = hl.import_locus_intervals(resource('exampleAnnotation1.interval_list'))
         interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
         self.assertTrue(list(interval_list2.key.dtype) == ['interval'])
-        self.assertTrue(list(interval_list2.row.dtype) == ['target'])
+        self.assertTrue(list(interval_list2.row.dtype) == ['interval', 'target'])
 
         ann = ds.annotate_rows(in_interval = bed1[ds.locus]).rows()
         self.assertTrue(ann.all((ann.locus.position <= 14000000) |
@@ -1428,7 +1436,7 @@ class Tests(unittest.TestCase):
         mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
         mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
-        self.assertEqual(mis_table.row.dtype, hl.tstruct())
+        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64, idx=hl.tint32))
         self.assertEqual(mis_table.key.dtype, hl.tstruct(node=hl.tint64))
 
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
@@ -1511,7 +1519,7 @@ class Tests(unittest.TestCase):
         )
 
     def test_ld_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
+        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         pruned_table = hl.ld_prune(ds, r2=0.2, window=1000000)
 
         filtered_ds = (ds.filter_rows(hl.is_defined(pruned_table[(ds.locus, ds.alleles)])))
@@ -1528,7 +1536,7 @@ class Tests(unittest.TestCase):
         block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
         entries = ((block_matrix @ block_matrix.T) ** 2).entries()
 
-        index_table = filtered_ds.add_row_index().rows().select('locus', 'row_idx').key_by('row_idx')
+        index_table = filtered_ds.add_row_index().rows().key_by('row_idx').select('locus')
         entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
         contig_filter = entries.locus_i.contig == entries.locus_j.contig
@@ -1539,18 +1547,18 @@ class Tests(unittest.TestCase):
             (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count() == 0)
 
     def test_ld_prune_inputs(self):
-        ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
+        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds, r2=0.2, window=1000000, memory_per_core=0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
+        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         pruned_table = hl.ld_prune(ds, r2=1, window=0)
         expected_ds = ds.filter_rows(
             agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size() > 1, keep=True)
         assert (pruned_table.count() == expected_ds.count_rows())
 
     def test_ld_prune_identical_variants(self):
-        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds)
         assert (pruned_table.count() == 1)
 
@@ -1779,7 +1787,7 @@ class Tests(unittest.TestCase):
 
     def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows(locus=mt.locus, alleles=mt.alleles, FOO=mt.info.FOO, BAR=mt.info.BAR)
+        mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
         expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'],
                                           'FOO': [1, None], 'BAR': [2, None, None]},
                                          {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'],
@@ -1791,7 +1799,7 @@ class Tests(unittest.TestCase):
 
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows('locus', 'alleles').select_entries('AD', 'PL')
+        mt = mt.select_rows().select_entries('AD', 'PL')
 
         expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 's': 'C1046::HG02024',
                                           'AD': [None, None], 'PL': [0, None, 180]},
@@ -1809,10 +1817,9 @@ class Tests(unittest.TestCase):
 
     def test_export_import_plink_same(self):
         mt = self.get_dataset()
-        mt = mt.select_rows('locus', 'alleles',
-                            rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
+        mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
                             position_morgan=15)
-        mt = mt.select_cols('s', fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
+        mt = mt.select_cols(fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
                             is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
         mt = mt.select_entries('GT')
 

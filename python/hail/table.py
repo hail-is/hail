@@ -1803,7 +1803,7 @@ class Table(ExprContainer):
                 raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                if k in list(self.key):
+                if self.key and k in list(self.key):
                     row_key_map[k] = v
                 else:
                     row_value_map[k] = v

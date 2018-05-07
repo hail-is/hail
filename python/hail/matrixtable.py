@@ -2367,12 +2367,16 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
+                      row_key=nullable(sequenceof(sequenceof(str))),
                       col_exprs=dictof(str, expr_any),
+                      col_key=nullable(sequenceof(str)),
                       entry_exprs=dictof(str, expr_any),
                       global_exprs=dictof(str, expr_any))
     def _select_all(self,
                     row_exprs={},
+                    row_key=None,
                     col_exprs={},
+                    col_key=None,
                     entry_exprs={},
                     global_exprs={},
                     ) -> 'MatrixTable':
@@ -2386,11 +2390,11 @@ class MatrixTable(ExprContainer):
 
         row_struct = hl.struct(**row_exprs)
         analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        jmt = jmt.selectRows(row_struct._ast.to_hql())
+        jmt = jmt.selectRows(row_struct._ast.to_hql(), row_key)
 
         col_struct = hl.struct(**col_exprs)
         analyze("MatrixTable.select_cols", col_struct, self._col_indices)
-        jmt = jmt.selectCols(col_struct._ast.to_hql())
+        jmt = jmt.selectCols(col_struct._ast.to_hql(), col_key)
 
         entry_struct = hl.struct(**entry_exprs)
         analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
