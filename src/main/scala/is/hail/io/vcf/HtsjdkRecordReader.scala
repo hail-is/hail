@@ -79,7 +79,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     rvb.startArray(nAlleles)
     var i = 0
     while (i < nAlleles) {
-      rvb.addString(alleles(i).getBaseString)
+      rvb.addString(alleles(i).getDisplayString)
       i += 1
     }
     rvb.endArray()
@@ -109,15 +109,11 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
       rvb.startStruct() // g
 
       if ((canonicalFlags & 1) != 0) {
-        println("canonical GT")
-
         val a0 = alleles.get(0)
         val a1 = if (alleles.size() == 2)
           alleles.get(1)
         else
           a0
-        
-        println("alleles", a0, a1)
 
         assert(a0.isCalled || a0.isNoCall)
         assert(a1.isCalled || a1.isNoCall)

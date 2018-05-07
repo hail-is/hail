@@ -90,7 +90,8 @@ object ImportGenomicsDB {
       DEFAULT_ARRAY_NAME,
       fastaFilename,
       new File(workspace, DEFAULT_VCFHEADER_FILE_NAME).getAbsolutePath,
-      new BCF2Codec())
+      new BCF2Codec(),
+      true)
 
     assert(gdbReader.getHeader.asInstanceOf[VCFHeader].getSampleNamesInOrder.asScala
       == metadata.sampleIds.toFastSeq)
