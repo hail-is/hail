@@ -26,4 +26,9 @@ class RegionValueFractionAggregator extends RegionValueAggregator {
   }
 
   def copy() = new RegionValueFractionAggregator()
+
+  def clear() {
+    trues = 0L
+    total = 0L
+  }
 }

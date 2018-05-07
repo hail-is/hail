@@ -19,6 +19,10 @@ class RegionValueSumBooleanAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueSumBooleanAggregator = new RegionValueSumBooleanAggregator()
+
+  def clear() {
+    sum = false
+  }
 }
 
 class RegionValueSumIntAggregator extends RegionValueAggregator {
@@ -38,6 +42,10 @@ class RegionValueSumIntAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueSumIntAggregator = new RegionValueSumIntAggregator()
+
+  def clear() {
+    sum = 0
+  }
 }
 
 class RegionValueSumLongAggregator extends RegionValueAggregator {
@@ -57,6 +65,10 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
+
+  def clear() {
+    sum = 0L
+  }
 }
 
 class RegionValueSumFloatAggregator extends RegionValueAggregator {
@@ -76,6 +88,10 @@ class RegionValueSumFloatAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueSumFloatAggregator = new RegionValueSumFloatAggregator()
+
+  def clear() {
+    sum = 0.0f
+  }
 }
 
 class RegionValueSumDoubleAggregator extends RegionValueAggregator {
@@ -95,4 +111,8 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
+
+  def clear() {
+    sum = 0.0
+  }
 }

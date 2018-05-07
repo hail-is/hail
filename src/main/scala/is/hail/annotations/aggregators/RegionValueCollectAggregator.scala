@@ -1,10 +1,7 @@
 package is.hail.annotations.aggregators
 
-import is.hail.expr._
 import is.hail.annotations._
 import is.hail.utils._
-
-import scala.collection.mutable.BitSet
 
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
   private val ab = new MissingBooleanArrayBuilder()
@@ -30,6 +27,10 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
+
+  def clear() {
+    ab.clear()
+  }
 }
 
 class RegionValueCollectIntAggregator extends RegionValueAggregator {
@@ -56,4 +57,8 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
+
+  def clear() {
+    ab.clear()
+  }
 }

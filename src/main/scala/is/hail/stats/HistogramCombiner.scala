@@ -1,5 +1,6 @@
 package is.hail.stats
 
+import java.util
 import java.util.Arrays.binarySearch
 
 import is.hail.annotations.Annotation
@@ -56,4 +57,10 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
   }
 
   def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], frequency: IndexedSeq[Long], nLess, nGreater)
+
+  def clear() {
+    nLess = 0L
+    nGreater = 0L
+    util.Arrays.fill(frequency, 0L)
+  }
 }

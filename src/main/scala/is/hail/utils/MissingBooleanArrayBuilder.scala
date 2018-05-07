@@ -2,12 +2,12 @@ package is.hail.utils
 
 import is.hail.expr.types._
 import is.hail.annotations._
-import scala.collection.mutable.BitSet
+import scala.collection.mutable
 
 class MissingBooleanArrayBuilder {
   private var len = 0
-  private val elements = new BitSet()
-  private val isMissing = new BitSet()
+  private val elements = new mutable.BitSet()
+  private val isMissing = new mutable.BitSet()
 
   def addMissing() {
     isMissing.add(len)
@@ -48,5 +48,11 @@ class MissingBooleanArrayBuilder {
       i += 1
     }
     rvb.endArray()
+  }
+
+  def clear() {
+    len = 0
+    elements.clear()
+    isMissing.clear()
   }
 }

@@ -976,16 +976,20 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         val cols = rvb.end()
 
         val aggResultsOff = if (rvAggs.nonEmpty) {
-          val newRVAggs = rvAggs.map(_.copy())
+          var j = 0
+          while (j < rvAggs.length) {
+            rvAggs(j).clear()
+            j += 1
+          }
 
-          seqOps()(region, newRVAggs, 0, true, globals, false, cols, false, oldRow, false)
+          seqOps()(region, rvAggs, 0, true, globals, false, cols, false, oldRow, false)
 
           rvb.start(aggResultType)
           rvb.startStruct()
 
-          var j = 0
-          while (j < newRVAggs.length) {
-            newRVAggs(j).result(rvb)
+          j = 0
+          while (j < rvAggs.length) {
+            rvAggs(j).result(rvb)
             j += 1
           }
           rvb.endStruct()

@@ -32,6 +32,10 @@ class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeBooleanAggregator = new RegionValueTakeBooleanAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
 }
 
 class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
@@ -61,6 +65,10 @@ class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeIntAggregator = new RegionValueTakeIntAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
 }
 
 class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
@@ -90,6 +98,10 @@ class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeLongAggregator = new RegionValueTakeLongAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
 }
 
 class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
@@ -119,6 +131,10 @@ class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeFloatAggregator = new RegionValueTakeFloatAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
 }
 
 class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
@@ -148,4 +164,8 @@ class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeDoubleAggregator = new RegionValueTakeDoubleAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
 }
