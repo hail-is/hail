@@ -50,4 +50,8 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
   }
 
   def copy() = new RegionValueHistogramAggregator(start, end, bins)
+
+  def clear() {
+    combiner.clear()
+  }
 }

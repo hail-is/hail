@@ -16,7 +16,7 @@ object RegionValueStatisticsAggregator {
 }
 
 class RegionValueStatisticsAggregator extends RegionValueAggregator {
-  private val sc = new StatCounter()
+  private var sc = new StatCounter()
 
   def seqOp(x: Double, missing: Boolean) {
     if (!missing)
@@ -43,4 +43,8 @@ class RegionValueStatisticsAggregator extends RegionValueAggregator {
   }
 
   def copy() = new RegionValueStatisticsAggregator()
+
+  def clear() {
+    sc = new StatCounter()
+  }
 }

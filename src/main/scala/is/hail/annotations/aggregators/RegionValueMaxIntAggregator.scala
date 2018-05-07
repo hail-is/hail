@@ -26,6 +26,11 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxBooleanAggregator = new RegionValueMaxBooleanAggregator()
+
+  def clear() {
+    max = false
+    found = false
+  }
 }
 
 class RegionValueMaxIntAggregator extends RegionValueAggregator {
@@ -52,6 +57,11 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxIntAggregator = new RegionValueMaxIntAggregator()
+
+  def clear() {
+    max = 0
+    found = false
+  }
 }
 
 class RegionValueMaxLongAggregator extends RegionValueAggregator {
@@ -78,6 +88,11 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxLongAggregator = new RegionValueMaxLongAggregator()
+
+  def clear() {
+    max = 0L
+    found = false
+  }
 }
 
 class RegionValueMaxFloatAggregator extends RegionValueAggregator {
@@ -104,6 +119,11 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxFloatAggregator = new RegionValueMaxFloatAggregator()
+
+  def clear() {
+    max = 0.0f
+    found = false
+  }
 }
 
 class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
@@ -130,4 +150,9 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxDoubleAggregator = new RegionValueMaxDoubleAggregator()
+
+  def clear() {
+    max = 0.0
+    found = false
+  }
 }

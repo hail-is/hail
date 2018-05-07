@@ -18,4 +18,8 @@ class RegionValueCountAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueCountAggregator = new RegionValueCountAggregator()
+
+  def clear() {
+    count = 0
+  }
 }

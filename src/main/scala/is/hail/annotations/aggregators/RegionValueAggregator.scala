@@ -9,4 +9,6 @@ trait RegionValueAggregator extends Serializable {
   def result(rvb: RegionValueBuilder)
 
   def copy(): RegionValueAggregator
+
+  def clear(): Unit
 }
