@@ -22,6 +22,15 @@ object MathFunctions extends RegistryFunctions {
 
   def ceil(x: Double): Double = math.ceil(x)
 
+  def mod(x: Float, y: Float): Float = {
+    val t = x % y
+    if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  }
+  def mod(x: Double, y: Double): Double = {
+    val t = x % y
+    if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  }
+
   def floorDiv(x: Int, y: Int): Int = java.lang.Math.floorDiv(x, y)
 
   def floorDiv(x: Long, y: Long): Long = java.lang.Math.floorDiv(x, y)
@@ -47,6 +56,17 @@ object MathFunctions extends RegistryFunctions {
     registerIR("toInt64", tnum("T"))(x => Cast(x, TInt64()))
     registerIR("toFloat32", tnum("T"))(x => Cast(x, TFloat32()))
     registerIR("toFloat64", tnum("T"))(x => Cast(x, TFloat64()))
+    registerCode("toInt32", TBoolean(), TInt32()){ case x: Code[Boolean] => x.toI }
+    registerCode("toInt64", TBoolean(), TInt32()){ case x: Code[Boolean] => x.toI.toL }
+    registerCode("toFloat32", TBoolean(), TInt32()){ case x: Code[Boolean] => x.toI.toF }
+    registerCode("toFloat64", TBoolean(), TInt32()){ case x: Code[Boolean] => x.toI.toD }
+
+    registerCode("+", tnum("T"), tnum("T")){
+      case x: Code[Int] => (x < 0).mux(-x, x)
+      case x: Code[Long] => (x < 0L).mux(-x, x)
+      case x: Code[Float] => (x < 0.0f).mux(-x, x)
+      case x: Code[Double] => (x < 0.0).mux(-x, x)
+    }
 
     registerScalaFunction("exp", TFloat64(), TFloat64())(mathPackageClass, "exp")
     registerScalaFunction("log10", TFloat64(), TFloat64())(mathPackageClass, "log10")
@@ -90,13 +110,10 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("ceil", TFloat32(), TFloat32())(thisClass, "ceil")
     registerScalaFunction("ceil", TFloat64(), TFloat64())(thisClass, "ceil")
 
-    registerScalaFunction("//", TInt32(), TInt32(), TInt32())(thisClass, "floorDiv")
-    registerScalaFunction("//", TInt64(), TInt64(), TInt64())(thisClass, "floorDiv")
-    registerScalaFunction("//", TFloat32(), TFloat32(), TFloat32())(thisClass, "floorDiv")
-    registerScalaFunction("//", TFloat64(), TFloat64(), TFloat64())(thisClass, "floorDiv")
-
     registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
     registerJavaStaticFunction("%", TInt64(), TInt32(), TInt64())(jMathClass, "floorMod")
+    registerJavaStaticFunction("%", TFloat32(), TInt32(), TFloat32())(jMathClass, "floorMod")
+    registerJavaStaticFunction("%", TFloat64(), TInt32(), TFloat64())(jMathClass, "floorMod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
 

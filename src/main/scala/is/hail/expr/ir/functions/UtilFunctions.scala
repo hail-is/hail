@@ -22,14 +22,26 @@ object UtilFunctions extends RegistryFunctions {
       ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
     }
 
-    registerIR("*", TArray(tnum("T")), tv("T")){ (a, c) =>
-      val imul = genUID()
-      ArrayMap(a, imul, ApplyBinaryPrimOp(Multiply(), Ref(imul, c.typ), c))
-    }
+    val arrayOps =
+      Array(
+        ("*", ApplyBinaryPrimOp(Multiply(), _, _)),
+        ("/", ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+        ("//", ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
+        ("+", ApplyBinaryPrimOp(Add(), _, _)),
+        ("-", ApplyBinaryPrimOp(Subtract(), _, _)),
+        ("**", { (ir1: IR, ir2: IR) => Apply("**", Seq(ir1,ir2)) }),
+        ("%", { (ir1: IR, ir2: IR) => Apply("%", Seq(ir1,ir2)) }))
 
-    registerIR("/", TArray(tnum("T")), tv("T")){ (a, c) =>
-      val idiv = genUID()
-      ArrayMap(a, idiv, ApplyBinaryPrimOp(FloatingPointDivide(), Ref(idiv, c.typ), c))
+    for ((stringOp, irOp) <- arrayOps) {
+      registerIR(stringOp, TArray(tnum("T")), tv("T")) { (a, c) =>
+        val i = genUID()
+        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
+      }
+
+      registerIR(stringOp, tnum("T"), TArray(tv("T"))) { (c, a) =>
+        val i = genUID()
+        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
+      }
     }
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
