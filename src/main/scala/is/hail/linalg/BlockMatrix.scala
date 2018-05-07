@@ -245,9 +245,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val filteredBM = filterBlocks(gp.rectangularBlocks(rectangles))
 
     if (blocksOnly)
-      filteredBM.zeroRowIntervals(starts, stops)
+       filteredBM
     else
-      filteredBM
+       filteredBM.zeroRowIntervals(starts, stops)
   }
   
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    

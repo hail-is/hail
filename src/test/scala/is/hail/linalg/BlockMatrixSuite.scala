@@ -945,6 +945,8 @@ class BlockMatrixSuite extends SparkSuite {
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
+    
+    val bm = toBM(lm, blockSize = 2)
 
     val starts = Array[Long](1, 0, 0, 2)
     val stops = Array[Long](4, 4, 0, 3)
@@ -961,10 +963,8 @@ class BlockMatrixSuite extends SparkSuite {
       0, 0, 0, 0,
       0, 0, 15, 0))
     
-    val bm = toBM(lm, blockSize = 2)
-    
-    assert(bm.filterRowIntervals(starts, stops, blocksOnly = false).toBreezeMatrix() === filteredLM)
-    assert(bm.filterRowIntervals(starts, stops, blocksOnly = true).toBreezeMatrix() === zeroedLM)
+    assert(bm.filterRowIntervals(starts, stops, blocksOnly = true).toBreezeMatrix() === filteredLM)
+    assert(bm.filterRowIntervals(starts, stops, blocksOnly = false).toBreezeMatrix() === zeroedLM)
     
     val starts2 = Array[Long](0, 1, 2, 3)
     val stops2 = Array[Long](1, 2, 3, 4)
@@ -981,7 +981,7 @@ class BlockMatrixSuite extends SparkSuite {
       0, 0, 11, 0,
       0, 0, 0, 16))
     
-    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = false).toBreezeMatrix() === filteredLM2)
-    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = true).toBreezeMatrix() === zeroedLM2)
+    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = true).toBreezeMatrix() === filteredLM2)
+    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
   }
 }

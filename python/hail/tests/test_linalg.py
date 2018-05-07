@@ -349,3 +349,29 @@ class Tests(unittest.TestCase):
         assert_eq(m.diagonal(), np.array([1.0, 5.0]))
         assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+
+    def test_sparsify(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_row_intervals(
+                starts=[1, 0, 2, 2],
+                stops= [2, 0, 3, 4]).to_numpy(),
+            np.array([[ 0.,  2.,  0.,  0.],
+                      [ 0.,  0.,  0.,  0.],
+                      [ 0.,  0., 11.,  0.],
+                      [ 0.,  0., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_row_intervals(
+                starts=[1, 0, 2, 2],
+                stops= [2, 0, 3, 4],
+                blocks_only=True).to_numpy(),
+            np.array([[ 0.,  2.,  0.,  0.],
+                      [ 0.,  0.,  0.,  0.],
+                      [ 0.,  0., 11.,  0.],
+                      [ 0.,  0., 15., 16.]])))
