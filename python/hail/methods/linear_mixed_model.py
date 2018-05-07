@@ -236,7 +236,11 @@ class LinearMixedModel(object):
         Design matrix with shape :math:`(n, p)`.
         Include for low-rank inference.
     """
-    @typecheck_method(y=np.ndarray, x=np.ndarray, py=np.ndarray, px=np.ndarray, s=np.ndarray)
+    @typecheck_method(py=np.ndarray,
+                      px=np.ndarray,
+                      s=np.ndarray,
+                      y=nullable(np.ndarray),
+                      x=nullable(np.ndarray))
     def __init__(self, py, px, s, y=None, x=None):
         if y is None and x is None:
             low_rank = False
@@ -528,12 +532,13 @@ class LinearMixedModel(object):
         if not partition_size:
             partition_size = BlockMatrix.read(pa_t_path).block_size
 
-        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, pa_t_path, partition_size)
+        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, pa_t_path, jsome(partition_size))
 
         if a_t_path is None:
             maybe_ja_t = jnone()
         else:
-            maybe_ja_t = jsome(Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, a_t_path, partition_size))
+            maybe_ja_t = jsome(
+                Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, a_t_path, jsome(partition_size)))
 
         return Table(self._scala_model.fit(jpa_t, maybe_ja_t))
 
