@@ -34,6 +34,8 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
+    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max(), FastSeq()))
+
     registerIR("product", TArray(tnum("T"))) { a =>
       val t = -coerce[TArray](a.typ).elementType
       val product = genUID()

@@ -1058,6 +1058,8 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.max([0, 1, 4, 6])), 6)
 
+        self.assertEqual(hl.eval_expr(hl.max(hl.empty_array(hl.tint))), None)
+
         self.assertEqual(hl.eval_expr(hl.min([0, 1, 4, 6])), 0)
 
         self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6])), 2.75)

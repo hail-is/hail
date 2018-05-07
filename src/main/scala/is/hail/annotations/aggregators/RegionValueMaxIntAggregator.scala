@@ -16,6 +16,7 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
     val that = agg2.asInstanceOf[RegionValueMaxBooleanAggregator]
     if (that.max > max)
       max = that.max
+    found = found | that.found
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -47,6 +48,7 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
     val that = agg2.asInstanceOf[RegionValueMaxIntAggregator]
     if (that.max > max)
       max = that.max
+    found = found | that.found
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -78,6 +80,7 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
     val that = agg2.asInstanceOf[RegionValueMaxLongAggregator]
     if (that.max > max)
       max = that.max
+    found = found | that.found
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -109,6 +112,7 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
     val that = agg2.asInstanceOf[RegionValueMaxFloatAggregator]
     if (that.max > max)
       max = that.max
+    found = found | that.found
   }
 
   def result(rvb: RegionValueBuilder) {
@@ -140,6 +144,7 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
     val that = agg2.asInstanceOf[RegionValueMaxDoubleAggregator]
     if (that.max > max)
       max = that.max
+    found = found | that.found
   }
 
   def result(rvb: RegionValueBuilder) {
