@@ -2898,16 +2898,18 @@ def filter_alleles_hts(mt: MatrixTable,
             GQ=hl.gq_from_pl(newPL),
             PL=newPL).drop('__old_to_new_no_na')
 
-@typecheck(ds=MatrixTable,
+
+@typecheck(call_expr=expr_call,
            r2=numeric,
            window=int,
-           memory_per_core=int)  
-def _local_ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
+           memory_per_core=int)
+def _local_ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
+    mt = matrix_table_source('_local_ld_prune/call_expr', call_expr)
     bytes_per_core = memory_per_core * 1024 * 1024
     fraction_memory_to_use = 0.25
     variant_byte_overhead = 50
     genotypes_per_pack = 32
-    n_samples = ds.count_cols()
+    n_samples = mt.count_cols()
     min_memory_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
     if bytes_per_core < min_memory_per_core:
         raise ValueError("memory per core must be greater than {} MB".format(min_memory_per_core * 1024 * 1024))
@@ -2916,18 +2918,23 @@ def _local_ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
 
     sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
-        require_biallelic(ds, 'ld_prune')._jvds, float(r2), window, max_queue_size))
+        require_biallelic(mt, 'ld_prune')._jvds, float(r2), window, max_queue_size))
 
     return sites_only_table
 
-@typecheck(ds=MatrixTable,
+
+@typecheck(call_expr=expr_call,
            r2=numeric,
            window=int,
            memory_per_core=int)
-def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
+def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     """Prune variants in linkage disequilibrium.
 
     .. include:: ../_templates/req_unphased_diploid_gt.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    .. include:: ../_templates/req_tvariant.rst
 
     Notes
     -----
@@ -2943,8 +2950,8 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
 
     Parameters
     ----------
-    ds : :class:`.MatrixTable`
-        dataset to prune
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression on a matrix table with row-indexed variants and column-indexed samples.
     r2 : :obj:`float`
         correlation threshold (exclusive) above which variants are removed
     window : :obj:`int`
@@ -2957,13 +2964,14 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     :class:`.Table`
         Table of variants after pruning.
     """
-    sites_only_table = _local_ld_prune(ds, r2, window, memory_per_core)
+    sites_only_table = _local_ld_prune(call_expr, r2, window, memory_per_core)
 
     sites_path = new_temp_file()
     sites_only_table.write(sites_path, overwrite=True)
     sites_only_table = hl.read_table(sites_path)
 
-    locally_pruned_ds = ds.annotate_rows(pruned=sites_only_table[ds.row_key])
+    mt = matrix_table_source('ld_prune/call_expr', call_expr)
+    locally_pruned_ds = mt.annotate_rows(pruned=sites_only_table[mt.row_key])
     locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
 
     locally_pruned_ds = (locally_pruned_ds.annotate_rows(
