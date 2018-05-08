@@ -353,6 +353,8 @@ object Interpret {
           oValue.asInstanceOf[Row].get(idx)
       case In(i, _) => args(i)
       case Die(message) => fatal(message)
+      case ir@ApplyIR(function, functionArgs, conversion) =>
+        interpret(ir.explicitNode, env, args, agg)
       case ir@Apply(function, functionArgs) =>
 
         val argTuple = TTuple(functionArgs.map(_.typ): _*)

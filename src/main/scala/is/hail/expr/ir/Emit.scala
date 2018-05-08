@@ -572,6 +572,8 @@ private class Emit(
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case ir@ApplyIR(fn, args, conversion) =>
+        emit(ir.explicitNode)
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
         val unified = impl.unify(args.map(_.typ))

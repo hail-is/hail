@@ -83,6 +83,8 @@ object Children {
       none
     case Die(message) =>
       none
+    case ApplyIR(_, args, _) =>
+      args.toIndexedSeq
     case Apply(_, args) =>
       args.toIndexedSeq
     case ApplySpecial(_, args) =>

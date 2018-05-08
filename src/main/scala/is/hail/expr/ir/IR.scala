@@ -128,6 +128,12 @@ final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
 
+final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
+  val explicitNode: IR = conversion(args)
+
+  def typ: Type = explicitNode.typ
+}
+
 final case class Apply(function: String, args: Seq[IR]) extends IR {
   val implementation: IRFunctionWithoutMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]

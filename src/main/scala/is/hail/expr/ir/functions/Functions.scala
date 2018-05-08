@@ -43,7 +43,10 @@ object IRFunctionRegistry {
         (ts, t2s).zipped.forall(_.unify(_))
       }
     }
-    val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map(_._2)
+    val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
+      case (_, conversion) =>
+        ApplyIR(name, _, conversion)
+    }
 
     val validMethods = lookupFunction(name, args).map { f =>
       { irArgs: Seq[IR] =>
