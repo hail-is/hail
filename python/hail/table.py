@@ -415,7 +415,7 @@ class Table(ExprContainer):
                 Env.hc()._jhc, rows.dtype._to_json(rows.value),
                 rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
-    @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), sequenceof()),
+    @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), exactly([])),
                       named_keys=Expression)
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
