@@ -791,7 +791,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset_result = dataset.key_rows_by('locus')
         >>> dataset_result = dataset.key_rows_by(dataset['locus'])
-        >>> dataset_result = dataset.key_rows_by(**dataset.row_key().drop('alleles'))
+        >>> dataset_result = dataset.key_rows_by(**dataset.row_key.drop('alleles'))
 
         All of these expressions key the dataset by the 'locus' field, dropping
         the 'alleles' field from the row key.
