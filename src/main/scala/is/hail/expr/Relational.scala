@@ -1281,9 +1281,9 @@ case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Int, 
 
   val typ: TableType = child.typ.copy(key = Some(keys))
 
-  def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
-    assert(newChildren.length == 2)
-    TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+  def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
+    assert(newChildren.length == 1)
+    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, nPartitionKeys, sort)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1307,6 +1307,26 @@ case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Int, 
         case ordered: OrderedRVD => ordered.toUnpartitionedRVD
         case unordered: UnpartitionedRVD => unordered
       }
+    }
+    ktv.copy(typ = typ, rvd = rvd)
+  }
+}
+
+case class TableUnkey(child: TableIR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  val typ: TableType = child.typ.copy(key = None)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableUnkey = {
+    assert(newChildren.length == 1)
+    TableUnkey(newChildren(0).asInstanceOf[TableIR])
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val ktv = child.execute(hc)
+    val rvd = ktv.rvd match {
+      case ordered: OrderedRVD => ordered.toUnpartitionedRVD
+      case unordered: UnpartitionedRVD => unordered
     }
     ktv.copy(typ = typ, rvd = rvd)
   }

@@ -542,17 +542,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case None => unkey()
     }
 
-  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
+  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table =
     new Table(hc, TableKeyBy(tir, keys, partitionKeys.length, sort))
-  }
 
-  def unkey(): Table = copy2(
-    key = None,
-    rvd = rvd match {
-      case orvd: OrderedRVD => orvd.toUnpartitionedRVD
-      case _: UnpartitionedRVD => rvd
-    }
-  )
+  def unkey(): Table =
+    new Table(hc, TableUnkey(tir))
 
   def select(expr: String): Table = {
     val ec = rowEvalContext()
