@@ -2904,7 +2904,7 @@ def filter_alleles_hts(mt: MatrixTable,
            window=int,
            memory_per_core=int)
 def _local_ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
-    mt = matrix_table_source('_local_ld_prune/call_expr', call_expr)
+    mt = matrix_table_source('_local_ld_prune/call_expr', call_expr).select_entries(call_expr)
     bytes_per_core = memory_per_core * 1024 * 1024
     fraction_memory_to_use = 0.25
     variant_byte_overhead = 50
@@ -2951,7 +2951,7 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call expression on a matrix table with row-indexed variants and column-indexed samples.
+        Entry-indexed genotype call expression on a matrix table with row-indexed variants and column-indexed samples.
     r2 : :obj:`float`
         correlation threshold (exclusive) above which variants are removed
     window : :obj:`int`
