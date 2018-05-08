@@ -2092,28 +2092,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copy2(rvd = rvd.naiveCoalesce(maxPartitions))
 
   def unfilterEntries(): MatrixTable = {
-    val localEntriesType = matrixType.entryArrayType
-    val localEntriesIndex = entriesIndex
-    val localEntryType = entryType
-    val fullRowType = rvRowType
-    val localNCols = numCols
-
-    insertEntries(noOp)(localEntryType, { case (_, rv, rvb) =>
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-
-      rvb.startArray(localNCols)
-      var i = 0
-      while (i < localNCols) {
-        if (localEntriesType.isElementMissing(rv.region, entriesOffset, i)) {
-          rvb.startStruct()
-          rvb.skipFields(localEntryType.size)
-          rvb.endStruct()
-        } else
-          rvb.addElement(localEntriesType, rv.region, entriesOffset, i)
-        i += 1
-      }
-      rvb.endArray()
-    })
+    new MatrixTable(hc,
+      MatrixMapEntries(ast,
+        ir.If(
+          ir.IsNA(ir.Ref("g", entryType)),
+          ir.MakeStruct(
+            entryType.fields.map(f => f.name -> (ir.NA(f.typ): ir.IR))),
+          ir.Ref("g", entryType))))
   }
 
   def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
