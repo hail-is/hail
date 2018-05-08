@@ -465,7 +465,7 @@ def max(expr) -> NumericExpression:
     """
     return _agg_func('max', expr, expr.dtype)
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=agg_expr(expr_oneof(expr_int64, expr_float64)))
 def sum(expr):
     """Compute the sum of all records of `expr`.
 

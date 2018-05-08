@@ -32,7 +32,11 @@ object UtilFunctions extends RegistryFunctions {
       ArrayMap(a, idiv, ApplyBinaryPrimOp(FloatingPointDivide(), Ref(idiv, c.typ), c))
     }
 
-    registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
+    registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum(), FastSeq()))
+    registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum(), FastSeq()))
+
+    registerIR("product", TAggregable(TInt64()))(ApplyAggOp(_, Product(), FastSeq()))
+    registerIR("product", TAggregable(TFloat64()))(ApplyAggOp(_, Product(), FastSeq()))
 
     registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max(), FastSeq()))
 
