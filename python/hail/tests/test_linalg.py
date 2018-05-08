@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
+from hail.utils import new_temp_file, FatalError
 from .utils import resource, startTestHailContext, stopTestHailContext
 import numpy as np
 import tempfile
@@ -413,7 +413,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(FatalError, lambda: bm2[0, :])
         self.assertRaises(FatalError, lambda: bm2[0:1, 0:1])
 
-    def test_sparsify_row_intervals(self):
+    def test_sparsify(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
                        [ 9.0, 10.0, 11.0, 12.0],
@@ -439,32 +439,6 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
 
-        nd2 = np.random.normal(size=(8, 10))
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
-
-        for bounds in [[[0, 1, 2, 3, 4, 5, 6, 7],
-                        [1, 2, 3, 4, 5, 6, 7, 8]],
-                       [[0, 0, 5, 3, 4, 5, 8, 2],
-                        [9, 0, 5, 3, 4, 5, 9, 5]],
-                       [[0, 5, 10, 8, 7, 6, 5, 4],
-                        [0, 5, 10, 9, 8, 7, 6, 5]]]:
-            starts, stops = bounds
-            actual = bm2.sparsify_row_intervals(starts, stops, blocks_only=False).to_numpy()
-            expected = nd2.copy()
-            for i in range(0, 8):
-                for j in range(0, starts[i]):
-                    expected[i, j] = 0.0
-                for j in range(stops[i], 10):
-                    expected[i, j] = 0.0
-            self.assertTrue(np.array_equal(actual, expected))
-
-    def test_sparsify_band(self):
-        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
-                       [ 5.0,  6.0,  7.0,  8.0],
-                       [ 9.0, 10.0, 11.0, 12.0],
-                       [13.0, 14.0, 15.0, 16.0]])
-        bm = BlockMatrix.from_numpy(nd, block_size=2)
-
         self.assertTrue(np.array_equal(
             bm.sparsify_band(lower=-1, upper=2).to_numpy(),
             np.array([[ 1.,  2.,  3.,  0.],
@@ -473,30 +447,11 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 15., 16.]])))
 
         self.assertTrue(np.array_equal(
-            bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy(),
+            bm.sparsifyband(lower=0, upper=0, blocks_only=True).to_numpy(),
             np.array([[ 1.,  2.,  0.,  0.],
                       [ 5.,  6.,  0.,  0.],
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
-
-        nd2 = np.arange(0, 80, dtype=float).reshape(8, 10)
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
-
-        for bounds in [[0, 0], [1, 1], [2, 2], [-5, 5], [-7, 0], [0, 9], [-100, 100]]:
-            lower, upper = bounds
-            actual = bm2.sparsify_band(lower, upper, blocks_only=False).to_numpy()
-            mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
-            self.assertTrue(np.array_equal(actual, nd2 * mask))
-
-    def test_sparsify_triangle(self):
-        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
-                       [ 5.0,  6.0,  7.0,  8.0],
-                       [ 9.0, 10.0, 11.0, 12.0],
-                       [13.0, 14.0, 15.0, 16.0]])
-        bm = BlockMatrix.from_numpy(nd, block_size=2)
-
-        self.assertFalse(bm.is_sparse)
-        self.assertTrue(bm.sparsify_triangle().is_sparse)
 
         self.assertTrue(np.array_equal(
             bm.sparsify_triangle().to_numpy(),
@@ -519,58 +474,13 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
 
-    def test_sparsify_rectangles(self):
-        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
-                       [ 5.0,  6.0,  7.0,  8.0],
-                       [ 9.0, 10.0, 11.0, 12.0],
-                       [13.0, 14.0, 15.0, 16.0]])
-        bm = BlockMatrix.from_numpy(nd, block_size=2)
-
         self.assertTrue(np.array_equal(
-            bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy(),
+            bm.sparsify_rectangles(
+                rowStarts=[0, 0, 1],
+                rowStops= [1, 3, 2],
+                colStarts=[0, 0, 0],
+                colStops= [1, 2, 4]).to_numpy(),
             np.array([[ 1.,  2.,  3.,  4.],
                       [ 5.,  6.,  7.,  8.],
                       [ 9., 10.,  0.,  0.],
                       [13., 14.,  0.,  0.]])))
-
-        self.assertTrue(np.array_equal(bm.sparsify_rectangles([]).to_numpy(), np.zeros(shape=(4, 4))))
-                        
-    def test_export_rectangles(self):
-        nd = np.arange(0, 80, dtype=float).reshape(8, 10)
-
-        rects1 = [[0, 1, 0, 1], [4, 5, 7, 8]]
-
-        rects2 = [[4, 5, 0, 10], [0, 8, 4, 5]]
-
-        rects3 = [[0, 1, 0, 1], [1, 2, 1, 2], [2, 3, 2, 3],
-                  [3, 5, 3, 6], [3, 6, 3, 7], [3, 7, 3, 8],
-                  [4, 5, 0, 10], [0, 8, 4, 5], [0, 8, 0, 10]]
-
-        for rects in [rects1, rects2, rects3]:
-            for block_size in [3, 4, 10]:
-                bm_uri = new_temp_file()
-                rect_path = new_local_temp_dir()
-                rect_uri = local_path_uri(rect_path)
-
-                (BlockMatrix.from_numpy(nd, block_size=block_size)
-                    .sparsify_rectangles(rects)
-                    .write(bm_uri, force_row_major=True))
-
-                BlockMatrix.export_rectangles(bm_uri, rect_uri, rects)
-
-                for (i, r) in enumerate(rects):
-                    file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
-                    expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.reshape(np.loadtxt(file), (r[1] - r[0], r[3] - r[2]))
-                    self.assertTrue(np.array_equal(expected, actual))
-
-        bm_uri = new_temp_file()
-        rect_uri = new_temp_file()
-
-        (BlockMatrix.from_numpy(nd, block_size=5)
-            .sparsify_rectangles([[0, 1, 0, 1]])
-            .write(bm_uri, force_row_major=True))
-
-        with self.assertRaises(FatalError) as e:
-            BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
-            self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')

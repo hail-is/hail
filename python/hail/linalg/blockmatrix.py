@@ -5,7 +5,6 @@ from hail.typecheck import *
 from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 import numpy as np
-import itertools
 from enum import IntEnum
 
 block_matrix_type = lazy()
@@ -116,41 +115,36 @@ class BlockMatrix(object):
 
     Warning
     -------
-
-        For binary operations, if the first operand is an ndarray and the
-        second operand is a block matrix, the result will be a ndarray of block
-        matrices. To achieve the desired behavior for ``+`` and ``*``, place the
-        block matrix operand first; for ``-``, ``/``, and ``@``, first convert
-        the ndarray to a block matrix using :meth:`.from_numpy`.
-
+        For binary operations, if the first operand is an ndarray and the second
+        operand is a block matrix, the result will be a ndarray of block matrices.
+        To achieve the desired behavior for ``+`` and ``*``, place the block matrix
+        operand first; for ``-``, ``/``, and ``@``, first convert the ndarray to a
+        block matrix using :meth:`.from_numpy`.
 
     **Block sparsity**
 
-    The methods :meth:`sparsify_band`, :meth:`sparsify_rectangles`,
-    :meth:`sparsify_row_intervals`, and :meth:`sparsify_triangle` create "sparse"
-    block matrices in which zeroed blocks are not explicitly stored in memory or
-    on disk. This enables computations that would otherwise be prohibitively
-    expensive because Spark's lazy evaluation ensures that blocks that are
-    dropped prior to an action (such as :meth:`write` or :meth:`export`) are
-    never computed the first place. For example, using :meth:`sparsify_band`,
-    one can compute banded correlation for a huge number of variables.
-    Many operations are also accelerated using the sparse representation.
+    The methods :meth:`sparsify_band`, :meth:`sparsify_row_intervals`, and
+    :meth:`sparsify_triangle` create block matrices in which some blocks
+    are known to be identically zero. Such matrices are "block sparse"
+    and do not store the zeroed blocks explicitly; rather
+    zeroed blocks are dropped both in memory and when stored on disk. This
+    enables computations, such as banded correlation for a huge number of
+    variables, that would otherwise be prohibitively expensive; 
+    blocks that are dropped prior to an action (such as :meth:`write` or
+    :meth:`export`) are never computed the first place. Matrix multiplication
+    is also accelerated in proportion to the block sparsity of each operand.
 
-    Not all methods are currently supported for sparse block matrices.
+    Matrix product ``@`` currently always results in a dense block matrix.
+    Sparse block matrices also support transpose,
+    :math:`diagonal`, and all non-mathematical operations except filtering. 
 
-    Element-wise mathematical operations are supported if and
+    Element-wise mathematical operations are currently supported if and
     only if they cannot transform zeroed blocks to non-zero blocks. For
     example, all forms of element-wise multiplication ``*`` are supported,
     and element-wise multiplication results in a sparse block matrix with
     block support equal to the intersection of that of the operands. On the
     other hand, scalar addition is not supported, and matrix addition is
     supported only between block matrices with the same block sparsity.
-
-    Matrix multiplication ``@`` is supported but always results in a dense
-    block matrix. All other methods are supported **except**
-    :meth:`filter_rows`, :meth:`filter_cols`, and :meth:`filter`
-    (as well as slicing, since ``bm[:5, :]``, ``bm[:, :5]``, and
-    ``bm[:5, :5]`` call these three methods, respectively).
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -555,7 +549,7 @@ class BlockMatrix(object):
                 raise ValueError(f'slice step must be positive, found {idx.step}')
 
             start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
-            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True)
+            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True) 
             step = 1 if idx.step is None else idx.step
 
             if start < stop:
@@ -612,22 +606,28 @@ class BlockMatrix(object):
         >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
 
         Filter to a band from one below the diagonal to
-        two above the diagonal and collect to NumPy:
+        two above the diagonal collect to NumPy:
 
         >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
-        array([[ 1.,  2.,  3.,  0.],
-               [ 5.,  6.,  7.,  8.],
-               [ 0., 10., 11., 12.],
-               [ 0.,  0., 15., 16.]])
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  0.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 0., 10., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
 
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
         >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()
-        array([[ 1.,  2.,  0.,  0.],
-               [ 5.,  6.,  0.,  0.],
-               [ 0.,  0., 11., 12.],
-               [ 0.,  0., 15., 16.]])
+
+        .. code-block:: text
+
+            [[ 1.,  2.,  0.,  0.],
+             [ 5.,  6.,  0.,  0.],
+             [ 0.,  0., 11., 12.],
+             [ 0.,  0., 15., 16.]]
 
         Notes
         -----
@@ -644,11 +644,10 @@ class BlockMatrix(object):
 
         .. math::
 
-          \mathrm{lower} \leq j - i \leq \mathrm{upper}.
+          \mathrm{lower} <= j - i <= \mathrm{upper}.
 
-        `lower` must be less than or equal to `upper`, but their values may
-        exceed the dimensions of the matrix, the band need not include the
-        diagonal, and the matrix need not be square.
+        The matrix need not be square and the band need not include the
+        diagonal.
 
         Parameters
         ----------
@@ -666,6 +665,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
@@ -689,19 +689,25 @@ class BlockMatrix(object):
         Filter to the upper triangle and collect to NumPy:
 
         >>> bm.sparsify_triangle().to_numpy()
-        array([[ 1.,  2.,  3.,  4.],
-               [ 0.,  6.,  7.,  8.],
-               [ 0.,  0., 11., 12.],
-               [ 0.,  0.,  0., 16.]])
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 0.,  6.,  7.,  8.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0.,  0., 16.]])
 
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
-
+ 
         >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
-        array([[ 1.,  2.,  3.,  4.],
-               [ 5.,  6.,  7.,  8.],
-               [ 0.,  0., 11., 12.],
-               [ 0.,  0., 15., 16.]])
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
 
         Notes
         -----
@@ -757,10 +763,13 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
         ...    .to_numpy())
-        array([[ 0.,  2.,  0.,  0.],
-               [ 0.,  0.,  0.,  0.],
-               [ 0.,  0., 11.,  0.],
-               [ 0.,  0., 15., 16.]])
+
+        .. code-block:: text
+
+            array([[ 0.,  2.,  0.,  0.],
+                   [ 0.,  0.,  0.,  0.],
+                   [ 0.,  0., 11.,  0.],
+                   [ 0.,  0., 15., 16.]])
 
         Set all blocks fully outside the given row intervals to
         blocks of zeros and collect to NumPy:
@@ -769,10 +778,13 @@ class BlockMatrix(object):
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
         ...    .to_numpy())
-        array([[ 1.,  2.,  0.,  0.],
-               [ 5.,  6.,  0.,  0.],
-               [ 0.,  0., 11., 12.],
-               [ 0.,  0., 15., 16.]])
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  0.,  0.],
+                   [ 5.,  6.,  0.,  0.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
 
         Notes
         -----
@@ -780,11 +792,6 @@ class BlockMatrix(object):
         which are disjoint from all row intervals. By default, all elements
         outside the row intervals but inside blocks that overlap the row
         intervals are set to zero as well.
-
-        `starts` and `stops` must both have length equal to the number of
-        rows. The interval for row ``i`` is ``[starts[i], stops[i])``. In
-        particular, ``0 <= starts[i] <= stops[i] <= n_cols`` is required
-        for all ``i``.
 
         This method requires the number of rows to be less than :math:`2^{31}`.
 
@@ -803,19 +810,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-        n_rows = self.n_rows
-        n_cols = self.n_cols
-        if n_rows >= (1 << 31):
-            raise ValueError(f'n_rows must be less than 2^31, found {n_rows}')
-        if len(starts) != n_rows or len(stops) != n_rows:
-            raise ValueError(f'starts and stops must both have length {n_rows} (the number of rows)')
-        if any([start < 0 for start in starts]):
-            raise ValueError('all start values must be non-negative')
-        if any([stop > self.n_cols for stop in stops]):
-            raise ValueError(f'all stop values must be less than or equal to {n_cols} (the number of columns)')
-        if any([starts[i] > stops[i] for i in range(0, n_rows)]):
-            raise ValueError('every start value must be less than or equal to the corresponding stop value')
-
         return BlockMatrix(self._jbm.filterRowIntervals(
             jarray(Env.jvm().long, starts),
             jarray(Env.jvm().long, stops),
@@ -896,17 +890,14 @@ class BlockMatrix(object):
 
     @property
     def is_sparse(self):
-        """Returns ``True`` if sparse.
-
-        Notes
-        -----
-        A block matrix is sparse if some blocks are implicitly zero.
+        """Returns true if at least one block is implicitly zero,
+        e.g. dropped.
 
         Returns
         -------
         :obj:`bool`
         """
-        return self._jbm.gp().maybeSparse().isDefined()
+        return BlockMatrix(self._jbm.gp().maybeSparse().isEmpty())
 
     @property
     def T(self):
@@ -1254,17 +1245,24 @@ class BlockMatrix(object):
         return Table(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
-    @typecheck(path_in=str,
-               path_out=str,
+    @typecheck(input=str,
+               output=str,
                delimiter=str,
                header=nullable(str),
                add_index=bool,
                parallel=nullable(enumeration('separate_header', 'header_per_shard')),
                partition_size=nullable(int),
                entries=enumeration('full', 'lower', 'strict_lower', 'upper', 'strict_upper'))
-    def export(path_in, path_out, delimiter='\t', header=None, add_index=False, parallel=None,
+    def export(input, output, delimiter='\t', header=None, add_index=False, parallel=None,
                partition_size=None, entries='full'):
         """Exports a stored block matrix as a delimited text file.
+
+        Warning
+        -------
+        The block matrix must be stored in row-major format, as results
+        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
+        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
+        :meth:`export` will produce an error message.
 
         Examples
         --------
@@ -1283,8 +1281,8 @@ class BlockMatrix(object):
         Export the upper-triangle of the matrix as a block gzipped file of
         comma-separated values.
 
-        >>> BlockMatrix.export(path_in='output/example.bm',
-        ...                    path_out='output/example.csv.bgz',
+        >>> BlockMatrix.export(input='output/example.bm',
+        ...                    output='output/example.csv.bgz',
         ...                    delimiter=',',
         ...                    entries='upper')
 
@@ -1292,8 +1290,8 @@ class BlockMatrix(object):
         gzipped files, each with a header line for columns ``idx``, ``A``,
         ``B``, and ``C``.
 
-        >>> BlockMatrix.export(path_in='output/example.bm',
-        ...                    path_out='output/example.gz',
+        >>> BlockMatrix.export(input='output/example.bm',
+        ...                    output='output/example.gz',
         ...                    header='\t'.join(['idx', 'A', 'B', 'C']),
         ...                    add_index=True,
         ...                    parallel='header_per_shard',
@@ -1311,13 +1309,6 @@ class BlockMatrix(object):
 
             idx A   B   C
             2   0.7 0.3 1.0
-
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
-        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will fail.
 
         Notes
         -----
@@ -1381,9 +1372,9 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_in: :obj:`str`
+        input: :obj:`str`
             Path to input block matrix, stored row-major on disk.
-        path_out: :obj:`str`
+        output: :obj:`str`
             Path for export.
             Use extension ``.gz`` for gzip or ``.bgz`` for block gzip.
         delimiter: :obj:`str`
@@ -1409,25 +1400,32 @@ class BlockMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
-        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, path_in, joption(partition_size))
+        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, input, joption(partition_size))
 
         export_type = Env.hail().utils.ExportType.getExportType(parallel)
 
         if entries == 'full':
-            jrm.export(path_out, delimiter, joption(header), add_index, export_type)
+            jrm.export(output, delimiter, joption(header), add_index, export_type)
         elif entries == 'lower':
-            jrm.exportLowerTriangle(path_out, delimiter, joption(header), add_index, export_type)
+            jrm.exportLowerTriangle(output, delimiter, joption(header), add_index, export_type)
         elif entries == 'strict_lower':
-            jrm.exportStrictLowerTriangle(path_out, delimiter, joption(header), add_index, export_type)
+            jrm.exportStrictLowerTriangle(output, delimiter, joption(header), add_index, export_type)
         elif entries == 'upper':
-            jrm.exportUpperTriangle(path_out, delimiter, joption(header), add_index, export_type)
+            jrm.exportUpperTriangle(output, delimiter, joption(header), add_index, export_type)
         else:
             assert entries == 'strict_upper'
-            jrm.exportStrictUpperTriangle(path_out, delimiter, joption(header), add_index, export_type)
+            jrm.exportStrictUpperTriangle(output, delimiter, joption(header), add_index, export_type)
 
     @typecheck_method(rectangles=sequenceof(sequenceof(int)))
     def sparsify_rectangles(self, rectangles):
         """Filter to blocks overlapping the union of rectangular regions.
+
+        Warning
+        -------
+        The block matrix must be stored in row-major format, as results
+        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
+        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
+        :meth:`export` will produce an error message.
 
         Examples
         --------
@@ -1442,64 +1440,43 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
-        array([[ 1.,  2.,  3.,  4.],
-               [ 5.,  6.,  7.,  8.],
-               [ 9., 10.,  0.,  0.],
-               [13., 14.,  0.,  0.]])
+        >>> bm.filter_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
 
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 9., 10.,  0.,  0.],
+                   [13., 14.,  0.,  0.]])
         Notes
         -----
         This methods creates a sparse block matrix by zeroing out (dropping)
         all blocks which are disjoint from the union of a set of rectangular
         regions. Partially overlapping blocks are *not* modified.
 
-        Each rectangle is encoded as a list of length four of
-        the form ``[row_start, row_stop, col_start, col_stop]``,
-        where starts are inclusive and stops are exclusive.
-        These must satisfy ``0 <= row_start <= row_stop <= n_rows`` and
-        ``0 <= col_start <= col_stop <= n_cols``.
-
-        For example ``[0, 2, 1, 3]`` corresponds to the row-index range
-        ``[0, 2)`` and column-index range ``[1, 3)``, i.e. the elements at
-        positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
-
-        The number of rectangles must be less than :math:`2^{29}`.
+        The number of rectangles must be less than :math:`2^{31}`.
 
         Parameters
         ----------
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
-            List of rectangles of the form
-            ``[row_start, row_stop, col_start, col_stop]``.
+            Rectangles. # FIXME elaborate
 
         Returns
         -------
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-        n_rectangles = len(rectangles)
-        if n_rectangles >= (1 << 29):
-            raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
+        import itertools
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
 
-        n_rows = self.n_rows
-        n_cols = self.n_cols
-        for r in rectangles:
-            if len(r) != 4:
-                raise ValueError(f'rectangle {r} does not have length 4')
-            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
-                raise ValueError(f'rectangle {r} does not satisfy '
-                                 f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
-
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
         return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
 
     @staticmethod
-    @typecheck(path_in=str,
-               path_out=str,
+    @typecheck(input=str,
+               output=str,
                rectangles=sequenceof(sequenceof(int)),
-               delimiter=str,
-               n_partitions=nullable(int))
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None):
+               delimiter=str)
+    def export_rectangles(input, output, rectangles, delimiter='\t'):
         """Export rectangular regions from a stored block matrix to delimited text files.
 
         Examples
@@ -1511,11 +1488,11 @@ class BlockMatrix(object):
         ...                [ 5.0,  6.0,  7.0,  8.0],
         ...                [ 9.0, 10.0, 11.0, 12.0],
         ...                [13.0, 14.0, 15.0, 16.0]])
+        >>>
+        >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
 
         Filter to the three rectangles and write.
 
-        >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
-        >>>
         >>> (BlockMatrix.from_numpy(nd)
         ...     .sparsify_rectangles(rectangles)
         ...     .write('output/example.bm', force_row_major=True))
@@ -1523,19 +1500,15 @@ class BlockMatrix(object):
         Export the three rectangles to TSV files:
 
         >>> BlockMatrix.export_rectangles(
-        ...     path_in='output/example.bm',
-        ...     path_out='output/example',
+        ...     input='output/example.bm',
+        ...     output='output/example',
         ...     rectangles = rectangles)
 
-        This produces three files in the folder ``output/example``.
-
-        The first file is ``rect-0_0-1-0-1``:
+        This produces three files:
 
         .. code-block:: text
 
             1.0
-
-        The second file is ``rect-1_0-3-0-2``:
 
         .. code-block:: text
 
@@ -1543,88 +1516,35 @@ class BlockMatrix(object):
             5.0 6.0
             9.0 10.0
 
-        The third file is ``rect-2_1-2-0-4``:
-
         .. code-block:: text
 
             5.0 6.0 7.0 8.0
 
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and
-        from :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will fail.
-
         Notes
         -----
-        This method exports rectangular regions of a stored block matrix
-        to delimited text files, in parallel by region.
+        This method exports the rectangular regions of the block matrix
+        to delimited text files, in parallel over rectangles.
 
-        The block matrix can be sparse so long as all blocks overlapping
-        the rectangles are present, i.e. this method does not currently
-        support implicit zeros.
+        All overlapping blocks must be present.  # FIXME elaborate
 
-        Each rectangle is encoded as a list of length four of
-        the form ``[row_start, row_stop, col_start, col_stop]``,
-        where starts are inclusive and stops are exclusive.
-        These must satisfy ``0 <= row_start <= row_stop <= n_rows`` and
-        ``0 <= col_start <= col_stop <= n_cols``.
-
-        For example ``[0, 2, 1, 3]`` corresponds to the row-index range
-        ``[0, 2)`` and column-index range ``[1, 3)``, i.e. the elements at
-        positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
-
-        Each file name encodes the index of the rectangle in `rectangles`
-        and the bounds as formatted in the example.
-
-        The number of rectangles must be less than :math:`2^{29}`.
+        The number of rectangles must be less than :math:`2^{31}`.
 
         Parameters
         ----------
-        path_in: :obj:`srt`
+        input: :obj:`srt`
             Path to input block matrix, stored row-major on disk.
-        path_out: :obj:`str`
+        output: :obj:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
-            List of rectangles of the form
-            ``[row_start, row_stop, col_start, col_stop]``.
+            Rectangles. # FIXME elaborate
         delimiter: :obj:`str`
             Column delimiter.
-        n_partitions: :obj:`int`, optional
-            Maximum parallelism of export.
-            Defaults to (and cannot exceed) the number of rectangles.
         """
-        n_rectangles = len(rectangles)
-        if n_rectangles == 0:
-            raise ValueError('no rectangles provided')
-        if n_rectangles >= (1 << 29):
-            raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
-
-        if n_partitions is None:
-            n_partitions = n_rectangles
-        else:
-            if n_partitions > n_rectangles:
-                raise ValueError(
-                    f'n_partitions ({n_partitions}) cannot exceed the number of rectangles ({n_rectangles})')
-            elif n_partitions < 0:
-                raise ValueError(f'n_partitions must be positive, found {n_partitions}')
-
-        meta = Env.hail().linalg.BlockMatrix.readMetadata(Env.hc()._jhc, path_in)
-        n_rows = meta.nRows()
-        n_cols = meta.nCols()
-
-        for r in rectangles:
-            if len(r) != 4:
-                raise ValueError(f'rectangle {r} does not have length 4')
-            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
-                raise ValueError(f'rectangle {r} does not satisfy '
-                                 f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
-
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
+        import itertools
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
+            Env.hc()._jhc, input, output, flattened_rectangles, delimiter)
 
 
 block_matrix_type.set(BlockMatrix)
