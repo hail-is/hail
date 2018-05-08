@@ -158,6 +158,11 @@ class Tests(unittest.TestCase):
             self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
                             r.prod_x == -120 and r.prod_y == 0 and r.prod_empty == 1)
 
+    def test_aggregators_hist(self):
+        table = hl.utils.range_table(11)
+        r = table.aggregate(agg.hist(table.idx - 1, 0, 8, 4))
+        self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
+
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
         table2 = hl.utils.range_table(10)

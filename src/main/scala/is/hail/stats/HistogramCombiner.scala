@@ -19,15 +19,15 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
   val min = indices.head
   val max = indices(indices.length - 1)
 
-  var nLess = 0L
-  var nGreater = 0L
+  var nSmaller = 0L
+  var nLarger = 0L
   val frequency = Array.fill(indices.length - 1)(0L)
 
   def merge(d: Double): HistogramCombiner = {
     if (d < min)
-      nLess += 1
+      nSmaller += 1
     else if (d > max)
-      nGreater += 1
+      nLarger += 1
     else if (!d.isNaN) {
       val bs = binarySearch(indices, d)
       val ind = if (bs < 0)
@@ -48,19 +48,19 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
   def merge(that: HistogramCombiner): HistogramCombiner = {
     require(frequency.length == that.frequency.length)
 
-    nLess += that.nLess
-    nGreater += that.nGreater
+    nSmaller += that.nSmaller
+    nLarger += that.nLarger
     for (i <- frequency.indices)
       frequency(i) += that.frequency(i)
 
     this
   }
 
-  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], frequency: IndexedSeq[Long], nLess, nGreater)
+  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], frequency: IndexedSeq[Long], nSmaller, nLarger)
 
   def clear() {
-    nLess = 0L
-    nGreater = 0L
+    nSmaller = 0L
+    nLarger = 0L
     util.Arrays.fill(frequency, 0L)
   }
 }
