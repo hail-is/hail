@@ -904,11 +904,10 @@ class Tests(unittest.TestCase):
         f1 = hl.float64(5.5)
         f_array = hl.array([1.5, 2.5])
 
-
-        self.assertEqual(hl.int32(b1), 1)
-        self.assertEqual(hl.int64(b1), 1)
-        self.assertEqual(hl.float32(b1), 1.0)
-        self.assertEqual(hl.float64(b1), 1.0)
+        self.assertEqual(hl.int32(b1).value, 1)
+        self.assertEqual(hl.int64(b1).value, 1)
+        self.assertEqual(hl.float32(b1).value, 1.0)
+        self.assertEqual(hl.float64(b1).value, 1.0)
         self.assertEqual((b1 * b2).value, 0)
         self.assertEqual((b1 + b2).value, 1)
         self.assertEqual((b1 - b2).value, 1)
