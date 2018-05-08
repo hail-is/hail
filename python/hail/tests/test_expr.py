@@ -137,14 +137,16 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
-    def test_aggregators_max(self):
+    def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
-
+        # FIXME: add boolean when function registry is removed
         for (f, typ) in [(lambda x: hl.int32(x), tint32), (lambda x: hl.int64(x), tint64),
                   (lambda x: hl.float32(x), tfloat32), (lambda x: hl.float64(x), tfloat64)]:
             t = table.annotate(x=-1 * f(table.idx) - 5, y=hl.null(typ))
-            r = t.aggregate(hl.struct(max=agg.max(t.x), max_empty=agg.max(t.y)))
-            self.assertTrue(r.max == -5 and r.max_empty is None)
+            r = t.aggregate(hl.struct(max=agg.max(t.x), max_empty=agg.max(t.y),
+                                      min=agg.min(t.x), min_empty=agg.min(t.y)))
+            self.assertTrue(r.max == -5 and r.max_empty is None and
+                            r.min == -14 and r.min_empty is None)
 
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
