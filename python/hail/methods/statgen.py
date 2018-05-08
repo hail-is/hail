@@ -2650,7 +2650,7 @@ def filter_alleles(mt: MatrixTable,
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
-    right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
+    right = right.partition_rows_by('locus', locus=right.__new_locus, alleles=right.__new_alleles)
     return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
