@@ -15,7 +15,7 @@ final case class Collect() extends AggOp { }
 final case class Sum() extends AggOp { }
 // final case class Product() extends AggOp { }
 final case class Max() extends AggOp { }
-// final case class Min() extends AggOp { }
+final case class Min() extends AggOp { }
 
 final case class Count() extends AggOp { }
 
@@ -68,12 +68,19 @@ object AggOp {
     case (Sum(), in: TFloat64, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
     // case (HardyWeinberg(), _: T) =>
     // case (Product(), _: T) =>
+      
     case (Max(), in: TBoolean, Seq()) => CodeAggregator[RegionValueMaxBooleanAggregator](in, TBoolean())
     case (Max(), in: TInt32, Seq()) => CodeAggregator[RegionValueMaxIntAggregator](in, TInt32())
     case (Max(), in: TInt64, Seq()) => CodeAggregator[RegionValueMaxLongAggregator](in, TInt64())
     case (Max(), in: TFloat32, Seq()) => CodeAggregator[RegionValueMaxFloatAggregator](in, TFloat32())
     case (Max(), in: TFloat64, Seq()) => CodeAggregator[RegionValueMaxDoubleAggregator](in, TFloat64())
-    // case (Min(), _: T) =>
+
+    case (Min(), in: TBoolean, Seq()) => CodeAggregator[RegionValueMinBooleanAggregator](in, TBoolean())
+    case (Min(), in: TInt32, Seq()) => CodeAggregator[RegionValueMinIntAggregator](in, TInt32())
+    case (Min(), in: TInt64, Seq()) => CodeAggregator[RegionValueMinLongAggregator](in, TInt64())
+    case (Min(), in: TFloat32, Seq()) => CodeAggregator[RegionValueMinFloatAggregator](in, TFloat32())
+    case (Min(), in: TFloat64, Seq()) => CodeAggregator[RegionValueMinDoubleAggregator](in, TFloat64())      
+      
     case (Count(), in, Seq()) => CodeAggregator[RegionValueCountAggregator](in, TInt64())
     case (Take(), in: TBoolean, args@Seq(_: TInt32)) => CodeAggregator[RegionValueTakeBooleanAggregator](in, TArray(in), classOf[Int])
     case (Take(), in: TInt32, args@Seq(_: TInt32)) => CodeAggregator[RegionValueTakeIntAggregator](in, TArray(in), classOf[Int])
