@@ -392,6 +392,8 @@ class Table(ExprContainer):
         analyze(caller, row, self._row_indices)
 
         t = cleanup(Table(base._jt.select(row._ast.to_hql(), new_key)))
+        if new_key is not None:
+            t = Table(t._jt.keyBy(new_key))
         return t
 
     @typecheck_method(caller=str, s=expr_struct())
@@ -415,7 +417,7 @@ class Table(ExprContainer):
                 Env.hc()._jhc, rows.dtype._to_json(rows.value),
                 rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
-    @typecheck_method(keys=nullable(oneof(str, Expression)),
+    @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), sequenceof()),
                       named_keys=Expression)
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
@@ -444,7 +446,7 @@ class Table(ExprContainer):
 
         Remove key:
 
-        >>> table_result = table1.key_by(None)
+        >>> table_result = table1.key_by()
 
         Notes
         -----
@@ -460,7 +462,7 @@ class Table(ExprContainer):
         -------
         Setting the key to the empty key using
 
-        >>> table.key_by()
+        >>> table.key_by([])
 
         will cause the entire table to condense into a single partition.
 
@@ -474,12 +476,16 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
-        if len(keys) == 1 and keys[0] is None:
+        if len(named_keys) == 0 and (len(keys) == 0 or (len(keys) == 1 and keys[0] is None)):
             return Table(self._jt.unkey())
 
-        key_fields = get_select_exprs("Table.key_by",
-                                      keys, named_keys, self._row_indices,
-                                      protect_keys=False)
+        if len(named_keys) == 0 and (len(keys) == 1 and keys[0] == []):
+            key_fields = dict()
+        else:
+            key_fields = get_select_exprs("Table.key_by",
+                                          keys, named_keys, self._row_indices,
+                                          protect_keys=False)
+
         return self._select("Table.key_by",
                             key_struct=hl.struct(**key_fields))
 
