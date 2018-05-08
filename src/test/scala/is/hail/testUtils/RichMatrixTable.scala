@@ -150,17 +150,6 @@ class RichMatrixTable(vsm: MatrixTable) {
       rowBlockSize)
   }
 
-  def logreg(test: String,
-    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
-    root: String = "logreg"): MatrixTable = {
-    val vsmAnnot = vsm.annotateColsExpr(
-      Array("__y" -> yExpr) ++
-        covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
-    )
-
-    LogisticRegression(vsm, test, "__y", xField, covExpr.indices.map(i => s"__cov$i").toArray, root)
-  }
-
   def lmmreg(kinshipMatrix: KinshipMatrix,
     yExpr: String,
     xField: String,
@@ -173,7 +162,12 @@ class RichMatrixTable(vsm: MatrixTable) {
     sparsityThreshold: Double = 1.0,
     nEigs: Option[Int] = None,
     optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
-    LinearMixedRegression(vsm, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
+    val covNamedExprs = covExpr.zipWithIndex.map { case (e, i) =>
+        s"__cov$i" -> e
+    }
+    LinearMixedRegression(vsm
+      .annotateColsExpr(covNamedExprs: _*),
+      kinshipMatrix, yExpr, xField, covNamedExprs.map(_._1), useML, rootGA, rootVA,
       runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
 

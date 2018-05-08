@@ -245,7 +245,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -295,9 +295,9 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 1` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
-    ``x`` and the intercept.
+    ``x``.
 
     Parameters
     ----------
@@ -383,14 +383,16 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
 
     Examples
     --------
+
     Run the logistic regression Wald test per variant using a Boolean
-    phenotype and two covariates stored in column-indexed fields:
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
 
     >>> ds_result = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
@@ -573,6 +575,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     -------
     :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
+
     """
     mt = matrix_table_source('logistic_regression/x', x)
     check_entry_indexed('logistic_regression/x', x)
@@ -707,7 +710,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
          - true if fit by ML, false if fit by REML
        * - `beta`
          - dict<str, float64>
-         - map from *intercept* and the given `covariates` expressions to the
+         - map from the given `covariates` expressions to the
            corresponding fit :math:`\beta` coefficients
        * - `sigma_g_squared`
          - float64
@@ -834,8 +837,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     :math:`n` samples and :math:`c` sample covariates, we define:
 
     - :math:`y = n \times 1` vector of phenotypes
-    - :math:`X = n \times c` matrix of sample covariates and intercept column
-      of ones
+    - :math:`X = n \times c` matrix of sample covariates
     - :math:`K = n \times n` kinship matrix
     - :math:`I = n \times n` identity matrix
     - :math:`\beta = c \times 1` vector of covariate coefficients
