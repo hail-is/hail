@@ -158,6 +158,10 @@ object TypeCheck {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         assert(x.typ == tagg2)
+      case x@InitOp(i, _, args) =>
+        args.foreach(check(_))
+        check(i)
+        assert(i.typ.isInstanceOf[TInt32])
       case x@SeqOp(a, i, _) =>
         check(a)
         check(i)
@@ -167,11 +171,12 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(a, op, args) =>
+      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
         val tAgg = coerce[TAggregable](a.typ)
         check(a)
-        args.foreach(check(_))
-        assert(x.typ == AggOp.getType(op, tAgg.elementType, args.map(_.typ)))
+        constructorArgs.foreach(check(_))
+        initOpArgs.foreach(_.foreach(check(_)))
+        assert(x.typ == AggOp.getType(op, tAgg.elementType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ))))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>

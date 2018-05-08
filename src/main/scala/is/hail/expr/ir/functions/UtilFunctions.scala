@@ -17,20 +17,19 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
+    registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum()))
+    registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum()))
 
-    registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum(), FastSeq()))
-    registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum(), FastSeq()))
+    registerIR("product", TAggregable(TInt64()))(ApplyAggOp(_, Product()))
+    registerIR("product", TAggregable(TFloat64()))(ApplyAggOp(_, Product()))
 
-    registerIR("product", TAggregable(TInt64()))(ApplyAggOp(_, Product(), FastSeq()))
-    registerIR("product", TAggregable(TFloat64()))(ApplyAggOp(_, Product(), FastSeq()))
+    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max()))
 
-    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max(), FastSeq()))
-
-    registerIR("min", TAggregable(tnum("T")))(ApplyAggOp(_, Min(), FastSeq()))
+    registerIR("min", TAggregable(tnum("T")))(ApplyAggOp(_, Min()))
 
     registerIR("count", TAggregable(tv("T"))) { agg =>
       val uid = genUID()
-      ApplyAggOp(AggMap(agg, uid, I32(0)), Count(), Seq())
+      ApplyAggOp(AggMap(agg, uid, I32(0)), Count())
     }
 
     registerIR("hist", TAggregable(TFloat64()), TFloat64(), TFloat64(), TInt32()){ (agg, start, end, nbins) =>

@@ -11,16 +11,19 @@ import scala.language.{existentials, postfixOps}
 object ExtractAggregators {
 
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
-
-  def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, Array[RegionValueAggregator]) = {
+  
+  def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     val (ir2, aggs) = extract(ir.unwrap, tAggIn)
-    val aggir = Begin(
-      aggs.map(_.applyAggOp)
+
+    val (initOps, seqOps) = aggs.map(_.applyAggOp)
         .zipWithIndex
         .map { case (x, i) =>
-          val agg = AggOp.get(x.op, x.inputType, x.args.map(_.typ))
-          SeqOp(x.a, I32(i), agg)
-        })
+          val agg = AggOp.get(x.op, x.inputType, x.constructorArgs.map(_.typ), x.initOpArgs.map(_.map(_.typ)))
+          (x.initOpArgs.map(args => InitOp(I32(i), agg, args)), SeqOp(x.a, I32(i), agg))
+        }.unzip
+
+    val seqOpIR = Begin(seqOps)
+    val initOpIR = Begin(initOps.flatten[InitOp])
 
     val rvas = aggs.map(_.applyAggOp)
       .map { x =>
@@ -33,7 +36,7 @@ object ExtractAggregators {
     // struct's type is
     aggs.foreach(_.ref.typ = resultStruct)
 
-    (ir2, resultStruct, aggir, rvas)
+    (ir2, resultStruct, initOpIR, seqOpIR, rvas)
   }
 
   private def extract(ir: IR, tAggIn: TAggregable): (IR, Array[IRAgg]) = {
@@ -61,13 +64,13 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, op, args) =>
+    case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
       val constfb = EmitFunctionBuilder[Region, RegionValueAggregator]
-      val codeArgs = args.map(Emit.toCode(_, constfb, 1))
+      val codeConstructorArgs = constructorArgs.map(Emit.toCode(_, constfb, 1))
       constfb.emit(Code(
-        Code(codeArgs.map(_.setup): _*),
-        AggOp.get(op, x.inputType, args.map(_.typ))
-          .stagedNew(codeArgs.map(_.v).toArray, codeArgs.map(_.m).toArray)))
+        Code(codeConstructorArgs.map(_.setup): _*),
+        AggOp.get(op, x.inputType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ)))
+          .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
       Region.scoped(constfb.result()()(_))
   }
 }

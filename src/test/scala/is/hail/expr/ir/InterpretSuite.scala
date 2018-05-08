@@ -291,7 +291,7 @@ class InterpretSuite {
     )
 
     val result = Interpret(ApplyAggOp(AggFilter(AggIn(aggT), "x", ApplyBinaryPrimOp(LT(), Ref("a", TInt32()), I32(21))),
-      Sum(), List()), env, IndexedSeq(), Some(agg))
+      Sum()), env, IndexedSeq(), Some(agg))
     assert(result == 15)
   }
 }

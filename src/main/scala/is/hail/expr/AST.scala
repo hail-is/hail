@@ -856,6 +856,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               case (_: TAggregable, "map") => ir.AggMap(a, name, b)
               case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
               case (_: TAggregable, "flatMap") => ir.AggFlatMap(a, name, b)
+              case (_: TAggregable, "callStats") => ir.ApplyAggOp(a, ir.CallStats(), FastSeq(), Some(FastSeq(b)))
               case (_: TArray, "map") => ir.ArrayMap(a, name, b)
               case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
               case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)

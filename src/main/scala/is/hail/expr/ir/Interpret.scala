@@ -310,11 +310,11 @@ object Interpret {
           }
         }
         ()
-      case x@ApplyAggOp(a, op, aggArgs) =>
+      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
         val aValue = interpretAgg(a, agg._2)
         val aggType = a.typ.asInstanceOf[TAggregable].elementType
         assert(aValue != null)
-        assert(AggOp.getType(op, x.inputType, aggArgs.map(_.typ)) == x.typ)
+        assert(AggOp.getType(op, x.inputType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ))) == x.typ)
         val aggregator = op match {
           case Collect() => new CollectAggregator(aggType)
           case Sum() =>
@@ -332,12 +332,12 @@ object Interpret {
               case TFloat64(_) => new MaxAggregator[Double, java.lang.Double]()
             }
           case Take() =>
-            val Seq(n) = aggArgs
+            val Seq(n) = constructorArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
           case Statistics() => new StatAggregator()
           case Histogram() =>
-            val Seq(start, end, bins) = aggArgs
+            val Seq(start, end, bins) = constructorArgs
             val startValue = interpret(start, Env.empty[Any], null, null).asInstanceOf[Double]
             val endValue = interpret(end, Env.empty[Any], null, null).asInstanceOf[Double]
             val binsValue = interpret(bins, Env.empty[Any], null, null).asInstanceOf[Int]
@@ -459,16 +459,29 @@ object Interpret {
         val localGlobalSignature = child.typ.globalType
         val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
 
-        val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
           "global", child.typ.globalType,
           "AGG", tAgg,
           "global", child.typ.globalType,
           "row", child.typ.rowType,
-          MakeTuple(Array(query)))
+          MakeTuple(Array(query)),
+          (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val value = child.execute(HailContext.get)
         val globalsBc = value.globals.broadcast
+
         val aggResults = if (rvAggs.nonEmpty) {
+          Region.scoped { region =>
+            val rvb: RegionValueBuilder = new RegionValueBuilder()
+            rvb.set(region)
+
+            rvb.start(localGlobalSignature)
+            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+            val globals = rvb.end()
+
+            initOps()(region, rvAggs, globals, false)
+          }
+
           value.rvd.aggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
             // add globals to region value
             val rowOffset = rv.offset

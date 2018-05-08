@@ -156,7 +156,7 @@ private class Emit(
     *
     * Aggregating expressions must have at least two special arguments. As with
     * all expressions, the first argument must be a {@code  Region}. The second
-    * argument is the {@code  Array[RegionValueAggregator]} that is used by
+    * argument is the {@code  Array[RegionValueAggregator]} that is used by {@code initOp} and
     * {@code SeqOp} to implement the aggregation. Note that the special arguments
     * do not appear in pairs, i.e., they may not be missing.
     *
@@ -519,6 +519,41 @@ private class Emit(
           const(false),
           Code._empty)
 
+      case InitOp(i, agg, args) =>
+        val nArgs = args.length
+        val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
+        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
+
+        val region = mb.getArg[Region](1).load()
+
+        val codeI = emit(i)
+        val codeA = args.map(ir => emit(ir))
+
+        val argsSetup = Code((0 until nArgs).map { i =>
+          val a = codeA(i)
+          Code(
+            argsm(i) := a.m,
+            argsv(i).storeAny(argsm(i).mux(
+              defaultValue(args(i).typ),
+              a.v
+            ))
+          )
+        }.toArray: _*)
+
+        EmitTriplet(
+          Code(codeI.setup,
+            Code(codeA.map(_.setup): _*),
+            argsSetup,
+            codeI.m.mux(
+              Code._empty,
+              agg.initOp(
+                aggregator(coerce[Int](codeI.v)),
+                region,
+                argsv.map(Code(_)),
+                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+          const(false),
+          Code._empty)
+
       case SeqOp(a, i, agg) =>
         val codeI = emit(i)
         EmitTriplet(
@@ -690,7 +725,6 @@ private class Emit(
         assert(tAggIn == typ)
         continuation(element, melement)
       case AggMap(a, name, body) =>
-        val typ = ir.typ
         val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
@@ -705,7 +739,6 @@ private class Emit(
             continuation(codeB.v, codeB.m))
         }
       case AggFilter(a, name, body) =>
-        val typ = ir.typ
         val tElement = coerce[TAggregable](a.typ).elementType
         val elementTi = typeToTypeInfo(tElement)
         val x = coerce[Any](mb.newField()(elementTi))
@@ -720,7 +753,6 @@ private class Emit(
             (!codeB.m && coerce[Boolean](codeB.v)).mux(continuation(x, mx), Code._empty))
         }
       case AggFlatMap(a, name, body) =>
-        val typ = ir.typ
         val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
