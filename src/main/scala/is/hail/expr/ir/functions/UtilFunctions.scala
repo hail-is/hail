@@ -34,6 +34,8 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))
 
+    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max(), FastSeq()))
+
     registerIR("product", TArray(tnum("T"))) { a =>
       val t = -coerce[TArray](a.typ).elementType
       val product = genUID()
@@ -56,7 +58,7 @@ object UtilFunctions extends RegistryFunctions {
         If(IsNA(Ref(value, t)),
           Ref(min, t),
           If(ApplyBinaryPrimOp(LT(), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
-      ArrayFold(a, NA(tnum("T").t), min, value, body)
+      ArrayFold(a, NA(t), min, value, body)
     }
 
     registerIR("max", TArray(tnum("T"))) { a =>
@@ -68,7 +70,7 @@ object UtilFunctions extends RegistryFunctions {
         If(IsNA(Ref(value, t)),
           Ref(max, t),
           If(ApplyBinaryPrimOp(GT(), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
-      ArrayFold(a, NA(tnum("T").t), max, value, body)
+      ArrayFold(a, NA(t), max, value, body)
     }
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }

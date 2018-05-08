@@ -137,6 +137,15 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_aggregators_max(self):
+        table = hl.utils.range_table(10)
+
+        for (f, typ) in [(lambda x: hl.int32(x), tint32), (lambda x: hl.int64(x), tint64),
+                  (lambda x: hl.float32(x), tfloat32), (lambda x: hl.float64(x), tfloat64)]:
+            t = table.annotate(x=-1 * f(table.idx) - 5, y=hl.null(typ))
+            r = t.aggregate(hl.struct(max=agg.max(t.x), max_empty=agg.max(t.y)))
+            self.assertTrue(r.max == -5 and r.max_empty is None)
+
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
         table2 = hl.utils.range_table(10)
@@ -1058,6 +1067,8 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.max([0, 1, 4, 6])), 6)
 
+        self.assertEqual(hl.eval_expr(hl.max(hl.empty_array(hl.tint))), None)
+
         self.assertEqual(hl.eval_expr(hl.min([0, 1, 4, 6])), 0)
 
         self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6])), 2.75)
@@ -1067,6 +1078,7 @@ class Tests(unittest.TestCase):
         for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
             self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).value, 24)
             self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).value, 11)
+            self.assertEqual(hl.max([f(x) for x in [-5, -4, -3, -2]]).value, -2)
 
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
