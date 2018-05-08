@@ -775,8 +775,8 @@ class MatrixTable(ExprContainer):
                     "prefix of row key; found mismatch at key {}: '{}' vs '{}'"
                         .format(i, pk, key_names[i]))
 
-        pks = dict(keys.items()[:len(partition_key)])
-        other_ks = dict(keys.items()[len(partition_key):])
+        pks = dict(list(keys.items())[:len(partition_key)])
+        other_ks = dict(list(keys.items())[len(partition_key):])
 
         return self._key_rows_by("MatrixTable.key_rows_by", pks, other_ks)
 
