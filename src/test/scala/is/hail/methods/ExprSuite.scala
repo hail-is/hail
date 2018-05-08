@@ -672,7 +672,6 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("log10(5.6)").get, eval[Double]("log(5.6, 10.0)").get))
     assert(D_==(eval[Double]("log(5.6, 3.2)").get, 1.481120576298196))
     assert(D_==(eval[Double]("sqrt(5.6)").get, math.sqrt(5.6)))
-    assert(D_==(eval[Double]("pow(2.0, 3.0)").get, 8.0))
 
     assert(eval[IndexedSeq[_]]("""[1,2,3] + [2,3,4] """).contains(IndexedSeq(3, 5, 7)))
     assert(eval[IndexedSeq[_]]("""[1,2,3] - [2,3,4] """).contains(IndexedSeq(-1, -1, -1)))
@@ -886,7 +885,6 @@ class ExprSuite extends SparkSuite {
       assert(t2.isOfType(TFloat64()))
       assert(r2.contains(8.0))
 
-      assert(eval("3.123 ** 5.123") == eval("pow(3.123, 5.123)"))
       assert(eval("5d * 2 ** 2").contains(20))
       assert(eval("-2**2").contains(-4))
       assert(eval("2**3**2d").contains(64))

@@ -115,7 +115,7 @@ class TableSuite extends SparkSuite {
   @Test def testAnnotate() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
-    val kt2 = kt1.annotate("""qPhen2 = pow(row.qPhen.toFloat64, 2d), NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
+    val kt2 = kt1.annotate("""qPhen2 = row.qPhen.toFloat64 ** 2d, NotStatus = row.Status == "CASE", X = row.qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
 
