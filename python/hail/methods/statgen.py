@@ -1810,7 +1810,8 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    scores_table = mt.key_cols_by().select_cols(__scores=scores_expr).cols()
+    scores_table = mt.select_cols(__scores=scores_expr)\
+        .key_cols_by().select_cols('__scores').cols()
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
@@ -2649,7 +2650,7 @@ def filter_alleles(mt: MatrixTable,
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
-    right = right.annotate_rows(locus=right.__new_locus, alleles=right.__new_alleles)
+    right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
     return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 

@@ -825,6 +825,7 @@ def de_novo(mt: MatrixTable,
     tm = tm.filter_entries(hl.is_defined(tm.__call))
     entries = tm.entries()
     return (entries.select('__site_freq',
+                           'proband',
                            'father',
                            'mother',
                            'proband_entry',
