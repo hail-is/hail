@@ -589,13 +589,10 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Get the first five row field names:
 
-        .. doctest::
-
-            >>> list(dataset.row)[:5]
-            ['locus', 'alleles', 'rsid', 'qual', 'filters']
+        >>> list(dataset.row)[:5]
+        ['locus', 'alleles', 'rsid', 'qual', 'filters']
 
         Returns
         -------
@@ -610,10 +607,7 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Get the first five non-key row field names:
-
-        .. doctest::
 
             >>> list(dataset.row)[:5]
             ['rsid', 'qual', 'filters']
@@ -631,13 +625,10 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Get all column field names:
 
-        .. doctest::
-
-            >>> list(dataset.col)
-            ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
+        >>> list(dataset.col)
+        ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
         -------
@@ -652,13 +643,10 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Get all non-key column field names:
 
-        .. doctest::
-
-            >>> list(dataset.col_value)
-            ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
+        >>> list(dataset.col_value)
+        ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
         -------
@@ -673,13 +661,10 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Get all entry field names:
 
-        .. doctest::
-
-            >>> list(dataset.entry)
-            ['GT', 'AD', 'DP', 'GQ', 'PL']
+        >>> list(dataset.entry)
+        ['GT', 'AD', 'DP', 'GQ', 'PL']
 
 
         Returns
@@ -694,7 +679,7 @@ class MatrixTable(ExprContainer):
     def key_cols_by(self, *keys, **named_keys) -> 'MatrixTable':
         """Key columns by a new set of fields.
 
-        See :meth:`.MatrixTable.key_rows_by` for more examples.
+        See :meth:`.Table.key_by` for more information on defining a key.
 
         Parameters
         ----------
@@ -819,13 +804,7 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        This method is used to specify all the fields of a new row key. The old
-        key fields may be overwritten by newly-assigned fields, as described in
-        :meth:`.Table.annotate`. If not overwritten, they are preserved as non-key
-        row fields.
-
-        See :meth:`.Table.select` for more information about how to define new row
-        key fields.
+        See :meth:`.Table.key_by` for more information on defining a key.
 
         To specify a partition key, use :meth:`.MatrixTable.partition_rows_by`.
 
@@ -2785,7 +2764,7 @@ class MatrixTable(ExprContainer):
             if value_struct is None:
                 value_struct = self.row.drop(*[f for f in key_names if f in list(self.row)])
 
-        row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
+        row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices, {self._col_axis})
 
@@ -2805,7 +2784,7 @@ class MatrixTable(ExprContainer):
             if value_struct is None:
                 value_struct = self.col.drop(*[f for f in new_key if f in list(self.col)])
 
-        col = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct)
+        col = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
         base, cleanup = self._process_joins(col)
         analyze(caller, col, self._col_indices, {self._row_axis})
 

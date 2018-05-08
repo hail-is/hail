@@ -231,7 +231,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                        snp_errors=hl.agg.count_where(hl.is_snp(entries.alleles[0], entries.alleles[1]) &
                                                      hl.is_defined(entries.mendel_code)))
     )
-    table2 = tm.cols().key_by()
+    table2 = tm.key_cols_by().cols()
     table2 = table2.select(pat_id=table2.father[ck_name],
                            mat_id=table2.mother[ck_name],
                            fam_id=table2.fam_id,
@@ -261,7 +261,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
                               snp_errors=hl.or_else(
                                   hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
                                                                  implicated[tm.mendel_code])),
-                                  [0, 0, 0])).cols().key_by()
+                                  [0, 0, 0])).key_cols_by().cols()
 
     table3 = table3.select(xs=[
         hl.struct(**{ck_name: table3.father[ck_name],
@@ -824,9 +824,7 @@ def de_novo(mt: MatrixTable,
     tm = tm.annotate_entries(__call=de_novo_call)
     tm = tm.filter_entries(hl.is_defined(tm.__call))
     entries = tm.entries()
-    entries = entries.key_by('locus', 'alleles')
     return (entries.select('__site_freq',
-                           'proband',
                            'father',
                            'mother',
                            'proband_entry',

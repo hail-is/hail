@@ -387,7 +387,7 @@ class Table(ExprContainer):
             if value_struct is None:
                 value_struct = self.row.drop(*[f for f in new_key if f in list(self.row)])
 
-        row = hl.bind(lambda k, v: k.concat(v), key_struct, value_struct) if key_struct else value_struct
+        row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct) if key_struct else value_struct
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices)
 
@@ -418,22 +418,51 @@ class Table(ExprContainer):
     @typecheck_method(keys=nullable(oneof(str, Expression)),
                       named_keys=Expression)
     def key_by(self, *keys, **named_keys) -> 'Table':
-        """Change the key.
+        """Key table by a new set of fields.
 
         Examples
         --------
         Assume `table1` is a :class:`.Table` with three fields: `C1`, `C2`
         and `C3`.
 
-        Change key fields:
+        Changing key fields:
 
         >>> table_result = table1.key_by('C2', 'C3')
 
+        This keys the table by 'C2' and 'C3', preserving old keys as value fields.
+
         >>> table_result = table1.key_by(table1.C1)
 
-        Set to empty key:
+        This keys the table by 'C1', preserving old keys as value fields.
 
-        >>> table_result = table1.key_by()
+        >>> table_result = table1.key_by(C1 = table1.C2, foo = table1.C1)
+
+        This keys the table by fields named 'C1' and 'foo', which have values
+        corresponding to the original 'C2' and 'C1' fields respectively. The original
+        'C1' field has been overwritten by the new assignment, but the original
+        'C2' field is preserved as a value field.
+
+        Remove key:
+
+        >>> table_result = table1.key_by(None)
+
+        Notes
+        -----
+        This method is used to specify all the fields of a new row key. The old
+        key fields may be overwritten by newly-assigned fields, as described in
+        :meth:`.Table.annotate`. If not overwritten, they are preserved as non-key
+        fields.
+
+        See :meth:`.Table.select` for more information about how to define new
+        key fields.
+
+        Warning
+        -------
+        Setting the key to the empty key using
+
+        >>> table.key_by()
+
+        will cause the entire table to condense into a single partition.
 
         Parameters
         ----------
@@ -1204,7 +1233,7 @@ class Table(ExprContainer):
                         vt = lrt.join(right)
                         # group uids
                         vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
-                        vt = vt.key_by().drop(*uids)
+                        vt = vt.key_by(None).drop(*uids)
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
@@ -1396,7 +1425,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return hl.tarray(self._row.dtype)._from_json(self._jt.collectJSON())
+        return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
     def describe(self):
         """Print information about the fields in the table."""
@@ -1557,7 +1586,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return hl.tarray(self._row.dtype)._from_json(self._jt.takeJSON(n))
+        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
 
     @typecheck_method(n=int)
     def head(self, n):
@@ -2134,12 +2163,12 @@ class Table(ExprContainer):
         The data type of the row struct:
 
         >>> table1.row.dtype
-        dtype('struct{HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
+        dtype('struct{ID: int32, HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
 
         The number of row fields:
 
         >>> len(table1.row)
-        7
+        8
 
         Returns
         -------

@@ -1,4 +1,5 @@
 from hail.typecheck import *
+import hail as hl
 
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(str))
@@ -30,23 +31,21 @@ class Indices(object):
 
     @property
     def key(self):
-        from hail import Table, MatrixTable, struct
         if self.source is None:
             return None
-        elif isinstance(self.source, Table):
-            if self.source._row_axis in self.axes:
+        elif isinstance(self.source, hl.Table):
+            if self == self.source._row_indices:
                 return self.source.key
             else:
                 return None
         else:
-            assert(isinstance(self.source, MatrixTable))
-            if self.source._row_axis in self.axes:
-                if self.source._col_axis in self.axes:
-                    return struct(**self.source.row_key, **self.source.col_key)
-                else:
-                    return self.source.row_key
-            elif self.source._col_axis in self.axes:
+            assert isinstance(self.source, hl.MatrixTable)
+            if self == self.source._row_indices:
+                return self.source.row_key
+            elif self == self.source._col_indices:
                 return self.source.col_key
+            elif self == self.source._entry_indices:
+                return hl.struct(**self.source.row_key, **self.source.col_key)
             else:
                 return None
 

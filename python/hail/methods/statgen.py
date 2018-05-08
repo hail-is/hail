@@ -1810,7 +1810,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr).cols().key_by().select('__scores')
+    scores_table = mt.key_cols_by().select_cols(__scores=scores_expr).cols()
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:

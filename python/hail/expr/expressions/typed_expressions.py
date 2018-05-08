@@ -1352,10 +1352,6 @@ class StructExpression(Mapping, Expression):
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
                               self._indices, self._aggregations, self._joins)
 
-    @typecheck_method(other=expr_struct())
-    def concat(self, other):
-        return hl.struct(**self, **other)
-
 
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
