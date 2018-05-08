@@ -379,7 +379,7 @@ class BlockMatrix(object):
             to row-major format before writing.
             If ``False``, write blocks in their current format.
         """
-        self._jbm.write(path, force_row_major, joption(None))
+        self._jbm.write(path, force_row_major)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -484,6 +484,101 @@ class BlockMatrix(object):
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
         return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+
+    @typecheck_method(starts=sequenceof(int),
+                      stops=sequenceof(int),
+                      blocks_only=bool)
+    def sparsify_row_intervals(self, starts, stops, blocks_only=False):
+        """Creates a sparse block matrix by filtering to an interval for each row.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
+
+        Set all elements outside the given row intervals to zero
+        and collect to NumPy:
+
+        >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
+        ...                            stops= [2, 0, 3, 4])
+        ...    .to_numpy())
+
+        .. code-block:: text
+
+            array([[ 0.,  2.,  0.,  0.],
+                   [ 0.,  0.,  0.,  0.],
+                   [ 0.,  0., 11.,  0.],
+                   [ 0.,  0., 15., 16.]])
+
+        Set all blocks fully outside the given row intervals to
+        blocks of zeros and collect to NumPy:
+
+        >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
+        ...                            stops= [2, 0, 3, 4],
+        ...                            blocks_only=True)
+        ...    .to_numpy())
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  0.,  0.],
+                   [ 5.,  6.,  0.,  0.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
+
+        Notes
+        -----
+        This methods creates a sparse block matrix by zeroing out all blocks
+        which are disjoint from all row intervals. By default, all elements
+        outside the row intervals but inside blocks that overlap the row
+        intervals are set to zero as well.
+
+        Sparse block matrices do not store the zeroed blocks explicitly; rather
+        zeroed blocks are dropped both in memory and when stored on disk. This
+        enables computations, such as banded correlation for a huge number of
+        variables, that would otherwise be prohibitively expensive, as dropped
+        blocks are never computed in the first place. Matrix multiplication
+        by a sparse block matrix is also accelerated in proportion to the
+        block sparsity.
+
+        Matrix product ``@`` currently always results in a dense block matrix.
+        Sparse block matrices also support transpose,
+        :meth:`diagonal`, and all non-mathematical operations except filtering.
+
+        Element-wise mathematical operations are currently supported if and
+        only if they cannot transform zeroed blocks to non-zero blocks. For
+        example, all forms of element-wise multiplication ``*`` are supported,
+        and element-wise multiplication results in a sparse block matrix with
+        block support equal to the intersection of that of the operands. On the
+        other hand, scalar addition is not supported, and matrix addition is
+        supported only between block matrices with the same block sparsity.
+
+        This method requires the number of rows to be less than :math:`2^{31}`.
+
+        Parameters
+        ----------
+        starts: :obj:`list` of :obj:`int`
+            Start indices for each row (inclusive).
+        stops: :obj:`list` of :obj:`int`
+            Stop indices for each row (exclusive).
+        blocks_only: :obj:`bool`
+            If ``False``, set all elements outside row intervals to zero.
+            If ``True``, only set all blocks outside row intervals to blocks
+            of zeros; this is more efficient.
+        Returns
+        -------
+        :class:`.BlockMatrix`
+            Sparse block matrix.
+        """
+        return BlockMatrix(self._jbm.filterRowIntervals(
+            jarray(Env.jvm().long, starts),
+            jarray(Env.jvm().long, stops),
+            blocks_only))
 
     @typecheck_method(uri=str)
     def tofile(self, uri):
@@ -937,27 +1032,26 @@ class BlockMatrix(object):
 
         >>> BlockMatrix.export('output/example.bm', 'output/example.tsv')
 
-        Export the upper-triangle of the matrix as a file of
+        Export the upper-triangle of the matrix as a block gzipped file of
         comma-separated values.
 
         >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example.csv',
+        ...                    output='output/example.csv.bgz',
         ...                    delimiter=',',
         ...                    entries='upper')
 
         Export the full matrix with row indices in parallel as a folder of
-        files, each with a header line for columns ``idx``, ``A``, ``B``,
-        and ``C``.
+        gzipped files, each with a header line for columns ``idx``, ``A``,
+        ``B``, and ``C``.
 
         >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example',
+        ...                    output='output/example.gz',
         ...                    header='\t'.join(['idx', 'A', 'B', 'C']),
         ...                    add_index=True,
         ...                    parallel='header_per_shard',
         ...                    partition_size=2)
 
-
-        This produces two files:
+        This produces two compressed files which uncompress to:
 
         .. code-block:: text
 
@@ -1022,9 +1116,13 @@ class BlockMatrix(object):
         divisor or multiple of the block size reduces superfluous shuffling
         of data.
 
-        If ``parallel` is ``None``, these file shards are then serially
+        If `parallel` is ``None``, these file shards are then serially
         concatenated by one core into one file, a slow process. See
         other options below.
+
+        It is highly recommended to export large files with a ``.bgz`` extension,
+        which will use a block gzipped compression codec. These files can be
+        read natively with Python's ``gzip.open`` and R's ``read.table``.
 
         Parameters
         ----------
@@ -1032,6 +1130,7 @@ class BlockMatrix(object):
             Path to input block matrix, stored row-major on disk.
         output: :obj:`str`
             Path for export.
+            Use extension ``.gz`` for gzip or ``.bgz`` for block gzip.
         delimiter: :obj:`str`
             Column delimiter.
         header: :obj:`str`, optional

@@ -1,7 +1,7 @@
 package is.hail.linalg
 
 
-import breeze.linalg.{DenseMatrix => BDM}
+import breeze.linalg.{diag, DenseMatrix => BDM}
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
@@ -182,7 +182,7 @@ class BlockMatrixSuite extends SparkSuite {
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }.check()
 
-    forAll(twoMultipliableDenseMatrices[Double], interestingPosInt) { case ((ll, lr), blockSize) =>
+    forAll(twoMultipliableDenseMatrices[Double](), interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
@@ -734,44 +734,6 @@ class BlockMatrixSuite extends SparkSuite {
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
   }
-  
-  @Test
-  def writeSubsetTest() {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
-
-    for (blockSize <- Seq(2, 4, 8)) {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
-
-      val allFile = tmpDir.createTempFile("all")
-      val someFile = tmpDir.createTempFile("some")
-
-      val keep = Array(1, 3)
-
-      def verifyMetadata(path: String) {
-        val bm2 = BlockMatrix.read(hc, allFile)
-        assert(bm2.nRows == 9 &&
-          bm2.nCols == 10 &&
-          bm2.blockSize == blockSize)
-      }
-      
-      bm.write(allFile)
-      verifyMetadata(allFile)
-
-      bm.write(someFile, optKeep = Some(keep))
-      verifyMetadata(someFile)
-
-      val allParts = hc.hadoopConf.glob(allFile + "/parts/part-*")
-        .map(_.getPath.toString)
-      val someParts = hc.hadoopConf.glob(someFile + "/parts/part-*")
-        .map(_.getPath.toString)
-
-      for (i <- keep) {
-        val allPart = allParts.find(f => getPartNumber(f) == i).get
-        val somePart = allParts.find(f => getPartNumber(f) == i).get
-        assert(TestUtils.fileHaveSameBytes(allPart, somePart))
-      }
-    }
-  }
 
   @Test
   def testEntriesTable(): Unit = {
@@ -795,7 +757,7 @@ class BlockMatrixSuite extends SparkSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
     
-    assert(bm.entriesTable(hc, Some(Array(0, 1, 6))).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
+    assert(bm.filterBlocks(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
       Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
   }
 
@@ -827,5 +789,274 @@ class BlockMatrixSuite extends SparkSuite {
       None, None)
 
     assert(entriesTable.select("{i: row.i, j: row.j}").same(expectedTable))
+  }
+  
+  def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
+    bm1.blocks.collect() sameElements bm2.blocks.collect()
+
+  @Test
+  def testFilterBlocks() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+        
+    val bm = toBM(lm, blockSize = 2)
+
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+
+    val localBlocks = Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
+     
+    for { keep <- keepArray } {
+      val fbm = bm.filterBlocks(keep)
+      
+      assert(fbm.blocks.count() == keep.length)
+      assert(fbm.blocks.collect().forall { case ((i, j), block) =>
+        block == localBlocks(fbm.gp.coordinatesBlock(i, j)) } )
+    }
+    
+    val bm0 = bm.filterBlocks(Array(0)).cache()
+    val bm13 = bm.filterBlocks(Array(1, 3)).cache()
+    
+    // test multiple block filters
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm13, bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 3))))
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(0, 1, 2, 3))))
+    assert(filteredEquals(bm.filterBlocks(Array(1)),
+      bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3))))
+    
+    val notSupported: String = "not supported for block-filtered block matrices"
+    
+    // filter not supported
+    TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
+  }
+
+  
+  @Test
+  def testSparseBlockMatrixIO() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+    
+    val bm = toBM(lm, blockSize = 2)
+
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+    
+    val lm_zero = BDM.zeros[Double](2, 2)
+
+    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+      val flm = lm.copy
+      (0 to 3).diff(keep).foreach { i =>
+        val r = 2 * (i % 2)
+        val c = 2 * (i / 2)
+        flm(r to r + 1, c to c + 1) := lm_zero
+      }
+      flm
+    }
+
+    // test toBlockMatrix, toIndexedRowMatrix, toRowMatrix, read/write identity
+    for { keep <- keepArray } {
+      val fbm = bm.filterBlocks(keep)
+      val flm = filterBlocks(keep)
+      
+      assert(fbm.toBreezeMatrix() === flm)
+
+      assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
+      
+      val fname = tmpDir.createTempFile("test")
+      fbm.write(fname, forceRowMajor = true)
+      
+      assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
+
+      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
+    }
+    
+    val bm0 = bm.filterBlocks(Array(0))
+    
+    val notSupported: String = "not supported for block-filtered block matrices"
+    
+    // filter not supported
+    TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
+  }
+  
+  @Test
+  def testSparseBlockMatrixMath() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+
+    val bm = toBM(lm, blockSize = 2)
+    
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+
+    val lm_zero = BDM.zeros[Double](2, 2)
+
+    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+      val flm = lm.copy
+      (0 to 3).diff(keep).foreach { i =>
+        val r = 2 * (i % 2)
+        val c = 2 * (i / 2)
+        flm(r to r + 1, c to c + 1) := lm_zero
+      }
+      flm
+    }
+    
+    val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap
+
+    val v = Array(1.0, 2.0, 3.0, 4.0)
+        
+    // test transpose, diagonal, math ops
+    for { keep <- keepArray } {
+      val fbm = bm.filterBlocks(keep)
+      val flm = filterBlocks(keep)
+
+      assert(filteredEquals(fbm.transpose().transpose(), fbm))
+      
+      assert(filteredEquals(
+        fbm.transpose(), bm.transpose().filterBlocks(keep.map(transposeBI).sorted)))
+
+      assert(fbm.diagonal() sameElements diag(fbm.toBreezeMatrix()).toArray)
+
+      assert(filteredEquals(+fbm, +bm.filterBlocks(keep)))
+      assert(filteredEquals(-fbm, -bm.filterBlocks(keep)))
+      
+      assert(filteredEquals(fbm + fbm, (bm + bm).filterBlocks(keep)))
+      assert(filteredEquals(fbm - fbm, (bm - bm).filterBlocks(keep)))
+      assert(filteredEquals(fbm * fbm, (bm * bm).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.rowVectorMul(v), bm.rowVectorMul(v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorDiv(v), bm.rowVectorDiv(v).filterBlocks(keep)))
+
+      assert(filteredEquals(fbm.colVectorMul(v), bm.colVectorMul(v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorDiv(v), bm.colVectorDiv(v).filterBlocks(keep)))
+      
+      assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
+      assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
+      
+      assert(filteredEquals(fbm.sqrt(), bm.sqrt().filterBlocks(keep)))
+      assert(filteredEquals(fbm.pow(3), bm.pow(3).filterBlocks(keep)))
+      
+      assert(fbm.dot(fbm).toBreezeMatrix() === flm * flm)
+    }
+    
+    val bm0 = bm.filterBlocks(Array(0)).cache()
+    val bm13 = bm.filterBlocks(Array(1, 3)).cache()
+    val bm23 = bm.filterBlocks(Array(2, 3)).cache()
+    val bm123 = bm.filterBlocks(Array(1, 2, 3)).cache()
+        
+    // test * with mismatched blocks
+    assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))    
+    assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
+    assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))
+    
+    // math ops not yet supported
+    val blockMismatch: String = "requires block matrices to have the same set of blocks present"
+    val notSupported: String = "not supported for block-filtered block matrices"
+
+    TestUtils.interceptFatal(blockMismatch) { bm0 + bm13 }
+    TestUtils.interceptFatal(blockMismatch) { bm123 + bm13 }
+    TestUtils.interceptFatal(blockMismatch) { bm0 - bm13 }
+    TestUtils.interceptFatal(blockMismatch) { bm123 - bm13 }
+
+    TestUtils.interceptFatal(notSupported) { bm0.rowVectorAdd(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.colVectorAdd(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.rowVectorSub(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.colVectorSub(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseRowVectorSub(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseColVectorSub(v) }
+
+    TestUtils.interceptFatal(notSupported) { bm0 + 2 }
+    TestUtils.interceptFatal(notSupported) { bm0 - 2 }
+    TestUtils.interceptFatal(notSupported) { 2 - bm0 }
+
+    // most division ops not supported
+    val v0 = Array(0.0, Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity)
+    
+    TestUtils.interceptFatal(notSupported) { bm0 / bm0 }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseRowVectorDiv(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseColVectorDiv(v) }
+    TestUtils.interceptFatal(notSupported) { 1 / bm0 }
+    
+    TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(v0) }
+    TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(v0) }
+    TestUtils.interceptFatal("cannot divide block matrix by scalar 0.0") { bm0 / 0 }
+    
+    // exponent to negative power not supported
+    TestUtils.interceptFatal(notSupported) { bm0.pow(-1)}
+  }
+  
+  @Test
+  def testFilterRowIntervals() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+    
+    val bm = toBM(lm, blockSize = 2)
+
+    val starts = Array[Long](1, 0, 0, 2)
+    val stops = Array[Long](4, 4, 0, 3)
+
+    val filteredLM = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      0, 0, 11, 12,
+      0, 0, 15, 16))
+    
+    val zeroedLM = toLM(4, 4, Array(
+      0, 2, 3, 4,
+      5, 6, 7, 8,
+      0, 0, 0, 0,
+      0, 0, 15, 0))
+    
+    assert(bm.filterRowIntervals(starts, stops, blocksOnly = true).toBreezeMatrix() === filteredLM)
+    assert(bm.filterRowIntervals(starts, stops, blocksOnly = false).toBreezeMatrix() === zeroedLM)
+    
+    val starts2 = Array[Long](0, 1, 2, 3)
+    val stops2 = Array[Long](1, 2, 3, 4)
+
+    val filteredLM2 = toLM(4, 4, Array(
+      1, 2, 0, 0,
+      5, 6, 0, 0,
+      0, 0, 11, 12,
+      0, 0, 15, 16))
+    
+    val zeroedLM2 = toLM(4, 4, Array(
+      1, 0, 0, 0,
+      0, 6, 0, 0,
+      0, 0, 11, 0,
+      0, 0, 0, 16))
+    
+    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = true).toBreezeMatrix() === filteredLM2)
+    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
   }
 }
