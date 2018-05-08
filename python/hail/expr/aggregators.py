@@ -465,7 +465,7 @@ def max(expr) -> NumericExpression:
     """
     return _agg_func('max', expr, expr.dtype)
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=agg_expr(expr_oneof(expr_int64, expr_float64)))
 def sum(expr):
     """Compute the sum of all records of `expr`.
 
@@ -482,10 +482,15 @@ def sum(expr):
     -----
     Missing values are ignored (treated as zero).
 
-    If `expr` is an expression of type :py:data:`.tint32` or :py:data:`.tint64`, then
-    the result is an expression of type :py:data:`.tint64`. If `expr` is an
-    expression of type :py:data:`.tfloat32` or :py:data:`.tfloat64`, then the result
-    is an expression of type :py:data:`.tfloat64`.
+    If `expr` is an expression of type :py:data:`.tint32`, :py:data:`.tint64`,
+    or :py:data:`.tbool`, then the result is an expression of type
+    :py:data:`.tint64`. If `expr` is an expression of type :py:data:`.tfloat32`
+    or :py:data:`.tfloat64`, then the result is an expression of type
+    :py:data:`.tfloat64`.
+
+    Warning
+    -------
+    Boolean values are cast to integers before computing the sum.
 
     Parameters
     ----------
@@ -615,10 +620,15 @@ def product(expr):
     -----
     Missing values are ignored (treated as one).
 
-    If `expr` is an expression of type :py:data:`.tint32` or :py:data:`.tint64`, then
-    the result is an expression of type :py:data:`.tint64`. If `expr` is an
-    expression of type :py:data:`.tfloat32` or :py:data:`.tfloat64`, then the result
-    is an expression of type :py:data:`.tfloat64`.
+    If `expr` is an expression of type :py:data:`.tint32`, :py:data:`.tint64` or
+    :py:data:`.tbool`, then the result is an expression of type
+    :py:data:`.tint64`. If `expr` is an expression of type :py:data:`.tfloat32`
+    or :py:data:`.tfloat64`, then the result is an expression of type
+    :py:data:`.tfloat64`.
+
+    Warning
+    -------
+    Boolean values are cast to integers before computing the product.
 
     Parameters
     ----------

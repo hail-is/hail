@@ -148,6 +148,16 @@ class Tests(unittest.TestCase):
             self.assertTrue(r.max == -5 and r.max_empty is None and
                             r.min == -14 and r.min_empty is None)
 
+    def test_aggregators_sum_product(self):
+        table = hl.utils.range_table(5)
+        for (f, typ) in [(lambda x: hl.int32(x), tint32), (lambda x: hl.int64(x), tint64),
+                         (lambda x: hl.float32(x), tfloat32), (lambda x: hl.float64(x), tfloat64)]:
+            t = table.annotate(x=-1 * f(table.idx) - 1, y=f(table.idx), z=hl.null(typ))
+            r = t.aggregate(hl.struct(sum_x=agg.sum(t.x), sum_y=agg.sum(t.y), sum_empty=agg.sum(t.z),
+                                      prod_x=agg.product(t.x), prod_y=agg.product(t.y), prod_empty=agg.product(t.z)))
+            self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
+                            r.prod_x == -120 and r.prod_y == 0 and r.prod_empty == 1)
+
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
         table2 = hl.utils.range_table(10)

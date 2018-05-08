@@ -13,7 +13,7 @@ final case class Collect() extends AggOp { }
 // final case class InfoScore() extends AggOp { }
 // final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
 final case class Sum() extends AggOp { }
-// final case class Product() extends AggOp { }
+final case class Product() extends AggOp { }
 final case class Max() extends AggOp { }
 final case class Min() extends AggOp { }
 
@@ -62,13 +62,15 @@ object AggOp {
     // case (Collect(), _: TArray) =>
     // case (Collect(), _: TStruct) =>
     // case (InfoScore() =>
-    case (Sum(), in: TInt32, Seq()) => CodeAggregator[RegionValueSumIntAggregator](in, TInt32())
+
     case (Sum(), in: TInt64, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
-    case (Sum(), in: TFloat32, Seq()) => CodeAggregator[RegionValueSumFloatAggregator](in, TFloat32())
     case (Sum(), in: TFloat64, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
+
+    case (Product(), in: TInt64, Seq()) => CodeAggregator[RegionValueProductLongAggregator](in, TInt64())
+    case (Product(), in: TFloat64, Seq()) => CodeAggregator[RegionValueProductDoubleAggregator](in, TFloat64())
+
     // case (HardyWeinberg(), _: T) =>
-    // case (Product(), _: T) =>
-      
+
     case (Max(), in: TBoolean, Seq()) => CodeAggregator[RegionValueMaxBooleanAggregator](in, TBoolean())
     case (Max(), in: TInt32, Seq()) => CodeAggregator[RegionValueMaxIntAggregator](in, TInt32())
     case (Max(), in: TInt64, Seq()) => CodeAggregator[RegionValueMaxLongAggregator](in, TInt64())

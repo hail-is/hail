@@ -2,52 +2,6 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 
-class RegionValueSumBooleanAggregator extends RegionValueAggregator {
-  private var sum: Boolean = false
-
-  def seqOp(b: Boolean, missing: Boolean) {
-    if (!missing)
-      sum |= b
-  }
-
-  def combOp(agg2: RegionValueAggregator) {
-    sum |= agg2.asInstanceOf[RegionValueSumBooleanAggregator].sum
-  }
-
-  def result(rvb: RegionValueBuilder) {
-    rvb.addBoolean(sum)
-  }
-
-  def copy(): RegionValueSumBooleanAggregator = new RegionValueSumBooleanAggregator()
-
-  def clear() {
-    sum = false
-  }
-}
-
-class RegionValueSumIntAggregator extends RegionValueAggregator {
-  private var sum: Int = 0
-
-  def seqOp(i: Int, missing: Boolean) {
-    if (!missing)
-      sum += i
-  }
-
-  def combOp(agg2: RegionValueAggregator) {
-    sum += agg2.asInstanceOf[RegionValueSumIntAggregator].sum
-  }
-
-  def result(rvb: RegionValueBuilder) {
-    rvb.addInt(sum)
-  }
-
-  def copy(): RegionValueSumIntAggregator = new RegionValueSumIntAggregator()
-
-  def clear() {
-    sum = 0
-  }
-}
-
 class RegionValueSumLongAggregator extends RegionValueAggregator {
   private var sum: Long = 0L
 
@@ -68,29 +22,6 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
 
   def clear() {
     sum = 0L
-  }
-}
-
-class RegionValueSumFloatAggregator extends RegionValueAggregator {
-  private var sum: Float = 0.0f
-
-  def seqOp(f: Float, missing: Boolean) {
-    if (!missing)
-      sum += f
-  }
-
-  def combOp(agg2: RegionValueAggregator) {
-    sum += agg2.asInstanceOf[RegionValueSumFloatAggregator].sum
-  }
-
-  def result(rvb: RegionValueBuilder) {
-    rvb.addFloat(sum)
-  }
-
-  def copy(): RegionValueSumFloatAggregator = new RegionValueSumFloatAggregator()
-
-  def clear() {
-    sum = 0.0f
   }
 }
 
