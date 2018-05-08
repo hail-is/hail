@@ -12,34 +12,16 @@ import scala.reflect.{ClassTag, classTag}
 
 object StringFunctions extends RegistryFunctions {
 
-  private[this] def wrapToString(mb: EmitMethodBuilder, v: Code[Long]): Code[String] = {
-    Code.invokeScalaObject[Region, Long, String](TString.getClass, "loadString", mb.getArg[Region](1), v)
-  }
-
-  private[this] def convertFromString(mb: EmitMethodBuilder, v: Code[String]): Code[Long] = {
-    mb.getArg[Region](1).load().appendString(v)
-  }
-
   private[this] def registerWrappedStringScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case t => TypeToIRIntermediateClassTag(t)
     }
 
-    def convertToString(mb: EmitMethodBuilder, typ: Type, v: Code[_]): Code[_] = (typ, v) match {
-        case (_: TString, v2: Code[Long]) => wrapToString(mb, v2)
-        case (_, v2) => v2
-    }
-
-    def convertBack(mb: EmitMethodBuilder, v: Code[_]): Code[_] = rType match {
-      case _: TString => convertFromString(mb, asm4s.coerce[String](v))
-      case t => v
-    }
-
     registerCode(mname, argTypes, rType, isDet = true) { (mb, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
-      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => convertToString(mb, t, a) } )(ct(rType))
-      convertBack(mb, out)
+      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => wrapArg(mb, t)(a) } )(ct(rType))
+      unwrapReturn(mb, rType)(out)
     }
   }
 
@@ -85,8 +67,10 @@ object StringFunctions extends RegistryFunctions {
 
       val setup = Code(s.setup, r.setup)
       val missing = s.m || r.m || Code(
-        out := Code.invokeScalaObject[String, String, IndexedSeq[String]](thisClass,
-          "firstMatchIn", wrapToString(mb, s.value[Long]), wrapToString(mb, r.value[Long])),
+        out := Code.invokeScalaObject[String, String, IndexedSeq[String]](
+          thisClass, "firstMatchIn",
+          asm4s.coerce[String](wrapArg(mb, TString())(s.value[Long])),
+          asm4s.coerce[String](wrapArg(mb, TString())(r.value[Long]))),
         nout.isNull)
       val value =
         nout.ifNull(

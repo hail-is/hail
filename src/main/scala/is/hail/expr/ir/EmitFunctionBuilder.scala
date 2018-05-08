@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.expr.Parser
 import is.hail.expr.types.Type
 import is.hail.variant.ReferenceGenome
 import org.objectweb.asm.tree.AbstractInsnNode
@@ -48,6 +49,10 @@ class EmitMethodBuilder(
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     fb.getReferenceGenome(rg)
 
+  def numTypes: Int = fb.numTypes
+
+  def getType(t: Type): Code[Type] = fb.getType(t)
+
   def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t, op, missingGreatest)
 }
@@ -61,6 +66,9 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
 
+  private[this] val typMap: mutable.Map[Type, Code[Type]] =
+    mutable.Map[Type, Code[Type]]()
+
   private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
     mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
 
@@ -68,6 +76,13 @@ class EmitFunctionBuilder[F >: Null](
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup))
+
+  def numTypes: Int = typMap.size
+
+  def getType(t: Type): Code[Type] =
+    typMap.getOrElseUpdate(t,
+      newLazyField[Type](
+        Code.invokeScalaObject[String, Type](Parser.getClass, "parseType", const(t.parsableString()))))
 
   def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] = {
     val f = compareMap.getOrElseUpdate((t, op, missingGreatest), {
