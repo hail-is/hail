@@ -180,7 +180,7 @@ class ReadBlocksAsRowsRDD(path: String,
   def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
     
-    var inPerBlockCol = IndexedSeq.empty[(InputBuffer, Int, Int)]
+    var inPerBlockCol: IndexedSeq[(InputBuffer, Int, Int)] = null
     var i = start
     
     new Iterator[(Long, Array[Double])] {

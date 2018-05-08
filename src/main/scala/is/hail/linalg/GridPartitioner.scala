@@ -109,27 +109,17 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     case (i: Int, j: Int) => coordinatesPart(i, j)
   }
   
-  def transpose: (GridPartitioner, Array[Int]) = {
+  def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
-
     def transposeBI(bi: Int): Int = coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
-
-    val (transposedBI, transposePI) =
-      maybeSparse.getOrElse((0 until numPartitions).toArray)
-      .map(transposeBI)
-      .zipWithIndex
-      .sortBy(_._1)
-      .unzip
-
-    val transposedGP =
-      if (maybeSparse.isDefined)
-        GridPartitioner(blockSize, nCols, nRows, Some(transposedBI))
-      else
-        gpT
-
-    val inverseTransposePI = transposePI.zipWithIndex.sortBy(_._1).map(_._2)
-
-    (transposedGP, inverseTransposePI)
+    maybeSparse match {
+      case Some(bis) =>
+        val (biTranspose, piTranspose) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
+        val inverseTransposePI = piTranspose.zipWithIndex.sortBy(_._1).map(_._2)
+        
+        (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), inverseTransposePI)
+      case None => (gpT, transposeBI)
+    }
   }
 
   def vectorOnBlockRow(v: BDV[Double], i: Int): BDV[Double] = {

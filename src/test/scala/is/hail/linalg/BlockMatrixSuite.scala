@@ -793,16 +793,128 @@ class BlockMatrixSuite extends SparkSuite {
   
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
     bm1.blocks.collect() sameElements bm2.blocks.collect()
+
+  @Test
+  def testFilterBlocks() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+        
+    val bm = toBM(lm, blockSize = 2)
+
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+
+    val localBlocks = Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
+     
+    for { keep <- keepArray } {
+      val fbm = bm.filterBlocks(keep)
+      
+      assert(fbm.blocks.count() == keep.length)
+      assert(fbm.blocks.collect().forall { case ((i, j), block) =>
+        block == localBlocks(fbm.gp.coordinatesBlock(i, j)) } )
+    }
+    
+    val bm0 = bm.filterBlocks(Array(0)).cache()
+    val bm13 = bm.filterBlocks(Array(1, 3)).cache()
+    
+    // test multiple block filters
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm13, bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 3))))
+    assert(filteredEquals(bm13, bm13.filterBlocks(Array(0, 1, 2, 3))))
+    assert(filteredEquals(bm.filterBlocks(Array(1)),
+      bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3))))
+    
+    val notSupported: String = "not supported for block-filtered block matrices"
+    
+    // filter not supported
+    TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
+  }
+
   
   @Test
-  def testFilteredBlockMatrix() {
+  def testSparseBlockMatrixIO() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
     
-    val localBlocks = Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
+    val bm = toBM(lm, blockSize = 2)
+
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
+    
+    val lm_zero = BDM.zeros[Double](2, 2)
+
+    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+      val flm = lm.copy
+      (0 to 3).diff(keep).foreach { i =>
+        val r = 2 * (i % 2)
+        val c = 2 * (i / 2)
+        flm(r to r + 1, c to c + 1) := lm_zero
+      }
+      flm
+    }
+
+    // test toBlockMatrix, toIndexedRowMatrix, toRowMatrix, read/write identity
+    for { keep <- keepArray } {
+      val fbm = bm.filterBlocks(keep)
+      val flm = filterBlocks(keep)
+      
+      assert(fbm.toBreezeMatrix() === flm)
+
+      assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
+      
+      val fname = tmpDir.createTempFile("test")
+      fbm.write(fname, forceRowMajor = true)
+      
+      assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
+
+      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
+    }
+    
+    val bm0 = bm.filterBlocks(Array(0))
+    
+    val notSupported: String = "not supported for block-filtered block matrices"
+    
+    // filter not supported
+    TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
+    TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
+  }
+  
+  @Test
+  def testSparseBlockMatrixMath() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+
+    val bm = toBM(lm, blockSize = 2)
+    
+    val keepArray = Array(
+      Array.empty[Int],
+      Array(0),
+      Array(1, 3),
+      Array(2, 3),
+      Array(1, 2, 3),
+      Array(0, 1, 2, 3))
 
     val lm_zero = BDM.zeros[Double](2, 2)
 
@@ -816,39 +928,14 @@ class BlockMatrixSuite extends SparkSuite {
       flm
     }
     
-    val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap    
+    val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap
 
     val v = Array(1.0, 2.0, 3.0, 4.0)
-    
-    val bm = toBM(lm, blockSize = 2)
-
-    val keepArray = Array(
-      Array.empty[Int],
-      Array(0),
-      Array(1, 3),
-      Array(2, 3),
-      Array(1, 2, 3),
-      Array(0, 1, 2, 3))
-    
-    // test filterBlocks, toBlockMatrix, toIndexedRowMatrix, toRowMatrix, read/write identity, transpose, diagonal, math ops
+        
+    // test transpose, diagonal, math ops
     for { keep <- keepArray } {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
-      
-      assert(fbm.blocks.count() == keep.length)
-      assert(fbm.blocks.collect().forall { case ((i, j), block) =>
-        block == localBlocks(fbm.gp.coordinatesBlock(i, j)) } )
-      
-      assert(fbm.toBreezeMatrix() === flm)
-
-      assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
-      
-      val fname = tmpDir.createTempFile("test")
-      fbm.write(fname, forceRowMajor = true)
-      
-      assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
-
-      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
 
       assert(filteredEquals(fbm.transpose().transpose(), fbm))
       
@@ -883,21 +970,14 @@ class BlockMatrixSuite extends SparkSuite {
     val bm13 = bm.filterBlocks(Array(1, 3)).cache()
     val bm23 = bm.filterBlocks(Array(2, 3)).cache()
     val bm123 = bm.filterBlocks(Array(1, 2, 3)).cache()
-    
-    // test multiple filters
-    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 3))))
-    assert(filteredEquals(bm13, bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 3))))
-    assert(filteredEquals(bm13, bm13.filterBlocks(Array(0, 1, 2, 3))))
-    assert(filteredEquals(bm.filterBlocks(Array(1)),
-      bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3))))
-    
+        
     // test * with mismatched blocks
     assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))    
     assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
     assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(Array(1, 3))))
     assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))
     
-    // math ops not yet supported FIXME extend to these
+    // math ops not yet supported
     val blockMismatch: String = "requires block matrices to have the same set of blocks present"
     val notSupported: String = "not supported for block-filtered block matrices"
 
@@ -931,11 +1011,6 @@ class BlockMatrixSuite extends SparkSuite {
     
     // exponent to negative power not supported
     TestUtils.interceptFatal(notSupported) { bm0.pow(-1)}
-    
-    // filter not supported
-    TestUtils.interceptFatal(notSupported) { bm0.filter(Array(0), Array(0)) }
-    TestUtils.interceptFatal(notSupported) { bm0.filterRows(Array(0)) }
-    TestUtils.interceptFatal(notSupported) { bm0.filterCols(Array(0)) }
   }
   
   @Test

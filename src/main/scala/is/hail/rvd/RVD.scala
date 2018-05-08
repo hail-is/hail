@@ -1,6 +1,5 @@
 package is.hail.rvd
 
-import is.hail.expr.types.Type
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream }
 
 import is.hail.HailContext
@@ -11,7 +10,7 @@ import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
-import org.apache.spark.{Partition, SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel

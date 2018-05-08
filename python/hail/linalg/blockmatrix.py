@@ -547,7 +547,7 @@ class BlockMatrix(object):
         block sparsity.
 
         Matrix product ``@`` currently always results in a dense block matrix.
-        Sparse block matrices also support transpose :meth:`T`,
+        Sparse block matrices also support transpose,
         :meth:`diagonal`, and all non-mathematical operations except filtering.
 
         Element-wise mathematical operations are currently supported if and

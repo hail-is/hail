@@ -140,7 +140,7 @@ object BlockMatrix {
     if (pi >= 0) {
       val it = bm.blocks.iterator(parts(pi), context)
       assert(it.hasNext)
-      val lm = it.next()._2
+      val (_, lm) = it.next()
       assert(!it.hasNext)
       Some(lm)
     } else {
@@ -440,10 +440,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
-      val block = it.next()._2
+      val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      block.write(os, forceRowMajor, bufferSpec)
+      lm.write(os, forceRowMajor, bufferSpec)
       os.close()
 
       1
@@ -660,6 +660,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     name: String = "operation",
     reqDense: Boolean = true): M = {
     if (reqDense) {
+      requireDense(name)
       bm2.requireDense(name)
       bm3.requireDense(name)
       bm4.requireDense(name)
@@ -1117,7 +1118,7 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   private val (newGP, inverseTransposePI) = bm.gp.transpose
-
+  
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = Array(inverseTransposePI(partitionId))
