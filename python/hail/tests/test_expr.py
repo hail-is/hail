@@ -1276,3 +1276,20 @@ class Tests(unittest.TestCase):
         results = expr.value
         for args, result in results.items():
             self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
+
+    def test_min_rep(self):
+        def assert_min_reps_to(old, new, pos_change=0):
+            self.assertEqual(
+                hl.min_rep(hl.locus('1', 10), old).value,
+                (hl.Locus('1', 10 + pos_change), new)
+            )
+
+        assert_min_reps_to(['TAA', 'TA'], ['TA', 'T'])
+        assert_min_reps_to(['ACTG', 'ACT'], ['TG', 'T'], pos_change=2)
+        assert_min_reps_to(['AAACAAAC', 'AAAC'], ['AAACA', 'A'])
+        assert_min_reps_to(['AATAA', 'AAGAA'], ['T', 'G'], pos_change=2)
+        assert_min_reps_to(['AATAA', '*'], ['A', '*'])
+        assert_min_reps_to(['TAA', 'TA', 'TTA'], ['TA', 'T', 'TT'])
+        assert_min_reps_to(['GCTAA', 'GCAAA', 'G'], ['GCTAA', 'GCAAA', 'G'])
+        assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA'], ['T', 'A', 'C'], pos_change=2)
+        assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
