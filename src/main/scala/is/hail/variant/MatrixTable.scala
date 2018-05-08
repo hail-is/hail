@@ -126,8 +126,89 @@ object MatrixTable {
       case mts: MatrixTableSpec => mts
       case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     }
+
+    val typ = spec.matrix_type
+
+    val f: (MatrixRead) => MatrixValue = { mr =>
+      val hc = HailContext.get
+      val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
+
+      val colAnnotations =
+        if (mr.dropCols)
+          IndexedSeq.empty[Annotation]
+        else
+          Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
+
+      val rvd =
+        if (mr.dropRows)
+          OrderedRVD.empty(hc.sc, typ.orvdType)
+        else {
+          val fullRowType = typ.rvRowType
+          val rowType = typ.rowType
+          val localEntriesIndex = typ.entriesIdx
+
+          val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
+          if (mr.dropCols) {
+            rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+              val rv2b = new RegionValueBuilder()
+              val rv2 = RegionValue()
+
+              it.map { rv =>
+                rv2b.set(rv.region)
+                rv2b.start(fullRowType)
+                rv2b.startStruct()
+                var i = 0
+                while (i < localEntriesIndex) {
+                  rv2b.addField(rowType, rv, i)
+                  i += 1
+                }
+                rv2b.startArray(0)
+                rv2b.endArray()
+                i += 1
+                while (i < fullRowType.size) {
+                  rv2b.addField(rowType, rv, i - 1)
+                  i += 1
+                }
+                rv2b.endStruct()
+                rv2.set(rv.region, rv2b.end())
+                rv2
+              }
+            }
+          } else {
+            val entriesRVD = spec.entriesComponent.read(hc, path)
+            val entriesRowType = entriesRVD.rowType
+            rowsRVD.zip(typ.orvdType, entriesRVD) { (ctx, rv1, rv2) =>
+              val rvb = ctx.rvb
+              val region = ctx.region
+              rvb.start(fullRowType)
+              rvb.startStruct()
+              var i = 0
+              while (i < localEntriesIndex) {
+                rvb.addField(rowType, rv1, i)
+                i += 1
+              }
+              rvb.addField(entriesRowType, rv2, 0)
+              i += 1
+              while (i < fullRowType.size) {
+                rvb.addField(rowType, rv1, i - 1)
+                i += 1
+              }
+              rvb.endStruct()
+              rv2.set(region, rvb.end())
+              rv2
+            }
+          }
+        }
+
+      MatrixValue(
+        typ,
+        BroadcastRow(globals, typ.globalType, hc.sc),
+        BroadcastIndexedSeq(colAnnotations, TArray(typ.colType), hc.sc),
+        rvd)
+    }
+
     new MatrixTable(hc,
-      MatrixRead(path, spec, dropCols, dropRows))
+      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, f))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -174,8 +255,81 @@ object MatrixTable {
     ds
   }
 
-  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable =
-    new MatrixTable(hc, MatrixRange(nRows, nCols, nPartitions.getOrElse(hc.sc.defaultParallelism)))
+  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable = {
+    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
+    val partCounts = partition(nRows, nPartitionsAdj)
+
+    val typ: MatrixType = MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("col_idx"),
+      colType = TStruct("col_idx" -> TInt32()),
+      rowPartitionKey = Array("row_idx"),
+      rowKey = Array("row_idx"),
+      rowType = TStruct("row_idx" -> TInt32()),
+      entryType = TStruct.empty())
+
+    val f: (MatrixRead) => MatrixValue = { mr =>
+      val hc = HailContext.get
+      val localRVType = typ.rvRowType
+      val localPartCounts = partCounts
+      val partStarts = partCounts.scanLeft(0)(_ + _)
+      val localNCols = if (mr.dropCols) 0 else nCols
+
+      val rvd = if (mr.dropRows)
+        OrderedRVD.empty(hc.sc, typ.orvdType)
+      else {
+        OrderedRVD(typ.orvdType,
+          new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
+            typ.rowKeyStruct,
+            Array.tabulate(nPartitionsAdj) { i =>
+              val start = partStarts(i)
+              Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
+            }),
+          ContextRDD.parallelize[RVDContext](hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
+            .cmapPartitionsWithIndex { (i, ctx, _) =>
+              val region = ctx.region
+              val rvb = ctx.rvb
+              val rv = RegionValue(region)
+
+              val start = partStarts(i)
+              Iterator.range(start, start + localPartCounts(i))
+                .map { j =>
+                  rvb.start(localRVType)
+                  rvb.startStruct()
+
+                  // row idx field
+                  rvb.addInt(j)
+
+                  // entries field
+                  rvb.startArray(localNCols)
+                  var i = 0
+                  while (i < localNCols) {
+                    rvb.startStruct()
+                    rvb.endStruct()
+                    i += 1
+                  }
+                  rvb.endArray()
+
+                  rvb.endStruct()
+                  rv.setOffset(rvb.end())
+                  rv
+                }
+            })
+      }
+
+      MatrixValue(typ,
+        BroadcastRow(Row(), typ.globalType, hc.sc),
+        BroadcastIndexedSeq(
+          Iterator.range(0, localNCols)
+            .map(Row(_))
+            .toFastIndexedSeq,
+          TArray(typ.colType),
+          hc.sc),
+        rvd)
+    }
+
+    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)), dropRows = false, dropCols = false, f = f))
+  }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
