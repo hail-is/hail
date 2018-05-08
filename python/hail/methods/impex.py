@@ -1776,7 +1776,7 @@ def import_vcf(path,
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            entry_field_array_elements_required=bool,
-           tar=str)
+           tar=nullable(str))
 def import_genomicsdb(metadata_file,
                       call_fields=[],
                       reference_genome='default',

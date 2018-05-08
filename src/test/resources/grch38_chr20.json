@@ -1,0 +1,14 @@
+{
+  "name": "GRCh38_chr20",
+  "source": "ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict",
+  "contigs": [
+    {
+      "name": "chr20",
+      "length": 64444167
+    }
+ ],
+  "xContigs": [ ],
+  "yContigs": [ ],
+  "mtContigs": [ ],
+  "par": [ ]
+}
