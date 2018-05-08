@@ -1172,7 +1172,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rowsAST = Parser.parseToAST(expr, ec)
 
     rowsAST.toIR(Some("AGG")) match {
-      case Some(x)  if useIR(this.rowAxis, rowsAST) =>
+      case Some(x) if useIR(this.rowAxis, rowsAST) =>
         new MatrixTable(hc, MatrixMapRows(ast, x, newKey))
 
       case _ =>

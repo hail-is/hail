@@ -269,7 +269,7 @@ def get_nice_field_error(obj, item):
 def check_collisions(fields, name, indices):
     from hail.expr.expressions import ExpressionException
     if name in fields and not fields[name]._indices == indices:
-        msg = "name collision with field indexed by {}: '{}'".format(list(fields[name]._indices.axes), name)
+        msg = "name collision with field indexed by {}: {}".format(list(fields[name]._indices.axes), repr(name))
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
 
