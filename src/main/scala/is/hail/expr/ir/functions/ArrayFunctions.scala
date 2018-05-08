@@ -27,15 +27,14 @@ object ArrayFunctions extends RegistryFunctions {
 
       registerIR(stringOp, tnum("T"), TArray(tv("T"))) { (c, a) =>
         val i = genUID()
-        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
+        ArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }
 
       registerIR(stringOp, TArray(tnum("T")), TArray(tv("T"))) { (array1, array2) =>
-        val tarray = TArray(tnum("T").t)
         val a1id = genUID()
-        val a1 = Ref(a1id, tarray)
+        val a1 = Ref(a1id, array1.typ)
         val a2id = genUID()
-        val a2 = Ref(a2id, tarray)
+        val a2 = Ref(a2id, array2.typ)
         val iid = genUID()
         val i = Ref(iid, TInt32())
         val body =
@@ -70,7 +69,7 @@ object ArrayFunctions extends RegistryFunctions {
         If(IsNA(Ref(value, t)),
           Ref(min, t),
           If(ApplyBinaryPrimOp(LT(), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
-      ArrayFold(a, NA(tnum("T").t), min, value, body)
+      ArrayFold(a, NA(t), min, value, body)
     }
 
     registerIR("max", TArray(tnum("T"))) { a =>
@@ -82,7 +81,7 @@ object ArrayFunctions extends RegistryFunctions {
         If(IsNA(Ref(value, t)),
           Ref(max, t),
           If(ApplyBinaryPrimOp(GT(), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
-      ArrayFold(a, NA(tnum("T").t), max, value, body)
+      ArrayFold(a, NA(t), max, value, body)
     }
 
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }

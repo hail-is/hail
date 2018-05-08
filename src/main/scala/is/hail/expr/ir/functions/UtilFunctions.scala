@@ -54,15 +54,15 @@ object UtilFunctions extends RegistryFunctions {
     }
     registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Integer, String, Long]("parseLong", s)
+      Code.invokeStatic[java.lang.Long, String, Long]("parseLong", s)
     }
     registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Integer, String, Float]("parseFloat", s)
+      Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", s)
     }
     registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Integer, String, Double]("parseDouble", s)
+      Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", s)
     }
     registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))

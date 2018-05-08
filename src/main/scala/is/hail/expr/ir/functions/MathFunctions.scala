@@ -110,8 +110,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
     registerJavaStaticFunction("%", TInt64(), TInt64(), TInt64())(jMathClass, "floorMod")
-    registerJavaStaticFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
-    registerJavaStaticFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
+    registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
+    registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
 
