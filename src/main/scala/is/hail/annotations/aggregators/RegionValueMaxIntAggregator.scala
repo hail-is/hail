@@ -32,7 +32,7 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
 
   def clear() {
     max = false
-    empty = false
+    empty = true
   }
 }
 
@@ -66,7 +66,7 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
 
   def clear() {
     max = 0
-    empty = false
+    empty = true
   }
 }
 
@@ -100,7 +100,7 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
 
   def clear() {
     max = 0L
-    empty = false
+    empty = true
   }
 }
 
@@ -134,7 +134,7 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
 
   def clear() {
     max = 0.0f
-    empty = false
+    empty = true
   }
 }
 
@@ -168,6 +168,6 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
 
   def clear() {
     max = 0.0
-    empty = false
+    empty = true
   }
 }
