@@ -17,7 +17,7 @@ object ExportGen {
     val hConf = hc.hadoopConf
 
     hConf.writeTable(path + ".sample",
-      "ID_1 ID_2 missing" :: "0 0 0" :: mv.colValues.value.map { a =>
+      "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.value.map { a =>
         val r = a.asInstanceOf[Row]
         assert(r.length == 3)
 
@@ -33,7 +33,7 @@ object ExportGen {
           fatal(s"'missing' values must be in the range [0, 1]. Found $missing for ($id1, $id2).")
 
         s"$id1 $id2 $missing"
-      }.toList)
+      }.toArray)
 
     val localNSamples = mv.nCols
     val fullRowType = mv.typ.rvRowType
