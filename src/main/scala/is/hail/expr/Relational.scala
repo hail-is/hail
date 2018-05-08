@@ -1272,6 +1272,46 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
+case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Int, sort: Boolean = true) extends TableIR {
+  private val fields = child.typ.rowType.fieldNames.toSet
+  assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
+  assert(nPartitionKeys <= keys.length)
+
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  val typ: TableType = child.typ.copy(key = Some(keys))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
+    assert(newChildren.length == 2)
+    TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val ktv = child.execute(hc)
+    val rvd = if (sort) {
+      def resort: OrderedRVD = {
+        val orderedKTType = new OrderedRVDType(keys.take(nPartitionKeys), keys, typ.rowType)
+        OrderedRVD.coerce(orderedKTType, ktv.rvd, None, None)
+      }
+      ktv.rvd match {
+        case ordered: OrderedRVD =>
+          if (ordered.typ.key.startsWith(keys)
+            && ordered.typ.partitionKey.length == nPartitionKeys)
+              ordered.copy(typ = ordered.typ.copy(key = keys))
+          else resort
+        case _: UnpartitionedRVD =>
+          resort
+      }
+    } else {
+      ktv.rvd match {
+        case ordered: OrderedRVD => ordered.toUnpartitionedRVD
+        case unordered: UnpartitionedRVD => unordered
+      }
+    }
+    ktv.copy(typ = typ, rvd = rvd)
+  }
+}
+
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   private val nPartitionsAdj = math.min(n, nPartitions)
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
