@@ -15,7 +15,7 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => n * (n + 1) / 2 }
+    registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
 
     registerIR("sum", TAggregable(tnum("T")))(ApplyAggOp(_, Sum(), FastSeq()))

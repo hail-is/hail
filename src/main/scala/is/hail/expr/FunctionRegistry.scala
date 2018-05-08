@@ -958,7 +958,6 @@ object FunctionRegistry {
   register("sqrt", { (x: Double) => math.sqrt(x) })
   register("log", (x: Double) => math.log(x))
   register("log", (x: Double, b: Double) => math.log(x) / math.log(b))
-  register("pow", (b: Double, x: Double) => math.pow(b, x))
 
   register("gamma", (x: Double) => Gamma.gamma(x))
 
@@ -1568,7 +1567,6 @@ object FunctionRegistry {
     registerMethod("signum", ev.signum _)
 
     register("-", ev.negate _)
-//    register("+", (x: T) => x)
 
     registerMethod("toInt32", ev.toInt _)
     registerMethod("toInt64", ev.toLong _)

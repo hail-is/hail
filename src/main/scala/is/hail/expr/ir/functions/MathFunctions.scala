@@ -72,7 +72,6 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("sqrt", TFloat64(), TFloat64())(mathPackageClass, "sqrt")
     registerScalaFunction("log", TFloat64(), TFloat64())(mathPackageClass, "log")
     registerScalaFunction("log", TFloat64(), TFloat64(), TFloat64())(thisClass, "log")
-    registerScalaFunction("pow", TFloat64(), TFloat64(), TFloat64())(mathPackageClass, "pow")
     registerScalaFunction("gamma", TFloat64(), TFloat64())(thisClass, "gamma")
 
     registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TInt32(), TFloat64())(statsPackageClass, "binomTest")

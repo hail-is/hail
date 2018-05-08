@@ -16,8 +16,8 @@ object ArrayFunctions extends RegistryFunctions {
         ("//", ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
         ("+", ApplyBinaryPrimOp(Add(), _, _)),
         ("-", ApplyBinaryPrimOp(Subtract(), _, _)),
-        ("**", { (ir1: IR, ir2: IR) => Apply("**", Seq(ir1,ir2)) }),
-        ("%", { (ir1: IR, ir2: IR) => Apply("%", Seq(ir1,ir2)) }))
+        ("**", { (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2)) }),
+        ("%", { (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2)) }))
 
     for ((stringOp, irOp) <- arrayOps) {
       registerIR(stringOp, TArray(tnum("T")), tv("T")) { (a, c) =>
