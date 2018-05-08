@@ -1034,7 +1034,7 @@ table. Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type
 .. testsetup::
 
     gnomad_data = mt.rows()
-    gnomad_data = gnomad_data.select(*gnomad_data.key, gnomad_data.info.AF)
+    gnomad_data = gnomad_data.select(gnomad_data.info.AF)
 
 .. doctest::
 
