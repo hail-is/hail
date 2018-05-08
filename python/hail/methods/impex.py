@@ -128,7 +128,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         id2 = dataset.col_key[0]
 
     if missing is None:
-        missing = 0.0
+        missing = hl.float64(0.0)
 
     if varid is None:
         if 'varid' in dataset.row and dataset.varid.dtype == tstr:
