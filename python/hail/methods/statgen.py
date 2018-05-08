@@ -2899,12 +2899,12 @@ def filter_alleles_hts(mt: MatrixTable,
             PL=newPL).drop('__old_to_new_no_na')
 
 
-@typecheck(call_expr=expr_call,
+@typecheck(mt=MatrixTable,
+           call_field=str,
            r2=numeric,
            window=int,
            memory_per_core=int)
-def _local_ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
-    mt = matrix_table_source('_local_ld_prune/call_expr', call_expr).select_entries(call_expr)
+def _local_ld_prune(mt, call_field, r2=0.2, window=1000000, memory_per_core=256):
     bytes_per_core = memory_per_core * 1024 * 1024
     fraction_memory_to_use = 0.25
     variant_byte_overhead = 50
@@ -2918,7 +2918,7 @@ def _local_ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
 
     sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
-        require_biallelic(mt, 'ld_prune')._jvds, float(r2), window, max_queue_size))
+        require_biallelic(mt, 'ld_prune')._jvds, call_field, float(r2), window, max_queue_size))
 
     return sites_only_table
 
@@ -2951,7 +2951,7 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed genotype call expression on a matrix table with row-indexed variants and column-indexed samples.
+        Entry-indexed call expression on a matrix table with row-indexed variants and column-indexed samples.
     r2 : :obj:`float`
         correlation threshold (exclusive) above which variants are removed
     window : :obj:`int`
@@ -2964,13 +2964,14 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     :class:`.Table`
         Table of variants after pruning.
     """
-    sites_only_table = _local_ld_prune(call_expr, r2, window, memory_per_core)
+    check_entry_indexed('ld_prune/call_expr', call_expr)
+    mt = matrix_table_source('ld_prune/call_expr', call_expr).select_entries(__gt=call_expr)
+    sites_only_table = _local_ld_prune(mt, "__gt", r2, window, memory_per_core)
 
     sites_path = new_temp_file()
     sites_only_table.write(sites_path, overwrite=True)
     sites_only_table = hl.read_table(sites_path)
 
-    mt = matrix_table_source('ld_prune/call_expr', call_expr)
     locally_pruned_ds = mt.annotate_rows(pruned=sites_only_table[mt.row_key])
     locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
 
@@ -2985,8 +2986,8 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
 
     normalized_mean_imputed_genotype_expr = (
-        hl.cond(hl.is_defined(locally_pruned_ds.GT),
-                (locally_pruned_ds.GT.n_alt_alleles() - locally_pruned_ds.mean)
+        hl.cond(hl.is_defined(locally_pruned_ds.__gt),
+                (locally_pruned_ds.__gt.n_alt_alleles() - locally_pruned_ds.mean)
                 * locally_pruned_ds.centered_length_sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk

@@ -1562,6 +1562,12 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds.GT)
         assert (pruned_table.count() == 1)
 
+    def test_ld_prune_call_expression(self):
+        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        ds = ds.select_entries(foo=ds.GT)
+        pruned_table = hl.ld_prune(ds.foo)
+        assert (pruned_table.count() == 1)
+
     def test_entries_table(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
