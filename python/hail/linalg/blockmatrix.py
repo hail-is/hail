@@ -548,7 +548,7 @@ class BlockMatrix(object):
 
         Matrix product ``@`` currently always results in a dense block matrix.
         Sparse block matrices also support transpose :meth:`T`,
-        :math:`diagonal`, and all non-mathematical operations except filtering.
+        :meth:`diagonal`, and all non-mathematical operations except filtering.
 
         Element-wise mathematical operations are currently supported if and
         only if they cannot transform zeroed blocks to non-zero blocks. For
@@ -1032,27 +1032,26 @@ class BlockMatrix(object):
 
         >>> BlockMatrix.export('output/example.bm', 'output/example.tsv')
 
-        Export the upper-triangle of the matrix as a file of
+        Export the upper-triangle of the matrix as a block gzipped file of
         comma-separated values.
 
         >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example.csv',
+        ...                    output='output/example.csv.bgz',
         ...                    delimiter=',',
         ...                    entries='upper')
 
         Export the full matrix with row indices in parallel as a folder of
-        files, each with a header line for columns ``idx``, ``A``, ``B``,
-        and ``C``.
+        gzipped files, each with a header line for columns ``idx``, ``A``,
+        ``B``, and ``C``.
 
         >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example',
+        ...                    output='output/example.gz',
         ...                    header='\t'.join(['idx', 'A', 'B', 'C']),
         ...                    add_index=True,
         ...                    parallel='header_per_shard',
         ...                    partition_size=2)
 
-
-        This produces two files:
+        This produces two compressed files which uncompress to:
 
         .. code-block:: text
 
@@ -1117,9 +1116,13 @@ class BlockMatrix(object):
         divisor or multiple of the block size reduces superfluous shuffling
         of data.
 
-        If ``parallel` is ``None``, these file shards are then serially
+        If `parallel` is ``None``, these file shards are then serially
         concatenated by one core into one file, a slow process. See
         other options below.
+
+        It is highly recommended to export large files with a ``.bgz`` extension,
+        which will use a block gzipped compression codec. These files can be
+        read natively with Python's ``gzip.open`` and R's ``read.table``.
 
         Parameters
         ----------
@@ -1127,6 +1130,7 @@ class BlockMatrix(object):
             Path to input block matrix, stored row-major on disk.
         output: :obj:`str`
             Path for export.
+            Use extension ``.gz`` for gzip or ``.bgz`` for block gzip.
         delimiter: :obj:`str`
             Column delimiter.
         header: :obj:`str`, optional
