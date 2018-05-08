@@ -713,6 +713,8 @@ class MatrixTable(ExprContainer):
     def partition_rows_by(self, partition_key, *keys, **named_keys) -> 'MatrixTable':
         """Key rows by a new set of fields, specifying a partition key.
 
+        .. include:: _templates/experimental.rst
+
         Examples
         --------
 
