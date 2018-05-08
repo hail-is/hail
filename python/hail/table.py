@@ -392,8 +392,6 @@ class Table(ExprContainer):
         analyze(caller, row, self._row_indices)
 
         t = cleanup(Table(base._jt.select(row._ast.to_hql(), new_key)))
-        if new_key is not None:
-            t = Table(t._jt.keyBy(new_key))
         return t
 
     @typecheck_method(caller=str, s=expr_struct())

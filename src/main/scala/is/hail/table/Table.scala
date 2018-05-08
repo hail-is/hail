@@ -590,14 +590,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   )
 
-  def select(expr: String): Table = {
+  def select(expr: String, newKey: java.util.ArrayList[String]): Table =
+    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
+
+  def select(expr: String, newKey: Option[IndexedSeq[String]]): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIR() match {
       case Some(ir) if useIR(ast) =>
-        new Table(hc, TableMapRows(tir, ir))
+        new Table(hc, TableMapRows(tir, ir, newKey))
       case _ =>
         log.warn(s"Table.select found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -609,7 +612,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        copy(rdd = rdd.map(annotF), signature = newSignature, key = key)
+        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey.orElse(key))
     }
   }
 
