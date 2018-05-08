@@ -9,9 +9,9 @@ import org.scalatest.testng.TestNGSuite
 class ASTToIRSuite extends TestNGSuite {
   private def toIR[T](s: String): Option[IR] = {
     val ast = Parser.parseToAST(s, EvalContext(Map(
-      "aggregable" -> (0, TAggregable(TInt32(),
-        Map("agg" -> (0, TInt32()),
-          "something" -> (1, TInt32())))))))
+      "aggregable" -> (0, TAggregable(TInt64(),
+        Map("agg" -> (0, TInt64()),
+          "something" -> (1, TInt64())))))))
     ast.toIR(Some("aggregable"))
   }
 
@@ -104,27 +104,27 @@ class ASTToIRSuite extends TestNGSuite {
 
   @Test
   def aggs() {
-    val tAgg = TAggregable(TInt32(),
-      Map("something" -> (0, TInt32())))
+    val tAgg = TAggregable(TInt64(),
+      Map("something" -> (0, TInt64())))
     for {(in, out) <- Array(
       "aggregable.sum()" ->
         ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
-      "aggregable.map(x => x * 5).sum()" ->
+      "aggregable.map(x => x * i64#5).sum()" ->
         ApplyAggOp(
-          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5))),
+          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))),
           Sum(), Seq()),
       "aggregable.map(x => x * something).sum()" ->
         ApplyAggOp(
-          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()))),
+          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), Ref("something", TInt64()))),
           Sum(), Seq()),
-      "aggregable.filter(x => x > 2).sum()" ->
+      "aggregable.filter(x => x > i64#2).sum()" ->
         ApplyAggOp(
-          AggFilter(AggIn(tAgg), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2))),
+          AggFilter(AggIn(tAgg), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt64()), I64(2))),
           Sum(), Seq()),
-      "aggregable.flatMap(x => [x * 5]).sum()" ->
+      "aggregable.flatMap(x => [x * i64#5]).sum()" ->
         ApplyAggOp(
           AggFlatMap(AggIn(tAgg), "x",
-            MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5))), TArray(TInt32()))),
+            MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))), TArray(TInt64()))),
           Sum(), Seq())
     )
     } {

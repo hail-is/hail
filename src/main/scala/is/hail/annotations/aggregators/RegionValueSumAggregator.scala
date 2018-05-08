@@ -2,29 +2,6 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 
-class RegionValueSumBooleanAggregator extends RegionValueAggregator {
-  private var sum: Boolean = false
-
-  def seqOp(b: Boolean, missing: Boolean) {
-    if (!missing)
-      sum |= b
-  }
-
-  def combOp(agg2: RegionValueAggregator) {
-    sum |= agg2.asInstanceOf[RegionValueSumBooleanAggregator].sum
-  }
-
-  def result(rvb: RegionValueBuilder) {
-    rvb.addBoolean(sum)
-  }
-
-  def copy(): RegionValueSumBooleanAggregator = new RegionValueSumBooleanAggregator()
-
-  def clear() {
-    sum = false
-  }
-}
-
 class RegionValueSumLongAggregator extends RegionValueAggregator {
   private var sum: Long = 0L
 

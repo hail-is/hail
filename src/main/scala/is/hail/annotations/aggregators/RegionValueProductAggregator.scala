@@ -2,29 +2,6 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 
-class RegionValueProductBooleanAggregator extends RegionValueAggregator {
-  private var product: Boolean = true
-
-  def seqOp(b: Boolean, missing: Boolean) {
-    if (!missing)
-      product &= b
-  }
-
-  def combOp(agg2: RegionValueAggregator) {
-    product &= agg2.asInstanceOf[RegionValueProductBooleanAggregator].product
-  }
-
-  def result(rvb: RegionValueBuilder) {
-    rvb.addBoolean(product)
-  }
-
-  def copy(): RegionValueProductBooleanAggregator = new RegionValueProductBooleanAggregator()
-
-  def clear() {
-    product = true
-  }
-}
-
 class RegionValueProductLongAggregator extends RegionValueAggregator {
   private var product: Long = 1L
 

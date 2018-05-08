@@ -158,10 +158,10 @@ class ExtractAggregatorsSuite {
 
   @Test
   def usingScope1() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
+    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt64())))
     val region = Region()
-    val sum = run[Double, Int, Int](region,
-      ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt32())),
+    val sum = run[Double, Long, Long](region,
+      ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt64())),
         Sum(), Seq()),
       addBoxedArray[java.lang.Double](region, null, null, null),
       10 * _)
@@ -170,10 +170,10 @@ class ExtractAggregatorsSuite {
 
   @Test
   def usingScope2() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
+    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt64())))
     val region = Region()
-    val sum = run[Double, Int, Int](region,
-      ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt32())),
+    val sum = run[Double, Long, Long](region,
+      ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt64())),
         Sum(), Seq()),
       addBoxedArray[java.lang.Double](region, 1.0, 2.0, null),
       10 * _)
