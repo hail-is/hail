@@ -88,8 +88,8 @@ object LoadBgen {
 
     val entryFields = Array(
       (includeGT, "GT" -> TCall()),
-      (includeGP, "GP" -> TArray(TFloat64())),
-      (includeDosage, "dosage" -> TFloat64()))
+      (includeGP, "GP" -> +TArray(+TFloat64())),
+      (includeDosage, "dosage" -> +TFloat64()))
       .withFilter(_._1).map(_._2)
 
     val matrixType: MatrixType = MatrixType.fromParts(

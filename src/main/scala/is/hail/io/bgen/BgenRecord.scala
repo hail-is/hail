@@ -65,16 +65,15 @@ class BgenRecordV11(compressed: Boolean,
           rvb.addDouble(d1.toDouble / dsum)
           rvb.addDouble(d2.toDouble / dsum)
           rvb.endArray()
-        } else
-          rvb.setMissing()
-        
+        }
+
         if (includeDosage)
           rvb.addDouble((d1 + (d2 << 1)).toDouble / dsum)
 
-        rvb.endStruct()     
+        rvb.endStruct()
       } else
         rvb.setMissing()
-      
+
       i += 1
     }
     rvb.endArray()
@@ -155,13 +154,15 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
     val nGenotypes = triangle(nAlleles)
-    
+
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
     rvb.startArray(nSamples) // gs
     if (nBitsPerProb == 8 && nAlleles == 2) {
-      val sampleProbs = new Array[Int](3)
+      val c0 = Call2.fromUnphasedDiploidGtIndex(0)
+      val c1 = Call2.fromUnphasedDiploidGtIndex(1)
+      val c2 = Call2.fromUnphasedDiploidGtIndex(2)
 
       i = 0
       while (i < nSamples) {
@@ -177,16 +178,29 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
           val d2 = 255 - d0 - d1
 
           if (includeGT) {
-            sampleProbs(0) = d0
-            sampleProbs(1) = d1
-            sampleProbs(2) = d2
-            val gt = Genotype.unboxedGTFromLinear(sampleProbs)
-            if (gt != -1)
-              rvb.addInt(Call2.fromUnphasedDiploidGtIndex(gt))
-            else
-              rvb.setMissing()
+            if (d0 > d1) {
+              if (d0 > d2)
+                rvb.addInt(c0)
+              else if (d2 > d0)
+                rvb.addInt(c2)
+              else {
+                // d0 == d2
+                rvb.setMissing()
+              }
+            } else {
+              // d0 <= d1
+              if (d2 > d1)
+                rvb.addInt(c2)
+              else {
+                // d2 <= d1
+                if (d1 == d0 || d1 == d2)
+                  rvb.setMissing()
+                else
+                  rvb.addInt(c1)
+              }
+            }
           }
-          
+
           if (includeGP) {
             rvb.startArray(3) // GP
             rvb.addDouble(d0 / 255.0)
@@ -194,7 +208,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
             rvb.addDouble(d2 / 255.0)
             rvb.endArray()
           }
-          
+
           if (includeDosage) {
             val dosage = (d1 + (d2 << 1)) / 255.0
             rvb.addDouble(dosage)
@@ -253,7 +267,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
             else
               fatal("import_bgen: 'dosage' entry field is invalid for multi-allelic variants.")
           }
-          
+
           rvb.endStruct() // g
         }
         i += 1
