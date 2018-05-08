@@ -1774,13 +1774,11 @@ def import_vcf(path,
 
 @typecheck(metadata_file=str,
            vcf_header_file=str,
-           fasta_file=str,
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            entry_field_array_elements_required=bool)
 def import_genomicsdb(metadata_file,
                       vcf_header_file,
-                      fasta_file,
                       call_fields=[],
                       reference_genome='default',
                       entry_field_array_elements_required=True) -> MatrixTable:
@@ -1813,7 +1811,6 @@ def import_genomicsdb(metadata_file,
         Env.hail().io.genomicsdb.ImportGenomicsDB.apply(
             metadata_file,
             vcf_header_file,
-            fasta_file,
             jset_args(call_fields),
             joption(rg),
             entry_field_array_elements_required))

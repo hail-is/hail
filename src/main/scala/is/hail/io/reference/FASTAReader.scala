@@ -14,10 +14,11 @@ import scala.language.postfixOps
 import scala.collection.concurrent
 
 class SerializableReferenceSequenceFile(val hConf: SerializableHadoopConfiguration, val fastaFile: String, val indexFile: String) extends Serializable {
-  @transient lazy val value: ReferenceSequenceFile = {
-    val localFastaFile = FASTAReader.getLocalFastaFileName(hConf.value, fastaFile, indexFile)
+  @transient lazy val localFastaFile: String =
+    FASTAReader.getLocalFastaFileName(hConf.value, fastaFile, indexFile)
+
+  @transient lazy val value: ReferenceSequenceFile =
     ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(localFastaFile))
-  }
 }
 
 object FASTAReader {

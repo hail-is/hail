@@ -39,7 +39,6 @@ case class GenomicsDBFileMetadata(
 
 case class GenomicsDBMetadata(
   rg: ReferenceGenome,
-  fastaFilename: String,
   baseDirname: String,
   sampleIds: Array[String],
   typ: MatrixType,
@@ -79,7 +78,7 @@ object ImportGenomicsDB {
     assert(localShard.endsWith(".tar"))
     val workspace = uriPath(localShard.dropRight(4))
 
-    val fastaFilename = metadata.fastaFilename
+    val fastaFilename = metadata.rg.localFastaFile
 
     log.info(s"workspace = $workspace")
 
@@ -155,7 +154,6 @@ object ImportGenomicsDB {
 
   def apply(metadataFilename: String,
     vcfHeaderFilename: String,
-    fastaFilename: String,
     callFields: Set[String],
     rg0: Option[ReferenceGenome],
     arrayElementsRequired: Boolean
@@ -164,6 +162,8 @@ object ImportGenomicsDB {
     val hConf = hc.hadoopConf
 
     val rg = rg0.getOrElse(ReferenceGenome.defaultReference)
+    if (!rg.hasSequence)
+      fatal(s"Reference genome '${ rg.name }' does not have sequence loaded.")
 
     val metadataPath = new hadoop.fs.Path(metadataFilename)
     val basePath = metadataPath.getParent
@@ -207,7 +207,7 @@ object ImportGenomicsDB {
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
 
-    val metadata = GenomicsDBMetadata(rg, fastaFilename, baseDirname, fileMetadata.sample_names, typ, infoSignature, callFields, canonicalFlags, infoFlagFieldNames,
+    val metadata = GenomicsDBMetadata(rg, baseDirname, fileMetadata.sample_names, typ, infoSignature, callFields, canonicalFlags, infoFlagFieldNames,
       fileMetadata.shards
         .map { case JObject(fields) =>
           assert(fields.length == 1)
