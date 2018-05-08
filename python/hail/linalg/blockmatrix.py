@@ -115,11 +115,36 @@ class BlockMatrix(object):
 
     Warning
     -------
-    For binary operations, if the first operand is an ndarray and the second
-    operand is a block matrix, the result will be a ndarray of block matrices.
-    To achieve the desired behavior for ``+`` and ``*``, place the block matrix
-    operand first; for ``-``, ``/``, and ``@``, first convert the ndarray to a
-    block matrix using :meth:`.from_numpy`.
+        For binary operations, if the first operand is an ndarray and the second
+        operand is a block matrix, the result will be a ndarray of block matrices.
+        To achieve the desired behavior for ``+`` and ``*``, place the block matrix
+        operand first; for ``-``, ``/``, and ``@``, first convert the ndarray to a
+        block matrix using :meth:`.from_numpy`.
+
+    **Block sparsity**
+
+    The methods :meth:`sparsify_band`, :meth:`sparsify_row_intervals`, and
+    :meth:`sparsify_triangle` create block matrices in which some blocks
+    are known to be identically zero. Such matrices are "block sparse"
+    and do not store the zeroed blocks explicitly; rather
+    zeroed blocks are dropped both in memory and when stored on disk. This
+    enables computations, such as banded correlation for a huge number of
+    variables, that would otherwise be prohibitively expensive; 
+    blocks that are dropped prior to an action (such as :meth:`write` or
+    :meth:`export`) are never computed the first place. Matrix multiplication
+    is also accelerated in proportion to the block sparsity of each operand.
+
+    Matrix product ``@`` currently always results in a dense block matrix.
+    Sparse block matrices also support transpose,
+    :math:`diagonal`, and all non-mathematical operations except filtering. 
+
+    Element-wise mathematical operations are currently supported if and
+    only if they cannot transform zeroed blocks to non-zero blocks. For
+    example, all forms of element-wise multiplication ``*`` are supported,
+    and element-wise multiplication results in a sparse block matrix with
+    block support equal to the intersection of that of the operands. On the
+    other hand, scalar addition is not supported, and matrix addition is
+    supported only between block matrices with the same block sparsity.
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -565,6 +590,156 @@ class BlockMatrix(object):
     def _filtered_entries_table(self, table, radius, include_diagonal):
         return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
 
+    @typecheck_method(lower=int, upper=int, blocks_only=bool)
+    def sparsify_band(self, lower=0, upper=0, blocks_only=False):
+        r"""Filter to a diagonal band.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
+
+        Filter to a band from one below the diagonal to
+        two above the diagonal collect to NumPy:
+
+        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  0.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 0., 10., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
+
+        Set all blocks fully outside the diagonal to zero
+        and collect to NumPy:
+
+        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()
+
+        .. code-block:: text
+
+            [[ 1.,  2.,  0.,  0.],
+             [ 5.,  6.,  0.,  0.],
+             [ 0.,  0., 11., 12.],
+             [ 0.,  0., 15., 16.]]
+
+        Notes
+        -----
+        This methods creates a sparse block matrix by zeroing out all blocks
+        which are disjoint from a diagonal band. By default,
+        all elements outside the band but inside blocks that overlap the
+        band are set to zero as well.
+
+        The band is defined in terms of inclusive `lower` and `upper` indices
+        relative to the diagonal. For example, the indices -1, 0, and 1
+        correspond to the sub-diagonal, diagonal, and super-diagonal,
+        respectively. The diagonal band contains the elements at positions
+        :math:`(i, j)` such that
+
+        .. math::
+
+          \mathrm{lower} <= j - i <= \mathrm{upper}.
+
+        The matrix need not be square and the band need not include the
+        diagonal.
+
+        Parameters
+        ----------
+        lower: :obj:`int`
+            Index of lowest band relative to the diagonal.
+        upper: :obj:`int`
+            Index of highest band relative to the diagonal.
+        blocks_only: :obj:`bool`
+            If ``False``, set all elements outside the band to zero.
+            If ``True``, only set all blocks outside the band to blocks
+            of zeros; this is more efficient.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+            Sparse block matrix.
+        """
+
+        if lower > upper:
+            raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
+
+        return BlockMatrix(self._jbm.filterBand(lower, upper, blocks_only))
+
+    @typecheck_method(lower=bool, blocks_only=bool)
+    def sparsify_triangle(self, lower=False, blocks_only=False):
+        """Filter to the upper or lower triangle.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
+
+        Filter to the upper triangle and collect to NumPy:
+
+        >>> bm.sparsify_triangle().to_numpy()
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 0.,  6.,  7.,  8.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0.,  0., 16.]])
+
+        Set all blocks fully outside the upper triangle to zero
+        and collect to NumPy:
+ 
+        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 0.,  0., 11., 12.],
+                   [ 0.,  0., 15., 16.]])
+
+        Notes
+        -----
+        This methods creates a sparse block matrix by zeroing out all blocks
+        which are disjoint from the (non-strict) upper or lower triangle. By
+        default, all elements outside the triangle but inside blocks that
+        overlap the triangle are set to zero as well.
+
+        Parameters
+        ----------
+        lower: :obj:`bool`
+            If ``False``, keep the upper triangle.
+            If ``True``, keep the lower triangle.
+        blocks_only: :obj:`bool`
+            If ``False``, set all elements outside the triangle to zero.
+            If ``True``, only set all blocks outside the triangle to
+            blocks of zeros; this is more efficient.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+            Sparse block matrix.
+        """
+        if lower:
+            lower_band = 1 - self.n_rows
+            upper_band = 0
+        else:
+            lower_band = 0
+            upper_band = self.n_cols - 1
+
+        return self.sparsify_band(lower_band, upper_band, blocks_only)
+
     @typecheck_method(starts=sequenceof(int),
                       stops=sequenceof(int),
                       blocks_only=bool)
@@ -617,26 +792,6 @@ class BlockMatrix(object):
         which are disjoint from all row intervals. By default, all elements
         outside the row intervals but inside blocks that overlap the row
         intervals are set to zero as well.
-
-        Sparse block matrices do not store the zeroed blocks explicitly; rather
-        zeroed blocks are dropped both in memory and when stored on disk. This
-        enables computations, such as banded correlation for a huge number of
-        variables, that would otherwise be prohibitively expensive, as dropped
-        blocks are never computed in the first place. Matrix multiplication
-        by a sparse block matrix is also accelerated in proportion to the
-        block sparsity.
-
-        Matrix product ``@`` currently always results in a dense block matrix.
-        Sparse block matrices also support transpose,
-        :meth:`diagonal`, and all non-mathematical operations except filtering.
-
-        Element-wise mathematical operations are currently supported if and
-        only if they cannot transform zeroed blocks to non-zero blocks. For
-        example, all forms of element-wise multiplication ``*`` are supported,
-        and element-wise multiplication results in a sparse block matrix with
-        block support equal to the intersection of that of the operands. On the
-        other hand, scalar addition is not supported, and matrix addition is
-        supported only between block matrices with the same block sparsity.
 
         This method requires the number of rows to be less than :math:`2^{31}`.
 
@@ -732,6 +887,17 @@ class BlockMatrix(object):
         uri = local_path_uri(path)
         self.tofile(uri)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
+
+    @property
+    def is_sparse(self):
+        """Returns true if at least one block is implicitly zero,
+        e.g. dropped.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return BlockMatrix(self._jbm.gp().maybeSparse().isEmpty())
 
     @property
     def T(self):
@@ -1249,6 +1415,136 @@ class BlockMatrix(object):
         else:
             assert entries == 'strict_upper'
             jrm.exportStrictUpperTriangle(output, delimiter, joption(header), add_index, export_type)
+
+    @typecheck_method(rectangles=sequenceof(sequenceof(int)))
+    def sparsify_rectangles(self, rectangles):
+        """Filter to blocks overlapping the union of rectangular regions.
+
+        Warning
+        -------
+        The block matrix must be stored in row-major format, as results
+        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
+        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
+        :meth:`export` will produce an error message.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>> bm = BlockMatrix.from_numpy(nd)
+
+        Filter to blocks covering three rectangles and collect to NumPy:
+
+        >>> bm.filter_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
+
+        .. code-block:: text
+
+            array([[ 1.,  2.,  3.,  4.],
+                   [ 5.,  6.,  7.,  8.],
+                   [ 9., 10.,  0.,  0.],
+                   [13., 14.,  0.,  0.]])
+        Notes
+        -----
+        This methods creates a sparse block matrix by zeroing out (dropping)
+        all blocks which are disjoint from the union of a set of rectangular
+        regions. Partially overlapping blocks are *not* modified.
+
+        The number of rectangles must be less than :math:`2^{31}`.
+
+        Parameters
+        ----------
+        rectangles: :obj:`list` of :obj:`list` of :obj:`int`
+            Rectangles. # FIXME elaborate
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+            Sparse block matrix.
+        """
+        import itertools
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+
+        return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
+
+    @staticmethod
+    @typecheck(input=str,
+               output=str,
+               rectangles=sequenceof(sequenceof(int)),
+               delimiter=str)
+    def export_rectangles(input, output, rectangles, delimiter='\t'):
+        """Export rectangular regions from a stored block matrix to delimited text files.
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+        ...                [ 5.0,  6.0,  7.0,  8.0],
+        ...                [ 9.0, 10.0, 11.0, 12.0],
+        ...                [13.0, 14.0, 15.0, 16.0]])
+        >>>
+        >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
+
+        Filter to the three rectangles and write.
+
+        >>> (BlockMatrix.from_numpy(nd)
+        ...     .sparsify_rectangles(rectangles)
+        ...     .write('output/example.bm', force_row_major=True))
+
+        Export the three rectangles to TSV files:
+
+        >>> BlockMatrix.export_rectangles(
+        ...     input='output/example.bm',
+        ...     output='output/example',
+        ...     rectangles = rectangles)
+
+        This produces three files:
+
+        .. code-block:: text
+
+            1.0
+
+        .. code-block:: text
+
+            1.0 2.0
+            5.0 6.0
+            9.0 10.0
+
+        .. code-block:: text
+
+            5.0 6.0 7.0 8.0
+
+        Notes
+        -----
+        This method exports the rectangular regions of the block matrix
+        to delimited text files, in parallel over rectangles.
+
+        All overlapping blocks must be present.  # FIXME elaborate
+
+        The number of rectangles must be less than :math:`2^{31}`.
+
+        Parameters
+        ----------
+        input: :obj:`srt`
+            Path to input block matrix, stored row-major on disk.
+        output: :obj:`str`
+            Path for folder of exported files.
+        rectangles: :obj:`list` of :obj:`list` of :obj:`int`
+            Rectangles. # FIXME elaborate
+        delimiter: :obj:`str`
+            Column delimiter.
+        """
+        import itertools
+        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+
+        return Env.hail().linalg.BlockMatrix.exportRectangles(
+            Env.hc()._jhc, input, output, flattened_rectangles, delimiter)
 
 
 block_matrix_type.set(BlockMatrix)

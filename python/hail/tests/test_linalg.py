@@ -438,3 +438,49 @@ class Tests(unittest.TestCase):
                       [ 5.,  6.,  0.,  0.],
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_band(lower=-1, upper=2).to_numpy(),
+            np.array([[ 1.,  2.,  3.,  0.],
+                      [ 5.,  6.,  7.,  8.],
+                      [ 0., 10., 11., 12.],
+                      [ 0.,  0., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsifyband(lower=0, upper=0, blocks_only=True).to_numpy(),
+            np.array([[ 1.,  2.,  0.,  0.],
+                      [ 5.,  6.,  0.,  0.],
+                      [ 0.,  0., 11., 12.],
+                      [ 0.,  0., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_triangle().to_numpy(),
+            np.array([[ 1.,  2.,  3.,  4.],
+                      [ 0.,  6.,  7.,  8.],
+                      [ 0.,  0., 11., 12.],
+                      [ 0.,  0.,  0., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_triangle(lower=True).to_numpy(),
+            np.array([[ 1.,  0.,  0.,  0.],
+                      [ 5.,  6.,  0.,  0.],
+                      [ 9., 10., 11.,  0.],
+                      [13., 14., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_triangle(blocks_only=True).to_numpy(),
+            np.array([[ 1.,  2.,  3.,  4.],
+                      [ 5.,  6.,  7.,  8.],
+                      [ 0.,  0., 11., 12.],
+                      [ 0.,  0., 15., 16.]])))
+
+        self.assertTrue(np.array_equal(
+            bm.sparsify_rectangles(
+                rowStarts=[0, 0, 1],
+                rowStops= [1, 3, 2],
+                colStarts=[0, 0, 0],
+                colStops= [1, 2, 4]).to_numpy(),
+            np.array([[ 1.,  2.,  3.,  4.],
+                      [ 5.,  6.,  7.,  8.],
+                      [ 9., 10.,  0.,  0.],
+                      [13., 14.,  0.,  0.]])))

@@ -133,16 +133,16 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   }
   
   // returns increasing array of all blocks intersecting the diagonal band consisting of
-  //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
-  def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
-    require(lowerBandwidth >= 0 && upperBandwidth >= 0)
+  //   all elements with lower <= jj - ii <= upper
+  def bandedBlocks(lower: Long, upper: Long): Array[Int] = {
+    require(lower <= upper)
     
-    val lowerBlockBandwidth = indexBlockIndex(lowerBandwidth + blockSize - 1)
-    val upperBlockBandwidth = indexBlockIndex(upperBandwidth + blockSize - 1)
+    val lowerBlock = java.lang.Math.floorDiv(lower, blockSize).toInt
+    val upperBlock = java.lang.Math.floorDiv(upper + blockSize - 1, blockSize).toInt
 
     (for { j <- 0 until nBlockCols
-           i <- ((j - upperBlockBandwidth) max 0) to
-                ((j + lowerBlockBandwidth) min (nBlockRows - 1))
+           i <- ((j - upperBlock) max 0) to
+                ((j - lowerBlock) min (nBlockRows - 1))
     } yield (j * nBlockRows) + i).toArray
   }
 

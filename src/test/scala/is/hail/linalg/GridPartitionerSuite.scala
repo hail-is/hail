@@ -59,22 +59,22 @@ class GridPartitionerSuite extends TestNGSuite {
     for (gp <- Seq(gp1, gp2)) {
       assert(gp.bandedBlocks(0, 0) sameElements Array(0, 4, 8))
 
-      assert(gp.bandedBlocks(1, 0) sameElements Array(0, 1, 4, 5, 8))
-      assert(gp.bandedBlocks(1, 0) sameElements gp.bandedBlocks(10, 0))
+      assert(gp.bandedBlocks(-1, 0) sameElements Array(0, 1, 4, 5, 8))
+      assert(gp.bandedBlocks(-1, 0) sameElements gp.bandedBlocks(-10, 0))
 
       assert(gp.bandedBlocks(0, 1) sameElements Array(0, 3, 4, 7, 8, 11))
       assert(gp.bandedBlocks(0, 1) sameElements gp.bandedBlocks(0, 10))
 
-      assert(gp.bandedBlocks(1, 1) sameElements Array(0, 1, 3, 4, 5, 7, 8, 11))
-      assert(gp.bandedBlocks(1, 1) sameElements gp.bandedBlocks(10, 10))
+      assert(gp.bandedBlocks(-1, 1) sameElements Array(0, 1, 3, 4, 5, 7, 8, 11))
+      assert(gp.bandedBlocks(-1, 1) sameElements gp.bandedBlocks(-10, 10))
 
-      assert(gp.bandedBlocks(11, 0) sameElements Array(0, 1, 2, 4, 5, 8))
+      assert(gp.bandedBlocks(-11, 0) sameElements Array(0, 1, 2, 4, 5, 8))
 
       assert(gp.bandedBlocks(0, 11) sameElements Array(0, 3, 4, 6, 7, 8, 10, 11))
       assert(gp.bandedBlocks(0, 20) sameElements gp.bandedBlocks(0, 11))
       assert(gp.bandedBlocks(0, 21) sameElements Array(0, 3, 4, 6, 7, 8, 9, 10, 11))
 
-      assert(gp.bandedBlocks(1000, 1000) sameElements (0 until 12))
+      assert(gp.bandedBlocks(-1000, 1000) sameElements (0 until 12))
     }
   }
   

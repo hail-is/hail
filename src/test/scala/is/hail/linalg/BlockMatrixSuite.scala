@@ -1059,4 +1059,87 @@ class BlockMatrixSuite extends SparkSuite {
     assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = true).toBreezeMatrix() === filteredLM2)
     assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
   }
+  
+  @Test
+  def testFilterBand() {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+    
+    val bm = toBM(lm, blockSize = 2)
+
+    val lower = 0
+    val upper = 1
+    
+    val filteredLM = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      0, 0, 11, 12,
+      0, 0, 15, 16))
+    
+    val zeroedLM = toLM(4, 4, Array(
+      1, 2, 0, 0,
+      0, 6, 7, 0,
+      0, 0, 11, 12,
+      0, 0, 0, 16))
+            
+    assert(bm.filterBand(lower, upper, blocksOnly = true).toBreezeMatrix() === filteredLM)
+    assert(bm.filterBand(lower, upper, blocksOnly = false).toBreezeMatrix() === zeroedLM)
+    
+    val lower2 = -3
+    val upper2 = -1
+
+    val filteredLM2 = toLM(4, 4, Array(
+      1, 2, 0, 0,
+      5, 6, 0, 0,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+    
+    val zeroedLM2 = toLM(4, 4, Array(
+      0, 0, 0, 0,
+      5, 0, 0, 0,
+      9, 10, 0, 0,
+      13, 14, 15, 0))
+    
+    assert(bm.filterBand(lower2, upper2, blocksOnly = true).toBreezeMatrix() === filteredLM2)
+    assert(bm.filterBand(lower2, upper2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
+    
+    for (blocksOnly <- Array(true, false))
+    assert(filteredEquals(bm.filterBand(0, 0, blocksOnly = blocksOnly),
+      bm.filterRowIntervals(Array[Long](0, 1, 2, 3), Array[Long](1, 2, 3, 4), blocksOnly = blocksOnly)))
+    
+    val lm2 = BDM.ones[Double](8, 10)
+    val bm2 = BlockMatrix.fromBreezeMatrix(sc, lm2, blockSize = 3)
+    
+    for {
+      bounds <- Array((0, 0), (1, 1), (2, 2), (-5, 5), (-7, 0), (0, 9))
+    } {
+      val (lower, upper) = bounds
+      val actual = bm2.filterBand(lower, upper, blocksOnly = false).toBreezeMatrix()
+      val expected = lm2.mapPairs { case ((i, j), v) => 
+        if (j - i >= lower && j - i <= upper) v else 0.0 }
+      assert(actual === expected)
+    }
+  }
+  
+  @Test
+  def testExportRectangular() {
+    val input = tmpDir.createTempFile("test")
+    val output = "/tmp/rectangles"
+    val rectangles = Array(
+      Array[Long](0, 8, 0, 8),
+      Array[Long](3, 6, 3, 6),
+      Array[Long](4, 9, 4, 9),
+      Array[Long](0, 9, 0, 10))
+
+    val blockSize = 10
+    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+
+    bm.write(input, forceRowMajor = true)
+    
+    BlockMatrix.exportRectangles(hc, input, output, rectangles.flatten) // FIXME: move to Python
+  }
 }
