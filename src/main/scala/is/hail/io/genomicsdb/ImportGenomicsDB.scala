@@ -44,6 +44,7 @@ case class GenomicsDBMetadata(
   typ: MatrixType,
   infoType: TStruct,
   callFields: Set[String],
+  tar: String,
   canonicalFlags: Int,
   infoFlagFieldNames: Set[String],
   shards: Array[GenomicsDBShard])
@@ -68,7 +69,9 @@ object ImportGenomicsDB {
     log.info(s"localizing GenomicsDB shard: $shard => $localShard")
     hadoopConf.copy(shard, localShard)
 
-    val untarCommand = Seq("bash", "-c", s"(cd ${ uriPath(localShardTmpdir) } && gtar xf $shardName)")
+    val tar = metadata.tar
+
+    val untarCommand = Seq("bash", "-c", s"(cd ${ uriPath(localShardTmpdir) } && $tar xf $shardName)")
     log.info(s"untar'ing GenomicsDB shard with: $untarCommand")
     val rc = untarCommand !
 
@@ -153,10 +156,10 @@ object ImportGenomicsDB {
   }
 
   def apply(metadataFilename: String,
-    vcfHeaderFilename: String,
     callFields: Set[String],
     rg0: Option[ReferenceGenome],
-    arrayElementsRequired: Boolean
+    arrayElementsRequired: Boolean,
+    tar: String
   ): MatrixTable = {
     val hc = HailContext.get
     val hConf = hc.hadoopConf
@@ -207,7 +210,7 @@ object ImportGenomicsDB {
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
 
-    val metadata = GenomicsDBMetadata(rg, baseDirname, fileMetadata.sample_names, typ, infoSignature, callFields, canonicalFlags, infoFlagFieldNames,
+    val metadata = GenomicsDBMetadata(rg, baseDirname, fileMetadata.sample_names, typ, infoSignature, callFields, tar, canonicalFlags, infoFlagFieldNames,
       fileMetadata.shards
         .map { case JObject(fields) =>
           assert(fields.length == 1)
