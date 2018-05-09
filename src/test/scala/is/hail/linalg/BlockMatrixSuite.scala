@@ -1124,7 +1124,6 @@ class BlockMatrixSuite extends SparkSuite {
     }
   }
   
-  @Test
   def testExportRectangular() {
     val input = tmpDir.createTempFile("test")
     val output = "/tmp/rectangles"
@@ -1140,6 +1139,6 @@ class BlockMatrixSuite extends SparkSuite {
 
     bm.write(input, forceRowMajor = true)
     
-    BlockMatrix.exportRectangles(hc, input, output, rectangles.flatten) // FIXME: move to Python
+    BlockMatrix.exportRectangles(hc, input, output, rectangles.flatten, "\t") // FIXME: move to Python
   }
 }

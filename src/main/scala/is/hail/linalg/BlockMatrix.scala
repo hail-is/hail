@@ -149,12 +149,17 @@ object BlockMatrix {
     }
   }
   
-  def exportRectangles(hc: HailContext, input: String, output: String, flattenedRectangles: Array[Long]): Unit = {
+  def exportRectangles(
+    hc: HailContext,
+    input: String,
+    output: String,
+    flattenedRectangles: Array[Long],
+    delimiter: String): Unit = {
     require(flattenedRectangles.length % 4 == 0)
     (1 until flattenedRectangles.length by 2).foreach(flattenedRectangles(_) -= 1) // make stops inclusive
     
     val rectangles = flattenedRectangles.grouped(4).toArray
-    val nFiles = new ExportRectanglesRDD(hc, input, output, rectangles).collect().sum
+    val nFiles = new ExportRectanglesRDD(hc, input, output, rectangles, delimiter).collect().sum
     assert(nFiles == rectangles.length)
     
     info(s"Wrote $nFiles rectangular regions to files")
@@ -1460,7 +1465,7 @@ class ExportRectanglesRDD(hc: HailContext,
   input: String,
   output: String,
   rectangles: Array[Array[Long]],
-  delimiter: String = "\t") extends RDD[Int](hc.sc, Nil) {
+  delimiter: String) extends RDD[Int](hc.sc, Nil) {
 
   if (!hc.hadoopConf.exists(input + "/_SUCCESS"))
     fatal("Write failed: no success indicator found")
