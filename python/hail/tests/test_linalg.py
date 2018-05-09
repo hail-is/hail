@@ -447,7 +447,7 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 15., 16.]])))
 
         self.assertTrue(np.array_equal(
-            bm.sparsifyband(lower=0, upper=0, blocks_only=True).to_numpy(),
+            bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy(),
             np.array([[ 1.,  2.,  0.,  0.],
                       [ 5.,  6.,  0.,  0.],
                       [ 0.,  0., 11., 12.],
@@ -475,12 +475,25 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 15., 16.]])))
 
         self.assertTrue(np.array_equal(
-            bm.sparsify_rectangles(
-                rowStarts=[0, 0, 1],
-                rowStops= [1, 3, 2],
-                colStarts=[0, 0, 0],
-                colStops= [1, 2, 4]).to_numpy(),
+            bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy(),
             np.array([[ 1.,  2.,  3.,  4.],
                       [ 5.,  6.,  7.,  8.],
                       [ 9., 10.,  0.,  0.],
                       [13., 14.,  0.,  0.]])))
+
+    def test_export_rectangles(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+
+        rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
+
+        bm_path = new_temp_file()
+        tsv_path = new_temp_file()
+
+        (BlockMatrix.from_numpy(nd, block_size=2)
+             .sparsify_rectangles(rectangles)
+             .write(bm_path, force_row_major=True))
+
+        BlockMatrix.export_rectangles(bm_path, tsv_path, rectangles)

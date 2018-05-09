@@ -129,14 +129,14 @@ class BlockMatrix(object):
     and do not store the zeroed blocks explicitly; rather
     zeroed blocks are dropped both in memory and when stored on disk. This
     enables computations, such as banded correlation for a huge number of
-    variables, that would otherwise be prohibitively expensive; 
+    variables, that would otherwise be prohibitively expensive;
     blocks that are dropped prior to an action (such as :meth:`write` or
     :meth:`export`) are never computed the first place. Matrix multiplication
     is also accelerated in proportion to the block sparsity of each operand.
 
     Matrix product ``@`` currently always results in a dense block matrix.
     Sparse block matrices also support transpose,
-    :math:`diagonal`, and all non-mathematical operations except filtering. 
+    :math:`diagonal`, and all non-mathematical operations except filtering.
 
     Element-wise mathematical operations are currently supported if and
     only if they cannot transform zeroed blocks to non-zero blocks. For
@@ -699,7 +699,7 @@ class BlockMatrix(object):
 
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
- 
+
         >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
 
         .. code-block:: text
@@ -1440,7 +1440,7 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.filter_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
+        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
 
         .. code-block:: text
 
@@ -1454,12 +1454,21 @@ class BlockMatrix(object):
         all blocks which are disjoint from the union of a set of rectangular
         regions. Partially overlapping blocks are *not* modified.
 
+        Each rectangles is encoded as a list of length four of
+        the form ``[row_start, row_stop, col_start, col_stop]``,
+        where starts are inclusive and stops are exclusive.
+
+        For example ``[0, 2, 1, 3]`` corresponds to the row index range
+        ``[0, 2)`` and column index range ``[1, 3)``, i.e. the elements at
+        positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
+
         The number of rectangles must be less than :math:`2^{31}`.
 
         Parameters
         ----------
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
-            Rectangles. # FIXME elaborate
+            List of rectangles of the form
+            ``[row_start, row_stop, col_start, col_stop]``.
 
         Returns
         -------
@@ -1467,7 +1476,7 @@ class BlockMatrix(object):
             Sparse block matrix.
         """
         import itertools
-        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain.from_iterable(rectangles)))
 
         return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
 
@@ -1522,10 +1531,17 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This method exports the rectangular regions of the block matrix
-        to delimited text files, in parallel over rectangles.
+        This method exports rectangular regions of the block matrix
+        to delimited text files, parallelizing by region. All
+        overlapping blocks must be present.
 
-        All overlapping blocks must be present.  # FIXME elaborate
+        Each rectangles is encoded as a list of length four of
+        the form ``[row_start, row_stop, col_start, col_stop]``,
+        where starts are inclusive and stops are exclusive.
+
+        For example ``[0, 2, 1, 3]`` corresponds to the row index range
+        ``[0, 2)`` and column index range ``[1, 3)``, i.e. the elements at
+        positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
 
         The number of rectangles must be less than :math:`2^{31}`.
 
@@ -1536,12 +1552,13 @@ class BlockMatrix(object):
         output: :obj:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
-            Rectangles. # FIXME elaborate
+            List of rectangles of the form
+            ``[row_start, row_stop, col_start, col_stop]``.
         delimiter: :obj:`str`
             Column delimiter.
         """
         import itertools
-        flattened_rectangles = list(itertools.chain.from_iterable(rectangles))
+        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain.from_iterable(rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
             Env.hc()._jhc, input, output, flattened_rectangles, delimiter)
