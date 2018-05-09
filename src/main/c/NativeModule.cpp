@@ -253,8 +253,9 @@ private:
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
     fprintf(f, "CXX       := %s\n", config.cxx_name_.c_str());
     // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
+    const char* cxxstd = (strstr(config.cxx_name_.c_str(), "clang") ? "-std=c++17" : "-std=c++11");
     fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n");
+    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n", cxxstd);
     fprintf(f, "  -I%s/include \\\n", config.java_home_.c_str());
     fprintf(f, "  -I%s/include/%s \\\n", config.java_home_.c_str(), config.java_md_.c_str());
     fprintf(f, "  -I%s \\\n", include_.c_str());
