@@ -1316,8 +1316,8 @@ def coalesce(*args):
 
     Notes
     -----
-    All arguments must have the same type, or must be of compatible types
-    (all numeric, for instance).
+    All arguments must have the same type, or must be convertible to a common
+    type (all numeric, for instance).
 
     See Also
     --------
