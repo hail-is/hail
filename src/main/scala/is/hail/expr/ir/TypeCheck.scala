@@ -89,7 +89,7 @@ object TypeCheck {
         assert(coerce[TBaseStruct](coerce[TArray](a.typ).elementType).size == 2)
       case x@ToArray(a) =>
         check(a)
-        assert(a.typ.isInstanceOf[TArray])
+        assert(a.typ.isInstanceOf[TContainer])
       case x@SetContains(set, elem) =>
         check(set)
         check(elem)

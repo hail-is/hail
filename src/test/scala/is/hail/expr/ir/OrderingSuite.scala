@@ -347,4 +347,33 @@ class OrderingSuite {
     }
     p.check()
   }
+
+  @Test def test() {
+
+    val irF: (IR, IR) => IR = { (set1: IR, set2: IR) => ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
+      ApplySpecial("&&",
+        FastSeq(
+          Ref("accumulator", TBoolean()),
+          SetContains(set1, Ref("setelt", TInt32()))))) }
+    val set1 = Set(1, 4)
+    val set2 = Set(9, 1, 4)
+
+    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
+    Emit(irF(In(0, TSet(TInt32())), In(1, TSet(TInt32()))), fb)
+
+    val f = fb.result()()
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+
+      rvb.start(TSet(TInt32()))
+      rvb.addAnnotation(TSet(TInt32()), set1)
+      val o1 = rvb.end()
+
+      rvb.start(TSet(TInt32()))
+      rvb.addAnnotation(TSet(TInt32()), set2)
+      val o2 = rvb.end()
+
+      assert(f(region, o1, false, o2, false))
+    }
+  }
 }

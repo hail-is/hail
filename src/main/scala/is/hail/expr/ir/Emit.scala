@@ -349,7 +349,7 @@ private class Emit(
         EmitTriplet(
           Code(s.setup, e.setup),
           Code(smx := s.m, smx),
-          Code(smx || Code(svx := s.value[Long],
+          Code(Code(svx := s.value[Long],
             emx := e.m,
             evx.storeAny(emx.mux(defaultValue(elem.typ), e.v)),
             isIn)))
@@ -449,9 +449,9 @@ private class Emit(
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean]()
+        val xmv = mb.newField[Boolean](name2+"_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmout = mb.newField[Boolean]()
+        val xmout = mb.newField[Boolean](name1+"_missing")
         val xvout = coerce[Any](mb.newField(name1)(tti))
         val i = mb.newLocal[Int]("af_i")
         val len = mb.newLocal[Int]("af_len")
