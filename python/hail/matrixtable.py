@@ -1528,16 +1528,15 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = 'MatrixTable.transmute_globals'
+        e = get_annotate_exprs(caller, named_exprs, self._global_indices)
         fields_referenced = set()
-        for k, v in named_exprs.items():
+        for k, v in e.items():
             check_collisions(self._fields, k, self._global_indices)
-            for name, inds in get_refs(v).items():
-                if inds == self._global_indices:
-                    fields_referenced.add(name)
-        fields_referenced = fields_referenced - set(named_exprs.keys())
+            extract_refs_by_indices(v, self._global_indices, fields_referenced)
+        fields_referenced = fields_referenced - set(e.keys())
 
-        return self._select_globals('MatrixTable.transmute_globals',
+        return self._select_globals(caller,
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_rows(self, **named_exprs) -> 'MatrixTable':
@@ -1568,17 +1567,16 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = 'MatrixTable.transmute_rows'
+        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
         fields_referenced = set()
-        for k, v in named_exprs.items():
+        for k, v in e.items():
             check_collisions(self._fields, k, self._row_indices)
-            for name, inds in get_refs(v).items():
-                if inds == self._row_indices:
-                    fields_referenced.add(name)
-        fields_referenced = fields_referenced - set(named_exprs.keys())
+            extract_refs_by_indices(v, self._row_indices, fields_referenced)
+        fields_referenced = fields_referenced - set(e.keys()) - set(self.row_key)
 
-        return self._select_rows('MatrixTable.transmute_rows',
-                                 self.row.annotate(**named_exprs).drop(*fields_referenced))
+        return self._select_rows(caller,
+                                 value_struct=self.row_value.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
@@ -1608,17 +1606,16 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = 'MatrixTable.transmute_cols'
+        e = get_annotate_exprs(caller, named_exprs, self._col_indices)
         fields_referenced = set()
-        for k, v in named_exprs.items():
+        for k, v in e.items():
             check_collisions(self._fields, k, self._col_indices)
-            for name, inds in get_refs(v).items():
-                if inds == self._col_indices:
-                    fields_referenced.add(name)
-        fields_referenced = fields_referenced - set(named_exprs.keys())
+            extract_refs_by_indices(v, self._col_indices, fields_referenced)
+        fields_referenced = fields_referenced - set(e.keys()) - set(self.col_key)
 
-        return self._select_cols('MatrixTable.transmute_cols',
-                                 self.col.annotate(**named_exprs).drop(*fields_referenced))
+        return self._select_cols(caller,
+                                 self.col_value.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
@@ -1644,17 +1641,16 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = 'MatrixTable.transmute_entries'
+        e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
         fields_referenced = set()
-        for k, v in named_exprs.items():
+        for k, v in e.items():
             check_collisions(self._fields, k, self._entry_indices)
-            for name, inds in get_refs(v).items():
-                if inds == self._entry_indices:
-                    fields_referenced.add(name)
-        fields_referenced = fields_referenced - set(named_exprs.keys())
+            extract_refs_by_indices(v, self._entry_indices, fields_referenced)
+        fields_referenced = fields_referenced - set(e.keys())
 
-        return self._select_entries('MatrixTable.transmute_entries',
-                                   self.entry.annotate(**named_exprs).drop(*fields_referenced))
+        return self._select_entries(caller,
+                                    self.entry.annotate(**named_exprs).drop(*fields_referenced))
 
     @typecheck_method(expr=expr_any)
     def aggregate_rows(self, expr) -> Any:
