@@ -1530,8 +1530,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_globals'
         e = get_annotate_exprs(caller, named_exprs, self._global_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices)
-        fields_referenced = fields_referenced - set(e.keys())
+        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices) - set(e.keys())
 
         return self._select_globals(caller,
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
@@ -1566,8 +1565,9 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_rows'
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices)
-        fields_referenced = fields_referenced - set(e.keys()) - set(self.row_key)
+        fields_referenced = (extract_refs_by_indices(e.values(), self._row_indices)
+                             - set(e.keys())
+                             - set(self.row_key))
 
         return self._select_rows(caller,
                                  value_struct=self.row_value.annotate(**named_exprs).drop(*fields_referenced))
@@ -1602,8 +1602,9 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_cols'
         e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._col_indices)
-        fields_referenced = fields_referenced - set(e.keys()) - set(self.col_key)
+        fields_referenced = (extract_refs_by_indices(e.values(), self._col_indices)
+                             - set(e.keys())
+                             - set(self.col_key))
 
         return self._select_cols(caller,
                                  self.col_value.annotate(**named_exprs).drop(*fields_referenced))
@@ -1634,8 +1635,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_entries'
         e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._entry_indices)
-        fields_referenced = fields_referenced - set(e.keys())
+        fields_referenced = extract_refs_by_indices(e.values(), self._entry_indices) - set(e.keys())
 
         return self._select_entries(caller,
                                     self.entry.annotate(**named_exprs).drop(*fields_referenced))
