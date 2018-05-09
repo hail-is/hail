@@ -368,7 +368,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
   def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
     s <- lhs.toIR(agg)
-    t <- whenOfType[TStruct](lhs)
+    t <- whenOfType[TStruct](this)
     f <- fromOption(this, "$t must have field $rhs", t.selfField(rhs))
   } yield ir.GetField(s, rhs)
 }
