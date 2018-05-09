@@ -350,7 +350,7 @@ class GroupedMatrixTable(ExprContainer):
             rest_of_key = {k: self._row_keys[k] for k in self._row_keys.keys() if k not in self._partition_key}
             base = MatrixTable(
                 base._key_rows_by("GroupedMatrixTable.group_rows_by", pk, rest_of_key)
-                ._jvds.aggregateRowsByKey(self.row.annotate(**named_exprs), ',\n'.join(strs)))
+                ._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
 

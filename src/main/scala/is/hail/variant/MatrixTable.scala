@@ -807,6 +807,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def aggregateRowsByKey(expr: String, oldAggExpr: String): MatrixTable = {
     val ec = colEC
 
+    log.info(expr)
     val rowsAST = Parser.parseToAST(expr, ec)
 
     rowsAST.toIR(Some("AGG")) match {
@@ -2053,18 +2054,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }.run.forall(t => t)
   }
 
-  def colEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "va" -> (3, rvRowType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
-
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     require(colType == that.colType, s"\n${ colType }\n${ that.colType }")
     colValues.value.zip(that.colValues.value)
@@ -2159,23 +2148,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal("found one or more type check errors")
   }
 
-  def entryEC: EvalContext = EvalContext(Map(
-    "global" -> (0, globalType),
-    "va" -> (1, rvRowType),
-    "sa" -> (2, colType),
-    "g" -> (3, entryType)))
+  def entryEC: EvalContext = matrixType.genotypeEC
 
-  def rowEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "g" -> (2, entryType),
-      "sa" -> (3, colType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
+  def rowEC: EvalContext = matrixType.rowEC
+
+  def colEC: EvalContext = matrixType.colEC
 
   def globalsTable(): Table = {
     Table(hc,
