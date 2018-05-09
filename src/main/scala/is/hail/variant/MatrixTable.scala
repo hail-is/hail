@@ -15,6 +15,8 @@ import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.sparkextras.ContextRDD
+import is.hail.io.gen.ExportGen
+import is.hail.io.plink.ExportPlink
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -1877,23 +1879,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def queryVA(code: String): (Type, Querier) =
-    query(code, Map(Annotation.ROW_HEAD -> (0, rowType)))
-
-  def query(code: String, st: SymbolTable): (Type, Querier) = {
-    val ec = EvalContext(st)
-    val a = ec.a
-
-    val (t, f) = Parser.parseExpr(code, ec)
-
-    val f2: Annotation => Any = { annotation =>
-      a(0) = annotation
-      f()
-    }
-
-    (t, f2)
-  }
-
   def chooseCols(oldIndices: java.util.ArrayList[Int]): MatrixTable =
     chooseCols(oldIndices.asScala.toArray)
 
@@ -2323,7 +2308,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def exportPlink(path: String) {
-    ir.Interpret(ir.MatrixWrite(ast, _.exportPlink(path)))
+    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportPlink(mv, path)))
+  }
+
+  def exportGen(path: String, precision: Int = 4) {
+    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportGen(mv, path, precision)))
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {

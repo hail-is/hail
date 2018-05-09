@@ -65,19 +65,27 @@ class RichMatrixTable(vsm: MatrixTable) {
   def queryGA(code: String): (Type, Querier) =
     vsm.query(code, Map(Annotation.ENTRY_HEAD -> (0, vsm.entryType)))
 
+
+  def queryVA(code: String): (Type, Querier) =
+    query(code, Map(Annotation.ROW_HEAD -> (0, vsm.rowType)))
+
   def queryGlobal(path: String): (Type, Annotation) = {
-    val st = Map(Annotation.GLOBAL_HEAD -> (0, vsm.globalType))
+    val (t, q) = query(path, Map(Annotation.GLOBAL_HEAD -> (0, vsm.globalType)))
+    (t, q(vsm.globals.value))
+  }
+
+  def query(code: String, st: SymbolTable): (Type, Querier) = {
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parseExpr(path, ec)
+    val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: Annotation => Any = { annotation =>
       a(0) = annotation
       f()
     }
 
-    (t, f2(vsm.globals.value))
+    (t, f2)
   }
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues.value)

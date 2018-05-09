@@ -24,13 +24,13 @@ object ExportPlink {
     val varid = a.varid()
 
     if (spaceRegex.findFirstIn(contig).isDefined)
-      fatal(s"Invalid 'contig' found -- no white space allowed: '$contig'")
+      fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$contig'")
     if (spaceRegex.findFirstIn(a0).isDefined)
-      fatal(s"Invalid allele found at locus '$contig:$position' -- no white space allowed: '$a0'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a0'")
     if (spaceRegex.findFirstIn(a1).isDefined)
-      fatal(s"Invalid allele found at locus '$contig:$position' -- no white space allowed: '$a1'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a1'")
     if (spaceRegex.findFirstIn(varid).isDefined)
-      fatal(s"Invalid 'varid' found at locus '$contig:$position' -- no white space allowed: '$varid'")
+      fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$varid'")
 
     osw.write(contig)
     osw.write('\t')
@@ -122,10 +122,10 @@ object ExportPlink {
 class BimAnnotationView(rowType: TStruct) extends View {
   private val varidField = rowType.fieldByName("varid")
   private val posMorganField = rowType.fieldByName("pos_morgan")
+
   private val varidIdx = varidField.index
   private val posMorganIdx = posMorganField.index
-  private val tvarid = varidField.typ.asInstanceOf[TString]
-  private val tposm = posMorganField.typ.asInstanceOf[TInt32]
+
   private var region: Region = _
   private var varidOffset: Long = _
   private var posMorganOffset: Long = _
@@ -137,6 +137,7 @@ class BimAnnotationView(rowType: TStruct) extends View {
 
     assert(rowType.isFieldDefined(region, offset, varidIdx))
     assert(rowType.isFieldDefined(region, offset, posMorganIdx))
+
     this.varidOffset = rowType.loadField(region, offset, varidIdx)
     this.posMorganOffset = rowType.loadField(region, offset, posMorganIdx)
 
