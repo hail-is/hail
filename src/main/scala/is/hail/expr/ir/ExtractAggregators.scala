@@ -13,7 +13,11 @@ object ExtractAggregators {
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
 
   def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, Array[RegionValueAggregator]) = {
-    val (ir2, aggs) = extract(ir, tAggIn)
+    def unwrap: IR => IR = {
+      case node: ApplyIR => Recur(unwrap)(node.explicitNode)
+      case node => Recur(unwrap)(node)
+    }
+    val (ir2, aggs) = extract(unwrap(ir), tAggIn)
     val aggir = Begin(
       aggs.map(_.applyAggOp)
         .zipWithIndex
