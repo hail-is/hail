@@ -1780,16 +1780,9 @@ def sqrt(x) -> Float64Expression:
     """
     return _func("sqrt", tfloat64, x)
 
-
-@typecheck(s=expr_str)
-def _is_valid_allele(s) -> BooleanExpression:
-    return s.matches(r'^([ACGT]+)|(\*)|(<[\w:-]+>)$')
-
-
 _base_regex = "^([ACGTNM])+$"
-_symbolic_regex = "^<.*>$"
-_breakend_regex = "^((\\[.*\\[.+)|(\\].*\\].+)|(.+\\[.*\\[)|(.+\\].*\\]))$"
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic", "Breakend"]
+_symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
+_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
 _allele_enum = {i: v for i, v in enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
@@ -1813,7 +1806,6 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                                  .default(_allele_ints['Complex']))
                            .when(a == '*', _allele_ints['Star'])
                            .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-                           .when(a.matches(_breakend_regex), _allele_ints['Breakend'])
                            .default(_allele_ints['Unknown']),
                            _allele_ints['Unknown']),
                    ref, alt)

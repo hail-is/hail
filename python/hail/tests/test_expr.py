@@ -949,8 +949,8 @@ class Tests(unittest.TestCase):
                 hl.allele_type('A', ']ASDASD]A'),
                 hl.allele_type('A', 'T<ASDASD>]ASDASD]'),
                 hl.allele_type('A', 'T<ASDASD>[ASDASD['),
-                hl.allele_type('A', 'T<ASDASD>]ASDASD['),
-                hl.allele_type('A', 'T<ASDASD>]ASDASD]A'),
+                hl.allele_type('A', '.T'),
+                hl.allele_type('A', 'T.'),
             )).value,
             (
                 'SNP',
@@ -965,12 +965,12 @@ class Tests(unittest.TestCase):
                 'Unknown',
                 'Unknown',
                 'Unknown',
-                'Breakend',
-                'Breakend',
-                'Breakend',
-                'Breakend',
-                'Unknown',
-                'Unknown',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
             )
         )
 

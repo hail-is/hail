@@ -6,7 +6,7 @@ import scala.util.matching.Regex
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
-  val SNP, MNP, Insertion, Deletion, Complex, Star, Symbolic, Breakend, Unknown = Value
+  val SNP, MNP, Insertion, Deletion, Complex, Star, Symbolic, Unknown = Value
 }
 
 object CopyState extends Enumeration {
@@ -19,9 +19,7 @@ object AltAlleleMethods {
 
   val baseRegex: Regex = "^([ACGTNM])+$".r
 
-  val symbolicRegex: Regex = "^<.*>$".r
-
-  val breakendRegex: Regex = "^((\\[.*\\[.*)|(\\].*\\].*)|(.*\\[.*\\[)|(.*\\].*\\])$)".r
+  val symbolicRegex: Regex = "(^\\.)|(\\.$)|(^<)|(>$)|(\\[)|(\\])".r
 
   def altAlleleType(ref: String, alt: String): AltAlleleType = {
     if (!baseRegex.matches(ref))
@@ -53,8 +51,6 @@ object AltAlleleMethods {
       AltAlleleType.Star
     else if (symbolicRegex.matches(alt))
       AltAlleleType.Symbolic
-    else if (breakendRegex.matches(alt))
-      AltAlleleType.Breakend
     else
       AltAlleleType.Unknown
   }
