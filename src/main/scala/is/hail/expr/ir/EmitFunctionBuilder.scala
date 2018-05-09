@@ -44,8 +44,6 @@ class EmitMethodBuilder(
   returnTypeInfo: TypeInfo[_]
 ) extends MethodBuilder(fb, mname, parameterTypeInfo, returnTypeInfo) {
 
-  def numReferenceGenomes: Int = fb.numReferenceGenomes
-
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     fb.getReferenceGenome(rg)
 
@@ -63,21 +61,15 @@ class EmitFunctionBuilder[F >: Null](
   packageName: String = "is/hail/codegen/generated"
 )(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) {
 
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
-
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
   private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
     mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
 
-  def numReferenceGenomes: Int = rgMap.size
-
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](
       Code.invokeScalaObject[String, ReferenceGenome](
-        ReferenceGenome.getClass, "getReference", const(rg.name))))
+        ReferenceGenome.getClass, "getReference", const(rg.name))
 
   def numTypes: Int = typMap.size
 

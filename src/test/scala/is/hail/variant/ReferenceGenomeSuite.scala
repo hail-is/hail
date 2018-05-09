@@ -298,15 +298,4 @@ class ReferenceGenomeSuite extends SparkSuite {
       .forall("row.base == row.baseComputed"))
     ReferenceGenome.removeReference(rg2.name)
   }
-
-  @Test def testSerializeOnFB() {
-    val grch38 = ReferenceGenome.GRCh38
-    val fb = EmitFunctionBuilder[String, Boolean]
-
-    val rgfield = fb.getReferenceGenome(grch38)
-    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
-
-    val f = fb.result()()
-    assert(f("X") == grch38.isValidContig("X"))
-  }
 }
