@@ -1129,7 +1129,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
-    selectCols(expr, Option(newKey).map(_.asScala.toIndexedSeq))
+    selectCols(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
 
   def selectCols(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
     val ec = colEC
@@ -1163,7 +1163,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def selectRows(expr: String, newKey: java.util.ArrayList[java.util.ArrayList[String]]): MatrixTable = {
     assert(Option(newKey).forall(_.size() == 2))
-    selectRows(expr, Option(newKey).map(k => (k.get(0).asScala.toIndexedSeq, k.get(1).asScala.toIndexedSeq)))
+    selectRows(expr, Option(newKey).map(k => (k.get(0).asScala.toFastIndexedSeq, k.get(1).asScala.toFastIndexedSeq)))
   }
 
   def selectRows(expr: String, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]): MatrixTable = {
