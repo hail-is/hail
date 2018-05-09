@@ -1303,6 +1303,48 @@ def log10(x) -> Float64Expression:
     return _func("log10", tfloat64, x)
 
 
+@typecheck(args=expr_any)
+def coalesce(*args):
+    """Returns the first non-missing value of `args`.
+
+    Examples
+    --------
+    >>> x1 = hl.null('int')
+    >>> x2 = 2
+    >>> hl.coalesce(x1, x2).value
+    2
+
+    Notes
+    -----
+    All arguments must have the same type, or must be convertible to a common
+    type (all numeric, for instance).
+
+    See Also
+    --------
+    :func:`.or_else`
+
+    Parameters
+    ----------
+    args : variable-length args of :class:`.Expression`
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+    if builtins.len(args) < 1:
+        raise ValueError("'coalesce' requires at least one expression argument")
+    *exprs, success = unify_exprs(*args)
+    if not success:
+        arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
+        raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
+                        f"{arg_types}")
+    def make_case(*expr_args):
+        c = case()
+        for e in expr_args:
+            c = c.when(hl.is_defined(e), e)
+        return c.or_missing()
+    return bind(make_case, *exprs)
+
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
     """If `a` is missing, return `b`.
@@ -1316,6 +1358,10 @@ def or_else(a, b):
 
         >>> hl.eval_expr(hl.or_else(hl.null(hl.tint32), 7))
         7
+
+    See Also
+    --------
+    :func:`.coalesce`
 
     Parameters
     ----------

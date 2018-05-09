@@ -13,6 +13,7 @@ Core language functions
     str
     is_missing
     is_defined
+    coalesce
     or_else
     or_missing
     range
@@ -27,6 +28,7 @@ Core language functions
 .. autofunction:: str
 .. autofunction:: is_missing
 .. autofunction:: is_defined
+.. autofunction:: coalesce
 .. autofunction:: or_else
 .. autofunction:: or_missing
 .. autofunction:: range
