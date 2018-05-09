@@ -695,12 +695,13 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 }
 
-case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
+case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]) extends MatrixIR {
+
   def children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapRows = {
     assert(newChildren.length == 2)
-    MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
   val newRVRow = InsertFields(newRow, Seq(
@@ -716,32 +717,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   val tAgg = TAggregable(tAggElt, aggSymTab)
 
   val typ: MatrixType = {
-    val newRVRowSet = newRVRow.typ.fieldNames.toSet
-    val newRowKey = child.typ.rowKey.filter(newRVRowSet.contains)
-    val newPartitionKey = child.typ.rowPartitionKey.filter(newRVRowSet.contains)
+    val newRowKey = newKey.map{ case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
+    val newPartitionKey = newKey.map{ case (pk, _) => pk }.getOrElse(child.typ.rowPartitionKey)
     child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts
-
-  private[this] def makeStructChangesKeys(fields: Seq[(String, IR)]): Boolean =
-    fields.exists { case (name, ir) =>
-      typ.rowKey.contains(name) && (
-        ir match {
-          case GetField(Ref("va", _), n) => n != name
-          case _ => true
-        })
-    }
-
-  val touchesKeys: Boolean = (typ.rowKey != child.typ.rowKey) ||
-    (typ.rowPartitionKey != child.typ.rowPartitionKey) || (
-    newRow match {
-      case MakeStruct(fields) =>
-        makeStructChangesKeys(fields)
-      case InsertFields(MakeStruct(fields), toIns) =>
-        makeStructChangesKeys(fields) || toIns.map(_._1).toSet.intersect(typ.rowKey.toSet).nonEmpty
-      case _ => true
-    })
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -844,7 +825,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       }
     }
 
-    if (touchesKeys) {
+    if (newKey.isDefined) {
       prev.copy(typ = typ,
         rvd = OrderedRVD.coerce(
           typ.orvdType,
@@ -856,12 +837,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   }
 }
 
-case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
+case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[String]]) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newCol)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapCols = {
     assert(newChildren.length == 2)
-    MatrixMapCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixMapCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
   val tAggElt: Type = child.typ.entryType
@@ -876,7 +857,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR) extends MatrixIR {
   val typ: MatrixType = {
     val newColType = newCol.typ.asInstanceOf[TStruct]
     val newColNames = newColType.fieldNames.toSet
-    val newColKey = child.typ.colKey.filter(newColNames.contains)
+    val newColKey = newKey.getOrElse(child.typ.colKey)
     child.typ.copy(colKey = newColKey, colType = newColType)
   }
 
@@ -1449,19 +1430,17 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
   }
 }
 
-case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
+case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
     val newRowType = newRow.typ.asInstanceOf[TStruct]
-    var newKey = child.typ.key.map(_.filter(newRowType.fieldIdx.contains))
-    if (newKey.exists(_.isEmpty)) newKey = None
-    child.typ.copy(rowType = newRowType, key = newKey)
+    child.typ.copy(rowType = newRowType, key = newKey.orElse(child.typ.key))
   }
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
-    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts

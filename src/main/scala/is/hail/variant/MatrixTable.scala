@@ -5,7 +5,7 @@ import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.ContainsAgg
+import is.hail.expr.ir.{ContainsAgg, InsertFields}
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
@@ -1128,21 +1128,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def selectCols(expr: String): MatrixTable = {
+  def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
+    selectCols(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
+
+  def selectCols(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
     val ec = colEC
     val colsAST = Parser.parseToAST(expr, ec)
+    val newColKey = newKey.getOrElse(colKey)
 
     colsAST.toIR(Some("AGG")) match {
       case Some(x) if useIR(this.colAxis, colsAST) =>
-        new MatrixTable(hc, MatrixMapCols(ast, x))
+        new MatrixTable(hc, MatrixMapCols(ast, x, newKey))
 
       case _ =>
         log.warn(s"select_cols found no AST to IR conversion: ${ PrettyAST(colsAST) }")
         val (t, f) = Parser.parseExpr(expr, ec)
-
         val newColType = coerce[TStruct](t)
         val namesSet = newColType.fieldNames.toSet
-        val newColKey = colKey.filter(namesSet.contains)
+        val newColKey = newKey.getOrElse(colKey)
 
         val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
         val aggOption = Aggregators.buildColAggregations(hc, value, ec)
@@ -1158,50 +1161,25 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def selectRows(expr: String): MatrixTable = {
+  def selectRows(expr: String, newKey: java.util.ArrayList[java.util.ArrayList[String]]): MatrixTable = {
+    assert(Option(newKey).forall(_.size() == 2))
+    selectRows(expr, Option(newKey).map(k => (k.get(0).asScala.toFastIndexedSeq, k.get(1).asScala.toFastIndexedSeq)))
+  }
+
+  def selectRows(expr: String, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]): MatrixTable = {
     val ec = rowEC
 
     val rowsAST = Parser.parseToAST(expr, ec)
 
     rowsAST.toIR(Some("AGG")) match {
       case Some(x) if useIR(this.rowAxis, rowsAST) =>
-        new MatrixTable(hc, MatrixMapRows(ast, x))
+        new MatrixTable(hc, MatrixMapRows(ast, x, newKey))
 
       case _ =>
         log.warn(s"select_rows found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
         val newRowType = coerce[TStruct](rowsAST.`type`)
-        val namesSet = newRowType.fieldNames.toSet
-        val newRowKey = rowKey.filter(namesSet.contains)
-        val newPartitionKey = rowPartitionKey.filter(namesSet.contains)
-
-        def structSelectChangesRowKeys(names: Array[String], asts: Array[AST]): Boolean = {
-          names.zip(asts).exists { case (name, node) =>
-            rowKey.contains(name) &&
-              (node match {
-                case Select(_, SymRef(_, "va"), n) => n != name
-                case _ => true
-              })
-          }
-        }
-
-        val touchesKeys: Boolean = (newRowKey != rowKey) ||
-          (newPartitionKey != rowPartitionKey) || (
-          rowsAST match {
-            case StructConstructor(_, names, asts) =>
-              structSelectChangesRowKeys(names, asts)
-            case Apply(_, "annotate", Array(StructConstructor(_, names, asts), newstruct)) =>
-              structSelectChangesRowKeys(names, asts) ||
-                coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-            case Apply(_, "annotate", Array(SymRef(_, "va"), newstruct)) =>
-              coerce[TStruct](newstruct.`type`).fieldNames.toSet.intersect(rowKey.toSet).nonEmpty
-            case x@Apply(_, "drop", Array(StructConstructor(_, names, asts), _*)) =>
-              val rowKeySet = rowKey.toSet
-              structSelectChangesRowKeys(names, asts) ||
-                x.args.tail.exists { case SymRef(_, name) => rowKeySet.contains(name) }
-            case _ =>
-              log.warn(s"unexpected AST: ${ PrettyAST(rowsAST) }")
-              true
-          })
+        val newRowKey = newKey.map{ case (pk, k) => pk ++ k }.getOrElse(rowKey)
+        val newPartitionKey = newKey.map{ case (pk, _) => pk }.getOrElse(rowPartitionKey)
 
         val newEntriesIndex = newRowType.fieldIdx.get(MatrixType.entriesIdentifier)
 
@@ -1243,7 +1221,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             rv2
           }
         }
-        if (touchesKeys) {
+        if (newKey.isDefined) {
           warn("modified row key, rescanning to compute ordering...")
           val newRDD = rvd.mapPartitions(newMatrixType.rvRowType)(mapPartitionsF)
           copyMT(matrixType = newMatrixType,

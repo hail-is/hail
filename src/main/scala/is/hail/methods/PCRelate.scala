@@ -80,7 +80,8 @@ object PCRelate {
 
     Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, ibd0: row.ibd0, ibd1: row.ibd1, ibd2: row.ibd2}") 
+      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, ibd0: row.ibd0, ibd1: row.ibd1, ibd2: row.ibd2}",
+        Some(keys.toFastIndexedSeq))
   }
 
   // FIXME move matrix formation to Python

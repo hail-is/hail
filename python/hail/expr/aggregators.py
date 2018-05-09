@@ -921,7 +921,7 @@ def call_stats(expr, alleles) -> StructExpression:
     .. doctest::
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
-        >>> dataset_result.rows().select('locus', 'gt_stats').show()
+        >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
         +---------------+--------------+----------------+-------------+
         | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
         +---------------+--------------+----------------+-------------+

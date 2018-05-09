@@ -2,7 +2,7 @@ import hail
 from hail.utils.java import Env, joption, error
 from hail.typecheck import enumeration, typecheck, nullable
 import difflib
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, OrderedDict
 import atexit
 import shutil
 import tempfile
@@ -94,6 +94,14 @@ def wrap_to_list(s):
 def wrap_to_tuple(x):
     if isinstance(x, tuple):
         return x
+    else:
+        return x,
+
+def wrap_to_sequence(x):
+    if isinstance(x, tuple):
+        return x
+    if isinstance(x, list):
+        return tuple(x)
     else:
         return x,
 
@@ -269,7 +277,7 @@ def get_nice_field_error(obj, item):
 def check_collisions(fields, name, indices):
     from hail.expr.expressions import ExpressionException
     if name in fields and not fields[name]._indices == indices:
-        msg = 'name collision with field indexed by {}: {}'.format(list(fields[name]._indices.axes), name)
+        msg = "name collision with field indexed by {}: {}".format(list(fields[name]._indices.axes), repr(name))
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
 
@@ -277,4 +285,47 @@ def check_field_uniqueness(fields):
     for k, v in Counter(fields).items():
         if v > 1:
             from hail.expr.expressions import ExpressionException
-            raise ExpressionException("selection would produce duplicate field {}".format(repr(k)))
+            raise ExpressionException("selection would produce duplicate field '{}'".format(repr(k)))
+
+def check_keys(name, indices):
+    from hail.expr.expressions import ExpressionException
+    if indices.key is None:
+        return
+    if name in set(indices.key):
+        msg = "cannot overwrite key field {} with annotate, select or drop; use key_by to modify keys.".format(repr(name))
+        error('Analysis exception: {}'.format(msg))
+        raise ExpressionException(msg)
+
+def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
+    from hail.expr.expressions import to_expr, ExpressionException, TopLevelReference, Select
+    exprs = [to_expr(e) if not isinstance(e, str) else indices.source[e] for e in exprs]
+    named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+    assignments = OrderedDict()
+
+    for e in exprs:
+        if not e._indices == indices:
+            raise ExpressionException("method '{}' parameter 'exprs' expects {}-indexed fields,"
+                                  " found indices {}".format(caller, list(indices.axes), list(e._indices.axes)))
+        if not e._ast.is_nested_field:
+            raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
+        if protect_keys:
+            check_keys(e._ast.name, indices)
+        assignments[e._ast.name] = e
+    for k, e in named_exprs.items():
+        if protect_keys:
+            check_keys(k, indices)
+        check_collisions(indices.source._fields, k, indices)
+        assignments[k] = e
+    check_field_uniqueness(assignments.keys())
+    return assignments
+
+def get_annotate_exprs(caller, named_exprs, indices):
+    from hail.expr.expressions import to_expr, ExpressionException
+    named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+    for k, v in named_exprs.items():
+        check_keys(k, indices)
+        if indices.key and k in indices.key.keys():
+            raise ExpressionException("'{}' cannot overwrite key field: {}"
+                                      .format(caller, repr(k)))
+        check_collisions(indices.source._fields, k, indices)
+    return named_exprs

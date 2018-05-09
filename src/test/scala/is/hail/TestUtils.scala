@@ -239,7 +239,7 @@ object TestUtils {
   }
 
   def exportPlink(mt: MatrixTable, path: String): Unit = {
-    mt.selectCols("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""")
+    mt.selectCols("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""", Some(FastIndexedSeq()))
       .annotateRowsExpr(
         "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
         "pos_morgan" -> "0")
@@ -247,7 +247,7 @@ object TestUtils {
   }
 
   def exportGen(mt: MatrixTable, path: String, precision: Int): Unit = {
-    mt.selectCols(""" {id1: sa.s, id2: sa.s, missing: 0.toFloat64} """)
+    mt.selectCols(""" {id1: sa.s, id2: sa.s, missing: 0.toFloat64} """, Some(FastIndexedSeq()))
       .annotateRowsExpr(
       "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
       "rsid" -> "\".\"")

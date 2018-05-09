@@ -124,8 +124,10 @@ class ReferenceGenomeSuite extends SparkSuite {
 
   @Test def testConstructors() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
-    val ktann = kt.annotate("""l1 = Locus(GRCh38)("chr1", 100), l2 = Locus(GRCh37)("1:100"),
-    |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895, true, false)""".stripMargin)
+    val ktann = kt.annotate("l1" -> """Locus(GRCh38)("chr1", 100)""",
+      "l2" -> """Locus(GRCh37)("1:100")""",
+      "i1" -> """LocusInterval(GRCh37)("1:5-10")""",
+      "i2" -> """LocusInterval(GRCh38)("chrX", 156030890, 156030895, true, false)""")
 
     assert(ktann.signature.field("l1").typ == ReferenceGenome.GRCh38.locusType &&
     ktann.signature.field("l2").typ == ReferenceGenome.GRCh37.locusType &&
@@ -138,19 +140,19 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rg = ReferenceGenome("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     ReferenceGenome.addReference(rg)
     ReferenceGenome.setDefaultReference(rg)
-    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"), true, false)""").signature.field("i1").typ == TInterval(rg.locusType))
+    assert(kt.annotate("i1" -> """Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"), true, false)""").signature.field("i1").typ == TInterval(rg.locusType))
 
     // check for invalid contig names or positions
-    intercept[SparkException](kt.annotate("""l1bad = Locus("MT:17000") """).collect())
-    intercept[SparkException](kt.annotate("""l1bad = Locus("foo:17000") """).collect())
-    intercept[SparkException](kt.annotate("""l1bad = Locus("foo", 17000) """).collect())
+    intercept[SparkException](kt.annotate("l1bad" -> """Locus("MT:17000") """).collect())
+    intercept[SparkException](kt.annotate("l1bad" -> """Locus("foo:17000") """).collect())
+    intercept[SparkException](kt.annotate("l1bad" -> """Locus("foo", 17000) """).collect())
 
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT:4789-17000") """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo:4789-17000") """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo", 1, 10, true, false) """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT", 5, 17000, true, false) """).collect())
+    intercept[SparkException](kt.annotate("i1bad" -> """LocusInterval("MT:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("i1bad" -> """LocusInterval("foo:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("i1bad" -> """LocusInterval("foo", 1, 10, true, false) """).collect())
+    intercept[SparkException](kt.annotate("i1bad" -> """LocusInterval("MT", 5, 17000, true, false) """).collect())
 
-    intercept[HailException](kt.annotate("""i1bad = Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"), true, false)""").collect())
+    intercept[HailException](kt.annotate("i1bad" -> """Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"), true, false)""").collect())
 
     ReferenceGenome.setDefaultReference(ReferenceGenome.GRCh37)
     ReferenceGenome.removeReference("foo2")
@@ -218,13 +220,13 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     val rg = ReferenceGenome("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     ReferenceGenome.addReference(rg)
-    kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT)
+    kt.annotate("l1" -> """Locus(foo)("1:3")""").write(outKT)
     vds.annotateRowsExpr("l2" -> """Locus(foo)("1:3")""").write(outVDS)
     ReferenceGenome.removeReference("foo")
 
     val rg2 = ReferenceGenome("foo", Array("1"), Map("1" -> 5))
     ReferenceGenome.addReference(rg2)
-    kt.annotate("""l1 = Locus(foo)("1:3")""").write(outKT2)
+    kt.annotate("l1" -> """Locus(foo)("1:3")""").write(outKT2)
     ReferenceGenome.removeReference("foo")
 
     assert(hc.readTable(outKT).signature.field("l1").typ == TLocus(rg))
@@ -287,13 +289,13 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     rg.addSequence(hc, fastaFile, indexFile)
     val table = hc.importTable("src/test/resources/fake_reference.tsv")
-    assert(table.annotate("""baseComputed = getReferenceSequence(test)(row.contig, row.pos.toInt32(), 0, 0)""")
+    assert(table.annotate("baseComputed" -> """getReferenceSequence(test)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
 
     ReferenceGenome.removeReference(rg.name)
 
     val rg2 = ReferenceGenome.fromFASTAFile(hc, "test2", fastaFileGzip, indexFile)
-    assert(table.annotate("""baseComputed = getReferenceSequence(test2)(row.contig, row.pos.toInt32(), 0, 0)""")
+    assert(table.annotate("baseComputed" -> """getReferenceSequence(test2)(row.contig, row.pos.toInt32(), 0, 0)""")
       .forall("row.base == row.baseComputed"))
     ReferenceGenome.removeReference(rg2.name)
   }

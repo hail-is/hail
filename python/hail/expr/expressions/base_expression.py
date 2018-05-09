@@ -4,6 +4,7 @@ from hail.expr import expressions
 from hail.expr.expr_ast import *
 from hail.expr.types import *
 from hail.genetics import Locus, Call
+from hail.typecheck import linked_list
 from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
@@ -294,13 +295,14 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
 class Expression(object):
     """Base class for Hail expressions."""
 
-    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=linked_list(Aggregation), joins=linked_list(Join))
     def __init__(self,
                  ast: AST,
                  type: HailType,
                  indices: Indices = Indices(),
                  aggregations: LinkedList = LinkedList(Aggregation),
                  joins: LinkedList = LinkedList(Join)):
+
         self._ast = ast
         self._type = type
         self._indices = indices
@@ -605,8 +607,16 @@ class Expression(object):
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
-                keys = filter(lambda f: f != name, df.key) if df.key else []
-                df = df.select(*keys, **{name: self})
+                field_name = source._fields_inverse.get(self)
+                if field_name is not None:
+                    if source.key and field_name in source.key:
+                        df = df.select()
+                    else:
+                        df = df.select(field_name)
+                    if field_name != name:
+                        df = df.rename({field_name: name})
+                else:
+                    df = df.select(**{name: self})
                 return df.select_globals()
             else:
                 assert isinstance(source, hail.MatrixTable)
@@ -614,30 +624,28 @@ class Expression(object):
                     field_name = source._fields_inverse.get(self)
                     if field_name is not None:
                         if field_name in source.row_key:
-                            m = source.select_rows(*source.row_key)
+                            m = source.select_rows()
                         else:
-                            m = source.select_rows(*source.row_key, field_name)
+                            m = source.select_rows(field_name)
                         m = m.rename({field_name: name})
                     else:
-                        m = source.select_rows(*source.row_key, **{name: self})
+                        m = source.select_rows(**{name: self})
                     return m.rows().select_globals()
                 else:
                     field_name = source._fields_inverse.get(self)
                     if field_name is not None:
                         if field_name in source.col_key:
-                            m = source.select_cols(*source.col_key)
+                            m = source.select_cols()
                         else:
-                            m = source.select_cols(*source.col_key, field_name)
+                            m = source.select_cols(field_name)
                         m = m.rename({field_name: name})
                     else:
-                        m = source.select_cols(*source.col_key, **{name: self})
+                        m = source.select_cols(**{name: self})
                     return m.cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
-            source = source.select_entries(**{name: self})
-            source = source.select_rows(*source.row_key)
-            source = source.select_cols(*source.col_key)
+            source = source.select_entries(**{name: self}).select_rows().select_cols()
             return source.entries().select_globals()
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
@@ -694,25 +702,23 @@ class Expression(object):
             if self is source.row:
                 return source._show(n, width, truncate, types)
             elif self is source.key:
-                return source.select(*source.key)._show(n, width, truncate, types)
+                return source.select()._show(n, width, truncate, types)
         elif isinstance(source, hl.MatrixTable):
             if self is source.row:
                 return source.rows()._show(n, width, truncate, types)
             elif self is source.row_key:
-                return source.rows().select(*source.row_key)._show(n, width, truncate, types)
+                return source.rows().select()._show(n, width, truncate, types)
             if self is source.col:
                 return source.cols()._show(n, width, truncate, types)
             elif self is source.col_key:
-                return source.cols().select(*source.col_key)._show(n, width, truncate, types)
+                return source.cols().select()._show(n, width, truncate, types)
             if self is source.entry:
-                return (source.entries()
-                        .select(*source.row_key, *source.col_key, *source.entry)
-                        ._show(n, width, truncate, types))
+                return source.entries()._show(n, width, truncate, types)
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
         if t.key is not None and name in t.key:
-            t = t.select(name)
+            t = t.key_by(name).select()
         return t._show(n, width, truncate, types)
 
 
@@ -771,7 +777,7 @@ class Expression(object):
         """
         uid = Env.get_uid()
         t = self._to_table(uid)
-        return [r[uid] for r in t.select(uid).collect()]
+        return [r[uid] for r in t._select("collect", hl.struct(), hl.struct(**{uid: t[uid]})).collect()]
 
     @property
     def value(self):

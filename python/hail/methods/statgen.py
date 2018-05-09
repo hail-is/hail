@@ -220,7 +220,6 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
     mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
     kt = mt.select_cols(
-        *mt.col_key,
         is_female=hl.cond(mt.ib.f_stat < female_threshold,
                           True,
                           hl.cond(mt.ib.f_stat > male_threshold,
@@ -1215,7 +1214,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     .. testsetup::
 
         ds2 = hl.variant_qc(dataset)
-        ds2 = ds2.select_rows(ds2.locus, ds2.alleles, AF = ds2.variant_qc.AF)
+        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
 
     .. doctest::
 
@@ -1811,7 +1810,8 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr).cols()
+    scores_table = mt.select_cols(__scores=scores_expr)\
+        .key_cols_by().select_cols('__scores').cols()
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
@@ -1846,7 +1846,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         ht = ht.drop('ibd1')
 
     col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
-    return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
+    return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
 class SplitMulti(object):
     """Split multiallelic variants.
@@ -2239,7 +2239,7 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'genetic_relatedness_matrix')
 
-    col_keys = mt.cols().select(*mt.col_key)
+    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
@@ -2322,7 +2322,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     require_col_key_str(mt, 'realized_relationship_matrix')
 
-    col_keys = mt.cols().select(*mt.col_key)
+    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
 
@@ -2650,7 +2650,7 @@ def filter_alleles(mt: MatrixTable,
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
-    right = right.annotate_rows(locus=right.__new_locus, alleles=right.__new_alleles)
+    right = right.partition_rows_by('locus', locus=right.__new_locus, alleles=right.__new_alleles)
     return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
@@ -2986,13 +2986,13 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     correlation_matrix = (block_matrix @ (block_matrix.T))
 
     locally_pruned_rows = locally_pruned_ds.rows()
-    entries = correlation_matrix._filtered_entries_table(
-        locally_pruned_rows.select(contig=locally_pruned_rows.locus.contig, pos=locally_pruned_rows.locus.position)
-            .key_by("contig"), window, False)
+    locally_pruned_rows = locally_pruned_rows.key_by(contig=locally_pruned_rows.locus.contig)
+    locally_pruned_rows = locally_pruned_rows.select(pos=locally_pruned_rows.locus.position)
+    entries = correlation_matrix._filtered_entries_table(locally_pruned_rows, window, False)
 
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i != entries.j) & (entries.i < entries.j))
 
-    index_table = sites_only_table.add_index().select('locus', 'idx').key_by('idx')
+    index_table = sites_only_table.add_index().key_by('idx').select('locus')
     entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
     entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
@@ -3007,4 +3007,4 @@ def ld_prune(ds, r2=0.2, window=1000000, memory_per_core=256):
     pruned_ds = locally_pruned_ds.filter_rows(
         hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
 
-    return pruned_ds.rows().select('locus', 'alleles')
+    return pruned_ds.rows().select()

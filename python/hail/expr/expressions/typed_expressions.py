@@ -1404,7 +1404,6 @@ class TupleExpression(Expression, Sequence):
             yield self[i]
 
 
-
 class NumericExpression(Expression):
     """Expression of numeric type.
 
