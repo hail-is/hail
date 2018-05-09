@@ -312,15 +312,15 @@ class OrderingSuite {
           rvb.endTuple()
           val k2off = rvb.end()
 
-          val expected2 = dict.get(testKey2)
+          val expected2 = dict(testKey2)
           val actual2 = SafeRow(TTuple(-telt.types(1)), region, f(region, doff, false, k2off, false)).get(0)
-          assert(expected2.get == actual2)
+          assert(expected2 == actual2)
         }
 
-        val expected1 = dict.get(testKey1)
-        val actual1 = SafeRow(TTuple(-telt.types(1)), region, f(region, doff, false, k1off, false))
+        val expected1 = dict.getOrElse(testKey1, null)
+        val actual1 = SafeRow(TTuple(-telt.types(1)), region, f(region, doff, false, k1off, false)).get(0)
 
-        expected1.isEmpty ==> actual1.isNullAt(0) && expected1.forall(_ == actual1.get(0))
+        expected1 == actual1
       }
     }
     p.check()
@@ -395,10 +395,15 @@ class OrderingSuite {
 
         val f = fb.result()()
         val closestI = f(region, soff, eoff)
-        val maybeEqual = asArray(closestI).asInstanceOf[Row].get(0)
+        def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+        val maybeEqual = getKey(closestI)
 
-        dict.contains(key) ==> (key == maybeEqual) &&
-          (tdict.keyType.ordering.compare(key, maybeEqual) <= 0 || (closestI == dict.size - 1))
+        val closestIIsClosest =
+          (tdict.keyType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+            (closestI == 0 || tdict.keyType.ordering.compare(key, getKey(closestI - 1)) > 0)
+
+        dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
+
       }
     }
     p.check()

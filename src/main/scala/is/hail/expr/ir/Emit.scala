@@ -349,7 +349,10 @@ private class Emit(
         EmitTriplet(
           Code(s.setup, e.setup),
           Code(smx := s.m, smx),
-          Code(smx || Code(svx := s.value[Long], emx := e.m, evx.storeAny(e.v), isIn)))
+          Code(smx || Code(svx := s.value[Long],
+            emx := e.m,
+            evx.storeAny(emx.mux(defaultValue(elem.typ), e.v)),
+            isIn)))
 
       case x@DictGet(dict, key) =>
         val dtype = coerce[TDict](dict.typ)
@@ -389,7 +392,7 @@ private class Emit(
         EmitTriplet(
           Code(d.setup, k.setup),
           Code(setupDefaults, mx := (dmx || !keyIn || isValueMissing), mx),
-          mx.mux(defaultValue(x.typ), getValue))
+          getValue)
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
