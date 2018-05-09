@@ -329,10 +329,18 @@ private class Emit(
       case ToArray(a) =>
         emit(a)
 
-      case SetContains(set, elem) =>
+      case x@(_: SetContains | _: DictContains) =>
+        val (set, elem, bs) = x match {
+          case SetContains(set, elem) =>
+            val bs = new BinarySearch(mb, coerce[TSet](set.typ), keyOnly = false)
+            (set, elem, bs)
+          case DictContains(dict, key) =>
+            val bs = new BinarySearch(mb, coerce[TDict](dict.typ), keyOnly = true)
+            (dict, key, bs)
+        }
         val s = emit(set)
         val e = emit(elem)
-        val bs = new BinarySearch(mb, coerce[TSet](set.typ), keyOnly = false)
+
         val smx = mb.newLocal[Boolean]
         val svx = mb.newLocal[Long]
         val emx = mb.newLocal[Boolean]
