@@ -10,16 +10,6 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T")) { case (s, v) =>
-      val t = v.typ
-      val x = genUID()
-      val accum = genUID()
-
-      ArrayFold(ToArray(s), False(), accum, x,
-        ApplySpecial("||",
-          FastSeq(Ref(accum, TBoolean()), ApplyBinaryPrimOp(EQ(), v, Ref(x, t)))))
-    }
-
     registerIR("remove", TSet(tv("T")), tv("T")) { case (s, v) =>
       val t = v.typ
       val x = genUID()
@@ -55,7 +45,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          IRFunctionRegistry.invoke("contains", FastSeq(s2, Ref(x, t)))))
+          SetContains(s2, Ref(x, t))))
     }
 
     registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
@@ -63,7 +53,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          ApplyUnaryPrimOp(Bang(), IRFunctionRegistry.invoke("contains", FastSeq(s2, Ref(x, t))))))
+          ApplyUnaryPrimOp(Bang(), SetContains(s2, Ref(x, t)))))
     }
 
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { case (s, w) =>
@@ -73,7 +63,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), IRFunctionRegistry.invoke("contains", FastSeq(w, Ref(x, t))))))
+          FastSeq(Ref(a, TBoolean()), SetContains(w, Ref(x, t)))))
     }
   }
 }
