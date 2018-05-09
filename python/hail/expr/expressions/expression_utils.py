@@ -188,7 +188,7 @@ def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) 
             _get_refs(e, builder)
 
 def extract_refs_by_indices(exprs, indices):
-    """Adds references in `expr` with indices `indices` to `builder`.
+    """Returns a set of references in `exprs` with indices `indices`.
 
     Parameters
     ----------
