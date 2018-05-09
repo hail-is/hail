@@ -312,9 +312,9 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
 def window_by_locus(mt: MatrixTable, base_pairs: int) -> MatrixTable:
     """Collect arrays of row and entry values from previous variants.
 
-    .. include:: req_tvariant.rst
+    .. include:: ../_templates/req_tvariant.rst
 
-    .. include:: experimental.rst
+    .. include:: ../_templates/experimental.rst
 
     Examples
     --------
