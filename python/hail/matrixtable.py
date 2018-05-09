@@ -1530,9 +1530,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_globals'
         e = get_annotate_exprs(caller, named_exprs, self._global_indices)
-        fields_referenced = set()
-        for k, v in e.items():
-            extract_refs_by_indices(v, self._global_indices, fields_referenced)
+        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices)
         fields_referenced = fields_referenced - set(e.keys())
 
         return self._select_globals(caller,
@@ -1568,9 +1566,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_rows'
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = set()
-        for k, v in e.items():
-            extract_refs_by_indices(v, self._row_indices, fields_referenced)
+        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices)
         fields_referenced = fields_referenced - set(e.keys()) - set(self.row_key)
 
         return self._select_rows(caller,
@@ -1606,9 +1602,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_cols'
         e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        fields_referenced = set()
-        for k, v in e.items():
-            extract_refs_by_indices(v, self._col_indices, fields_referenced)
+        fields_referenced = extract_refs_by_indices(e.values(), self._col_indices)
         fields_referenced = fields_referenced - set(e.keys()) - set(self.col_key)
 
         return self._select_cols(caller,
@@ -1640,9 +1634,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_entries'
         e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
-        fields_referenced = set()
-        for k, v in e.items():
-            extract_refs_by_indices(v, self._entry_indices, fields_referenced)
+        fields_referenced = extract_refs_by_indices(e.values(), self._entry_indices)
         fields_referenced = fields_referenced - set(e.keys())
 
         return self._select_entries(caller,

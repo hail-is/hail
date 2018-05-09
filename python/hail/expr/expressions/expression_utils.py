@@ -187,18 +187,24 @@ def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) 
         for e in join.exprs:
             _get_refs(e, builder)
 
-def extract_refs_by_indices(expr, indices, builder):
+def extract_refs_by_indices(exprs, indices):
     """Adds references in `expr` with indices `indices` to `builder`.
 
     Parameters
     ----------
     expr : Expression
     indices : Indices
-    builder : Set[str]
+
+    Returns
+    -------
+    Set[str]
     """
-    for name, inds in get_refs(expr):
-        if inds == indices:
-            builder.add(name)
+    s = set()
+    for e in exprs:
+        for name, inds in get_refs(e):
+            if inds == indices:
+                s.add(name)
+    return s
 
 def get_refs(*exprs: Union[Expression, Aggregable]) -> Dict[str, Indices]:
     builder = {}
