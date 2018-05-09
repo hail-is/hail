@@ -737,7 +737,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val localNCols = prev.nCols
+    val nCols = prev.nCols
 
     val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
       "global", child.typ.globalType,
@@ -767,7 +767,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
         }
 
         ir.ArrayFor(
-          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+          ir.ArrayRange(ir.I32(0), ir.I32(nCols), ir.I32(1)),
           colIdx,
           ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", TArray(prev.typ.colType)), ir.Ref(colIdx, TInt32())),
             ir.Let("g", ir.ArrayRef(
@@ -831,11 +831,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
           rvRowKey.setSelect(rvType, selectIdx, current)
 
-          val colRVAggs = new Array[RegionValueAggregator](nAggs * localNCols)
+          val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
 
           {
             var i = 0
-            while (i < localNCols) {
+            while (i < nCols) {
               var j = 0
               while (j < nAggs) {
                 colRVAggs(i * nAggs + j) = rvAggs(j).copy()
@@ -854,8 +854,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           rvb.start(localColsType)
           rvb.addRegionValue(localColsType, partRegion, partColsOff)
           val cols = rvb.end()
-
-          val nCols = prev.nCols
 
           if (colRVAggs.nonEmpty) {
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
