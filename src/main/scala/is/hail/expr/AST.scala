@@ -735,7 +735,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       irArgs <- all(args.map(_.toIR(agg)))
       ir <- fromOption(
         this,
-        "no function or primop found for $fn",
+        s"no function or primop found for $fn",
         tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
           IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
             .map { irf => irf(irArgs) }))
@@ -851,7 +851,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           b <- body.toIR(agg)
           result <- fromOption(
             this,
-            "no method $m on type $t",
+            s"no method $m on type $t",
             optMatch((t, m)) {
               case (_: TAggregable, "map") => ir.AggMap(a, name, b)
               case (_: TAggregable, "filter") => ir.AggFilter(a, name, b)
@@ -872,7 +872,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           irs <- all((lhs +: args).map(_.toIR(agg)))
           ir <- fromOption(
             this,
-            "no method $m on type $t",
+            s"no method $method on type ${lhs.`type`}",
             IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
               .map { irf => irf(irs) })
         } yield ir
