@@ -22,6 +22,20 @@ object MathFunctions extends RegistryFunctions {
 
   def ceil(x: Double): Double = math.ceil(x)
 
+  def mod(x: Float, y: Float): Float = {
+    val t = x % y
+    if (t < 0) t + y else t
+  }
+  def mod(x: Double, y: Double): Double = {
+    val t = x % y
+    if (t < 0) t + y else t
+  }
+
+  def pow(x: Int, y: Int): Double = math.pow(x, y)
+  def pow(x: Long, y: Long): Double = math.pow(x, y)
+  def pow(x: Float, y: Float): Double = math.pow(x, y)
+  def pow(x: Double, y: Double): Double = math.pow(x, y)
+
   def floorDiv(x: Int, y: Int): Int = java.lang.Math.floorDiv(x, y)
 
   def floorDiv(x: Long, y: Long): Long = java.lang.Math.floorDiv(x, y)
@@ -48,13 +62,16 @@ object MathFunctions extends RegistryFunctions {
     registerIR("toFloat32", tnum("T"))(x => Cast(x, TFloat32()))
     registerIR("toFloat64", tnum("T"))(x => Cast(x, TFloat64()))
 
+    registerScalaFunction("**", TInt32(), TInt32(), TFloat64())(thisClass, "pow")
+    registerScalaFunction("**", TInt64(), TInt64(), TFloat64())(thisClass, "pow")
+    registerScalaFunction("**", TFloat32(), TFloat32(), TFloat64())(thisClass, "pow")
+    registerScalaFunction("**", TFloat64(), TFloat64(), TFloat64())(thisClass, "pow")
+
     registerScalaFunction("exp", TFloat64(), TFloat64())(mathPackageClass, "exp")
     registerScalaFunction("log10", TFloat64(), TFloat64())(mathPackageClass, "log10")
     registerScalaFunction("sqrt", TFloat64(), TFloat64())(mathPackageClass, "sqrt")
     registerScalaFunction("log", TFloat64(), TFloat64())(mathPackageClass, "log")
     registerScalaFunction("log", TFloat64(), TFloat64(), TFloat64())(thisClass, "log")
-    registerScalaFunction("pow", TFloat64(), TFloat64(), TFloat64())(mathPackageClass, "pow")
-    registerScalaFunction("**", TFloat64(), TFloat64(), TFloat64())(mathPackageClass, "pow")
     registerScalaFunction("gamma", TFloat64(), TFloat64())(thisClass, "gamma")
 
     registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TInt32(), TFloat64())(statsPackageClass, "binomTest")
@@ -90,13 +107,10 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("ceil", TFloat32(), TFloat32())(thisClass, "ceil")
     registerScalaFunction("ceil", TFloat64(), TFloat64())(thisClass, "ceil")
 
-    registerScalaFunction("//", TInt32(), TInt32(), TInt32())(thisClass, "floorDiv")
-    registerScalaFunction("//", TInt64(), TInt64(), TInt64())(thisClass, "floorDiv")
-    registerScalaFunction("//", TFloat32(), TFloat32(), TFloat32())(thisClass, "floorDiv")
-    registerScalaFunction("//", TFloat64(), TFloat64(), TFloat64())(thisClass, "floorDiv")
-
     registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
-    registerJavaStaticFunction("%", TInt64(), TInt32(), TInt64())(jMathClass, "floorMod")
+    registerJavaStaticFunction("%", TInt64(), TInt64(), TInt64())(jMathClass, "floorMod")
+    registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
+    registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
 
