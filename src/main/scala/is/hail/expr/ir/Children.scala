@@ -47,6 +47,8 @@ object Children {
       Array(a)
     case SetContains(set, elem) =>
       Array(set, elem)
+    case DictContains(dict, key) =>
+      Array(dict, key)
     case DictGet(dict, key) =>
       Array(dict, key)
     case ArrayMap(a, name, body) =>

@@ -65,6 +65,9 @@ object Copy {
       case SetContains(_, _) =>
         val IndexedSeq(set: IR, elem: IR) = newChildren
         SetContains(set, elem)
+      case DictContains(_, _) =>
+        val IndexedSeq(dict: IR, key: IR) = newChildren
+        DictContains(dict, key)
       case DictGet(_, _) =>
         val IndexedSeq(dict: IR, key: IR) = newChildren
         DictGet(dict, key)

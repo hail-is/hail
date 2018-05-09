@@ -95,6 +95,11 @@ object TypeCheck {
         check(elem)
         assert(set.typ.isInstanceOf[TSet])
         assert(-coerce[TSet](set.typ).elementType == elem.typ)
+      case x@DictContains(dict, key) =>
+        check(dict)
+        check(key)
+        assert(dict.typ.isInstanceOf[TDict])
+        assert(-coerce[TDict](dict.typ).keyType == key.typ)
       case x@DictGet(dict, key) =>
         check(dict)
         check(key)
