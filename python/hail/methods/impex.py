@@ -155,7 +155,9 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
             analyze('export_gen/{}'.format(name), expr, axis)
 
     dataset = dataset._select_all(col_exprs=sample_exprs,
+                                  col_key=[],
                                   row_exprs=gen_exprs,
+                                  row_key=[['locus'], ['alleles']],
                                   entry_exprs=entry_exprs)
 
     dataset._jvds.exportGen(output, precision)
