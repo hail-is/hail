@@ -40,6 +40,36 @@ class OrderingSuite {
     fb.result()()
   }
 
+  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
+    val rvb = new RegionValueBuilder(region)
+    args.map { case (t, a) =>
+      rvb.start(TTuple(t))
+      rvb.startTuple()
+      rvb.addAnnotation(t, a)
+      rvb.endTuple()
+      rvb.end()
+    }.toArray
+  }
+
+  def getCompiledFunction(irFunction: Seq[IR] => IR, ts: Type*): (Region, Seq[Annotation]) => Annotation = {
+    val args = ts.init
+    val rt = ts.last
+    val irs = args.zipWithIndex.map { case (t, i) => GetTupleElement(In(i, TTuple(t)), 0) }
+    val ir = MakeTuple(Seq(irFunction(irs)))
+
+    args.size match {
+      case 2 =>
+        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
+        Emit(ir, fb)
+        val f = fb.result()()
+        val f2 = { (region: Region, as: Seq[Annotation]) =>
+          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
+          SafeRow(TTuple(rt), region, f(region, offs(0), false, offs(1), false)).get(0)
+        }
+        f2
+    }
+  }
+
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -276,49 +306,22 @@ class OrderingSuite {
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
       case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue)
     }
-    val p = Prop.forAll(compareGen) { case (tdict, a, testKey1) =>
+    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any], testKey1: Any) =>
       val telt = coerce[TBaseStruct](tdict.elementType)
-      val dict: Map[Any, Any] = a.asInstanceOf[Map[Any, Any]]
-      val ir = MakeTuple(Seq(
-        DictGet(GetTupleElement(In(0, TTuple(tdict)), 0),
-          GetTupleElement(In(1, TTuple(telt.types(0))), 0))))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
+      val ir = { irs: Seq[IR] => DictGet(irs(0), irs(1)) }
+      val dictgetF = getCompiledFunction(ir, tdict, tdict.keyType, -tdict.valueType)
 
       Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(tdict))
-        rvb.startTuple()
-        rvb.addAnnotation(tdict, dict)
-        rvb.endTuple()
-        val doff = rvb.end()
-
-        rvb.start(TTuple(telt.types(0)))
-        rvb.startTuple()
-        rvb.addAnnotation(telt.types(0), testKey1)
-        rvb.endTuple()
-        val k1off = rvb.end()
-
         if (dict.nonEmpty) {
           val testKey2 = dict.keys.toSeq.head
-
-          rvb.start(TTuple(telt.types(0)))
-          rvb.startTuple()
-          rvb.addAnnotation(telt.types(0), testKey2)
-          rvb.endTuple()
-          val k2off = rvb.end()
-
           val expected2 = dict(testKey2)
-          val actual2 = SafeRow(TTuple(-telt.types(1)), region, f(region, doff, false, k2off, false)).get(0)
+          val actual2 = dictgetF(region, Seq(dict, testKey2))
           assert(expected2 == actual2)
         }
 
         val expected1 = dict.getOrElse(testKey1, null)
-        val actual1 = SafeRow(TTuple(-telt.types(1)), region, f(region, doff, false, k1off, false)).get(0)
+        val actual1 = dictgetF(region, Seq(dict, testKey1))
 
         expected1 == actual1
       }
