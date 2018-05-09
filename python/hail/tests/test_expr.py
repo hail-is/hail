@@ -1155,6 +1155,14 @@ class Tests(unittest.TestCase):
     def test_or_else_type_conversion(self):
         self.assertEqual(hl.or_else(0.5, 2).value, 0.5)
 
+    def test_coalesce(self):
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int')).value, None)
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2).value, 2)
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2.5).value, 2.5)
+        self.assertEqual(hl.coalesce(2.5).value, 2.5)
+        with self.assertRaises(TypeError):
+            hl.coalesce(2.5, 'hello')
+
     def test_tuple_ops(self):
         t0 = hl.literal(())
         t1 = hl.literal((1,))

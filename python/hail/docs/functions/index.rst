@@ -31,6 +31,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     null
     is_missing
     is_defined
+    coalesce
     or_else
     or_missing
     range
