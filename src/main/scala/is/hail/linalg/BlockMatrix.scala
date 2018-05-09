@@ -412,8 +412,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   def div(that: M): M = blockMap2(that, _ /:/ _,
     "element-wise division")
-
-  private val badDivSet: Set[Double] = Set(0.0, Double.NaN, Double.NegativeInfinity, Double.PositiveInfinity)
   
   // row broadcast
   def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv,
@@ -423,12 +421,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "broadcasted subtraction of row-vector")(a)
   
   def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv,
-    "broadcasted multiplication by row-vector",
-    reqDense = false)(a)
+    "broadcasted multiplication by row-vector containing nan, or infinity",
+    reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
   def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv, 
     "broadcasted division by row-vector containing zero, nan, or infinity",
-    reqDense = a.exists(badDivSet))(a)
+    reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
   def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _),
     "broadcasted row-vector minus block matrix")(a)
@@ -443,13 +441,13 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv,
     "broadcasted subtraction of column-vector")(a)
   
-  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv,
-    "broadcasted multiplication by column-vector",
-    reqDense = false)(a)
+  def colVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv,
+    "broadcasted multiplication column-vector containing nan or infinity",
+    reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
   def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv,
-    "broadcasted division by column-vector containing zero",
-    reqDense = a.exists(badDivSet))(a)
+    "broadcasted division by column-vector containing zero, nan, or infinity",
+    reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
   def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _),
     "broadcasted column-vector minus block matrix")(a)
@@ -464,12 +462,16 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def scalarSub(i: Double): M = blockMap(_ - i,
     "scalar subtraction")
   
-  def scalarMul(i: Double): M = blockMap(_ *:* i,
-    "scaler multiplication",
-    reqDense = false)
+  def scalarMul(i: Double): M = {
+    if (i.isNaN | i.isInfinity)
+      fatal(s"cannot multiply block matrix by scalar $i")
+    blockMap(_ *:* i,
+      "scalar multiplication",
+      reqDense = false)
+  }
   
   def scalarDiv(i: Double): M = {
-    if (badDivSet(i))
+    if (i == 0.0 | i.isNaN | i.isInfinity)
       fatal(s"cannot divide block matrix by scalar $i")
     blockMap(_ /:/ i,
       "scalar division",
