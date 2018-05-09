@@ -1532,7 +1532,6 @@ class MatrixTable(ExprContainer):
         e = get_annotate_exprs(caller, named_exprs, self._global_indices)
         fields_referenced = set()
         for k, v in e.items():
-            check_collisions(self._fields, k, self._global_indices)
             extract_refs_by_indices(v, self._global_indices, fields_referenced)
         fields_referenced = fields_referenced - set(e.keys())
 
@@ -1571,7 +1570,6 @@ class MatrixTable(ExprContainer):
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
         fields_referenced = set()
         for k, v in e.items():
-            check_collisions(self._fields, k, self._row_indices)
             extract_refs_by_indices(v, self._row_indices, fields_referenced)
         fields_referenced = fields_referenced - set(e.keys()) - set(self.row_key)
 
@@ -1610,7 +1608,6 @@ class MatrixTable(ExprContainer):
         e = get_annotate_exprs(caller, named_exprs, self._col_indices)
         fields_referenced = set()
         for k, v in e.items():
-            check_collisions(self._fields, k, self._col_indices)
             extract_refs_by_indices(v, self._col_indices, fields_referenced)
         fields_referenced = fields_referenced - set(e.keys()) - set(self.col_key)
 
@@ -1645,7 +1642,6 @@ class MatrixTable(ExprContainer):
         e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
         fields_referenced = set()
         for k, v in e.items():
-            check_collisions(self._fields, k, self._entry_indices)
             extract_refs_by_indices(v, self._entry_indices, fields_referenced)
         fields_referenced = fields_referenced - set(e.keys())
 

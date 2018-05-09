@@ -640,7 +640,6 @@ class Table(ExprContainer):
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
         fields_referenced = set()
         for k, v in e.items():
-            check_collisions(self._fields, k, self._row_indices)
             extract_refs_by_indices(v, self._row_indices, fields_referenced)
         fields_referenced = fields_referenced - set(e.keys()) - set(self.key)
 
