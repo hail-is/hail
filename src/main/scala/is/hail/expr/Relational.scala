@@ -1287,13 +1287,13 @@ case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Int, 
   }
 
   def execute(hc: HailContext): TableValue = {
-    val ktv = child.execute(hc)
+    val tv = child.execute(hc)
     val rvd = if (sort) {
       def resort: OrderedRVD = {
-        val orderedKTType = new OrderedRVDType(keys.take(nPartitionKeys), keys, typ.rowType)
-        OrderedRVD.coerce(orderedKTType, ktv.rvd, None, None)
+        val orvdType = new OrderedRVDType(keys.take(nPartitionKeys), keys, typ.rowType)
+        OrderedRVD.coerce(orvdType, tv.rvd, None, None)
       }
-      ktv.rvd match {
+      tv.rvd match {
         case ordered: OrderedRVD =>
           if (ordered.typ.key.startsWith(keys)
             && ordered.typ.partitionKey.length == nPartitionKeys)
@@ -1303,12 +1303,12 @@ case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Int, 
           resort
       }
     } else {
-      ktv.rvd match {
+      tv.rvd match {
         case ordered: OrderedRVD => ordered.toUnpartitionedRVD
         case unordered: UnpartitionedRVD => unordered
       }
     }
-    ktv.copy(typ = typ, rvd = rvd)
+    tv.copy(typ = typ, rvd = rvd)
   }
 }
 
@@ -1323,12 +1323,12 @@ case class TableUnkey(child: TableIR) extends TableIR {
   }
 
   def execute(hc: HailContext): TableValue = {
-    val ktv = child.execute(hc)
-    val rvd = ktv.rvd match {
+    val tv = child.execute(hc)
+    val rvd = tv.rvd match {
       case ordered: OrderedRVD => ordered.toUnpartitionedRVD
       case unordered: UnpartitionedRVD => unordered
     }
-    ktv.copy(typ = typ, rvd = rvd)
+    tv.copy(typ = typ, rvd = rvd)
   }
 }
 
