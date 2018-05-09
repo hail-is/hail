@@ -7,7 +7,6 @@ import org.apache.commons.math3.special.Gamma
 import is.hail.expr.ir.coerce
 
 object MathFunctions extends RegistryFunctions {
-
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)
 
   def gamma(x: Double): Double = Gamma.gamma(x)
@@ -61,6 +60,11 @@ object MathFunctions extends RegistryFunctions {
     registerIR("toInt64", tnum("T"))(x => Cast(x, TInt64()))
     registerIR("toFloat32", tnum("T"))(x => Cast(x, TFloat32()))
     registerIR("toFloat64", tnum("T"))(x => Cast(x, TFloat64()))
+    
+    registerScalaFunction("abs", TInt32(), TInt32())(mathPackageClass, "abs")
+    registerScalaFunction("abs", TInt64(), TInt64())(mathPackageClass, "abs")
+    registerScalaFunction("abs", TFloat32(), TFloat32())(mathPackageClass, "abs")
+    registerScalaFunction("abs", TFloat64(), TFloat64())(mathPackageClass, "abs")
 
     registerScalaFunction("**", TInt32(), TInt32(), TFloat64())(thisClass, "pow")
     registerScalaFunction("**", TInt64(), TInt64(), TFloat64())(thisClass, "pow")

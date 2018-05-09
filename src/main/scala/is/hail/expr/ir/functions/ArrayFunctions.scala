@@ -3,8 +3,36 @@ package is.hail.expr.ir.functions
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.coerce
+import is.hail.utils.FastSeq
 
 object ArrayFunctions extends RegistryFunctions {
+  def mean(a: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
+    val accum = genUID()
+    val v = genUID()
+    val result = genUID()
+
+    def updateAccum(sum: IR, n: IR): IR =
+      MakeStruct(FastSeq("sum" -> sum, "n" -> n))
+
+    Let(result,
+    ArrayFold(
+      a,
+      MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
+      accum,
+      v,
+      If(IsNA(Ref(v, t)),
+        Ref(accum, tAccum),
+        updateAccum(
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1))))),
+      If(ApplyBinaryPrimOp(EQ(), GetField(Ref(result, tAccum), "n"), I32(0)),
+        NA(TFloat64()),
+        ApplyBinaryPrimOp(FloatingPointDivide(),
+          GetField(Ref(result, tAccum), "sum"),
+          Cast(GetField(Ref(result, tAccum), "n"), TFloat64()))))
+  }
 
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
@@ -83,6 +111,85 @@ object ArrayFunctions extends RegistryFunctions {
           If(ApplyComparisonOp(GT(t), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
       ArrayFold(a, NA(t), max, value, body)
     }
+
+    registerIR("mean", TArray(tnum("T")))(mean)
+
+    // FIXME: Add median
+    
+    def argF(a: IR, op: BinaryOp): IR = {
+      val t = -coerce[TArray](a.typ).elementType
+      val tAccum = TStruct("m" -> t, "midx" -> TInt32())
+      val accum = genUID()
+      val value = genUID()
+      val m = genUID()
+      val idx = genUID()
+
+      def updateAccum(min: IR, midx: IR): IR =
+        MakeStruct(FastSeq("m" -> min, "midx" -> midx))
+
+      val body =
+        Let(value, ArrayRef(a, Ref(idx, TInt32())),
+          Let(m, GetField(Ref(accum, tAccum), "m"),
+            If(IsNA(Ref(value, t)),
+              Ref(accum, tAccum),
+              If(IsNA(Ref(m, t)),
+                updateAccum(Ref(value, t), Ref(idx, TInt32())),
+                If(ApplyBinaryPrimOp(op, Ref(value, t), Ref(m, t)),
+                  updateAccum(Ref(value, t), Ref(idx, TInt32())),
+                  Ref(accum, tAccum))))))
+
+        GetField(ArrayFold(
+          ArrayRange(I32(0), ArrayLen(a), I32(1)),
+          NA(tAccum),
+          accum,
+          idx,
+          body
+        ), "midx")
+    }
+
+    registerIR("argmin", TArray(tv("T")))(argF(_, LT()))
+
+    registerIR("argmax", TArray(tv("T")))(argF(_, GT()))
+
+    def uniqueIndex(a: IR, op: BinaryOp): IR = {
+      val t = -coerce[TArray](a.typ).elementType
+      val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
+      val accum = genUID()
+      val value = genUID()
+      val m = genUID()
+      val idx = genUID()
+      val result = genUID()
+
+      def updateAccum(m: IR, midx: IR, count: IR): IR =
+        MakeStruct(FastSeq("m" -> m, "midx" -> midx, "count" -> count))
+
+      val body =
+        Let(value, ArrayRef(a, Ref(idx, TInt32())),
+          Let(m, GetField(Ref(accum, tAccum), "m"),
+            If(IsNA(Ref(value, t)),
+              Ref(accum, tAccum),
+              If(IsNA(Ref(m, t)),
+                updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
+                If(ApplyBinaryPrimOp(op, Ref(value, t), Ref(m, t)),
+                  updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
+                  If(ApplyBinaryPrimOp(EQ(), Ref(value, t), Ref(m, t)),
+                    updateAccum(Ref(value, t), Ref(idx, TInt32()), ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
+                    Ref(accum, tAccum)))))))
+
+      Let(result, ArrayFold(
+        ArrayRange(I32(0), ArrayLen(a), I32(1)),
+        NA(tAccum),
+        accum,
+        idx,
+        body
+      ), If(ApplyBinaryPrimOp(EQ(), GetField(Ref(result, tAccum), "count"), I32(1)),
+        GetField(Ref(result, tAccum), "midx"),
+        NA(TInt32())))
+    }
+
+    registerIR("uniqueMinIndex", TArray(tv("T")))(uniqueIndex(_, LT()))
+
+    registerIR("uniqueMaxIndex", TArray(tv("T")))(uniqueIndex(_, GT()))
 
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
 

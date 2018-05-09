@@ -56,5 +56,8 @@ object UtilFunctions extends RegistryFunctions {
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
+
+    registerIR("min", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(LT(a.typ), a, b), a, b) }
+    registerIR("max", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(GT(a.typ), a, b), a, b) }
   }
 }
