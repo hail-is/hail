@@ -58,6 +58,15 @@ class OrderingSuite {
     val ir = MakeTuple(Seq(irFunction(irs)))
 
     args.size match {
+      case 1 =>
+        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+        Emit(ir, fb)
+        val f = fb.result()()
+        val f2 = { (region: Region, as: Seq[Annotation]) =>
+          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
+          SafeRow(TTuple(rt), region, f(region, offs(0), false)).get(0)
+        }
+        f2
       case 2 =>
         val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
         Emit(ir, fb)
@@ -131,26 +140,13 @@ class OrderingSuite {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
     } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a) =>
-      val ir = ArraySort(GetTupleElement(In(0, TTuple(TArray(t))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
-
-      Emit(ir, fb)
-
-      val f = fb.result()()
+    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
+      val irF = { irs: Seq[IR] => ArraySort(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(t), TArray(t))
 
       Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(t)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(t), a)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(t), region, res)
-        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering)
+        val actual = f(region, Seq(a))
+        val expected = a.sorted(t.ordering.toOrdering)
         expected == actual
       }
     }
@@ -162,28 +158,14 @@ class OrderingSuite {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
     } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a) =>
-      val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
-      val ir = ToSet(GetTupleElement(In(0, TTuple(TArray(t))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
+      val array = a ++ a
+      val irF = { irs: Seq[IR] => ToSet(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(t), TArray(t))
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
-
-      Region.scoped[Boolean] { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(t)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(t), array)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(t), region, res)
-        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering).distinct
-
+      Region.scoped { region =>
+        val actual = f(region, Seq(array))
+        val expected = array.sorted(t.ordering.toOrdering).distinct
         expected == actual
       }
     }
@@ -197,26 +179,13 @@ class OrderingSuite {
       telt = TTuple(kt, vt)
       a <- TArray(telt).genNonmissingValue
     } yield (telt, a)
-    val p = Prop.forAll(compareGen) { case (telt: TTuple, a) =>
-      val array: IndexedSeq[Row] = a.asInstanceOf[IndexedSeq[Row]] ++ a.asInstanceOf[IndexedSeq[Row]]
-      val ir = ToDict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]) =>
+      val array: IndexedSeq[Row] = a ++ a
+      val irF = { irs: Seq[IR] => ToDict(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(telt), TArray(telt))
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
-
-      Region.scoped[Boolean] { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(telt)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(telt), array)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(telt), region, res)
+      Region.scoped { region =>
+        val actual = f(region, Seq(array)).asInstanceOf[IndexedSeq[Row]]
         val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
         val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
         val expectedKeys = expectedMap.keys.toIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
@@ -233,19 +202,12 @@ class OrderingSuite {
 
     for (irF <- irs) {
       val ir = IsNA(irF(NA(tarray)))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Boolean]
+      val fb = EmitFunctionBuilder[Region, Boolean]
       Emit(ir, fb)
 
       val f = fb.result()()
       Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(tarray)
-        rvb.startArray(0)
-        rvb.endArray()
-        val off = rvb.end()
-
-        assert(f(region, off, false))
+        assert(f(region))
       }
     }
   }
@@ -253,48 +215,22 @@ class OrderingSuite {
   @Test def testSetContainsOnRandomSet() {
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
-    val p = Prop.forAll(compareGen) { case (tset, a, testElem1) =>
+    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any], test1: Any) =>
       val telt = tset.elementType
-      val set: Set[Any] = a.asInstanceOf[Set[Any]]
-      val ir = SetContains(GetTupleElement(In(0, TTuple(tset)), 0),
-          GetTupleElement(In(1, TTuple(telt)), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
+      val ir = { irs: Seq[IR] => SetContains(irs(0), irs(1)) }
+      val setcontainsF = getCompiledFunction(ir, tset, telt, TBoolean())
 
       Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(tset))
-        rvb.startTuple()
-        rvb.addAnnotation(tset, set)
-        rvb.endTuple()
-        val doff = rvb.end()
-
-        rvb.start(TTuple(telt))
-        rvb.startTuple()
-        rvb.addAnnotation(telt, testElem1)
-        rvb.endTuple()
-        val k1off = rvb.end()
-
         if (set.nonEmpty) {
-          val testElem2 = set.head
-
-          rvb.start(TTuple(telt))
-          rvb.startTuple()
-          rvb.addAnnotation(telt, testElem2)
-          rvb.endTuple()
-          val k2off = rvb.end()
-
-          val expected2 = set.contains(testElem2)
-          val actual2 = f(region, doff, false, k2off, false)
+          val test2 = set.head
+          val expected2 = set(test2)
+          val actual2 = setcontainsF(region, Seq(set, test2))
           assert(expected2 == actual2)
         }
 
-        val expected1 = set.contains(testElem1)
-        val actual1 = f(region, doff, false, k1off, false)
+        val expected1 = set.contains(test1)
+        val actual1 = setcontainsF(region, Seq(set, test1))
 
         expected1 == actual1
       }
