@@ -201,7 +201,7 @@ def extract_refs_by_indices(exprs, indices):
     """
     s = set()
     for e in exprs:
-        for name, inds in get_refs(e):
+        for name, inds in get_refs(e).items():
             if inds == indices:
                 s.add(name)
     return s
