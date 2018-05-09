@@ -11,9 +11,9 @@ UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 
 ifndef JAVA_HOME
-  TMP :=$(shell java -SshowSettings:properties -version 2>&1 | fgrep -i java.home)
+  TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
   ifneq ($(TMP),)
-    JAVA_HOME := $(filter-out java.home =,$(TMP))
+    JAVA_HOME := $(shell dirname $(filter-out java.home =,$(TMP)))
   endif
 endif
 
