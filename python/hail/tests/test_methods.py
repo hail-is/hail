@@ -1947,3 +1947,22 @@ class Tests(unittest.TestCase):
 
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
+
+    def test_window_by_locus(self):
+        mt = hl.utils.range_matrix_table(100, 2, n_partitions=10)
+        mt = mt.annotate_rows(locus=hl.locus('1', mt.row_idx + 1), alleles=['A', 'T']).key_rows_by('locus', 'alleles')
+        mt = mt.annotate_entries(e_row_idx = mt.row_idx, e_col_idx = mt.col_idx)
+        mt = hl.window_by_locus(mt, 5).cache()
+
+        self.assertEqual(mt.count_rows(), 100)
+
+        rows = mt.rows()
+        self.assertTrue(rows.all((rows.row_idx < 5) | (rows.prev_rows.length() == 5)))
+        self.assertTrue(rows.all(hl.all(lambda x: (rows.row_idx - 1 - x[0]) == x[1].row_idx,
+                                        hl.zip_with_index(rows.prev_rows))))
+
+        entries = mt.entries()
+        self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
+        self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
+                                           hl.zip_with_index(entries.prev_entries))))
+
