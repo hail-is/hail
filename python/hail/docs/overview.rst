@@ -874,15 +874,13 @@ However, be aware that all top-level field names must be unique. In this
 example, `**mt['info']` would fail because `DP` already exists as an entry
 field.
 
-The example below will keep the row fields `locus` and `alleles` as well as add
+The example below will keep the row keys `locus` and `alleles` as well as add
 two new fields: `AC` is making the subfield `AC` into a top level field and
 `n_filters` is a new computed field.
 
 .. doctest::
 
-    >>> mt_new = mt.select_rows('locus',
-    ...                         'alleles',
-    ...                         AC = mt.info.AC,
+    >>> mt_new = mt.select_rows(AC = mt.info.AC,
     ...                         n_filters = hl.len(mt['filters']))
 
 The order of the fields entered as arguments will be maintained in the new
