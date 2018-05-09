@@ -26,7 +26,11 @@ object Interpret {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
-    var ir = ir0
+    def unwrap: IR => IR = {
+      case node: ApplyIR => Recur(unwrap)(node.explicitNode)
+      case node => Recur(unwrap)(node)
+    }
+    var ir = unwrap(ir0)
     if (optimize)
       ir = Optimize(ir)
     TypeCheck(ir, agg.map(_._1), typeEnv)
