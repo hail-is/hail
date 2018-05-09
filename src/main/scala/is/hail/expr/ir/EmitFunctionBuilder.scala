@@ -75,7 +75,9 @@ class EmitFunctionBuilder[F >: Null](
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup))
+    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](
+      Code.invokeScalaObject[String, ReferenceGenome](
+        ReferenceGenome.getClass, "getReference", const(rg.name))))
 
   def numTypes: Int = typMap.size
 

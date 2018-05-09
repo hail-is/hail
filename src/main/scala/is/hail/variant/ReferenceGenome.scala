@@ -456,19 +456,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     implicit val formats: Formats = defaultJSONFormats
     Serialization.write(jrg)
   }
-
-  def codeSetup: Code[ReferenceGenome] = {
-    val json = toJSONString
-    val chunkSize = (1 << 16) - 1
-    val nChunks = (json.length() - 1) / chunkSize + 1
-    assert(nChunks > 0)
-
-    val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
-    val stringAssembler =
-      chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
-
-    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
-  }
 }
 
 object ReferenceGenome {
@@ -526,11 +513,6 @@ object ReferenceGenome {
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
-  }
-
-  def parse(str: String): ReferenceGenome = {
-    implicit val formats = defaultJSONFormats
-    JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def fromResource(file: String): ReferenceGenome = {

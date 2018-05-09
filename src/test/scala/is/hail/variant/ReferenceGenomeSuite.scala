@@ -5,6 +5,7 @@ import java.io.FileNotFoundException
 import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.{TInterval, TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
@@ -300,9 +301,9 @@ class ReferenceGenomeSuite extends SparkSuite {
 
   @Test def testSerializeOnFB() {
     val grch38 = ReferenceGenome.GRCh38
-    val fb = FunctionBuilder.functionBuilder[String, Boolean]
+    val fb = EmitFunctionBuilder[String, Boolean]
 
-    val rgfield = fb.newLazyField(grch38.codeSetup)
+    val rgfield = fb.getReferenceGenome(grch38)
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
     val f = fb.result()()
