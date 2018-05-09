@@ -9,15 +9,15 @@ import is.hail.variant.Locus
 
 object LocusFunctions extends RegistryFunctions {
 
-  def getLocus(mb: EmitMethodBuilder, locus: Code[Long]): Code[Locus] = {
-    val tlocus = types.coerce[TLocus](tv("T").t)
+  def getLocus(mb: EmitMethodBuilder, locus: Code[Long], typeString: String): Code[Locus] = {
+    val tlocus = types.coerce[TLocus](tv(typeString).t)
     asm4s.coerce[Locus](wrapArg(mb, tlocus)(locus))
   }
 
   def registerAll() {
     registerCode("contig", tv("T", _.isInstanceOf[TLocus]), TString()) {
       case (mb, locus: Code[Long]) =>
-        val locusObject = getLocus(mb, locus)
+        val locusObject = getLocus(mb, locus, "T")
         unwrapReturn(mb, TString())(locusObject.invoke[String]("contig"))
     }
   }
