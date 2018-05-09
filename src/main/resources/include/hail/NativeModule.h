@@ -1,32 +1,26 @@
 #ifndef HAIL_NATIVEMODULE_H
 #define HAIL_NATIVEMODULE_H 1
-//
-// Declarations corresponding to NativeModule.scala
-//
-// Richard Cownie, Hail Team, 2018-04-12
-//
-#include "hail/CommonDefs.h"
+
 #include "hail/NativeObj.h"
 #include "hail/NativeStatus.h"
 #include <jni.h>
 #include <string>
 
-NAMESPACE_BEGIN(hail)
+namespace hail {
 
-//
 // Off-heap object referenced by Scala NativeModule
-//
+
 class NativeModule : public NativeObj {
 public:
   enum State { kInit, kPass, kFail };
 public:
-  State buildState_;
-  State loadState_;
+  State build_state_;
+  State load_state_;
   std::string key_;
-  bool isGlobal_;
-  void* dlopenHandle_;
-  std::string libName_;
-  std::string newName_;
+  bool is_global_;
+  void* dlopen_handle_;
+  std::string lib_name_;
+  std::string new_name_;
   
 public:
   NativeModule(const char* options, const char* source, const char* include, bool forceBuild);
@@ -35,17 +29,17 @@ public:
 
   virtual ~NativeModule();
   
-  virtual const char* getClassName() {
+  virtual const char* get_class_name() {
     return "NativeModule";
   }
   
-  bool tryWaitForBuild();
+  bool try_wait_for_build();
   
-  bool tryLoad();
+  bool try_load();
   
-  void findLongFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
+  void find_LongFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
 
-  void findPtrFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
+  void find_PtrFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
 
 private:
   // disallow copy-construct
@@ -54,13 +48,11 @@ private:
   NativeModule& operator=(const NativeModule& b);
 };
 
-//
 // Each NativeFunc or NativeMaker holds a NativeModulePtr
 // to ensure that the module can't be dlclose'd while
 // its func's might still be called.
-//
-typedef std::shared_ptr<NativeModule> NativeModulePtr;
+using NativeModulePtr = std::shared_ptr<NativeModule>;
 
-NAMESPACE_END(hail)
+} // end hail
 
 #endif

@@ -1,17 +1,12 @@
 #ifndef HAIL_NATIVEPTR_H
 #define HAIL_NATIVEPTR_H 1
-//
-// include/hail/NativePtr.h
-//
-// Richard Cownie, Hail Team, 2018-04-03
-//
-#include "hail/CommonDefs.h"
+
 #include "hail/NativeObj.h"
 #include "hail/NativeModule.h"
 #include <jni.h>
 #include <memory>
 
-NAMESPACE_BEGIN(hail)
+namespace hail {
 
 typedef long LongFuncN(...);
 typedef NativeObjPtr PtrFuncN(...);
@@ -43,9 +38,7 @@ private:
   
 };
 
-//
 // Simple class to manage conversion of Java/Scala String params
-//
 class JString {
 private:
   JNIEnv* env_;
@@ -67,20 +60,20 @@ public:
   }
 };
 
-inline PtrFuncN* getPtrFuncN(long addr) {
+inline PtrFuncN* get_PtrFuncN(long addr) {
   return reinterpret_cast< NativeFuncObj<NativeObjPtr>* >(addr)->func_;
 }
 
-inline LongFuncN* getLongFuncN(long addr) {
+inline LongFuncN* get_LongFuncN(long addr) {
   return reinterpret_cast< NativeFuncObj<long>* >(addr)->func_;
 }
 
-NativeObj* getFromNativePtr(JNIEnv* env, jobject obj);
+NativeObj* get_from_NativePtr(JNIEnv* env, jobject obj);
 
-void initNativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
+void init_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
 
-void moveToNativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
+void move_to_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
 
-NAMESPACE_END(hail)
+} // end hail
 
 #endif

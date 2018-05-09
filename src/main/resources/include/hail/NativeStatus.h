@@ -1,16 +1,11 @@
 #ifndef HAIL_NATIVESTATUS_H
 #define HAIL_NATIVESTATUS_H 1
-//
-// include/hail/NativeStatus.h - status/error-reporting
-//
-// Richard Cownie, Hail Team, 2018-04-24
-//
-#include "hail/CommonDefs.h"
+
 #include "hail/NativeObj.h"
 #include <string>
 #include <stdarg.h>
 
-NAMESPACE_BEGIN(hail)
+namespace hail {
 
 class NativeStatus : public NativeObj {
 public:
@@ -41,11 +36,11 @@ public:
   }
 };
 
-typedef std::shared_ptr<NativeStatus> NativeStatusPtr;
+using NativeStatusPtr = std::shared_ptr<NativeStatus>;
 
 #define NATIVE_ERROR(_p, _code, _msg, ...) \
    { (_p)->set(__FILE__, __LINE__, _code, _msg, ##__VA_ARGS__); }
 
-NAMESPACE_END(hail)
+} // end hail
 
 #endif
