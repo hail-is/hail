@@ -1,4 +1,4 @@
-.PHONY: default test clean libsimdpp
+.PHONY: all test clean libsimdpp
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
@@ -56,9 +56,6 @@ endif
 
 # append existing flags so they override our flags
 CXXFLAGS += -O3 -march=native -g $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
-ifeq ($(UNAME_S),Linux)
-#CXXFLAGS += --no-strict-aliasing
-endif
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -89,10 +86,9 @@ test: build/functional-tests
 	./build/functional-tests
 
 clean:
-	@echo CXX $(CXX)
-	rm -rf lib
-	rm -rf build
-	rm -rf *.o
+	-rm -rf build lib
+	-rm -rf *.o
+	-rm -f headers
 	echo done
 
 headers: $(shell /usr/bin/find ../resources/include -name "*.h")

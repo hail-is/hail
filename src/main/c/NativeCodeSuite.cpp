@@ -1,7 +1,4 @@
-//
 // Functions used by NativeCodeSuite.scala
-//
-#include <stdio.h>
 
 extern "C" {
 

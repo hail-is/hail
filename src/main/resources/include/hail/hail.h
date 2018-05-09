@@ -10,12 +10,12 @@
 // hash key, which will then be used both to generate the filename for the
 // .cpp and .so (or .dylib) files.
 //
-// This hashcode will also be provided as -DHAIL_MODULE_KEY when compiling
-// the code.
+// This hashcode will also be provided as part of -DHAIL_MODULE when
+// compiling the code.
 
 #define NAMESPACE_HAIL_MODULE_BEGIN \
   namespace hail { \
-  namespace module_##HAIL_MODULE_KEY {
+  namespace HAIL_MODULE {
 
 #define NAMESPACE_HAIL_MODULE_END \
   } }

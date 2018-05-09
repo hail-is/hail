@@ -1,10 +1,5 @@
-//
 // src/main/c/NativeModule.cpp - native funcs for Scala NativeModule
-//
-// Richard Cownie, Hail Team, 2018-04-12
-//
 #include "hail/NativeModule.h"
-#include "hail/CommonDefs.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"
 #include <assert.h>
@@ -34,20 +29,16 @@
 #define D(fmt, ...) { }
 #endif
 
-NAMESPACE_BEGIN(hail)
+namespace hail {
 
-NAMESPACE_BEGIN_ANON
+namespace {
 
-//
 // File-polling interval in usecs
-//
 const int kFilePollMicrosecs = 50000;
 
-//
 // A quick-and-dirty way to get a hash of two strings, take 80bits,
 // and produce a 20byte string of hex digits.
-//
-std::string hashTwoStrings(const std::string& a, const std::string& b) {
+std::string hash_two_strings(const std::string& a, const std::string& b) {
   auto hashA = std::hash<std::string>()(a);
   auto hashB = std::hash<std::string>()(b);
   hashA ^= (0x3ac5*hashB);
@@ -61,7 +52,7 @@ std::string hashTwoStrings(const std::string& a, const std::string& b) {
   return std::string(buf);
 }
 
-bool fileExistsAndIsRecent(const std::string& name) {
+bool file_exists_and_is_recent(const std::string& name) {
   time_t now = ::time(nullptr);
   struct stat st;
   st.st_mtime = now;
@@ -73,7 +64,7 @@ bool fileExistsAndIsRecent(const std::string& name) {
   return ((rc == 0) && (st.st_mtime+120 > now));
 }
 
-bool fileExists(const std::string& name) {
+bool file_exists(const std::string& name) {
   int rc;
   struct stat st;
   do {
@@ -83,7 +74,7 @@ bool fileExists(const std::string& name) {
   return(rc == 0);
 }
 
-long fileSize(const std::string& name) {
+long file_size(const std::string& name) {
   int rc;
   struct stat st;
   do {
@@ -93,7 +84,7 @@ long fileSize(const std::string& name) {
   return((rc < 0) ? -1 : st.st_size);
 }
 
-std::string readFileAsString(const std::string& name) {
+std::string read_file_as_string(const std::string& name) {
   FILE* f = fopen(name.c_str(), "r");
   if (!f) return std::string("");
   std::stringstream ss;
@@ -106,15 +97,13 @@ std::string readFileAsString(const std::string& name) {
   return ss.str();
 }
 
-const char* getenvWithDefault(const char* name, const char* defaultVal) {
+std::string getenv_with_default(const char* name, const char* dval) {
   const char* s = ::getenv(name);
-  return(s ? s : defaultVal);
+  return std::string(s ? s : dval);
 }
 
-std::string lastMatch(const char* pattern) {
-  std::stringstream ss;
-  ss << "/bin/ls -d " << pattern << " 2>/dev/null | tail -1";
-  FILE* f = popen(ss.str().c_str(), "r");
+std::string run_shell_get_first_line(const char* cmd) {
+  FILE* f = popen(cmd, "r");
   char buf[1024];
   size_t len = 0;
   if (f) {
@@ -126,83 +115,92 @@ std::string lastMatch(const char* pattern) {
     pclose(f);
   }
   buf[len] = 0;
-  //fprintf(stderr, "DEBUG: lastMatch(%s) -> %s\n", pattern, buf);
   return std::string(buf);
+}
+
+std::string get_java_home() {
+  auto s = run_shell_get_first_line(
+    "java -XshowSettings:properties -version 2>&1 | fgrep -i java.home"
+  );
+  auto p = strstr(s.c_str(), "java.home = ");
+  if (p) {
+    return std::string(p+12);
+  } else {
+    return std::string(getenv_with_default("JAVA_HOME", "JAVA_HOME_undefined"));
+  }
+}
+
+std::string get_cxx_name() {
+  char* p = ::getenv("CXX");
+  if (p) return std::string(p);
+  // We prefer clang because it has faster compile
+  auto s = run_shell_get_first_line("which clang");
+  if (strstr(s.c_str(), "clang")) return s;
+  s = run_shell_get_first_line("which g++");
+  if (strstr(s.c_str(), "g++")) return s;
+  // The last guess is to just say "c++"
+  return std::string("c++");
 }
 
 class ModuleConfig {
 public:
-  bool isOsDarwin_;
-  std::string extCpp_;
-  std::string extLib_;
-  std::string extMak_;
-  std::string extNew_;
-  std::string moduleDir_;
-  std::string cxxName_;
-  std::string llvmHome_;
-  std::string javaHome_;
-  std::string javaMD_;
+  bool is_darwin_;
+  std::string ext_cpp_;
+  std::string ext_lib_;
+  std::string ext_mak_;
+  std::string ext_new_;
+  std::string module_dir_;
+  std::string cxx_name_;
+  std::string java_home_;
+  std::string java_md_;
 
 public:
   ModuleConfig() :
 #if defined(__APPLE__) && defined(__MACH__)
-    isOsDarwin_(true),
+    is_darwin_(true),
 #else
-    isOsDarwin_(false),
+    is_darwin_(false),
 #endif
-    extCpp_(".cpp"),
-    extLib_(isOsDarwin_ ? ".dylib" : ".so"),
-    extMak_(".mak"),
-    extNew_(".new"),
-    moduleDir_() {
-    const char* envHome = getenvWithDefault("HOME", "/tmp");
-    moduleDir_ = (std::string(envHome) + "/hail_modules");
-    if (isOsDarwin_) {
-      llvmHome_ = lastMatch("/usr /usr/local/*llvm-6*x86_64*darwin");
-      cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "c++");
-      if (cxxName_ == "c++") llvmHome_ = "/usr";
-      javaHome_ = "/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home";
-      javaMD_ = "darwin";
-    } else {
-      llvmHome_ = lastMatch("/usr/l*/llvm* /usr/l*/llvm-5* /usr/l*/llvm-6*");
-      cxxName_ = (fileExists(llvmHome_+"/bin/clang") ? "clang" : "g++");
-      if (cxxName_ == "g++") llvmHome_ = "/usr";
-      javaHome_ = "/usr/lib/jvm/default-java";
-      javaMD_ = "linux";
-    }
+    ext_cpp_(".cpp"),
+    ext_lib_(is_darwin_ ? ".dylib" : ".so"),
+    ext_mak_(".mak"),
+    ext_new_(".new"),
+    module_dir_(getenv_with_default("HOME", "/tmp")+"/hail_modules"),
+    cxx_name_(get_cxx_name()),
+    java_home_(get_java_home()),
+    java_md_(is_darwin_ ? "darwin" : "linux") {
+    
   }
   
-  std::string getLibName(const std::string& key) {
+  std::string get_lib_name(const std::string& key) {
     std:: stringstream ss;
-    ss << moduleDir_ << "/hm_" << key  << extLib_;
+    ss << module_dir_ << "/hm_" << key  << ext_lib_;
     return ss.str();
   }
   
-  std::string getNewName(const std::string& key) {
+  std::string get_new_name(const std::string& key) {
     std:: stringstream ss;
-    ss << moduleDir_ << "/hm_" << key  << extNew_;
+    ss << module_dir_ << "/hm_" << key  << ext_new_;
     return ss.str();
   }
   
-  void ensureModuleDirExists() {
-    int rc = ::access(moduleDir_.c_str(), R_OK);
+  void ensure_module_dir_exists() {
+    int rc = ::access(module_dir_.c_str(), R_OK);
     if (rc < 0) { // create it
-      rc = ::mkdir(moduleDir_.c_str(), 0666);
-      if (rc < 0) perror(moduleDir_.c_str());
-      rc = ::chmod(moduleDir_.c_str(), 0755);
+      rc = ::mkdir(module_dir_.c_str(), 0666);
+      if (rc < 0) perror(module_dir_.c_str());
+      rc = ::chmod(module_dir_.c_str(), 0755);
     }
   }
 };
 
 ModuleConfig config;
 
-NAMESPACE_END_ANON
+} // end anon
 
-//
 // ModuleBuilder deals with compiling/linking source code to a DLL,
 // and providing the binary DLL as an Array[Byte] which can be broadcast
 // to all workers.
-//
 
 class ModuleBuilder {
 private:
@@ -210,11 +208,11 @@ private:
   std::string source_;
   std::string include_;
   std::string key_;
-  std::string moduleBase_;
-  std::string moduleMak_;
-  std::string moduleCpp_;
-  std::string moduleNew_;
-  std::string moduleLib_;
+  std::string hm_base_;
+  std::string hm_mak_;
+  std::string hm_cpp_;
+  std::string hm_new_;
+  std::string hm_lib_;
   
 public:
   ModuleBuilder(
@@ -228,45 +226,43 @@ public:
     include_(include),
     key_(key) {
     // To start with, put dynamic code in $HOME/hail_modules
-    auto base = (config.moduleDir_ + "/hm_") + key_;
-    moduleBase_ = base;
-    moduleMak_ = (base + config.extMak_);
-    moduleCpp_ = (base + config.extCpp_);
-    moduleNew_ = (base + config.extNew_);
-    moduleLib_ = (base + config.extLib_);
+    auto base = (config.module_dir_ + "/hm_") + key_;
+    hm_base_ = base;
+    hm_mak_ = (base + config.ext_mak_);
+    hm_cpp_ = (base + config.ext_cpp_);
+    hm_new_ = (base + config.ext_new_);
+    hm_lib_ = (base + config.ext_lib_);
   }
   
   virtual ~ModuleBuilder() { }
   
 private:
-  void writeSource() {
-    FILE* f = fopen(moduleCpp_.c_str(), "w");
+  void write_cpp() {
+    FILE* f = fopen(hm_cpp_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
     fwrite(source_.data(), 1, source_.length(), f);
     fclose(f);
   }
   
-  void writeMakefile() {
-    FILE* f = fopen(moduleMak_.c_str(), "w");
+  void write_mak() {
+    FILE* f = fopen(hm_mak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
-    std::string javaHome = config.javaHome_;
-    std::string javaMD = config.javaMD_;
+    std::string javaHome = config.java_home_;
+    std::string javaMD = config.java_md_;
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
-    fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.extLib_.c_str());
-    fprintf(f, "CXX       := %s/bin/%s\n", 
-      config.llvmHome_.c_str(), config.cxxName_.c_str());
+    fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
+    fprintf(f, "CXX       := %s\n", config.cxx_name_.c_str());
     // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
     fprintf(f, "CXXFLAGS  := \\\n");
     fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n");
-    fprintf(f, "  -I%s/include -I%s/include/%s \\\n", 
-      javaHome.c_str(), javaHome.c_str(), javaMD.c_str());
-    const char* userOptions = options_.c_str();
-    fprintf(f, "  %s%s\\\n",
-      strstr(userOptions, "-O") ? "" : "-O3 ", userOptions);
+    fprintf(f, "  -I%s/include \\\n", config.java_home_.c_str());
+    fprintf(f, "  -I%s/include/%s \\\n", config.java_home_.c_str(), config.java_md_.c_str());
     fprintf(f, "  -I%s \\\n", include_.c_str());
+    bool have_oflag = (strstr(options_.c_str(), "-O") != nullptr);
+    fprintf(f, "  %s%s \\\n", have_oflag ? "" : "-O3", options_.c_str());
     fprintf(f, "  -DHAIL_MODULE=$(MODULE)\n");
     fprintf(f, "LIBFLAGS := -fvisibility=default %s\n", 
-      config.isOsDarwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
+      config.is_darwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
                          : "-rdynamic -shared");
     fprintf(f, "\n");
     // top target is the .so
@@ -283,9 +279,9 @@ private:
   }
 
 public:
-  bool tryToStartBuild() {
+  bool try_to_start_build() {
     // Try to create the .new file
-    FILE* f = fopen(moduleNew_.c_str(), "w+");
+    FILE* f = fopen(hm_new_.c_str(), "w+");
     if (!f) {
       // We lost the race to start the build
       return false;
@@ -293,11 +289,11 @@ public:
     fclose(f);
     // The .new file may look the same age as the .cpp file, but
     // the makefile is written to ignore the .new timestamp
-    writeMakefile();
-    writeSource();
+    write_mak();
+    write_cpp();
     std::stringstream ss;
     // ss << "/usr/bin/nohup ";
-    ss << "/usr/bin/make -C " << config.moduleDir_ << " -f " << moduleMak_;
+    ss << "/usr/bin/make -C " << config.module_dir_ << " -f " << hm_mak_;
     ss << " >/dev/null &";
     int rc = system(ss.str().c_str());
     if (rc < 0) perror("system");
@@ -309,141 +305,129 @@ NativeModule::NativeModule(
   const char* options,
   const char* source,
   const char* include,
-  bool forceBuild
+  bool force_build
 ) :
-  buildState_(kInit),
-  loadState_(kInit),
-  key_(hashTwoStrings(options, source)),
-  isGlobal_(false),
-  dlopenHandle_(nullptr),
-  libName_(config.getLibName(key_)),
-  newName_(config.getNewName(key_)) {
-  //
+  build_state_(kInit),
+  load_state_(kInit),
+  key_(hash_two_strings(options, source)),
+  is_global_(false),
+  dlopen_handle_(nullptr),
+  lib_name_(config.get_lib_name(key_)),
+  new_name_(config.get_new_name(key_)) {
   // Master constructor - try to get module built in local file
-  //
-  config.ensureModuleDirExists();
-  if (!forceBuild && fileExists(libName_)) {
-    buildState_ = kPass;
+  config.ensure_module_dir_exists();
+  if (!force_build && file_exists(lib_name_)) {
+    build_state_ = kPass;
   } else {
-    //
     // The file doesn't exist, let's start building it
-    //
     ModuleBuilder builder(options, source, include, key_);
-    builder.tryToStartBuild();
+    builder.try_to_start_build();
   }
 }
 
 NativeModule::NativeModule(
-  bool isGlobal,
+  bool is_global,
   const char* key,
-  long binarySize,
+  long binary_size,
   const void* binary
 ) :
-  buildState_(isGlobal ? kPass : kInit),
-  loadState_(isGlobal ? kPass : kInit),
+  build_state_(is_global ? kPass : kInit),
+  load_state_(is_global ? kPass : kInit),
   key_(key),
-  isGlobal_(isGlobal),
-  dlopenHandle_(nullptr),
-  libName_(config.getLibName(key_)),
-  newName_(config.getNewName(key_)) {
-  //
+  is_global_(is_global),
+  dlopen_handle_(nullptr),
+  lib_name_(config.get_lib_name(key_)),
+  new_name_(config.get_new_name(key_)) {
   // Worker constructor - try to get the binary written to local file
-  //
-  if (isGlobal_) return;
+  if (is_global_) return;
   int rc = 0;
-  config.ensureModuleDirExists();
+  config.ensure_module_dir_exists();
   for (;;) {
-    if (fileExists(libName_) && (fileSize(libName_) == binarySize)) {
-      buildState_ = kPass;
+    if (file_exists(lib_name_) && (file_size(lib_name_) == binary_size)) {
+      build_state_ = kPass;
       break;
     }
     // Race to write the new file
-    int fd = open(newName_.c_str(), O_WRONLY|O_CREAT|O_EXCL|O_TRUNC, 0666);
+    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_EXCL|O_TRUNC, 0666);
     if (fd >= 0) {
-      //
       // Now we're about to write the new file
-      //
-      rc = write(fd, binary, binarySize);
-      assert(rc == binarySize);
+      rc = write(fd, binary, binary_size);
+      assert(rc == binary_size);
       close(fd);
-      ::chmod(newName_.c_str(), 0644);
-      if (!fileExists(libName_)) {
+      ::chmod(new_name_.c_str(), 0644);
+      if (!file_exists(lib_name_)) {
         // Don't let anyone see the file until it is completely written
-        rc = ::rename(newName_.c_str(), libName_.c_str());
-        buildState_ = ((rc == 0) ? kPass : kFail);
+        rc = ::rename(new_name_.c_str(), lib_name_.c_str());
+        build_state_ = ((rc == 0) ? kPass : kFail);
         break;
       }
     } else {
-      //
       // Someone else is writing to new
-      //
-      while (fileExistsAndIsRecent(newName_) && !fileExists(libName_)) {
+      while (file_exists_and_is_recent(new_name_) && !file_exists(lib_name_)) {
         usleep(kFilePollMicrosecs);
       }
     }
   }
-  if (buildState_ == kPass) tryLoad();
+  if (build_state_ == kPass) try_load();
 }
 
 NativeModule::~NativeModule() {
-  if (!isGlobal_ && dlopenHandle_) {
-    dlclose(dlopenHandle_);
+  if (!is_global_ && dlopen_handle_) {
+    dlclose(dlopen_handle_);
   }
 }
 
-bool NativeModule::tryWaitForBuild() {
-  if (buildState_ == kInit) {
-    //
+bool NativeModule::try_wait_for_build() {
+  if (build_state_ == kInit) {
     // The writer will rename new to lib.  If we tested exists(lib)
     // followed by exists(new) then the rename could occur between
     // the two tests. This way is safe provided that either rename is atomic,
     // or rename creates the new name before destroying the old name.
-    //
-    while (fileExistsAndIsRecent(newName_)) {
+    while (file_exists_and_is_recent(new_name_)) {
       usleep(kFilePollMicrosecs);
     }
-    buildState_ = (fileExists(libName_) ? kPass : kFail);
-    if (buildState_ == kFail) {
-      std::string base(config.moduleDir_ + "/hm_" + key_);
-      fprintf(stderr, "makefile:\n%s", readFileAsString(base+".mak").c_str());
-      fprintf(stderr, "errors:\n%s",   readFileAsString(base+".err").c_str());
+    build_state_ = (file_exists(lib_name_) ? kPass : kFail);
+    if (build_state_ == kFail) {
+      std::string base(config.module_dir_ + "/hm_" + key_);
+      fprintf(stderr, "makefile:\n%s", read_file_as_string(base+".mak").c_str());
+      fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
     }
   }
-  return(buildState_ == kPass);
+  return(build_state_ == kPass);
 }
 
-bool NativeModule::tryLoad() {
-  if (loadState_ == kInit) {
-    if (isGlobal_) {
-      loadState_ = kPass;
-    } else if (!tryWaitForBuild()) {
-      fprintf(stderr, "libName %s tryWaitForBuild fail\n", libName_.c_str());
-      loadState_ = kFail;
+bool NativeModule::try_load() {
+  if (load_state_ == kInit) {
+    if (is_global_) {
+      load_state_ = kPass;
+    } else if (!try_wait_for_build()) {
+      fprintf(stderr, "libName %s try_wait_for_build fail\n", lib_name_.c_str());
+      load_state_ = kFail;
     } else {
-      auto handle = dlopen(libName_.c_str(), RTLD_GLOBAL|RTLD_LAZY);
+      auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_LAZY);
       if (!handle) {
         fprintf(stderr, "dlopen failed: %s\n", dlerror());
       }
-      loadState_ = (handle ? kPass : kFail);
-      if (handle) dlopenHandle_ = handle;
+      load_state_ = (handle ? kPass : kFail);
+      if (handle) dlopen_handle_ = handle;
     }
   }
-  return(loadState_ == kPass);
+  return(load_state_ == kPass);
 }
 
-static std::string toQualifiedName(
+static std::string to_qualified_name(
   JNIEnv* env,
   const std::string& key,
   jstring nameJ,
   int numArgs,
-  bool isGlobal
+  bool is_global
 ) {
   JString name(env, nameJ);
   char argTypeCodes[32];
   for (int j = 0; j < numArgs; ++j) argTypeCodes[j] = 'l';
   argTypeCodes[numArgs] = 0;  
   char buf[512];
-  if (isGlobal) {
+  if (is_global) {
     // No name-mangling for global func names
     strcpy(buf, name);
   } else {
@@ -454,7 +438,7 @@ static std::string toQualifiedName(
   return std::string(buf);
 }
 
-void NativeModule::findLongFuncL(
+void NativeModule::find_LongFuncL(
   JNIEnv* env,
   NativeStatus* st,
   jobject funcObj,
@@ -462,22 +446,22 @@ void NativeModule::findLongFuncL(
   int numArgs
 ) {
   void* funcAddr = nullptr;
-  if (!tryLoad()) {
+  if (!try_load()) {
     NATIVE_ERROR(st, 1001, "ErrModuleNotFound");
   } else {
-    auto qualName = toQualifiedName(env, key_, nameJ, numArgs, isGlobal_);
-    D("isGlobal %s qualName \"%s\"\n", isGlobal_ ? "true" : "false", qualName.c_str());    
-    funcAddr = ::dlsym(isGlobal_ ? RTLD_DEFAULT : dlopenHandle_, qualName.c_str());
+    auto qualName = to_qualified_name(env, key_, nameJ, numArgs, is_global_);
+    D("is_global %s qualName \"%s\"\n", is_global_ ? "true" : "false", qualName.c_str());    
+    funcAddr = ::dlsym(is_global_ ? RTLD_DEFAULT : dlopen_handle_, qualName.c_str());
     D("dlsym -> funcAddr %p\n", funcAddr);
     if (!funcAddr) {
       NATIVE_ERROR(st, 1003, "ErrLongFuncNotFound dlsym(\"%s\")", qualName.c_str());
     }
   }
   auto ptr = MAKE_NATIVE(NativeFuncObj<long>, shared_from_this(), funcAddr);
-  initNativePtr(env, funcObj, &ptr);
+  init_NativePtr(env, funcObj, &ptr);
 }
 
-void NativeModule::findPtrFuncL(
+void NativeModule::find_PtrFuncL(
   JNIEnv* env,
   NativeStatus* st,
   jobject funcObj,
@@ -485,87 +469,86 @@ void NativeModule::findPtrFuncL(
   int numArgs
 ) {
   void* funcAddr = nullptr;
-  if (!tryLoad()) {
+  if (!try_load()) {
     NATIVE_ERROR(st, 1001, "ErrModuleNotFound");
   } else {
-    auto qualName = toQualifiedName(env, key_, nameJ, numArgs, isGlobal_);
-    funcAddr = ::dlsym(isGlobal_ ? RTLD_DEFAULT : dlopenHandle_, qualName.c_str());
+    auto qualName = to_qualified_name(env, key_, nameJ, numArgs, is_global_);
+    funcAddr = ::dlsym(is_global_ ? RTLD_DEFAULT : dlopen_handle_, qualName.c_str());
     if (!funcAddr) {
       NATIVE_ERROR(st, 1003, "ErrPtrFuncNotFound dlsym(\"%s\")", qualName.c_str());
     }
   }
   auto ptr = MAKE_NATIVE(NativeFuncObj<NativeObjPtr>, shared_from_this(), funcAddr);
-  initNativePtr(env, funcObj, &ptr);
+  init_NativePtr(env, funcObj, &ptr);
 }
 
-//
 // Functions implementing NativeModule native methods
-//
-static NativeModule* toNativeModule(JNIEnv* env, jobject obj) {
+
+static NativeModule* to_NativeModule(JNIEnv* env, jobject obj) {
   // It should be a dynamic_cast, but I'm trying to eliminate
   // the use of RTTI which is problematic in dynamic libraries
-  return reinterpret_cast<NativeModule*>(getFromNativePtr(env, obj));
+  return reinterpret_cast<NativeModule*>(get_from_NativePtr(env, obj));
 }
 
 NATIVEMETHOD(void, NativeModule, nativeCtorMaster)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jstring optionsJ,
   jstring sourceJ,
   jstring includeJ,
-  jboolean forceBuildJ
+  jboolean force_buildJ
 ) {
   JString options(env, optionsJ);
   JString source(env, sourceJ);
   JString include(env, includeJ);
-  bool forceBuild = (forceBuildJ != JNI_FALSE);
-  auto ptr = MAKE_NATIVE(NativeModule, options, source, include, forceBuild);
-  initNativePtr(env, thisObj, &ptr);
+  bool force_build = (force_buildJ != JNI_FALSE);
+  auto ptr = MAKE_NATIVE(NativeModule, options, source, include, force_build);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
   JNIEnv* env,
-  jobject thisObj,
-  jboolean isGlobalJ,
+  jobject thisJ,
+  jboolean is_globalJ,
   jstring keyJ,
   jbyteArray binaryJ
 ) {
-  bool isGlobal = (isGlobalJ != JNI_FALSE);
+  bool is_global = (is_globalJ != JNI_FALSE);
   JString key(env, keyJ);
-  long binarySize = env->GetArrayLength(binaryJ);
+  long binary_size = env->GetArrayLength(binaryJ);
   auto binary = env->GetByteArrayElements(binaryJ, 0);
-  auto ptr = MAKE_NATIVE(NativeModule, isGlobal, key, binarySize, binary);
+  auto ptr = MAKE_NATIVE(NativeModule, is_global, key, binary_size, binary);
   env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
-  initNativePtr(env, thisObj, &ptr);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativeModule, nativeFindOrBuild)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   long stAddr
 ) {
-  auto mod = toNativeModule(env, thisObj);
+  auto mod = to_NativeModule(env, thisJ);
   auto st = reinterpret_cast<NativeStatus*>(stAddr);
   st->clear();
-  if (!mod->tryWaitForBuild()) {
+  if (!mod->try_wait_for_build()) {
     NATIVE_ERROR(st, 1004, "ErrModuleBuildFailed");
   }
 }
 
 NATIVEMETHOD(jstring, NativeModule, getKey)(
   JNIEnv* env,
-  jobject thisObj
+  jobject thisJ
 ) {
-  auto mod = toNativeModule(env, thisObj);
+  auto mod = to_NativeModule(env, thisJ);
   return env->NewStringUTF(mod->key_.c_str());
 }
 
 NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   JNIEnv* env,
-  jobject thisObj
+  jobject thisJ
 ) {
-  auto mod = toNativeModule(env, thisObj);
-  int fd = open(config.getLibName(mod->key_).c_str(), O_RDONLY, 0666);
+  auto mod = to_NativeModule(env, thisJ);
+  int fd = open(config.get_lib_name(mod->key_).c_str(), O_RDONLY, 0666);
   if (fd < 0) {
     perror("open");
     return env->NewByteArray(0);
@@ -573,28 +556,28 @@ NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   struct stat st;
   int rc = fstat(fd, &st);
   assert(rc == 0);
-  size_t fileSize = st.st_size;
-  jbyteArray result = env->NewByteArray(fileSize);
-  jbyte* resultBuf = env->GetByteArrayElements(result, 0);
-  rc = read(fd, resultBuf, fileSize);
-  assert(rc == (int)fileSize);
+  size_t file_size = st.st_size;
+  jbyteArray result = env->NewByteArray(file_size);
+  jbyte* rbuf = env->GetByteArrayElements(result, 0);
+  rc = read(fd, rbuf, file_size);
+  assert(rc == (int)file_size);
   close(fd);
-  env->ReleaseByteArrayElements(result, resultBuf, 0);
+  env->ReleaseByteArrayElements(result, rbuf, 0);
   return result;
 }
 
-#define DECLARE_FIND(LongOrPtr, numArgs) \
-NATIVEMETHOD(void, NativeModule, nativeFind##LongOrPtr##FuncL##numArgs)( \
+#define DECLARE_FIND(LongOrPtr, num_args) \
+NATIVEMETHOD(void, NativeModule, nativeFind##LongOrPtr##FuncL##num_args)( \
   JNIEnv* env, \
-  jobject thisObj, \
+  jobject thisJ, \
   long stAddr, \
-  jobject funcObj, \
+  jobject funcJ, \
   jstring nameJ \
 ) { \
-  auto mod = toNativeModule(env, thisObj); \
+  auto mod = to_NativeModule(env, thisJ); \
   auto st = reinterpret_cast<NativeStatus*>(stAddr); \
   st->clear(); \
-  mod->find##LongOrPtr##FuncL(env, st, funcObj, nameJ, numArgs); \
+  mod->find_##LongOrPtr##FuncL(env, st, funcJ, nameJ, num_args); \
 }
 
 DECLARE_FIND(Long, 0)
@@ -617,4 +600,4 @@ DECLARE_FIND(Ptr, 6)
 DECLARE_FIND(Ptr, 7)
 DECLARE_FIND(Ptr, 8)
 
-NAMESPACE_END(hail)
+} // end hail

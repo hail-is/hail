@@ -7,68 +7,67 @@
 #include <string>
 #include <vector>
 
-using hail::NativeObjPtr;
-using hail::NativeObj;
+namespace hail {
 
-NAMESPACE_BEGIN(hail)
-
-//
 // JNI interface functions corresponding to Scala NativeBase and NativePtr
-//
 
 #define NATIVEFUNC(typ) \
   extern "C" JNIEXPORT typ JNICALL
 
-#define volatile
+// According to the C++ standard, pointers to different types are assuming to be
+// non-aliased, unless they go through a "char*" which can be an alias for any type
+#define ALIAS_AS_LONGVEC(p) \
+  (reinterpret_cast<long*>(reinterpret_cast<char*>(p)))
 
-NAMESPACE_BEGIN_ANON
+#define ALIAS_AS_NATIVEOBJPTR(p) \
+  (reinterpret_cast<NativeObjPtr*>(reinterpret_cast<char*>(p)))
 
-typedef void MakeNativeFunc(NativeObjPtr*, ...);
+namespace {
 
-bool isInfoReady = false;
-jfieldID addrAFieldID;
-jfieldID addrBFieldID;
+bool is_info_ready = false;
+jfieldID addrA_id;
+jfieldID addrB_id;
 
-void initInfo(JNIEnv* env) {
-  auto classID = env->FindClass("is/hail/nativecode/NativeBase");
-  addrAFieldID = env->GetFieldID(classID, "addrA", "J");
-  addrBFieldID = env->GetFieldID(classID, "addrB", "J");
-  isInfoReady = true;
+void init_info(JNIEnv* env) {
+  auto cl = env->FindClass("is/hail/nativecode/NativeBase");
+  addrA_id = env->GetFieldID(cl, "addrA", "J");
+  addrB_id = env->GetFieldID(cl, "addrB", "J");
+  is_info_ready = true;
 }
 
-NAMESPACE_END_ANON
+} // end anon
 
-NativeObj* getFromNativePtr(JNIEnv* env, jobject obj) {
-  if (!isInfoReady) initInfo(env);
-  long addrA = env->GetLongField(obj, addrAFieldID);
+NativeObj* get_from_NativePtr(JNIEnv* env, jobject obj) {
+  if (!is_info_ready) init_info(env);
+  long addrA = env->GetLongField(obj, addrA_id);
   return reinterpret_cast<NativeObj*>(addrA);
 }
 
-void initNativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
-  if (!isInfoReady) initInfo(env);
+void init_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
+  if (!is_info_ready) init_info(env);
   // Ignore previous values in NativePtr
-  long* vec = reinterpret_cast<long*>(ptr);
-  env->SetLongField(obj, addrAFieldID, vec[0]);
-  env->SetLongField(obj, addrBFieldID, vec[1]);
+  long* vec = ALIAS_AS_LONGVEC(ptr);
+  env->SetLongField(obj, addrA_id, vec[0]);
+  env->SetLongField(obj, addrB_id, vec[1]);
   // And clear the ptr without changing refcount
   vec[0] = 0;
   vec[1] = 0;
 }
 
-void moveToNativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
-  if (!isInfoReady) initInfo(env);
-  long addrA = env->GetLongField(obj, addrAFieldID);
+void move_to_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
+  if (!is_info_ready) init_info(env);
+  long addrA = env->GetLongField(obj, addrA_id);
   if (addrA) {
     // We need to reset() the existing NativePtr
     long oldVec[2];
     oldVec[0] = addrA;
-    oldVec[1] = env->GetLongField(obj, addrBFieldID);
-    auto oldPtr = reinterpret_cast<NativeObjPtr*>(&oldVec[0]);
+    oldVec[1] = env->GetLongField(obj, addrB_id);
+    auto oldPtr = ALIAS_AS_NATIVEOBJPTR(&oldVec[0]);
     oldPtr->reset();
   }
-  long* vec = reinterpret_cast<long*>(ptr);
-  env->SetLongField(obj, addrAFieldID, vec[0]);
-  env->SetLongField(obj, addrBFieldID, vec[1]);
+  long* vec = ALIAS_AS_LONGVEC(ptr);
+  env->SetLongField(obj, addrA_id, vec[0]);
+  env->SetLongField(obj, addrB_id, vec[1]);
   // And clear the ptr without changing refcount
   vec[0] = 0;
   vec[1] = 0;
@@ -76,156 +75,147 @@ void moveToNativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
 
 NATIVEMETHOD(void, NativeBase, nativeCopyCtor)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong b_addrA,
   jlong b_addrB
 ) {
-  if (!isInfoReady) initInfo(env);
+  if (!is_info_ready) init_info(env);
   auto obj = reinterpret_cast<NativeObj*>(b_addrA);
   // This adds a new reference to the object
   auto ptr = (obj ? obj->shared_from_this() : NativeObjPtr());
-  initNativePtr(env, thisObj, &ptr);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativeBase, copyAssign)(
   JNIEnv* env,
-  jobject thisObj,
-  jobject srcObj
+  jobject thisJ,
+  jobject srcJ
 ) {
-  if (thisObj == srcObj) return;
-  volatile long vecA[2];
-  vecA[0] = env->GetLongField(thisObj, addrAFieldID);
-  vecA[1] = env->GetLongField(thisObj, addrBFieldID);
-  volatile long vecB[2];
-  vecB[0] = env->GetLongField(srcObj, addrAFieldID);
-  vecB[1] = env->GetLongField(srcObj, addrBFieldID);
-  auto ptrA = reinterpret_cast<NativeObjPtr*>(&vecA[0]);
-  auto ptrB = reinterpret_cast<NativeObjPtr*>(&vecB[0]);
- if (*ptrA != *ptrB) {
+  if (thisJ == srcJ) return;
+  long vecA[2];
+  vecA[0] = env->GetLongField(thisJ, addrA_id);
+  vecA[1] = env->GetLongField(thisJ, addrB_id);
+  long vecB[2];
+  vecB[0] = env->GetLongField(srcJ, addrA_id);
+  vecB[1] = env->GetLongField(srcJ, addrB_id);
+  auto ptrA = ALIAS_AS_NATIVEOBJPTR(&vecA[0]);
+  auto ptrB = ALIAS_AS_NATIVEOBJPTR(&vecB[0]);
+  if (*ptrA != *ptrB) {
     *ptrA = *ptrB;
-    env->SetLongField(thisObj, addrAFieldID, vecA[0]);
-    env->SetLongField(thisObj, addrBFieldID, vecA[1]);
+    env->SetLongField(thisJ, addrA_id, vecA[0]);
+    env->SetLongField(thisJ, addrB_id, vecA[1]);
   }
 }
 
 NATIVEMETHOD(void, NativeBase, moveAssign)(
   JNIEnv* env,
-  jobject thisObj,
-  jobject srcObj
+  jobject thisJ,
+  jobject srcJ
 ) {
-  if (thisObj == srcObj) return;
-  volatile long vecA[2];
-  vecA[0] = env->GetLongField(thisObj, addrAFieldID);
-  vecA[1] = env->GetLongField(thisObj, addrBFieldID);
-  volatile long vecB[2];
-  vecB[0] = env->GetLongField(srcObj, addrAFieldID);
-  vecB[1] = env->GetLongField(srcObj, addrBFieldID);
-  auto ptrA = reinterpret_cast<NativeObjPtr*>(&vecA[0]);
-  auto ptrB = reinterpret_cast<NativeObjPtr*>(&vecB[0]);
+  if (thisJ == srcJ) return;
+  long vecA[2];
+  vecA[0] = env->GetLongField(thisJ, addrA_id);
+  vecA[1] = env->GetLongField(thisJ, addrB_id);
+  long vecB[2];
+  vecB[0] = env->GetLongField(srcJ, addrA_id);
+  vecB[1] = env->GetLongField(srcJ, addrB_id);
+  auto ptrA = ALIAS_AS_NATIVEOBJPTR(&vecA[0]);
+  auto ptrB = ALIAS_AS_NATIVEOBJPTR(&vecB[0]);
   *ptrA = std::move(*ptrB);
-  env->SetLongField(thisObj, addrAFieldID, vecA[0]);
-  env->SetLongField(thisObj, addrBFieldID, vecA[1]);
-  env->SetLongField(srcObj, addrAFieldID, vecB[0]);
-  env->SetLongField(srcObj, addrBFieldID, vecB[1]);
-  
+  env->SetLongField(thisJ, addrA_id, vecA[0]);
+  env->SetLongField(thisJ, addrB_id, vecA[1]);
+  env->SetLongField(srcJ, addrA_id, vecB[0]);
+  env->SetLongField(srcJ, addrB_id, vecB[1]);
 }
 
 NATIVEMETHOD(void, NativeBase, nativeReset)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong addrA,
   jlong addrB
 ) {
-  volatile long vec[2];
+  long vec[2];
   vec[0] = addrA;
   vec[1] = addrB;
-  auto ptr = reinterpret_cast<NativeObjPtr*>(&vec[0]);
+  auto ptr = ALIAS_AS_NATIVEOBJPTR(&vec[0]);
   ptr->reset();
   // The Scala object fields are cleared in the wrapper
 }
 
 NATIVEMETHOD(long, NativeBase, nativeUseCount)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong addrA,
   jlong addrB
 ) {
-  volatile long vec[2];
+  long vec[2];
   vec[0] = addrA;
   vec[1] = addrB;
-  auto ptr = reinterpret_cast<NativeObjPtr*>(&vec[0]);
+  auto ptr = ALIAS_AS_NATIVEOBJPTR(&vec[0]);
   return ptr->use_count();
 }
 
-//
 // We have constructors corresponding to std::make_shared<T>(...)
 // with various numbers of long arguments.
-//
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL0)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)();
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)();
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL1)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0
 ) {
-  FILE* f = fopen("/tmp/a.log", "w");
-  fprintf(f, "nativePtrFuncL1(%ld) ...\n", a0); fflush(f);
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0);
-  NativeObjPtr ptr2 = ptr;
-  fprintf(f, "ptr.get %p, use_count %lu\n", ptr.get(), ptr.use_count()); fflush(f);
-  initNativePtr(env, thisObj, &ptr);
-  fprintf(f, "ptr.get %p\n", ptr.get()); fflush(f);
-  fclose(f);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL2)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL3)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
   jlong a2
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL4)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
   jlong a2,
   jlong a3
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2, a3);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL5)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
@@ -233,13 +223,13 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL5)(
   jlong a3,
   jlong a4
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
@@ -248,13 +238,13 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   jlong a4,
   jlong a5
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
@@ -264,13 +254,13 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   jlong a5,
   jlong a6
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   JNIEnv* env,
-  jobject thisObj,
+  jobject thisJ,
   jlong funcObjAddr,
   jlong a0,
   jlong a1,
@@ -281,13 +271,11 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   jlong a6,
   jlong a7
 ) {
-  NativeObjPtr ptr = getPtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6, a7);
-  initNativePtr(env, thisObj, &ptr);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6, a7);
+  init_NativePtr(env, thisJ, &ptr);
 }
 
-//
 // Test code for nativePtrFunc
-//
 
 class TestObjA : public hail::NativeObj {
 private:
@@ -320,33 +308,25 @@ public:
   }
 };
 
-//
-// Note that std::static_pointer_cast will only work when the type of
-// the object is a subclass of NativeObj, which is what we need.
-//
-#define CastNativeObjPtr(ptr) \
-  std::static_pointer_cast<hail::NativeObj>(ptr)
-
 NativeObjPtr nativePtrFuncTestObjA0() {
-  return CastNativeObjPtr(std::make_shared<TestObjA>());
+  return MAKE_NATIVE(TestObjA);
 }
 
 NativeObjPtr nativePtrFuncTestObjA1(long a0) {
-  return CastNativeObjPtr(std::make_shared<TestObjA>(a0));
+  return MAKE_NATIVE(TestObjA, a0);
 }
 
 NativeObjPtr nativePtrFuncTestObjA2(long a0, long a1) {
-  return CastNativeObjPtr(std::make_shared<TestObjA>(a0, a1));
+  return MAKE_NATIVE(TestObjA, a0, a1);
 }
 
 NativeObjPtr nativePtrFuncTestObjA3(long a0, long a1, long a2) {
-  return CastNativeObjPtr(std::make_shared<TestObjA>(a0, a1, a2));
+  return MAKE_NATIVE(TestObjA, a0, a1, a2);
 }
 
 NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, long a0, long a1, long a2, long a3) {
-  return CastNativeObjPtr(std::make_shared<TestObjA>(a0, a1, a2, a3));
+  return MAKE_NATIVE(TestObjA, a0, a1, a2, a3);
 }
 
-NAMESPACE_END(hail)
-
+} // end hail
 

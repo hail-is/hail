@@ -106,7 +106,7 @@ class NativeCodeSuite extends SparkSuite {
     sb.append("\n")
     sb.append("  MyObj(int val) : val_(val) { }\n")
     sb.append("  ~MyObj() { }\n")
-    sb.append("  const char* getClassName() { return \"MyObj\"; }\n")
+    sb.append("  const char* get_class_name() { return \"MyObj\"; }\n")
     sb.append("};\n")
     sb.append("\n")
     sb.append("NativeObjPtr makeMyObj(long val) {\n")
