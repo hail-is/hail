@@ -849,11 +849,13 @@ def import_bgen(path,
 
     **Entry Fields**
 
-    Up to three entry fields are created, as determined by `entry_fields` which
-    must be non-empty. For best performance, include precisely those fields
-    required for your analysis. For BGEN v1.1 files, all entry fields are set
-    to missing if the sum of the genotype probabilities is a distance greater
-    than `tolerance` from 1.0.
+    Up to three entry fields are created, as determined by `entry_fields`.
+    For best performance, include precisely those fields required for your
+    analysis. For BGEN v1.1 files, all entry fields are set to missing if
+    the sum of the genotype probabilities is a distance greater than
+    `tolerance` from 1.0. It is also possible to pass an empty tuple or list
+    for `entry_fields`, which can greatly accelerate processing speed if your
+    workflow does not use the genotype data.
 
     - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
       the greatest probability.
