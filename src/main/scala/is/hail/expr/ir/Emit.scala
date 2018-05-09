@@ -372,15 +372,23 @@ private class Emit(
           i := bs.getClosestIndex(dvx, kmx, kvx),
           isEq := bs.isIndexEqual(dvx, i, kmx, kvx),
           isEq)
-        val isMissing = Code(
+        val isValueMissing = Code(
           pair := dtype.loadElement(region, dvx, i),
           elt.isFieldMissing(region, pair, 1))
         val getValue =
           region.loadIRIntermediate(x.typ)(elt.fieldOffset(pair, 1))
 
+        val setupDefaults = Code(
+          dmx := d.m,
+          dvx := 0L,
+          kmx := false,
+          kvx.storeAny(defaultValue(key.typ)),
+          i := -1,
+          pair := 0L)
+
         EmitTriplet(
           Code(d.setup, k.setup),
-          Code(mx := (Code(dmx := d.m, dvx := 0L, kmx := false, kvx.storeAny(defaultValue(key.typ)), i := -1, pair := 0L, dmx) || !keyIn || isMissing), const("mx: ").concat(mx.toS).println(), mx),
+          Code(setupDefaults, mx := (dmx || !keyIn || isValueMissing), mx),
           mx.mux(defaultValue(x.typ), getValue))
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
