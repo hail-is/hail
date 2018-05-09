@@ -9,7 +9,7 @@ object ToIRErr {
       case (_: ToIRSuccess[_], f: ToIRFailure[_]) => f.as[Seq[T]]
       case (f: ToIRFailure[_], _: ToIRSuccess[_]) => f
       case (ToIRFailure(irs), ToIRFailure(moreIrs)) => fail(irs ++ moreIrs)
-    }
+    }.map(_.reverse)
   def all[T, U](a: ToIRErr[T], b: ToIRErr[U]): ToIRErr[(T, U)] =
     (a, b) match {
       case (ToIRSuccess(t), ToIRSuccess(u)) => success(t, u)
@@ -29,16 +29,16 @@ object ToIRErr {
     a.`type` match {
       case t: T => success(t)
       case _ =>
-        fail(a, s"${a.`type`} should be a subtype of ${classTag[T].runtimeClass.getSimpleName}")
+        fail(a, s"${a.`type`} should be a subtype of ${classTag[T].runtimeClass.getSimpleName}", getCaller())
     }
   def fromOption[T](blame: AST, message: String, ot: Option[T]): ToIRErr[T] = ot match {
     case Some(t) => success(t)
-    case None => fail(blame, message)
+    case None => fail(blame, message, getCaller())
   }
   def blameWhen(blame: AST, message: String, condition: Boolean): ToIRErr[Unit] =
-    if (condition) fail(blame, message) else success(())
+    if (condition) fail(blame, message, getCaller()) else success(())
   private[expr] def getCaller(): StackTraceElement =
-    Thread.currentThread().getStackTrace()(2)
+    Thread.currentThread().getStackTrace()(3)
 }
 
 trait ToIRErr[T] {

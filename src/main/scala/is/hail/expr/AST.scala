@@ -278,7 +278,7 @@ sealed abstract class AST(pos: Position, val subexprs: Array[AST] = Array.empty)
       val caller = context(0)
       val widerContextString = context.map("  " + _).mkString("\n")
       val reasons = fails.map { case (ir, message, context) =>
-        s"$message, $ir, $context"
+        s"$message, ${PrettyAST(ir, multiline=false)}, $context"
       }.map("  " + _).mkString("\n")
       log.warn(s"""[${caller} found no AST to IR conversion for:
                   |${ PrettyAST(this, 2) }
@@ -979,20 +979,25 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
 // PrettyAST(ast) gives a pretty-print of an AST tree
 
 object  PrettyAST {
-  def apply(rootAST: AST, depth: Int = 0): String = {
+  def apply(rootAST: AST, depth: Int = 0, multiline: Boolean = true): String = {
     val sb = new StringBuilder()
 
     def putDeepAST(ast: AST, depth: Int) {
-      sb.append("  " * depth)
+      if (multiline)
+        sb.append("  " * depth)
       val children = ast.subexprs
       sb.append(astToName(ast))
       if (children.length > 0) {
-        sb.append("(\n")
+        sb.append("(")
+        if (multiline)
+          sb.append("\n")
         children.foreach(putDeepAST(_, depth+1))
-        sb.append("  " * depth)
+        if (multiline)
+          sb.append("  " * depth)
         sb.append(")")
       }
-      if (depth > 0) sb.append("\n")
+      if (depth != 0)
+        if (multiline) sb.append("\n") else sb.append(" ")
     }
 
     putDeepAST(rootAST, depth)
