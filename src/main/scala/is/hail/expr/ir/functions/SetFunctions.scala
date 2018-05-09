@@ -40,23 +40,40 @@ object SetFunctions extends RegistryFunctions {
           Ref(x, TArray(t))))
     }
 
+    registerIR("union", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val x = genUID()
+      ToSet(
+        ArrayFlatMap(
+          MakeArray(FastSeq(ToArray(s1), ToArray(s2)), TArray(TArray(t))),
+          x,
+          Ref(x, TArray(t))))
+    }
+
+    registerIR("intersection", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val x = genUID()
+      ToSet(
+        ArrayFilter(ToArray(s1), x,
+          IRFunctionRegistry.invoke("contains", FastSeq(s2, Ref(x, t)))))
+    }
+
+    registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val x = genUID()
+      ToSet(
+        ArrayFilter(ToArray(s1), x,
+          ApplyUnaryPrimOp(Bang(), IRFunctionRegistry.invoke("contains", FastSeq(s2, Ref(x, t))))))
+    }
+
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { case (s, w) =>
       val t = -s.typ.asInstanceOf[TSet].elementType
-
       val a = genUID()
       val x = genUID()
-
-      val args = FastSeq(w, Ref(x, t))
-      println(args, args.map(_.typ))
-
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), Apply("contains", args))))
+          FastSeq(Ref(a, TBoolean()), IRFunctionRegistry.invoke("contains", FastSeq(w, Ref(x, t))))))
     }
-
-    // union(set<T>,set<T>):set<T>
-    // intersection(set<T>,set<T>):set<T>
-    // difference(set<T>,set<T>):set<T>
   }
 }

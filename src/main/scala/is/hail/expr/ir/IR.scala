@@ -168,7 +168,7 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
     implementation.unify(argTypes)
     implementation.returnType.subst()
   }
-
+  
   def isDeterministic: Boolean = implementation.isDeterministic
 }
 
