@@ -477,7 +477,7 @@ class Table(ExprContainer):
         if len(named_keys) == 0 and (len(keys) == 0 or (len(keys) == 1 and keys[0] is None)):
             return Table(self._jt.unkey())
 
-        if len(named_keys) == 0 and (len(keys) == 1 and keys[0] == []):
+        if len(named_keys) == 0 and (len(keys) == 1 and isinstance(keys[0], list) and keys[0] == []):
             key_fields = dict()
         else:
             key_fields = get_select_exprs("Table.key_by",
@@ -736,7 +736,7 @@ class Table(ExprContainer):
         --------
         Select a few old fields and compute a new one:
 
-        >>> table_result = table1.select(table1.ID, table1.C1, Y=table1.Z - table1.X)
+        >>> table_result = table1.select(table1.C1, Y=table1.Z - table1.X)
 
         Notes
         -----
@@ -754,12 +754,16 @@ class Table(ExprContainer):
         both variable-length (``f(x, y, z)``) and keyword (``f(a=x, b=y, c=z)``)
         arguments.
 
+        Select methods will always preserve the key along that axis; e.g. for
+        :meth:`.Table.select`, the table key will aways be kept. To modify the
+        key, use :meth:`.key_by`.
+
         Variable-length arguments can be either strings or expressions that reference a
         (possibly nested) field of the table. Keyword arguments can be arbitrary
         expressions.
 
         **The following three usages are all equivalent**, producing a new table with
-        fields `C1` and `C2` of `table1`.
+        fields `C1` and `C2` of `table1`, and the table key `ID`.
 
         First, variable-length string arguments:
 

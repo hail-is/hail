@@ -97,6 +97,14 @@ def wrap_to_tuple(x):
     else:
         return x,
 
+def wrap_to_sequence(x):
+    if isinstance(x, tuple):
+        return x
+    if isinstance(x, list):
+        return tuple(x)
+    else:
+        return x,
+
 def get_env_or_default(maybe, envvar, default):
     import os
 

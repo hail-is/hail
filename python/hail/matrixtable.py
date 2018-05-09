@@ -11,7 +11,7 @@ from hail.table import Table, ExprContainer
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
-from hail.utils.misc import get_nice_field_error, wrap_to_tuple, check_keys, check_collisions, check_field_uniqueness, get_select_exprs, get_annotate_exprs
+from hail.utils.misc import get_nice_field_error, wrap_to_tuple, wrap_to_sequence, check_keys, check_collisions, check_field_uniqueness, get_select_exprs, get_annotate_exprs
 
 
 class GroupedMatrixTable(ExprContainer):
@@ -727,7 +727,7 @@ class MatrixTable(ExprContainer):
         All of these expressions key the dataset by the 'locus' and 'allele'
         fields, partitioning by 'locus'.
 
-        >>> dataset_result = dataset.partition_rows_by(['contig', 'position']
+        >>> dataset_result = dataset.partition_rows_by(['contig', 'position'],
         ...                                      contig=dataset['locus'].contig,
         ...                                      position=dataset['locus'].position,
         ...                                      alleles=dataset['alleles'])
@@ -738,15 +738,8 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        To specify a partition key, use :meth:`.MatrixTable.partition_rows_by`.
-
-        This method needs specify all the fields of a new row key. The old
-        key fields may be overwritten by newly-assigned fields, as described in
-        :meth:`.Table.annotate`. If not overwritten, they are preserved as non-key
-        row fields.
-
-        See :meth:`.Table.select` for more information about how to define new row
-        key fields.
+        For more information on how to define a new row key, see
+        :meth:`.MatrixTable.key_rows_by`.
 
         Parameters
         ----------
@@ -763,7 +756,7 @@ class MatrixTable(ExprContainer):
         keys = get_select_exprs("MatrixTable.key_rows_by",
                                 keys, named_keys, self._row_indices,
                                 protect_keys=False)
-        partition_key = wrap_to_tuple(partition_key)
+        partition_key = wrap_to_sequence(partition_key)
         if len(partition_key) > len(keys):
             raise ValueError("MatrixTable.partition_rows_by requires partition_key to be prefix of row key.")
 

@@ -1214,7 +1214,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     .. testsetup::
 
         ds2 = hl.variant_qc(dataset)
-        ds2 = ds2.select_rows(ds2.locus, ds2.alleles, AF = ds2.variant_qc.AF)
+        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
 
     .. doctest::
 

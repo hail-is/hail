@@ -208,7 +208,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
 
     >>> renamed = hl.rename_duplicates(dataset).cols()
     >>> duplicate_samples = (renamed.filter(renamed.s != renamed.unique_id)
-    ...                             .select('s')
+    ...                             .select()
     ...                             .collect())
 
     Notes
