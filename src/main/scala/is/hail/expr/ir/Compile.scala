@@ -52,7 +52,13 @@ object Compile {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
+    def unwrap: IR => IR = {
+      case node: ApplyIR => Recur(unwrap)(node.explicitNode)
+      case node => Recur(unwrap)(node)
+    }
+
     ir = Subst(ir, env)
+    ir = unwrap(ir)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
     Emit(ir, fb, tAggIn, if (tAggIn.isDefined) 2 else 1)
     (ir.typ, fb.result())
@@ -147,7 +153,12 @@ object CompileWithAggregators {
     val env = ((aggName, aggType, TypeToIRIntermediateClassTag(aggType)) +: args).zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
-    val ir = Subst(body, env)
+    def unwrap: IR => IR = {
+      case node: ApplyIR => Recur(unwrap)(node.explicitNode)
+      case node => Recur(unwrap)(node)
+    }
+
+    val ir = unwrap(Subst(body, env))
 
     val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(ir, aggType)
     val nAggs = rvAggs.length
