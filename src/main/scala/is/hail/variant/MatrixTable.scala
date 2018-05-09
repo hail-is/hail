@@ -2555,20 +2555,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           .toArray
       }.toArray
 
-    val localRangeTree = partitioner.rangeTree
-
     val adjRDD = rvd.crdd.adjustPartitions(adjustments)
 
     val localRVRowType = rvRowType
     val locusIndex = localRVRowType.fieldIdx("locus")
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
+    val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
     val entryArrayType = matrixType.entryArrayType
     val entryType = matrixType.entryType
-    val rg = this.referenceGenome
+    val rg = referenceGenome
 
-    val lociStarts = sparkContext.broadcast(partitioner.rangeBounds.map { interval =>
+    val locusStartsBc = sparkContext.broadcast(partitioner.rangeBounds.map { interval =>
       val locus = interval.start.asInstanceOf[Row].getAs[Locus](0)
-    locus.copy(position = locus.position - basePairs)
+      locus.copy(position = locus.position - basePairs)
     })
 
     val nCols = numCols
@@ -2576,22 +2575,23 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val newContext = context.freshContext
 
       val rb = new mutable.ArrayStack[Region]()
+
       def fetchRegion(): Region = {
         if (rb.isEmpty)
           newContext.freshRegion
         else
           rb.pop()
       }
-
       def recycleRegion(r: Region): Unit = {
         r.clear()
         rb.push(r)
       }
+
       val deque = new java.util.ArrayDeque[(Locus, RegionValue)]()
-      val stack = new java.util.Stack[RegionValue]()
 
       it.flatMap { f =>
-        val skip = it.hasNext // these rows are loaded from previous partitions
+        // these rows are loaded from previous partitions
+        val inAdjustment = it.hasNext
         val rvIterator = f(newContext)
 
         val region = context.region
@@ -2599,13 +2599,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val rvb = new RegionValueBuilder()
         rvIterator.flatMap { rv =>
           val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
-          val pos = locus.position
 
-          val result = if (skip) {
+          val result = if (inAdjustment) {
             None
           } else {
-            def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.contig != locus.contig ||
-              x._1.position < locus.position - basePairs)
+            def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
+              || x._1.contig != locus.contig)
 
             while (discard(deque.peekLast()))
               recycleRegion(deque.removeLast()._2.region)
@@ -2617,25 +2616,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             region.clear()
             rvb.start(newType.rvRowType)
             rvb.startStruct()
-            var rfIndex = 0
-            while (rfIndex < localRVRowType.size) {
-              if (rfIndex != entriesIndex)
-                rvb.addField(localRVRowType, rv, rfIndex)
-              rfIndex += 1
-            }
+            rvb.addFields(localRVRowType, rv, nonEntryIndices)
 
             // prev_rows
             rvb.startArray(rvs.length)
             var j = 0
             while (j < rvs.length) {
+              val rvj = rvs(j)
               rvb.startStruct()
-              var rvj = rvs(j)
-              var k = 0
-              while (k < localRVRowType.size) {
-                if (k != entriesIndex)
-                  rvb.addField(localRVRowType, rvj, k)
-                k += 1
-              }
+              rvb.addFields(localRVRowType, rvj, nonEntryIndices)
               rvb.endStruct()
               j += 1
             }
@@ -2678,7 +2667,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             Some(rv2)
           }
 
-          if (rg.compare(lociStarts.value(partitionIndex), locus) <= 0) {
+          if (!inAdjustment || rg.compare(locusStartsBc.value(partitionIndex), locus) <= 0) {
             val cpRegion = fetchRegion()
             rvb.set(cpRegion)
             rvb.clear()

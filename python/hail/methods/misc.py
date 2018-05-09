@@ -322,15 +322,28 @@ def window_by_locus(mt: MatrixTable, base_pairs: int) -> MatrixTable:
 
     Notes
     -----
-    This method groups each row with the previous variants in a window of
+    This method groups each row (variant) with the previous rows in a window of
     `base_pairs` base pairs, putting the row values from the previous variants
     into `prev_rows` (row field of type ``array<struct>``) and entry values
     from those variants into `prev_entries` (entry field of type
     ``array<struct>``).
 
-    The `base_pairs` argument is inclusive; if `base_pairs` is ``3``, then the
-    locus ``1:100`` will be collected into `prev_rows` for ``1:101``,
-    ``1:102``, and ``1:103``.
+    The base_pairs argument is inclusive; if `base_pairs` is 2 and the loci are
+
+    .. code-block:: text
+
+        1:100
+        1:100
+        1:102
+        1:102
+        1:103
+        2:100
+        2:101
+
+    Then the size of `prev_rows` is 0, 1, 2, 3, 2, 0, and 1, respectively (and
+    same for the size of prev_entries). The `base_pairs` argument is inclusive;
+    if `base_pairs` is ``3``, then the locus ``1:100`` will be collected into
+    `prev_rows` for ``1:101``, ``1:102``, and ``1:103``.
 
     Parameters
     ----------
