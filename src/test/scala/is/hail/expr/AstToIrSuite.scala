@@ -13,12 +13,7 @@ class ASTToIRSuite extends TestNGSuite {
         Map("agg" -> (0, TInt64()),
           "something" -> (1, TInt64())))))))
 
-    def unwrap: IR => IR = {
-      case node: ApplyIR => Recur(unwrap)(node.explicitNode)
-      case node => Recur(unwrap)(node)
-    }
-
-    ast.toIR(Some("aggregable")).map(unwrap)
+    ast.toIR(Some("aggregable")).map(_.unwrap)
   }
 
   @Test

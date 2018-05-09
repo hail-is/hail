@@ -21,6 +21,13 @@ sealed trait IR extends BaseIR {
       case x: IR => x.size
       case _ => 0
     }.sum
+
+  private[this] def _unwrap: IR => IR = {
+    case node: ApplyIR => Recur(_unwrap)(node.explicitNode)
+    case node => Recur(_unwrap)(node)
+  }
+
+  def unwrap: IR = _unwrap(this)
 }
 
 object Literal {
