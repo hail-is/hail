@@ -34,7 +34,9 @@ object IRFunctionRegistry {
     codeRegistry.remove(name)
 
   private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
-    reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
+    reg.lift(name).map { fs =>
+      println(fs)
+      fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
@@ -88,6 +90,7 @@ object IRFunctionRegistry {
   ArrayFunctions.registerAll()
   UtilFunctions.registerAll()
   StringFunctions.registerAll()
+  SetFunctions.registerAll()
 }
 
 abstract class RegistryFunctions {
@@ -183,6 +186,7 @@ abstract class RegistryFunctions {
     registerJavaStaticFunction(mname, types.init.toArray, types.last)(cls, method, isDeterministic)
 
   def registerIR(mname: String, argTypes: Array[Type])(f: Seq[IR] => IR) {
+    println(mname, argTypes.toFastSeq)
     IRFunctionRegistry.addIR(mname, argTypes, f)
   }
 
