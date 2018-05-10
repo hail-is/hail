@@ -17,6 +17,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+import is.hail.expr.ir.functions.ReferenceGenomeFunctions
 import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
@@ -469,6 +470,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
   }
+
+  private[this] val irFunctions = new ReferenceGenomeFunctions(this)
+  def wrapFunctionName(fname: String): String = s"$fname($name)"
+  def addIRFunctions(): Unit = irFunctions.registerAll()
+  def removeIRFunctions(): Unit = irFunctions.removeRegisteredFunctions()
 }
 
 object ReferenceGenome {
@@ -483,7 +489,7 @@ object ReferenceGenome {
     if (hasReference(rg.name))
       fatal(s"Cannot add reference genome. `${ rg.name }' already exists. Choose a reference name NOT in the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
-
+    rg.addIRFunctions()
     references += (rg.name -> rg)
   }
 
@@ -507,6 +513,7 @@ object ReferenceGenome {
       fatal(s"Cannot remove reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
         s"@1", nonBuiltInReferences.truncatable("\n  "))
 
+    references(name).removeIRFunctions()
     references -= name
   }
 

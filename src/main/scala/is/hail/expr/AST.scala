@@ -535,7 +535,17 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }
 
-  def toIR(agg: Option[String] = None): ToIRErr[IR] = fail(this)
+  def toIR(agg: Option[String] = None): ToIRErr[IR] = {
+    val frName = rg.wrapFunctionName(fName)
+    for {
+      irArgs <- all(args.map(_.toIR(agg)))
+      ir <- fromOption(
+        this,
+        s"no RG dependent function found for $frName",
+        IRFunctionRegistry.lookupConversion(frName, irArgs.map(_.typ))
+          .map { irf => irf(irArgs) })
+    } yield ir
+  }
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {

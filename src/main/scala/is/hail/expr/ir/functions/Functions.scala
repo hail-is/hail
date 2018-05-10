@@ -23,6 +23,19 @@ object IRFunctionRegistry {
   def addIR(name: String, types: Seq[Type], f: Seq[IR] => IR): Unit =
     irRegistry.addBinding(name, (types, f))
 
+  def removeIRFunction(name: String, args: Seq[Type]): Unit = {
+    val functions = codeRegistry(name)
+    val toRemove = functions.filter(_.unify(args)).toArray
+    assert(toRemove.length == 1)
+    codeRegistry.removeBinding(name, toRemove.head)
+  }
+
+  def removeIRFunction(name: String): Unit = {
+    val toRemove = codeRegistry(name).toArray
+    assert(toRemove.length == 1)
+    codeRegistry.removeBinding(name, toRemove.head)
+  }
+
   private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
     reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
