@@ -870,10 +870,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       case _ =>
         for {
           irs <- all((lhs +: args).map(_.toIR(agg)))
+          argTypes = irs.map(_.typ)
           ir <- fromOption(
             this,
-            s"no method $method on type ${lhs.`type`}",
-            IRFunctionRegistry.lookupConversion(method, irs.map(_.typ))
+            s"no method $method on type ${lhs.`type`} with arguments ${argTypes.tail}",
+            IRFunctionRegistry.lookupConversion(method, argTypes)
               .map { irf => irf(irs) })
         } yield ir
     }
