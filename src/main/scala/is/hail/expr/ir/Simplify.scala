@@ -142,7 +142,7 @@ object Simplify {
       case TableCount(TableMapRows(child, _, _)) => TableCount(child)
 
       case TableCount(TableUnion(children)) =>
-        children.map(TableCount).reduce(ApplyBinaryPrimOp(Add(), _, _))
+        children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
