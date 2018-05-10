@@ -1516,7 +1516,7 @@ class ExportRectanglesRDD(hc: HailContext,
     val data = new Array[Double](blockSize)
     val sb = new StringBuilder(blockSize << 2)
     val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
-    val outputFile = output + s"/rect-${paddedIndex}_${ rIncExc.mkString("-") }"
+    val outputFile = output + "/rect-" + paddedIndex + "_" + rIncExc.mkString("-")
     val osw = new OutputStreamWriter(sHadoopBc.value.value.unsafeWriter(outputFile))
 
     var i = firstRow
