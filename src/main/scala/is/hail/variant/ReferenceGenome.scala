@@ -17,7 +17,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
-import is.hail.expr.ir.functions.ReferenceGenomeFunctions
+import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
@@ -471,10 +471,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
   }
 
-  private[this] val irFunctions = new ReferenceGenomeFunctions(this)
+  private[this] var registeredFunctions: Set[String] = null
   def wrapFunctionName(fname: String): String = s"$fname($name)"
-  def addIRFunctions(): Unit = irFunctions.registerAll()
-  def removeIRFunctions(): Unit = irFunctions.removeRegisteredFunctions()
+  def addIRFunctions(): Unit = {
+    val irFunctions = new ReferenceGenomeFunctions(this)
+    irFunctions.registerAll()
+    registeredFunctions = irFunctions.registered
+  }
+  def removeIRFunctions(): Unit = registeredFunctions.foreach(IRFunctionRegistry.removeIRFunction)
 }
 
 object ReferenceGenome {

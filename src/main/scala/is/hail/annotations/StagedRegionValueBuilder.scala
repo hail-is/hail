@@ -31,7 +31,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   private var elementsOffset: ClassFieldRef[Long] = _
   private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
 
-  typ match {
+  typ.fundamentalType match {
     case t: TBaseStruct => elementsOffset = mb.newField[Long]
     case t: TArray =>
       elementsOffset = mb.newField[Long]
