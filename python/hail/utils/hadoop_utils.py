@@ -4,7 +4,7 @@ import io
 
 
 @typecheck(path=str,
-           mode=enumeration('r', 'w', 'rb', 'wb'),
+           mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'),
            buffer_size=int)
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
@@ -33,8 +33,13 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
 
      - ``'r'`` -- Readable text file (:class:`io.TextIOWrapper`). Default behavior.
      - ``'w'`` -- Writable text file (:class:`io.TextIOWrapper`).
+     - ``'x'`` -- Exclusive writable text file (:class:`io.TextIOWrapper`).
+       Throws an error if a file already exists at the path.
      - ``'rb'`` -- Readable binary file (:class:`io.BufferedReader`).
      - ``'wb'`` -- Writable binary file (:class:`io.BufferedWriter`).
+     - ``'xb'`` -- Exclusive writable binary file (:class:`io.BufferedWriter`).
+       Throws an error if a file already exists at the path.
+
 
     The provided destination file path must be a URI (uniform resource identifier).
 
@@ -60,8 +65,10 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """
     if 'r' in mode:
         handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
-    else:
+    elif 'w' in mode:
         handle = io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
+    elif 'x' in mode:
+        handle = io.BufferedWriter(HadoopWriter(path, exclusive=True), buffer_size=buffer_size)
 
     if 'b' in mode:
         return handle
@@ -114,8 +121,8 @@ class HadoopReader(io.RawIOBase):
 
 
 class HadoopWriter(io.RawIOBase):
-    def __init__(self, path):
-        self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc)
+    def __init__(self, path, exclusive=False):
+        self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc, exclusive)
         super(HadoopWriter, self).__init__()
 
     def writable(self):

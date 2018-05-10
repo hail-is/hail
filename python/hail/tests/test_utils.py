@@ -51,6 +51,9 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(b, b2)
 
+        with self.assertRaises(Exception):
+            hadoop_open('/tmp/randomBytesOut', 'xb')
+
     def test_linked_list(self):
         ll = LinkedList(int)
         self.assertEqual(list(ll), [])
