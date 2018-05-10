@@ -40,6 +40,45 @@ class OrderingSuite {
     fb.result()()
   }
 
+  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
+    val rvb = new RegionValueBuilder(region)
+    args.map { case (t, a) =>
+      rvb.start(TTuple(t))
+      rvb.startTuple()
+      rvb.addAnnotation(t, a)
+      rvb.endTuple()
+      rvb.end()
+    }.toArray
+  }
+
+  def getCompiledFunction(irFunction: Seq[IR] => IR, ts: Type*): (Region, Seq[Annotation]) => Annotation = {
+    val args = ts.init
+    val rt = ts.last
+    val irs = args.zipWithIndex.map { case (t, i) => GetTupleElement(In(i, TTuple(t)), 0) }
+    val ir = MakeTuple(Seq(irFunction(irs)))
+
+    args.size match {
+      case 1 =>
+        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+        Emit(ir, fb)
+        val f = fb.result()()
+        val f2 = { (region: Region, as: Seq[Annotation]) =>
+          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
+          SafeRow(TTuple(rt), region, f(region, offs(0), false)).get(0)
+        }
+        f2
+      case 2 =>
+        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
+        Emit(ir, fb)
+        val f = fb.result()()
+        val f2 = { (region: Region, as: Seq[Annotation]) =>
+          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
+          SafeRow(TTuple(rt), region, f(region, offs(0), false, offs(1), false)).get(0)
+        }
+        f2
+    }
+  }
+
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -101,26 +140,13 @@ class OrderingSuite {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
     } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a) =>
-      val ir = ArraySort(GetTupleElement(In(0, TTuple(TArray(t))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
-
-      Emit(ir, fb)
-
-      val f = fb.result()()
+    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
+      val irF = { irs: Seq[IR] => ArraySort(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(t), TArray(t))
 
       Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(t)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(t), a)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(t), region, res)
-        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering)
+        val actual = f(region, Seq(a))
+        val expected = a.sorted(t.ordering.toOrdering)
         expected == actual
       }
     }
@@ -132,28 +158,14 @@ class OrderingSuite {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
     } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a) =>
-      val array = a.asInstanceOf[IndexedSeq[Any]] ++ a.asInstanceOf[IndexedSeq[Any]]
-      val ir = ToSet(GetTupleElement(In(0, TTuple(TArray(t))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
+      val array = a ++ a
+      val irF = { irs: Seq[IR] => ToSet(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(t), TArray(t))
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
-
-      Region.scoped[Boolean] { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(t)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(t), array)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(t), region, res)
-        val expected = a.asInstanceOf[IndexedSeq[Any]].sorted(t.ordering.toOrdering).distinct
-
+      Region.scoped { region =>
+        val actual = f(region, Seq(array))
+        val expected = array.sorted(t.ordering.toOrdering).distinct
         expected == actual
       }
     }
@@ -167,26 +179,13 @@ class OrderingSuite {
       telt = TTuple(kt, vt)
       a <- TArray(telt).genNonmissingValue
     } yield (telt, a)
-    val p = Prop.forAll(compareGen) { case (telt: TTuple, a) =>
-      val array: IndexedSeq[Row] = a.asInstanceOf[IndexedSeq[Row]] ++ a.asInstanceOf[IndexedSeq[Row]]
-      val ir = ToDict(GetTupleElement(In(0, TTuple(TArray(telt))), 0))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
+    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]) =>
+      val array: IndexedSeq[Row] = a ++ a
+      val irF = { irs: Seq[IR] => ToDict(irs(0)) }
+      val f = getCompiledFunction(irF, TArray(telt), TArray(telt))
 
-      Emit(ir, fb)
-
-      val f = fb.result()()
-
-      Region.scoped[Boolean] { region =>
-        val rvb = new RegionValueBuilder(region)
-
-        rvb.start(TTuple(TArray(telt)))
-        rvb.startTuple()
-        rvb.addAnnotation(TArray(telt), array)
-        rvb.endTuple()
-        val off = rvb.end()
-
-        val res = f(region, off, false)
-        val actual = SafeIndexedSeq(TArray(telt), region, res)
+      Region.scoped { region =>
+        val actual = f(region, Seq(array)).asInstanceOf[IndexedSeq[Row]]
         val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
         val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
         val expectedKeys = expectedMap.keys.toIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
@@ -203,20 +202,169 @@ class OrderingSuite {
 
     for (irF <- irs) {
       val ir = IsNA(irF(NA(tarray)))
-      val fb = EmitFunctionBuilder[Region, Long, Boolean, Boolean]
+      val fb = EmitFunctionBuilder[Region, Boolean]
       Emit(ir, fb)
 
       val f = fb.result()()
       Region.scoped { region =>
+        assert(f(region))
+      }
+    }
+  }
+
+  @Test def testSetContainsOnRandomSet() {
+    val compareGen = Type.genArb
+      .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
+    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any], test1: Any) =>
+      val telt = tset.elementType
+
+      val ir = { irs: Seq[IR] => SetContains(irs(0), irs(1)) }
+      val setcontainsF = getCompiledFunction(ir, tset, telt, TBoolean())
+
+      Region.scoped { region =>
+        if (set.nonEmpty) {
+          val test2 = set.head
+          val expected2 = set(test2)
+          val actual2 = setcontainsF(region, Seq(set, test2))
+          assert(expected2 == actual2)
+        }
+
+        val expected1 = set.contains(test1)
+        val actual1 = setcontainsF(region, Seq(set, test1))
+
+        expected1 == actual1
+      }
+    }
+    p.check()
+  }
+
+  @Test def testDictGetOnRandomDict() {
+    val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
+      case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue)
+    }
+    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any], testKey1: Any) =>
+      val telt = coerce[TBaseStruct](tdict.elementType)
+
+      val ir = { irs: Seq[IR] => DictGet(irs(0), irs(1)) }
+      val dictgetF = getCompiledFunction(ir, tdict, tdict.keyType, -tdict.valueType)
+
+      Region.scoped { region =>
+        if (dict.nonEmpty) {
+          val testKey2 = dict.keys.toSeq.head
+          val expected2 = dict(testKey2)
+          val actual2 = dictgetF(region, Seq(dict, testKey2))
+          assert(expected2 == actual2)
+        }
+
+        val expected1 = dict.getOrElse(testKey1, null)
+        val actual1 = dictgetF(region, Seq(dict, testKey1))
+
+        expected1 == actual1
+      }
+    }
+    p.check()
+  }
+
+  @Test def testBinarySearchOnSet() {
+    val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
+    val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
+      val set = a.asInstanceOf[Set[Any]]
+      val tset = TSet(t)
+
+      Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tarray)
-        rvb.startArray(0)
-        rvb.endArray()
-        val off = rvb.end()
+        rvb.start(tset)
+        rvb.addAnnotation(tset, set)
+        val soff = rvb.end()
 
-        assert(f(region, off, false))
+        rvb.start(TTuple(t))
+        rvb.addAnnotation(TTuple(t), Row(elem))
+        val eoff = rvb.end()
+
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val cregion = fb.getArg[Region](1).load()
+        val cset = fb.getArg[Long](2)
+        val cetuple = fb.getArg[Long](3)
+
+        val bs = new BinarySearch(fb.apply_method, tset, keyOnly = false)
+        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).fieldOffset(cetuple, 0))))
+
+        val asArray = SafeIndexedSeq(TArray(t), region, soff)
+
+        val f = fb.result()()
+        val closestI = f(region, soff, eoff)
+        val maybeEqual = asArray(closestI)
+
+        set.contains(elem) ==> (elem == maybeEqual) &&
+          (t.ordering.compare(elem, maybeEqual) <= 0 || (closestI == set.size - 1))
       }
+    }
+    p.check()
+  }
+
+  @Test def testBinarySearchOnDict() {
+    val compareGen = Gen.zip(Type.genArb, Type.genArb)
+      .flatMap { case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue) }
+    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tdict, a, key) =>
+      val dict = a.asInstanceOf[Map[Any, Any]]
+
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+
+        rvb.start(tdict)
+        rvb.addAnnotation(tdict, dict)
+        val soff = rvb.end()
+
+        rvb.start(TTuple(tdict.keyType))
+        rvb.addAnnotation(TTuple(tdict.keyType), Row(key))
+        val eoff = rvb.end()
+
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val cregion = fb.getArg[Region](1).load()
+        val cdict = fb.getArg[Long](2)
+        val cktuple = fb.getArg[Long](3)
+
+        val bs = new BinarySearch(fb.apply_method, tdict, keyOnly = true)
+        val m = TTuple(tdict.keyType).isFieldMissing(cregion, cktuple, 0)
+        val v = cregion.loadIRIntermediate(tdict.keyType)(TTuple(tdict.keyType).fieldOffset(cktuple, 0))
+        fb.emit(bs.getClosestIndex(cdict, m, v))
+
+        val asArray = SafeIndexedSeq(TArray(tdict.elementType), region, soff)
+
+        val f = fb.result()()
+        val closestI = f(region, soff, eoff)
+        def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+        val maybeEqual = getKey(closestI)
+
+        val closestIIsClosest =
+          (tdict.keyType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+            (closestI == 0 || tdict.keyType.ordering.compare(key, getKey(closestI - 1)) > 0)
+
+        dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
+
+      }
+    }
+    p.check()
+  }
+
+  @Test def testContainsWithArrayFold() {
+
+    val set1 = ToSet(MakeArray(Seq(I32(1), I32(4)), TArray(TInt32())))
+    val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
+    val ir =
+      ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
+      ApplySpecial("&&",
+        FastSeq(
+          Ref("accumulator", TBoolean()),
+          SetContains(set2, Ref("setelt", TInt32())))))
+
+    val fb = EmitFunctionBuilder[Region, Boolean]
+    Emit(ir, fb)
+
+    val f = fb.result()()
+    Region.scoped { region =>
+      assert(f(region))
     }
   }
 }

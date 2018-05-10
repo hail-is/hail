@@ -328,6 +328,72 @@ private class Emit(
 
       case ToArray(a) =>
         emit(a)
+
+      case x@(_: SetContains | _: DictContains) =>
+        val (set, elem, bs) = x match {
+          case SetContains(set, elem) =>
+            val bs = new BinarySearch(mb, coerce[TSet](set.typ), keyOnly = false)
+            (set, elem, bs)
+          case DictContains(dict, key) =>
+            val bs = new BinarySearch(mb, coerce[TDict](dict.typ), keyOnly = true)
+            (dict, key, bs)
+        }
+        val s = emit(set)
+        val e = emit(elem)
+
+        val smx = mb.newLocal[Boolean]
+        val svx = mb.newLocal[Long]
+        val emx = mb.newLocal[Boolean]
+        val evx = mb.newLocal()(typeToTypeInfo(elem.typ))
+        val isIn = bs.isIndexEqual(svx, bs.getClosestIndex(svx, emx, evx), emx, evx)
+        EmitTriplet(
+          Code(s.setup, e.setup),
+          Code(smx := s.m, smx),
+          Code(Code(svx := s.value[Long],
+            emx := e.m,
+            evx.storeAny(emx.mux(defaultValue(elem.typ), e.v)),
+            isIn)))
+
+      case x@DictGet(dict, key) =>
+        val dtype = coerce[TDict](dict.typ)
+        val d = emit(dict)
+        val k = emit(key)
+        val bs = new BinarySearch(mb, dtype, keyOnly = true)
+        val dmx = mb.newLocal[Boolean]
+        val dvx = mb.newLocal[Long]
+        val kmx = mb.newLocal[Boolean]
+        val kvx = mb.newLocal()(typeToTypeInfo(key.typ))
+        val i = mb.newLocal[Int]
+        val pair = mb.newLocal[Long]
+        val mx = mb.newLocal[Boolean]
+        val isEq = mb.newLocal[Boolean]
+        val elt = coerce[TBaseStruct](dtype.elementType)
+        val keyIn = Code(
+          dvx := d.value[Long],
+          kmx := k.m,
+          kmx.mux(Code._empty, kvx.storeAny(k.v)),
+          i := bs.getClosestIndex(dvx, kmx, kvx),
+          isEq := bs.isIndexEqual(dvx, i, kmx, kvx),
+          isEq)
+        val isValueMissing = Code(
+          pair := dtype.loadElement(region, dvx, i),
+          elt.isFieldMissing(region, pair, 1))
+        val getValue =
+          region.loadIRIntermediate(x.typ)(elt.fieldOffset(pair, 1))
+
+        val setupDefaults = Code(
+          dmx := d.m,
+          dvx := 0L,
+          kmx := false,
+          kvx.storeAny(defaultValue(key.typ)),
+          i := -1,
+          pair := 0L)
+
+        EmitTriplet(
+          Code(d.setup, k.setup),
+          Code(setupDefaults, mx := (dmx || !keyIn || isValueMissing), mx),
+          getValue)
+
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(mb, ir.typ)
@@ -383,9 +449,9 @@ private class Emit(
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean]()
+        val xmv = mb.newField[Boolean](name2+"_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmout = mb.newField[Boolean]()
+        val xmout = mb.newField[Boolean](name1+"_missing")
         val xvout = coerce[Any](mb.newField(name1)(tti))
         val i = mb.newLocal[Int]("af_i")
         val len = mb.newLocal[Int]("af_len")

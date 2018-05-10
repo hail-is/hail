@@ -223,6 +223,42 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
+
+      case ToArray(c) =>
+        val cValue = interpret(c, env, args, agg)
+        if (cValue == null)
+          null
+        else
+          cValue match {
+            case s: Set[Any] => s.toIndexedSeq
+            case d: Map[Any, Any] => d.toIndexedSeq
+            case a => a
+          }
+
+      case SetContains(s, elem) =>
+        val sValue = interpret(s, env, args, agg)
+        val eValue = interpret(elem, env, args, agg)
+        if (sValue == null)
+          null
+        else
+          sValue.asInstanceOf[Set[Any]].contains(eValue)
+
+      case DictContains(d, key) =>
+        val dValue = interpret(d, env, args, agg)
+        val kValue = interpret(key, env, args, agg)
+        if (dValue == null)
+          null
+        else
+          dValue.asInstanceOf[Map[Any, Any]].contains(kValue)
+
+      case DictGet(d, key) =>
+        val dValue = interpret(d, env, args, agg)
+        val kValue = interpret(key, env, args, agg)
+        if (dValue == null)
+          null
+        else
+          dValue.asInstanceOf[Map[Any, Any]].getOrElse(kValue, null)
+
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
