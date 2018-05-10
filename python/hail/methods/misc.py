@@ -308,11 +308,11 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
     jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, intervals, keep)
     return MatrixTable(jmt)
 
-@typecheck(mt=MatrixTable, base_pairs=int)
+@typecheck(mt=MatrixTable, bp_window_size=int)
 def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
-    """Collect arrays of row and entry values from previous variants.
+    """Collect arrays of row and entry values from preceding loci.
 
-    .. include:: ../_templates/req_tvariant.rst
+    .. include:: ../_templates/req_tlocus.rst
 
     .. include:: ../_templates/experimental.rst
 
@@ -355,4 +355,5 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
+    mt = require_partition_key_locus(mt, 'window_by_locus')
     return MatrixTable(mt._jvds.windowVariants(bp_window_size))
