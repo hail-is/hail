@@ -168,7 +168,7 @@ class GroupedMatrixTable(ExprContainer):
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
     def group_cols_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
+        """Group columns, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
@@ -1909,7 +1909,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
     def group_cols_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
+        """Group columns, used with :meth:`.GroupedMatrixTable.aggregate`.
 
         Examples
         --------
