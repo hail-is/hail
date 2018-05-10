@@ -1299,6 +1299,7 @@ class WriteBlocksRDD(path: String,
           var j = 0
           while (j < writeBlocksPart.skip) {
             it.next()
+            ctx.region.clear()
             j += 1
           }
         }
@@ -1338,6 +1339,7 @@ class WriteBlocksRDD(path: String,
             blockCol += 1
           }
           i += 1
+          ctx.region.clear()
         }
       }
     }
