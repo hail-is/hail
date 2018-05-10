@@ -29,9 +29,11 @@ object OrderedRVPartitionInfo {
     seed: Int,
     ctx: RVDContext
   ): OrderedRVPartitionInfo = {
-    val minF = WritableRegionValue(typ.pkType)
-    val maxF = WritableRegionValue(typ.pkType)
-    val prevF = WritableRegionValue(typ.kType)
+    // FIXME: all these fresh regions can be free'd at the end of this
+    // method, we need not wait for the context to complete
+    val minF = WritableRegionValue(typ.pkType, ctx.freshRegion)
+    val maxF = WritableRegionValue(typ.pkType, ctx.freshRegion)
+    val prevF = WritableRegionValue(typ.kType, ctx.freshRegion)
 
     assert(it.hasNext)
     val f0 = it.next()
@@ -48,7 +50,7 @@ object OrderedRVPartitionInfo {
     var i = 0
 
     if (sampleSize > 0) {
-      samples(0) = WritableRegionValue(typ.pkType, f0)
+      samples(0) = WritableRegionValue(typ.pkType, f0, ctx.freshRegion)
       i += 1
     }
 
@@ -71,7 +73,7 @@ object OrderedRVPartitionInfo {
       prevF.set(f)
 
       if (i < sampleSize)
-        samples(i) = WritableRegionValue(typ.pkType, f)
+        samples(i) = WritableRegionValue(typ.pkType, f, ctx.freshRegion)
       else {
         val j = rng.nextInt(i)
         if (j < sampleSize)

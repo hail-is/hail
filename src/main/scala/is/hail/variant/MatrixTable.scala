@@ -820,7 +820,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       new Iterator[RegionValue] {
         var isEnd = false
         var current: RegionValue = null
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
+        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
         val region = ctx.region
         val rvb = ctx.rvb
         val newRV = RegionValue(region)
@@ -1282,7 +1282,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountRows(): Long = rvd.count()
 
   def deduplicate(): MatrixTable =
-    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ)(
+    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ,
       SortedDistinctRowIterator.transformer(rvd.typ)))
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)

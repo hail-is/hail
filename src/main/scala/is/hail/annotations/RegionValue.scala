@@ -16,8 +16,10 @@ object RegionValue {
   def apply(region: Region, offset: Long) = new RegionValue(region, offset)
 }
 
-final class RegionValue(var region: Region,
-  var offset: Long) extends UnKryoSerializable {
+final class RegionValue(
+  var region: Region,
+  var offset: Long
+) extends UnKryoSerializable {
   def set(newRegion: Region, newOffset: Long) {
     region = newRegion
     offset = newOffset

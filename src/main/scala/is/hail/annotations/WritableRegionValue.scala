@@ -2,26 +2,28 @@ package is.hail.annotations
 
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
-
 import is.hail.expr.types._
+import is.hail.rvd.RVDContext
 
 object WritableRegionValue {
-  def apply(t: Type, initial: RegionValue): WritableRegionValue =
-    WritableRegionValue(t, initial.region, initial.offset)
+  def apply(t: Type, initial: RegionValue, region: Region): WritableRegionValue =
+    WritableRegionValue(t, initial.region, initial.offset, region)
 
-  def apply(t: Type, initialRegion: Region, initialOffset: Long): WritableRegionValue = {
-    val wrv = WritableRegionValue(t)
+  def apply(t: Type, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+    val wrv = WritableRegionValue(t, targetRegion)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
-  def apply(t: Type): WritableRegionValue = {
-    new WritableRegionValue(t)
+  def apply(t: Type, region: Region): WritableRegionValue = {
+    new WritableRegionValue(t, region)
   }
 }
 
-class WritableRegionValue private (val t: Type) {
-  val region = Region()
+class WritableRegionValue private (
+  val t: Type,
+  val region: Region
+) extends UnKryoSerializable{
   val value = RegionValue(region, 0)
   private val rvb: RegionValueBuilder = new RegionValueBuilder(region)
 

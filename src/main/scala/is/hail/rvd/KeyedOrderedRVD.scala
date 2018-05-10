@@ -55,8 +55,8 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       joiner(
         ctx,
         compute(
-          OrderedRVIterator(lTyp, leftIt),
-          OrderedRVIterator(rTyp, rightIt),
+          OrderedRVIterator(lTyp, leftIt, ctx),
+          OrderedRVIterator(rTyp, rightIt, ctx),
           new RegionValueArrayBuffer(rTyp.rowType, sideBuffer)))
     }
   }
@@ -90,8 +90,8 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       joiner(
         ctx,
         compute(
-          OrderedRVIterator(rekeyedLTyp, leftIt),
-          OrderedRVIterator(rekeyedRTyp, rightIt)))
+          OrderedRVIterator(rekeyedLTyp, leftIt, ctx),
+          OrderedRVIterator(rekeyedRTyp, rightIt, ctx)))
     }
   }
 
@@ -106,8 +106,9 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
     repartitionedLeft.zipPartitions(
       repartitionedRight,
       preservesPartitioning = true
-    ) { (_, leftIt, rightIt) =>
-      OrderedRVIterator(leftType, leftIt).zipJoin(OrderedRVIterator(rightType, rightIt))
+    ) { (ctx, leftIt, rightIt) =>
+      OrderedRVIterator(leftType, leftIt, ctx)
+        .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))
     }
   }
 }
