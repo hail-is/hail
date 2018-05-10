@@ -37,7 +37,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
        Throws an error if a file already exists at the path.
      - ``'rb'`` -- Readable binary file (:class:`io.BufferedReader`).
      - ``'wb'`` -- Writable binary file (:class:`io.BufferedWriter`).
-     - ``'wb'`` -- Exclusive writable binary file (:class:`io.BufferedWriter`).
+     - ``'xb'`` -- Exclusive writable binary file (:class:`io.BufferedWriter`).
        Throws an error if a file already exists at the path.
 
 
