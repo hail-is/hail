@@ -435,7 +435,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     queryAST.toIR(Some("AGG")) match {
       case Some(ir) if useIR(queryAST) => aggregate(ir)
       case _ =>
-      val globalsBc = globals.broadcast
+        val globalsBc = globals.broadcast
         val (t, f) = Parser.parseExpr(expr, ec)
         val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
           case (ec, a) =>
