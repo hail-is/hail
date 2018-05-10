@@ -115,36 +115,39 @@ class BlockMatrix(object):
 
     Warning
     -------
-        For binary operations, if the first operand is an ndarray and the second
-        operand is a block matrix, the result will be a ndarray of block matrices.
-        To achieve the desired behavior for ``+`` and ``*``, place the block matrix
-        operand first; for ``-``, ``/``, and ``@``, first convert the ndarray to a
-        block matrix using :meth:`.from_numpy`.
+    
+        For binary operations, if the first operand is an ndarray and the
+        second operand is a block matrix, the result will be a ndarray of block
+        matrices. To achieve the desired behavior for ``+`` and ``*``, place the
+        block matrix operand first; for ``-``, ``/``, and ``@``, first convert
+        the ndarray to a block matrix using :meth:`.from_numpy`.
+
 
     **Block sparsity**
 
-    The methods :meth:`sparsify_band`, :meth:`sparsify_row_intervals`, and
-    :meth:`sparsify_triangle` create block matrices in which some blocks
-    are known to be identically zero. Such matrices are "block sparse"
-    and do not store the zeroed blocks explicitly; rather
-    zeroed blocks are dropped both in memory and when stored on disk. This
-    enables computations, such as banded correlation for a huge number of
-    variables, that would otherwise be prohibitively expensive;
-    blocks that are dropped prior to an action (such as :meth:`write` or
-    :meth:`export`) are never computed the first place. Matrix multiplication
-    is also accelerated in proportion to the block sparsity of each operand.
-
-    Matrix product ``@`` currently always results in a dense block matrix.
-    Sparse block matrices also support transpose,
-    :math:`diagonal`, and all non-mathematical operations except filtering.
-
-    Element-wise mathematical operations are currently supported if and
+    The methods :meth:`sparsify_band`, :meth:`sparsify_rectangles`,
+    :meth:`sparsify_row_intervals`, and :meth:`sparsify_triangle` create "sparse"
+    block matrices in which zeroed blocks are not explicitly stored in memory or
+    on disk. This enables computations that would otherwise be prohibitively
+    expensive because Spark's lazy evaluation ensures that blocks that are
+    dropped prior to an action (such as :meth:`write` or :meth:`export`) are
+    never computed the first place. For example, using :meth:`sparsify_band`,
+    one can compute banded correlation for a huge number of variables.
+    Many operations are also accelerated using the sparse representation.
+    
+    Not all methods are currently supported for sparse block matrices.
+        
+    Element-wise mathematical operations are supported if and
     only if they cannot transform zeroed blocks to non-zero blocks. For
     example, all forms of element-wise multiplication ``*`` are supported,
     and element-wise multiplication results in a sparse block matrix with
     block support equal to the intersection of that of the operands. On the
     other hand, scalar addition is not supported, and matrix addition is
     supported only between block matrices with the same block sparsity.
+    
+    Matrix multiplication ``@`` is supported but always results in a dense
+    block matrix. All other methods are supported except :meth:`filter`,
+    :meth:`filter_rows`, :meth:`filter_cols`.
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -890,14 +893,17 @@ class BlockMatrix(object):
 
     @property
     def is_sparse(self):
-        """Returns true if at least one block is implicitly zero,
-        e.g. dropped.
+        """Returns true if sparse.
+        
+        Notes
+        -----
+        A block matrix is sparse if some blocks are implicitly zero.
 
         Returns
         -------
         :obj:`bool`
         """
-        return BlockMatrix(self._jbm.gp().maybeSparse().isEmpty())
+        return self._jbm.gp().maybeSparse().isEmpty()
 
     @property
     def T(self):

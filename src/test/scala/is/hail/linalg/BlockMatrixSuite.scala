@@ -1108,10 +1108,10 @@ class BlockMatrixSuite extends SparkSuite {
     assert(bm.filterBand(lower2, upper2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
     
     for (blocksOnly <- Array(true, false))
-    assert(filteredEquals(bm.filterBand(0, 0, blocksOnly = blocksOnly),
-      bm.filterRowIntervals(Array[Long](0, 1, 2, 3), Array[Long](1, 2, 3, 4), blocksOnly = blocksOnly)))
+      assert(filteredEquals(bm.filterBand(0, 0, blocksOnly = blocksOnly),
+        bm.filterRowIntervals(Array[Long](0, 1, 2, 3), Array[Long](1, 2, 3, 4), blocksOnly = blocksOnly)))
     
-    val lm2 = BDM.ones[Double](8, 10)
+    val lm2 = BDM.rand[Double](8, 10)
     val bm2 = BlockMatrix.fromBreezeMatrix(sc, lm2, blockSize = 3)
     
     for {
@@ -1123,23 +1123,5 @@ class BlockMatrixSuite extends SparkSuite {
         if (j - i >= lower && j - i <= upper) v else 0.0 }
       assert(actual === expected)
     }
-  }
-  
-  def testExportRectangular() {
-    val input = tmpDir.createTempFile("test")
-    val output = "/tmp/rectangles"
-    val rectangles = Array(
-      Array[Long](0, 8, 0, 8),
-      Array[Long](3, 6, 3, 6),
-      Array[Long](4, 9, 4, 9),
-      Array[Long](0, 9, 0, 10))
-
-    val blockSize = 10
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
-    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
-
-    bm.write(input, forceRowMajor = true)
-    
-    BlockMatrix.exportRectangles(hc, input, output, rectangles.flatten, "\t") // FIXME: move to Python
   }
 }

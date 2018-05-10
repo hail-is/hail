@@ -162,7 +162,7 @@ object BlockMatrix {
     val nFiles = new ExportRectanglesRDD(hc, input, output, rectangles, delimiter).collect().sum
     assert(nFiles == rectangles.length)
     
-    info(s"Wrote $nFiles rectangular regions to files")
+    info(s"wrote $nFiles rectangular regions to files")
   }
 
   object ops {
@@ -441,7 +441,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def colVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) - lv,
     "broadcasted subtraction of column-vector")(a)
   
-  def colVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv,
+  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv,
     "broadcasted multiplication column-vector containing nan or infinity",
     reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
@@ -1487,7 +1487,7 @@ class ExportRectanglesRDD(hc: HailContext,
 
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val ExportRectanglesRDDPartition(index, r) = split.asInstanceOf[ExportRectanglesRDDPartition]
-
+    
     val firstRow = r(0)
     val firstRowOffset = gp.indexBlockOffset(firstRow)
     
@@ -1506,12 +1506,17 @@ class ExportRectanglesRDD(hc: HailContext,
     
     val nBlockCols = lastBlockCol - firstBlockCol + 1
 
+    // inclusive start, exclusive stop
+    val rIncExc = r.clone()
+    rIncExc(1) += 1
+    rIncExc(3) += 1
+    
     val partFiles = partFilesBc.value
     val inPerBlockCol = new Array[InputBuffer](nBlockCols)
     val data = new Array[Double](blockSize)
     val sb = new StringBuilder(blockSize << 2)
     val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
-    val outputFile = output + s"/rect-$paddedIndex-${ r.mkString("-") }"
+    val outputFile = output + s"/rect-$paddedIndex-${ rIncExc.mkString("-") }"
     val osw = new OutputStreamWriter(sHadoopBc.value.value.unsafeWriter(outputFile))
 
     var i = firstRow
@@ -1524,8 +1529,8 @@ class ExportRectanglesRDD(hc: HailContext,
         while (blockCol <= lastBlockCol) {          
           val pi = gp.coordinatesPart(blockRow, blockCol)
           if (pi < 0)
-            fatal(
-              s"Block ($blockRow, $blockCol) missing for rectangle $index with bounds ${ r.mkString("[", ",", "]") }")
+            fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
+              s"with bounds ${ rIncExc.mkString("[", ", ", "]") }")
           
           val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
           val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
