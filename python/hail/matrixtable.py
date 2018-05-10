@@ -1565,7 +1565,7 @@ class MatrixTable(ExprContainer):
         """
         caller = 'MatrixTable.transmute_rows'
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys()
+        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
         fields_referenced -= set(self.row_key)
 
         return self._select_rows(caller,
