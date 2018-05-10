@@ -1826,7 +1826,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = EvalContext(Map(
       "global" -> (0, globalType),
       "AGG" -> (1, TAggregable(rvRowType, aggregationST))))
-    val globalsBc = globals.broadcast
 
     val qAST = Parser.parseToAST(expr, ec)
 
