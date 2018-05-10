@@ -1605,7 +1605,7 @@ class MatrixTable(ExprContainer):
         fields_referenced -= set(self.col_key)
 
         return self._select_cols(caller,
-                                 self.col_value.annotate(**named_exprs).drop(*fields_referenced))
+                                 value_struct=self.col_value.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.

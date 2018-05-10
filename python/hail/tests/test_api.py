@@ -1190,14 +1190,13 @@ class MatrixTests(unittest.TestCase):
     def test_transmute(self):
         mt = (
             hl.utils.range_matrix_table(1, 1)
-                .drop('row_idx', 'col_idx')
                 .annotate_globals(g1=0, g2=0)
                 .annotate_cols(c1=0, c2=0)
                 .annotate_rows(r1=0, r2=0)
                 .annotate_entries(e1=0, e2=0))
         self.assertEqual(mt.transmute_globals(g3 = mt.g2 + 1).globals.dtype, hl.tstruct(g1=hl.tint, g3=hl.tint))
-        self.assertEqual(mt.transmute_rows(r3 = mt.r2 + 1).row.dtype, hl.tstruct(r1=hl.tint, r3=hl.tint))
-        self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
+        self.assertEqual(mt.transmute_rows(r3 = mt.r2 + 1).row_value.dtype, hl.tstruct(r1=hl.tint, r3=hl.tint))
+        self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
         self.assertEqual(mt.transmute_entries(e3 = mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
 
 class GroupedMatrixTests(unittest.TestCase):
