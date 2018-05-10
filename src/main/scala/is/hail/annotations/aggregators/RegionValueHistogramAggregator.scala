@@ -11,8 +11,6 @@ object RegionValueHistogramAggregator {
 }
 
 class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) extends RegionValueAggregator {
-  import RegionValueHistogramAggregator._
-
   if (bins <= 0)
     fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
 
@@ -44,8 +42,8 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
     rvb.startArray(combiner.frequency.length)
     combiner.frequency.foreach(rvb.addLong _)
     rvb.endArray()
-    rvb.addLong(combiner.nLess)
-    rvb.addLong(combiner.nGreater)
+    rvb.addLong(combiner.nSmaller)
+    rvb.addLong(combiner.nLarger)
     rvb.endStruct()
   }
 

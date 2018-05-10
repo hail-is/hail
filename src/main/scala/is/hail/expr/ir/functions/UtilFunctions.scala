@@ -33,6 +33,10 @@ object UtilFunctions extends RegistryFunctions {
       ApplyAggOp(AggMap(agg, uid, I32(0)), Count(), Seq())
     }
 
+    registerIR("hist", TAggregable(TFloat64()), TFloat64(), TFloat64(), TInt32()){ (agg, start, end, nbins) =>
+      ApplyAggOp(agg, Histogram(), FastSeq(start, end, nbins))
+    }
+
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
     registerIR("isMissing", tv("T")) { a => IsNA(a) }
 

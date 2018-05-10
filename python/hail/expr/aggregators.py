@@ -1031,6 +1031,6 @@ def hist(expr, start, end, bins) -> StructExpression:
     """
     t = tstruct(bin_edges=tarray(tfloat64),
                 bin_freq=tarray(tint64),
-                n_less=tint64,
+                n_smaller=tint64,
                 n_larger=tint64)
     return _agg_func('hist', expr, t, start, end, bins)

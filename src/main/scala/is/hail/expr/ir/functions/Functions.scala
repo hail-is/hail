@@ -227,6 +227,9 @@ abstract class RegistryFunctions {
 
   def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type)(f: (IR, IR, IR) => IR): Unit =
     registerIR(mname, Array(mt1, mt2, mt3)) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
+
+  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type)(f: (IR, IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2, mt3, mt4)) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
 }
 
 sealed abstract class IRFunction {
