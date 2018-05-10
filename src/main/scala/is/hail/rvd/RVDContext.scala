@@ -23,6 +23,12 @@ class RVDContext(r: Region) extends AutoCloseable {
     ctx
   }
 
+  def freshRegion: Region = {
+    val r2 = Region()
+    own(r2)
+    r2
+  }
+
   def region: Region = r
 
   private[this] val theRvb = new RegionValueBuilder(r)

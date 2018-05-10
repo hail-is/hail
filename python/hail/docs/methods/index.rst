@@ -71,6 +71,7 @@ Methods
     trio_matrix
     variant_qc
     vep
+    window_by_locus
 
 
 .. rubric:: Miscellaneous
