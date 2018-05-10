@@ -505,7 +505,7 @@ class Tests(unittest.TestCase):
                 BlockMatrix.export_rectangles(bm_uri, rect_uri, rects)
 
                 for (i, r) in enumerate(rects):
-                    file = rect_path + '/rect_' + '-'.join(map(str, [i] + r))
+                    file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
                     expected = nd[r[0]:r[1], r[2]:r[3]]
                     actual = np.reshape(np.loadtxt(file), (r[1] - r[0], r[3] - r[2]))
                     self.assertTrue(np.array_equal(expected, actual))
