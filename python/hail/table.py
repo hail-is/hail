@@ -1730,6 +1730,14 @@ class Table(ExprContainer):
         while the key fields from the right table are not present in
         the result.
 
+        Note
+        ----
+        These join methods implement a traditional `Cartesian product
+        <https://en.wikipedia.org/wiki/Cartesian_product>`__ join, and
+        the number of records in the resulting table can be larger than
+        the number of records on the left or right if duplicate keys are
+        present.
+
         Parameters
         ----------
         right : :class:`.Table`
