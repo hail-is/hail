@@ -81,15 +81,6 @@ object IRFunctionRegistry {
     }
   }
 
-<<<<<<< 178627692b146d2638c8f377922252443271cf99
-=======
-  def invoke(name: String, args: Seq[IR]): IR = {
-    lookupConversion(name, args.map(_.typ)) match {
-      case Some(f) => f(args)
-    }
-  }
-
->>>>>>> initial version of Set IR functions
   SetFunctions.registerAll()
   CallFunctions.registerAll()
   GenotypeFunctions.registerAll()
