@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableRead, TableUnion}
+import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableMapGlobals, TableMapRows, TableRead, TableUnion}
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -71,8 +71,6 @@ object Simplify {
         
       case Let(n, v, b) if !Mentions(b, n) => b
 
-      case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
-
       case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
 
       case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
@@ -136,6 +134,13 @@ object Simplify {
       case TableFilter(TableFilter(t, p1), p2) =>
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
+
+      case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
+
+      case TableCount(TableMapRows(child, _, _)) => TableCount(child)
+
+      case TableCount(TableUnion(children)) =>
+        children.map(TableCount).reduce(ApplyBinaryPrimOp(Add(), _, _))
 
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
