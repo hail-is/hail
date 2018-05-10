@@ -952,10 +952,52 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr(hl.is_complex("A", "TATGC")))
         self.assertTrue(hl.eval_expr(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval_expr(hl.is_star("A", "*")))
-        self.assertTrue(hl.eval_expr(hl.is_star("*", "ATC")))
-        self.assertTrue(hl.eval_expr(hl.is_star("*", "A")))
         self.assertTrue(hl.eval_expr(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_strand_ambiguous("G", "T")))
+
+    def test_allele_type(self):
+        self.assertEqual(
+            hl.tuple((
+                hl.allele_type('A', 'C'),
+                hl.allele_type('AC', 'CT'),
+                hl.allele_type('C', 'CT'),
+                hl.allele_type('CT', 'C'),
+                hl.allele_type('CTCA', 'AAC'),
+                hl.allele_type('CTCA', '*'),
+                hl.allele_type('C', '<DEL>'),
+                hl.allele_type('C', '<SYMBOLIC>'),
+                hl.allele_type('C', 'H'),
+                hl.allele_type('C', ''),
+                hl.allele_type('', 'CCT'),
+                hl.allele_type('F', 'CCT'),
+                hl.allele_type('A', '[ASDASD[A'),
+                hl.allele_type('A', ']ASDASD]A'),
+                hl.allele_type('A', 'T<ASDASD>]ASDASD]'),
+                hl.allele_type('A', 'T<ASDASD>[ASDASD['),
+                hl.allele_type('A', '.T'),
+                hl.allele_type('A', 'T.'),
+            )).value,
+            (
+                'SNP',
+                'MNP',
+                'Insertion',
+                'Deletion',
+                'Complex',
+                'Star',
+                'Symbolic',
+                'Symbolic',
+                'Unknown',
+                'Unknown',
+                'Unknown',
+                'Unknown',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+                'Symbolic',
+            )
+        )
 
     def test_hamming(self):
         self.assertEqual(hl.eval_expr(hl.hamming('A', 'T')), 1)

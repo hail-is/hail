@@ -6,7 +6,7 @@ import scala.util.matching.Regex
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
-  val SNP, MNP, Insertion, Deletion, Complex, Star = Value
+  val SNP, MNP, Insertion, Deletion, Complex, Star, Symbolic, Unknown = Value
 }
 
 object CopyState extends Enumeration {
@@ -17,44 +17,42 @@ object CopyState extends Enumeration {
 object AltAlleleMethods {
   import is.hail.variant.AltAlleleType._
 
-  val alleleRegex: Regex = "^([ACGT]+)|\\*$".r
+  val baseRegex: Regex = "^([ACGTNM])+$".r
 
-  def validate(allele: String) {
-    if (!alleleRegex.matches(allele))
-      fatal(s"""invalid allele "$allele"""")
-  }
+  val symbolicRegex: Regex = "(^\\.)|(\\.$)|(^<)|(>$)|(\\[)|(\\])".r
 
   def altAlleleType(ref: String, alt: String): AltAlleleType = {
-    validate(ref)
-    validate(alt)
-    if (ref.length == alt.length) {
-      if (ref.length == 1)
-        if (ref == "*" || alt == "*")
-          AltAlleleType.Star
-        else
+    if (!baseRegex.matches(ref))
+      AltAlleleType.Unknown
+    else if (baseRegex.matches(alt))
+      if (ref.length == alt.length) {
+        if (ref.length == 1)
           AltAlleleType.SNP
-      else {
-        val mismatches = hamming(ref, alt)
-        if (mismatches == 1)
-          AltAlleleType.SNP
-        else
-          AltAlleleType.MNP
-      }
-    } else {
-      if (ref == "*" || alt == "*")
-        AltAlleleType.Star
-      else if (ref.length < alt.length) {
-        if (ref(0) == alt(0) && alt.endsWith(ref.substring(1)))
-          AltAlleleType.Insertion
-        else
-          AltAlleleType.Complex
+        else {
+          val mismatches = hamming(ref, alt)
+          if (mismatches == 1)
+            AltAlleleType.SNP
+          else
+            AltAlleleType.MNP
+        }
       } else {
-        if (ref(0) == alt(0) && ref.endsWith(alt.substring(1)))
-          AltAlleleType.Deletion
-        else
-          AltAlleleType.Complex
-      }
-    }
+        if (ref.length < alt.length) {
+          if (ref(0) == alt(0) && alt.endsWith(ref.substring(1)))
+            AltAlleleType.Insertion
+          else
+            AltAlleleType.Complex
+        } else {
+          if (ref(0) == alt(0) && ref.endsWith(alt.substring(1)))
+            AltAlleleType.Deletion
+          else
+            AltAlleleType.Complex
+        }
+      } else if (alt == "*")
+      AltAlleleType.Star
+    else if (symbolicRegex.matches(alt))
+      AltAlleleType.Symbolic
+    else
+      AltAlleleType.Unknown
   }
 
   def isSNP(ref: String, alt: String): Boolean = altAlleleType(ref, alt) == AltAlleleType.SNP
