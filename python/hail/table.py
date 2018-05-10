@@ -570,7 +570,36 @@ class Table(ExprContainer):
         return self._select_globals('Table.select_globals', hl.struct(**assignments))
 
     def transmute_globals(self, **named_exprs):
-        raise NotImplementedError()
+        """Similar to :meth:`.Table.annotate_globals`, but drops referenced fields.
+
+        Notes
+        -----
+        This method adds new global fields according to `named_exprs`, and
+        drops all global fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.Table.select_globals`,
+        :meth:`.Table.annotate_globals`
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Annotation expressions.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        caller = 'Table.transmute_globals'
+        e = get_annotate_exprs(caller, named_exprs, self._global_indices)
+        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices) - set(e.keys())
+
+        return self._select_globals(caller,
+                                    self.globals.annotate(**named_exprs).drop(*fields_referenced))
+
 
     def transmute(self, **named_exprs):
         """Add new fields and drop fields referenced.

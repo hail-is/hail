@@ -324,6 +324,10 @@ class TableTests(unittest.TestCase):
         self.assertEqual(list(df.row), ['d', 'e', 'f', 'h'])
         self.assertEqual(r, [hl.Struct(h=x) for x in [10, 20, None]])
 
+    def test_transmute_globals(self):
+        ht = hl.utils.range_table(1).annotate_globals(a=5, b=10)
+        self.assertEqual(ht.transmute_globals(c = ht.a + 5).globals.dtype, hl.tstruct(b=hl.tint, c=hl.tint))
+
     def test_select(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
                             g=hl.tstruct(x=hl.tbool, y=hl.tint32))
