@@ -1950,7 +1950,8 @@ class Tests(unittest.TestCase):
 
     def test_window_by_locus(self):
         mt = hl.utils.range_matrix_table(100, 2, n_partitions=10)
-        mt = mt.annotate_rows(locus=hl.locus('1', mt.row_idx + 1), alleles=['A', 'T']).key_rows_by('locus', 'alleles')
+        mt = mt.annotate_rows(locus=hl.locus('1', mt.row_idx + 1))
+        mt = mt.key_rows_by('locus')
         mt = mt.annotate_entries(e_row_idx = mt.row_idx, e_col_idx = mt.col_idx)
         mt = hl.window_by_locus(mt, 5).cache()
 

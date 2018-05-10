@@ -355,5 +355,5 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    mt = require_partition_key_locus(mt, 'window_by_locus')
+    require_partition_key_locus(mt, 'window_by_locus')
     return MatrixTable(mt._jvds.windowVariants(bp_window_size))
