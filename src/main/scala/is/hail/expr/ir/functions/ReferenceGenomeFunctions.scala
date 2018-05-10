@@ -62,13 +62,16 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     val ilocal = mb.newLocal[Interval]
     val plocal = mb.newLocal[Locus]
     val srvb = new StagedRegionValueBuilder(mb, tinterval)
+    val addLocus = { (srvb: StagedRegionValueBuilder, point: String) =>
+      emitLocus(srvb, Code.checkcast[Locus](ilocal.invoke[java.lang.Object](point)))
+    }
 
     asm4s.coerce[Long](Code(
       ilocal := interval,
       srvb.start(),
-      emitLocus(mb, Code.checkcast[Locus](ilocal.invoke[java.lang.Object]("start"))),
+      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "start")),
       srvb.advance(),
-      emitLocus(mb, Code.checkcast[Locus](ilocal.invoke[java.lang.Object]("end"))),
+      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "end")),
       srvb.advance(),
       srvb.addBoolean(ilocal.invoke[Boolean]("includesStart")),
       srvb.advance(),
