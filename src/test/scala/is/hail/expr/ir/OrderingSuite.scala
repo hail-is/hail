@@ -348,12 +348,12 @@ class OrderingSuite {
     p.check()
   }
 
-  @Test def test() {
+  @Test def testContainsWithArrayFold() {
 
     val set1 = ToSet(MakeArray(Seq(I32(1), I32(4)), TArray(TInt32())))
     val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
     val ir =
-      ArrayFold(set1, True(), "accumulator", "setelt",
+      ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
       ApplySpecial("&&",
         FastSeq(
           Ref("accumulator", TBoolean()),
