@@ -55,7 +55,9 @@ trait Py4jUtils {
     new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffSize)
   }
 
-  def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
+  def writeFile(path: String, hc: HailContext, exclusive: Boolean): HadoopPyWriter = {
+    if (exclusive && hc.hadoopConf.exists(path))
+      fatal(s"a file already exists at '$path'")
     new HadoopPyWriter(hc.hadoopConf.unsafeWriter(path))
   }
 
