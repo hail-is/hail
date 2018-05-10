@@ -429,13 +429,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def aggregate(expr: String): (Any, Type) = {
-    val globalsBc = globals.broadcast
     val ec = aggEvalContext()
 
     val queryAST = Parser.parseToAST(expr, ec)
     queryAST.toIR(Some("AGG")) match {
       case Some(ir) if useIR(queryAST) => aggregate(ir)
       case _ =>
+        val globalsBc = globals.broadcast
         val (t, f) = Parser.parseExpr(expr, ec)
         val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
           case (ec, a) =>
@@ -469,7 +469,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def selectGlobal(expr: String): Table = {
     val ec = EvalContext("global" -> globalSignature)
-    ec.set(0, globals.value)
 
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
@@ -478,6 +477,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
+        ec.set(0, globals.value)
         log.warn(s"Table.select_globals found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
