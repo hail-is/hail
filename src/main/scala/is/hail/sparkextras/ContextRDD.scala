@@ -461,7 +461,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       .subsetPartitions((0 to idxLast).toArray)
   }
 
-  def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
+  def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] = {
+    println(rdd.toDebugString)
     sparkContext.runJob(
       rdd,
       { (it: Iterator[ElementType]) =>
@@ -469,6 +470,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
         f(it.flatMap(_(c)))
       },
       partitions)
+  }
 
   def blocked(partitionEnds: Array[Int]): ContextRDD[C, T] =
     new ContextRDD(new BlockedRDD(rdd, partitionEnds), mkc)
