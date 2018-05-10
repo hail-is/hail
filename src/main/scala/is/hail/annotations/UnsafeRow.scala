@@ -220,6 +220,14 @@ object SafeRow {
 
   def apply(t: TBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
 
+  def selectFields(t: TBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
+    val fullRow = new UnsafeRow(t, region, off)
+    Row(selectIdx.map(i => Annotation.copy(t.types(i), fullRow.get(i))): _*)
+  }
+
+  def selectFields(t: TBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
+    SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
+
   def read(t: Type, region: Region, off: Long): Annotation =
     Annotation.copy(t, UnsafeRow.read(t, region, off))
 
