@@ -10,6 +10,10 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
+    registerIR("contains", TSet(tv("T")), tv("T")) { case (s, v) =>
+      SetContains(s, v)
+    }
+
     registerIR("remove", TSet(tv("T")), tv("T")) { case (s, v) =>
       val t = v.typ
       val x = genUID()

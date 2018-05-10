@@ -1376,3 +1376,28 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'G'], ['GCTAA', 'GCAAA', 'G'])
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA'], ['T', 'A', 'C'], pos_change=2)
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
+
+    def assert_evals_to(self, e, v):
+        self.assertEqual(e.value, v)
+
+    def test_set_functions(self):
+        s = hl.set([1, 3, 7])
+        t = hl.set([3, 8])
+        self.assert_evals_to(s, set([1, 3, 7]))
+
+        self.assert_evals_to(s.add(3), set([1, 3, 7]))
+        self.assert_evals_to(s.add(4), set([1, 3, 4, 7]))
+
+        self.assert_evals_to(s.remove(3), set([1, 7]))
+        self.assert_evals_to(s.remove(4), set([1, 3, 7]))
+
+        self.assert_evals_to(s.contains(3), True)
+        self.assert_evals_to(s.contains(4), False)
+
+        self.assert_evals_to(s.difference(t), set([1, 7]))
+        self.assert_evals_to(s.intersection(t), set([3]))
+
+        self.assert_evals_to(s.is_subset(hl.set([1, 3, 4, 7])), True)
+        self.assert_evals_to(s.is_subset(hl.set([1, 3])), False)
+
+        self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
