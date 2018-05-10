@@ -1507,9 +1507,17 @@ class MatrixTable(ExprContainer):
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
-        Note
-        ----
-        Not implemented.
+        Notes
+        -----
+        This method adds new global fields according to `named_exprs`, and
+        drops all global fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_globals`,
+        :meth:`.MatrixTable.annotate_globals`
 
         Parameters
         ----------
@@ -1519,16 +1527,32 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        caller = 'MatrixTable.transmute_globals'
+        e = get_annotate_exprs(caller, named_exprs, self._global_indices)
+        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices) - set(e.keys())
+
+        return self._select_globals(caller,
+                                    self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_rows(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
+        Notes
+        -----
+        This method adds new row fields according to `named_exprs`, and drops
+        all row fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
         Note
         ----
-        Not implemented.
+        This method supports aggregation over columns.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_rows`,
+        :meth:`.MatrixTable.annotate_rows`
 
         Parameters
         ----------
@@ -1538,17 +1562,33 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
+        caller = 'MatrixTable.transmute_rows'
+        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
+        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
+        fields_referenced -= set(self.row_key)
 
-        raise NotImplementedError()
+        return self._select_rows(caller,
+                                 value_struct=self.row_value.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
+        Notes
+        -----
+        This method adds new column fields according to `named_exprs`, and
+        drops all column fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
         Note
         ----
-        Not implemented.
+        This method supports aggregation over rows.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_cols`,
+        :meth:`.MatrixTable.annotate_cols`
 
         Parameters
         ----------
@@ -1558,16 +1598,29 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        caller = 'MatrixTable.transmute_cols'
+        e = get_annotate_exprs(caller, named_exprs, self._col_indices)
+        fields_referenced = extract_refs_by_indices(e.values(), self._col_indices) - set(e.keys())
+        fields_referenced -= set(self.col_key)
+
+        return self._select_cols(caller,
+                                 value_struct=self.col_value.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
-        Note
-        ----
-        Not implemented.
+        Notes
+        -----
+        This method adds new entry fields according to `named_exprs`, and
+        drops all entry fields referenced in those expressions. See
+        :meth:`.Table.transmute` for full documentation on how transmute
+        methods work.
+
+        See Also
+        --------
+        :meth:`.Table.transmute`, :meth:`.MatrixTable.select_entries`,
+        :meth:`.MatrixTable.annotate_entries`
 
         Parameters
         ----------
@@ -1577,9 +1630,13 @@ class MatrixTable(ExprContainer):
         Returns
         -------
         :class:`.MatrixTable`
-            Annotated matrix table.
         """
-        raise NotImplementedError()
+        caller = 'MatrixTable.transmute_entries'
+        e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
+        fields_referenced = extract_refs_by_indices(e.values(), self._entry_indices) - set(e.keys())
+
+        return self._select_entries(caller,
+                                    self.entry.annotate(**named_exprs).drop(*fields_referenced))
 
     @typecheck_method(expr=expr_any)
     def aggregate_rows(self, expr) -> Any:
@@ -2737,7 +2794,7 @@ class MatrixTable(ExprContainer):
         return self._jvds.same(other._jvds, tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
-    def _select_entries(self, caller, s):
+    def _select_entries(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._entry_indices)
         return cleanup(MatrixTable(base._jvds.selectEntries(s._ast.to_hql())))
@@ -2786,7 +2843,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(base._jvds.selectCols(col._ast.to_hql(), new_key)))
 
     @typecheck_method(caller=str, s=expr_struct())
-    def _select_globals(self, caller, s):
+    def _select_globals(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
         return cleanup(MatrixTable(base._jvds.selectGlobals(s._ast.to_hql())))

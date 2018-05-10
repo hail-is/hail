@@ -1187,6 +1187,18 @@ class MatrixTests(unittest.TestCase):
             t.row.dtype,
             hl.tstruct(**{'row_idx': hl.tint32, '0': hl.tint32, '1': hl.tint32}))
 
+    def test_transmute(self):
+        mt = (
+            hl.utils.range_matrix_table(1, 1)
+                .annotate_globals(g1=0, g2=0)
+                .annotate_cols(c1=0, c2=0)
+                .annotate_rows(r1=0, r2=0)
+                .annotate_entries(e1=0, e2=0))
+        self.assertEqual(mt.transmute_globals(g3 = mt.g2 + 1).globals.dtype, hl.tstruct(g1=hl.tint, g3=hl.tint))
+        self.assertEqual(mt.transmute_rows(r3 = mt.r2 + 1).row_value.dtype, hl.tstruct(r1=hl.tint, r3=hl.tint))
+        self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
+        self.assertEqual(mt.transmute_entries(e3 = mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
+
 class GroupedMatrixTests(unittest.TestCase):
 
     def get_groupable_matrix(self):

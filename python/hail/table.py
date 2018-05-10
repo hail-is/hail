@@ -638,13 +638,9 @@ class Table(ExprContainer):
         """
         caller = "Table.transmute"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = set()
-        for k, v in e.items():
-            for name, inds in get_refs(v).items():
-                if inds == self._row_indices and (self.key is None or name not in self.key):
-                    fields_referenced.add(name)
-
-        fields_referenced = fields_referenced - set(named_exprs.keys())
+        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
+        if self.key is not None:
+            fields_referenced -= set(self.key)
 
         return self._select(caller, value_struct=self.row_value.annotate(**e).drop(*fields_referenced))
 
