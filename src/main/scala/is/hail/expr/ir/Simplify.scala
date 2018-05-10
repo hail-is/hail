@@ -71,6 +71,8 @@ object Simplify {
         
       case Let(n, v, b) if !Mentions(b, n) => b
 
+      case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
+
       case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
 
       case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
