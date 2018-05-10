@@ -764,11 +764,9 @@ object OrderedRVD {
       partitioner,
       crdd.cmapPartitions { (ctx, it) =>
         it.map { rv =>
-          val wkrv = WritableRegionValue(typ.kType)
-          wkrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-          val bytes =
-            RVD.regionValueToBytes(enc, ctx)(rv)
-          (SafeRow(typ.kType, wkrv.value).asInstanceOf[Any], bytes)
+          val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kRowFieldIdx)
+          val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
+          (keys, bytes)
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kType.ordering.toOrdering)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
