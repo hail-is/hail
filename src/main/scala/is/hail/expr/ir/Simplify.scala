@@ -71,11 +71,25 @@ object Simplify {
         
       case Let(n, v, b) if !Mentions(b, n) => b
 
+      case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
+
+      case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
+
+      case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
+
+      case ApplyAggOp(AggMap(a, _, _), Count(), args) => ApplyAggOp(a, Count(), args)
+
       case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
         AggMap(AggFilter(a, n2, p), n1, b)
 
       case AggMap(AggMap(a, n1, b1), n2, b2) =>
         AggMap(a, n1, Let(n2, b1, b2))
+
+      case AggFlatMap(AggMap(a, n1, b1), n2, b2) =>
+        AggFlatMap(a, n1, Let(n2, b1, b2))
+
+      case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
+        ArrayFlatMap(a, n1, Let(n2, b1, b2))
 
       case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
         ArrayMap(a, n1, Let(n2, b1, b2))
