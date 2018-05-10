@@ -2030,7 +2030,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
         PL: array<int32>
       }
 
-    For generic genotype schema, use :func:`.split_multi_hts`.
+    For other entry fields, use :class:`.SplitMulti`.
 
     Examples
     --------
