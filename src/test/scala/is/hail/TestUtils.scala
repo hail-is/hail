@@ -254,6 +254,7 @@ object TestUtils {
         "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
         "rsid" -> "\".\"")
       .exportGen(path, precision)
+  }
 
   def eval(x: IR): Any = {
     eval(x, FastSeq.empty)
