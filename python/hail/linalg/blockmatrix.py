@@ -115,7 +115,7 @@ class BlockMatrix(object):
 
     Warning
     -------
-    
+
         For binary operations, if the first operand is an ndarray and the
         second operand is a block matrix, the result will be a ndarray of block
         matrices. To achieve the desired behavior for ``+`` and ``*``, place the
@@ -134,9 +134,9 @@ class BlockMatrix(object):
     never computed the first place. For example, using :meth:`sparsify_band`,
     one can compute banded correlation for a huge number of variables.
     Many operations are also accelerated using the sparse representation.
-    
+
     Not all methods are currently supported for sparse block matrices.
-        
+
     Element-wise mathematical operations are supported if and
     only if they cannot transform zeroed blocks to non-zero blocks. For
     example, all forms of element-wise multiplication ``*`` are supported,
@@ -144,7 +144,7 @@ class BlockMatrix(object):
     block support equal to the intersection of that of the operands. On the
     other hand, scalar addition is not supported, and matrix addition is
     supported only between block matrices with the same block sparsity.
-    
+
     Matrix multiplication ``@`` is supported but always results in a dense
     block matrix. All other methods are supported except :meth:`filter`,
     :meth:`filter_rows`, :meth:`filter_cols`.
@@ -647,7 +647,7 @@ class BlockMatrix(object):
 
         .. math::
 
-          \mathrm{lower} <= j - i <= \mathrm{upper}.
+          \mathrm{lower} \leq j - i \leq \mathrm{upper}.
 
         The matrix need not be square and the band need not include the
         diagonal.
@@ -894,7 +894,7 @@ class BlockMatrix(object):
     @property
     def is_sparse(self):
         """Returns true if sparse.
-        
+
         Notes
         -----
         A block matrix is sparse if some blocks are implicitly zero.
@@ -1251,24 +1251,17 @@ class BlockMatrix(object):
         return Table(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
-    @typecheck(input=str,
-               output=str,
+    @typecheck(path_in=str,
+               path_out=str,
                delimiter=str,
                header=nullable(str),
                add_index=bool,
                parallel=nullable(enumeration('separate_header', 'header_per_shard')),
                partition_size=nullable(int),
                entries=enumeration('full', 'lower', 'strict_lower', 'upper', 'strict_upper'))
-    def export(input, output, delimiter='\t', header=None, add_index=False, parallel=None,
+    def export(path_in, path_out, delimiter='\t', header=None, add_index=False, parallel=None,
                partition_size=None, entries='full'):
         """Exports a stored block matrix as a delimited text file.
-
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
-        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will produce an error message.
 
         Examples
         --------
@@ -1287,8 +1280,8 @@ class BlockMatrix(object):
         Export the upper-triangle of the matrix as a block gzipped file of
         comma-separated values.
 
-        >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example.csv.bgz',
+        >>> BlockMatrix.export(path_in='output/example.bm',
+        ...                    path_out='output/example.csv.bgz',
         ...                    delimiter=',',
         ...                    entries='upper')
 
@@ -1296,8 +1289,8 @@ class BlockMatrix(object):
         gzipped files, each with a header line for columns ``idx``, ``A``,
         ``B``, and ``C``.
 
-        >>> BlockMatrix.export(input='output/example.bm',
-        ...                    output='output/example.gz',
+        >>> BlockMatrix.export(path_in='output/example.bm',
+        ...                    path_out='output/example.gz',
         ...                    header='\t'.join(['idx', 'A', 'B', 'C']),
         ...                    add_index=True,
         ...                    parallel='header_per_shard',
@@ -1315,6 +1308,13 @@ class BlockMatrix(object):
 
             idx A   B   C
             2   0.7 0.3 1.0
+
+        Warning
+        -------
+        The block matrix must be stored in row-major format, as results
+        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
+        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
+        :meth:`export` will produce an error message.
 
         Notes
         -----
@@ -1378,9 +1378,9 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        input: :obj:`str`
+        path_in: :obj:`str`
             Path to input block matrix, stored row-major on disk.
-        output: :obj:`str`
+        path_out: :obj:`str`
             Path for export.
             Use extension ``.gz`` for gzip or ``.bgz`` for block gzip.
         delimiter: :obj:`str`
@@ -1406,32 +1406,25 @@ class BlockMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
-        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, input, joption(partition_size))
+        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, path_in, joption(partition_size))
 
         export_type = Env.hail().utils.ExportType.getExportType(parallel)
 
         if entries == 'full':
-            jrm.export(output, delimiter, joption(header), add_index, export_type)
+            jrm.export(path_out, delimiter, joption(header), add_index, export_type)
         elif entries == 'lower':
-            jrm.exportLowerTriangle(output, delimiter, joption(header), add_index, export_type)
+            jrm.exportLowerTriangle(path_out, delimiter, joption(header), add_index, export_type)
         elif entries == 'strict_lower':
-            jrm.exportStrictLowerTriangle(output, delimiter, joption(header), add_index, export_type)
+            jrm.exportStrictLowerTriangle(path_out, delimiter, joption(header), add_index, export_type)
         elif entries == 'upper':
-            jrm.exportUpperTriangle(output, delimiter, joption(header), add_index, export_type)
+            jrm.exportUpperTriangle(path_out, delimiter, joption(header), add_index, export_type)
         else:
             assert entries == 'strict_upper'
-            jrm.exportStrictUpperTriangle(output, delimiter, joption(header), add_index, export_type)
+            jrm.exportStrictUpperTriangle(path_out, delimiter, joption(header), add_index, export_type)
 
     @typecheck_method(rectangles=sequenceof(sequenceof(int)))
     def sparsify_rectangles(self, rectangles):
         """Filter to blocks overlapping the union of rectangular regions.
-
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
-        :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will produce an error message.
 
         Examples
         --------
@@ -1460,7 +1453,7 @@ class BlockMatrix(object):
         all blocks which are disjoint from the union of a set of rectangular
         regions. Partially overlapping blocks are *not* modified.
 
-        Each rectangles is encoded as a list of length four of
+        Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
         where starts are inclusive and stops are exclusive.
 
@@ -1487,11 +1480,11 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
 
     @staticmethod
-    @typecheck(input=str,
-               output=str,
+    @typecheck(path_in=str,
+               path_out=str,
                rectangles=sequenceof(sequenceof(int)),
                delimiter=str)
-    def export_rectangles(input, output, rectangles, delimiter='\t'):
+    def export_rectangles(path_in, path_out, rectangles, delimiter='\t'):
         """Export rectangular regions from a stored block matrix to delimited text files.
 
         Examples
@@ -1503,11 +1496,11 @@ class BlockMatrix(object):
         ...                [ 5.0,  6.0,  7.0,  8.0],
         ...                [ 9.0, 10.0, 11.0, 12.0],
         ...                [13.0, 14.0, 15.0, 16.0]])
-        >>>
-        >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
 
         Filter to the three rectangles and write.
 
+        >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
+        >>>
         >>> (BlockMatrix.from_numpy(nd)
         ...     .sparsify_rectangles(rectangles)
         ...     .write('output/example.bm', force_row_major=True))
@@ -1515,15 +1508,19 @@ class BlockMatrix(object):
         Export the three rectangles to TSV files:
 
         >>> BlockMatrix.export_rectangles(
-        ...     input='output/example.bm',
-        ...     output='output/example',
+        ...     path_in='output/example.bm',
+        ...     path_out='output/example',
         ...     rectangles = rectangles)
 
-        This produces three files:
+        This produces three files in the folder ``output/example``.
+
+        The first file is ``rect-0_0-1-0-1``:
 
         .. code-block:: text
 
             1.0
+
+        The second file is ``rect-1_0-3-0-2``:
 
         .. code-block:: text
 
@@ -1531,17 +1528,29 @@ class BlockMatrix(object):
             5.0 6.0
             9.0 10.0
 
+        The third file is ``rect-2_1-2-0-4``:
+
         .. code-block:: text
 
             5.0 6.0 7.0 8.0
 
+        Warning
+        -------
+        The block matrix must be stored in row-major format, as results
+        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and
+        from :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
+        :meth:`export` will produce an error message.
+
         Notes
         -----
-        This method exports rectangular regions of the block matrix
-        to delimited text files, parallelizing by region. All
-        overlapping blocks must be present.
+        This method exports rectangular regions of a stored block matrix
+        to delimited text files, in parallel by region.
 
-        Each rectangles is encoded as a list of length four of
+        The block matrix can be sparse so long as all blocks overlapping
+        the rectangles are present, i.e. this method does not currently
+        support implicit zeros.
+
+        Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
         where starts are inclusive and stops are exclusive.
 
@@ -1549,13 +1558,16 @@ class BlockMatrix(object):
         ``[0, 2)`` and column index range ``[1, 3)``, i.e. the elements at
         positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
 
+        Each file name encodes the index of the rectangle in `rectangles`
+        and the bounds as in the example.
+
         The number of rectangles must be less than :math:`2^{31}`.
 
         Parameters
         ----------
-        input: :obj:`srt`
+        path_in: :obj:`srt`
             Path to input block matrix, stored row-major on disk.
-        output: :obj:`str`
+        path_out: :obj:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
             List of rectangles of the form
@@ -1567,7 +1579,7 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain.from_iterable(rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, input, output, flattened_rectangles, delimiter)
+            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter)
 
 
 block_matrix_type.set(BlockMatrix)
