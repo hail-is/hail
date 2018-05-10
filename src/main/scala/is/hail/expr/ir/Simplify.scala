@@ -77,12 +77,7 @@ object Simplify {
 
       case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
-      case ApplyAggOp(AggMap(a, _, _), Count(), args) => ApplyAggOp(a, Count(), args)
-
       case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
-
-      case ApplyAggOp(AggFlatMap(a, _, MakeArray(args, _)), Count(), countArgs) =>
-        ApplyBinaryPrimOp(Multiply(), I32(args.length), ApplyAggOp(a, Count(), countArgs))
 
       case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
         AggMap(AggFilter(a, n2, p), n1, b)
