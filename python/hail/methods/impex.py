@@ -1775,12 +1775,12 @@ def import_vcf(path,
 @typecheck(metadata_file=str,
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
-           entry_field_array_elements_required=bool,
+           array_elements_required=bool,
            tar=nullable(str))
 def import_genomicsdb(metadata_file,
                       call_fields=[],
                       reference_genome='default',
-                      entry_field_array_elements_required=True,
+                      array_elements_required=True,
                       tar=None) -> MatrixTable:
     """Import GenomicsDB database.
 
@@ -1795,7 +1795,7 @@ def import_genomicsdb(metadata_file,
         a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    entry_field_array_elements_required : :obj:`bool`
+    array_elements_required : :obj:`bool`
         If ``True`` (default), elements of entry fields which are
         arrays are required.
     tar : :obj:`str`
@@ -1821,7 +1821,7 @@ def import_genomicsdb(metadata_file,
             metadata_file,
             jset_args(call_fields),
             joption(rg),
-            entry_field_array_elements_required,
+            array_elements_required,
             tar))
 
 

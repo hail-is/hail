@@ -1976,12 +1976,22 @@ class Tests(unittest.TestCase):
     def test_import_genomicsdb(self):
         rg = hl.ReferenceGenome.read('src/test/resources/grch38_chr20.json')
         rg.add_sequence('src/test/resources/Homo_sapiens_assembly38_chr20.fasta.gz', 'src/test/resources/Homo_sapiens_assembly38_chr20.fasta.fai')
-        gdb = hl.import_genomicsdb('src/test/resources/gdb/test.json', reference_genome='GRCh38_chr20')
-        gdb = gdb.annotate_entries(GT = hl.null(hl.tcall))
 
-        comb = hl.import_vcf('src/test/resources/gdb/export-00?.vcf.bgz', reference_genome='GRCh38_chr20')
-        comb = comb.select_entries('GT', 'AD', 'DP', 'GQ', 'PL', 'MIN_DP', 'PGT', 'PID', 'SB')
-        comb = comb.annotate_rows(
-          info = comb.info.drop('AC', 'AF', 'AN', 'FS', 'QD', 'SOR'))
+        def import_and_compare(**kwargs):
+            comb = hl.import_vcf('src/test/resources/gdb/export-00?.vcf.bgz',
+                                 reference_genome='GRCh38_chr20',
+                                 **kwargs)
+            comb = comb.select_entries('GT', 'AD', 'DP', 'GQ', 'PL', 'MIN_DP', 'PGT', 'PID', 'SB') # reorder
+            comb = comb.annotate_rows(
+                info = comb.info.drop('AC', 'AF', 'AN', 'FS', 'QD', 'SOR'))
 
-        self.assertTrue(gdb._same(comb, tolerance=0.01))
+            gdb = hl.import_genomicsdb('src/test/resources/gdb/test.json',
+                                       reference_genome='GRCh38_chr20',
+                                       **kwargs)
+            gdb = gdb.annotate_entries(GT = hl.null(hl.tcall))
+
+            self.assertTrue(gdb._same(comb, tolerance=0.01))
+
+        import_and_compare()
+        import_and_compare(array_elements_required=True)
+        import_and_compare(call_fields=['PGT'])

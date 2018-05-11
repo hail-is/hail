@@ -31,7 +31,6 @@ case class GenomicsDBShard(
   interval: Interval,
   filename: String)
 
-
 case class GenomicsDBFileMetadata(
   sample_names: Array[String],
   shards: Array[JObject],
@@ -71,7 +70,7 @@ object ImportGenomicsDB {
 
     val tar = metadata.tar
 
-    val untarCommand = Seq("bash", "-c", s"(cd ${ uriPath(localShardTmpdir) } && $tar xf $shardName)")
+    val untarCommand = Seq(tar, "xf", uriPath(localShard), "-C", uriPath(localShardTmpdir))
     log.info(s"untar'ing GenomicsDB shard with: $untarCommand")
     val rc = untarCommand !
 
@@ -221,8 +220,7 @@ object ImportGenomicsDB {
         })
 
     val colValues = BroadcastIndexedSeq(
-      fileMetadata.sample_names
-        .map { Row(_) },
+      fileMetadata.sample_names.map(Row(_)),
       TArray(typ.colType),
       hc.sc)
 
