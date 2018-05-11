@@ -7,6 +7,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
 import is.hail.utils._
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object Region {
   def apply(sizeHint: Long = 128): Region = {
@@ -288,22 +289,6 @@ final class Region(
     input.read(mem)
   }
 
-  private def writeObject(out: ObjectOutputStream) {
-    out.writeLong(end)
-
-    assert(end <= Int.MaxValue)
-    val smallEnd = end.toInt
-    out.write(mem, 0, smallEnd)
-  }
-
-  private def readObject(in: ObjectInputStream) {
-    end = in.readLong()
-    assert(end <= Int.MaxValue)
-    val smallOffset = end.toInt
-    mem = new Array[Byte](smallOffset)
-    in.read(mem)
-  }
-
   def visit(t: Type, off: Long, v: ValueVisitor) {
     t match {
       case _: TBoolean => v.visitBoolean(loadBoolean(off))
@@ -372,4 +357,12 @@ final class Region(
   }
 
   def close(): Unit = ()
+
+  private def writeObject(s: ObjectOutputStream): Unit = {
+    throw new NotImplementedException()
+  }
+
+  private def readObject(s: ObjectInputStream): Unit = {
+    throw new NotImplementedException()
+  }
 }

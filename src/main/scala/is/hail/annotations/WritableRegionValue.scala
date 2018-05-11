@@ -1,9 +1,12 @@
 package is.hail.annotations
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 import is.hail.expr.types._
 import is.hail.rvd.RVDContext
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object WritableRegionValue {
   def apply(t: Type, initial: RegionValue, region: Region): WritableRegionValue =
@@ -55,6 +58,14 @@ class WritableRegionValue private (
   }
 
   def pretty: String = value.pretty(t)
+
+  private def writeObject(s: ObjectOutputStream): Unit = {
+    throw new NotImplementedException()
+  }
+
+  private def readObject(s: ObjectInputStream): Unit = {
+    throw new NotImplementedException()
+  }
 }
 
 class RegionValueArrayBuffer(val t: Type, region: Region)
