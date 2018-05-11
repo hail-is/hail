@@ -2805,18 +2805,19 @@ class MatrixTable(ExprContainer):
                       pk_size=nullable(int))
     def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None):
         if key_struct is None:
-            assert(value_struct is not None)
-            key_struct = self.row_key
+            assert value_struct is not None
             new_key = None
+            row = self.row_key.annotate(**value_struct)
         else:
             if pk_size is None:
                 pk_size = len(key_struct)
             key_names = list(key_struct.keys())
             new_key = (key_names[:pk_size], key_names[pk_size:])
             if value_struct is None:
-                value_struct = self.row.drop(*[f for f in key_names if f in list(self.row)])
+                row = self.row.annotate(**key_struct)
+            else:
+                row = hl.struct(**key_struct, **value_struct)
 
-        row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices, {self._col_axis})
 
@@ -2828,15 +2829,16 @@ class MatrixTable(ExprContainer):
                       value_struct=nullable(expr_struct()))
     def _select_cols(self, caller, key_struct=None, value_struct=None):
         if key_struct is None:
-            assert(value_struct is not None)
-            key_struct = self.col_key
+            assert value_struct is not None
             new_key = None
+            col = self.col_key.annotate(**value_struct)
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
-                value_struct = self.col.drop(*[f for f in new_key if f in list(self.col)])
+                col = self.col.annotate(**key_struct)
+            else:
+                col = hl.struct(**key_struct, **value_struct)
 
-        col = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
         base, cleanup = self._process_joins(col)
         analyze(caller, col, self._col_indices, {self._row_axis})
 
