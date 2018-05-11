@@ -593,20 +593,21 @@ private class Emit(
         val oldv = mb.newLocal[Long]
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
-        val addFields = fields.map { name =>
-          val i = oldt.fieldIdx(name)
-          val t = oldt.types(i)
-          val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
-          Code(srvb.addIRIntermediate(t)(fieldValue), srvb.advance())
-        }
+        val addFields =
+          Code(srvb.start(),
+            Code(fields.map { name =>
+                val i = oldt.fieldIdx(name)
+                val t = oldt.types(i)
+                val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
+                Code(srvb.addIRIntermediate(t)(fieldValue), srvb.advance())
+              }: _*))
 
         EmitTriplet(
           old.setup,
           old.m,
           Code(
             oldv := old.value[Long],
-            srvb.start(),
-            Code(addFields: _*),
+            addFields,
             srvb.offset))
 
 
