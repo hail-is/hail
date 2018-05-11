@@ -26,7 +26,7 @@ object Interpret {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
-    var ir = ir0
+    var ir = ir0.unwrap
     if (optimize)
       ir = Optimize(ir)
     TypeCheck(ir, agg.map(_._1), typeEnv)
@@ -389,6 +389,8 @@ object Interpret {
           oValue.asInstanceOf[Row].get(idx)
       case In(i, _) => args(i)
       case Die(message) => fatal(message)
+      case ir@ApplyIR(function, functionArgs, conversion) =>
+        interpret(ir.explicitNode, env, args, agg)
       case ir@Apply(function, functionArgs) =>
 
         val argTuple = TTuple(functionArgs.map(_.typ): _*)

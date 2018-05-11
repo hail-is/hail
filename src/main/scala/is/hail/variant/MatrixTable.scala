@@ -1740,7 +1740,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           "va" -> ir.Ref("row", entriesRowType),
           "sa" -> ir.Ref("row", entriesRowType))
 
-        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(et.aggType()))
+        val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv, Some(et.aggType()))
         et.aggregate(sqir)
       case _ =>
         log.warn(s"aggregateEntries found no AST to IR conversion: ${ PrettyAST(queryAST) }")
@@ -1801,7 +1801,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(qir) if useIR(colAxis, queryAST) =>
         val ct = colsTable()
         val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
-        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(ct.aggType()))
+        val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv, Some(ct.aggType()))
         ct.aggregate(sqir)
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -1834,7 +1834,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case Some(qir) if useIR(rowAxis, qAST) =>
         val rt = rowsTable()
         val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
-        val sqir = ir.Subst(qir, ir.Env.empty, aggEnv, Some(rt.aggType()))
+        val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv, Some(rt.aggType()))
         rt.aggregate(sqir)
       case _ =>
         log.warn(s"aggregate_rows found no AST to IR conversion: ${ PrettyAST(qAST) }")

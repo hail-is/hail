@@ -21,6 +21,13 @@ sealed trait IR extends BaseIR {
       case x: IR => x.size
       case _ => 0
     }.sum
+
+  private[this] def _unwrap: IR => IR = {
+    case node: ApplyIR => Recur(_unwrap)(node.explicitNode)
+    case node => Recur(_unwrap)(node)
+  }
+
+  def unwrap: IR = _unwrap(this)
 }
 
 object Literal {
@@ -131,6 +138,12 @@ final case class GetTupleElement(o: IR, idx: Int) extends InferIR
 final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
 final case class Die(message: String) extends IR { val typ = TVoid }
+
+final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
+  val explicitNode: IR = conversion(args)
+
+  def typ: Type = explicitNode.typ
+}
 
 final case class Apply(function: String, args: Seq[IR]) extends IR {
   val implementation: IRFunctionWithoutMissingness =

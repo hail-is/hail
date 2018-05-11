@@ -206,6 +206,8 @@ object TypeCheck {
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg) =>
+      case x@ApplyIR(fn, args, conversion) =>
+        check(x.explicitNode)
       case x@Apply(fn, args) =>
         val impl = x.implementation
         args.foreach(check(_))

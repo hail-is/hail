@@ -122,6 +122,8 @@ object Copy {
         same
       case Die(message) =>
         same
+      case ApplyIR(fn, args, conversion) =>
+        ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
       case Apply(fn, args) =>
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
       case ApplySpecial(fn, args) =>
