@@ -149,11 +149,15 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
     registerRGCode("Locus", TString(), TInt32(), TLocus(rg)) {
       case (mb, contig: Code[Long], pos: Code[Int]) =>
+        val srvb = new StagedRegionValueBuilder(mb, tlocus)
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
-        val locus = Code
-          .invokeScalaObject[String, Int, RGBase, Locus](
-          locusClass, "apply", scontig, pos, rgCode(mb))
-        emitLocus(mb, locus)
+        Code(
+          rgCode(mb).invoke[String, Int, Unit]("checkLocus", scontig, pos),
+          srvb.start(),
+          srvb.addIRIntermediate(TString())(contig),
+          srvb.advance(),
+          srvb.addInt(pos),
+          srvb.offset)
     }
 
     registerRGCode("LocusAlleles", TString(), tvariant) {

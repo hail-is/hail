@@ -30,10 +30,8 @@ object IRFunctionRegistry {
     codeRegistry.removeBinding(name, toRemove.head)
   }
 
-  def removeIRFunction(name: String): Unit = {
-    val toRemove = codeRegistry(name).toArray
-    toRemove.foreach(codeRegistry.removeBinding(name, _))
-  }
+  def removeIRFunction(name: String): Unit =
+    codeRegistry.remove(name)
 
   private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
     reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
