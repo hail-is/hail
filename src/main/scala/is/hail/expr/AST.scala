@@ -4,6 +4,7 @@ import is.hail.expr.ir.{AggOp, AggSignature, ApplyAggOp, IR, SeqOp}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ToIRErr._
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -763,7 +764,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         tryIRConversion(agg)
       case "drop" =>
         for (structIR <- args(0).toIR(agg)) yield {
-          val t = coerce[TStruct](structIR.typ)
+          val t = types.coerce[TStruct](structIR.typ)
           val identifiers = args.tail.map {
             case SymRef(_, id) => id
           }.toSet
