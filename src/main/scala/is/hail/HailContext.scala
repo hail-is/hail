@@ -682,8 +682,8 @@ class HailContext private(val sc: SparkContext,
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext()
     val ast = Parser.parseToAST(expr, ec)
-    ast.toIR() match {
-      case ToIRSuccess(body) =>
+    ast.toIROpt() match {
+      case Some(body) =>
         Region.scoped { region =>
           val t = ast.`type`
           t match {
@@ -709,7 +709,7 @@ class HailContext private(val sc: SparkContext,
               (v2, t)
           }
         }
-      case ToIRFailure(_) =>
+      case None =>
         val (t, f) = Parser.eval(ast, ec)
         (f(), t)
     }
