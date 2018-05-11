@@ -992,13 +992,19 @@ object PrettyAST {
         sb.append("(")
         if (multiline)
           sb.append("\n")
-        children.foreach(putDeepAST(_, depth+1))
+        var i = 0
+        while (i < children.length) {
+          putDeepAST(children(i), depth+1)
+
+          if (multiline) sb.append("\n")
+          else if (i + 1 != children.length)
+            sb.append(" ")
+          i += 1
+        }
         if (multiline)
           sb.append("  " * depth)
         sb.append(")")
       }
-      if (depth != 0)
-        if (multiline) sb.append("\n") else sb.append(" ")
     }
 
     putDeepAST(rootAST, depth)
