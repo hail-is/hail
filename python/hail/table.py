@@ -381,11 +381,11 @@ class Table(ExprContainer):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
-            row = self.key.annotate(**value_struct) if self.key else value_struct
+            row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
-                row = self.row.annotate(**key_struct)
+                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
             else:
                 row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
 
