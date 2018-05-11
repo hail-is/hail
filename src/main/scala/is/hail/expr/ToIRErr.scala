@@ -17,14 +17,16 @@ object ToIRErr {
       case (f: ToIRFailure[_], _: ToIRSuccess[_]) => f.as[(T, U)]
       case (ToIRFailure(irs), ToIRFailure(moreIrs)) => fail(irs ++ moreIrs)
     }
-  def success[T](t: T): ToIRErr[T] = ToIRSuccess(t)
+  def success[T](t: T): ToIRErr[T] =
+    ToIRSuccess(t)
   def fail[T](ir: AST): ToIRErr[T] =
     ToIRFailure(Seq((ir, null, getCaller())))
   def fail[T](ir: AST, message: String): ToIRErr[T] =
     ToIRFailure(Seq((ir, message, getCaller())))
   def fail[T](ir: AST, message: String, blame: StackTraceElement): ToIRErr[T] =
     ToIRFailure(Seq((ir, message, blame)))
-  def fail[T](irs: Seq[(AST, String, StackTraceElement)]): ToIRErr[T] = ToIRFailure(irs)
+  def fail[T](irs: Seq[(AST, String, StackTraceElement)]): ToIRErr[T] =
+    ToIRFailure(irs)
   def whenOfType[T: ClassTag](a: AST): ToIRErr[T] =
     a.`type` match {
       case t: T => success(t)
@@ -60,6 +62,5 @@ case class ToIRFailure[T](incovertible: Seq[(AST, String, StackTraceElement)]) e
   def as[U]: ToIRErr[U] = this.asInstanceOf[ToIRErr[U]]
   def map[U](f: T => U): ToIRErr[U] = as[U]
   def flatMap[U](f: T => ToIRErr[U]): ToIRErr[U] = as[U]
-  // def filter(p: T => Boolean): ToIRErr[T] = this
   def toOption: Option[T] = None
 }
