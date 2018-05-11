@@ -404,7 +404,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
   def toIR(agg: Option[String] = None): ToIRErr[IR] = for {
     irElements <- all(elements.map(_.toIR(agg)))
     elementTypes = elements.map(_.`type`).distinct
-    _ <- blameWhen(this, "elements must have same type, found: $elementTypes",  elementTypes.length != 1)
+    _ <- blameWhen(this, "array elements must have same type, found: $elementTypes",  elementTypes.length != 1)
   } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
