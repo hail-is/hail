@@ -45,21 +45,7 @@ class RegionValueCallStatsAggregator extends RegionValueAggregator {
 
   def result(rvb: RegionValueBuilder): Unit = {
     if (combiner != null) {
-      val r = combiner.result()
-      rvb.startStruct()
-      rvb.startArray(r.alleleCount.length)
-      r.alleleCount.foreach(rvb.addInt _)
-      rvb.endArray()
-      r.alleleFrequency match {
-        case Some(af) =>
-          rvb.startArray(af.length)
-          af.foreach(rvb.addDouble _)
-          rvb.endArray()
-        case None =>
-          rvb.setMissing()
-      }
-      rvb.addInt(r.alleleNumber)
-      rvb.endStruct()
+      combiner.result(rvb)
     } else
       rvb.setMissing()
   }

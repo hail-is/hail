@@ -11,7 +11,7 @@ import scala.language.{existentials, postfixOps}
 object ExtractAggregators {
 
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
-  
+
   def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     val (ir2, aggs) = extract(ir.unwrap, tAggIn)
 
