@@ -23,7 +23,7 @@ object WritableRegionValue {
 class WritableRegionValue private (
   val t: Type,
   val region: Region
-) extends UnKryoSerializable{
+) extends UnKryoSerializable {
   val value = RegionValue(region, 0)
   private val rvb: RegionValueBuilder = new RegionValueBuilder(region)
 
