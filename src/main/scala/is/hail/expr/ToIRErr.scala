@@ -52,24 +52,6 @@ case class ToIRSuccess[T](value: T) extends ToIRErr[T] {
     ToIRSuccess(f(value))
   def flatMap[U](f: T => ToIRErr[U]): ToIRErr[U] =
     f(value)
-  // def filter(p: T => Boolean): ToIRErr[T] =
-  //   // heh, no IR to blame here
-  //   //
-  //   // better solution possible if Scala for notation allowed actions that return unit, a la:
-  //   // for {
-  //   //   x <- rhs.toIR
-  //   //   blameUnless(blamedIr, message, x.isInstanceOf[T])
-  //   // } yield x
-  //   //
-  //   // only current option is
-  //   //
-  //   // for {
-  //   //   x <- rhs.toIR
-  //   //   _ <- blameUnless(...)
-  //   // } yield x
-  //   //
-  //   if (p(value)) this
-  //   else ToIRErr.fail(null, null, ToIRErr.getCaller())
   def toOption: Option[T] = Some(value)
 }
 
