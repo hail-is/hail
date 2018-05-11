@@ -542,53 +542,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case None => unkey()
     }
 
-  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
-    val fields = signature.fieldNames.toSet
-    assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
-    assert(partitionKeys.length <= keys.length)
-    assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
+  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table =
+    new Table(hc, TableKeyBy(tir, keys, partitionKeys.length, sort))
 
-    if (sort) {
-      val keyed = copy2(key = Some(keys))
-      def resort = keyed.toOrderedRVD(None, partitionKeys.length)
-      val orvd = rvd match {
-        case ordered: OrderedRVD =>
-          if (keys.zip(ordered.typ.key).forall{ case (l, r) => l == r } &&
-              ordered.typ.partitionKey.length == partitionKeys.length) {
-            if (keys.length <= ordered.typ.key.length)
-              ordered.copy(typ = ordered.typ.copy(key = keys))
-            else if (ordered.typ.key.length <= keys.length) {
-              val localSortType = new OrderedRVDType(ordered.typ.key, keys, signature)
-              val newType = new OrderedRVDType(ordered.typ.partitionKey, keys, signature)
-              OrderedRVD(
-                newType,
-                ordered.partitioner,
-                ordered.crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
-                  val producerCtx = consumerCtx.freshContext
-                  OrderedRVD.localKeySort(
-                    consumerCtx.region,
-                    producerCtx.region,
-                    localSortType,
-                    it.flatMap(_(producerCtx)))
-                })
-            } else resort
-          } else resort
-        case _: UnpartitionedRVD =>
-          resort
-      }
-      keyed.copy2(rvd = orvd)
-    } else {
-      unkey().copy2(key = Some(keys))
-    }
-  }
-
-  def unkey(): Table = copy2(
-    key = None,
-    rvd = rvd match {
-      case orvd: OrderedRVD => orvd.toUnpartitionedRVD
-      case _: UnpartitionedRVD => rvd
-    }
-  )
+  def unkey(): Table =
+    new Table(hc, TableUnkey(tir))
 
   def select(expr: String, newKey: java.util.ArrayList[String]): Table =
     select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
