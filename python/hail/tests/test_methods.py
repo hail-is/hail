@@ -1436,7 +1436,7 @@ class Tests(unittest.TestCase):
         mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
         mis = [row['node'] for row in mis_table.collect()]
         self.assertEqual(sorted(mis), list(range(0, 10)))
-        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64, idx=hl.tint32))
+        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64))
         self.assertEqual(mis_table.key.dtype, hl.tstruct(node=hl.tint64))
 
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
