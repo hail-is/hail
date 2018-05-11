@@ -2965,8 +2965,16 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
         Table of variants after pruning.
     """
     check_entry_indexed('ld_prune/call_expr', call_expr)
-    mt = matrix_table_source('ld_prune/call_expr', call_expr).select_entries(__gt=call_expr)
-    sites_only_table = _local_ld_prune(mt, "__gt", r2, window, memory_per_core)
+    mt = matrix_table_source('ld_prune/call_expr', call_expr)
+
+    #  FIXME: remove once select_entries on a field is free
+    if call_expr in mt._fields_inverse:
+        field = mt._fields_inverse[call_expr]
+    else:
+        field = Env.get_uid()
+        mt = mt.select_entries(**{field: call_expr})
+
+    sites_only_table = _local_ld_prune(mt, field, r2, window, memory_per_core)
 
     sites_path = new_temp_file()
     sites_only_table.write(sites_path, overwrite=True)
@@ -2976,7 +2984,7 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
 
     locally_pruned_ds = (locally_pruned_ds.annotate_rows(
-        mean=locally_pruned_ds.pruned.mean, 
+        mean=locally_pruned_ds.pruned.mean,
         centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal))
 
     locally_pruned_path = new_temp_file()
@@ -2986,8 +2994,8 @@ def ld_prune(call_expr, r2=0.2, window=1000000, memory_per_core=256):
     locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
 
     normalized_mean_imputed_genotype_expr = (
-        hl.cond(hl.is_defined(locally_pruned_ds.__gt),
-                (locally_pruned_ds.__gt.n_alt_alleles() - locally_pruned_ds.mean)
+        hl.cond(hl.is_defined(locally_pruned_ds[field]),
+                (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.mean)
                 * locally_pruned_ds.centered_length_sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk
