@@ -1540,7 +1540,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
-    .. include:: ../_templates/req_unphased_diploid_gt.rst
+    .. include:: ../_templates/req_diploid_gt.rst
 
     Examples
     --------
