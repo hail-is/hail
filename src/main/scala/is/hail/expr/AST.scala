@@ -979,7 +979,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
 
 // PrettyAST(ast) gives a pretty-print of an AST tree
 
-object  PrettyAST {
+object PrettyAST {
   def apply(rootAST: AST, depth: Int = 0, multiline: Boolean = true): String = {
     val sb = new StringBuilder()
 
