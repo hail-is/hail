@@ -387,7 +387,7 @@ class Table(ExprContainer):
             if value_struct is None:
                 row = self.row.annotate(**key_struct)
             else:
-                row = hl.struct(**key_struct, **value_struct)
+                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
 
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices)
