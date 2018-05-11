@@ -27,7 +27,7 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
-    registerIR("testIR", TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
+    registerIR("addone", TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
     registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
@@ -90,8 +90,8 @@ class FunctionSuite {
   }
 
   @Test
-  def testIR() {
-    val ir = lookup("testIR", TInt32())(In(0, TInt32()))
+  def testIRConversion() {
+    val ir = lookup("addone", TInt32())(In(0, TInt32()))
     val f = toF[Int, Int](ir)
     val actual = f(region, 5, false)
     assert(actual == 6)
