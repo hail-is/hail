@@ -337,7 +337,7 @@ class LocalLDPruneSuite extends SparkSuite {
 
   @Test def testNoPrune() {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-    val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize)
+    val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize = maxQueueSize)
     assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }
 
@@ -370,7 +370,17 @@ class LocalLDPruneSuite extends SparkSuite {
   }
 
   @Test def testIsLocallyUncorrelated() {
-    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
+    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
+    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
+    assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
+  }
+
+  @Test def testCallExpressionParameter() {
+    val entryMap = new java.util.HashMap[String, String](1)
+    entryMap.put("GT", "foo")
+    val fooVDS = vds.renameFields(new java.util.HashMap[String, String](), new java.util.HashMap[String, String](),
+      entryMap, new java.util.HashMap[String, String]())
+    val locallyPrunedVariantsTable = LocalLDPrune(fooVDS, "foo", r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }

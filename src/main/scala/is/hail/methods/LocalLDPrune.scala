@@ -266,7 +266,7 @@ object LocalLDPrune {
     }
   }
 
-  def apply(mt: MatrixTable, r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
+  def apply(mt: MatrixTable, callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
 
     mt.requireRowKeyVariant("ld_prune")
 
@@ -294,7 +294,7 @@ object LocalLDPrune {
 
     val standardizedRDD = mt.rvd
       .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType))({ it =>
-        val hcView = HardCallView(fullRowType)
+        val hcView = new HardCallView(fullRowType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         val newRV = RegionValue(region)

@@ -1520,7 +1520,7 @@ class Tests(unittest.TestCase):
 
     def test_ld_prune(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds, r2=0.2, window=1000000)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.2, window=1000000)
 
         filtered_ds = (ds.filter_rows(hl.is_defined(pruned_table[(ds.locus, ds.alleles)])))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
@@ -1548,18 +1548,24 @@ class Tests(unittest.TestCase):
 
     def test_ld_prune_inputs(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        self.assertRaises(ValueError, lambda: hl.ld_prune(ds, r2=0.2, window=1000000, memory_per_core=0))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, window=1000000, memory_per_core=0))
 
     def test_ld_prune_no_prune(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds, r2=1, window=0)
+        pruned_table = hl.ld_prune(ds.GT, r2=1, window=0)
         expected_ds = ds.filter_rows(
             agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size() > 1, keep=True)
         assert (pruned_table.count() == expected_ds.count_rows())
 
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
-        pruned_table = hl.ld_prune(ds)
+        pruned_table = hl.ld_prune(ds.GT)
+        assert (pruned_table.count() == 1)
+
+    def test_ld_prune_call_expression(self):
+        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        ds = ds.select_entries(foo=ds.GT)
+        pruned_table = hl.ld_prune(ds.foo)
         assert (pruned_table.count() == 1)
 
     def test_entries_table(self):
