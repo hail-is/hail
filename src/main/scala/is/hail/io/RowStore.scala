@@ -13,7 +13,8 @@ import org.json4s.jackson.JsonMethods
 import java.io.{Closeable, InputStream, OutputStream, PrintWriter}
 
 import is.hail.asm4s._
-import org.apache.spark.TaskContext
+import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.{ExposedMetrics, TaskContext}
 
 trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
@@ -855,7 +856,10 @@ final class PackEncoder(rowType: Type, out: OutputBuffer) extends Encoder {
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
-    val en = makeEnc(os)
+    val context = TaskContext.get
+    val outputMetrics = context.taskMetrics().outputMetrics
+    val trackedOS = new ByteTrackingOutputStream(os)
+    val en = makeEnc(trackedOS)
     var rowCount = 0L
 
     it.foreach { rv =>
@@ -864,6 +868,9 @@ object RichContextRDDRegionValue {
       en.flush()
       ctx.region.clear()
       rowCount += 1
+
+      ExposedMetrics.setBytes(outputMetrics, trackedOS.bytesWritten)
+      ExposedMetrics.setRecords(outputMetrics, rowCount)
     }
 
     en.writeByte(0) // end
@@ -904,16 +911,19 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
-
-      val f = partFile(d, i, TaskContext.get)
+      val context = TaskContext.get
+      val f = partFile(d, i, context)
+      val outputMetrics = context.taskMetrics().outputMetrics
 
       val rowsPartPath = path + "/rows/rows/parts/" + f
       hConf.writeFile(rowsPartPath) { rowsOS =>
-        using(makeRowsEnc(rowsOS)) { rowsEN =>
+        val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
+        using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
 
           val entriesPartPath = path + "/entries/rows/parts/" + f
           hConf.writeFile(entriesPartPath) { entriesOS =>
-            using(makeEntriesEnc(entriesOS)) { entriesEN =>
+            val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
+            using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
 
               var rowCount = 0L
 
@@ -943,6 +953,9 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
                 ctx.region.clear()
 
                 rowCount += 1
+
+                ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
+                ExposedMetrics.setRecords(outputMetrics, rowCount)
               }
 
               rowsEN.writeByte(0) // end

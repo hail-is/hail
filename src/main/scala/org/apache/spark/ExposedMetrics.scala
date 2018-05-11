@@ -1,6 +1,6 @@
 package org.apache.spark
 
-import org.apache.spark.executor.InputMetrics
+import org.apache.spark.executor.{InputMetrics, OutputMetrics}
 
 object ExposedMetrics {
   def incrementRecord(metrics: InputMetrics) {
@@ -13,5 +13,13 @@ object ExposedMetrics {
 
   def setBytes(metrics: InputMetrics, nBytes: Long) {
     metrics.setBytesRead(nBytes)
+  }
+
+  def setBytes(metrics: OutputMetrics, nBytes: Long) {
+    metrics.setBytesWritten(nBytes)
+  }
+
+  def setRecords(metrics: OutputMetrics, nRecords: Long) {
+    metrics.setRecordsWritten(nRecords)
   }
 }

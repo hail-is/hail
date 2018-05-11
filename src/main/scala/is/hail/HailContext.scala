@@ -32,6 +32,8 @@ import scala.reflect.ClassTag
 case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
+  // HailContext only exists on the master
+  assert(TaskContext.get == null)
 
   val tera: Long = 1024L * 1024L * 1024L * 1024L
 
@@ -244,12 +246,12 @@ object HailContext {
 
         try {
           rv.setOffset(dec.readRegionValue(region))
+          cont = dec.readByte()
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
             ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
           }
 
-          cont = dec.readByte()
           if (cont == 0)
             dec.close()
 
