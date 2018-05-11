@@ -45,6 +45,9 @@ object Infer {
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*)
+      case x@SelectFields(old, fields) =>
+        val tbs = coerce[TStruct](old.typ)
+        TStruct(fields.map { id => (id, tbs.field(id).typ) }: _*)
       case x@InsertFields(old, fields) =>
         fields.foldLeft(old.typ) { case (t, (name, a)) =>
           t match {

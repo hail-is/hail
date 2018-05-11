@@ -587,6 +587,29 @@ private class Emit(
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
 
+      case x@SelectFields(ir, fields) =>
+        val old = emit(ir)
+        val oldt = coerce[TStruct](ir.typ)
+        val oldv = mb.newLocal[Long]
+        val srvb = new StagedRegionValueBuilder(mb, x.typ)
+
+        val addFields = fields.map { name =>
+          val i = oldt.fieldIdx(name)
+          val t = oldt.types(i)
+          val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
+          Code(srvb.addIRIntermediate(t)(fieldValue), srvb.advance())
+        }
+
+        EmitTriplet(
+          old.setup,
+          old.m,
+          Code(
+            oldv := old.value[Long],
+            srvb.start(),
+            addFields: _*,
+            srvb.offset))
+
+
       case x@InsertFields(old, fields) =>
         old.typ match {
           case oldtype: TStruct =>

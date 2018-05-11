@@ -765,14 +765,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case "drop" =>
         for (structIR <- args(0).toIR(agg)) yield {
           val t = types.coerce[TStruct](structIR.typ)
-          val identifiers = args.tail.map {
-            case SymRef(_, id) => id
-          }.toSet
+          val identifiers = args.tail.map { case SymRef(_, id) => id }.toSet
           val keep = t.fieldNames.filter(!identifiers.contains(_))
-          val s = ir.genUID()
-          val struct = ir.Ref(s, structIR.typ)
-          val keptFields = keep.map { name => (name, ir.GetField(struct, name)) }
-          ir.Let(s, structIR, ir.MakeStruct(keptFields))
+          ir.SelectFields(structIR, keep)
         }
       case _ =>
         tryIRConversion(agg)

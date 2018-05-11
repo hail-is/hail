@@ -64,6 +64,8 @@ object Children {
       Array(a, body)
     case MakeStruct(fields) =>
       fields.map(_._2).toIndexedSeq
+    case SelectFields(old, fields) =>
+      Array(old)
     case InsertFields(old, fields) =>
       (old +: fields.map(_._2)).toIndexedSeq
     case InitOp(i, args, aggSig) =>

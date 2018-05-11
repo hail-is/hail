@@ -132,7 +132,7 @@ final case class Begin(xs: IndexedSeq[IR]) extends IR {
 }
 
 final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR
-
+final case class SelectFields(old: IR, fields: Seq[String]) extends InferIR
 final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends InferIR {
   override def typ: TStruct = coerce[TStruct](super.typ)
 }
