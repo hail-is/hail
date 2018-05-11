@@ -381,7 +381,7 @@ class Table(ExprContainer):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
-            row = self.key.annotate(**value_struct)
+            row = self.key.annotate(**value_struct) if self.key else value_struct
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
