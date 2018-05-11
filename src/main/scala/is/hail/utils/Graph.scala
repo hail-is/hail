@@ -47,7 +47,7 @@ object Graph {
 
     val tieBreakerF = tieBreaker.map { e =>
       val ast = Parser.parseToAST(e, tieBreakerEc)
-      ast.toIR() match {
+      ast.toIROpt() match {
         case Some(ir) =>
           val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
           assert(t.isOfType(TTuple(TInt64())))

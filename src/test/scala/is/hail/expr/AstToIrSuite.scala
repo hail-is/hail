@@ -13,7 +13,7 @@ class ASTToIRSuite extends TestNGSuite {
         Map("agg" -> (0, TInt64()),
           "something" -> (1, TInt64())))))))
 
-    ast.toIR(Some("aggregable")).map(_.unwrap)
+    ast.toIROpt(Some("aggregable")).map(_.unwrap)
   }
 
   @Test

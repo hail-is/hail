@@ -432,7 +432,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = aggEvalContext()
 
     val queryAST = Parser.parseToAST(expr, ec)
-    queryAST.toIR(Some("AGG")) match {
+    queryAST.toIROpt(Some("AGG")) match {
       case Some(ir) if useIR(queryAST) => aggregate(ir)
       case _ =>
         val globalsBc = globals.broadcast
@@ -473,12 +473,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
-    ast.toIR() match {
+    ast.toIROpt() match {
       case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
         ec.set(0, globals.value)
-        log.warn(s"Table.select_globals found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val newGlobal = f().asInstanceOf[Row]
@@ -491,14 +490,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def filter(cond: String, keep: Boolean): Table = {
     val ec = rowEvalContext()
     var filterAST = Parser.parseToAST(cond, ec)
-    val pred = filterAST.toIR()
+    val pred = filterAST.toIROpt()
     pred match {
       case Some(irPred) =>
         new Table(hc,
           TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep))
         )
       case None =>
-        log.warn(s"Table.filter found no AST to IR conversion: ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
@@ -556,11 +554,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
-    ast.toIR() match {
+    ast.toIROpt() match {
       case Some(ir) if useIR(ast) =>
         new Table(hc, TableMapRows(tir, ir, newKey))
       case _ =>
-        log.warn(s"Table.select found no AST to IR conversion: ${ PrettyAST(ast) }")
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
         val globalsBc = globals.broadcast

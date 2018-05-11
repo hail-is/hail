@@ -267,12 +267,12 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
   val entryASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
 
   val rowIRs = rowASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIR()) yield {
+    for (ir <- ast.toIROpt()) yield {
       (name, ir)
     }
   }
   val entryIRs = entryASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIR()) yield {
+    for (ir <- ast.toIROpt()) yield {
       (name, ir)
     }
   }
