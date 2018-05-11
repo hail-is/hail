@@ -9,7 +9,6 @@ import is.hail.utils._
 import is.hail.expr.types.coerce
 
 object AggregatorFunctions extends RegistryFunctions {
-
   def registerAll() {
     registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum(), FastSeq()))
     registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum(), FastSeq()))
