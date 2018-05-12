@@ -261,16 +261,16 @@ class OrderedRVD(
         start to end
       }
     }
-      .toSet // distinct
-      .toArray.sorted[Int]
+      .toSet[Int] // distinct
+      .toArray
+      .sorted
 
     info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
 
     if (newPartitionIndices.isEmpty)
       OrderedRVD.empty(sparkContext, typ)
     else {
-      val sub = subsetPartitions(newPartitionIndices)
-      filter(pred)
+      subsetPartitions(newPartitionIndices).filter(pred)
     }
   }
 
