@@ -32,7 +32,6 @@ import scala.reflect.ClassTag
 case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
-
   val tera: Long = 1024L * 1024L * 1024L * 1024L
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
@@ -244,12 +243,12 @@ object HailContext {
 
         try {
           rv.setOffset(dec.readRegionValue(region))
+          cont = dec.readByte()
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
-            ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
+            ExposedMetrics.incrementBytes(metrics, trackedIn.bytesReadAndClear())
           }
 
-          cont = dec.readByte()
           if (cont == 0)
             dec.close()
 
