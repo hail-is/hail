@@ -32,9 +32,6 @@ import scala.reflect.ClassTag
 case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
-  // HailContext only exists on the master
-  assert(TaskContext.get == null)
-
   val tera: Long = 1024L * 1024L * 1024L * 1024L
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"

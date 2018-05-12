@@ -10,7 +10,7 @@ object ExposedMetrics {
   def incrementBytes(metrics: InputMetrics, nBytes: Long) {
     metrics.incBytesRead(nBytes)
   }
-  
+
   def setBytes(metrics: OutputMetrics, nBytes: Long) {
     metrics.setBytesWritten(nBytes)
   }
