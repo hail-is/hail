@@ -1272,9 +1272,10 @@ class Tests(unittest.TestCase):
              .annotate(GT = hl.call(0, 1))
              .annotate_globals(alleles=["A", "T"]))
 
-        self.assertTrue(t.aggregate(agg.call_stats(t.GT, t.alleles)) == hl.Struct(AC=[5, 5], AF=[0.5, 0.5], AN=10)) # Tests table.aggregate initOp
+        self.assertTrue(t.aggregate(agg.call_stats(t.GT, t.alleles)) ==
+                        hl.Struct(AC=[5, 5], AF=[0.5, 0.5], AN=10, homozygote_count=[0, 0])) # Tests table.aggregate initOp
 
-        mt = (hl.utils.range_matrix_table(10, 5, 3)
+        mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
               .annotate_rows(alleles=["A", "T"])
               .annotate_globals(alleles2=["G", "C"]))
@@ -1282,8 +1283,10 @@ class Tests(unittest.TestCase):
         row_agg = mt.annotate_rows(call_stats=agg.call_stats(mt.GT, mt.alleles)).rows() # Tests MatrixMapRows initOp
         col_agg = mt.annotate_cols(call_stats=agg.call_stats(mt.GT, mt.alleles2)).cols() # Tests MatrixMapCols initOp
 
-        self.assertTrue(row_agg.all(row_agg.call_stats == hl.struct(AC=[5, 5], AF=[0.5, 0.5], AN=10)))
-        self.assertTrue(col_agg.all(col_agg.call_stats == hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20)))
+        self.assertTrue(row_agg.all(row_agg.call_stats ==
+                                    hl.struct(AC=[5, 5], AF=[0.5, 0.5], AN=10, homozygote_count=[0, 0])))
+        self.assertTrue(col_agg.all(col_agg.call_stats ==
+                                    hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20, homozygote_count=[0, 0])))
 
     def test_mendel_error_code(self):
         locus_auto = hl.Locus('2', 20000000)

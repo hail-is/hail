@@ -524,8 +524,6 @@ private class Emit(
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
         val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
 
-        val region = mb.getArg[Region](1).load()
-
         val codeI = emit(i)
         val codeA = args.map(ir => emit(ir))
 
