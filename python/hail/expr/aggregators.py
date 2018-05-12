@@ -970,7 +970,7 @@ def call_stats(expr, alleles) -> StructExpression:
     alleles = to_expr(alleles)
     uid = Env.get_uid()
 
-    ast = LambdaClassMethod('callStats', uid, expr._ast, alleles._ast)
+    ast = LambdaClassMethod('callStats', uid, expr._ast, alleles._ast) # FIXME: This should be _agg_func once the AST is gone
     indices, aggregations, joins = unify_all(expr, alleles)
 
     if aggregations:
