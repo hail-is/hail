@@ -115,7 +115,7 @@ compileScala {
 }
 
 dependencies {
-    compile group: 'com.intel', name: 'genomicsdb', version: '0.9.2-proto-3.0.0-beta-1+uuid-static'
+    compile group: 'com.intel', name: 'genomicsdb', version: '0.9.2-proto-3.0.0-beta-1+ed318f7e815'
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
@@ -238,6 +238,8 @@ shadowJar {
     configurations = [project.configurations.runtime]
     dependencies {
         include(dependency('com.intel:genomicsdb:.*'))
+        include(dependency('com.google.protobuf:protobuf-java:.*'))
+        include(dependency('com.googlecode.protobuf-java-format:protobuf-java-format:.*'))
 
         include(dependency('org.apache.commons:commons-jexl:2.1.1'))
 
@@ -296,6 +298,7 @@ task shadowTestJar(type: ShadowJar) {
     configurations = [project.configurations.testRuntime]
     dependencies {
         include(dependency('com.intel:genomicsdb:.*'))
+	include(dependency('com.google.protobuf:protobuf-java:.*'))
 
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 

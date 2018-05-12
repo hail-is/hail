@@ -1,10 +1,13 @@
 package is.hail.io.genomicsdb
 
 import java.io.File
+import java.util.Optional
 
-import com.intel.genomicsdb.GenomicsDBFeatureReader
+import com.intel.genomicsdb.model.GenomicsDBExportConfiguration
+import com.intel.genomicsdb.reader.GenomicsDBFeatureReader
+import htsjdk.tribble.readers.PositionalBufferedStream
 import htsjdk.variant.bcf2.BCF2Codec
-import htsjdk.variant.variantcontext.VariantContext
+import htsjdk.variant.variantcontext.{GenotypeLikelihoods, VariantContext}
 import htsjdk.variant.vcf.{VCFFormatHeaderLine, VCFHeader}
 import is.hail.utils._
 import is.hail.HailContext
@@ -24,8 +27,6 @@ import org.json4s.jackson.JsonMethods.parse
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.sys.process._
-import scala.language.postfixOps
 
 case class GenomicsDBShard(
   interval: Interval,
@@ -58,41 +59,70 @@ object ImportGenomicsDB {
     val localShardTmpdir = hadoopConf.getTemporaryFile("file:///tmp", prefix = Some("genomicsdb-shard-"))
     hadoopConf.mkDir(localShardTmpdir)
 
-    val shardFilename = metadata.shards(i).filename
-    val shardPath = new Path(shardFilename)
-    val shardName = shardPath.getName
-    val shard = metadata.baseDirname + "/" + shardFilename
-
-    val localShard = localShardTmpdir + "/" + shardName
-
-    log.info(s"localizing GenomicsDB shard: $shard => $localShard")
-    hadoopConf.copy(shard, localShard)
-
     val tar = metadata.tar
+    val cmd = Array(tar, "xf", "-", "-C", uriPath(localShardTmpdir))
+    log.info(s"untar command: ${ cmd.mkString(" ") }")
 
-    val untarCommand = Seq(tar, "xf", uriPath(localShard), "-C", uriPath(localShardTmpdir))
-    log.info(s"untar'ing GenomicsDB shard with: $untarCommand")
-    val rc = untarCommand !
+    val pb = new ProcessBuilder(cmd.toList.asJava)
+    val proc = pb.start()
+
+    // unused
+    proc.getInputStream.close()
+    proc.getErrorStream.close()
+
+    val shardFilename = metadata.shards(i).filename
+    val shard = metadata.baseDirname + "/" + shardFilename
+    val shardIS = hadoopConf.unsafeReader(shard)
+
+    val t = new Thread(s"untar shard $i writer") {
+      override def run() {
+        val procOS = proc.getOutputStream
+
+        val n = 64 * 1024
+        val buf = new Array[Byte](n)
+        var read: Int = 0
+        do {
+          read = shardIS.read(buf)
+          if (read > 0)
+            procOS.write(buf, 0, read)
+        } while (read != -1)
+
+        shardIS.close()
+        procOS.close()
+      }
+    }
+
+    t.start()
+    t.join()
+    val rc = proc.waitFor()
 
     if (rc != 0)
-      fatal(s"GenomicsDB shard untar failed with return code: $rc")
+      fatal(s"shard $i untar failed with return code: $rc")
 
-    assert(localShard.endsWith(".tar"))
-    val workspace = uriPath(localShard.dropRight(4))
+    val shardPath = new Path(shardFilename)
+    val shardName = shardPath.getName
+    assert(shardName.endsWith(".tar"))
+    val workspaceDirName = shardName.dropRight(4)
+
+    val workspace = uriPath(localShardTmpdir + "/" + workspaceDirName)
+    log.info(s"shard $i workspace: $workspace")
 
     val fastaFilename = metadata.rg.localFastaFile
 
-    log.info(s"workspace = $workspace")
+    val exportConf = GenomicsDBExportConfiguration.ExportConfiguration.newBuilder()
+      .setWorkspace(workspace)
+      .setReferenceGenome(fastaFilename)
+      .setVidMappingFile(new File(workspace, DEFAULT_VIDMAP_FILE_NAME).getAbsolutePath)
+      .setCallsetMappingFile(new File(workspace, DEFAULT_CALLSETMAP_FILE_NAME).getAbsolutePath)
+      .setVcfHeaderFilename(new File(workspace, DEFAULT_VCFHEADER_FILE_NAME).getAbsolutePath)
+      .setProduceGTField(true)
+      .setProduceGTWithMinPLValueForSpanningDeletions(false)
+      .setSitesOnlyQuery(false)
+      .setMaxDiploidAltAllelesThatCanBeGenotyped(GenotypeLikelihoods.MAX_DIPLOID_ALT_ALLELES_THAT_CAN_BE_GENOTYPED)
+      .setArrayName(DEFAULT_ARRAY_NAME)
+      .build()
 
-    val gdbReader = new GenomicsDBFeatureReader(
-      new File(workspace, DEFAULT_VIDMAP_FILE_NAME).getAbsolutePath,
-      new File(workspace, DEFAULT_CALLSETMAP_FILE_NAME).getAbsolutePath,
-      workspace,
-      DEFAULT_ARRAY_NAME,
-      fastaFilename,
-      new File(workspace, DEFAULT_VCFHEADER_FILE_NAME).getAbsolutePath,
-      new BCF2Codec(),
-      true)
+    val gdbReader = new GenomicsDBFeatureReader[VariantContext, PositionalBufferedStream](exportConf, new BCF2Codec(), Optional.empty[String]())
 
     assert(gdbReader.getHeader.asInstanceOf[VCFHeader].getSampleNamesInOrder.asScala
       == metadata.sampleIds.toFastSeq)
