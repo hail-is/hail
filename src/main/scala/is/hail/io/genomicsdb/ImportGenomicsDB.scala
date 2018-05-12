@@ -16,10 +16,12 @@ import is.hail.expr.{MatrixImportGenomicsDB, Parser}
 import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.{BufferedLineIterator, HtsjdkRecordReader, LoadVCF}
+import is.hail.rvd.RVDContext
 import is.hail.utils.Interval
 import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.hadoop
 import org.apache.hadoop.fs.Path
+import org.apache.spark.{ExposedMetrics, TaskContext}
 import org.apache.spark.sql.Row
 import org.json4s.JObject
 import org.json4s.JsonAST.JString
@@ -55,7 +57,7 @@ object ImportGenomicsDB {
   val DEFAULT_CALLSETMAP_FILE_NAME: String = "callset.json"
   val DEFAULT_VCFHEADER_FILE_NAME: String = "vcfheader.vcf"
 
-  def readShard(hadoopConf: hadoop.conf.Configuration, metadata: GenomicsDBMetadata, typ: MatrixType, i: Int): Iterator[RegionValue] = {
+  def readShard(ctx: RVDContext, hadoopConf: hadoop.conf.Configuration, metadata: GenomicsDBMetadata, typ: MatrixType, i: Int): Iterator[RegionValue] = {
     val localShardTmpdir = hadoopConf.getTemporaryFile("file:///tmp", prefix = Some("genomicsdb-shard-"))
     hadoopConf.mkDir(localShardTmpdir)
 
@@ -72,28 +74,22 @@ object ImportGenomicsDB {
 
     val shardFilename = metadata.shards(i).filename
     val shard = metadata.baseDirname + "/" + shardFilename
-    val shardIS = hadoopConf.unsafeReader(shard)
 
-    val t = new Thread(s"untar shard $i writer") {
-      override def run() {
-        val procOS = proc.getOutputStream
+    hadoopConf.readFile(shard) { shardIS =>
+      val procOS = proc.getOutputStream
 
-        val n = 64 * 1024
-        val buf = new Array[Byte](n)
-        var read: Int = 0
-        do {
-          read = shardIS.read(buf)
-          if (read > 0)
-            procOS.write(buf, 0, read)
-        } while (read != -1)
+      val n = 64 * 1024
+      val buf = new Array[Byte](n)
+      var read: Int = 0
+      do {
+        read = shardIS.read(buf)
+        if (read > 0)
+          procOS.write(buf, 0, read)
+      } while (read != -1)
 
-        shardIS.close()
-        procOS.close()
-      }
+      procOS.close()
     }
 
-    t.start()
-    t.join()
     val rc = proc.waitFor()
 
     if (rc != 0)
@@ -129,17 +125,23 @@ object ImportGenomicsDB {
 
     val reader = new HtsjdkRecordReader(metadata.callFields)
 
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
+    val region = ctx.region
+    val rvb = ctx.rvb
     val rv = RegionValue(region)
+
+    val context = TaskContext.get
+    val inputMetrics = context.taskMetrics().inputMetrics
 
     val it: java.util.Iterator[VariantContext] = gdbReader.iterator
     it.asScala
       .map { vc =>
-        region.clear()
         rvb.start(typ.rvRowType)
         reader.readRecord(vc, rvb, metadata.infoType, typ.entryType, dropSamples = false, metadata.canonicalFlags, metadata.infoFlagFieldNames)
         rv.setOffset(rvb.end())
+
+        ExposedMetrics.incrementRecord(inputMetrics)
+        ExposedMetrics.incrementBytes(inputMetrics, 1)
+
         rv
       }
   }

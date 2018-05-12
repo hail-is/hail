@@ -441,22 +441,40 @@ case class MatrixImportGenomicsDB(typ: MatrixType, metadata: GenomicsDBMetadata,
 
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val rdd = new RDD[RegionValue](hc.sc, Nil) {
+    val shards = localMetadata.shards
+    val n = shards.length
+
+    val rdd = new RDD[(RVDContext) => Iterator[RegionValue]](hc.sc, Nil) {
       def getPartitions: Array[Partition] = {
-        Array.tabulate(localMetadata.shards.length)(i =>
+        Array.tabulate(n)(i =>
           new Partition {
             val index: Int = i
           })
       }
 
-      def compute(split: Partition, context: TaskContext): Iterator[RegionValue] =
-        ImportGenomicsDB.readShard(sHadoopConfBc.value.value, localMetadata, localTyp, split.index)
+      def compute(split: Partition, context: TaskContext): Iterator[(RVDContext) => Iterator[RegionValue]] = {
+        Iterator.single { (ctx: RVDContext) =>
+          ImportGenomicsDB.readShard(ctx, sHadoopConfBc.value.value, localMetadata, localTyp, split.index)
+        }
+      }
+    }
+
+    val partitionBounds = Array.tabulate(n) { i =>
+      var si = shards(i).interval
+      if (i + 1 < n)
+        Interval(Row(si.start), Row(shards(i + 1).interval.start), includesStart = si.includesStart, includesEnd = false)
+      else
+        Interval(Row(si.start), Row(si.end), includesStart = si.includesStart, includesEnd = si.includesEnd)
     }
 
     MatrixValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc),
       colValues,
-      OrderedRVD.coerce(typ.orvdType,
-        rdd))
+      OrderedRVD(typ.orvdType,
+        new OrderedRVDPartitioner(
+          typ.rowPartitionKey.toArray,
+          typ.rowKeyStruct,
+          partitionBounds),
+        ContextRDD[RVDContext, RegionValue](rdd)))
   }
 }
 
