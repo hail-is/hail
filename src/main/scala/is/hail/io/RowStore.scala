@@ -857,7 +857,11 @@ final class PackEncoder(rowType: Type, out: OutputBuffer) extends Encoder {
 object RichContextRDDRegionValue {
   def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
     val context = TaskContext.get
-    val outputMetrics = context.taskMetrics().outputMetrics
+    val outputMetrics =
+      if (context != null)
+        context.taskMetrics().outputMetrics
+      else
+        null
     val trackedOS = new ByteTrackingOutputStream(os)
     val en = makeEnc(trackedOS)
     var rowCount = 0L
@@ -869,8 +873,10 @@ object RichContextRDDRegionValue {
       ctx.region.clear()
       rowCount += 1
 
-      ExposedMetrics.setBytes(outputMetrics, trackedOS.bytesWritten)
-      ExposedMetrics.setRecords(outputMetrics, rowCount)
+      if (outputMetrics != null) {
+        ExposedMetrics.setBytes(outputMetrics, trackedOS.bytesWritten)
+        ExposedMetrics.setRecords(outputMetrics, rowCount)
+      }
     }
 
     en.writeByte(0) // end
@@ -955,11 +961,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
                 rowCount += 1
 
                 ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
-                ExposedMetrics.setRecords(outputMetrics, rowCount)
+                ExposedMetrics.setRecords(outputMetrics, 2 * rowCount)
               }
 
               rowsEN.writeByte(0) // end
               entriesEN.writeByte(0)
+
+              rowsEN.flush()
+              entriesEN.flush()
+              ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
 
               Iterator.single(f -> rowCount)
             }

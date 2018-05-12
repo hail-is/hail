@@ -249,7 +249,7 @@ object HailContext {
           cont = dec.readByte()
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
-            ExposedMetrics.setBytes(metrics, trackedIn.bytesRead)
+            ExposedMetrics.incrementBytes(metrics, trackedIn.bytesReadAndClear())
           }
 
           if (cont == 0)
