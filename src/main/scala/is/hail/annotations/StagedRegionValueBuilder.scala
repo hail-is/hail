@@ -94,7 +94,11 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def setMissing(): Code[Unit] = {
     typ match {
       case t: TArray => t.setElementMissing(region, startOffset, idx)
-      case t: TBaseStruct => t.setFieldMissing(region, startOffset, staticIdx)
+      case t: TBaseStruct =>
+        if (t.fieldRequired(staticIdx))
+          Code._fatal("Required field cannot be missing.")
+        else
+          t.setFieldMissing(region, startOffset, staticIdx)
     }
   }
 

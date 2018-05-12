@@ -380,14 +380,15 @@ class Table(ExprContainer):
     def _select(self, caller, key_struct=None, value_struct=None):
         if key_struct is None:
             assert value_struct is not None
-            key_struct = self.key
             new_key = None
+            row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
         else:
             new_key = list(key_struct.keys())
             if value_struct is None:
-                value_struct = self.row.drop(*[f for f in new_key if f in list(self.row)])
+                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
+            else:
+                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
 
-        row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct) if key_struct else value_struct
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices)
 
