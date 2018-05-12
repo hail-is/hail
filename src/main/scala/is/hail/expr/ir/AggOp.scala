@@ -52,7 +52,7 @@ object AggOp {
     m((op, inputType, constructorTypes, initOpTypes)).getOrElse(incompatible(op, inputType, constructorTypes, initOpTypes)).out
 
   private val m: ((AggOp, Type, Seq[Type], Option[Seq[Type]])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
-    case (Fraction(), in: TBoolean, Seq(), None) => CodeAggregator[RegionValueFractionAggregator](in, TArray(TFloat64()))
+    case (Fraction(), in: TBoolean, Seq(), None) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
     case (Statistics(), in: TFloat64, Seq(), None) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
     case (Collect(), in: TBoolean, Seq(), None) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
     case (Collect(), in: TInt32, Seq(), None) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
