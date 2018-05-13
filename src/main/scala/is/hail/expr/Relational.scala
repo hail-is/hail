@@ -1710,7 +1710,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.entriesTableType
-
+  
   def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
     val etv = mv.entriesTableValue

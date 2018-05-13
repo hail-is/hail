@@ -56,9 +56,6 @@ class RichMatrixTable(vsm: MatrixTable) {
   def annotateRowsExpr(exprs: (String, String)*): MatrixTable =
     vsm.selectRows(s"annotate(va, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", None)
 
-  def keyRowsExpr(exprs: (String, String)*): MatrixTable =
-    vsm.selectRows(s"annotate(va, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", Some((exprs.map(_._1).toIndexedSeq, IndexedSeq())))
-
   def annotateEntriesExpr(exprs: (String, String)*): MatrixTable =
     vsm.selectEntries(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
 

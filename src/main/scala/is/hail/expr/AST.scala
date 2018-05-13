@@ -327,7 +327,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       case (t: TStruct, _) =>
         t.selfField(rhs) match {
-          case Some(f) => f.typ
+          case Some(f) => -f.typ
           case None => parseError(
             s"""Struct has no field `$rhs'
                |  Available fields:
@@ -915,13 +915,10 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
-  var typeWithMissingness: Type = null
-
   override def typecheckThis(ec: EvalContext): Type = {
     ec.st.get(symbol) match {
       case Some((_, t)) =>
-        typeWithMissingness = t
-        t.deepOptional()
+        -t
       case None =>
         val symbols = ec.st.toArray.sortBy(_._2._1).map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }
         parseError(
@@ -943,9 +940,9 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def toIR(agg: Option[String] = None): ToIRErr[IR] = agg match {
     case Some(x) if x == symbol =>
       assert(typeWithMissingness != null)
-      success(ir.AggIn(typeWithMissingness.asInstanceOf[TAggregable]))
+      success(ir.AggIn(`type`.asInstanceOf[TAggregable]))
     case _ =>
-      success(ir.Ref(symbol, typeWithMissingness))
+     success(ir.Ref(symbol, `type`))
   }
 }
 
