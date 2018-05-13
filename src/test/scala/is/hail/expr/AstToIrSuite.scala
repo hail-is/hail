@@ -13,7 +13,7 @@ class ASTToIRSuite extends TestNGSuite {
         Map("agg" -> (0, TInt64()),
           "something" -> (1, TInt64())))))))
 
-    ast.toIROpt(Some("aggregable")).map(_.unwrap)
+    ast.toIROpt(Some(("aggregable", "agg"))).map(_.unwrap)
   }
 
   @Test
@@ -77,60 +77,29 @@ class ASTToIRSuite extends TestNGSuite {
   }
 
   @Test
-  def primOps() { for { (in, out) <- Array(
-    "-1" -> ApplyUnaryPrimOp(Negate(), I32(1)),
-    "!true" -> ApplyUnaryPrimOp(Bang(), True()),
-    "1 / 2" -> ApplyBinaryPrimOp(FloatingPointDivide(), I32(1), I32(2)),
-    "1.0 / 2.0" -> ApplyBinaryPrimOp(FloatingPointDivide(), F64(1.0), F64(2.0)),
-    "1.0 < 2.0" -> ApplyBinaryPrimOp(LT(), F64(1.0), F64(2.0)),
-    "1.0 <= 2.0" -> ApplyBinaryPrimOp(LTEQ(), F64(1.0), F64(2.0)),
-    "1.0 >= 2.0" -> ApplyBinaryPrimOp(GTEQ(), F64(1.0), F64(2.0)),
-    "1.0 > 2.0" -> ApplyBinaryPrimOp(GT(), F64(1.0), F64(2.0)),
-    "1.0 == 2.0" -> ApplyBinaryPrimOp(EQ(), F64(1.0), F64(2.0)),
-    "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0)),
-    "0 // 0 + 1" -> ApplyBinaryPrimOp(
-      Add(),
-      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0)),
-      I32(1)),
-    "0 // 0 * 1" -> ApplyBinaryPrimOp(
-      Multiply(),
-      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0)),
-      I32(1))
-  )
-  } {
-    assert(toIR(in).contains(out),
-      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
-  }
-  }
-
-  @Test
-  def aggs() {
-    val tAgg = TAggregable(TInt64(),
-      Map("something" -> (0, TInt64())))
+  def primOps() {
     for {(in, out) <- Array(
-      "aggregable.sum()" ->
-        ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
-      "aggregable.map(x => x * i64#5).sum()" ->
-        ApplyAggOp(
-          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))),
-          Sum()),
-      "aggregable.map(x => x * something).sum()" ->
-        ApplyAggOp(
-          AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), Ref("something", TInt64()))),
-          Sum()),
-      "aggregable.filter(x => x > i64#2).sum()" ->
-        ApplyAggOp(
-          AggFilter(AggIn(tAgg), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt64()), I64(2))),
-          Sum()),
-      "aggregable.flatMap(x => [x * i64#5]).sum()" ->
-        ApplyAggOp(
-          AggFlatMap(AggIn(tAgg), "x",
-            MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))), TArray(TInt64()))),
-          Sum())
+      "-1" -> ApplyUnaryPrimOp(Negate(), I32(1)),
+      "!true" -> ApplyUnaryPrimOp(Bang(), True()),
+      "1 / 2" -> ApplyBinaryPrimOp(FloatingPointDivide(), I32(1), I32(2)),
+      "1.0 / 2.0" -> ApplyBinaryPrimOp(FloatingPointDivide(), F64(1.0), F64(2.0)),
+      "1.0 < 2.0" -> ApplyBinaryPrimOp(LT(), F64(1.0), F64(2.0)),
+      "1.0 <= 2.0" -> ApplyBinaryPrimOp(LTEQ(), F64(1.0), F64(2.0)),
+      "1.0 >= 2.0" -> ApplyBinaryPrimOp(GTEQ(), F64(1.0), F64(2.0)),
+      "1.0 > 2.0" -> ApplyBinaryPrimOp(GT(), F64(1.0), F64(2.0)),
+      "1.0 == 2.0" -> ApplyBinaryPrimOp(EQ(), F64(1.0), F64(2.0)),
+      "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0)),
+      "0 // 0 + 1" -> ApplyBinaryPrimOp(
+        Add(),
+        ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0)),
+        I32(1)),
+      "0 // 0 * 1" -> ApplyBinaryPrimOp(
+        Multiply(),
+        ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0)),
+        I32(1))
     )
     } {
-      val converted = toIR(in)
-      assert(converted.contains(out),
+      assert(toIR(in).contains(out),
         s"expected '$in' to parse and convert into $out, but got ${ toIR(in) }")
     }
   }

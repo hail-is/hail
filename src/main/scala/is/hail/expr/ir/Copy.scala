@@ -95,31 +95,20 @@ object Copy {
       case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name)
-      case AggIn(_) =>
-        same
-      case AggMap(_, name, _) =>
-        val IndexedSeq(a: IR, body: IR) = newChildren
-        AggMap(a, name, body)
-      case AggFilter(_, name, _) =>
-        val IndexedSeq(a: IR, body: IR) = newChildren
-        AggFilter(a, name, body)
-      case AggFlatMap(_, name, _) =>
-        val IndexedSeq(a: IR, body: IR) = newChildren
-        AggFlatMap(a, name, body)
       case InitOp(_, agg, _) =>
         InitOp(newChildren.head.asInstanceOf[IR], agg, newChildren.tail.map(_.asInstanceOf[IR]))
-      case SeqOp(_, _, agg) =>
+      case SeqOp(_, _, aggSig) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
-        SeqOp(a, i, agg)
+        SeqOp(a, i, aggSig)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x@ApplyAggOp(_, op, _, _) =>
+      case x@ApplyAggOp(_, _, _, aggSig) =>
         val args = newChildren.tail.map(_.asInstanceOf[IR])
         ApplyAggOp(
-          newChildren.head.asInstanceOf[IR],
-          op,
-          args.take(x.nConstructorArgs),
-          if (x.hasInitOp) Some(args.drop(x.nConstructorArgs)) else None)
+          args.head,
+          args.tail.take(x.nConstructorArgs),
+          x.map(_ => args.last),
+          aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))
       case GetTupleElement(_, idx) =>

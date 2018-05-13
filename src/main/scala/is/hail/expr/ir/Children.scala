@@ -66,22 +66,14 @@ object Children {
       fields.map(_._2).toIndexedSeq
     case InsertFields(old, fields) =>
       (old +: fields.map(_._2)).toIndexedSeq
-    case AggIn(_) =>
-      none
-    case AggMap(a, _, body) =>
-      Array(a, body)
-    case AggFilter(a, name, body) =>
-      Array(a, body)
-    case AggFlatMap(a, name, body) =>
-      Array(a, body)
     case InitOp(i, _, args) =>
-      i +: args.toIndexedSeq
+      i +: args.toFastIndexedSeq
     case SeqOp(a, i, _) =>
       Array(a, i)
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-      (a +: constructorArgs ++: initOpArgs.getOrElse(FastSeq())).toIndexedSeq
+    case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+      (a +: (constructorArgs ++ initOpArgs.toFastIndexedSeq))
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

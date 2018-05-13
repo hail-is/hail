@@ -67,8 +67,6 @@ object Simplify {
 
       case ArrayFilter(a, _, True()) => a
 
-      case AggFilter(a, _, True()) => a
-        
       case Let(n, v, b) if !Mentions(b, n) => b
 
       case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
@@ -78,15 +76,6 @@ object Simplify {
       case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
       case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
-
-      case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
-        AggMap(AggFilter(a, n2, p), n1, b)
-
-      case AggMap(AggMap(a, n1, b1), n2, b2) =>
-        AggMap(a, n1, Let(n2, b1, b2))
-
-      case AggFlatMap(AggMap(a, n1, b1), n2, b2) =>
-        AggFlatMap(a, n1, Let(n2, b1, b2))
 
       case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
         ArrayFlatMap(a, n1, Let(n2, b1, b2))

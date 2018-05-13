@@ -108,21 +108,19 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
   val typ = TVoid
 }
 
-final case class AggIn(var typ: TAggregable) extends IR
-final case class AggMap(a: IR, name: String, body: IR) extends InferIR
-final case class AggFilter(a: IR, name: String, body: IR) extends InferIR
-final case class AggFlatMap(a: IR, name: String, body: IR) extends InferIR
-final case class ApplyAggOp(a: IR, op: AggOp, constructorArgs: Seq[IR] = Seq.empty[IR], initOpArgs: Option[Seq[IR]] = None) extends InferIR {
-  val nConstructorArgs = constructorArgs.length
-  val hasInitOp = initOpArgs.isDefined
+final case class ApplyAggOp(a: IR, constructorArgs: Seq[IR], initOpArgs: Option[Seq[IR]], aggSig: AggSignature) extends InferIR {
+  def nConstructorArgs = constructorArgs.length
 
-  def inputType: Type = coerce[TAggregable](a.typ).elementType
+  def hasInitOp = initOpArgs.isDefined
+
+  def op: AggOp = aggSig.op
+
+  def inputType: Type = aggSig.inputType
 }
-
-final case class InitOp(i: IR, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }, args: Seq[IR]) extends IR {
+final case class InitOp(i: IR, args: Seq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
-final case class SeqOp(a: IR, i: IR, agg: CodeAggregator[T] forSome { type T <: RegionValueAggregator }) extends IR {
+final case class SeqOp(a: IR, i: IR, aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
 

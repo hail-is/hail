@@ -707,15 +707,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
   val newRVRow = InsertFields(newRow, Seq(
     MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
 
-  val tAggElt: Type = child.typ.entryType
-  val aggSymTab = Map(
-    "global" -> (0, child.typ.globalType),
-    "va" -> (1, child.typ.rvRowType),
-    "g" -> (2, child.typ.entryType),
-    "sa" -> (3, child.typ.colType))
-
-  val tAgg = TAggregable(tAggElt, aggSymTab)
-
   val typ: MatrixType = {
     val newRowKey = newKey.map{ case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
     val newPartitionKey = newKey.map{ case (pk, _) => pk }.getOrElse(child.typ.rowPartitionKey)
@@ -736,24 +727,13 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
+    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
       "global", prev.typ.globalType,
       "va", vaType,
-      "AGG", tAgg,
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      newRVRow, { (nAggs: Int, seqOpIR: IR) =>
-        def rewrite(x: IR): IR = {
-          x match {
-            case x@AggIn(_) =>
-              val dummy = genUID()
-              AggMap(x, dummy, ir.Ref("g", prev.typ.entryType))
-            case _ =>
-              ir.Recur(rewrite)(x)
-          }
-        }
-
+      newRVRow, { (nAggs: Int, aggIR: IR) =>
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
@@ -761,7 +741,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
-              rewrite(seqOpIR))))
+              aggIR)))
       })
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
@@ -803,7 +783,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
           }
 
           initOps()(region, rvAggs, globals, false, oldRow, false)
-          seqOps()(region, rvAggs, 0, true, globals, false, cols, false, oldRow, false)
+          seqOps()(region, rvAggs, globals, false, cols, false, oldRow, false)
 
           rvb.start(aggResultType)
           rvb.startStruct()
@@ -875,10 +855,9 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
+    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
       "global", localGlobalsType,
       "sa", prev.typ.colType,
-      "AGG", tAgg,
       "global", localGlobalsType,
       "colValues", colValuesType,
       "va", vaType,
@@ -887,15 +866,12 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
         def rewrite(x: IR): IR = {
           x match {
-            case SeqOp(a, i, agg) =>
+            case SeqOp(a, i, aggSig) =>
               SeqOp(a,
                 ir.ApplyBinaryPrimOp(ir.Add(),
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                 i),
-                agg)
-            case x@AggIn(_) =>
-              val dummy = genUID()
-              AggMap(x, dummy, ir.Ref("g", prev.typ.entryType))
+                aggSig)
             case _ =>
               ir.Recur(rewrite)(x)
           }
@@ -957,7 +933,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         rvb.addAnnotation(localColsType, colValuesBc.value)
         val cols = rvb.end()
 
-        seqOps()(region, colRVAggs, 0, true, globals, false, cols, false, oldRow, false)
+        seqOps()(region, colRVAggs, globals, false, cols, false, oldRow, false)
 
         colRVAggs
       }, { (rvAggs1, rvAggs2) =>
@@ -1726,7 +1702,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.entriesTableType
-  
+
   def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
     val etv = mv.entriesTableValue
