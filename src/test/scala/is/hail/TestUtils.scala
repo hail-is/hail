@@ -256,7 +256,7 @@ object TestUtils {
   }
 
   def eval(x: IR): Any = {
-    eval(x, FastSeq.empty)
+    eval(x, FastSeq())
   }
 
   def eval(x: IR, env: Env[(Any, Type)]): Any = {
@@ -286,7 +286,7 @@ object TestUtils {
       }
     }
 
-    val (resultType2, f) = Compile[Long, Long]("args", argsType, MakeTuple(FastSeq(x)))
+    val (resultType2, f) = Compile[Long, Long]("args", argsType, MakeTuple(FastSeq(rewrite(x))))
     assert(resultType2 == resultType)
 
     val c = Region.scoped { region =>
