@@ -156,9 +156,9 @@ def _to_expr(e, dtype):
             exprs = [element if isinstance(element, Expression)
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
-            indices, aggregations, joins = unify_all(*exprs)
+            indices, aggregations = unify_all(*exprs)
         return expressions.construct_expr(ArrayDeclaration([expr._ast for expr in exprs]),
-                                          dtype, indices, aggregations, joins)
+                                          dtype, indices, aggregations)
     elif isinstance(dtype, tset):
         elements = []
         found_expr = False
@@ -173,9 +173,9 @@ def _to_expr(e, dtype):
             exprs = [element if isinstance(element, Expression)
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
-            indices, aggregations, joins = unify_all(*exprs)
+            indices, aggregations = unify_all(*exprs)
             return hl.set(expressions.construct_expr(ArrayDeclaration([expr._ast for expr in exprs]),
-                                                     tarray(dtype.element_type), indices, aggregations, joins))
+                                                     tarray(dtype.element_type), indices, aggregations))
     elif isinstance(dtype, ttuple):
         elements = []
         found_expr = False
@@ -190,9 +190,9 @@ def _to_expr(e, dtype):
             exprs = [elements[i] if isinstance(elements[i], Expression)
                      else hl.literal(elements[i], dtype.types[i])
                      for i in range(len(elements))]
-            indices, aggregations, joins = unify_all(*exprs)
+            indices, aggregations = unify_all(*exprs)
             return expressions.construct_expr(TupleDeclaration(*[expr._ast for expr in exprs]),
-                                              dtype, indices, aggregations, joins)
+                                              dtype, indices, aggregations)
     elif isinstance(dtype, tdict):
         keys = []
         values = []
@@ -217,9 +217,9 @@ def _to_expr(e, dtype):
     else:
         raise NotImplementedError(dtype)
 
-def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
+def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
     if len(exprs) == 0:
-        return Indices(), LinkedList(Aggregation), LinkedList(Join)
+        return Indices(), LinkedList(Aggregation)
     try:
         new_indices = Indices.unify(*[e._indices for e in exprs])
     except ExpressionException:
@@ -237,11 +237,9 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList, LinkedList]:
         )) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
-    joins = first._joins
     for e in rest:
         aggregations = aggregations.push(*e._aggregations)
-        joins = joins.push(*e._joins)
-    return new_indices, aggregations, joins
+    return new_indices, aggregations
 
 
 def unify_types_limited(*ts):
@@ -295,19 +293,17 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
 class Expression(object):
     """Base class for Hail expressions."""
 
-    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=linked_list(Aggregation), joins=linked_list(Join))
+    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=linked_list(Aggregation))
     def __init__(self,
                  ast: AST,
                  type: HailType,
                  indices: Indices = Indices(),
-                 aggregations: LinkedList = LinkedList(Aggregation),
-                 joins: LinkedList = LinkedList(Join)):
+                 aggregations: LinkedList = LinkedList(Aggregation)):
 
-        self._ast = ast
+        self._ast: AST = ast
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
-        self._joins = joins
 
     def describe(self):
         """Print information about type, index, and dependencies."""
@@ -322,13 +318,6 @@ class Expression(object):
             agg_tag = ''
             agg_str = ''
 
-        if self._joins:
-            n_joins = len(self._joins)
-            word = plural('join or literal', n_joins, 'joins or literals')
-            join_str = f'\nDepends on {n_joins} {word}'
-        else:
-            join_str = ''
-
         bar = '--------------------------------------------------------'
         s = '{bar}\n' \
             'Type:\n' \
@@ -337,15 +326,14 @@ class Expression(object):
             'Source:\n' \
             '    {src}\n' \
             'Index:\n' \
-            '    {inds}{agg_tag}{maybe_bar}{agg}{joins}\n' \
+            '    {inds}{agg_tag}{maybe_bar}{agg}\n' \
             '{bar}'.format(bar=bar,
                            t=self.dtype.pretty(indent=4),
                            src=self._indices.source,
                            inds=list(self._indices.axes),
-                           maybe_bar='\n' + bar + '\n' if join_str or agg_str else '',
+                           maybe_bar='\n' + bar + '\n' if agg_str else '',
                            agg_tag=agg_tag,
-                           agg=agg_str,
-                           joins=join_str)
+                           agg=agg_str)
         print(s)
 
     def __lt__(self, other):
@@ -428,35 +416,33 @@ class Expression(object):
 
     def _unary_op(self, name):
         return expressions.construct_expr(UnaryOperation(self._ast, name),
-                                          self._type, self._indices, self._aggregations, self._joins)
+                                          self._type, self._indices, self._aggregations)
 
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
-        indices, aggregations, joins = unify_all(self, other)
-        return expressions.construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations,
-                                          joins)
+        indices, aggregations = unify_all(self, other)
+        return expressions.construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations)
 
     def _bin_op_reverse(self, name, other, ret_type):
         other = to_expr(other)
-        indices, aggregations, joins = unify_all(self, other)
-        return expressions.construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations,
-                                          joins)
+        indices, aggregations = unify_all(self, other)
+        return expressions.construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations)
 
     def _field(self, name, ret_type):
         return expressions.construct_expr(Select(self._ast, name), ret_type, self._indices,
-                                          self._aggregations, self._joins)
+                                          self._aggregations)
 
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
-        indices, aggregations, joins = unify_all(self, *args)
+        indices, aggregations = unify_all(self, *args)
         return expressions.construct_expr(ClassMethod(name, self._ast, *(a._ast for a in args)),
-                                          ret_type, indices, aggregations, joins)
+                                          ret_type, indices, aggregations)
 
     def _index(self, ret_type, key):
         key = to_expr(key)
-        indices, aggregations, joins = unify_all(self, key)
+        indices, aggregations = unify_all(self, key)
         return expressions.construct_expr(Index(self._ast, key._ast),
-                                          ret_type, indices, aggregations, joins)
+                                          ret_type, indices, aggregations)
 
     def _slice(self, ret_type, start=None, stop=None, step=None):
         if start is not None:
@@ -473,20 +459,19 @@ class Expression(object):
             raise NotImplementedError('Variable slice step size is not currently supported')
 
         non_null = [x for x in [start, stop] if x is not None]
-        indices, aggregations, joins = unify_all(self, *non_null)
+        indices, aggregations = unify_all(self, *non_null)
         return expressions.construct_expr(Index(self._ast, Slice(start_ast, stop_ast)),
-                                          ret_type, indices, aggregations, joins)
+                                          ret_type, indices, aggregations)
 
     def _bin_lambda_method(self, name, f, input_type, ret_type_f, *args):
         args = (to_expr(arg) for arg in args)
         new_id = Env.get_uid()
         lambda_result = to_expr(
-            f(expressions.construct_expr(VariableReference(new_id), input_type, self._indices, self._aggregations,
-                                         self._joins)))
+            f(expressions.construct_expr(VariableReference(new_id), input_type, self._indices, self._aggregations)))
 
-        indices, aggregations, joins = unify_all(self, lambda_result)
+        indices, aggregations = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
-        return expressions.construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins)
+        return expressions.construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations)
 
     @property
     def dtype(self) -> HailType:
@@ -805,12 +790,11 @@ class Aggregable(object):
     cannot otherwise be used in expressions.
     """
 
-    def __init__(self, ast, type, indices, aggregations, joins):
+    def __init__(self, ast, type, indices, aggregations):
         self._ast = ast
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
-        self._joins = joins
 
     def __nonzero__(self):
         raise NotImplementedError('Truth value of an aggregable collection is undefined')
@@ -824,12 +808,13 @@ class Aggregable(object):
     def _map(self, f):
         uid = Env.get_uid()
         ref = expressions.construct_expr(
-            VariableReference(uid), self._type, self._indices, self._aggregations, self._joins)
+            VariableReference(uid), self._type, self._indices, self._aggregations
+        )
         mapped = f(ref)
-        indices, aggregations, joins = unify_all(ref, mapped)
+        indices, aggregations = unify_all(ref, mapped)
         return expressions.Aggregable(
             LambdaClassMethod('map', uid, self._ast, mapped._ast), mapped.dtype,
-            indices, aggregations, joins)
+            indices, aggregations)
 
     @property
     def dtype(self) -> HailType:

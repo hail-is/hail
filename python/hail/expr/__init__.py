@@ -1,7 +1,9 @@
 from .types import *
 from .expressions import eval_expr, eval_expr_typed
 from .functions import *
-__all__ = ['HailType',
+from . import expr_ast
+__all__ = ['expr_ast',
+           'HailType',
            'dtype',
            'tint',
            'tint32',

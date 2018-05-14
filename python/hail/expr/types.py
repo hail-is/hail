@@ -228,6 +228,9 @@ class _tint32(HailType):
     def _typecheck(self, annotation):
         if annotation is not None and not isinstance(annotation, int):
             raise TypeError("type 'tint32' expected Python 'int', but found type '%s'" % type(annotation))
+        if not self.min_value <= annotation <= self.max_value:
+            raise TypeError(f"Value out of range for 32-bit integer: "
+                            f"expected [{self.min_value}, {self.max_value}], found {annotation}")
 
     def __str__(self):
         return "int32"
@@ -265,6 +268,9 @@ class _tint64(HailType):
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, int):
             raise TypeError("type 'int64' expected Python 'int', but found type '%s'" % type(annotation))
+        if not self.min_value <= annotation <= self.max_value:
+            raise TypeError(f"Value out of range for 64-bit integer: "
+                            f"expected [{self.min_value}, {self.max_value}], found {annotation}")
 
     def __str__(self):
         return "int64"

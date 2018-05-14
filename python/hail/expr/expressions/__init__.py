@@ -4,7 +4,6 @@ from .expression_typecheck import *
 from .expression_utils import *
 
 __all__ = ['Indices',
-           'Join',
            'Aggregation',
            'Aggregable',
            'construct_expr',

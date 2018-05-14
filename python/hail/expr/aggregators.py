@@ -35,14 +35,14 @@ class AggregableChecker(TypeChecker):
 def _to_agg(x):
     uid = Env.get_uid()
     ast = LambdaClassMethod('map', uid, AggregableReference(), x._ast)
-    return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
+    return Aggregable(ast, x._type, x._indices, x._aggregations)
 
 agg_expr = AggregableChecker
 
 
 def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
-    indices, aggregations, joins = unify_all(aggregable, *args)
+    indices, aggregations = unify_all(aggregable, *args)
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
@@ -52,7 +52,7 @@ def _agg_func(name, aggregable, ret_type, *args):
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
     return construct_expr(ast, ret_type, Indices(source=indices.source),
-                          aggregations.push(Aggregation(aggregable, *args)), joins)
+                          aggregations.push(Aggregation(aggregable, *args)))
 
 def _check_agg_bindings(expr):
     bound_references = {ast.name for ast in expr._ast.search(lambda ast: isinstance(ast, VariableReference))}
@@ -384,11 +384,11 @@ def take(expr, n, ordering=None) -> ArrayExpression:
         if callable(ordering):
             lambda_result = to_expr(
                 ordering(construct_expr(VariableReference(uid), expr.dtype, expr._indices,
-                                        expr._aggregations, expr._joins)))
+                                        expr._aggregations)))
 
         else:
             lambda_result = ordering
-        indices, aggregations, joins = unify_all(expr, lambda_result)
+        indices, aggregations = unify_all(expr, lambda_result)
 
         if not (is_numeric(ordering.dtype) or ordering.dtype == tstr):
             raise TypeError("'take' expects 'ordering' to be or return an ordered expression\n"
@@ -403,7 +403,7 @@ def take(expr, n, ordering=None) -> ArrayExpression:
         _check_agg_bindings(lambda_result)
 
         return construct_expr(ast, tarray(expr._type), Indices(source=indices.source),
-                              aggregations.push(Aggregation(expr, lambda_result)), joins)
+                              aggregations.push(Aggregation(expr, lambda_result)))
 
 @typecheck(expr=agg_expr(expr_numeric))
 def min(expr) -> NumericExpression:
@@ -676,7 +676,7 @@ def fraction(predicate) -> Float64Expression:
     uid = Env.get_uid()
     ast = LambdaClassMethod('fraction', uid, predicate._ast, VariableReference(uid))
     return construct_expr(ast, tfloat64, Indices(source=predicate._indices.source),
-                          predicate._aggregations.push(Aggregation(predicate)), predicate._joins)
+                          predicate._aggregations.push(Aggregation(predicate)))
 
 @typecheck(expr=agg_expr(expr_call))
 def hardy_weinberg(expr) -> StructExpression:
@@ -779,7 +779,7 @@ def explode(expr) -> Aggregable:
     """
     uid = Env.get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, expr._ast, VariableReference(uid)),
-                      expr._type.element_type, expr._indices, expr._aggregations, expr._joins)
+                      expr._type.element_type, expr._indices, expr._aggregations)
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
 def filter(condition, expr) -> Aggregable:
@@ -822,15 +822,15 @@ def filter(condition, expr) -> Aggregable:
         lambda_result = to_expr(
             condition(
                 construct_expr(VariableReference(uid), expr._type, expr._indices,
-                               expr._aggregations, expr._joins)))
+                               expr._aggregations)))
     else:
         lambda_result = to_expr(condition)
 
     assert lambda_result.dtype == tbool
 
-    indices, aggregations, joins = unify_all(expr, lambda_result)
+    indices, aggregations = unify_all(expr, lambda_result)
     ast = LambdaClassMethod('filter', uid, expr._ast, lambda_result._ast)
-    return Aggregable(ast, expr.dtype, indices, aggregations, joins)
+    return Aggregable(ast, expr.dtype, indices, aggregations)
 
 
 @typecheck(expr=agg_expr(expr_call), prior=expr_float64)
@@ -896,7 +896,7 @@ def inbreeding(expr, prior) -> StructExpression:
     uid = Env.get_uid()
     ast = LambdaClassMethod('inbreeding', uid, expr._ast, prior._ast)
 
-    indices, aggregations, joins = unify_all(expr, prior)
+    indices, aggregations = unify_all(expr, prior)
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
@@ -907,7 +907,7 @@ def inbreeding(expr, prior) -> StructExpression:
                 expected_homs=tfloat64,
                 observed_homs=tint64)
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(expr, prior)), joins)
+                          aggregations.push(Aggregation(expr, prior)))
 
 
 @typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
@@ -970,7 +970,7 @@ def call_stats(call, alleles) -> StructExpression:
     uid = Env.get_uid()
 
     ast = LambdaClassMethod('callStats', uid, call._ast, n_alleles._ast) # FIXME: This should be _agg_func once the AST is gone
-    indices, aggregations, joins = unify_all(call, n_alleles)
+    indices, aggregations = unify_all(call, n_alleles)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
@@ -983,7 +983,7 @@ def call_stats(call, alleles) -> StructExpression:
                 homozygote_count=tarray(tint32))
 
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(call, n_alleles)), joins)
+                          aggregations.push(Aggregation(call, n_alleles)))
 
 @typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:

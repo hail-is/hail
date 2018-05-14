@@ -869,10 +869,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
-  def annotateGlobalJSON(s: String, t: Type, name: String): MatrixTable = {
-    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
-
-    annotateGlobal(ann, t, name)
+  def annotateGlobalJSON(data: String, t: TStruct): MatrixTable = {
+    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(data), t)
+    val value = BroadcastRow(ann.asInstanceOf[Row], t, hc.sc)
+    new MatrixTable(hc, MatrixMapGlobals(ast,
+      ir.InsertFields(ir.Ref("global", matrixType.globalType),
+        t.fieldNames.map(name => name -> ir.GetField(ir.Ref("value", t), name))),
+      value))
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {

@@ -177,15 +177,12 @@ def eval_expr_typed(expression):
 def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
     from ..expr_ast import Select, TopLevelReference
 
-    second_level_refs: Tuple[Select] = expr._ast.search(lambda a: isinstance(a, Select)
-                                                                  and not a.name.startswith('__uid')
-                                                                  and isinstance(a.parent, TopLevelReference))
-    for ast in second_level_refs:
+    for ast in expr._ast.search(
+            lambda a: isinstance(a, Select)
+                      and not a.name.startswith('__uid')
+                      and isinstance(a.parent, TopLevelReference)):
         builder[ast.name] = ast.parent.indices
 
-    for join in expr._joins:
-        for e in join.exprs:
-            _get_refs(e, builder)
 
 def extract_refs_by_indices(exprs, indices):
     """Returns a set of references in `exprs` with indices `indices`.
