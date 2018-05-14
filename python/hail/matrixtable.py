@@ -2380,8 +2380,8 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.StructExpression`
         """
-        row_exprs = tuple(row_exprs)
-        col_exprs = tuple(col_exprs)
+        row_exprs = wrap_to_tuple(row_exprs)
+        col_exprs = wrap_to_tuple(col_exprs)
         if len(row_exprs) == 0  or len(col_exprs) == 0:
             raise ValueError("'MatrixTable.index_entries:' 'row_exprs' and 'col_exprs' must not be empty")
         row_non_exprs = list(filter(lambda e: not isinstance(e, Expression), row_exprs))
