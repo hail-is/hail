@@ -4,6 +4,7 @@ import is.hail.expr.types._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.variant.{Call, Call0, Call1, Call2}
 import org.apache.spark.sql.Row
 
 class ExtractAggregatorsSuite {
@@ -98,6 +99,17 @@ class ExtractAggregatorsSuite {
         FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(10), Row(null), Row(5)), TStruct("a" -> TInt32())),
       FastIndexedSeq(10, null, 5))
+  }
+
+  @Test
+  def callStats() {
+    val aggSig = AggSignature(CallStats(), TCall(), FastSeq(), Some(FastSeq(TInt32())))
+    assertEvalsTo(
+      ApplyAggOp(
+        SeqOp(Ref("c", TCall()), I32(0), aggSig),
+        FastSeq(), Some(FastSeq(I32(3))), aggSig),
+      (FastIndexedSeq(Row(Call2(0, 0)), Row(Call2(0, 1)), Row(null), Row(Call2(0, 2))), TStruct("c" -> TCall())),
+      Row(FastIndexedSeq(4, 1, 1), FastIndexedSeq(4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0), 6, FastIndexedSeq(1, 0, 0)))
   }
 
   /*

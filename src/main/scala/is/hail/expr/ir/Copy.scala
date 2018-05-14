@@ -102,12 +102,12 @@ object Copy {
         SeqOp(a, i, aggSig)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x@ApplyAggOp(_, _, _, aggSig) =>
-        val args = newChildren.tail.map(_.asInstanceOf[IR])
+      case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>
+        val args = newChildren.map(_.asInstanceOf[IR])
         ApplyAggOp(
           args.head,
           args.tail.take(x.nConstructorArgs),
-          x.initOpArgs.map(_ => args.tail.drop(x.nConstructorArgs)),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
           aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))

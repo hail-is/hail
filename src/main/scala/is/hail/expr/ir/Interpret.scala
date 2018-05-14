@@ -324,6 +324,9 @@ object Interpret {
         val aggType = aggSig.inputType
         assert(AggOp.getType(aggSig) == x.typ)
         val aggregator = aggSig.op match {
+          case CallStats() =>
+            val nAlleles = interpret(initOpArgs.get(0))
+            new CallStatsAggregator(_ => nAlleles)
           case Collect() => new CollectAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())

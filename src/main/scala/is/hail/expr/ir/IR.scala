@@ -109,6 +109,9 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
 }
 
 final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
+  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
+  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+
   def nConstructorArgs = constructorArgs.length
 
   def hasInitOp = initOpArgs.isDefined
@@ -117,6 +120,7 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
 
   def inputType: Type = aggSig.inputType
 }
+
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
