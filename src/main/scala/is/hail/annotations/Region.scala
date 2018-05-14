@@ -278,22 +278,6 @@ final class Region(
     end = 0
   }
 
-  override def write(kryo: Kryo, output: Output) {
-    output.writeLong(end)
-
-    assert(end <= Int.MaxValue)
-    val smallEnd = end.toInt
-    output.write(mem, 0, smallEnd)
-  }
-
-  override def read(kryo: Kryo, input: Input) {
-    end = input.readLong()
-    assert(end <= Int.MaxValue)
-    val smallEnd = end.toInt
-    mem = new Array[Byte](smallEnd)
-    input.read(mem)
-  }
-
   def visit(t: Type, off: Long, v: ValueVisitor) {
     t match {
       case _: TBoolean => v.visitBoolean(loadBoolean(off))
