@@ -641,11 +641,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val localColData = rvd.mapPartitions { it =>
       val ur = new UnsafeRow(fullRowType)
       it.map { rv =>
-        val rvCopy = rv.copy()
-        ur.set(rvCopy)
-
-        val colKey = Row.fromSeq(colKeyIndices.map(ur.get))
-        val colValues = Row.fromSeq(colValueIndices.map(ur.get))
+        val colKey = SafeRow.selectFields(fullRowType, rv)(colKeyIndices)
+        val colValues = SafeRow.selectFields(fullRowType, rv)(colValueIndices)
         colKey -> colValues
       }
     }.reduceByKey({ case (l, _) => l }) // poor man's distinctByKey
