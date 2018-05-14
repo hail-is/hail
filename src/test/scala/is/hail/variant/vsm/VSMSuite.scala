@@ -5,14 +5,12 @@ import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
 import is.hail.linalg.BlockMatrix
-import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.language.postfixOps

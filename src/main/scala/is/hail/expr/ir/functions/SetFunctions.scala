@@ -21,7 +21,7 @@ object SetFunctions extends RegistryFunctions {
         ArrayFilter(
           ToArray(s),
           x,
-          ApplyBinaryPrimOp(NEQ(), Ref(x, t), v)))
+          ApplyUnaryPrimOp(Bang(), nonstrictEQ(Ref(x, t), v))))
     }
 
     registerIR("add", TSet(tv("T")), tv("T")) { case (s, v) =>
