@@ -628,25 +628,6 @@ object LoadVCF {
     inputs
   }
 
-  def lineRef(s: String): String = {
-    var i = 0
-    var t = 0
-    while (t < 3
-      && i < s.length) {
-      if (s(i) == '\t')
-        t += 1
-      i += 1
-    }
-    val start = i
-
-    while (i < s.length
-      && s(i) != '\t')
-      i += 1
-    val end = i
-
-    s.substring(start, end)
-  }
-
   def headerNumberToString(line: VCFCompoundHeaderLine): String = line.getCountType match {
     case VCFHeaderLineCount.A => "A"
     case VCFHeaderLineCount.G => "G"
