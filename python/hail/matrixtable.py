@@ -832,8 +832,8 @@ class MatrixTable(ExprContainer):
 
         Add global fields from another table and matrix table:
 
-        >>> dataset_result = dataset.annotate_globals(thing1 = dataset2[:, :].global_field,
-        ...                                           thing2 = table1[:].global_field)
+        >>> dataset_result = dataset.annotate_globals(thing1 = dataset2.index_globals().global_field,
+        ...                                           thing2 = table1.index_globals().global_field)
 
         Note
         ----
@@ -882,7 +882,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`.
 
         >>> dataset_result = dataset.annotate_rows(consequence = table1[dataset.locus, dataset.alleles].consequence,
-        ...                                        dataset2_AF = dataset2[(dataset.locus, dataset.alleles), :].info.AF)
+        ...                                        dataset2_AF = dataset2.index_rows(dataset.row_key).info.AF)
 
         Note
         ----
