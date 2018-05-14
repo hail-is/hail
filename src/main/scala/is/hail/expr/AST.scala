@@ -939,7 +939,6 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
   def toIR(agg: Option[String] = None): ToIRErr[IR] = agg match {
     case Some(x) if x == symbol =>
-      assert(typeWithMissingness != null)
       success(ir.AggIn(`type`.asInstanceOf[TAggregable]))
     case _ =>
      success(ir.Ref(symbol, `type`))
