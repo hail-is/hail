@@ -139,7 +139,7 @@ object LoadPlink {
       rowType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString()), "rsid" -> TString(), "position_morgan" -> TInt32()),
       rowKey = Array("locus", "alleles"),
       rowPartitionKey = Array("locus"),
-      entryType = TStruct(required = true, "GT" -> TCall()))
+      entryType = TStruct("GT" -> TCall()))
 
     val kType = matrixType.orvdType.kType
     val rvRowType = matrixType.rvRowType
