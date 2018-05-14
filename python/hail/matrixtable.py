@@ -2210,6 +2210,18 @@ class MatrixTable(ExprContainer):
         return Table(self._jvds.entriesTable())
 
     def index_globals(self) -> Expression:
+        """Return this matrix table's global variables for use in another
+        table's expression context.
+
+        Examples
+        --------
+        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset.index_globals().pli.get(dataset2.gene))
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
+
         uid = Env.get_uid()
 
         def joiner(obj):
@@ -2223,6 +2235,32 @@ class MatrixTable(ExprContainer):
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
     def index_rows(self, *exprs):
+        """Join with the matrix table's row fields on `exprs`, exposing the row
+        values as if looked up in a dictionary.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.locus, dataset.alleles).qual)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.row_key).qual)
+
+        Parameters
+        ----------
+        exprs : variable-length args of :class:`.Expression`
+            Index expressions.
+
+        Notes
+        -----
+        :meth:`index_rows` is equivalent to ``rows().index``.
+
+        The type of the resulting struct is the same as the type of
+        :meth:`.row_value`.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations, joins = unify_all(*exprs)
         src = indices.source
@@ -2279,9 +2317,69 @@ class MatrixTable(ExprContainer):
                 return self.rows().index(*exprs)
 
     def index_cols(self, *exprs):
+        """Join with the matrix table's column fields on `exprs`, exposing the
+        column values as if looked up in a dictionary.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.s).pheno)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.col_key).pheno)
+
+        Parameters
+        ----------
+        exprs : variable-length args of :class:`.Expression`
+            Index expressions.
+
+        Notes
+        -----
+        :meth:`index_cols` is equivalent to ``cols().index``.
+
+        The type of the resulting struct is the same as the type of
+        :meth:`.col_value`.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         return self.cols().index(*exprs)
 
     def index_entries(self, row_exprs, col_exprs):
+        """Index into the matrix table's entries, exposing the entry fields
+        as if looked up in a dictionary.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2.index_entries(dataset.row_key, dataset.col_key).GQ)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
+
+        Parameters
+        ----------
+        row_exprs : tuple of :class:`.Expression`
+            Row index expressions.
+        col_exprs : tuple of :class:`.Expression`
+            Column index expressions.
+
+        Notes
+        -----
+        The type of the resulting struct is the same as the type of
+        :meth:`.entry`.
+
+        Note
+        ----
+        There is a shorthand syntax for :meth:`.MatrixTable.index_entries` using
+        square brackets (the Python ``__getitem__`` syntax). This syntax is
+        preferred.
+
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         row_exprs = tuple(row_exprs)
         col_exprs = tuple(col_exprs)
         if len(row_exprs) == 0  or len(col_exprs) == 0:
