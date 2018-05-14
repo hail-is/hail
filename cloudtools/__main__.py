@@ -6,6 +6,7 @@ from cloudtools import connect
 from cloudtools import diagnose
 from cloudtools import stop
 from cloudtools import list_clusters
+from cloudtools import modify
 
 
 def main():
@@ -32,6 +33,10 @@ def main():
                                   help='List active Dataproc clusters.',
                                   description='List active Dataproc clusters.')
 
+    modify_parser = subs.add_parser('modify',
+                                    help='Modify active Dataproc clusters.',
+                                    description='Modify active Dataproc clusters.')
+
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
 
@@ -48,6 +53,9 @@ def main():
     stop.init_parser(stop_parser)
 
     list_parser.set_defaults(module='list')
+
+    modify_parser.set_defaults(module='modify')
+    modify.init_parser(modify_parser)
 
     if len(sys.argv) == 1:
         main_parser.print_help()
@@ -72,6 +80,9 @@ def main():
 
     elif args.module == 'list':
         list_clusters.main(args)
+
+    elif args.module == 'modify':
+        modify.main(args)
 
 
 if __name__ == '__main__':
