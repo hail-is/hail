@@ -71,6 +71,6 @@ package object ir {
           IsNA(Ref(rv, t)),
           If(IsNA(Ref(rv, t)),
             False(),
-            ApplyBinaryPrimOp(EQ(), Ref(lv, t), Ref(rv, t))))))
+            ApplyComparisonOp(EQ(t), Ref(lv, t), Ref(rv, t))))))
   }
 }
