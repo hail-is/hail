@@ -11,7 +11,7 @@ from hail.table import Table, ExprContainer
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
-from hail.utils.misc import get_nice_field_error, wrap_to_tuple, wrap_to_sequence, check_keys, check_collisions, check_field_uniqueness, get_select_exprs, get_annotate_exprs
+from hail.utils.misc import *
 
 
 class GroupedMatrixTable(ExprContainer):
@@ -2444,33 +2444,8 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     def _process_joins(self, *exprs):
-
-        all_uids = []
-        left = self
-        used_joins = set()
-
-        broadcasts = []
-        for e in exprs:
-            joins = e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Join))
-            for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
-                if j not in used_joins:
-                    left = j.join_func(left)
-                    all_uids.extend(j.temp_vars)
-                    used_joins.add(j)
-            broadcasts.extend(e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Broadcast)))
-
-        if broadcasts:
-            t = hl.tstruct(**{b.uid: b.dtype for b in broadcasts})
-            all_uids.extend(list(t))
-            data = hl.Struct(**{b.uid: b.value for b in broadcasts})
-            data_json = t._to_json(data)
-            left = MatrixTable(self._jvds.annotateGlobalJSON(data_json, t._jtype))
-
-        def cleanup(matrix):
-            remaining_uids = [uid for uid in all_uids if uid in matrix._fields]
-            return matrix.drop(*remaining_uids)
-
-        return left, cleanup
+        broadcast_f = lambda left, data, jt: MatrixTable(left._jvds.annotateGlobalJSON(data, jt))
+        return process_joins(self, exprs, broadcast_f)
 
     def describe(self):
         """Print information about the fields in the matrix."""

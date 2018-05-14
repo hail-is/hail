@@ -8,7 +8,7 @@ from hail.expr.types import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error, check_collisions, check_keys, check_field_uniqueness, get_select_exprs, get_annotate_exprs
+from hail.utils.misc import *
 
 from collections import OrderedDict
 import itertools
@@ -1350,38 +1350,16 @@ class Table(ExprContainer):
 
     def _process_joins(self, *exprs):
         # ordered to support nested joins
-        original_key = list(self.key) if self.key else None
-
-        all_uids = []
-        left = self
-        used_joins = set()
-        broadcasts = []
-
-        for e in exprs:
-            joins = e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Join))
-            for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
-                if j not in used_joins:
-                    left = j.join_func(left)
-                    all_uids.extend(j.temp_vars)
-                    used_joins.add(j)
-            broadcasts.extend(e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Broadcast)))
-
-        if broadcasts:
-            t = hl.tstruct(**{b.uid: b.dtype for b in broadcasts})
-            all_uids.extend(list(t))
-            data = hl.Struct(**{b.uid: b.value for b in broadcasts})
-            data_json = t._to_json(data)
-            left = Table(self._jt.annotateGlobalJSON(data_json, t._jtype))
+        original_key = list(self.key) if self.key is not None else None
+        broadcast_f = lambda left, data, jt: Table(left._jt.annotateGlobalJSON(data, jt))
+        left, cleanup = process_joins(self, exprs, broadcast_f)
 
         if left is not self:
             if original_key is not None:
-                left = left.key_by(*original_key)
+                if original_key != list(left.key):
+                    left = left.key_by(*original_key)
             else:
                 left = left.key_by(None)
-
-        def cleanup(table):
-            remaining_uids = [uid for uid in all_uids if uid in table._fields]
-            return table.drop(*remaining_uids)
 
         return left, cleanup
 
