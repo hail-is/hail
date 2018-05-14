@@ -27,7 +27,8 @@ object OrderedRVPartitionInfo {
     sampleSize: Int,
     partitionIndex: Int,
     it: Iterator[RegionValue],
-    seed: Int
+    seed: Int,
+    ctx: RVDContext
   ): OrderedRVPartitionInfo = {
     using(RVDContext.default) { ctx =>
       val minF = WritableRegionValue(typ.pkType, ctx.freshRegion)
