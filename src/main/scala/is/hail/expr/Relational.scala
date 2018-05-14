@@ -602,7 +602,6 @@ case class FilterRowsIR(
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
       val rvb = new RegionValueBuilder()
-      val newRV = RegionValue()
       val initialize = makeInit()
       val sequence = makeSeq()
       val predicate = makePred()
