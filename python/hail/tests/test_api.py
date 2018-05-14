@@ -1203,6 +1203,15 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
         self.assertEqual(mt.transmute_entries(e3 = mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
 
+    def test_agg_explode(self):
+        t = hl.Table.parallelize([
+            hl.struct(a=1, b=[1, 2]),
+            hl.struct(a=2, b=[]),
+            hl.struct(a=3, b=hl.null(hl.tarray(hl.tint32))),
+            hl.struct(a=4, b=[3])
+        ])
+        self.assertEqual(t.aggregate(hl.agg.sum(t.a * hl.agg.explode(hl.agg.flat_map(t.b)))), 15)
+
 class GroupedMatrixTests(unittest.TestCase):
 
     def get_groupable_matrix(self):
