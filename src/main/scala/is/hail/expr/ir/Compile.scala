@@ -134,32 +134,14 @@ object CompileWithAggregators {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
-    val env = ((aggName, aggType, TypeToIRIntermediateClassTag(aggType)) +: args).zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
-
-    val ir = Subst(body, env)
-
-    val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(ir, aggType)
-
+    val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
     val nAggs = rvAggs.length
-
     val (_, initOps) = Compile[F0, Unit](args, initOpIR, aggType)
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, seqOpIR), aggType)
-
-    val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
-    val (t, f) = Compile[F2, R](args2, postAggIR)
-    (rvAggs, initOps, seqOps, aggResultType, f, t)
-=======
-    val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(body)
-    val nAggs = rvAggs.length
-    val xAggIR = transformAggIR(nAggs, aggIR)
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, xAggIR, 2)
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, seqOpIR), 2)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR, 1)
-    (rvAggs, seqOps, aggResultType, f, t)
->>>>>>> simplify aggregators
+    (rvAggs, initOps, seqOps, aggResultType, f, t)
   }
 
   def apply[
@@ -173,12 +155,8 @@ object CompileWithAggregators {
     body: IR,
     transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
     () => AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
-    () => AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
-=======
     () => AsmFunction6[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, Unit],
->>>>>>> simplify aggregators
     Type,
     () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
     Type) = {
@@ -188,17 +166,11 @@ object CompileWithAggregators {
       (aggName0, aggTyp0, classTag[S0]),
       (aggName1, aggTyp1, classTag[S1]))
 
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
     apply[
       AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
-      AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
+      AsmFunction6[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](aggName, aggTyp, args, aggScopeArgs, body, transformAggIR)
-=======
-    apply[AsmFunction6[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, Unit],
-      AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](args, aggScopeArgs, body, (nAggs: Int, aggIR: IR) => aggIR)
->>>>>>> simplify aggregators
+      R](args, aggScopeArgs, body, transformAggIR)
   }
 
   def apply[
@@ -216,12 +188,8 @@ object CompileWithAggregators {
     body: IR,
     transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
     () => AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
-    () => AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
-=======
     () => AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
->>>>>>> simplify aggregators
     Type,
     () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
     Type) = {
@@ -234,13 +202,9 @@ object CompileWithAggregators {
       (aggName1, aggType1, classTag[S1]),
       (aggName2, aggType2, classTag[S2]))
 
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
     apply[
       AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
-      AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
-=======
-    apply[AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
->>>>>>> simplify aggregators
+      AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
       R](args, aggArgs, body, transformAggIR)
   }

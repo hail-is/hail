@@ -473,13 +473,7 @@ object Interpret {
         tableValue.export(path, typesFile, header, exportType)
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
-<<<<<<< e2458973ad2bb9b065a56f480e986554b40eed79
-        val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
-
-        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
-=======
-        val (rvAggs, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long](
->>>>>>> simplify aggregators
+        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long](
           "global", child.typ.globalType,
           "global", child.typ.globalType,
           "row", child.typ.rowType,
