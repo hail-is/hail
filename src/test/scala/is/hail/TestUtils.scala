@@ -310,7 +310,10 @@ object TestUtils {
   }
 
   def assertEvalsTo(x: IR, expected: Any) {
-    assert(eval(x) == expected)
+    val t = x.typ
+    val e = eval(x)
+    assert(t.typeCheck(e))
+    assert(t.valuesSimilar(eval(x), expected))
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
