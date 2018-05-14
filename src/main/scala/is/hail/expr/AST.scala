@@ -898,14 +898,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             this,
             s"no AggOp for method $method",
             AggOp.fromString.lift(method))
-          irs <- all(args.map(_.toIR(agg)))
-          argTypes = irs.map(_.typ)
+          irs <- all(args.map(_.toIR(agg))).map(_.toFastIndexedSeq)
+          (constructorArgs, initOpArgs) =
+            if (method == "callStats")
+              (irs.init, Some(FastSeq(irs.last)))
+            else
+              (irs, None)
           aggSig = AggSignature(op,
             if (method == "count")
               TInt32()
             else
               -t.elementType,
-            argTypes)
+            constructorArgs.map(_.typ),
+            initOpArgs.map(_.map(_.typ)))
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -917,7 +922,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               x,
             ir.I32(0), aggSig))
         } yield {
-          ir.ApplyAggOp(rx, irs, aggSig): IR
+          ir.ApplyAggOp(rx, constructorArgs, initOpArgs, aggSig): IR
         }
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {

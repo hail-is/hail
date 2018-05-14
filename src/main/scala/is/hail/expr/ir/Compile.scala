@@ -136,7 +136,7 @@ object CompileWithAggregators {
 
     val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
     val nAggs = rvAggs.length
-    val (_, initOps) = Compile[F0, Unit](args, initOpIR, aggType)
+    val (_, initOps) = Compile[F0, Unit](args, initOpIR, 2)
     val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, seqOpIR), 2)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args

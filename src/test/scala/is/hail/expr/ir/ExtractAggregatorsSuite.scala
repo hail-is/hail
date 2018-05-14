@@ -9,10 +9,10 @@ import org.apache.spark.sql.Row
 class ExtractAggregatorsSuite {
 
   def testSum(a: IndexedSeq[Any], expected: Any) {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq())
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
     assertEvalsTo(ApplyAggOp(
       SeqOp(Ref("a", TFloat64()), I32(0), aggSig),
-      FastSeq(), aggSig),
+      FastSeq(), None, aggSig),
       (a.map(i => Row(i)), TStruct("a" -> TFloat64())),
       expected)
   }
@@ -44,17 +44,17 @@ class ExtractAggregatorsSuite {
 
   @Test
   def sumMultivar() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq())
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
     assertEvalsTo(ApplyAggOp(
       SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())), I32(0), aggSig),
-      FastSeq(), aggSig),
+      FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
       110.0)
   }
 
   @Test
   def ifInApplyAggOp() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq())
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
     assertEvalsTo(
       ApplyAggOp(
         If(
@@ -62,40 +62,40 @@ class ExtractAggregatorsSuite {
           SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())),
             I32(0), aggSig),
           Begin(FastSeq())),
-        FastSeq(), aggSig),
+        FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
       10.0)
   }
 
   @Test
   def fraction() {
-    val aggSig = AggSignature(Fraction(), TBoolean(), FastSeq())
+    val aggSig = AggSignature(Fraction(), TBoolean(), FastSeq(), None)
     assertEvalsTo(
       ApplyAggOp(
         SeqOp(Ref("a", TBoolean()), I32(0), aggSig),
-        FastSeq(), aggSig),
+        FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(true), Row(false), Row(null), Row(true), Row(false)), TStruct("a" -> TBoolean())),
       2.0 / 5.0)
   }
 
   @Test
   def collectBoolean() {
-    val aggSig = AggSignature(Collect(), TBoolean(), FastSeq())
+    val aggSig = AggSignature(Collect(), TBoolean(), FastSeq(), None)
     assertEvalsTo(
       ApplyAggOp(
         SeqOp(Ref("a", TBoolean()), I32(0), aggSig),
-        FastSeq(), aggSig),
+        FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(true), Row(false), Row(null), Row(true), Row(false)), TStruct("a" -> TBoolean())),
       FastIndexedSeq(true, false, null, true, false))
   }
 
   @Test
   def collectInt() {
-    val aggSig = AggSignature(Collect(), TInt32(), FastSeq())
+    val aggSig = AggSignature(Collect(), TInt32(), FastSeq(), None)
     assertEvalsTo(
       ApplyAggOp(
         SeqOp(Ref("a", TInt32()), I32(0), aggSig),
-        FastSeq(), aggSig),
+        FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(10), Row(null), Row(5)), TStruct("a" -> TInt32())),
       FastIndexedSeq(10, null, 5))
   }

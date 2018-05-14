@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils._
 
-case class AggSignature(op: AggOp, inputType: Type, constructorArgs: Seq[Type], initArgs: Option[Seq[Type]])
+case class AggSignature(op: AggOp, inputType: Type, constructorArgs: Seq[Type], initOpArgs: Option[Seq[Type]])
 
 sealed trait AggOp { }
 // nulary
@@ -48,18 +48,18 @@ final case class CallStats() extends AggOp { }
 object AggOp {
 
   def get(aggSig: AggSignature): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
-    getOption((op, inputType, argumentTypes)).getOrElse(incompatible(op, inputType, argumentTypes))
+    getOption(aggSig).getOrElse(incompatible(aggSig))
 
-  def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(op, inputType, constructorTypes, initOpTypes)).out
+  def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
   def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
-    getOption(aggSig.op, aggSig.inputType, aggSig.constructorArgs, aggSig.initArgs)
+    getOption(aggSig.op, aggSig.inputType, aggSig.constructorArgs, aggSig.initOpArgs)
 
   val getOption: ((AggOp, Type, Seq[Type], Option[Seq[Type]])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
-    case (Fraction(), in: TBoolean, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
-    case (Statistics(), in: TFloat64, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
-    case (Collect(), in: TBoolean, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
-    case (Collect(), in: TInt32, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
+    case (Fraction(), in: TBoolean, Seq(), None) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
+    case (Statistics(), in: TFloat64, Seq(), None) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
+    case (Collect(), in: TBoolean, Seq(), None) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
+    case (Collect(), in: TInt32, Seq(), None) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
     // FIXME: implement these
     // case (Collect(), _: TInt64) =>
     // case (Collect(), _: TFloat32) =>
@@ -103,10 +103,10 @@ object AggOp {
       CodeAggregator[RegionValueCallStatsAggregator](in, RegionValueCallStatsAggregator.typ, initOpArgTypes = Some(Array(classOf[Int])))
   }
 
-  private def incompatible(op: AggOp, inputType: Type, constTypes: Seq[Type], initOpTypes: Option[Seq[Type]]): Nothing = {
-    throw new RuntimeException(s"no aggregator named $op taking arguments ([${ constTypes.mkString(", ") }]" +
-      s", ${ if (initOpTypes.isEmpty) "None" else "[" + initOpTypes.get.mkString(", ") + "]" }) " +
-      s"operating on aggregables of type $inputType")
+  private def incompatible(aggSig: AggSignature): Nothing = {
+    throw new RuntimeException(s"no aggregator named ${ aggSig.op } taking arguments ([${ aggSig.constructorArgs.mkString(", ") }]" +
+      s", ${ if (aggSig.initOpArgs.isEmpty) "None" else "[" + aggSig.initOpArgs.get.mkString(", ") + "]" }) " +
+      s"operating on aggregables of type ${ aggSig.inputType }")
   }
 
   val fromString: PartialFunction[String, AggOp] = {

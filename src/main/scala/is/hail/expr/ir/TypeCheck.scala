@@ -131,7 +131,7 @@ object TypeCheck {
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
-      case x@InitOp(i, _, args) =>
+      case x@InitOp(i, args, _) =>
         args.foreach(check(_))
         check(i)
         assert(i.typ.isInstanceOf[TInt32])
@@ -145,9 +145,8 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(a, , constructorArgs, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         check(a, env = aggEnv.get)
-        args.foreach(check(_))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(a.typ == TVoid)

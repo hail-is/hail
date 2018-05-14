@@ -12,7 +12,7 @@ object ExtractAggregators {
 
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
 
-  def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
+  def apply(ir: IR): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     def rewriteSeqOps(x: IR, i: Int): IR = {
       def rewrite(x: IR): IR = rewriteSeqOps(x, i)
       x match {
@@ -22,13 +22,13 @@ object ExtractAggregators {
       }
     }
 
-    val (ir2, aggs) = extract(ir.unwrap, tAggIn)
+    val (ir2, aggs) = extract(ir.unwrap)
 
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
         .zipWithIndex
         .map { case (x, i) =>
           val agg = AggOp.get(x.aggSig)
-          (x.initOpArgs.map(args => InitOp(I32(i), agg, args), rewriteSeqOps(x.a, i)))
+          (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
         }.unzip
 
     val seqOpIR = Begin(seqOps)

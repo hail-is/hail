@@ -95,8 +95,8 @@ object Copy {
       case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name)
-      case InitOp(_, agg, _) =>
-        InitOp(newChildren.head.asInstanceOf[IR], agg, newChildren.tail.map(_.asInstanceOf[IR]))
+      case InitOp(_, _, aggSig) =>
+        InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(_, _, aggSig) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         SeqOp(a, i, aggSig)
@@ -107,7 +107,7 @@ object Copy {
         ApplyAggOp(
           args.head,
           args.tail.take(x.nConstructorArgs),
-          x.map(_ => args.last),
+          x.initOpArgs.map(_ => args.tail.drop(x.nConstructorArgs)),
           aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))

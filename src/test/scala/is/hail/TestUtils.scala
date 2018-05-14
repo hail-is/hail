@@ -306,11 +306,12 @@ object TestUtils {
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
-        val (rvAggs, seqOps, aggResultType, f, resultType2) = CompileWithAggregators[Long, Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, f, resultType2) = CompileWithAggregators[Long, Long, Long, Long](
           argsVar, argsType,
           argsVar, argsType,
           aggVar, aggType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))))
+          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))),
+          (i, x) => x)
         assert(resultType2 == resultType)
 
         Region.scoped { region =>
@@ -329,6 +330,7 @@ object TestUtils {
 
           // aggregate
           rvAggs.foreach(_.clear())
+          initOps()(region, rvAggs, argsOff, false)
           i = 0
           while (i < aggElements.length) {
             // FIXME use second region for elements
