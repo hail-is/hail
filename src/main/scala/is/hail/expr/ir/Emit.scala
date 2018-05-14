@@ -265,6 +265,20 @@ private class Emit(
         val typ = ir.typ
         val v = emit(x)
         EmitTriplet(v.setup, v.m, UnaryOp.emit(op, x.typ, v.v))
+      case ApplyComparisonOp(op, l, r) =>
+        val f = op.codeOrdering(mb)
+        val codeL = emit(l)
+        val codeR = emit(r)
+        val lm = mb.newLocal[Boolean]
+        val rm = mb.newLocal[Boolean]
+        present(Code(
+          codeL.setup,
+          codeR.setup,
+          lm := codeL.m,
+          rm := codeR.m,
+          f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
+            region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))
+        ))
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)

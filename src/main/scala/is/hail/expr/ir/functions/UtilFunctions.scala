@@ -56,28 +56,5 @@ object UtilFunctions extends RegistryFunctions {
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
-
-    val compareOps = Array(
-      ("==", CodeOrdering.equiv),
-      ("<", CodeOrdering.lt),
-      ("<=", CodeOrdering.lteq),
-      (">", CodeOrdering.gt),
-      (">=", CodeOrdering.gteq))
-    for ((sym, op) <- compareOps) {
-      registerCodeWithMissingness(sym, tv("T"), tv("T"), TBoolean()) { case (mb, a, b) =>
-        val t = tv("T").t
-        val cop = mb.getCodeOrdering[Boolean](t, op, missingGreatest = true)
-        val am = mb.newLocal[Boolean]
-        val bm = mb.newLocal[Boolean]
-        val av = mb.newLocal(typeToTypeInfo(t))
-        val bv = mb.newLocal(typeToTypeInfo(t))
-        val v = Code(
-          am := a.m, bm := b.m, av.storeAny(a.v), bv.storeAny(b.v),
-          cop(mb.getArg[Region](1), (am, av), mb.getArg[Region](1), (bm, bv)))
-        EmitTriplet(Code(a.setup, b.setup), const(false), v)
-      }
-    }
-
-    registerIR("!=", tv("T"), tv("T")) { (a, b) => ApplyUnaryPrimOp(Bang(), ApplySpecial("==", FastSeq(a, b))) }
   }
 }

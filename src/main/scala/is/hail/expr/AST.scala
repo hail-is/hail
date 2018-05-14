@@ -749,6 +749,12 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
 
+  private def tryComparisonConversion: IndexedSeq[(Type, IR)] => Option[IR] = flatLift {
+    case IndexedSeq((xt, x), (yt, y)) => for {
+      op <- ir.ComparisonOp.fromStringAndTypes.lift((fn, xt, yt))
+    } yield ir.ApplyComparisonOp(op, x, y)
+  }
+
   private[this] def tryIRConversion(agg: Option[(String, String)]): ToIRErr[IR] =
     for {
       irArgs <- all(args.map(_.toIR(agg)))
@@ -756,8 +762,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         this,
         s"no function or primop found for $fn",
         tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
+          tryComparisonConversion(args.map(_.`type`).zip(irArgs)).orElse(
           IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
-            .map { irf => irf(irArgs) }))
+            .map { irf => irf(irArgs) })))
     } yield ir
 
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = {

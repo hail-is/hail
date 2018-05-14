@@ -24,6 +24,7 @@ object Simplify {
            _: MakeStruct |
            _: MakeTuple |
            _: IsNA |
+           _: ApplyComparisonOp |
            _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
       case _ => false
     }

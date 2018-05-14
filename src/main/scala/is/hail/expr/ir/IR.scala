@@ -76,6 +76,7 @@ final case class Ref(name: String, var typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
+final case class ApplyComparisonOp(op: ComparisonOp, l: IR, r: IR) extends InferIR
 
 final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
 final case class ArrayRef(a: IR, i: IR) extends InferIR

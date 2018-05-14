@@ -68,7 +68,7 @@ object ArrayFunctions extends RegistryFunctions {
         Ref(value, t),
         If(IsNA(Ref(value, t)),
           Ref(min, t),
-          If(ApplyBinaryPrimOp(LT(), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
+          If(ApplyComparisonOp(LT(t), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
       ArrayFold(a, NA(t), min, value, body)
     }
 
@@ -80,7 +80,7 @@ object ArrayFunctions extends RegistryFunctions {
         Ref(value, t),
         If(IsNA(Ref(value, t)),
           Ref(max, t),
-          If(ApplyBinaryPrimOp(GT(), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
+          If(ApplyComparisonOp(GT(t), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
       ArrayFold(a, NA(t), max, value, body)
     }
 
@@ -91,7 +91,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("[*:]", TArray(tv("T")), TInt32()) { (a, i) =>
       val idx = genUID()
       ArrayMap(
-        ArrayRange(If(ApplyBinaryPrimOp(LT(), i, I32(0)),
+        ArrayRange(If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
           ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
           i),
           ArrayLen(a),
@@ -104,7 +104,7 @@ object ArrayFunctions extends RegistryFunctions {
       val idx = genUID()
       ArrayMap(
         ArrayRange(I32(0),
-          If(ApplyBinaryPrimOp(LT(), i, I32(0)),
+          If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
             i),
           I32(1)),
@@ -116,10 +116,10 @@ object ArrayFunctions extends RegistryFunctions {
       val idx = genUID()
       ArrayMap(
         ArrayRange(
-          If(ApplyBinaryPrimOp(LT(), i, I32(0)),
+          If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
             i),
-          If(ApplyBinaryPrimOp(LT(), j, I32(0)),
+          If(ApplyComparisonOp(LT(TInt32()), j, I32(0)),
             ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
             j),
           I32(1)),

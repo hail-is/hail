@@ -14,15 +14,6 @@ object BinaryOp {
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TInt64, _: TInt64) => TInt64()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat32, _: TFloat32) => TFloat32()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat64, _: TFloat64) => TFloat64()
-    case (GT() | GTEQ() | LTEQ() | LT(), _: TInt32, _: TInt32) => TBoolean()
-    case (GT() | GTEQ() | LTEQ() | LT(), _: TInt64, _: TInt64) => TBoolean()
-    case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat32, _: TFloat32) => TBoolean()
-    case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat64, _: TFloat64) => TBoolean()
-    case (EQ() | NEQ(), _: TInt32, _: TInt32) => TBoolean()
-    case (EQ() | NEQ(), _: TInt64, _: TInt64) => TBoolean()
-    case (EQ() | NEQ(), _: TFloat32, _: TFloat32) => TBoolean()
-    case (EQ() | NEQ(), _: TFloat64, _: TFloat64) => TBoolean()
-    case (EQ() | NEQ(), _: TBoolean, _: TBoolean) => TBoolean()
   }
 
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
@@ -34,7 +25,8 @@ object BinaryOp {
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
 
-  def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] = (lt, rt) match {
+  def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] =
+    (lt, rt) match {
     case (_: TInt32, _: TInt32) =>
       val ll = coerce[Int](l)
       val rr = coerce[Int](r)
@@ -44,12 +36,6 @@ object BinaryOp {
         case Multiply() => ll * rr
         case FloatingPointDivide() => ll.toF / rr.toF
         case RoundToNegInfDivide() => Code.invokeStatic[Math, Int, Int, Int]("floorDiv", ll, rr)
-        case GT() => ll > rr
-        case GTEQ() => ll >= rr
-        case LTEQ() => ll <= rr
-        case LT() => ll < rr
-        case EQ() => ll.ceq(rr)
-        case NEQ() => ll.cne(rr)
         case _ => incompatible(lt, rt, op)
       }
     case (_: TInt64, _: TInt64) =>
@@ -61,12 +47,6 @@ object BinaryOp {
         case Multiply() => ll * rr
         case FloatingPointDivide() => ll.toF / rr.toF
         case RoundToNegInfDivide() => Code.invokeStatic[Math, Long, Long, Long]("floorDiv", ll, rr)
-        case GT() => ll > rr
-        case GTEQ() => ll >= rr
-        case LTEQ() => ll <= rr
-        case LT() => ll < rr
-        case EQ() => ll.ceq(rr)
-        case NEQ() => ll.cne(rr)
         case _ => incompatible(lt, rt, op)
       }
     case (_: TFloat32, _: TFloat32) =>
@@ -78,12 +58,6 @@ object BinaryOp {
         case Multiply() => ll * rr
         case FloatingPointDivide() => ll / rr
         case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll.toD / rr.toD).toF
-        case GT() => ll > rr
-        case GTEQ() => ll >= rr
-        case LTEQ() => ll <= rr
-        case LT() => ll < rr
-        case EQ() => ll.ceq(rr)
-        case NEQ() => ll.cne(rr)
         case _ => incompatible(lt, rt, op)
       }
     case (_: TFloat64, _: TFloat64) =>
@@ -95,20 +69,12 @@ object BinaryOp {
         case Multiply() => ll * rr
         case FloatingPointDivide() => ll / rr
         case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll / rr)
-        case GT() => ll > rr
-        case GTEQ() => ll >= rr
-        case LTEQ() => ll <= rr
-        case LT() => ll < rr
-        case EQ() => ll.ceq(rr)
-        case NEQ() => ll.cne(rr)
         case _ => incompatible(lt, rt, op)
       }
     case (_: TBoolean, _: TBoolean) =>
       val ll = coerce[Boolean](l)
       val rr = coerce[Boolean](r)
       op match {
-        case EQ() => ll.toI.ceq(rr.toI)
-        case NEQ() => ll.toI ^ rr.toI
         case _ => incompatible(lt, rt, op)
       }
 
@@ -121,12 +87,6 @@ object BinaryOp {
     case "*" => Multiply()
     case "/" => FloatingPointDivide()
     case "//" => RoundToNegInfDivide()
-    case ">" => GT()
-    case ">=" => GTEQ()
-    case "<=" => LTEQ()
-    case "<" => LT()
-    case "==" => EQ()
-    case "!=" => NEQ()
   }
 }
 
@@ -136,9 +96,3 @@ case class Subtract() extends BinaryOp { }
 case class Multiply() extends BinaryOp { }
 case class FloatingPointDivide() extends BinaryOp { }
 case class RoundToNegInfDivide() extends BinaryOp { }
-case class GT() extends BinaryOp { }
-case class GTEQ() extends BinaryOp { }
-case class LTEQ() extends BinaryOp { }
-case class LT() extends BinaryOp { }
-case class EQ() extends BinaryOp { }
-case class NEQ() extends BinaryOp { }
