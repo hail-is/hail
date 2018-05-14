@@ -110,7 +110,6 @@ class OrderedRVDPartitioner(
   def getSafePartition(key: Any): Int =
     getPartitionPK(key)
 
-
   def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
     val newPart = new OrderedRVDPartitioner(newPartitionKey, newKType, rangeBounds)
     assert(newPart.pkType.types.sameElements(pkType.types))

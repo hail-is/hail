@@ -1,16 +1,16 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.{OrderedRVDType, RVDContext}
 
 object SortedDistinctRowIterator {
-  def transformer(ort: OrderedRVDType): Iterator[RegionValue] => SortedDistinctRowIterator =
-    new SortedDistinctRowIterator(ort, _)
+  def transformer(ort: OrderedRVDType): (RVDContext, Iterator[RegionValue]) => SortedDistinctRowIterator =
+    (ctx, it) => new SortedDistinctRowIterator(ort, it, ctx)
 }
 
-class SortedDistinctRowIterator(ort: OrderedRVDType, it: Iterator[RegionValue]) extends Iterator[RegionValue] {
+class SortedDistinctRowIterator(ort: OrderedRVDType, it: Iterator[RegionValue], ctx: RVDContext) extends Iterator[RegionValue] {
   private val bit = it.buffered
-  private val wrv: WritableRegionValue = WritableRegionValue(ort.rowType)
+  private val wrv: WritableRegionValue = WritableRegionValue(ort.rowType, ctx.freshRegion)
 
   override def hasNext: Boolean = bit.hasNext
 

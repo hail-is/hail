@@ -731,7 +731,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
       OrderedRVIterator(
         new OrderedRVDType(partitionKeys, rowKeys, rowEntryStruct),
-        it
+        it,
+        ctx
       ).staircase.map { rowIt =>
         rvb.start(newRVType)
         rvb.startStruct()

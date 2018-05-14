@@ -125,8 +125,19 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[C, T]
 
+  private[this] def sparkManagedContext(): C = {
+    val c = mkc()
+    TaskContext.get().addTaskCompletionListener { _ =>
+      c.close()
+    }
+    c
+  }
+
   def run[U >: T : ClassTag]: RDD[U] =
-    rdd.mapPartitions { part => using(mkc()) { c => part.flatMap(_(c)) } }
+    rdd.mapPartitions { part =>
+      val c = sparkManagedContext()
+      part.flatMap(_(c))
+    }
 
   def collect(): Array[T] =
     run.collect()
@@ -453,7 +464,10 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
     sparkContext.runJob(
       rdd,
-      { (it: Iterator[ElementType]) => using(mkc())(c => f(it.flatMap(_(c)))) },
+      { (it: Iterator[ElementType]) =>
+        val c = sparkManagedContext()
+        f(it.flatMap(_(c)))
+      },
       partitions)
 
   def blocked(partitionEnds: Array[Int]): ContextRDD[C, T] =

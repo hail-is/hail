@@ -62,9 +62,8 @@ object LinearRegression {
 
     val newRDD2 = vsm.rvd.boundary.mapPartitionsPreservesPartitioning(
       newMatrixType.orvdType, { (ctx, it) =>
-        val region2 = ctx.region
-        val rvb = ctx.rvb
-        val rv2 = RegionValue(region2)
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
 
         val missingCompleteCols = new ArrayBuilder[Int]
         val data = new Array[Double](n * rowBlockSize)
@@ -72,7 +71,7 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType)
+          blockWRVs(i) = WritableRegionValue(fullRowType, ctx.freshRegion)
           i += 1
         }
 
@@ -126,13 +125,12 @@ object LinearRegression {
                 p(::, i).toArray: IndexedSeq[Double])
 
               val wrv = blockWRVs(i)
-              region2.setFrom(wrv.region)
-              val offset2 = wrv.offset
 
+              rvb.set(wrv.region)
               rvb.start(newRVType)
-              ins(region2, offset2, rvb,
+              ins(wrv.region, wrv.offset, rvb,
                 () => rvb.addAnnotation(LinearRegression.schema, result))
-              rv2.setOffset(rvb.end())
+              rv2.set(wrv.region, rvb.end())
               rv2
             }
           }

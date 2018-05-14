@@ -313,7 +313,11 @@ class OrderedRVD(
       val producerRegion = producerCtx.region
       val it = useCtxes.flatMap(_ (producerCtx))
 
-      val stepped = OrderedRVIterator(localType, it).staircase
+      val stepped = OrderedRVIterator(
+        localType,
+        it,
+        consumerCtx.freshContext
+      ).staircase
 
       stepped.map { stepIt =>
         buffer.clear()
@@ -341,8 +345,8 @@ class OrderedRVD(
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    mapPartitionsPreservesPartitioning(typ)(it =>
-      OrderedRVIterator(localType, it)
+    mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
+      OrderedRVIterator(localType, it, ctx)
         .staircase
         .map(_.value)
     )
@@ -503,8 +507,8 @@ object OrderedRVD {
     crdd: ContextRDD[RVDContext, RegionValue]
   ): ContextRDD[RVDContext, RegionValue] = {
     val localType = typ
-    crdd.mapPartitions { it =>
-      val wrv = WritableRegionValue(localType.kType)
+    crdd.cmapPartitions { (ctx, it) =>
+      val wrv = WritableRegionValue(localType.kType, ctx.freshRegion)
       it.map { rv =>
         wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
         wrv.value
@@ -531,7 +535,7 @@ object OrderedRVD {
 
     val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
-        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i), ctx))
+        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
       out
@@ -897,9 +901,9 @@ object OrderedRVD {
     new OrderedRVD(
       typ,
       partitioner,
-      crdd.mapPartitionsWithIndex { case (i, it) =>
-          val prevK = WritableRegionValue(typ.kType)
-          val prevPK = WritableRegionValue(typ.pkType)
+      crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
+          val prevK = WritableRegionValue(typ.kType, ctx.freshRegion)
+          val prevPK = WritableRegionValue(typ.pkType, ctx.freshRegion)
           val pkUR = new UnsafeRow(typ.pkType)
 
           new Iterator[RegionValue] {

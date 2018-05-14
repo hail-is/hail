@@ -54,8 +54,8 @@ class OrderedRVDType(
       other.rowType,
       other.kRowFieldIdx)
 
-  def kRowOrdView = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(kType)
+  def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
+    val wrv = WritableRegionValue(kType, region)
     def setFiniteValue(representative: RegionValue) {
       wrv.setSelect(rowType, kRowFieldIdx, representative)
     }
