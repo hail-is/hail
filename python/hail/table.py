@@ -1,5 +1,6 @@
 import pandas
 import pyspark
+import warnings
 
 import hail as hl
 from hail.expr.expr_ast import *
@@ -320,6 +321,9 @@ class Table(ExprContainer):
                     )
                 )
 
+            warnings.warn('The ht[:] syntax is deprecated, and will be removed before 0.2 release.\n'
+                          '  Use the following instead:\n'
+                          '    ht.index_globals()\n', stacklevel=2)
             return self.index_globals()
         else:
             exprs = item if isinstance(item, tuple) else (item,)
