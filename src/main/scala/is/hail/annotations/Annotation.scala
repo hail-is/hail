@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
-import is.hail.utils.{FastIndexedSeq, Interval}
+import is.hail.utils.Interval
 import org.apache.spark.sql.Row
 
 object Annotation {

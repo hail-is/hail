@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
-import is.hail.expr.ir.functions.{IRFunction, IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.ExportType
 
 import scala.language.existentials

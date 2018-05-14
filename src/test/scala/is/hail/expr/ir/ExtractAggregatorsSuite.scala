@@ -4,53 +4,96 @@ import is.hail.expr.types._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
-import is.hail.variant.{Call, Call0, Call1, Call2}
+import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 
 class ExtractAggregatorsSuite {
-
-  def testSum(a: IndexedSeq[Any], expected: Any) {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
+  def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
+    val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)))
     assertEvalsTo(ApplyAggOp(
-      SeqOp(Ref("a", TFloat64()), I32(0), aggSig),
-      FastSeq(), None, aggSig),
-      (a.map(i => Row(i)), TStruct("a" -> TFloat64())),
+      SeqOp(Ref("x", t), I32(0), aggSig),
+      args, initOpArgs, aggSig),
+      (a.map(i => Row(i)), TStruct("x" -> t)),
       expected)
   }
 
-  @Test
-  def sum() {
-    testSum((0 to 100).map(_.toDouble), 5050.0)
+  @Test def sumFloat64() {
+    runAggregator(Sum(), TFloat64(), (0 to 100).map(_.toDouble), 5050.0)
+    runAggregator(Sum(), TFloat64(), FastIndexedSeq(), 0.0)
+    runAggregator(Sum(), TFloat64(), FastIndexedSeq(42.0), 42.0)
+    runAggregator(Sum(), TFloat64(), FastIndexedSeq(null, 42.0, null), 42.0)
+    runAggregator(Sum(), TFloat64(), FastIndexedSeq(null, null, null), 0.0)
   }
 
-  @Test
-  def sumEmpty() {
-    testSum(FastIndexedSeq(), 0.0)
+  def sumInt64() {
+    runAggregator(Sum(), TInt64(), FastIndexedSeq(-1L, 2L, 3L), 4L)
+
   }
 
-  @Test
-  def sumOne() {
-    testSum(FastIndexedSeq(42.0), 42.0)
+  @Test def fraction() {
+    runAggregator(Fraction(), TBoolean(), FastIndexedSeq(true, false, null, true, false), 2.0 / 5.0)
   }
 
-  @Test
-  def sumMissing() {
-    testSum(FastIndexedSeq(null, 42.0, null), 42.0)
+  @Test def collectBoolean() {
+    runAggregator(Collect(), TBoolean(), FastIndexedSeq(true, false, null, true, false), FastIndexedSeq(true, false, null, true, false))
   }
 
-  @Test
-  def sumAllMissing() {
-    testSum(FastIndexedSeq(null, null, null), 0.0)
+  @Test def collectInt() {
+    runAggregator(Collect(), TInt32(), FastIndexedSeq(10, null, 5), FastIndexedSeq(10, null, 5))
   }
 
-  @Test
-  def sumMultivar() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
-    assertEvalsTo(ApplyAggOp(
-      SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())), I32(0), aggSig),
-      FastSeq(), None, aggSig),
-      (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
-      110.0)
+  @Test def callStats() {
+    runAggregator(CallStats(), TCall(),
+      FastIndexedSeq(Call2(0, 0), Call2(0, 1), null, Call2(0, 2)),
+      Row(FastIndexedSeq(4, 1, 1), FastIndexedSeq(4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0), 6, FastIndexedSeq(1, 0, 0)),
+      initOpArgs = Some(FastIndexedSeq(I32(3))))
+  }
+
+  // FIXME Max Boolean not supported by old-style MaxAggregator
+
+  @Test def maxInt32() {
+    runAggregator(Max(), TInt32(), FastIndexedSeq(), null)
+    runAggregator(Max(), TInt32(), FastIndexedSeq(null), null)
+    runAggregator(Max(), TInt32(), FastIndexedSeq(-2, null, 7), 7)
+  }
+
+  @Test def maxInt64() {
+    runAggregator(Max(), TInt64(), FastIndexedSeq(-2L, null, 7L), 7L)
+  }
+
+  @Test def maxFloat32() {
+    runAggregator(Max(), TFloat32(), FastIndexedSeq(-2.0f, null, 7.2f), 7.2f)
+  }
+
+  @Test def maxFloat64() {
+    runAggregator(Max(), TFloat64(), FastIndexedSeq(-2.0, null, 7.2), 7.2)
+  }
+
+  @Test def takeInt32() {
+    runAggregator(Take(), TInt32(), FastIndexedSeq(2, null, 7), FastIndexedSeq(2, null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
+  @Test def takeInt64() {
+    runAggregator(Take(), TInt64(), FastIndexedSeq(2L, null, 7L), FastIndexedSeq(2L, null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
+  @Test def takeFloat32() {
+    runAggregator(Take(), TFloat32(), FastIndexedSeq(2.0f, null, 7.2f), FastIndexedSeq(2.0f, null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
+  @Test def takeFloat64() {
+    runAggregator(Take(), TFloat64(), FastIndexedSeq(2.0, null, 7.2), FastIndexedSeq(2.0, null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
+  @Test def testHist() {
+    runAggregator(Histogram(), TFloat64(),
+      FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
+      Row((0 to 10).map(_.toDouble), FastIndexedSeq(1, 0, 2, 0, 2, 0, 0, 0, 0, 1), 1, 2),
+      args = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
   }
 
   @Test
@@ -69,239 +112,12 @@ class ExtractAggregatorsSuite {
   }
 
   @Test
-  def fraction() {
-    val aggSig = AggSignature(Fraction(), TBoolean(), FastSeq(), None)
-    assertEvalsTo(
-      ApplyAggOp(
-        SeqOp(Ref("a", TBoolean()), I32(0), aggSig),
-        FastSeq(), None, aggSig),
-      (FastIndexedSeq(Row(true), Row(false), Row(null), Row(true), Row(false)), TStruct("a" -> TBoolean())),
-      2.0 / 5.0)
+  def sumMultivar() {
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
+    assertEvalsTo(ApplyAggOp(
+      SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())), I32(0), aggSig),
+      FastSeq(), None, aggSig),
+      (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
+      110.0)
   }
-
-  @Test
-  def collectBoolean() {
-    val aggSig = AggSignature(Collect(), TBoolean(), FastSeq(), None)
-    assertEvalsTo(
-      ApplyAggOp(
-        SeqOp(Ref("a", TBoolean()), I32(0), aggSig),
-        FastSeq(), None, aggSig),
-      (FastIndexedSeq(Row(true), Row(false), Row(null), Row(true), Row(false)), TStruct("a" -> TBoolean())),
-      FastIndexedSeq(true, false, null, true, false))
-  }
-
-  @Test
-  def collectInt() {
-    val aggSig = AggSignature(Collect(), TInt32(), FastSeq(), None)
-    assertEvalsTo(
-      ApplyAggOp(
-        SeqOp(Ref("a", TInt32()), I32(0), aggSig),
-        FastSeq(), None, aggSig),
-      (FastIndexedSeq(Row(10), Row(null), Row(5)), TStruct("a" -> TInt32())),
-      FastIndexedSeq(10, null, 5))
-  }
-
-  @Test
-  def callStats() {
-    val aggSig = AggSignature(CallStats(), TCall(), FastSeq(), Some(FastSeq(TInt32())))
-    assertEvalsTo(
-      ApplyAggOp(
-        SeqOp(Ref("c", TCall()), I32(0), aggSig),
-        FastSeq(), Some(FastSeq(I32(3))), aggSig),
-      (FastIndexedSeq(Row(Call2(0, 0)), Row(Call2(0, 1)), Row(null), Row(Call2(0, 2))), TStruct("c" -> TCall())),
-      Row(FastIndexedSeq(4, 1, 1), FastIndexedSeq(4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0), 6, FastIndexedSeq(1, 0, 0)))
-  }
-
-  /*
-
-  @Test
-  def flatMap() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val ir =
-      ApplyAggOp(
-        AggFlatMap(
-          AggMap(AggIn(tAgg),
-            "x",
-            ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
-          "x",
-          MakeArray(Seq(F64(100.0), Ref("x", TFloat64())), TArray(TFloat64()))),
-        Sum())
-    val sum = run[Double, Double, Double](region,
-      ir,
-      addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
-      _ => 10.0)
-    assert(sum === 110.0 + 200.0 + 100.0)
-  }
-
-  @Test
-  def maxBoolean1() {
-    val tAgg = TAggregable(TBoolean(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Boolean](true, false, false)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Boolean, Double, Boolean](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === true)
-  }
-
-  @Test
-  def maxBoolean2() {
-    val tAgg = TAggregable(TBoolean(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Boolean](false, false, false)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Boolean, Double, Boolean](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === false)
-  }
-
-  @Test
-  def maxInt() {
-    val tAgg = TAggregable(TInt32(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Int](5, 10, -5)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Int, Double, Int](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === 10)
-  }
-
-  @Test
-  def maxLong() {
-    val tAgg = TAggregable(TInt64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Long](5L, 10L, -5L)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Long, Double, Long](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === 10L)
-  }
-
-  @Test
-  def maxFloat() {
-    val tAgg = TAggregable(TFloat32(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Float](5.0f, 10.0f, -5.0f)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Float, Double, Float](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === 10.0f)
-  }
-
-  @Test
-  def maxDouble() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Double](5.0, 10.0, -5.0)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Max())
-    val actual = run[Double, Double, Double](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(actual === 10.0)
-  }
-
-  @Test
-  def takeInt() {
-    val tAgg = TAggregable(TInt32(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Int](5, 10, -5)
-    val expected = input.take(2)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
-    val aOff = run[Int, Double, Long](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(loadArray[Int](region, aOff) === expected)
-  }
-
-  @Test
-  def takeDouble() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[Double](5.0, 10.0, -5.0)
-    val expected = input.take(2)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
-    val aOff = run[Double, Double, Long](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(loadArray[Double](region, aOff) === expected)
-  }
-
-  @Test
-  def takeDoubleWithMissingness() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[java.lang.Double](5.0, null, -5.0)
-    val expected = input.take(2)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
-    val aOff = run[Double, Double, Long](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    assert(loadArray[java.lang.Double](region, aOff) === expected)
-  }
-
-  @Test
-  def histogram() {
-    val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TFloat64())))
-    val region = Region()
-    val input = Array[java.lang.Double](5.0, null, -5.0, 1.0, 15.0, 1.0, 17.0, 1.5)
-    val expected = input.take(2)
-    val ir =
-      ApplyAggOp(AggIn(tAgg), Histogram(), FastSeq(F64(0.0), F64(10.0), I32(5)))
-    val hOff = run[Double, Double, Long](region,
-      ir,
-      addBoxedArray(region, input: _*),
-      _ => 10.0)
-
-    val t = RegionValueHistogramAggregator.typ
-    val binEdges = t.fieldIdx("bin_edges")
-    val binFrequencies = t.fieldIdx("bin_freq")
-    val nLess = t.fieldIdx("n_smaller")
-    val nGreater = t.fieldIdx("n_larger")
-    assert(t.isFieldDefined(region, hOff, binEdges))
-    assert(t.isFieldDefined(region, hOff, binFrequencies))
-    assert(t.isFieldDefined(region, hOff, nLess))
-    assert(t.isFieldDefined(region, hOff, nGreater))
-    val binEdgeArray = loadArray[Double](
-      region, t.loadField(region, hOff, binEdges))
-    assert(binEdgeArray === Seq(0.0, 2.0, 4.0, 6.0, 8.0, 10.0))
-    val binFrequenciesArray = loadArray[Long](
-      region, t.loadField(region, hOff, binFrequencies))
-    assert(binFrequenciesArray === Array[Long](3L, 0L, 1L, 0L, 0L))
-    assert(region.loadLong(t.loadField(region, hOff, nLess)) === 1L)
-    assert(region.loadLong(t.loadField(region, hOff, nGreater)) === 2L)
-  }
-  */
 }
