@@ -33,7 +33,6 @@ object OrderedRVPartitionInfo {
     val maxF = WritableRegionValue(typ.pkType)
     val prevF = WritableRegionValue(typ.kType)
 
-    ctx.region.clear()
     assert(it.hasNext)
     val f0 = it.next()
 
@@ -53,6 +52,7 @@ object OrderedRVPartitionInfo {
       i += 1
     }
 
+    ctx.region.clear()
     while (it.hasNext) {
       val f = it.next()
 
