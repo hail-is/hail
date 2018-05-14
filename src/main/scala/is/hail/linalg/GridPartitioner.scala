@@ -6,8 +6,13 @@ import is.hail.utils._
 
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
-  require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
-  require(nCols > 0 && nCols <= Int.MaxValue.toLong * blockSize)
+  if (nRows == 0)
+    fatal("block matrix must have at least one row")
+  if (nCols == 0)
+    fatal("block matrix must have at least one column")
+  
+  require(nRows <= Int.MaxValue.toLong * blockSize)
+  require(nCols <= Int.MaxValue.toLong * blockSize)
   
   def indexBlockIndex(index: Long): Int = (index / blockSize).toInt
 
