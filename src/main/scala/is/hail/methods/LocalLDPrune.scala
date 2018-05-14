@@ -226,11 +226,12 @@ object LocalLDPrune {
   private def pruneLocal(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRVD = {
     val localRowType = inputRDD.typ.rowType
 
-    inputRDD.mapPartitionsPreservesPartitioning(inputRDD.typ) { it =>
+    inputRDD.mapPartitionsPreservesPartitioning(inputRDD.typ, { (ctx, it) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
       val bpvv = new BitPackedVectorView(localRowType)
       val bpvvPrev = new BitPackedVectorView(localRowType)
+      val rvb = new RegionValueBuilder()
 
       it.filter { rv =>
         bpvv.setRegion(rv)
@@ -253,17 +254,21 @@ object LocalLDPrune {
         }
 
         if (keepVariant) {
-          queue.addLast(rv.copy())
+          val r = ctx.freshRegion
+          rvb.set(r)
+          rvb.start(localRowType)
+          rvb.addRegionValue(localRowType, rv)
+          queue.addLast(RegionValue(rvb.region, rvb.end()))
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
-              queue.pop()
+              ctx.closeChild(queue.pop().region)
             }
           }
         }
 
         keepVariant
       }
-    }
+    })
   }
 
   def apply(mt: MatrixTable, callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
