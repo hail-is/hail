@@ -26,4 +26,10 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ArrayFilter(a, "x",
       ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
+
+  @Test def testNonstrictEQ() {
+    assertEvalsTo(nonstrictEQ(NA(TInt32()), NA(TInt32())), true)
+    assertEvalsTo(nonstrictEQ(I32(5), I32(5)), true)
+    assertEvalsTo(nonstrictEQ(NA(TInt32()), I32(5)), false)
+  }
 }

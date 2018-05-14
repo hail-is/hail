@@ -21,7 +21,11 @@ object SetFunctions extends RegistryFunctions {
         ArrayFilter(
           ToArray(s),
           x,
+<<<<<<< 36d1cb42ece1b27853d9fd504b6d833aa36453a5
           ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v)))
+=======
+          ApplyUnaryPrimOp(Bang(), nonstrictEQ(Ref(x, t), v))))
+>>>>>>> make set function tests smaller grained
     }
 
     registerIR("add", TSet(tv("T")), tv("T")) { (s, v) =>

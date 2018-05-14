@@ -258,7 +258,13 @@ private class Emit(
         val typ = ir.typ
         val codeL = emit(l)
         val codeR = emit(r)
+<<<<<<< 36d1cb42ece1b27853d9fd504b6d833aa36453a5
         strict(BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
+=======
+        EmitTriplet(Code(codeL.setup, codeR.setup),
+          codeL.m || codeR.m,
+          BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v))
+>>>>>>> make set function tests smaller grained
       case ApplyUnaryPrimOp(op, x) =>
         val typ = ir.typ
         val v = emit(x)

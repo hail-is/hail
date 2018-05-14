@@ -149,31 +149,4 @@ class FunctionSuite extends SparkSuite {
     val f = toF[Int, Int](ir)
     assert(f(region, 0, false) == Call2.fromUnphasedDiploidGtIndex(0))
   }
-
-  @Test
-  def testSetFunctions() {
-    val a = MakeArray(Seq(I32(1), I32(3), I32(7)), TArray(TInt32()))
-    val s = ToSet(a)
-    val t = ToSet(MakeArray(Seq(I32(3), I32(8)), TArray(TInt32())))
-
-    assertEvalsTo(s, Set(1, 3, 7))
-
-    assertEvalsTo(invoke("toSet", a), Set(1, 3, 7))
-
-    assertEvalsTo(invoke("contains", s, I32(3)), true)
-    assertEvalsTo(invoke("contains", s, I32(4)), false)
-
-    assertEvalsTo(invoke("remove", s, I32(3)), Set(1, 7))
-    assertEvalsTo(invoke("remove", s, I32(4)), Set(1, 3, 7))
-
-    assertEvalsTo(invoke("add", s, I32(3)), Set(1, 3, 7))
-    assertEvalsTo(invoke("add", s, I32(4)), Set(1, 3, 4, 7))
-
-    assertEvalsTo(invoke("isSubset", s, invoke("add", s, I32(4))), true)
-    assertEvalsTo(invoke("isSubset", s, invoke("remove", s, I32(3))), false)
-
-    assertEvalsTo(invoke("union", s, t), Set(1, 3, 7, 8))
-    assertEvalsTo(invoke("intersection", s, t), Set(3))
-    assertEvalsTo(invoke("difference", s, t), Set(1, 7))
-  }
 }
