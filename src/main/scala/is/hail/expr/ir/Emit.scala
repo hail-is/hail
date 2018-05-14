@@ -546,7 +546,6 @@ private class Emit(
               Code._empty,
               agg.initOp(
                 aggregator(coerce[Int](codeI.v)),
-                region,
                 argsv.map(Code(_)),
                 argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
           const(false),

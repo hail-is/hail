@@ -19,10 +19,10 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
   initOpArgTypes: Option[Array[Class[_]]] = None) {
 
-  def initOp(rva: Code[RegionValueAggregator], region: Code[Region], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
+  def initOp(rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
-    val argTypes = classOf[Region] +: initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
-    val args = region +: vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
+    val argTypes = initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
     Code.checkcast[Agg](rva).invoke("initOp", argTypes, args)(classTag[Unit])
   }
 

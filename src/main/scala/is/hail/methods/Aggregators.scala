@@ -673,7 +673,7 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   def copy() = new MinAggregator[T, BoxedT]()
 }
 
-class CallStatsAggregator(allelesF: (Any) => Any)
+class CallStatsAggregator(nAllelesF: (Any) => Any)
   extends TypedAggregator[Annotation] {
 
   var first = true
@@ -689,9 +689,9 @@ class CallStatsAggregator(allelesF: (Any) => Any)
     if (first) {
       first = false
 
-      val alleles = allelesF(x)
-      if (alleles != null)
-        combiner = new CallStatsCombiner(alleles.asInstanceOf[IndexedSeq[String]])
+      val nAlleles = nAllelesF(x)
+      if (nAlleles != null)
+        combiner = new CallStatsCombiner(nAlleles.asInstanceOf[Int])
     }
 
     if (combiner != null && x != null)
@@ -701,12 +701,12 @@ class CallStatsAggregator(allelesF: (Any) => Any)
   def combOp(agg2: this.type) {
     if (agg2.combiner != null) {
       if (combiner == null)
-        combiner = new CallStatsCombiner(agg2.combiner.alleles)
+        combiner = new CallStatsCombiner(agg2.combiner.nAlleles)
       combiner.merge(agg2.combiner)
     }
   }
 
-  def copy() = new CallStatsAggregator(allelesF)
+  def copy() = new CallStatsAggregator(nAllelesF)
 }
 
 class InbreedingAggregator(getAF: (Call) => Any) extends TypedAggregator[Annotation] {

@@ -36,8 +36,8 @@ object UtilFunctions extends RegistryFunctions {
       ApplyAggOp(agg, Histogram(), constructorArgs = FastSeq(start, end, nbins))
     }
 
-    registerIR("callStats", TAggregable(TCall()), TArray(TString())){ (agg, alleles) =>
-      ApplyAggOp(agg, Histogram(), initOpArgs = Some(FastSeq(alleles)))
+    registerIR("callStats", TAggregable(TCall()), TInt32()){ (agg, nAlleles) =>
+      ApplyAggOp(agg, CallStats(), initOpArgs = Some(FastSeq(nAlleles)))
     }
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }

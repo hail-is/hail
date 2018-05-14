@@ -95,8 +95,8 @@ object AggOp {
     case (Histogram(), in: TFloat64, constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None) =>
       CodeAggregator[RegionValueHistogramAggregator](in, RegionValueHistogramAggregator.typ, constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]))
 
-    case (CallStats(), in: TCall, Seq(), initOpArgs@Some(Seq(TArray(_: TString, _)))) =>
-      CodeAggregator[RegionValueCallStatsAggregator](in, RegionValueCallStatsAggregator.typ, initOpArgTypes = Some(Array(classOf[Long])))
+    case (CallStats(), in: TCall, Seq(), initOpArgs@Some(Seq(_: TInt32))) =>
+      CodeAggregator[RegionValueCallStatsAggregator](in, RegionValueCallStatsAggregator.typ, initOpArgTypes = Some(Array(classOf[Int])))
   }
 
   private def incompatible(op: AggOp, inputType: Type, constTypes: Seq[Type], initOpTypes: Option[Seq[Type]]): Nothing = {

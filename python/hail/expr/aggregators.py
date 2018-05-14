@@ -910,8 +910,8 @@ def inbreeding(expr, prior) -> StructExpression:
                           aggregations.push(Aggregation(expr, prior)), joins)
 
 
-@typecheck(expr=agg_expr(expr_call), alleles=expr_array(expr_str))
-def call_stats(expr, alleles) -> StructExpression:
+@typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
+def call_stats(call, alleles) -> StructExpression:
     """Compute useful call statistics.
 
     Examples
@@ -957,8 +957,7 @@ def call_stats(expr, alleles) -> StructExpression:
 
     Parameters
     ----------
-    expr : :class:`.CallExpression`
-        Call.
+    call : :class:`.CallExpression`
     alleles : :class:`.ArrayStringExpression`
         Variant alleles.
 
@@ -967,24 +966,24 @@ def call_stats(expr, alleles) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `AC`, `AF`, `AN`, and `homozygote_count`.
     """
-    alleles = to_expr(alleles)
+    n_alleles = hl.len(alleles)
     uid = Env.get_uid()
 
-    ast = LambdaClassMethod('callStats', uid, expr._ast, alleles._ast) # FIXME: This should be _agg_func once the AST is gone
-    indices, aggregations, joins = unify_all(expr, alleles)
+    ast = LambdaClassMethod('callStats', uid, call._ast, n_alleles._ast) # FIXME: This should be _agg_func once the AST is gone
+    indices, aggregations, joins = unify_all(call, n_alleles)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    _check_agg_bindings(expr)
-    _check_agg_bindings(alleles)
+    _check_agg_bindings(call)
+    _check_agg_bindings(n_alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
                 AN=tint32,
                 homozygote_count=tarray(tint32))
 
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(expr, alleles)), joins)
+                          aggregations.push(Aggregation(call, n_alleles)), joins)
 
 @typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
