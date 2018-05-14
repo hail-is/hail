@@ -1168,7 +1168,7 @@ class Table(ExprContainer):
             raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
 
         from hail.matrixtable import MatrixTable
-        indices, aggregations, joins = unify_all(*exprs)
+        indices, aggregations = unify_all(*exprs)
         src = indices.source
 
         if src is None or len(indices.axes) == 0:
@@ -1223,8 +1223,11 @@ class Table(ExprContainer):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return construct_expr(Select(TopLevelReference('row', src._row_indices), uid), new_schema, indices, aggregations,
-                                  joins.push(Join(joiner, all_uids, uid, exprs)))
+            ast = Join(Select(TopLevelReference('row', src._row_indices), uid),
+                       all_uids,
+                       exprs,
+                       joiner)
+            return construct_expr(ast, new_schema, indices, aggregations)
         elif isinstance(src, MatrixTable):
             for e in exprs:
                 analyze('Table.index', e, src._entry_indices)
@@ -1246,8 +1249,11 @@ class Table(ExprContainer):
                         return MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
 
-                    return construct_expr(Select(TopLevelReference('va', src._row_indices), uid), new_schema,
-                                          indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
+                    ast = Join(Select(TopLevelReference('va', src._row_indices), uid),
+                               [uid],
+                               exprs,
+                               joiner)
+                    return construct_expr(ast, new_schema, indices, aggregations)
                 else:
                     # use vds_key
                     uids = [Env.get_uid() for _ in range(len(exprs))]
@@ -1281,8 +1287,11 @@ class Table(ExprContainer):
                         jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})", None)
                         return MatrixTable(jl)
 
-                    return construct_expr(Select(TopLevelReference('va', src._row_indices), uid),
-                                          new_schema, indices, aggregations, joins.push(Join(joiner, [uid], uid, exprs)))
+                    ast = Join(Select(TopLevelReference('va', src._row_indices), uid),
+                               [uid],
+                               exprs,
+                               joiner)
+                    return construct_expr(ast, new_schema, indices, aggregations)
 
             elif indices == src._col_indices:
                 all_uids = [uid]
@@ -1312,8 +1321,11 @@ class Table(ExprContainer):
                                            .key_cols_by(index_uid)
                                            ._jvds
                                            .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
-                return construct_expr(Select(TopLevelReference('sa', src._col_indices), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, all_uids, uid, exprs)))
+                ast = Join(Select(TopLevelReference('sa', src._col_indices), uid),
+                           all_uids,
+                           exprs,
+                           joiner)
+                return construct_expr(ast, new_schema, indices, aggregations)
             else:
                 raise NotImplementedError()
         else:
@@ -1330,8 +1342,11 @@ class Table(ExprContainer):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(Select(TopLevelReference('global', indices=Indices()), uid), self.globals.dtype,
-                              joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
+        ast = Join(Select(TopLevelReference('global', Indices()), uid),
+                   [uid],
+                   [],
+                   joiner)
+        return construct_expr(ast, self.globals.dtype)
 
     def _process_joins(self, *exprs):
         # ordered to support nested joins
@@ -1339,14 +1354,24 @@ class Table(ExprContainer):
 
         all_uids = []
         left = self
-        used_uids = set()
+        used_joins = set()
+        broadcasts = []
 
         for e in exprs:
-            for j in sorted(list(e._joins), key = lambda j: j.idx): # Make sure joins happen in order
-                if j.uid not in used_uids:
-                    left = j.join_function(left)
+            joins = e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Join))
+            for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
+                if j not in used_joins:
+                    left = j.join_func(left)
                     all_uids.extend(j.temp_vars)
-                    used_uids.add(j.uid)
+                    used_joins.add(j)
+            broadcasts.extend(e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Broadcast)))
+
+        if broadcasts:
+            t = hl.tstruct(**{b.uid: b.dtype for b in broadcasts})
+            all_uids.extend(list(t))
+            data = hl.Struct(**{b.uid: b.value for b in broadcasts})
+            data_json = t._to_json(data)
+            left = Table(self._jt.annotateGlobalJSON(data_json, t._jtype))
 
         if left is not self:
             if original_key is not None:

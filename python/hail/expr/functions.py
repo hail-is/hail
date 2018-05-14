@@ -15,8 +15,8 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 
 def _func(name, ret_type, *args):
-    indices, aggregations, joins = unify_all(*args)
-    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins)
+    indices, aggregations = unify_all(*args)
+    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -126,18 +126,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
             assert isinstance(x, builtins.str)
             return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
     else:
-        uid = Env.get_uid()
-
-        def joiner(obj):
-            json = dtype._to_json(x)
-            if isinstance(obj, hl.Table):
-                return hl.Table(obj._jt.annotateGlobalJSON(json, dtype._jtype, uid))
-            else:
-                return hl.MatrixTable(obj._jvds.annotateGlobalJSON(json, dtype._jtype, uid))
-
-        return construct_expr(Select(TopLevelReference('global', Indices()), uid),
-                              dtype, joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
-
+        return construct_expr(Broadcast(x, dtype), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
@@ -194,7 +183,7 @@ def cond(condition,
     if missing_false:
         condition = hl.bind(lambda x: hl.is_defined(x) & x,
                             condition)
-    indices, aggregations, joins = unify_all(condition, consequent, alternate)
+    indices, aggregations = unify_all(condition, consequent, alternate)
 
     consequent, alternate, success = unify_exprs(consequent, alternate)
     if not success:
@@ -204,7 +193,7 @@ def cond(condition,
     assert consequent.dtype == alternate.dtype
 
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          consequent.dtype, indices, aggregations, joins)
+                          consequent.dtype, indices, aggregations)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
@@ -335,15 +324,15 @@ def bind(f: Callable, *exprs):
 
     for expr in exprs:
         uid = Env.get_uid()
-        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations, expr._joins))
+        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations))
         uids.append(uid)
         asts.append(expr._ast)
 
 
     lambda_result = to_expr(f(*args))
-    indices, aggregations, joins = unify_all(*exprs, lambda_result)
+    indices, aggregations = unify_all(*exprs, lambda_result)
     ast = Bind(uids, asts, lambda_result._ast)
-    return construct_expr(ast, lambda_result.dtype, indices, aggregations, joins)
+    return construct_expr(ast, lambda_result.dtype, indices, aggregations)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -695,7 +684,7 @@ def index(structs, identifier):
 
     ast = StructOp('index', structs._ast, identifier)
     return construct_expr(ast, tdict(key_type, value_type),
-                          structs._indices, structs._aggregations, structs._joins)
+                          structs._indices, structs._aggregations)
 
 
 @typecheck(contig=expr_str, pos=expr_int32,
@@ -723,9 +712,9 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     -------
     :class:`.LocusExpression`
     """
-    indices, aggregations, joins = unify_all(contig, pos)
+    indices, aggregations = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                          tlocus(reference_genome), indices, aggregations, joins)
+                          tlocus(reference_genome), indices, aggregations)
 
 
 @typecheck(s=expr_str,
@@ -757,7 +746,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     :class:`.LocusExpression`
     """
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
-                          s._indices, s._aggregations, s._joins)
+                          s._indices, s._aggregations)
 
 
 @typecheck(s=expr_str,
@@ -795,7 +784,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
-                          s._indices, s._aggregations, s._joins)
+                          s._indices, s._aggregations)
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -895,11 +884,11 @@ def interval(start,
     if not start.dtype == end.dtype:
         raise TypeError("Type mismatch of start and end points: '{}', '{}'".format(start.dtype, end.dtype))
 
-    indices, aggregations, joins = unify_all(start, end, includes_start, includes_end)
+    indices, aggregations = unify_all(start, end, includes_start, includes_end)
 
     return construct_expr(
         ApplyMethod('Interval', start._ast, end._ast, includes_start._ast, includes_end._ast), tinterval(start.dtype),
-        indices, aggregations, joins)
+        indices, aggregations)
 
 
 @typecheck(contig=expr_str, start=expr_int32,
@@ -940,12 +929,12 @@ def locus_interval(contig,
     -------
     :class:`.IntervalExpression`
     """
-    indices, aggregations, joins = unify_all(contig, start, end, includes_start, includes_end)
+    indices, aggregations = unify_all(contig, start, end, includes_start, includes_end)
 
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name),
                     contig._ast, start._ast, end._ast, includes_start._ast, includes_end._ast),
-        tinterval(tlocus(reference_genome)), indices, aggregations, joins)
+        tinterval(tlocus(reference_genome)), indices, aggregations)
 
 
 @typecheck(s=expr_str,
@@ -1018,7 +1007,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     return construct_expr(
         ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast),
         tinterval(tlocus(reference_genome)),
-        s._indices, s._aggregations, s._joins)
+        s._indices, s._aggregations)
 
 
 @typecheck(alleles=expr_int32,
@@ -1044,11 +1033,10 @@ def call(*alleles, phased=False) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    indices, aggregations, joins = unify_all(phased, *alleles)
+    indices, aggregations = unify_all(phased, *alleles)
     if builtins.len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations,
-                          joins)
+    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations)
 
 
 @typecheck(gt_index=expr_int32)
@@ -1073,7 +1061,7 @@ def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
     """
     gt_index = to_expr(gt_index)
     return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), tcall, gt_index._indices,
-                          gt_index._aggregations, gt_index._joins)
+                          gt_index._aggregations)
 
 
 @typecheck(s=expr_str)
@@ -1115,7 +1103,7 @@ def parse_call(s) -> CallExpression:
     :class:`.CallExpression`
     """
     s = to_expr(s)
-    return construct_expr(ApplyMethod('Call', s._ast), tcall, s._indices, s._aggregations, s._joins)
+    return construct_expr(ApplyMethod('Call', s._ast), tcall, s._indices, s._aggregations)
 
 
 @typecheck(expression=expr_any)

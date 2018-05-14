@@ -60,17 +60,5 @@ class Aggregation(object):
     def __init__(self, *exprs):
         self.exprs = exprs
         from ..expressions import unify_all
-        indices, agg, _ = unify_all(*exprs)
+        indices, agg = unify_all(*exprs)
         self.indices = indices
-
-
-class Join(object):
-    _idx = 0
-
-    def __init__(self, join_function, temp_vars, uid, exprs):
-        self.join_function = join_function
-        self.temp_vars = temp_vars
-        self.uid = uid
-        self.exprs = exprs
-        self.idx = Join._idx
-        Join._idx += 1

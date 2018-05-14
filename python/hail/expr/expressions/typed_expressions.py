@@ -1,7 +1,7 @@
 import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Join, Aggregation
+    unify_all, Indices, Aggregation
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.typecheck import *
@@ -1121,26 +1121,26 @@ class StructExpression(Mapping, Expression):
     def _from_fields(cls, fields: Dict[str, Expression]):
         t = tstruct(**{k: v.dtype for k, v in fields.items()})
         ast = StructDeclaration(list(fields), list(expr._ast for expr in fields.values()))
-        indices, aggregations, joins = unify_all(*fields.values())
+        indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
-        super(StructExpression, s).__init__(ast, t, indices, aggregations, joins)
+        super(StructExpression, s).__init__(ast, t, indices, aggregations)
         return s
 
-    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
-    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
-        super(StructExpression, self).__init__(ast, type, indices, aggregations, joins)
+    @typecheck_method(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(StructExpression, self).__init__(ast, type, indices, aggregations)
         self._fields: Dict[str, Expression] = {}
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ast, StructDeclaration):
                 expr = construct_expr(self._ast.values[i], t, self._indices,
-                                      self._aggregations, self._joins)
+                                      self._aggregations)
             else:
                 expr = construct_expr(Select(self._ast, f), t, self._indices,
-                                      self._aggregations, self._joins)
+                                      self._aggregations)
             self._set_field(f, expr)
 
     def _set_field(self, key, value):
@@ -1247,10 +1247,10 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
 
         result_type = tstruct(**dict(zip(names, types)))
-        indices, aggregations, joins = unify_all(kwargs_struct)
+        indices, aggregations = unify_all(kwargs_struct)
 
         return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
-                              indices, aggregations, joins)
+                              indices, aggregations)
 
     @typecheck_method(fields=str, named_exprs=expr_any)
     def select(self, *fields, **named_exprs):
@@ -1307,10 +1307,10 @@ class StructExpression(Mapping, Expression):
             types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
 
-        indices, aggregations, joins = unify_all(self, kwargs_struct)
+        indices, aggregations = unify_all(self, kwargs_struct)
 
         return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
-                              result_type, indices, aggregations, joins)
+                              result_type, indices, aggregations)
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
@@ -1350,7 +1350,7 @@ class StructExpression(Mapping, Expression):
                 types.append(t)
         result_type = tstruct(**dict(zip(names, types)))
         return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
-                              self._indices, self._aggregations, self._joins)
+                              self._indices, self._aggregations)
 
 
 class TupleExpression(Expression, Sequence):
@@ -2239,7 +2239,7 @@ class StringExpression(Expression):
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
         return construct_expr(RegexMatch(self._ast, regex), tbool,
-                              self._indices, self._aggregations, self._joins)
+                              self._indices, self._aggregations)
 
 
 class CallExpression(Expression):
@@ -2891,18 +2891,17 @@ typ_to_expr = {
 }
 
 
-@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList)
 def construct_expr(ast: AST,
                    type: HailType,
                    indices: Indices = Indices(),
-                   aggregations: LinkedList = LinkedList(Aggregation),
-                   joins: LinkedList = LinkedList(Join)):
+                   aggregations: LinkedList = LinkedList(Aggregation)):
     if isinstance(type, tarray) and is_numeric(type.element_type):
-        return ArrayNumericExpression(ast, type, indices, aggregations, joins)
+        return ArrayNumericExpression(ast, type, indices, aggregations)
     elif type in scalars:
-        return scalars[type](ast, type, indices, aggregations, joins)
+        return scalars[type](ast, type, indices, aggregations)
     elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
+        return typ_to_expr[type.__class__](ast, type, indices, aggregations)
     else:
         raise NotImplementedError(type)
 

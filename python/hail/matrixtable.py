@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 import hail
 import hail as hl
-from hail.expr.expr_ast import Select, TopLevelReference
+from hail.expr.expr_ast import Select, TopLevelReference, Join
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.table import Table, ExprContainer
@@ -2219,12 +2219,15 @@ class MatrixTable(ExprContainer):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(Select(TopLevelReference('global', Indices()), uid), self.globals.dtype,
-                              joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
+        ast = Join(Select(TopLevelReference('global', Indices()), uid),
+                   [uid],
+                   [],
+                   joiner)
+        return construct_expr(ast, self.globals.dtype)
 
     def index_rows(self, *exprs):
         exprs = [to_expr(e) for e in exprs]
-        indices, aggregations, joins = unify_all(*exprs)
+        indices, aggregations = unify_all(*exprs)
         src = indices.source
 
         if aggregations:
@@ -2268,13 +2271,14 @@ class MatrixTable(ExprContainer):
                 exprs[i] is src.partition_key[i] for i in range(len(exprs)))
 
             if is_row_key or is_partition_key:
-                prefix = 'va'
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid)))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                return construct_expr(Select(TopLevelReference(prefix, src._row_indices), uid),
-                                      schema, indices, aggregations,
-                                      joins.push(Join(joiner, uids_to_delete, uid, exprs)))
+                ast = Join(Select(TopLevelReference('va', src._row_indices), uid),
+                           uids_to_delete,
+                           exprs,
+                           joiner)
+                return construct_expr(ast, schema, indices, aggregations)
             else:
                 return self.rows().index(*exprs)
 
@@ -2329,7 +2333,7 @@ class MatrixTable(ExprContainer):
                     f"  MatrixTable col key: {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
                     f"  Index expressions:   {', '.join(str(e.dtype) for e in col_exprs)}")
 
-        indices, aggregations, joins = unify_all(*(row_exprs + col_exprs))
+        indices, aggregations = unify_all(*(row_exprs + col_exprs))
         src = indices.source
         if aggregations:
             raise ExpressionException('Cannot join using an aggregated field')
@@ -2355,9 +2359,11 @@ class MatrixTable(ExprContainer):
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            return construct_expr(Select(TopLevelReference('g', self._entry_indices), uid),
-                                  self.entry.dtype, indices, aggregations,
-                                  joins.push(Join(joiner, uids, uid, [*row_exprs, *col_exprs])))
+            ast = Join(Select(TopLevelReference('g', src._entry_indices), uid),
+                       uids,
+                       [*row_exprs, *col_exprs],
+                       joiner)
+            return construct_expr(ast, self.entry.dtype, indices, aggregations)
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
@@ -2441,14 +2447,24 @@ class MatrixTable(ExprContainer):
 
         all_uids = []
         left = self
-        used_uids = set()
+        used_joins = set()
 
+        broadcasts = []
         for e in exprs:
-            for j in sorted(list(e._joins), key = lambda j: j.idx): # Make sure joins happen in order
-                if j.uid not in used_uids:
-                    left = j.join_function(left)
+            joins = e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Join))
+            for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
+                if j not in used_joins:
+                    left = j.join_func(left)
                     all_uids.extend(j.temp_vars)
-                    used_uids.add(j.uid)
+                    used_joins.add(j)
+            broadcasts.extend(e._ast.search(lambda a: isinstance(a, hl.expr.expr_ast.Broadcast)))
+
+        if broadcasts:
+            t = hl.tstruct(**{b.uid: b.dtype for b in broadcasts})
+            all_uids.extend(list(t))
+            data = hl.Struct(**{b.uid: b.value for b in broadcasts})
+            data_json = t._to_json(data)
+            left = MatrixTable(self._jvds.annotateGlobalJSON(data_json, t._jtype))
 
         def cleanup(matrix):
             remaining_uids = [uid for uid in all_uids if uid in matrix._fields]

@@ -461,10 +461,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
-  def annotateGlobalJSON(s: String, t: Type, name: String): Table = {
-    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), t)
-
-    annotateGlobal(ann, t, name)
+  def annotateGlobalJSON(data: String, t: TStruct): Table = {
+    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(data), t)
+    val value = BroadcastRow(ann.asInstanceOf[Row], t, hc.sc)
+    new Table(hc, TableMapGlobals(tir,
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType),
+        t.fieldNames.map(name => name -> ir.GetField(ir.Ref("value", t), name))),
+      value))
   }
 
   def selectGlobal(expr: String): Table = {

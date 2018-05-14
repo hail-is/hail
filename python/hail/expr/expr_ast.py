@@ -3,6 +3,7 @@ from hail.utils.java import Env, escape_str, escape_id
 from .expressions.indices import Indices
 from typing import *
 import abc
+import hail
 
 asttype = lazy()
 
@@ -271,10 +272,31 @@ class AggregableReference(AST):
         return 'AGG'
 
 
-class GlobalJoinReference(AST):
-    def __init__(self, uid):
-        self.uid = uid
-        super(GlobalJoinReference, self).__init__()
+class Join(AST):
+    _idx = 0
+    def __init__(self,
+                 virtual_ast: AST,
+                 temp_vars: Sequence[str],
+                 join_exprs: Sequence[Any],
+                 join_func: Callable):
+        super(Join, self).__init__(*(e._ast for e in join_exprs))
+        self.virtual_ast = virtual_ast
+        self.temp_vars = temp_vars
+        self.join_exprs = join_exprs
+        self.join_func = join_func
+        self.idx = Join._idx
+        Join._idx += 1
 
     def to_hql(self):
-        return 'global.{}'.format(escape_id(self.uid))
+        return self.virtual_ast.to_hql()
+
+
+class Broadcast(AST):
+    def __init__(self, value: Any, dtype: 'hail.HailType'):
+        super(Broadcast, self).__init__()
+        self.value = value
+        self.dtype = dtype
+        self.uid = Env.get_uid()
+
+    def to_hql(self):
+        return f'global.`{self.uid}`'
