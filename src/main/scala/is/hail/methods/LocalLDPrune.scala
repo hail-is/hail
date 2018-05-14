@@ -131,7 +131,7 @@ object LocalLDPrune {
     var i = 0
     while (i < nSamples) {
       hcView.setGenotype(i)
-      val gt = if (hcView.hasGT) Call.unphasedDiploidGtIndex(hcView.getGT) else -1
+      val gt = if (hcView.hasGT) Call.nNonRefAlleles(hcView.getGT) else -1
 
       pack = pack | ((gt & 3).toLong << packOffset)
 
