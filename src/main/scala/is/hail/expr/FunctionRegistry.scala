@@ -2,8 +2,7 @@ package is.hail.expr
 
 import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
-import is.hail.asm4s.Code._
-import is.hail.asm4s.{Code, _}
+import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.stats._
@@ -21,8 +20,6 @@ import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.commons.math3.special.Gamma
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
-
-import scala.annotation.switch
 
 object FunctionRegistry {
 
@@ -82,7 +79,7 @@ object FunctionRegistry {
   def getRegistry() = registry
 
   def lookupFieldReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
-    lookup(name, FieldType(typ +: typs: _*)).map(_.retType)
+    lookup(name, FieldType(typ +: typs: _*)).map(-_.retType)
 
   def lookupField(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CM[Code[AnyRef]]] = {
     import is.hail.expr.CM._
@@ -385,10 +382,10 @@ object FunctionRegistry {
   }
 
   def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
-    lookup(name, MethodType(typ +: typs: _*)).map(_.retType)
+    lookup(name, MethodType(typ +: typs: _*)).map(-_.retType)
 
   def lookupFunReturnType(name: String, typs: Seq[Type]): Err[Type] =
-    lookup(name, FunType(typs: _*)).map(_.retType)
+    lookup(name, FunType(typs: _*)).map(-_.retType)
 
   def registerField[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
