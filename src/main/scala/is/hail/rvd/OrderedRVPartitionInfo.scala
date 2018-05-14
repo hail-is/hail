@@ -21,11 +21,19 @@ object OrderedRVPartitionInfo {
   final val TSORTED = 1
   final val KSORTED = 2
 
-  def apply(typ: OrderedRVDType, sampleSize: Int, partitionIndex: Int, it: Iterator[RegionValue], seed: Int): OrderedRVPartitionInfo = {
+  def apply(
+    typ: OrderedRVDType,
+    sampleSize: Int,
+    partitionIndex: Int,
+    it: Iterator[RegionValue],
+    seed: Int,
+    ctx: RVDContext
+  ): OrderedRVPartitionInfo = {
     val minF = WritableRegionValue(typ.pkType)
     val maxF = WritableRegionValue(typ.pkType)
     val prevF = WritableRegionValue(typ.kType)
 
+    ctx.region.clear()
     assert(it.hasNext)
     val f0 = it.next()
 
@@ -70,6 +78,7 @@ object OrderedRVPartitionInfo {
           samples(j).set(f)
       }
 
+      ctx.region.clear()
       i += 1
     }
 
