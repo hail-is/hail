@@ -396,13 +396,13 @@ class TableTests(unittest.TestCase):
         m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
         vkt = vkt.select(vkt.qual)
-        vkt = vkt.annotate(qual2=m[(vkt.locus, vkt.alleles), :].qual)
+        vkt = vkt.annotate(qual2=m.index_rows(vkt.key).qual)
         self.assertTrue(vkt.filter(vkt.qual != vkt.qual2).count() == 0)
 
-        m2 = m.annotate_rows(qual2=vkt[m.locus, m.alleles].qual)
+        m2 = m.annotate_rows(qual2=vkt.index(m.row_key).qual)
         self.assertTrue(m2.filter_rows(m2.qual != m2.qual2).count_rows() == 0)
 
-        m3 = m.annotate_rows(qual2=m[(m.locus, m.alleles), :].qual)
+        m3 = m.annotate_rows(qual2=m.index_rows(m.row_key).qual)
         self.assertTrue(m3.filter_rows(m3.qual != m3.qual2).count_rows() == 0)
 
         kt = hl.utils.range_table(1)
@@ -411,7 +411,7 @@ class TableTests(unittest.TestCase):
 
         kt2 = hl.utils.range_table(1)
 
-        kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
+        kt2 = kt2.annotate_globals(kt_foo=kt.index_globals().foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
     def test_join_with_empty(self):
@@ -801,10 +801,10 @@ class MatrixTests(unittest.TestCase):
         vds2 = vds.select_rows(x2=1, y2=2)
         vds2 = vds2.select_cols(c1=1, c2=2)
 
-        vds = vds.annotate_rows(y2=vds2[(vds.locus, vds.alleles), :].y2)
-        vds = vds.annotate_cols(c2=vds2[:, vds.s].c2)
+        vds = vds.annotate_rows(y2=vds2.index_rows(vds.row_key).y2)
+        vds = vds.annotate_cols(c2=vds2.index_cols(vds.s).c2)
 
-        vds = vds.annotate_cols(c2=vds2[:, hl.str(vds.s)].c2)
+        vds = vds.annotate_cols(c2=vds2.index_cols(hl.str(vds.s)).c2)
 
         rt = vds.rows()
         ct = vds.cols()
@@ -823,8 +823,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(rows[mt.locus, mt.alleles].take(1), rows[mt.row_key].take(1))
         self.assertEqual(cols[mt.s].take(1), cols[mt.col_key].take(1))
 
-        self.assertEqual(mt[mt.row_key, :].take(1), mt[(mt.locus, mt.alleles), :].take(1))
-        self.assertEqual(mt[:, mt.col_key].take(1), mt[:, mt.s].take(1))
+        self.assertEqual(mt.index_rows(mt.row_key).take(1), mt.index_rows(mt.locus, mt.alleles).take(1))
+        self.assertEqual(mt.index_cols(mt.col_key).take(1), mt.index_cols(mt.s).take(1))
         self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
     def test_table_join(self):
