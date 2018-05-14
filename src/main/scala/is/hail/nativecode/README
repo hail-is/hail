@@ -1,0 +1,15 @@
+
+hail/src/main/scala/nativecode/README
+
+This directory has code for managing "off-heap" data shared
+with C++, generating C++ source code and compiling it into
+dynamic-loaded libraries, managing those shared libraries,
+and calling the dynamic-loaded functions.
+
+Corresponding C++ implementations of native methods are in
+the directory hail/src/main/c, and are built into libhail.so
+
+The generated C++ code can use C++17 language and standard-library
+features, and also can include files from ${HAIL_HOME}/include.
+Most features used in generated code will be accessible through
+a top-level header file #include "hail/hail.h" 
