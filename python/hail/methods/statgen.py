@@ -2940,12 +2940,12 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
 
     Notes
     -----
-    This method finds a maximal subset of variants in (windowed) linkage
-    disequilibrium: the squared Pearson correlation coefficient :math:`r^2` of
-    any pair of resulting variants at most `window_size` base pairs apart is
-    strictly less than `r2`. Each variant is represented as a vector over
-    samples with elements given by the (mean-imputed) number of alternate
-    alleles. In particular, even if present, **phase information is ignored**.
+    This method finds a maximal subset of variants such that the squared
+    Pearson correlation coefficient :math:`r^2` of any pair at most
+    `window_size` base pairs apart is strictly less than `r2`. Each variant is
+    represented as a vector over samples with elements given by the
+    (mean-imputed) number of alternate alleles. In particular, even if present,
+    **phase information is ignored**.
 
     The method proceeds in two stages. The first stage is a local pruning step,
     which prunes variants in the same partition. The parallelism in this step
@@ -2966,14 +2966,14 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     r2 : :obj:`float`
         Squared correlation threshold (exclusive upper bound).
     bp_window_size: :obj:`int`
-        Window size in base pairs.
+        Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
         Memory in MB per core for local pruning.
 
     Returns
     -------
     :class:`.Table`
-        Table of variants in linkage disequilibrium.
+        Table of a maximal independent set of variants.
     """
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
