@@ -249,16 +249,20 @@ class LinearMixedModel(object):
         else:
             raise ValueError('for low-rank, set both y and x; for full-rank, do not set y or x.')
 
-        assert py.ndim == 1 and px.ndim == 2 and s.ndim == 1
+        assert py.ndim == 1
+        assert px.ndim == 2
+        assert s.ndim == 1
+
         r, f = px.shape
         if f == 0:
-            raise ValueError('LinearMixedModel must have at least one fixed effect.')  # can relax
+            raise ValueError('LinearMixedModel must have at least one fixed effect.')  # could relax
 
         assert py.size == r
         assert s.size == r
 
         if low_rank:
-            assert y.ndim == 1 and x.ndim == 2
+            assert y.ndim == 1
+            assert x.ndim == 2
             assert x.shape == (y.size, f)
             assert y.size > r
             n = y.size
