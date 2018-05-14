@@ -311,6 +311,8 @@ object TestUtils {
 
   def assertEvalsTo(x: IR, expected: Any) {
     val t = x.typ
+    assert(t.typeCheck(expected))
+
     val e = eval(x)
     assert(t.typeCheck(e))
     assert(t.valuesSimilar(eval(x), expected))

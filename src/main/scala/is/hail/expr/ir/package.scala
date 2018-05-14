@@ -5,6 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 
+import scala.language.implicitConversions
+
 package object ir {
   var uidCounter: Long = 0
 
@@ -66,19 +68,33 @@ package object ir {
     }
   }
 
+  case class IRBinding(v: String, t: Type)
+
+  implicit def irBindingToIR(b: IRBinding): IR = Ref(b.v, b.t)
+
+  def bind(x: IR, f: (IRBinding) => IR): IR = {
+    val v = genUID()
+    val b = IRBinding(v, x.typ)
+    Let(v, x, f(b))
+  }
+
+  def bind(x1: IR, x2: IR, f: (IRBinding, IRBinding) => IR): IR = {
+    val v1 = genUID()
+    val v2 = genUID()
+    val b1 = IRBinding(v1, x1.typ)
+    val b2 = IRBinding(v2, x2.typ)
+    Let(v1, x1, Let(v2, x2, f(b1, b2)))
+  }
+
   def nonstrictEQ(l: IR, r: IR): IR = {
     // FIXME better as a (non-strict) BinaryOp?
     assert(l.typ == r.typ)
-    val t = l.typ
-    val lv = genUID()
-    val rv = genUID()
-    Let(lv, l,
-      Let(rv, r,
-        If(IsNA(Ref(lv, t)),
-          IsNA(Ref(rv, t)),
-          If(IsNA(Ref(rv, t)),
-            False(),
-            ApplyBinaryPrimOp(EQ(), Ref(lv, t), Ref(rv, t))))))
+    bind(l, r, (lx, rx) =>
+      If(IsNA(lx),
+        IsNA(rx),
+        If(IsNA(rx),
+          False(),
+          ApplyBinaryPrimOp(EQ(), lx, rx))))
   }
 >>>>>>> make set function tests smaller grained
 }
