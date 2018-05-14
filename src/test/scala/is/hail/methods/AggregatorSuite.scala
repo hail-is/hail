@@ -189,7 +189,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCallStats() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
       .annotateRowsExpr(
-        "callStats" -> "AGG.map(g => g.GT).callStats(g => va.alleles)",
+        "callStats" -> "AGG.map(g => g.GT).callStats(g => va.alleles.length)",
           "AC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()",
           "AN" -> "AGG.filter(g => isDefined(g.GT)).count() * 2L")
       .annotateRowsExpr("AF" -> "va.AC.map(x => x.toFloat64) / va.AN.toFloat64()")
