@@ -10,7 +10,10 @@ import scala.reflect.{ClassTag, classTag}
 
 object Compile {
 
-  def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](args: Seq[(String, Type, ClassTag[_])], body: IR): (Type, () => F) = {
+  def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, Type, ClassTag[_])],
+    body: IR): (Type, () => F) = {
+
     assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] =
@@ -131,6 +134,7 @@ object Compile {
 
 object CompileWithAggregators {
   def apply[
+  F0 >: Null : TypeInfo,
   F1 >: Null : TypeInfo,
   F2 >: Null : TypeInfo,
   R: TypeInfo : ClassTag
@@ -140,7 +144,7 @@ object CompileWithAggregators {
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
     body: IR,
     transformAggIR: (Int, IR) => IR
-  ): (Array[RegionValueAggregator], () => F1, Type, () => F2, Type) = {
+  ): (Array[RegionValueAggregator], () => F0, () => F1, Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
@@ -149,13 +153,16 @@ object CompileWithAggregators {
 
     val ir = Subst(body, env)
 
-    val (postAggIR, aggResultType, aggIR, rvAggs) = ExtractAggregators(ir, aggType)
+    val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(ir, aggType)
+
     val nAggs = rvAggs.length
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, aggIR), aggType)
+
+    val (_, initOps) = Compile[F0, Unit](args, initOpIR, aggType)
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, seqOpIR), aggType)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR)
-    (rvAggs, seqOps, aggResultType, f, t)
+    (rvAggs, initOps, seqOps, aggResultType, f, t)
   }
 
   def apply[
@@ -168,8 +175,10 @@ object CompileWithAggregators {
     aggName: String, aggTyp: TAggregable,
     aggName0: String, aggTyp0: Type,
     aggName1: String, aggTyp1: Type,
-    body: IR
+    body: IR,
+    transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
+    () => AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
     () => AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
     Type,
     () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
@@ -184,9 +193,11 @@ object CompileWithAggregators {
       (aggName0, aggTyp0, classTag[S0]),
       (aggName1, aggTyp1, classTag[S1]))
 
-    apply[AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
+    apply[
+      AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
+      AsmFunction8[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](aggName, aggTyp, args, aggScopeArgs, body, (nAggs: Int, aggIR: IR) => aggIR)
+      R](aggName, aggTyp, args, aggScopeArgs, body, transformAggIR)
   }
 
   def apply[
@@ -206,6 +217,7 @@ object CompileWithAggregators {
     body: IR,
     transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
+    () => AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
     () => AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
     Type,
     () => AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
@@ -223,7 +235,9 @@ object CompileWithAggregators {
       (aggName1, aggType1, classTag[S1]),
       (aggName2, aggType2, classTag[S2]))
 
-    apply[AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
+    apply[
+      AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
+      AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
       R](aggName, aggTyp, args, aggArgs, body, transformAggIR)
   }

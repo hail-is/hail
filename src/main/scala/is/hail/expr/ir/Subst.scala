@@ -25,9 +25,9 @@ object Subst {
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
-      case ApplyAggOp(a, op, args) =>
-        val substitutedArgs = args.map(arg => Recur(subst(_))(arg))
-        ApplyAggOp(subst(a, aggEnv, Env.empty), op, substitutedArgs)
+      case ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
+        val substConstructorArgs = constructorArgs.map(arg => Recur(subst(_))(arg))
+        ApplyAggOp(subst(a, aggEnv, Env.empty), op, substConstructorArgs, initOpArgs) // Cannot subst the initOpArgs because there is an extra element (AGG) in env
       case _ =>
         Recur(subst(_))(e)
     }

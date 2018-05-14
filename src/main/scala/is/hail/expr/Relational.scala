@@ -736,14 +736,14 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
+    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
       "global", prev.typ.globalType,
       "va", vaType,
       "AGG", tAgg,
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      newRVRow, { (nAggs: Int, aggIR: IR) =>
+      newRVRow, { (nAggs: Int, seqOpIR: IR) =>
         def rewrite(x: IR): IR = {
           x match {
             case x@AggIn(_) =>
@@ -761,7 +761,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
-              rewrite(aggIR))))
+              rewrite(seqOpIR))))
       })
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
@@ -802,6 +802,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
             j += 1
           }
 
+          initOps()(region, rvAggs, globals, false, oldRow, false)
           seqOps()(region, rvAggs, 0, true, globals, false, cols, false, oldRow, false)
 
           rvb.start(aggResultType)
@@ -856,7 +857,6 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
   val typ: MatrixType = {
     val newColType = newCol.typ.asInstanceOf[TStruct]
-    val newColNames = newColType.fieldNames.toSet
     val newColKey = newKey.getOrElse(child.typ.colKey)
     child.typ.copy(colKey = newColKey, colType = newColType)
   }
@@ -875,14 +875,14 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
+    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
       "global", localGlobalsType,
       "sa", prev.typ.colType,
       "AGG", tAgg,
       "global", localGlobalsType,
       "colValues", colValuesType,
       "va", vaType,
-      newCol, { (nAggs, aggIR) =>
+      newCol, { (nAggs, seqOpIR) =>
         val colIdx = ir.genUID()
 
         def rewrite(x: IR): IR = {
@@ -908,7 +908,8 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref(colIdx, TInt32())),
-              rewrite(aggIR))))
+              rewrite(seqOpIR)
+              )))
       })
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
@@ -927,6 +928,21 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     }
 
     val aggResults = if (nAggs > 0) {
+      Region.scoped { region =>
+        val rvb: RegionValueBuilder = new RegionValueBuilder()
+        rvb.set(region)
+
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
+
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
+
+        initOps()(region, colRVAggs, globals, false, cols, false)
+      }
+
       prev.rvd.treeAggregate[Array[RegionValueAggregator]](colRVAggs)({ (colRVAggs, rv) =>
         val rvb = new RegionValueBuilder()
         val region = rv.region

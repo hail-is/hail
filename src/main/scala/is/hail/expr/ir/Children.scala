@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.BaseIR
+import is.hail.utils.FastSeq
 
 object Children {
   private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -73,12 +74,14 @@ object Children {
       Array(a, body)
     case AggFlatMap(a, name, body) =>
       Array(a, body)
+    case InitOp(i, _, args) =>
+      i +: args.toIndexedSeq
     case SeqOp(a, i, _) =>
       Array(a, i)
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, op, args) =>
-      (a +: args).toIndexedSeq
+    case ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
+      (a +: constructorArgs ++: initOpArgs.getOrElse(FastSeq())).toIndexedSeq
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

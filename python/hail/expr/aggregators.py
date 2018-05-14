@@ -910,8 +910,8 @@ def inbreeding(expr, prior) -> StructExpression:
                           aggregations.push(Aggregation(expr, prior)), joins)
 
 
-@typecheck(expr=agg_expr(expr_call), alleles=expr_array(expr_str))
-def call_stats(expr, alleles) -> StructExpression:
+@typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
+def call_stats(call, alleles) -> StructExpression:
     """Compute useful call statistics.
 
     Examples
@@ -922,22 +922,22 @@ def call_stats(expr, alleles) -> StructExpression:
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
         >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
-        +---------------+--------------+----------------+-------------+
-        | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
-        +---------------+--------------+----------------+-------------+
-        | locus<GRCh37> | array<int32> | array<float64> |       int32 |
-        +---------------+--------------+----------------+-------------+
-        | 20:10019093   | [111,89]     | [0.555,0.445]  |         200 |
-        | 20:10026348   | [198,2]      | [0.99,0.01]    |         200 |
-        | 20:10026357   | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10030188   | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10030452   | [170,30]     | [0.85,0.15]    |         200 |
-        | 20:10030508   | [199,1]      | [0.995,0.005]  |         200 |
-        | 20:10030573   | [198,2]      | [0.99,0.01]    |         200 |
-        | 20:10032413   | [166,34]     | [0.83,0.17]    |         200 |
-        | 20:10036107   | [187,13]     | [0.935,0.065]  |         200 |
-        | 20:10036141   | [192,8]      | [0.96,0.04]    |         200 |
-        +---------------+--------------+----------------+-------------+
+        +---------------+--------------+----------------+-------------+---------------------------+
+        | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.homozygote_count |
+        +---------------+--------------+----------------+-------------+---------------------------+
+        | locus<GRCh37> | array<int32> | array<float64> |       int32 | array<int32>              |
+        +---------------+--------------+----------------+-------------+---------------------------+
+        | 20:10579373   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
+        | 20:13695607   | [177,23]     | [0.885,0.115]  |         200 | [77,0]                    |
+        | 20:13698129   | [198,2]      | [0.99,0.01]    |         200 | [98,0]                    |
+        | 20:14306896   | [142,58]     | [0.71,0.29]    |         200 | [51,9]                    |
+        | 20:14306953   | [121,79]     | [0.605,0.395]  |         200 | [38,17]                   |
+        | 20:15948325   | [172,2]      | [0.989,0.012]  |         174 | [85,0]                    |
+        | 20:15948326   | [174,8]      | [0.956,0.043]  |         182 | [83,0]                    |
+        | 20:17479423   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
+        | 20:17600357   | [79,121]     | [0.395,0.605]  |         200 | [24,45]                   |
+        | 20:17640833   | [193,3]      | [0.985,0.015]  |         196 | [95,0]                    |
+        +---------------+--------------+----------------+-------------+---------------------------+
 
     Notes
     -----
@@ -952,36 +952,38 @@ def call_stats(expr, alleles) -> StructExpression:
        element for each allele, including the reference.
      - `AN` (:py:data:`.tint32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
+     - `homozygote_count` (:class:`.tarray` of :py:data:`.tint32`) - Homozygote
+       genotype counts for each allele, including the reference.
 
     Parameters
     ----------
-    expr : :class:`.CallExpression`
-        Call.
+    call : :class:`.CallExpression`
     alleles : :class:`.ArrayStringExpression`
         Variant alleles.
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `AC`, `AF`, and `AN`.
+        Struct expression with fields `AC`, `AF`, `AN`, and `homozygote_count`.
     """
-    alleles = to_expr(alleles)
+    n_alleles = hl.len(alleles)
     uid = Env.get_uid()
 
-    ast = LambdaClassMethod('callStats', uid, expr._ast, alleles._ast)
-    indices, aggregations, joins = unify_all(expr, alleles)
+    ast = LambdaClassMethod('callStats', uid, call._ast, n_alleles._ast) # FIXME: This should be _agg_func once the AST is gone
+    indices, aggregations, joins = unify_all(call, n_alleles)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    _check_agg_bindings(expr)
-    _check_agg_bindings(alleles)
+    _check_agg_bindings(call)
+    _check_agg_bindings(n_alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
-                AN=tint32)
+                AN=tint32,
+                homozygote_count=tarray(tint32))
 
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(expr, alleles)), joins)
+                          aggregations.push(Aggregation(call, n_alleles)), joins)
 
 @typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:

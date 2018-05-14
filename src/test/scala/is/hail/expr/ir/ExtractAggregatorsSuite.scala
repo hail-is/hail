@@ -5,12 +5,12 @@ import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import ScalaToRegionValue._
 import RegionValueToScala._
-import is.hail.check._
 import is.hail.expr.{HailRep, hailType}
 import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.utils.FastSeq
 
 class ExtractAggregatorsSuite {
 
@@ -52,12 +52,12 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(hailType[IN], Map("scope0" -> (0, hailType[SCOPE0])))
 
     // special arguments: region, aggregator, element, element missingness
-    val (post, aggResultStruct, aggIR, rvAggs) = ExtractAggregators(ir, tAgg)
+    val (post, aggResultStruct, _, seqOpIR, rvAggs) = ExtractAggregators(ir, tAgg)
 
     val seqOps = {
       val fb = EmitFunctionBuilder[Region, Array[RegionValueAggregator], IN, Boolean, SCOPE0, Boolean, Unit]
 
-      val s = Subst(aggIR, Env.empty[IR].bind("scope0", In(1, hailType[SCOPE0])))
+      val s = Subst(seqOpIR, Env.empty[IR].bind("scope0", In(1, hailType[SCOPE0])))
       Emit(s, fb, 2, tAgg)
 
       fb.result(
@@ -103,7 +103,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
+      ApplyAggOp(AggIn(tAgg), Sum()),
       addArray(region, (0 to 100).map(_.toDouble):_*),
       _ => 10)
 
@@ -115,7 +115,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
+      ApplyAggOp(AggIn(tAgg), Sum()),
       addArray[Double](region),
       _ => 10)
 
@@ -127,7 +127,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
+      ApplyAggOp(AggIn(tAgg), Sum()),
       addArray[Double](region, 42.0),
       _ => 10)
 
@@ -139,7 +139,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
+      ApplyAggOp(AggIn(tAgg), Sum()),
       addBoxedArray[java.lang.Double](region, null, 42.0, null),
       _ => 10)
     assert(sum === 42.0)
@@ -150,7 +150,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TFloat64(), Map("scope0" -> (0, TInt32())))
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggOp(AggIn(tAgg), Sum(), Seq()),
+      ApplyAggOp(AggIn(tAgg), Sum()),
       addBoxedArray[java.lang.Double](region, null, null, null),
       _ => 10)
     assert(sum === 0.0)
@@ -162,7 +162,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val sum = run[Double, Long, Long](region,
       ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt64())),
-        Sum(), Seq()),
+        Sum()),
       addBoxedArray[java.lang.Double](region, null, null, null),
       10 * _)
     assert(sum == 30)
@@ -174,7 +174,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val sum = run[Double, Long, Long](region,
       ApplyAggOp(AggMap(AggIn(tAgg), "x", Ref("scope0", TInt64())),
-        Sum(), Seq()),
+        Sum()),
       addBoxedArray[java.lang.Double](region, 1.0, 2.0, null),
       10 * _)
     assert(sum == 30)
@@ -186,7 +186,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val sum = run[Double, Double, Double](region,
       ApplyAggOp(AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
-        Sum(), Seq()),
+        Sum()),
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
       _ => 10.0)
     assert(sum === 110.0)
@@ -202,7 +202,7 @@ class ExtractAggregatorsSuite {
           AggFilter(AggIn(tAgg), "x", ApplyBinaryPrimOp
             (NEQ(), Ref("x", TFloat64()), F64(10.0))), "x",
           ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
-        Sum(), Seq())
+        Sum())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -222,7 +222,7 @@ class ExtractAggregatorsSuite {
             ApplyBinaryPrimOp(EQ(), Ref("x", TFloat64()), F64(10.0))),
           "x",
           ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
-        Sum(), Seq())
+        Sum())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -242,7 +242,7 @@ class ExtractAggregatorsSuite {
             ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
           "x",
           ApplyBinaryPrimOp(EQ(), Ref("x", TFloat64()), F64(100.0))),
-        Sum(), Seq())
+        Sum())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -262,7 +262,7 @@ class ExtractAggregatorsSuite {
             ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
           "x",
           MakeArray(Seq(F64(100.0), Ref("x", TFloat64())), TArray(TFloat64()))),
-        Sum(), Seq())
+        Sum())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -282,7 +282,7 @@ class ExtractAggregatorsSuite {
             ApplyBinaryPrimOp(Multiply(), Ref("scope0", TFloat64()), Ref("x", TFloat64()))),
           "x",
           ApplyBinaryPrimOp(EQ(), Ref("x", TFloat64()), F64(100.0))),
-        Fraction(), Seq())
+        Fraction())
     val fraction = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -295,7 +295,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TBoolean(), Map("scope0" -> (0, TFloat64())))
     val region = Region()
     val ir =
-      ApplyAggOp(AggIn(tAgg), Fraction(), Seq())
+      ApplyAggOp(AggIn(tAgg), Fraction())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, true, false, null),
@@ -308,7 +308,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TBoolean(), Map("scope0" -> (0, TFloat64())))
     val region = Region()
     val ir =
-      ApplyAggOp(AggIn(tAgg), Fraction(), Seq())
+      ApplyAggOp(AggIn(tAgg), Fraction())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, false, false, null),
@@ -321,7 +321,7 @@ class ExtractAggregatorsSuite {
     val tAgg = TAggregable(TBoolean(), Map("scope0" -> (0, TFloat64())))
     val region = Region()
     val ir =
-      ApplyAggOp(AggIn(tAgg), Fraction(), Seq())
+      ApplyAggOp(AggIn(tAgg), Fraction())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, true, true, null),
@@ -335,7 +335,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[java.lang.Boolean](true, true, null)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Collect(), Seq())
+      ApplyAggOp(AggIn(tAgg), Collect())
     val aOff = run[Boolean, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -351,7 +351,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[java.lang.Integer](5, 10, null)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Collect(), Seq())
+      ApplyAggOp(AggIn(tAgg), Collect())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -367,7 +367,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[Int](5, 10, -5)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Collect(), Seq())
+      ApplyAggOp(AggIn(tAgg), Collect())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -392,7 +392,7 @@ class ExtractAggregatorsSuite {
             Multiply(),
             Ref("x", TInt32()),
             Ref("x", TInt32()))),
-        Collect(), Seq())
+        Collect())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -408,7 +408,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Boolean](true, false, false)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Boolean, Double, Boolean](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -423,7 +423,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Boolean](false, false, false)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Boolean, Double, Boolean](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -438,7 +438,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Int](5, 10, -5)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Int, Double, Int](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -453,7 +453,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Long](5L, 10L, -5L)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Long, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -468,7 +468,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Float](5.0f, 10.0f, -5.0f)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Float, Double, Float](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -483,7 +483,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Double](5.0, 10.0, -5.0)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Max(), Seq())
+      ApplyAggOp(AggIn(tAgg), Max())
     val actual = run[Double, Double, Double](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -499,7 +499,7 @@ class ExtractAggregatorsSuite {
     val input = Array[Int](5, 10, -5)
     val expected = input.take(2)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), Seq(I32(2)))
+      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -515,7 +515,7 @@ class ExtractAggregatorsSuite {
     val input = Array[Double](5.0, 10.0, -5.0)
     val expected = input.take(2)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), Seq(I32(2)))
+      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
     val aOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -531,7 +531,7 @@ class ExtractAggregatorsSuite {
     val input = Array[java.lang.Double](5.0, null, -5.0)
     val expected = input.take(2)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Take(), Seq(I32(2)))
+      ApplyAggOp(AggIn(tAgg), Take(), FastSeq(I32(2)))
     val aOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -547,7 +547,7 @@ class ExtractAggregatorsSuite {
     val input = Array[java.lang.Double](5.0, null, -5.0, 1.0, 15.0, 1.0, 17.0, 1.5)
     val expected = input.take(2)
     val ir =
-      ApplyAggOp(AggIn(tAgg), Histogram(), Seq(F64(0.0), F64(10.0), I32(5)))
+      ApplyAggOp(AggIn(tAgg), Histogram(), FastSeq(F64(0.0), F64(10.0), I32(5)))
     val hOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),

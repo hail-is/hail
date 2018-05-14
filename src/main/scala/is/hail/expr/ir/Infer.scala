@@ -51,9 +51,9 @@ object Infer {
         val tagg2 = tagg.copy(elementType = coerce[TContainer](body.typ).elementType)
         tagg2.symTab = tagg.symTab
         tagg2
-      case x@ApplyAggOp(a, op, args) =>
+      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
         val tAgg = coerce[TAggregable](a.typ)
-        AggOp.getType(op, tAgg.elementType, args.map(_.typ))
+        AggOp.getType(op, tAgg.elementType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ)))
       case x@MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

@@ -113,20 +113,20 @@ class ASTToIRSuite extends TestNGSuite {
       "aggregable.map(x => x * i64#5).sum()" ->
         ApplyAggOp(
           AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))),
-          Sum(), Seq()),
+          Sum()),
       "aggregable.map(x => x * something).sum()" ->
         ApplyAggOp(
           AggMap(AggIn(tAgg), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), Ref("something", TInt64()))),
-          Sum(), Seq()),
+          Sum()),
       "aggregable.filter(x => x > i64#2).sum()" ->
         ApplyAggOp(
           AggFilter(AggIn(tAgg), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt64()), I64(2))),
-          Sum(), Seq()),
+          Sum()),
       "aggregable.flatMap(x => [x * i64#5]).sum()" ->
         ApplyAggOp(
           AggFlatMap(AggIn(tAgg), "x",
             MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt64()), I64(5))), TArray(TInt64()))),
-          Sum(), Seq())
+          Sum())
     )
     } {
       val converted = toIR(in)

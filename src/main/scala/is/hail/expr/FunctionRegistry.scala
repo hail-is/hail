@@ -1324,7 +1324,7 @@ object FunctionRegistry {
   })
 
   registerLambdaAggregator[Call, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf)
-  )(aggregableHr(callHr), unaryHr(callHr, arrayHr(stringHr)), new HailRep[Any] {
+  )(aggregableHr(callHr), unaryHr(callHr, int32Hr), new HailRep[Any] {
       def typ = CallStats.schema
     })
 
