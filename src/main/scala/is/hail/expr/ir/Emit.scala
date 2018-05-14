@@ -254,7 +254,6 @@ private class Emit(
         val codeR = emit(r)
         EmitTriplet(Code(codeL.setup, codeR.setup),
           codeL.m || codeR.m,
-
           BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v))
       case ApplyUnaryPrimOp(op, x) =>
         val typ = ir.typ
@@ -845,14 +844,14 @@ private class Emit(
         val filterCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xmv.mux(
-              Code._empty,
-              Code(
-                xvv := v,
-                codeCond.setup,
-                (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
-                  Code._empty,
-                  cont(false, xvv)))))
+            xvv := xmv.mux(
+              defaultValue(x.typ.elementType),
+              v),
+            Code(
+              codeCond.setup,
+              (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
+                Code._empty,
+                cont(xmv, xvv))))
         }
         emitArrayIterator(a).copy(length = None).wrapContinuation(filterCont)
 

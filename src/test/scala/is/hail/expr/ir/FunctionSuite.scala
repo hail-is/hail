@@ -7,13 +7,12 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types._
+import is.hail.TestUtils._
 import org.testng.annotations.Test
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.table.Table
 import is.hail.utils.FastSeq
 import is.hail.variant.Call2
-
-import scala.reflect.ClassTag
 
 object ScalaTestObject {
   def testFunction(): Int = 1

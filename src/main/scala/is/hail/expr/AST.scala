@@ -870,6 +870,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               case (_: TArray, "map") => ir.ArrayMap(a, name, b)
               case (_: TArray, "filter") => ir.ArrayFilter(a, name, b)
               case (_: TArray, "flatMap") => ir.ArrayFlatMap(a, name, b)
+              case (_: TSet, "flatMap") =>
+                ir.ToSet(
+                  ir.ArrayFlatMap(ir.ToArray(a), name,
+                      ir.ToArray(b)))
               case (_: TArray, "exists") =>
                 val v = ir.genUID()
                 ir.ArrayFold(a, ir.False(), v, name, ir.ApplySpecial("||", FastSeq(ir.Ref(v, TBoolean()), b)))

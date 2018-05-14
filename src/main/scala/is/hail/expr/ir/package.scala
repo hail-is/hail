@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 
 package object ir {
@@ -53,8 +54,26 @@ package object ir {
 
   private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 
-  private[ir] def coerce[T <: Type](x: Type): T = {
-    import is.hail.expr.types
-    types.coerce[T](x)
+  private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
+
+  def invoke(name: String, args: IR*): IR = {
+    IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
+      case Some(f) => f(args)
+    }
+  }
+
+  def nonstrictEQ(l: IR, r: IR): IR = {
+    // FIXME better as a (non-strict) BinaryOp?
+    assert(l.typ == r.typ)
+    val t = l.typ
+    val lv = genUID()
+    val rv = genUID()
+    Let(lv, l,
+      Let(rv, r,
+        If(IsNA(Ref(lv, t)),
+          IsNA(Ref(rv, t)),
+          If(IsNA(Ref(rv, t)),
+            False(),
+            ApplyBinaryPrimOp(EQ(), Ref(lv, t), Ref(rv, t))))))
   }
 }
