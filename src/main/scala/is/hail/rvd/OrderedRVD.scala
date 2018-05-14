@@ -545,7 +545,7 @@ object OrderedRVD {
 
     val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
-        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i), ctx))
+        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
       else
         Iterator()
       out
