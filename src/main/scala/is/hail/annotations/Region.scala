@@ -260,10 +260,6 @@ final class Region(
     end = 0
   }
 
-  def copy(): Region = {
-    new Region(util.Arrays.copyOf(mem, end.toInt), end)
-  }
-
   override def write(kryo: Kryo, output: Output) {
     output.writeLong(end)
 
