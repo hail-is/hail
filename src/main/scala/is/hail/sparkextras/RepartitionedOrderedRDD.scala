@@ -50,7 +50,7 @@ class RepartitionedOrderedRDD(
         .flatMap { parentPartition =>
           prev.iterator(parentPartition, context).flatMap(_(ctx))
         }
-      OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range)
+      OrderedRVIterator(typ, it).restrictToPKInterval(ordPartition.range, ctx)
     }
   }
 

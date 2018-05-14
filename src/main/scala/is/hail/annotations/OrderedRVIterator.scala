@@ -1,18 +1,21 @@
 package is.hail.annotations
 
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.{OrderedRVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
 
 case class OrderedRVIterator(t: OrderedRVDType, iterator: Iterator[RegionValue]) {
 
-  def restrictToPKInterval(interval: Interval): Iterator[RegionValue] = {
+  def restrictToPKInterval(interval: Interval, ctx: RVDContext): Iterator[RegionValue] = {
     val ur = new UnsafeRow(t.rowType)
     val pk = new KeyedRow(ur, t.kRowFieldIdx)
     iterator.filter { rv => {
       ur.set(rv)
-      interval.contains(t.kType.ordering, pk)
+      val keep = interval.contains(t.kType.ordering, pk)
+      if (!keep)
+        ctx.region.clear()
+      keep
     } }
   }
 
