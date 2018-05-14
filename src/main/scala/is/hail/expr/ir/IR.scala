@@ -152,7 +152,7 @@ final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] =>
 }
 
 final case class Apply(function: String, args: Seq[IR]) extends IR {
-  val implementation: IRFunctionWithoutMissingness =
+  lazy val implementation: IRFunctionWithoutMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
 
   def typ: Type = {
@@ -166,7 +166,7 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
 }
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
-  val implementation: IRFunctionWithMissingness =
+  lazy val implementation: IRFunctionWithMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
 
   def typ: Type = {
