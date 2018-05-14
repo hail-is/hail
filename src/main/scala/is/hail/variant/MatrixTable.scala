@@ -810,7 +810,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     log.info(expr)
     val rowsAST = Parser.parseToAST(expr, ec)
 
-    rowsAST.toIR(Some("AGG")) match {
+    rowsAST.toIROpt(Some("AGG")) match {
       case Some(x) if useIR(this.rowAxis, rowsAST) =>
         new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
 
