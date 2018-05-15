@@ -1064,7 +1064,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
+    copy(rvd = rvd.mapPartitions(typ.rowType, { (ctx, it) =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
@@ -1072,9 +1072,14 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         globalRVb.start(globalType)
         globalRVb.addAnnotation(globalType, localGlobals.value)
         globalRV.set(rv.region, globalRVb.end())
-        p(rv, globalRV)
+        if (p(rv, globalRV)) {
+          true
+        } else {
+          ctx.region.clear()
+          false
+        }
       }
-    })
+    }))
   }
 
   def write(path: String, overwrite: Boolean, codecSpecJSONStr: String) {
