@@ -11,14 +11,14 @@ import htsjdk.variant.variantcontext.{GenotypeLikelihoods, VariantContext}
 import htsjdk.variant.vcf.{VCFFormatHeaderLine, VCFHeader}
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.annotations.{BroadcastIndexedSeq, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{BroadcastIndexedSeq, RegionValue}
 import is.hail.expr.{MatrixImportGenomicsDB, Parser}
 import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.{BufferedLineIterator, HtsjdkRecordReader, LoadVCF}
 import is.hail.rvd.RVDContext
 import is.hail.utils.Interval
-import is.hail.variant.{MatrixTable, ReferenceGenome}
+import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}
 import org.apache.hadoop
 import org.apache.hadoop.fs.Path
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -72,10 +72,10 @@ object ImportGenomicsDB {
     proc.getInputStream.close()
     proc.getErrorStream.close()
 
-    val shardFilename = metadata.shards(i).filename
-    val shard = metadata.baseDirname + "/" + shardFilename
+    val shard = metadata.shards(i)
+    val shardFilename = metadata.baseDirname + "/" + shard.filename
 
-    hadoopConf.readFile(shard) { shardIS =>
+    hadoopConf.readFile(shardFilename) { shardIS =>
       val procOS = proc.getOutputStream
 
       val n = 64 * 1024
@@ -95,7 +95,7 @@ object ImportGenomicsDB {
     if (rc != 0)
       fatal(s"shard $i untar failed with return code: $rc")
 
-    val shardPath = new Path(shardFilename)
+    val shardPath = new Path(shard.filename)
     val shardName = shardPath.getName
     assert(shardName.endsWith(".tar"))
     val workspaceDirName = shardName.dropRight(4)
@@ -132,17 +132,26 @@ object ImportGenomicsDB {
     val context = TaskContext.get
     val inputMetrics = context.taskMetrics().inputMetrics
 
+    val tlocus = TLocus(metadata.rg)
+    val tlocusEOrd = tlocus.ordering
+
+    val si = shard.interval
+    val start = si.start.asInstanceOf[Locus]
+    val end = si.end.asInstanceOf[Locus]
     val it: java.util.Iterator[VariantContext] = gdbReader.iterator
     it.asScala
-      .map { vc =>
+      .flatMap { vc =>
         rvb.start(typ.rvRowType)
         reader.readRecord(vc, rvb, metadata.infoType, typ.entryType, dropSamples = false, metadata.canonicalFlags, metadata.infoFlagFieldNames)
         rv.setOffset(rvb.end())
 
-        ExposedMetrics.incrementRecord(inputMetrics)
-        ExposedMetrics.incrementBytes(inputMetrics, 1)
-
-        rv
+        val locus = Locus(vc.getContig, vc.getStart)
+        if (si.contains(tlocusEOrd, locus)) {
+          ExposedMetrics.incrementRecord(inputMetrics)
+          ExposedMetrics.incrementBytes(inputMetrics, 1)
+          Some(rv)
+        } else
+          None
       }
   }
 
@@ -224,8 +233,9 @@ object ImportGenomicsDB {
     val formatHeader = header.getFormatHeaderLines
     val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, callFields, arrayElementsRequired)
 
+    val tlocus = TLocus.schemaFromRG(Some(rg))
     val rowType = TStruct(
-      "locus" -> TLocus.schemaFromRG(Some(rg)),
+      "locus" -> tlocus,
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "qual" -> TFloat64(),
@@ -247,9 +257,23 @@ object ImportGenomicsDB {
           assert(fields.length == 1)
           fields.head match {
             case (interval, JString(path)) =>
-              GenomicsDBShard(Parser.parseLocusInterval(interval, rg), path)
+              val si = Parser.parseLocusInterval(interval, rg)
+              assert(si.includesStart && si.includesEnd)
+              assert(si.start.asInstanceOf[Locus].contig == si.end.asInstanceOf[Locus].contig)
+              GenomicsDBShard(si, path)
           }
         })
+
+    // validate metadata
+    val locusEOrd = tlocus.ordering
+    var i = 0
+    while (i < metadata.shards.length - 1) {
+      val sEnd = metadata.shards(i).interval.end.asInstanceOf[Locus]
+      val nextStart = metadata.shards(i + 1).interval.start.asInstanceOf[Locus]
+      if (locusEOrd.gteq(sEnd, nextStart))
+        fatal(s"shard intervals not sorted: shard $i end $sEnd >= shard ${ i + 1 } start $nextStart")
+      i += 1
+    }
 
     val colValues = BroadcastIndexedSeq(
       fileMetadata.sample_names.map(Row(_)),

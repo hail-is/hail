@@ -643,13 +643,13 @@ object Parser extends JavaTokenParsers {
 
     val valueParser =
       locusUnchecked(rg) ~ "-" ~ rg.contigParser ~ ":" ~ pos ^^ { case l1 ~ _ ~ c2 ~ _ ~ p2 => p2 match {
-        case Some(p) => (l1, Locus(c2, p), true, false)
-        case None => (l1, Locus(c2, rg.contigLength(c2)), true, true)
+        case Some(p) => (l1, Locus(c2, p), true, true)
+        case None => (l1, Locus(c2, rg.contigLength(c2)), true, false)
       }
       } |
         locusUnchecked(rg) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => p2 match {
-          case Some(p) => (l1, l1.copy(position = p), true, false)
-          case None => (l1, l1.copy(position = rg.contigLength(l1.contig)), true, true)
+          case Some(p) => (l1, l1.copy(position = p), true, true)
+          case None => (l1, l1.copy(position = rg.contigLength(l1.contig)), true, false)
         }
         } |
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |

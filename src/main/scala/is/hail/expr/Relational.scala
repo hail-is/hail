@@ -461,10 +461,11 @@ case class MatrixImportGenomicsDB(typ: MatrixType, metadata: GenomicsDBMetadata,
 
     val partitionBounds = Array.tabulate(n) { i =>
       var si = shards(i).interval
+      assert(si.includesStart && si.includesEnd)
       if (i + 1 < n)
-        Interval(Row(si.start), Row(shards(i + 1).interval.start), includesStart = si.includesStart, includesEnd = false)
+        Interval(Row(si.start), Row(shards(i + 1).interval.start), includesStart = true, includesEnd = false)
       else
-        Interval(Row(si.start), Row(si.end), includesStart = si.includesStart, includesEnd = si.includesEnd)
+        Interval(Row(si.start), Row(si.end), includesStart = true, includesEnd = true)
     }
 
     MatrixValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc),
