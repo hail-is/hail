@@ -472,7 +472,7 @@ class MatrixTable(ExprContainer):
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
-        elif isinstance(item, tuple and len(item) == 2):
+        elif isinstance(item, tuple) and len(item) == 2:
             # this is the join path
             exprs = item
             row_key = None
