@@ -24,6 +24,6 @@ class IRSuite extends TestNGSuite {
       ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
 
     assertEvalsTo(ArrayFilter(a, "x",
-      ApplyBinaryPrimOp(LT(), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
+      ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 }
