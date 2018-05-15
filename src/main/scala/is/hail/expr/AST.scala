@@ -883,8 +883,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           rx <- lhs.toAggIR(agg, { lhsx =>
             val t = -lhsx.typ.asInstanceOf[TContainer].elementType
             val v = ir.genUID()
-            ir.ArrayFor(lhsx, v,
-              ir.Let(name, ir.Ref(v, t), bodyx))
+            ir.ArrayFor(ir.Let(name, lhsx, bodyx),
+              v,
+              cont(ir.Ref(v, t)))
           })
         } yield rx
     }

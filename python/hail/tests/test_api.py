@@ -1205,12 +1205,14 @@ class MatrixTests(unittest.TestCase):
 
     def test_agg_explode(self):
         t = hl.Table.parallelize([
-            hl.struct(a=1, b=[1, 2]),
-            hl.struct(a=2, b=[]),
-            hl.struct(a=3, b=hl.null(hl.tarray(hl.tint32))),
-            hl.struct(a=4, b=[3])
+            hl.struct(a=[1, 2]),
+            hl.struct(a=hl.empty_array(hl.tint32)),
+            hl.struct(a=hl.null(hl.tarray(hl.tint32))),
+            hl.struct(a=[3]),
+            hl.struct(a=[hl.null(hl.tint32)])
         ])
-        self.assertEqual(t.aggregate(hl.agg.sum(t.a * hl.agg.explode(hl.agg.flat_map(t.b)))), 15)
+        self.assertCountEqual(t.aggregate(hl.agg.collect(hl.agg.explode(t.a))),
+                              [1, 2, None, 3])
 
 class GroupedMatrixTests(unittest.TestCase):
 

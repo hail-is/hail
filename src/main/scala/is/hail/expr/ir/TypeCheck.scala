@@ -131,6 +131,7 @@ object TypeCheck {
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
+        assert(body.typ == TVoid)
       case x@InitOp(i, args, _) =>
         args.foreach(check(_))
         check(i)

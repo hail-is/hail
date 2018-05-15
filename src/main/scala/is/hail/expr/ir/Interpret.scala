@@ -508,7 +508,6 @@ object Interpret {
             val globalsOffset = rvb.end()
 
             seqOps()(rv.region, rvAggs, globalsOffset, false, rowOffset, false)
-
             rvAggs
           }, { (rvAggs1, rvAggs2) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
