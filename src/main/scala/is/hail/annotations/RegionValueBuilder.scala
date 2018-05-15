@@ -153,7 +153,8 @@ class RegionValueBuilder(var region: Region) {
     val t = typestk.top.asInstanceOf[TArray]
     val aoff = offsetstk.top
     val length = t.loadLength(region, aoff)
-    assert(length == indexstk.top)
+    assert(length == indexstk.top,
+      s"$length, ${indexstk.top}, $aoff\n" + region.summary())
 
     typestk.pop()
     offsetstk.pop()

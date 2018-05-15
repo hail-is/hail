@@ -46,7 +46,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
+    assert(TString.loadString(rv.region, rv.offset) ==
+      TString.loadString(rv2.region, rv2.offset))
   }
 
   @Test
@@ -83,7 +84,7 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
+    assert(rv.region.loadInt(rv.offset) == rv2.region.loadInt(rv2.offset))
   }
 
   @Test
@@ -120,10 +121,10 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv2.pretty(rt))
     }
 
+    assert(rt.loadLength(rv.region, rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
-
-
+    assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
   }
 
   @Test
@@ -162,7 +163,10 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
+    assert(TString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
+      TString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }
 
   @Test
@@ -224,8 +228,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
-
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   @Test
@@ -289,7 +293,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
+    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
+      new UnsafeRow(rt, rv2.region, rv2.offset))
   }
 
   @Test
@@ -330,27 +335,12 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.offset == rv2.offset)
-
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   def printRegion(region: Region, string: String) {
-    println(string)
-    val size = region.size
-    println("Region size: " + size.toString)
-    val bytes = region.loadBytes(0, size.toInt)
-    println("Array: ")
-    var j = 0
-    for (i <- bytes) {
-      j += 1
-      printf("%02X", i)
-      if (j % 32 == 0) {
-        print('\n')
-      } else {
-        print(' ')
-      }
-    }
-    print('\n')
+    println(region.prettyBits())
   }
 
   @Test

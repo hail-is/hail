@@ -6,7 +6,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.types._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-  def size: Code[Long] = region.invoke[Long]("size")
+  def end: Code[Long] = region.invoke[Long]("endd")
 
   def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)

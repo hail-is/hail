@@ -43,7 +43,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def offset: Code[Long] = startOffset
 
-  def endOffset: Code[Long] = region.size
+  def endOffset: Code[Long] = region.end
 
   def arrayIdx: Code[Int] = idx
 

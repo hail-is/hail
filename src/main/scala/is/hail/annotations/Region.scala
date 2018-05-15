@@ -3,123 +3,139 @@ package is.hail.annotations
 import java.io.{ObjectInputStream, ObjectOutputStream}
 import java.util
 
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
 import is.hail.utils._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object Region {
-  def apply(sizeHint: Long = 128): Region = {
-    new Region(new Array[Byte](sizeHint.toInt))
+  def apply(): Region = {
+    val blockSize = 16L * 1024L
+    val firstBlock = Memory.malloc(blockSize)
+    val blocks = new ArrayBuilder[Long]()
+    blocks += firstBlock
+    new Region(
+      blocks,
+      blockSize,
+      0L,
+      new ArrayBuilder()
+    )
   }
 
   def scoped[T](f: Region => T): T =
     using(Region())(f)
 }
 
-final class Region(
-  private var mem: Array[Byte],
-  private var end: Long = 0
+final class Region private (
+  private[this] var blocks: ArrayBuilder[Long],
+  private[this] var blockSize: Long,
+  private[this] var end: Long,
+  private[this] var bigBlocks: ArrayBuilder[Long]
 ) extends UnKryoSerializable with AutoCloseable {
-  def size: Long = end
+  def endd: Long = end
 
-  def capacity: Long = mem.length
+  def summary(): String = {
+    s"""((${blocks.underlying.mkString(" ")})
+        |$blockSize
+        |$end
+        |(${bigBlocks.underlying.mkString(" ")}))""".stripMargin
+  }
+
+  def capacity: Long = blockSize
 
   def copyFrom(other: Region, readStart: Long, writeStart: Long, n: Long) {
-    assert(size <= capacity)
-    assert(other.size <= other.capacity)
+    assert(end <= capacity)
+    // assert(other.end <= other.capacity)
     assert(n >= 0)
-    assert(readStart >= 0 && readStart + n <= other.size)
-    assert(writeStart >= 0 && writeStart + n <= size)
-    Memory.memcpy(mem, writeStart, other.mem, readStart, n)
+    assert(readStart >= 0)
+    assert(writeStart >= 0)
+    Memory.memcpy(writeStart, readStart, n)
   }
 
   def loadInt(off: Long): Int = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size)
-    Memory.loadInt(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadInt(off)
   }
 
   def loadLong(off: Long): Long = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.loadLong(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadLong(off)
   }
 
   def loadFloat(off: Long): Float = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size)
-    Memory.loadFloat(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadFloat(off)
   }
 
   def loadDouble(off: Long): Double = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.loadDouble(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadDouble(off)
   }
 
   def loadAddress(off: Long): Long = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.loadAddress(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadAddress(off)
   }
 
   def loadByte(off: Long): Byte = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 1 <= size)
-    Memory.loadByte(mem, off)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.loadByte(off)
   }
 
   def loadBytes(off: Long, n: Int): Array[Byte] = {
-    assert(size <= capacity)
-    assert(off >= 0 && off + n <= size)
+    assert(end <= capacity)
+    assert(off >= 0)
     val a = new Array[Byte](n)
-    Memory.memcpy(a, 0, mem, off, n)
+    Memory.memcpy(a, 0, off, n)
     a
   }
 
   def loadBytes(off: Long, to: Array[Byte], toOff: Long, n: Long) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + n <= size)
+    assert(end <= capacity)
+    assert(off >= 0)
     assert(toOff + n <= to.length)
-    Memory.memcpy(to, toOff, mem, off, n)
+    Memory.memcpy(to, toOff, off, n)
   }
 
   def storeInt(off: Long, i: Int) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size)
-    Memory.storeInt(mem, off, i)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeInt(off, i)
   }
 
   def storeLong(off: Long, l: Long) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.storeLong(mem, off, l)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeLong(off, l)
   }
 
   def storeFloat(off: Long, f: Float) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 4 <= size)
-    Memory.storeFloat(mem, off, f)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeFloat(off, f)
   }
 
   def storeDouble(off: Long, d: Double) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.storeDouble(mem, off, d)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeDouble(off, d)
   }
 
   def storeAddress(off: Long, a: Long) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 8 <= size)
-    Memory.storeAddress(mem, off, a)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeAddress(off, a)
   }
 
   def storeByte(off: Long, b: Byte) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + 1 <= size)
-    Memory.storeByte(mem, off, b)
+    assert(end <= capacity)
+    assert(off >= 0)
+    Memory.storeByte(off, b)
   }
 
   def storeBytes(off: Long, bytes: Array[Byte]) {
@@ -127,18 +143,10 @@ final class Region(
   }
 
   def storeBytes(off: Long, bytes: Array[Byte], bytesOff: Long, n: Int) {
-    assert(size <= capacity)
-    assert(off >= 0 && off + n <= size)
+    assert(end <= capacity)
+    assert(off >= 0)
     assert(bytesOff + n <= bytes.length)
-    Memory.memcpy(mem, off, bytes, bytesOff, n)
-  }
-
-  def ensure(n: Long) {
-    val required = size + n
-    if (capacity < required) {
-      val newLength = (capacity * 2).max(required)
-      mem = util.Arrays.copyOf(mem, newLength.toInt)
-    }
+    Memory.memcpy(off, bytes, bytesOff, n)
   }
 
   private def align(alignment: Long) {
@@ -149,10 +157,27 @@ final class Region(
 
   private def allocate(n: Long): Long = {
     assert(n >= 0)
-    val off = end
-    ensure(n)
-    end += n
-    off
+    if (n > blockSize) {
+      // FIXME: is this guaranteed to be aligned to anything?
+      log.info("Allocating a large region $n")
+      val mem = Memory.malloc(n)
+      bigBlocks += mem
+      mem
+    } else {
+      val required = end + n
+      if (required > capacity) {
+        // FIXME: is this guaranteed to be aligned to anything?
+        log.info("Allocating a new region, $end $n $capacity")
+        val mem = Memory.malloc(blockSize)
+        blocks += mem
+        end = 0
+        mem
+      } else {
+        val mem = blocks.last + end
+        end += n
+        mem
+      }
+    }
   }
 
   def allocate(alignment: Long, n: Long): Long = {
@@ -353,5 +378,9 @@ final class Region(
 
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
+  }
+
+  def prettyBits(): String = {
+    "FIXME: implement prettyBits on Region"
   }
 }
