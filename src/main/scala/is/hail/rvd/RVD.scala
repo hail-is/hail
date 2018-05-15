@@ -307,6 +307,10 @@ trait RVD {
 
   def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitions(f))
 
+  def mapPartitions[T: ClassTag](
+    f: (RVDContext, Iterator[RegionValue]) => Iterator[T]
+  ): RDD[T] = clearingRun(crdd.cmapPartitions(f))
+
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner
