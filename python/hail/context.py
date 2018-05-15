@@ -29,8 +29,8 @@ class HailContext(object):
                  default_reference="GRCh37", force_ir=False):
 
         if Env._hc:
-            raise FatalError('Hail Context has already been created, restart session '
-                             'or stop Hail context to change configuration.')
+            raise FatalError('Hail has already been initialized, restart session '
+                             'or stop Hail to change configuration.')
 
         SparkContext._ensure_initialized()
 
