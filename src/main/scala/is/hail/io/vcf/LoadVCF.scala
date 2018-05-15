@@ -891,7 +891,7 @@ object LoadVCF {
     val justVariants = parseLines(
       () => ()
     )((c, l, rvb) => ()
-    )(ContextRDD.textFilesLines[RVDContext](sc, files, nPartitions),
+    )(lines,
       kType,
       rg,
       contigRecoding,
