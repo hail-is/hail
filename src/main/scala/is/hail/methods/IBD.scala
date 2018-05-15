@@ -6,6 +6,8 @@ import is.hail.expr.ir._
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.rvd.RVDContext
+import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
 import is.hail.stats.RegressionUtils
 import org.apache.spark.rdd.RDD
@@ -208,7 +210,7 @@ object IBD {
     min: Option[Double],
     max: Option[Double],
     sampleIds: IndexedSeq[String],
-    bounded: Boolean): RDD[RegionValue] = {
+    bounded: Boolean): ContextRDD[RVDContext, RegionValue] = {
 
     val nSamples = vds.numCols
 
@@ -254,7 +256,7 @@ object IBD {
       })
       .map { case ((s, v), gs) => (v, (s, IBSFFI.pack(chunkSize, chunkSize, gs))) }
 
-    chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
+    val joined = ContextRDD.weaken[RVDContext](chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
@@ -267,9 +269,11 @@ object IBD {
           i += 1
         }
         a
-      }
-      .mapPartitions { it =>
-        val region = Region()
+      })
+
+    joined
+      .cmapPartitions { (ctx, it) =>
+        val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         for {
@@ -283,7 +287,6 @@ object IBD {
           eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
           if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
         } yield {
-          region.clear()
           rvb.start(ibdSignature)
           rvb.startStruct()
           rvb.addString(sampleIds(i))
@@ -293,7 +296,7 @@ object IBD {
           rv.setOffset(rvb.end())
           rv
         }
-      }
+    }
   }
 
   def apply(vds: MatrixTable,
@@ -316,14 +319,14 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, Array("i", "j"))
+    new Table(vds.hc, ktRdd2, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
 
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
-    Table(sc, ktRdd, ibdSignature, Array("i", "j"))
+    Table(sc, ktRdd, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
   def toRDD(kt: Table): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
@@ -348,26 +351,24 @@ object IBD {
     val mafEc = EvalContext(mafSymbolTable)
     val mafAst = Parser.parseToAST(computeMafExpr, mafEc)
 
-    val rvRowType = vds.rvRowType
     val rowKeysF = vds.rowKeysF
     val localRowType = vds.rowType
 
     val computeMafFromRV = mafAst.toIR() match {
-      case Some(ir0) =>
+      case ToIRSuccess(ir0) =>
         // The expression may need a cast to Double
         val ir1 = if (ir0.typ.isInstanceOf[TFloat64]) ir0 else Cast(ir0, TFloat64())
-        val irThunk = ir.Compile(
-          "va", ir.RegionValueRep[Long](localRowType),
-          "_dummyA", ir.RegionValueRep[Long](localRowType),
-          ir.RegionValueRep[Double](TFloat64()),
+        val (rtyp, irThunk) = ir.Compile[Long, Long, Double](
+          "va", localRowType,
+          "_dummyA", localRowType,
           ir1
         )
         (rv: RegionValue) => {
           val result: java.lang.Double = irThunk()(rv.region, rv.offset, false, 0, true)
           result
         }
-      case None =>
-        val computeMafFromEc = RegressionUtils.parseExprAsDouble(computeMafExpr, mafEc)
+      case ToIRFailure(_) =>
+        val computeMafFromEc = RegressionUtils.parseFloat64Expr(computeMafExpr, mafEc)
         (rv: RegionValue) => {
           val row = new UnsafeRow(localRowType, rv)
           mafEc.setAll(row)

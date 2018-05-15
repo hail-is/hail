@@ -72,17 +72,15 @@ class IBDSuite extends SparkSuite {
 
     hadoopConf.copy(localGenomeFile, genomeFile)
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"),
+    val rdd = TextTableReader.read(hc)(Array(tmpdir + ".genome"),
       types = Map(("IID1", TString()), ("IID2", TString()), ("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()),
         ("PI_HAT", TFloat64()), ("IBS0", TInt32()), ("IBS1", TInt32()), ("IBS2", TInt32())),
       separator = " +"
-    )
+    ).rdd
 
     rdd.collect()
-      .map(_.value)
-      .map { ann =>
+      .map { row =>
         // _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe, dst, ppc, ratio, ibs0, ibs1, ibs2, homhom, hethet
-        val row = ann.asInstanceOf[Row]
         val iid1 = toS(row(2)): Annotation
         val iid2 = toS(row(4)): Annotation
         val z0 = toD(row(7))
@@ -100,7 +98,7 @@ class IBDSuite extends SparkSuite {
   }
 
   object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(ReferenceGenome.GRCh37))))
+    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds => vds.filterRowsExpr("va.locus.isAutosomal()") }
       .filter(vds => vds.countRows > 2 && vds.numCols >= 2)
@@ -162,7 +160,7 @@ class IBDSuite extends SparkSuite {
   // Plink has default maf=0.01.  We try setting a different value
   @Test def ibdWithMafExpr(): Unit = {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val vds2 = vds.annotateRowsExpr("dummy_maf = 0.08")
+    val vds2 = vds.selectRows("annotate(va, { `dummy_maf`: 0.08 })", None)
 
     val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("va.dummy_maf"))).collect().toMap
     val plink = runPlinkIBD(vds, maf = Some(0.08))
