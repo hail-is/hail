@@ -11,6 +11,7 @@ import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.utils.FastSeq
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 
@@ -657,5 +658,16 @@ class CompileSuite {
     val region = Region()
     val off = f(region)
     assert(TString.loadString(region, off) == "hello")
+  }
+
+  @Test def testSelectFields() {
+    val ir = SelectFields(MakeStruct(FastSeq("foo"->I32(6), "bar"->F64(0.0))), FastSeq("foo"))
+    val fb = EmitFunctionBuilder[Region, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    Region.scoped { region =>
+      val off = f(region)
+      assert(SafeRow(TStruct("foo" -> TInt32()), region, off).get(0) == 6)
+    }
   }
 }
