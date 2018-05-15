@@ -320,14 +320,17 @@ class Table(ExprContainer):
                                               'step' if s.step is not None else None] if x is not None)
                     )
                 )
-
             warnings.warn('The ht[:] syntax is deprecated, and will be removed before 0.2 release.\n'
                           '  Use the following instead:\n'
                           '    ht.index_globals()\n', stacklevel=2)
             return self.index_globals()
         else:
-            exprs = item if isinstance(item, tuple) else (item,)
-            return self.index(*exprs)
+            exprs = wrap_to_tuple(item)
+            if all(isinstance(e, Expression) for e in exprs):
+                return self.index(*exprs)
+        raise ValueError(f"'Table.__getitem__' (ht[...]): Usage:\n"
+                         f"  Select a field: ht['Field name']\n"
+                         f"  index shorthand: ht[key]")
 
     @property
     def key(self) -> Optional[StructExpression]:

@@ -469,12 +469,10 @@ class MatrixTable(ExprContainer):
                                     self._entry.items()):
             self._set_field(k, v)
 
-    @typecheck_method(item=oneof(str, sized_tupleof(oneof(slice, Expression, tupleof(Expression)),
-                                                    oneof(slice, Expression, tupleof(Expression)))))
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
-        else:
+        elif isinstance(item, tuple and len(item) == 2):
             # this is the join path
             exprs = item
             row_key = None
@@ -505,25 +503,32 @@ class MatrixTable(ExprContainer):
             else:
                 col_key = wrap_to_tuple(exprs[1])
 
-            if row_key is not None and col_key is not None:
-                return self.index_entries(row_key, col_key)
-            elif row_key is not None and col_key is None:
-                warnings.warn('The mt[<row keys>, :] syntax is deprecated, and will be removed before 0.2 release.\n'
-                              '  Use one of the following instead:\n'
-                              '    mt.rows()[<row keys>]\n'
-                              '    mt.index_rows(<row keys>)', stacklevel=2)
-                return self.index_rows(*row_key)
-            elif row_key is None and col_key is not None:
-                warnings.warn('The mt[:, <col keys>] syntax is deprecated, and will be removed before 0.2 release.\n'
-                              '  Use one of the following instead:\n'
-                              '    mt.cols()[<col keys>]\n'
-                              '    mt.index_cols(<col keys>)', stacklevel=2)
-                return self.index_cols(*col_key)
-            else:
-                warnings.warn('The mt[:, :] syntax is deprecated, and will be removed before 0.2 release.\n'
-                              '  Use the following instead:\n'
-                              '    mt.index_globals()', stacklevel=2)
-                return self.index_globals()
+            if ((row_key is None or all(isinstance(e, Expression) for e in row_key)) and
+                    (col_key is None or all(isinstance(e, Expression) for e in col_key))):
+                if row_key is not None and col_key is not None:
+                    return self.index_entries(row_key, col_key)
+                elif row_key is not None and col_key is None:
+                    warnings.warn(
+                        'The mt[<row keys>, :] syntax is deprecated, and will be removed before 0.2 release.\n'
+                        '  Use one of the following instead:\n'
+                        '    mt.rows()[<row keys>]\n'
+                        '    mt.index_rows(<row keys>)', stacklevel=2)
+                    return self.index_rows(*row_key)
+                elif row_key is None and col_key is not None:
+                    warnings.warn(
+                        'The mt[:, <col keys>] syntax is deprecated, and will be removed before 0.2 release.\n'
+                        '  Use one of the following instead:\n'
+                        '    mt.cols()[<col keys>]\n'
+                        '    mt.index_cols(<col keys>)', stacklevel=2)
+                    return self.index_cols(*col_key)
+                else:
+                    warnings.warn('The mt[:, :] syntax is deprecated, and will be removed before 0.2 release.\n'
+                                  '  Use the following instead:\n'
+                                  '    mt.index_globals()', stacklevel=2)
+                    return self.index_globals()
+        raise ValueError(f"'MatrixTable.__getitem__' (mt[...]): Usage:\n"
+                         f"  Select a field: mt['Field name']\n"
+                         f"  index_entries shorthand: mt[(row keys), (col keys)]")
 
     @property
     def col_key(self):
