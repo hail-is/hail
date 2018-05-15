@@ -56,7 +56,7 @@ final class DoubleOutputBuffer(out: OutputStream, bufSize: Int) extends Closeabl
 
   def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
 
-  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
+  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Long) {
     assert(n0 >= 0)
     assert(fromOff0 >= 0)
     assert(fromOff0 <= from.length - n0)
