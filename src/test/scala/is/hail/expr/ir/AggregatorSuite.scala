@@ -7,7 +7,7 @@ import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 
-class ExtractAggregatorsSuite {
+class AggregatorsSuite {
   def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
     val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)))
     assertEvalsTo(ApplyAggOp(
