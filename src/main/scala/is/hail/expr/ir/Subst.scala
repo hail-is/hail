@@ -22,11 +22,10 @@ object Subst {
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
       case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val substitutedArgs = constructorArgs.map(arg => Recur(subst(_))(arg))
         val substConstructorArgs = constructorArgs.map(arg => Recur(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>
           initOpArgs.map(arg => Recur(subst(_))(arg)))
-        ApplyAggOp(subst(a, aggEnv, Env.empty), substitutedArgs, substInitOpArgs, aggSig)
+        ApplyAggOp(subst(a, aggEnv, Env.empty), substConstructorArgs, substInitOpArgs, aggSig)
       case _ =>
         Recur(subst(_))(e)
     }

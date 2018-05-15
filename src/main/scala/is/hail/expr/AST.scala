@@ -893,25 +893,39 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = {
     (lhs.`type`, method, args: IndexedSeq[AST]) match {
+      case (t: TAggregable, "callStats", IndexedSeq(Lambda(_, name, body))) =>
+        for {
+          op <- fromOption(
+            this,
+            s"no AggOp for method $method",
+            AggOp.fromString.lift(method))
+          bodyx <- body.toIR()
+          initOpArgs = Some(FastIndexedSeq(bodyx))
+          aggSig = AggSignature(op,
+              -t.elementType,
+            FastIndexedSeq(),
+            initOpArgs.map(_.map(_.typ)))
+          ca <- fromOption(
+            this,
+            "no CodeAggregator",
+            AggOp.getOption(aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig))
+        } yield
+          ir.ApplyAggOp(rx, FastIndexedSeq(), initOpArgs, aggSig): IR
       case (t: TAggregable, _, _) =>
         for {
           op <- fromOption(
             this,
             s"no AggOp for method $method",
             AggOp.fromString.lift(method))
-          irs <- all(args.map(_.toIR(agg))).map(_.toFastIndexedSeq)
-          (constructorArgs, initOpArgs) =
-            if (method == "callStats")
-              (irs.init, Some(FastSeq(irs.last)))
-            else
-              (irs, None)
+          constructorArgs <- all(args.map(_.toIR(agg))).map(_.toFastIndexedSeq)
           aggSig = AggSignature(op,
             if (method == "count")
               TInt32()
             else
               -t.elementType,
             constructorArgs.map(_.typ),
-            initOpArgs.map(_.map(_.typ)))
+            None)
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -922,9 +936,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             else
               x,
             ir.I32(0), aggSig))
-        } yield {
-          ir.ApplyAggOp(rx, constructorArgs, initOpArgs, aggSig): IR
-        }
+        } yield
+          ir.ApplyAggOp(rx, constructorArgs, None, aggSig): IR
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
         for {
           a <- lhs.toIR(agg)

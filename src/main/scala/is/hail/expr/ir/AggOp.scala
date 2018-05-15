@@ -120,5 +120,6 @@ object AggOp {
     case "count" => Count()
     case "take" => Take()
     case "hist" => Histogram()
+    case "callStats" => CallStats()
   }
 }

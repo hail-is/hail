@@ -266,8 +266,6 @@ object TestUtils {
     val i2 = Interpret[Any](x, env, args, agg, optimize = false)
     assert(i == i2)
 
-    // FIXME handle agg
-
     // verify compiler and interpreter agree
     val inputTypesB = new ArrayBuilder[Type]()
     val inputsB = new ArrayBuilder[Any]()
