@@ -375,7 +375,7 @@ class LinearMixedModel(object):
             xdx = (self.px.T * d) @ self.px
 
         try:
-            beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)
+            beta = solve(xdx, xdy, assume_a='pos')
             residual_sq = ydy - xdy.T @ beta
             sigma_sq = residual_sq / self._dof
             tau_sq = sigma_sq / gamma
@@ -626,7 +626,7 @@ class LinearMixedModel(object):
             xdx[0, 1:] = self.px.T @ dpa
 
         try:
-            beta = solve(xdx, xdy, assume_a='pos', overwrite_a=True)  # only uses upper triangle
+            beta = solve(xdx, xdy, assume_a='pos')  # only uses upper triangle
             residual_sq = ydy - xdy.T @ beta
             sigma_sq = residual_sq / self._dof_alt
             chi_sq = self.n * np.log(self._residual_sq / residual_sq)  # division => precision
