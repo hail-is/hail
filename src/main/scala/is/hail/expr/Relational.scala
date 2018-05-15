@@ -529,16 +529,21 @@ case class FilterRows(
 
     val localGlobals = prev.globals.broadcast
 
-    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
       val fullRow = new UnsafeRow(fullRowType)
       it.filter { rv =>
         fullRow.set(rv)
         ec.set(0, localGlobals.value)
         ec.set(1, fullRow)
         aggregatorOption.foreach(_ (rv))
-        f() == true
+        if (f() == true)
+          true
+        else {
+          ctx.region.clear()
+          false
+        }
       }
-    }
+    })
 
     prev.copy(rvd = filteredRDD)
   }
@@ -576,16 +581,21 @@ case class FilterRowsIR(
     val localGlobalType = typ.globalType
     val localGlobals = prev.globals.broadcast
 
-    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType) { it =>
+    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
       it.filter { rv =>
         // Append all the globals into this region
         val globalRVb = new RegionValueBuilder(rv.region)
         globalRVb.start(localGlobalType)
         globalRVb.addAnnotation(localGlobalType, localGlobals.value)
         val globalRVoffset = globalRVb.end()
-        predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false)
+        if (predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false))
+          true
+        else {
+          ctx.region.clear()
+          false
+        }
       }
-    }
+    })
 
     prev.copy(rvd = filteredRDD)
   }
@@ -1054,7 +1064,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
+    copy(rvd = rvd.mapPartitions(typ.rowType, { (ctx, it) =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
@@ -1062,9 +1072,14 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         globalRVb.start(globalType)
         globalRVb.addAnnotation(globalType, localGlobals.value)
         globalRV.set(rv.region, globalRVb.end())
-        p(rv, globalRV)
+        if (p(rv, globalRV)) {
+          true
+        } else {
+          ctx.region.clear()
+          false
+        }
       }
-    })
+    }))
   }
 
   def write(path: String, overwrite: Boolean, codecSpecJSONStr: String) {
