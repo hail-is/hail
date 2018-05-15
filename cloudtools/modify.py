@@ -14,26 +14,38 @@ def main(args):
     if (args.jar is not None):
         _scp_and_sudo_move(args.jar, args.name, '/home/hail/hail.jar', args.zone)
     if (args.zip is not None):
-        _scp_and_sudo_move(args.jar, args.name, '/home/hail/hail.zip', args.zone)
+        _scp_and_sudo_move(args.zip, args.name, '/home/hail/hail.zip', args.zone)
 
 # user doesn't have access to /home/hail/ so we copy then use sudo
 def _scp_and_sudo_move(source, destination_host, destination, zone):
-    cmd = [
-        'gcloud',
-        'compute',
-        'scp',
-        '--zone={}'.format(zone),
-        source,
-        '{}-m:/tmp/foo'.format(destination_host)
-    ]
-    check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
-    cmd = [
-        'gcloud',
-        'compute',
-        'ssh',
-        '{}-m'.format(destination_host),
-        '--zone={}'.format(zone),
-        '--',
-        'sudo mv /tmp/foo {}'.format(destination),
-    ]
-    check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
+    if source.startswith("gs://"):
+        cmd = [
+            'gcloud',
+            'compute',
+            'ssh',
+            '{}-m'.format(destination_host),
+            '--zone={}'.format(zone),
+            '--',
+            'sudo gsutil cp {} {}'.format(source, destination)
+        ]
+        check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
+    else:
+        cmd = [
+            'gcloud',
+            'compute',
+            'scp',
+            '--zone={}'.format(zone),
+            source,
+            '{}-m:/tmp/foo'.format(destination_host)
+        ]
+        check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
+        cmd = [
+            'gcloud',
+            'compute',
+            'ssh',
+            '{}-m'.format(destination_host),
+            '--zone={}'.format(zone),
+            '--',
+            'sudo mv /tmp/foo {}'.format(destination)
+        ]
+        check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
