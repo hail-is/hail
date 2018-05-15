@@ -2215,7 +2215,8 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset.index_globals().pli.get(dataset2.gene))
+        >>> pli_dict = dataset.index_globals().pli
+        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(pli_dict.get))
 
         Returns
         -------
