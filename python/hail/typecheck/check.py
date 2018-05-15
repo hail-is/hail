@@ -512,7 +512,7 @@ def check_all(f, args, kwargs, checks, is_method):
             # kwargs now holds all variable kwargs
             for kwarg_name, arg in kwargs.items():
                 try:
-                    kwargs_[name] = checker.check(arg, name, arg_name)
+                    kwargs_[kwarg_name] = checker.check(arg, name, arg_name)
                 except TypecheckFailure as e:
                     raise TypeError("{fname}: keyword argument '{argname}': "
                                     "expected {expected}, found {found}".format(
