@@ -167,7 +167,7 @@ object SampleQC {
     val nSamples = vsm.numCols
     if (vsm.rvd.getNumPartitions > 0)
       vsm.rvd
-        .mapPartitions { it =>
+        .mapPartitions { (ctx, it) =>
           val view = HTSGenotypeView(rvRowType)
           val rvv = new RegionValueVariant(rvRowType)
           val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
@@ -200,6 +200,7 @@ object SampleQC {
               acc(i).merge(ais, acs, view)
               i += 1
             }
+            ctx.region.clear()
           }
 
           Iterator.single(acc)
