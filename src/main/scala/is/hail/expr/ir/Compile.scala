@@ -129,15 +129,16 @@ object CompileWithAggregators {
   ](args: Seq[(String, Type, ClassTag[_])],
     aggScopeArgs: Seq[(String, Type, ClassTag[_])],
     body: IR,
-    transformAggIR: (Int, IR) => IR
+    transformInitOp: (Int, IR) => IR,
+    transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator], () => F0, () => F1, Type, () => F2, Type) = {
 
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
     val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
     val nAggs = rvAggs.length
-    val (_, initOps) = Compile[F0, Unit](args, initOpIR, 2)
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformAggIR(nAggs, seqOpIR), 2)
+    val (_, initOps) = Compile[F0, Unit](args, transformInitOp(nAggs, initOpIR), 2)
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformSeqOp(nAggs, seqOpIR), 2)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR, 1)
@@ -153,7 +154,8 @@ object CompileWithAggregators {
     aggName0: String, aggTyp0: Type,
     aggName1: String, aggTyp1: Type,
     body: IR,
-    transformAggIR: (Int, IR) => IR
+    transformInitOp: (Int, IR) => IR,
+    transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
     () => AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
     () => AsmFunction6[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, Unit],
@@ -170,7 +172,7 @@ object CompileWithAggregators {
       AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
       AsmFunction6[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](args, aggScopeArgs, body, transformAggIR)
+      R](args, aggScopeArgs, body, transformInitOp, transformSeqOp)
   }
 
   def apply[
@@ -186,7 +188,8 @@ object CompileWithAggregators {
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
     body: IR,
-    transformAggIR: (Int, IR) => IR
+    transformInitOp: (Int, IR) => IR,
+    transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
     () => AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
     () => AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
@@ -206,6 +209,6 @@ object CompileWithAggregators {
       AsmFunction6[Region, Array[RegionValueAggregator], T0, Boolean, T1, Boolean, Unit],
       AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction7[Region, Long, Boolean, T0, Boolean, T1, Boolean, R],
-      R](args, aggArgs, body, transformAggIR)
+      R](args, aggArgs, body, transformInitOp, transformSeqOp)
   }
 }

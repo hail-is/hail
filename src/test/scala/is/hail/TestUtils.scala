@@ -309,6 +309,7 @@ object TestUtils {
           argsVar, argsType,
           aggVar, aggType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))),
+          (i, x) => x,
           (i, x) => x)
         assert(resultType2 == resultType)
 

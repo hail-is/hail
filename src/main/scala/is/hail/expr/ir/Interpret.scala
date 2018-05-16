@@ -482,6 +482,7 @@ object Interpret {
           "global", child.typ.globalType,
           "row", child.typ.rowType,
           MakeTuple(Array(query)),
+          (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val value = child.execute(HailContext.get)
