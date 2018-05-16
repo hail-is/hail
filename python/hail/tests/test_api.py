@@ -10,6 +10,7 @@ from hail.utils.java import Env, scala_object
 from hail.utils.misc import new_temp_file
 import pyspark.sql
 from .utils import resource, startTestHailContext, stopTestHailContext
+import operator
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -628,6 +629,23 @@ class MatrixTests(unittest.TestCase):
         vds = vds.select_entries(z1=vds.x1 + vds.foo,
                                  z2=vds.x1 + vds.y1 + vds.foo)
         self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
+
+    def test_annotate_globals(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        ht = hl.utils.range_table(1, 1)
+        data = [
+            (5, hl.tint, operator.eq),
+            (float('nan'), hl.tfloat32, lambda x, y: str(x) == str(y)),
+            (float('inf'), hl.tfloat64, lambda x, y: str(x) == str(y)),
+            (float('-inf'), hl.tfloat64, lambda x, y: str(x) == str(y)),
+            (1.111, hl.tfloat64, operator.eq),
+            ([hl.Struct(**{'a': None, 'b': 5}),
+              hl.Struct(**{'a': 'hello', 'b': 10})], hl.tarray(hl.tstruct(a=hl.tstr, b=hl.tint)), operator.eq)
+        ]
+
+        for x, t, f in data:
+            self.assertTrue(f(mt.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
+            self.assertTrue(f(ht.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
 
     def test_filter(self):
         vds = self.get_vds()

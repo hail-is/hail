@@ -1,4 +1,5 @@
 import builtins
+import math
 
 import hail
 import hail as hl
@@ -101,6 +102,14 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     else:
         dtype = impute_type(x)
 
+    def get_float_str(x):
+        if math.isnan(x):
+            return 'nan'
+        elif math.isinf(x):
+            return 'inf' if x > 0 else 'neginf'
+        else:
+            return builtins.str(builtins.float(x))
+
     if x is None:
         return hl.null(dtype)
     elif is_primitive(dtype):
@@ -114,10 +123,10 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
             return construct_expr(Literal('i64#{}'.format(x)), tint64)
         elif dtype == tfloat32:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f32#{}'.format(builtins.float(x))), tfloat32)
+            return construct_expr(Literal('f32#{}'.format(get_float_str(x))), tfloat32)
         elif dtype == tfloat64:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f64#{}'.format(builtins.float(x))), tfloat64)
+            return construct_expr(Literal('f64#{}'.format(get_float_str(x))), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
             return construct_expr(Literal('true' if x else 'false'), tbool)
