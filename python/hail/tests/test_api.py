@@ -309,6 +309,11 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
         self.assertEqual(kt.filter(True).count(), 3)
 
+    def test_filter_na(self):
+        ht = hl.utils.range_table(1, 1)
+
+        self.assertEqual(ht.filter(hl.null(hl.tbool)).count(), 0)
+
     def test_transmute(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
                             g=hl.tstruct(x=hl.tbool, y=hl.tint32))
@@ -1120,6 +1125,13 @@ class MatrixTests(unittest.TestCase):
 
         entries = ds.entries()
         self.assertTrue(entries.all((entries.col_idx * entries.row_idx) % 4 == 0))
+
+    def test_filter_na(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+
+        self.assertEqual(mt.filter_rows(hl.null(hl.tbool)).count_rows(), 0)
+        self.assertEqual(mt.filter_cols(hl.null(hl.tbool)).count_cols(), 0)
+        self.assertEqual(mt.filter_entries(hl.null(hl.tbool)).entries().count(), 0)
 
     def test_to_table_on_various_fields(self):
         mt = self.get_vds()
