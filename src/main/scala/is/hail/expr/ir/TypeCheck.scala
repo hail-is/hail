@@ -157,6 +157,12 @@ object TypeCheck {
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*))
+      case x@SelectFields(old, fields) =>
+        check(old)
+        assert{
+          val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
+          fields.forall { id => oldfields.contains(id) }
+        }
       case x@InsertFields(old, fields) =>
         check(old)
         fields.foreach { case (name, a) => check(a) }

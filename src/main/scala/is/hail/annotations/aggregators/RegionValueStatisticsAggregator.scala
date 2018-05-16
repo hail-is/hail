@@ -8,10 +8,10 @@ import org.apache.spark.util.StatCounter
 object RegionValueStatisticsAggregator {
   val typ: TStruct = TStruct(
     "mean" -> TFloat64(),
-    "stddev" -> TFloat64(),
+    "stdev" -> TFloat64(),
     "min" -> TFloat64(), // FIXME should really preserve the input type
     "max" -> TFloat64(), // FIXME should really preserve the input type
-    "count" -> TInt64(),
+    "n" -> TInt64(),
     "sum" -> TFloat64())
 }
 

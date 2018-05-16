@@ -89,6 +89,9 @@ object Copy {
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
+      case SelectFields(_, fields) =>
+        val IndexedSeq(old: IR) = newChildren
+        SelectFields(old, fields)
       case InsertFields(_, fields) =>
         assert(newChildren.length == fields.length + 1)
         InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })

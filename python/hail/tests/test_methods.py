@@ -1563,7 +1563,7 @@ class Tests(unittest.TestCase):
         assert (pruned_table.count() == 1)
 
     def test_ld_prune_call_expression(self):
-        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         assert (pruned_table.count() == 1)
