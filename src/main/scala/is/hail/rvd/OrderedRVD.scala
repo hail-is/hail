@@ -689,6 +689,7 @@ object OrderedRVD {
 
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): Array[Interval] = {
     assert(nPartitions > 0)
+    assert(pkis.nonEmpty)
 
     val pkOrd = typ.pkType.ordering.toOrdering
     val keys = pkis
