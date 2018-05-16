@@ -257,9 +257,10 @@ object ImportGenomicsDB {
           assert(fields.length == 1)
           fields.head match {
             case (interval, JString(path)) =>
-              val si = Parser.parseLocusInterval(interval, rg)
-              assert(si.includesStart && si.includesEnd)
+              var si = Parser.parseLocusInterval(interval, rg)
               assert(si.start.asInstanceOf[Locus].contig == si.end.asInstanceOf[Locus].contig)
+              assert(si.includesStart && !si.includesEnd) // parsed with parse_locus_interval which is end-exclusive
+              si = Interval(si.start, si.end, si.includesStart, includesEnd = true)
               GenomicsDBShard(si, path)
           }
         })
