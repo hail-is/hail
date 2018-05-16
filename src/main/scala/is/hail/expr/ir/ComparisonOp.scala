@@ -7,28 +7,28 @@ import is.hail.utils.lift
 
 object ComparisonOp {
 
-  private def checkIncompatible[T](lt: Type, rt: Type): Unit =
+  private def checkCompatible[T](lt: Type, rt: Type): Unit =
     if (lt != rt)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
   val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp] = {
     case ("==", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       EQ(t1)
     case ("!=", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       NEQ(t1)
     case (">=", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       GTEQ(t1)
     case ("<=", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       LTEQ(t1)
     case (">", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       GT(t1)
     case ("<", t1, t2) =>
-      checkIncompatible(t1, t2)
+      checkCompatible(t1, t2)
       LT(t1)
   }
 }
