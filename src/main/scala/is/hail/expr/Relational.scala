@@ -745,6 +745,28 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
       "colValues", TArray(child.typ.colType),
       "va", child.typ.rvRowType,
       expr,
+      { (nAggs, initializeIR) =>
+        val colIdx = ir.genUID()
+
+        def rewrite(x: IR): IR = {
+          x match {
+            case InitOp(i, args, aggSig) =>
+              InitOp(
+                ir.ApplyBinaryPrimOp(ir.Add(),
+                  ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
+                  i),
+                args,
+                aggSig)
+            case _ =>
+              ir.Recur(rewrite)(x)
+          }
+        }
+
+        ir.ArrayFor(
+          ir.ArrayRange(ir.I32(0), ir.I32(nCols), ir.I32(1)),
+          colIdx,
+          rewrite(initializeIR))
+      },
       { (nAggs, sequenceIR) =>
         val colIdx = ir.genUID()
 

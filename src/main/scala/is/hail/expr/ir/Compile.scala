@@ -223,6 +223,7 @@ object CompileWithAggregators {
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
     body: IR,
+    transformInitOp: (Int, IR) => IR,
     transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
     () => AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
@@ -242,6 +243,6 @@ object CompileWithAggregators {
       AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
       AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](args, aggArgs, body, transformAggIR)
+      R](args, aggArgs, body, transformInitOp, transformAggIR)
   }
 }
