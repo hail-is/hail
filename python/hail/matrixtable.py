@@ -2211,12 +2211,12 @@ class MatrixTable(ExprContainer):
 
     def index_globals(self) -> Expression:
         """Return this matrix table's global variables for use in another
-        table's expression context.
+        expression context.
 
         Examples
         --------
         >>> pli_dict = dataset.index_globals().pli
-        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(pli_dict.get))
+        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(lambda x: pli_dict.get(x)))
 
         Returns
         -------
@@ -2236,8 +2236,8 @@ class MatrixTable(ExprContainer):
                               joins=LinkedList(Join).push(Join(joiner, [uid], uid, [])))
 
     def index_rows(self, *exprs):
-        """Join with the matrix table's row fields on `exprs`, exposing the row
-        values as if looked up in a dictionary.
+        """Expose the row values as if looked up in a dictionary, indexing
+        with `exprs`.
 
         Examples
         --------
@@ -2253,7 +2253,8 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        :meth:`index_rows` is equivalent to ``rows().index``.
+        :meth:`index_rows(exprs)` is equivalent to ``rows().index(exprs)``
+        or ``rows()[exprs]``.
 
         The type of the resulting struct is the same as the type of
         :meth:`.row_value`.
@@ -2318,8 +2319,8 @@ class MatrixTable(ExprContainer):
                 return self.rows().index(*exprs)
 
     def index_cols(self, *exprs):
-        """Join with the matrix table's column fields on `exprs`, exposing the
-        column values as if looked up in a dictionary.
+        """Expose the column values as if looked up in a dictionary, indexing
+        with `exprs`.
 
         Examples
         --------
@@ -2335,7 +2336,8 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        :meth:`index_cols` is equivalent to ``cols().index``.
+        :meth:`index_cols(exprs)` is equivalent to ``cols().index(exprs)``
+        or ``cols()[exprs]``.
 
         The type of the resulting struct is the same as the type of
         :meth:`.col_value`.
@@ -2347,8 +2349,8 @@ class MatrixTable(ExprContainer):
         return self.cols().index(*exprs)
 
     def index_entries(self, row_exprs, col_exprs):
-        """Index into the matrix table's entries, exposing the entry fields
-        as if looked up in a dictionary.
+        """Expose the entries as if looked up in a dictionary, indexing
+        with `exprs`.
 
         Examples
         --------

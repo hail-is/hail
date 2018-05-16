@@ -1159,13 +1159,13 @@ class Table(ExprContainer):
         return self._jt.showString(n, joption(truncate), types, width)
 
     def index(self, *exprs):
-        """Join with the table on `exprs`, exposing the table's contents
-        as if looked up in a dictionary.
+        """Expose the row values as if looked up in a dictionary, indexing
+        with `exprs`.
 
         Examples
         --------
         In the example below, both `table1` and `table2` are keyed by one
-        field of type ``str``, `ID`.
+        field `ID` of type ``int``.
 
         >>> table_result = table1.select(B = table2.index(table1.ID).B)
         >>> table_result.B.show()
@@ -1202,10 +1202,10 @@ class Table(ExprContainer):
         Notes
         -----
         :meth:`.Table.index` is used to expose one table's fields for use in
-        expressions involving the another table's fields. The result of the
-        method call is a struct expression that is usable in the same scope as
-        `exprs`, just as if `exprs` were used to look up values of the table
-        in a dictionary.
+        expressions involving the another table or matrix table's fields. The
+        result of the method call is a struct expression that is usable in the
+        same scope as `exprs`, just as if `exprs` were used to look up values of
+        the table in a dictionary.
 
         The type of the struct expression is the same as the indexed table's
         :meth:`.row_value` (the key fields are removed, as they are available
@@ -1388,7 +1388,7 @@ class Table(ExprContainer):
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
     def index_globals(self):
-        """Return this table's global variables for use in another table's
+        """Return this table's global variables for use in another
         expression context.
 
         Examples
