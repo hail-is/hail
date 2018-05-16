@@ -1,6 +1,7 @@
 import itertools
 from typing import *
 from collections import OrderedDict
+import warnings
 
 import hail
 import hail as hl
@@ -507,10 +508,21 @@ class MatrixTable(ExprContainer):
             if row_key is not None and col_key is not None:
                 return self.index_entries(row_key, col_key)
             elif row_key is not None and col_key is None:
+                warnings.warn('The mt[<row keys>, :] syntax is deprecated, and will be removed before 0.2 release.\n'
+                              '  Use one of the following instead:\n'
+                              '    mt.rows()[<row keys>]\n'
+                              '    mt.index_rows(<row keys>)', stacklevel=2)
                 return self.index_rows(*row_key)
             elif row_key is None and col_key is not None:
+                warnings.warn('The mt[:, <col keys>] syntax is deprecated, and will be removed before 0.2 release.\n'
+                              '  Use one of the following instead:\n'
+                              '    mt.cols()[<col keys>]\n'
+                              '    mt.index_cols(<col keys>)', stacklevel=2)
                 return self.index_cols(*col_key)
             else:
+                warnings.warn('The mt[:, :] syntax is deprecated, and will be removed before 0.2 release.\n'
+                              '  Use the following instead:\n'
+                              '    mt.index_globals()', stacklevel=2)
                 return self.index_globals()
 
     @property
