@@ -141,14 +141,15 @@ object ImportGenomicsDB {
     val it: java.util.Iterator[VariantContext] = gdbReader.iterator
     it.asScala
       .flatMap { vc =>
-        rvb.start(typ.rvRowType)
-        reader.readRecord(vc, rvb, metadata.infoType, typ.entryType, dropSamples = false, metadata.canonicalFlags, metadata.infoFlagFieldNames)
-        rv.setOffset(rvb.end())
-
         val locus = Locus(vc.getContig, vc.getStart)
         if (si.contains(tlocusEOrd, locus)) {
+          rvb.start(typ.rvRowType)
+          reader.readRecord(vc, rvb, metadata.infoType, typ.entryType, dropSamples = false, metadata.canonicalFlags, metadata.infoFlagFieldNames)
+          rv.setOffset(rvb.end())
+
           ExposedMetrics.incrementRecord(inputMetrics)
           ExposedMetrics.incrementBytes(inputMetrics, 1)
+
           Some(rv)
         } else
           None
