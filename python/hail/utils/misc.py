@@ -50,7 +50,8 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """
     check_positive('range_matrix_table', 'n_rows', n_rows)
     check_positive('range_matrix_table', 'n_cols', n_cols)
-    check_positive('range_matrix_table', 'n_partitions', n_partitions)
+    if n_partitions is not None:
+        check_positive('range_matrix_table', 'n_partitions', n_partitions)
     return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
@@ -87,7 +88,8 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     :class:`.Table`
     """
     check_positive('range_table', 'n', n)
-    check_positive('range_table', 'n_partitions', n_partitions)
+    if n_partitions is not None:
+        check_positive('range_table', 'n_partitions', n_partitions)
 
     return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
 
