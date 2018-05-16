@@ -743,7 +743,9 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      newRVRow, { (nAggs: Int, aggIR: IR) =>
+      newRVRow,
+      (nAggs: Int, initOpIR: IR) => initOpIR,
+      { (nAggs: Int, seqOpIR: IR) =>
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
@@ -751,7 +753,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
-              aggIR)))
+              seqOpIR)))
       })
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
@@ -865,38 +867,66 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
+
+    val transformInitOp: (Int, IR) => IR = { (nAggs, initOpIR) =>
+      val colIdx = ir.genUID()
+
+      def rewrite(x: IR): IR = {
+        x match {
+          case InitOp(i, args, aggSig) =>
+            InitOp(
+              ir.ApplyBinaryPrimOp(ir.Add(),
+                ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
+                i),
+              args,
+              aggSig)
+          case _ =>
+            ir.Recur(rewrite)(x)
+        }
+      }
+
+      ir.ArrayFor(
+        ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+        colIdx,
+        rewrite(initOpIR))
+    }
+
+    val transformSeqOp: (Int, IR) => IR = { (nAggs, seqOpIR) =>
+      val colIdx = ir.genUID()
+
+      def rewrite(x: IR): IR = {
+        x match {
+          case SeqOp(a, i, aggSig) =>
+            SeqOp(a,
+              ir.ApplyBinaryPrimOp(ir.Add(),
+                ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
+                i),
+              aggSig)
+          case _ =>
+            ir.Recur(rewrite)(x)
+        }
+      }
+
+      ir.ArrayFor(
+        ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+        colIdx,
+        ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
+          ir.Let("g", ir.ArrayRef(
+            ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+            ir.Ref(colIdx, TInt32())),
+            rewrite(seqOpIR)
+          )))
+    }
+
     val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
       "global", localGlobalsType,
       "sa", prev.typ.colType,
       "global", localGlobalsType,
       "colValues", colValuesType,
       "va", vaType,
-      newCol, { (nAggs, seqOpIR) =>
-        val colIdx = ir.genUID()
-
-        def rewrite(x: IR): IR = {
-          x match {
-            case SeqOp(a, i, aggSig) =>
-              SeqOp(a,
-                ir.ApplyBinaryPrimOp(ir.Add(),
-                  ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
-                i),
-                aggSig)
-            case _ =>
-              ir.Recur(rewrite)(x)
-          }
-        }
-
-        ir.ArrayFor(
-          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-          colIdx,
-          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
-            ir.Let("g", ir.ArrayRef(
-              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
-              ir.Ref(colIdx, TInt32())),
-              rewrite(seqOpIR)
-              )))
-      })
+      newCol,
+      transformInitOp,
+      transformSeqOp)
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
     val depth = treeAggDepth(hc, prev.nPartitions)
