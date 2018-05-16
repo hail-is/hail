@@ -661,7 +661,11 @@ class CompileSuite {
   }
 
   @Test def testSelectFields() {
-    val ir = SelectFields(MakeStruct(FastSeq("foo"->I32(6), "bar"->F64(0.0))), FastSeq("foo"))
+    val ir = SelectFields(
+      MakeStruct(FastSeq(
+        "foo" -> I32(6),
+        "bar" -> F64(0.0))),
+      FastSeq("foo"))
     val fb = EmitFunctionBuilder[Region, Long]
     doit(ir, fb)
     val f = fb.result()()
