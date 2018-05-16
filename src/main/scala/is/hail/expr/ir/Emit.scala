@@ -269,16 +269,20 @@ private class Emit(
         val f = op.codeOrdering(mb)
         val codeL = emit(l)
         val codeR = emit(r)
-        val lm = mb.newLocal[Boolean]
-        val rm = mb.newLocal[Boolean]
-        present(Code(
-          codeL.setup,
-          codeR.setup,
-          lm := codeL.m,
-          rm := codeR.m,
-          f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
-            region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))
-        ))
+        if (op.strict) {
+          strict(f(region, (false, codeL.v), region, (false, codeR.v)),
+            codeL, codeR)
+        } else {
+          val lm = mb.newLocal[Boolean]
+          val rm = mb.newLocal[Boolean]
+          present(Code(
+            codeL.setup,
+            codeR.setup,
+            lm := codeL.m,
+            rm := codeR.m,
+            f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
+              region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+        }
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)
@@ -930,6 +934,13 @@ private class Emit(
 
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
+
+  private def strict(value: Code[_], args: EmitTriplet*): EmitTriplet = {
+    EmitTriplet(
+      coerce[Unit](Code(args.map(_.setup): _*)),
+      args.map(_.m).reduce(_ || _),
+      value)
+  }
 
   private def normalArgumentPosition(idx: Int): Int = {
     1 + nSpecialArguments + idx * 2

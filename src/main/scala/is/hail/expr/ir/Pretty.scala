@@ -53,6 +53,7 @@ object Pretty {
             case Ref(name, _) => name
             case ApplyBinaryPrimOp(op, _, _) => op.getClass.getName.split("\\.").last
             case ApplyUnaryPrimOp(op, _) => op.getClass.getName.split("\\.").last
+            case ApplyComparisonOp(op, _, _) => s"${ op.getClass.getSimpleName }(${ op.typ })"
             case GetField(_, name) => name
             case GetTupleElement(_, idx) => idx.toString
             case ArrayMap(_, name, _) => name
