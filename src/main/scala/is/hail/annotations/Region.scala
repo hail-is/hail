@@ -260,19 +260,6 @@ final class Region(
     end = 0
   }
 
-  def setFrom(from: Region) {
-    if (from.end > capacity) {
-      val newLength = math.max((capacity * 3) / 2, from.end)
-      mem = new Array[Byte](newLength.toInt)
-    }
-    Memory.memcpy(mem, 0, from.mem, 0, from.end)
-    end = from.end
-  }
-
-  def copy(): Region = {
-    new Region(util.Arrays.copyOf(mem, end.toInt), end)
-  }
-
   override def write(kryo: Kryo, output: Output) {
     output.writeLong(end)
 

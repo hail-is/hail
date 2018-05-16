@@ -35,9 +35,6 @@ final class RegionValue(
 
   def pretty(t: Type): String = region.pretty(t, offset)
 
-  def copy(): RegionValue = RegionValue(region.copy(), offset)
-
-
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()
   }
