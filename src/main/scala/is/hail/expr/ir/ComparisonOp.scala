@@ -8,26 +8,30 @@ import is.hail.utils.lift
 object ComparisonOp {
 
   private def checkCompatible[T](lt: Type, rt: Type): Unit =
-    if (lt != rt)
+    if (lt.fundamentalType != rt.fundamentalType)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
+  // FIXME: this needs to happen for now because CodeOrdering can't compare across types.
+  private def comparable(lt: Type, rt: Type): Boolean =
+    lt.fundamentalType == rt.fundamentalType
+
   val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp] = {
-    case ("==", t1, t2) =>
+    case ("==", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       EQ(t1)
-    case ("!=", t1, t2) =>
+    case ("!=", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       NEQ(t1)
-    case (">=", t1, t2) =>
+    case (">=", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       GTEQ(t1)
-    case ("<=", t1, t2) =>
+    case ("<=", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       LTEQ(t1)
-    case (">", t1, t2) =>
+    case (">", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       GT(t1)
-    case ("<", t1, t2) =>
+    case ("<", t1, t2) if comparable(t1, t2) =>
       checkCompatible(t1, t2)
       LT(t1)
   }
