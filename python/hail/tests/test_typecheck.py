@@ -270,7 +270,8 @@ class TypeCheckTests(unittest.TestCase):
         f(1, foo=5)
         f(1, 2, foo=5)
         f(1, c=25)
-        f(1, 2, a=2)
+        with self.assertRaises(TypeError):
+            f(1, 2, a=2)
 
     def test_extra_args(self):
 
