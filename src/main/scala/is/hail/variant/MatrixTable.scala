@@ -1444,12 +1444,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     filterAST.toIROpt(Some("AGG" -> "g")) match {
       case Some(irPred) if useIR(this.rowAxis, filterAST) =>
         new MatrixTable(hc,
-          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
+          MatrixFilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-        copyAST(ast = FilterRows(ast, filterAST))
+        copyAST(ast = MatrixFilterRowsAST(ast, filterAST))
     }
   }
 

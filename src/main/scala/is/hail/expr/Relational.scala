@@ -502,15 +502,16 @@ case class FilterColsIR(
   }
 }
 
-case class FilterRows(
+case class MatrixFilterRowsAST(
   child: MatrixIR,
-  pred: AST) extends MatrixIR {
+  pred: AST
+) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsAST = {
     assert(newChildren.length == 1)
-    FilterRows(newChildren(0).asInstanceOf[MatrixIR], pred)
+    MatrixFilterRowsAST(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -549,15 +550,16 @@ case class FilterRows(
   }
 }
 
-case class FilterRowsIR(
+case class MatrixFilterRowsIR(
   child: MatrixIR,
-  pred: IR) extends MatrixIR {
+  pred: IR
+) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRowsIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsIR = {
     assert(newChildren.length == 2)
-    FilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixFilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ
@@ -589,7 +591,9 @@ case class FilterRowsIR(
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      pred, { (nAggs: Int, aggIR: IR) =>
+      pred,
+      { (nAggs: Int, initialize: IR) => initialize },
+      { (nAggs: Int, sequence: IR) =>
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
@@ -597,7 +601,7 @@ case class FilterRowsIR(
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
               ir.Ref("i", TInt32())),
-              aggIR)))
+              sequence)))
       })
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
