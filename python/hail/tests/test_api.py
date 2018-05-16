@@ -839,6 +839,10 @@ class MatrixTests(unittest.TestCase):
         repart = vds.naive_coalesce(2)
         self.assertTrue(vds._same(repart))
 
+    def test_coalesce_with_no_rows(self):
+        mt = self.get_vds().filter_rows(False)
+        self.assertEqual(mt.repartition(1).count_rows(), 0)
+
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 

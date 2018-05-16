@@ -193,9 +193,12 @@ class OrderedRVD(
       return this
     if (shuffle) {
       val shuffled = stably(_.shuffleCoalesce(maxPartitions))
+      val pki = OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled))
+      if (pki.isEmpty)
+        return OrderedRVD.empty(sparkContext, typ)
       val ranges = OrderedRVD.calculateKeyRanges(
         typ,
-        OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)),
+        pki,
         shuffled.getNumPartitions)
       OrderedRVD.shuffle(
         typ,
@@ -693,6 +696,7 @@ object OrderedRVD {
 
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): Array[Interval] = {
     assert(nPartitions > 0)
+    assert(pkis.nonEmpty)
 
     val pkOrd = typ.pkType.ordering.toOrdering
     val keys = pkis
