@@ -413,7 +413,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(FatalError, lambda: bm2[0, :])
         self.assertRaises(FatalError, lambda: bm2[0:1, 0:1])
 
-    def test_sparsify(self):
+    def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
                        [ 9.0, 10.0, 11.0, 12.0],
@@ -422,7 +422,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.array_equal(
             bm.sparsify_row_intervals(
-                starts=[1, 0, 2, 2],
+                starts=[-1, 0, 2, 2],
                 stops= [2, 0, 3, 4]).to_numpy(),
             np.array([[ 0.,  2.,  0.,  0.],
                       [ 0.,  0.,  0.,  0.],
@@ -439,6 +439,32 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
 
+        nd2 = np.random.normal(size=(8, 10))
+        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+
+        for bounds in [[[0, 1, 2, 3, 4, 5, 6, 7],
+                        [1, 2, 3, 4, 5, 6, 7, 8]],
+                       [[0, 0, 5, 3, 4, 5, 8, 2],
+                        [9, 0, 5, 3, 4, 5, 9, 5]],
+                       [[0, 5, 10, 8, 7, 6, 5, 4],
+                        [0, 5, 10, 9, 8, 7, 6, 5]]]:
+            starts, stops = bounds
+            actual = bm2.sparsify_row_intervals(starts, stops, blocks_only=False).to_numpy()
+            expected = nd2.copy()
+            for i in range(0, 8):
+                for j in range(0, starts[i]):
+                    expected[i, j] = 0.0
+                for j in range(stops[i], 10):
+                    expected[i, j] = 0.0
+            self.assertTrue(np.array_equal(actual, expected))
+
+    def test_sparsify_band(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+
         self.assertTrue(np.array_equal(
             bm.sparsify_band(lower=-1, upper=2).to_numpy(),
             np.array([[ 1.,  2.,  3.,  0.],
@@ -452,6 +478,22 @@ class Tests(unittest.TestCase):
                       [ 5.,  6.,  0.,  0.],
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
+
+        nd2 = np.random.normal(size=(8, 10))
+        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+
+        for bounds in [[0, 0], [1, 1], [2, 2], [-5, 5], [-7, 0], [0, 9], [-100, 100]]:
+            lower, upper = bounds
+            actual = bm2.sparsify_band(lower, upper, blocks_only=False).to_numpy()
+            mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
+            self.assertTrue(np.array_equal(actual, nd2 * mask))
+
+    def test_sparsify_triangle(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
 
         self.assertTrue(np.array_equal(
             bm.sparsify_triangle().to_numpy(),
@@ -474,6 +516,13 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
 
+    def test_sparsify_rectangles(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+
         self.assertTrue(np.array_equal(
             bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy(),
             np.array([[ 1.,  2.,  3.,  4.],
@@ -485,13 +534,13 @@ class Tests(unittest.TestCase):
         nd = np.random.normal(size=(8, 10))
 
         rects1 = [[0, 1, 0, 1], [4, 5, 7, 8]]
- 
+
         rects2 = [[4, 5, 0, 10], [0, 8, 4, 5]]
- 
+
         rects3 = [[0, 1, 0, 1], [1, 2, 1, 2], [2, 3, 2, 3],
                   [3, 5, 3, 6], [3, 6, 3, 7], [3, 7, 3, 8],
                   [4, 5, 0, 10], [0, 8, 4, 5], [0, 8, 0, 10]]
- 
+
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
                 bm_uri = new_temp_file()

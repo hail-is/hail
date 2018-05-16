@@ -297,6 +297,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   // for row i, filter to indices [starts[i], stops[i]) by dropping non-overlapping blocks
   // if not blocksOnly, also zero out elements outside ranges in overlapping blocks
+  // checked in Python: start >= 0 && start <= stop && stop <= nCols
   def filterRowIntervals(starts: Array[Long], stops: Array[Long], blocksOnly: Boolean): BlockMatrix = {
     require(nRows <= Int.MaxValue)
     require(starts.length == nRows)
@@ -312,7 +313,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         while (ii < nRowsInBlockRow) {
           val start = startsInBlockRow(ii)
           val stop = stopsInBlockRow(ii)
-          assert(start >= 0 && start <= stop && stop <= nCols) // require start <= stop?
           if (start < stop) {
             minStart = minStart min start
             maxStop = maxStop max stop

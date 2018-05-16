@@ -5,6 +5,7 @@ from hail.typecheck import *
 from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 import numpy as np
+import itertools
 from enum import IntEnum
 
 block_matrix_type = lazy()
@@ -609,7 +610,7 @@ class BlockMatrix(object):
         >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
 
         Filter to a band from one below the diagonal to
-        two above the diagonal collect to NumPy:
+        two above the diagonal and collect to NumPy:
 
         >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
 
@@ -649,8 +650,9 @@ class BlockMatrix(object):
 
           \mathrm{lower} \leq j - i \leq \mathrm{upper}.
 
-        The matrix need not be square and the band need not include the
-        diagonal.
+        `lower` must be less than or equal to `upper`, but their values may
+        exceed the dimensions of the matrix, the band need not include the
+        diagonal, and the matrix need not be square.
 
         Parameters
         ----------
@@ -668,7 +670,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
@@ -796,6 +797,11 @@ class BlockMatrix(object):
         outside the row intervals but inside blocks that overlap the row
         intervals are set to zero as well.
 
+        `starts` and `stops` must both have length equal to the number of
+        rows. The interval for row ``i`` is ``[starts[i], stops[i])``. In
+        particular, ``0 <= starts[i] <= stops[i] <= n_cols`` is required
+        for all ``i``.
+
         This method requires the number of rows to be less than :math:`2^{31}`.
 
         Parameters
@@ -813,6 +819,19 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        n_rows = self.n_rows
+        n_cols = self.n_cols
+        if n_rows >= (1 << 31):
+            raise ValueError(f'n_rows must be less than 2^31, found {n_rows}')
+        if len(starts) != n_rows or len(starts) != n_rows:
+            raise ValueError(f'starts and stops must both have length {n_rows} (the number of rows)')
+        if any([start < 0 for start in starts]):
+            raise ValueError('all start values must be non-negative')
+        if any([stop < self.n_cols for stop in stops]):
+            raise ValueError(f'all stop values must be less than or equal to {n_cols} (the number of columns)')
+        if any([starts[i] > stops[i] for i in range(0, n_rows)]):
+            raise ValueError('every start value must be less than or equal to the corresponding stop value')
+
         return BlockMatrix(self._jbm.filterRowIntervals(
             jarray(Env.jvm().long, starts),
             jarray(Env.jvm().long, stops),
@@ -1456,12 +1475,14 @@ class BlockMatrix(object):
         Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
         where starts are inclusive and stops are exclusive.
+        These must satisfy ``0 <= row_start <= row_stop <= n_rows`` and
+        ``0 <= col_start <= col_stop <= n_cols``.
 
-        For example ``[0, 2, 1, 3]`` corresponds to the row index range
-        ``[0, 2)`` and column index range ``[1, 3)``, i.e. the elements at
+        For example ``[0, 2, 1, 3]`` corresponds to the row-index range
+        ``[0, 2)`` and column-index range ``[1, 3)``, i.e. the elements at
         positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
 
-        The number of rectangles must be less than :math:`2^{31}`.
+        The number of rectangles must be less than :math:`2^{29}`.
 
         Parameters
         ----------
@@ -1474,9 +1495,20 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-        import itertools
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain.from_iterable(rectangles)))
+        n_rectangles = len(rectangles)
+        if n_rectangles >= (1 << 29):
+            raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 
+        n_rows = self.n_rows
+        n_cols = self.n_cols
+        for r in rectangles:
+            if len(r) != 4:
+                raise ValueError(f'rectangle {r} does not have length 4')
+            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
+                raise ValueError(f'rectangle {r} does not satisfy '
+                                 f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
+
+        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
         return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
 
     @staticmethod
@@ -1553,15 +1585,17 @@ class BlockMatrix(object):
         Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
         where starts are inclusive and stops are exclusive.
+        These must satisfy ``0 <= row_start <= row_stop <= n_rows`` and
+        ``0 <= col_start <= col_stop <= n_cols``.
 
-        For example ``[0, 2, 1, 3]`` corresponds to the row index range
-        ``[0, 2)`` and column index range ``[1, 3)``, i.e. the elements at
+        For example ``[0, 2, 1, 3]`` corresponds to the row-index range
+        ``[0, 2)`` and column-index range ``[1, 3)``, i.e. the elements at
         positions ``(0, 1)``, ``(0, 2)``, ``(1, 1)``, and ``(1, 2)``.
 
         Each file name encodes the index of the rectangle in `rectangles`
-        and the bounds as in the example.
+        and the bounds as formatted in the example.
 
-        The number of rectangles must be less than :math:`2^{31}`.
+        The number of rectangles must be less than :math:`2^{29}`.
 
         Parameters
         ----------
@@ -1575,8 +1609,22 @@ class BlockMatrix(object):
         delimiter: :obj:`str`
             Column delimiter.
         """
-        import itertools
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain.from_iterable(rectangles)))
+        n_rectangles = len(rectangles)
+        if n_rectangles >= (1 << 29):
+            raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
+
+        bm = BlockMatrix.read(path_in)  # also checks success of write
+        n_rows = bm.n_rows
+        n_cols = bm.n_cols
+
+        for r in rectangles:
+            if len(r) != 4:
+                raise ValueError(f'rectangle {r} does not have length 4')
+            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
+                raise ValueError(f'rectangle {r} does not satisfy '
+                                 f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
+
+        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
             Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter)
