@@ -48,6 +48,10 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     -------
     :class:`.MatrixTable`
     """
+    check_positive('range_matrix_table', 'n_rows', n_rows)
+    check_positive('range_matrix_table', 'n_cols', n_cols)
+    if n_partitions is not None:
+        check_positive('range_matrix_table', 'n_partitions', n_partitions)
     return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
@@ -83,7 +87,15 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     -------
     :class:`.Table`
     """
+    check_positive('range_table', 'n', n)
+    if n_partitions is not None:
+        check_positive('range_table', 'n_partitions', n_partitions)
+
     return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
+
+def check_positive(caller, name, value):
+    if value <= 0:
+        raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
 
 def wrap_to_list(s):
     if isinstance(s, list):
