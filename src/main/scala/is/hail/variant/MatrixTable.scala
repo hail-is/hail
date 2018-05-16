@@ -1441,23 +1441,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.rowEC)
-    var pred = filterAST.toIROpt(Some("AGG" -> "g"))
-    pred match {
-      case Some(irPred) if ContainsAgg(irPred) =>
-        // FIXME: the IR path doesn't yet support aggs
-        log.info("filterRows: predicate contains aggs - not yet supported in IR")
-        pred = None
-      case _ =>
-    }
-    pred match {
-      case Some(irPred) =>
+    filterAST.toIROpt(Some("AGG" -> "g")) match {
+      case Some(irPred) if useIR(this.rowAxis, filterAST) =>
         new MatrixTable(hc,
-          FilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
+          MatrixFilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
-        copyAST(ast = FilterRows(ast, filterAST))
+        copyAST(ast = MatrixFilterRowsAST(ast, filterAST))
     }
   }
 

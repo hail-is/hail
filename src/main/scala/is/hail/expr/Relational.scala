@@ -502,15 +502,16 @@ case class FilterColsIR(
   }
 }
 
-case class FilterRows(
+case class MatrixFilterRowsAST(
   child: MatrixIR,
-  pred: AST) extends MatrixIR {
+  pred: AST
+) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRows = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsAST = {
     assert(newChildren.length == 1)
-    FilterRows(newChildren(0).asInstanceOf[MatrixIR], pred)
+    MatrixFilterRowsAST(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -549,46 +550,117 @@ case class FilterRows(
   }
 }
 
-case class FilterRowsIR(
+case class MatrixFilterRowsIR(
   child: MatrixIR,
-  pred: IR) extends MatrixIR {
+  pred: IR
+) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterRowsIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsIR = {
     assert(newChildren.length == 2)
-    FilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixFilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ
+
+  val tAggElt: Type = child.typ.entryType
+  val aggSymTab = Map(
+    "global" -> (0, child.typ.globalType),
+    "va" -> (1, child.typ.rvRowType),
+    "g" -> (2, child.typ.entryType),
+    "sa" -> (3, child.typ.colType))
+
+  val tAgg = TAggregable(tAggElt, aggSymTab)
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     assert(child.typ == prev.typ)
 
-    val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
-      "va", typ.rvRowType,
-      "global", typ.globalType,
-      pred)
+    val localGlobalsType = prev.typ.globalType
+    val localColsType = TArray(prev.typ.colType)
+    val localNCols = prev.nCols
+    val colValuesBc = prev.colValues.broadcast
+    val globalsBc = prev.globals.broadcast
 
-    // Note that we don't yet support IR aggregators
-    //
-    // Everything used inside the Spark iteration must be serializable,
-    // so we pick out precisely what is needed.
-    val fullRowType = prev.typ.rvRowType
-    val localRowType = prev.typ.rowType
-    val localEntriesIndex = prev.typ.entriesIdx
-    val localGlobalType = typ.globalType
-    val localGlobals = prev.globals.broadcast
+    val colValuesType = TArray(prev.typ.colType)
+    val vaType = prev.typ.rvRowType
+    val (rvAggs, makeInit, makeSeq, aggResultType, makePred, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Boolean](
+      "global", prev.typ.globalType,
+      "va", vaType,
+      "global", prev.typ.globalType,
+      "colValues", colValuesType,
+      "va", vaType,
+      pred,
+      { (nAggs: Int, initialize: IR) => initialize },
+      { (nAggs: Int, sequence: IR) =>
+        ir.ArrayFor(
+          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
+          "i",
+          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
+            ir.Let("g", ir.ArrayRef(
+              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+              ir.Ref("i", TInt32())),
+              sequence)))
+      })
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
+      val rvb = new RegionValueBuilder()
+      val initialize = makeInit()
+      val sequence = makeSeq()
+      val predicate = makePred()
+
+      val partRegion = ctx.freshContext.region
+
+      rvb.set(partRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
+
+      val partColsOff = if (rvAggs.nonEmpty) {
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.end()
+      } else 0L
+
       it.filter { rv =>
-        // Append all the globals into this region
-        val globalRVb = new RegionValueBuilder(rv.region)
-        globalRVb.start(localGlobalType)
-        globalRVb.addAnnotation(localGlobalType, localGlobals.value)
-        val globalRVoffset = globalRVb.end()
-        if (predCompiledFunc()(rv.region, rv.offset, false, globalRVoffset, false))
+        val region = rv.region
+        val row = rv.offset
+
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
+        val globals = rvb.end()
+
+        val aggResultsOff = if (rvAggs.nonEmpty) {
+          rvb.set(region)
+          rvb.start(localColsType)
+          rvb.addRegionValue(localColsType, partRegion, partColsOff)
+          val cols = rvb.end()
+
+          var j = 0
+          while (j < rvAggs.length) {
+            rvAggs(j).clear()
+            j += 1
+          }
+
+          initialize(region, rvAggs, globals, false, row, false)
+          sequence(region, rvAggs, globals, false, cols, false, row, false)
+
+          rvb.start(aggResultType)
+          rvb.startStruct()
+
+          j = 0
+          while (j < rvAggs.length) {
+            rvAggs(j).result(rvb)
+            j += 1
+          }
+          rvb.endStruct()
+          val aggResultsOff = rvb.end()
+          aggResultsOff
+        } else 0L
+
+        if (predicate(region, aggResultsOff, false, globals, false, row, false))
           true
         else {
           ctx.region.clear()
@@ -769,9 +841,11 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
       val partGlobalsOff = rvb.end()
 
-      rvb.start(localColsType)
-      rvb.addAnnotation(localColsType, colValuesBc.value)
-      val partColsOff = rvb.end()
+      val partColsOff = if (rvAggs.nonEmpty) {
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.end()
+      } else 0L
 
       it.map { rv =>
         val region = rv.region
@@ -782,12 +856,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
         val globals = rvb.end()
 
-        rvb.set(region)
-        rvb.start(localColsType)
-        rvb.addRegionValue(localColsType, partRegion, partColsOff)
-        val cols = rvb.end()
-
         val aggResultsOff = if (rvAggs.nonEmpty) {
+          rvb.set(region)
+          rvb.start(localColsType)
+          rvb.addRegionValue(localColsType, partRegion, partColsOff)
+          val cols = rvb.end()
+
           var j = 0
           while (j < rvAggs.length) {
             rvAggs(j).clear()

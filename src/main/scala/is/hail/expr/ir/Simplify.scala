@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableMapGlobals, TableMapRows, TableRead, TableUnion}
+import is.hail.expr.{BaseIR, FilterColsIR, MatrixFilterRowsIR, MatrixRead, TableFilter, TableMapGlobals, TableMapRows, TableRead, TableUnion}
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -138,14 +138,14 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case FilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
+      case MatrixFilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f)
 
       case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
 
       // Keep all rows/cols = do nothing
-      case FilterRowsIR(m, True()) => m
+      case MatrixFilterRowsIR(m, True()) => m
 
       case FilterColsIR(m, True()) => m
     })
