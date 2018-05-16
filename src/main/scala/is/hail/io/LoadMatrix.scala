@@ -11,6 +11,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.Row
 
 import scala.language.implicitConversions
+import scala.language.existentials
 import scala.io.Source
 
 class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String, sep: Char) {

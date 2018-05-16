@@ -2,6 +2,7 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.language.reflectiveCalls
 
 /**
   * A StateMachine has the same primary interface as FlipbookIterator, but the

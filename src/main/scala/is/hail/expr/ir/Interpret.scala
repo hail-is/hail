@@ -160,7 +160,7 @@ object Interpret {
                 case NEQ() => ll != rr
               }
             case (_, _) =>
-              op match {
+              (op: @unchecked) match {
                 case EQ() => lValue == rValue
                 case NEQ() => lValue != rValue
               }
@@ -235,8 +235,8 @@ object Interpret {
           null
         else
           cValue match {
-            case s: Set[Any] => s.toIndexedSeq
-            case d: Map[Any, Any] => d.toIndexedSeq
+            case s: Set[_] => s.toIndexedSeq
+            case d: Map[_, _] => d.toIndexedSeq
             case a => a
           }
 

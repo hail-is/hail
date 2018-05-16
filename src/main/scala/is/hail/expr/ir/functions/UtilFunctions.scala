@@ -15,7 +15,7 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => (n * (n + 1)) / 2 }
+    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
     registerIR("isMissing", tv("T")) { a => IsNA(a) }
@@ -32,27 +32,27 @@ object UtilFunctions extends RegistryFunctions {
       InsertFields(s, annotations.asInstanceOf[MakeStruct].fields)
     }
 
-    registerCode("toInt32", TBoolean(), TInt32()) { case (_, x: Code[Boolean]) => x.toI }
-    registerCode("toInt64", TBoolean(), TInt64()) { case (_, x: Code[Boolean]) => x.toI.toL }
-    registerCode("toFloat32", TBoolean(), TFloat32()) { case (_, x: Code[Boolean]) => x.toI.toF }
-    registerCode("toFloat64", TBoolean(), TFloat64()) { case (_, x: Code[Boolean]) => x.toI.toD }
-    registerCode("toInt32", TString(), TInt32()) { case (mb, x: Code[Long]) =>
+    registerCode("toInt32", TBoolean(), TInt32()) { (_, x: Code[Boolean]) => x.toI }
+    registerCode("toInt64", TBoolean(), TInt64()) { (_, x: Code[Boolean]) => x.toI.toL }
+    registerCode("toFloat32", TBoolean(), TFloat32()) { (_, x: Code[Boolean]) => x.toI.toF }
+    registerCode("toFloat64", TBoolean(), TFloat64()) { (_, x: Code[Boolean]) => x.toI.toD }
+    registerCode("toInt32", TString(), TInt32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", s)
     }
-    registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
+    registerCode("toInt64", TString(), TInt64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Long, String, Long]("parseLong", s)
     }
-    registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
+    registerCode("toFloat32", TString(), TFloat32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", s)
     }
-    registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
+    registerCode("toFloat64", TString(), TFloat64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", s)
     }
-    registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
+    registerCode("toBoolean", TString(), TBoolean()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
@@ -78,6 +78,6 @@ object UtilFunctions extends RegistryFunctions {
       }
     }
 
-    registerIR("!=", tv("T"), tv("T")) { case (a, b) => ApplyUnaryPrimOp(Bang(), ApplySpecial("==", FastSeq(a, b))) }
+    registerIR("!=", tv("T"), tv("T")) { (a, b) => ApplyUnaryPrimOp(Bang(), ApplySpecial("==", FastSeq(a, b))) }
   }
 }

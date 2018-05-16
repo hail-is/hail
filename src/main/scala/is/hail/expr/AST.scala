@@ -607,6 +607,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   }
 
   override def typecheck(ec: EvalContext) {
+    def needsSymRef(other: AST) = parseError(
+      s"""invalid arguments for method `$fn'
+         |  Expected struct field identifiers as arguments, but found a `${ other.getClass.getSimpleName }' expression
+         |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
     fn match {
       case "index" =>
         if (args.length != 2)
@@ -644,6 +648,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         struct.typecheck(ec)
         val identifiers = args.tail.map {
           case SymRef(_, id) => id
+          case badAST => needsSymRef(badAST)
         }
         assert(identifiers.duplicates().isEmpty)
         `type` = struct.`type`.asInstanceOf[TStruct].select(identifiers)._1
@@ -653,6 +658,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         struct.typecheck(ec)
         val identifiers = args.tail.map {
           case SymRef(_, id) => id
+          case badAST => needsSymRef(badAST)
         }
         assert(identifiers.duplicates().isEmpty)
         `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include = false)._1

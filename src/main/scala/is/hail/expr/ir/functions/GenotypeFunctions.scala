@@ -9,7 +9,7 @@ import is.hail.utils._
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", _.isInstanceOf[TInt32])), TInt32()) { case (mb, pl: Code[Long]) =>
+    registerCode("gqFromPL", TArray(tv("N", _.isInstanceOf[TInt32])), TInt32()) { (mb, pl: Code[Long]) =>
       val region = mb.getArg[Region](1).load()
       val tPL = TArray(tv("N").t)
       val m = mb.newLocal[Int]("m")

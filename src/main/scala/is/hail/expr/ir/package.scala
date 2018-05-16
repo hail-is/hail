@@ -57,7 +57,7 @@ package object ir {
   private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
 
   def invoke(name: String, args: IR*): IR = {
-    IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
+    (IRFunctionRegistry.lookupConversion(name, args.map(_.typ)): @unchecked) match {
       case Some(f) => f(args)
     }
   }
