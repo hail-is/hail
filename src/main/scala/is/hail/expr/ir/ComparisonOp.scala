@@ -46,11 +46,13 @@ case class GT(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOr
 case class GTEQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.gteq }
 case class LTEQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.lteq }
 case class LT(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.lt }
-case class EQ(typ: Type) extends ComparisonOp {
+case class EQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.equiv }
+case class NEQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.neq }
+case class EQWithNA(typ: Type) extends ComparisonOp {
   val op: CodeOrdering.Op = CodeOrdering.equiv
   override val strict: Boolean = false
 }
-case class NEQ(typ: Type) extends ComparisonOp {
+case class NEQWithNA(typ: Type) extends ComparisonOp {
   val op: CodeOrdering.Op = CodeOrdering.neq
   override val strict: Boolean = false
 }
