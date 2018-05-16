@@ -953,7 +953,8 @@ def call_stats(call, alleles) -> StructExpression:
      - `AN` (:py:data:`.tint32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
      - `homozygote_count` (:class:`.tarray` of :py:data:`.tint32`) - Homozygote
-       genotype counts for each allele, including the reference.
+       genotype counts for each allele, including the reference. Only **diploid**
+       genotype calls are counted.
 
     Parameters
     ----------

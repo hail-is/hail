@@ -1218,12 +1218,15 @@ class MatrixTests(unittest.TestCase):
         t = hl.Table.parallelize([
             hl.struct(c=hl.call(0, 0)),
             hl.struct(c=hl.call(0, 1)),
-            hl.struct(c=hl.call(0, 2))
+            hl.struct(c=hl.call(0, 2, phased=True)),
+            hl.struct(c=hl.call(1)),
+            hl.struct(c=hl.call(0)),
+            hl.struct(c=hl.call())
         ])
         actual = t.aggregate(hl.agg.call_stats(t.c, ['A', 'T', 'G']))
-        expected = hl.struct(AC=[4, 1, 1],
-                             AF=[4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0],
-                             AN=6,
+        expected = hl.struct(AC=[5, 2, 1],
+                             AF=[5.0 / 8.0, 2.0 / 8.0, 1.0 / 8.0],
+                             AN=8,
                              homozygote_count=[1, 0, 0])
 
         self.assertTrue(hl.Table.parallelize([actual]),
