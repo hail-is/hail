@@ -36,21 +36,14 @@ object ComparisonOp {
 sealed trait ComparisonOp {
   def typ: Type
   def op: CodeOrdering.Op
-  val missingGreatest: Boolean = true
   val strict: Boolean = true
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering.F[Boolean] = {
-    mb.getCodeOrdering[Boolean](typ, op, missingGreatest = missingGreatest)
+    mb.getCodeOrdering[Boolean](typ, op, missingGreatest = true)
   }
 }
 
-case class GT(typ: Type) extends ComparisonOp {
-  val op: CodeOrdering.Op = CodeOrdering.gt
-  override val missingGreatest: Boolean = false
-}
-case class GTEQ(typ: Type) extends ComparisonOp {
-  val op: CodeOrdering.Op = CodeOrdering.gteq
-  override val missingGreatest: Boolean = false
-}
+case class GT(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.gt }
+case class GTEQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.gteq }
 case class LTEQ(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.lteq }
 case class LT(typ: Type) extends ComparisonOp { val op: CodeOrdering.Op = CodeOrdering.lt }
 case class EQ(typ: Type) extends ComparisonOp {
