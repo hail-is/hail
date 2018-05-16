@@ -2210,6 +2210,19 @@ class MatrixTable(ExprContainer):
         return Table(self._jvds.entriesTable())
 
     def index_globals(self) -> Expression:
+        """Return this matrix table's global variables for use in another
+        expression context.
+
+        Examples
+        --------
+        >>> pli_dict = dataset.index_globals().pli
+        >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(lambda x: pli_dict.get(x)))
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
+
         uid = Env.get_uid()
 
         def joiner(obj):
@@ -2226,6 +2239,33 @@ class MatrixTable(ExprContainer):
         return construct_expr(ast, self.globals.dtype)
 
     def index_rows(self, *exprs):
+        """Expose the row values as if looked up in a dictionary, indexing
+        with `exprs`.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.locus, dataset.alleles).qual)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.row_key).qual)
+
+        Parameters
+        ----------
+        exprs : variable-length args of :class:`.Expression`
+            Index expressions.
+
+        Notes
+        -----
+        :meth:`index_rows(exprs)` is equivalent to ``rows().index(exprs)``
+        or ``rows()[exprs]``.
+
+        The type of the resulting struct is the same as the type of
+        :meth:`.row_value`.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         exprs = [to_expr(e) for e in exprs]
         indices, aggregations = unify_all(*exprs)
         src = indices.source
@@ -2283,11 +2323,72 @@ class MatrixTable(ExprContainer):
                 return self.rows().index(*exprs)
 
     def index_cols(self, *exprs):
+        """Expose the column values as if looked up in a dictionary, indexing
+        with `exprs`.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.s).pheno)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.col_key).pheno)
+
+        Parameters
+        ----------
+        exprs : variable-length args of :class:`.Expression`
+            Index expressions.
+
+        Notes
+        -----
+        :meth:`index_cols(exprs)` is equivalent to ``cols().index(exprs)``
+        or ``cols()[exprs]``.
+
+        The type of the resulting struct is the same as the type of
+        :meth:`.col_value`.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         return self.cols().index(*exprs)
 
     def index_entries(self, row_exprs, col_exprs):
-        row_exprs = tuple(row_exprs)
-        col_exprs = tuple(col_exprs)
+        """Expose the entries as if looked up in a dictionary, indexing
+        with `exprs`.
+
+        Examples
+        --------
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2.index_entries(dataset.row_key, dataset.col_key).GQ)
+
+        Or equivalently:
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
+
+        Parameters
+        ----------
+        row_exprs : tuple of :class:`.Expression`
+            Row index expressions.
+        col_exprs : tuple of :class:`.Expression`
+            Column index expressions.
+
+        Notes
+        -----
+        The type of the resulting struct is the same as the type of
+        :meth:`.entry`.
+
+        Note
+        ----
+        There is a shorthand syntax for :meth:`.MatrixTable.index_entries` using
+        square brackets (the Python ``__getitem__`` syntax). This syntax is
+        preferred.
+
+        >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
+        row_exprs = wrap_to_tuple(row_exprs)
+        col_exprs = wrap_to_tuple(col_exprs)
         if len(row_exprs) == 0  or len(col_exprs) == 0:
             raise ValueError("'MatrixTable.index_entries:' 'row_exprs' and 'col_exprs' must not be empty")
         row_non_exprs = list(filter(lambda e: not isinstance(e, Expression), row_exprs))
