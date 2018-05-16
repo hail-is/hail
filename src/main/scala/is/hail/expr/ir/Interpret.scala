@@ -162,14 +162,19 @@ object Interpret {
       case ApplyComparisonOp(op, l, r) =>
         val lValue = interpret(l, env, args, agg)
         val rValue = interpret(r, env, args, agg)
-        op match {
-          case EQ(_) => lValue == rValue
-          case NEQ(_) => lValue != rValue
-          case LT(t) => t.ordering.lt(lValue, rValue)
-          case GT(t) => t.ordering.gt(lValue, rValue)
-          case LTEQ(t) => t.ordering.lteq(lValue, rValue)
-          case GTEQ(t) => t.ordering.gteq(lValue, rValue)
+        if (op.strict && (lValue == null || rValue == null))
+          null
+        else {
+          op match {
+            case EQ(_) | EQWithNA(_) => lValue == rValue
+            case NEQ(_) | NEQWithNA(_) => lValue != rValue
+            case LT(t) => t.ordering.lt(lValue, rValue)
+            case GT(t) => t.ordering.gt(lValue, rValue)
+            case LTEQ(t) => t.ordering.lteq(lValue, rValue)
+            case GTEQ(t) => t.ordering.gteq(lValue, rValue)
+          }
         }
+
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
