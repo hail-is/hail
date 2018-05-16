@@ -39,21 +39,8 @@ object Infer {
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
-      case x@AggMap(a, name, body) =>
-        val tagg = coerce[TAggregable](a.typ)
-        val tagg2 = tagg.copy(elementType = body.typ)
-        tagg2.symTab = tagg.symTab
-        tagg2
-      case x@AggFilter(a, name, body) =>
-        a.typ
-      case x@AggFlatMap(a, name, body) =>
-        val tagg = coerce[TAggregable](a.typ)
-        val tagg2 = tagg.copy(elementType = coerce[TContainer](body.typ).elementType)
-        tagg2.symTab = tagg.symTab
-        tagg2
-      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-        val tAgg = coerce[TAggregable](a.typ)
-        AggOp.getType(op, tAgg.elementType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ)))
+      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+        AggOp.getType(aggSig)
       case x@MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

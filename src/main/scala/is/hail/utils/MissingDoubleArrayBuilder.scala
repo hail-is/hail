@@ -40,11 +40,14 @@ class MissingDoubleArrayBuilder {
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)
     var i = 0
+    var j = 0
     while (i < len) {
       if (isMissing(i))
         rvb.setMissing()
-      else
-        rvb.addDouble(elements(i))
+      else {
+        rvb.addDouble(elements(j))
+        j += 1
+      }
       i += 1
     }
     rvb.endArray()

@@ -12,14 +12,23 @@ object ExtractAggregators {
 
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
 
-  def apply(ir: IR, tAggIn: TAggregable): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
-    val (ir2, aggs) = extract(ir.unwrap, tAggIn)
+  def apply(ir: IR): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
+    def rewriteSeqOps(x: IR, i: Int): IR = {
+      def rewrite(x: IR): IR = rewriteSeqOps(x, i)
+      x match {
+        case SeqOp(a, _, aggSig) =>
+          SeqOp(a, I32(i), aggSig)
+        case _ => Recur(rewrite)(x)
+      }
+    }
+
+    val (ir2, aggs) = extract(ir.unwrap)
 
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
         .zipWithIndex
         .map { case (x, i) =>
-          val agg = AggOp.get(x.op, x.inputType, x.constructorArgs.map(_.typ), x.initOpArgs.map(_.map(_.typ)))
-          (x.initOpArgs.map(args => InitOp(I32(i), agg, args)), SeqOp(x.a, I32(i), agg))
+          val agg = AggOp.get(x.aggSig)
+          (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
         }.unzip
 
     val seqOpIR = Begin(seqOps)
@@ -39,21 +48,19 @@ object ExtractAggregators {
     (ir2, resultStruct, initOpIR, seqOpIR, rvas)
   }
 
-  private def extract(ir: IR, tAggIn: TAggregable): (IR, Array[IRAgg]) = {
+  private def extract(ir: IR): (IR, Array[IRAgg]) = {
     val ab = new ArrayBuilder[IRAgg]()
-    val ir2 = extract(ir, ab, tAggIn)
+    val ir2 = extract(ir, ab)
     (ir2, ab.result())
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[IRAgg], tAggIn: TAggregable): IR = {
-    def extract(ir: IR): IR = this.extract(ir, ab, tAggIn)
+  private def extract(ir: IR, ab: ArrayBuilder[IRAgg]): IR = {
+    def extract(ir: IR): IR = this.extract(ir, ab)
 
     ir match {
       case Ref(name, typ) =>
         assert(typ.isRealizable)
         ir
-      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
-        throw new RuntimeException(s"Aggregable manipulations must appear inside the lexical scope of an Aggregation: $ir")
       case x: ApplyAggOp =>
         val ref = Ref("AGGR", null)
         ab += IRAgg(ref, x)
@@ -64,12 +71,12 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
+    case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
       val constfb = EmitFunctionBuilder[Region, RegionValueAggregator]
       val codeConstructorArgs = constructorArgs.map(Emit.toCode(_, constfb, 1))
       constfb.emit(Code(
         Code(codeConstructorArgs.map(_.setup): _*),
-        AggOp.get(op, x.inputType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ)))
+        AggOp.get(aggSig)
           .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
       Region.scoped(constfb.result()()(_))
   }

@@ -14,6 +14,7 @@ import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
 import org.apache.spark.SparkException
+import org.apache.spark.sql.Row
 
 object TestUtils {
 
@@ -255,27 +256,38 @@ object TestUtils {
       .exportGen(path, precision)
   }
 
-  def eval(x: IR): Any = {
-    eval(x, FastSeq())
-  }
+  def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
-  def eval(x: IR, env: Env[(Any, Type)]): Any = {
-    val (substEnv, args) = env.m.toFastSeq
-      .zipWithIndex
-      .foldLeft((Env.empty[IR], FastSeq.empty[(Any, Type)])) { case ((e, xs), ((n, (v, t)), i)) => (e.bind(n, In(i, t)), xs :+  (v, t)) }
-    eval(Subst(x, substEnv), args)
-  }
+  def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
 
-  def eval(x: IR, args: IndexedSeq[(Any, Type)]): Any = {
-    val i = Interpret[Any](x, Env.empty[(Any, Type)], args, None)
+  def eval(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    val i = Interpret[Any](x, env, args, agg)
 
-    val i2 = Interpret[Any](x, Env.empty[(Any, Type)], args, None, optimize = false)
+    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
     assert(i == i2)
 
     // verify compiler and interpreter agree
-    val argsVar = genUID()
-    val argsType = TTuple(args.map(_._2): _*)
+    val inputTypesB = new ArrayBuilder[Type]()
+    val inputsB = new ArrayBuilder[Any]()
+
+    args.foreach { case (v, t) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    env.m.foreach { case (name, (v, t)) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    val argsType = TTuple(inputTypesB.result(): _*)
     val resultType = TTuple(x.typ)
+    val argsVar = genUID()
+
+    var substEnv = Env.empty[IR]
+    env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+      (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
+    }
 
     def rewrite(x: IR): IR = {
       x match {
@@ -286,21 +298,85 @@ object TestUtils {
       }
     }
 
-    val (resultType2, f) = Compile[Long, Long]("args", argsType, MakeTuple(FastSeq(rewrite(x))))
-    assert(resultType2 == resultType)
+    val c = agg match {
+      case Some((aggElements, aggType)) =>
+        val aggVar = genUID()
+        val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+            env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
+        }
+        val (rvAggs, initOps, seqOps, aggResultType, f, resultType2) = CompileWithAggregators[Long, Long, Long, Long](
+          argsVar, argsType,
+          argsVar, argsType,
+          aggVar, aggType,
+          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))),
+          (i, x) => x)
+        assert(resultType2 == resultType)
 
-    val c = Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(argsType)
-      rvb.startTuple()
-      args.foreach { case (v, t) =>
-          rvb.addAnnotation(t, v)
-      }
-      rvb.endTuple()
-      val argsOff = rvb.end()
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder(region)
 
-      val resultOff = f()(region, argsOff, false)
-      SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+          // copy args into region
+          rvb.start(argsType)
+          rvb.startTuple()
+          var i = 0
+          while (i < inputsB.length) {
+            rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            i += 1
+          }
+          rvb.endTuple()
+          val argsOff = rvb.end()
+
+          // aggregate
+          rvAggs.foreach(_.clear())
+          initOps()(region, rvAggs, argsOff, false)
+          i = 0
+          while (i < aggElements.length) {
+            // FIXME use second region for elements
+            rvb.start(aggType)
+            rvb.addAnnotation(aggType, aggElements(i))
+            val aggElementOff = rvb.end()
+
+            seqOps()(region, rvAggs, argsOff, false, aggElementOff, false)
+
+            i += 1
+          }
+
+          // build aggregation result
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          i = 0
+          while (i < rvAggs.length) {
+            rvAggs(i).result(rvb)
+            i += 1
+          }
+          rvb.endStruct()
+          val aggResultsOff = rvb.end()
+
+          val resultOff = f()(region, aggResultsOff, false, argsOff, false)
+          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+        }
+
+      case None =>
+        val (resultType2, f) = Compile[Long, Long](
+          "args", argsType,
+          MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
+        assert(resultType2 == resultType)
+
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder(region)
+          rvb.start(argsType)
+          rvb.startTuple()
+          var i = 0
+          while (i < inputsB.length) {
+            rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            i += 1
+          }
+          rvb.endTuple()
+          val argsOff = rvb.end()
+
+          val resultOff = f()(region, argsOff, false)
+          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+        }
     }
 
     assert(i == c)
@@ -310,5 +386,9 @@ object TestUtils {
 
   def assertEvalsTo(x: IR, expected: Any) {
     assert(eval(x) == expected)
+  }
+
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
+    assert(eval(x, agg) == expected)
   }
 }

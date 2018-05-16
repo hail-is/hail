@@ -17,29 +17,6 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
-    registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum()))
-    registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum()))
-
-    registerIR("product", TAggregable(TInt64()))(ApplyAggOp(_, Product()))
-    registerIR("product", TAggregable(TFloat64()))(ApplyAggOp(_, Product()))
-
-    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max()))
-
-    registerIR("min", TAggregable(tnum("T")))(ApplyAggOp(_, Min()))
-
-    registerIR("count", TAggregable(tv("T"))) { agg =>
-      val uid = genUID()
-      ApplyAggOp(AggMap(agg, uid, I32(0)), Count())
-    }
-
-    registerIR("hist", TAggregable(TFloat64()), TFloat64(), TFloat64(), TInt32()){ (agg, start, end, nbins) =>
-      ApplyAggOp(agg, Histogram(), constructorArgs = FastSeq(start, end, nbins))
-    }
-
-    registerIR("callStats", TAggregable(TCall()), TInt32()){ (agg, nAlleles) =>
-      ApplyAggOp(agg, CallStats(), initOpArgs = Some(FastSeq(nAlleles)))
-    }
-
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
     registerIR("isMissing", tv("T")) { a => IsNA(a) }
 

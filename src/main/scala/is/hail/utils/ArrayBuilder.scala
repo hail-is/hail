@@ -6,7 +6,7 @@ object ArrayBuilder {
   final val defaultInitialCapacity: Int = 16
 }
 
-final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
+final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
   private var b: Array[T] = new Array[T](initialCapacity)
   private var size_ : Int = 0
 

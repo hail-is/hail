@@ -71,8 +71,6 @@ class VCFTests(unittest.TestCase):
             key=['locus', 's'])
 
         mt = hl.import_vcf(resource('generic.vcf'), call_fields=['GT', 'GTA', 'GTZ'])
-        mt = mt.filter_rows((mt.locus.position == 16050036) | (mt.locus.position == 16061250))
-        mt = mt.filter_cols((mt.s == "C1046::HG02024") | (mt.s == "C1046::HG02025"))
         entries = mt.entries()
         entries = entries.key_by('locus', 's')
         entries = entries.select('GT', 'GTA', 'GTZ')

@@ -16,23 +16,15 @@ object Emit {
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
   private[ir] def toCode(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
-    emit(ir, fb, Env.empty, None, nSpecialArguments)
+    emit(ir, fb, Env.empty, nSpecialArguments)
   }
 
   def apply(ir: IR, fb: EmitFunctionBuilder[_]) {
-    apply(ir, fb, None, 1)
+    apply(ir, fb, 1)
   }
 
   def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int) {
-    apply(ir, fb, None, nSpecialArguments)
-  }
-
-  def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, tAggIn: TAggregable) {
-    apply(ir, fb, Some(tAggIn), nSpecialArguments)
-  }
-
-  def apply(ir: IR, fb: EmitFunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
-    val triplet = emit(ir, fb, Env.empty, tAggIn, nSpecialArguments)
+    val triplet = emit(ir, fb, Env.empty, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
         fb.emit(Code(triplet.setup, triplet.m.mux(
@@ -45,10 +37,9 @@ object Emit {
     ir: IR,
     fb: EmitFunctionBuilder[_],
     env: E,
-    tAggIn: Option[TAggregable],
     nSpecialArguments: Int): EmitTriplet = {
-    TypeCheck(ir, tAggIn)
-    new Emit(fb.apply_method, tAggIn, nSpecialArguments).emit(ir, env)
+    TypeCheck(ir)
+    new Emit(fb.apply_method, nSpecialArguments).emit(ir, env)
   }
 }
 
@@ -65,7 +56,6 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
 
 private class Emit(
   mb: EmitMethodBuilder,
-  tAggInOpt: Option[TAggregable],
   nSpecialArguments: Int) {
 
   private val maxBytecodeSizeTarget: Int = 4096
@@ -109,7 +99,7 @@ private class Emit(
             val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
             val c = {
               if (isIR) {
-                val emitWrapper = new Emit(newMB, tAggInOpt, nSpecialArguments)
+                val emitWrapper = new Emit(newMB, nSpecialArguments)
                 for (ir: IR <- items.asInstanceOf[Seq[IR]].slice(start, end)) yield
                   useValues(newMB, ir.typ, emitWrapper.emit(ir, env))
               } else
@@ -208,24 +198,40 @@ private class Emit(
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
       case If(cond, cnsq, altr) =>
-        val typ = ir.typ
-        val codeCond = emit(cond)
-        val xvcond = mb.newLocal[Boolean]()
-        val out = coerce[Any](mb.newLocal()(typeToTypeInfo(typ)))
-        val mout = mb.newLocal[Boolean]()
-        val codeCnsq = emit(cnsq)
-        val codeAltr = emit(altr)
-        val setup = Code(
-          codeCond.setup,
-          codeCond.m.mux(
-            Code(mout := true, out := defaultValue(typ)),
+        if (cnsq.typ == TVoid) {
+          val codeCond = emit(cond)
+          val codeCnsq = emit(cnsq)
+          val codeAltr = emit(altr)
+          EmitTriplet(
             Code(
-              xvcond := coerce[Boolean](codeCond.v),
-              coerce[Boolean](xvcond).mux(
-                Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.v),
-                Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.v)))))
+              codeCond.setup,
+              codeCond.m.mux(
+                Code._empty,
+                coerce[Boolean](codeCond.v).mux(
+                  codeCnsq.setup,
+                  codeAltr.setup))),
+            const(false),
+            Code._empty)
+        } else {
+          val typ = ir.typ
+          val codeCond = emit(cond)
+          val xvcond = mb.newLocal[Boolean]()
+          val out = coerce[Any](mb.newLocal()(typeToTypeInfo(typ)))
+          val mout = mb.newLocal[Boolean]()
+          val codeCnsq = emit(cnsq)
+          val codeAltr = emit(altr)
+          val setup = Code(
+            codeCond.setup,
+            codeCond.m.mux(
+              Code(mout := true, out := defaultValue(typ)),
+              Code(
+                xvcond := coerce[Boolean](codeCond.v),
+                coerce[Boolean](xvcond).mux(
+                  Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.v),
+                  Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.v)))))
 
-        EmitTriplet(setup, mout, out)
+          EmitTriplet(setup, mout, out)
+        }
 
       case Let(name, value, body) =>
         val typ = ir.typ
@@ -518,7 +524,7 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case InitOp(i, agg, args) =>
+      case InitOp(i, args, aggSig) =>
         val nArgs = args.length
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
         val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
@@ -537,6 +543,7 @@ private class Emit(
           )
         }.toArray: _*)
 
+        val agg = AggOp.get(aggSig)
         EmitTriplet(
           Code(codeI.setup,
             Code(codeA.map(_.setup): _*),
@@ -550,13 +557,15 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case SeqOp(a, i, agg) =>
+      case x@SeqOp(a, i, aggSig) =>
+        val codeA = emit(a)
         val codeI = emit(i)
+        val agg = AggOp.get(aggSig)
         EmitTriplet(
-          Code(codeI.setup,
+          Code(codeI.setup, codeA.setup,
             codeI.m.mux(
               Code._empty,
-              emitAgg(a, env)(agg.seqOp(aggregator(coerce[Int](codeI.v)), _, _)))),
+               agg.seqOp(aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
           const(false),
           Code._empty)
 
@@ -660,9 +669,6 @@ private class Emit(
           xmo || !t.isFieldDefined(region, xo, idx),
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
-      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
-        throw new RuntimeException(s"Aggregations must appear within an aggregation: $ir")
-
       case In(i, typ) =>
         EmitTriplet(Code._empty,
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),
@@ -697,91 +703,6 @@ private class Emit(
         val unified = x.implementation.unify(args.map(_.typ))
         assert(unified)
         x.implementation.apply(mb, args.map(emit(_)): _*)
-    }
-  }
-
-  private def emitAgg(ir: IR, env: E)(continuation: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] = {
-    def emit(ir: IR, env: E = env): EmitTriplet =
-      this.emit(ir, env)
-
-    def emitAgg(ir: IR)(continuation: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
-      this.emitAgg(ir, env)(continuation)
-
-    assert(nSpecialArguments >= 2)
-
-    val tAggIn = tAggInOpt.get
-
-    val region = mb.getArg[Region](1).load()
-
-    val element = mb.getArg(normalArgumentPosition(0))(typeToTypeInfo(tAggIn.elementType))
-    val melement = mb.getArg[Boolean](normalArgumentPosition(0) + 1)
-
-    ir match {
-      case AggIn(typ) =>
-        assert(tAggIn == typ)
-        continuation(element, melement)
-      case AggMap(a, name, body) =>
-        val tA = coerce[TAggregable](a.typ)
-        val tElement = tA.elementType
-        val elementTi = typeToTypeInfo(tElement)
-        val x = coerce[Any](mb.newField()(elementTi))
-        val mx = mb.newField[Boolean]()
-        val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
-        emitAgg(a) { (v, mv) =>
-          Code(
-            mx := mv,
-            x := mx.mux(defaultValue(tElement), v),
-            codeB.setup,
-            continuation(codeB.v, codeB.m))
-        }
-      case AggFilter(a, name, body) =>
-        val tElement = coerce[TAggregable](a.typ).elementType
-        val elementTi = typeToTypeInfo(tElement)
-        val x = coerce[Any](mb.newField()(elementTi))
-        val mx = mb.newField[Boolean]()
-        val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
-        emitAgg(a) { (v, mv) =>
-          Code(
-            mx := mv,
-            x := mx.mux(defaultValue(tElement), v),
-            codeB.setup,
-            // missing is false
-            (!codeB.m && coerce[Boolean](codeB.v)).mux(continuation(x, mx), Code._empty))
-        }
-      case AggFlatMap(a, name, body) =>
-        val tA = coerce[TAggregable](a.typ)
-        val tElement = tA.elementType
-        val elementTi = typeToTypeInfo(tElement)
-        val tArray = coerce[TArray](body.typ)
-        val x = coerce[Any](mb.newField()(elementTi))
-        val arr = mb.newLocal[Long]
-        val len = mb.newLocal[Int]
-        val i = mb.newLocal[Int]
-        val mx = mb.newField[Boolean]()
-        val codeB = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
-        emitAgg(a) { (v, mv) =>
-          Code(
-            mx := mv,
-            x := mx.mux(defaultValue(tElement), v),
-            codeB.setup,
-            codeB.m.mux(
-              Code._empty,
-              Code(
-                arr := coerce[Long](codeB.v),
-                i := 0,
-                len := tArray.loadLength(region, arr),
-                Code.whileLoop(i < len,
-                  continuation(
-                    region.loadIRIntermediate(tArray.elementType)(tArray.elementOffsetInRegion(region, arr, i)),
-                    tArray.isElementMissing(region, arr, i)),
-                  i ++))))
-        }
-      case _: ApplyAggOp =>
-        throw new RuntimeException(s"No nested aggregations allowed: $ir")
-      case In(_, _) =>
-        throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
-      case _ =>
-        throw new RuntimeException(s"Expected an aggregator, but found: $ir")
     }
   }
 

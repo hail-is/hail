@@ -1,18 +1,14 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.TAggregable
-
 object Subst {
-  def apply(e: IR): IR = apply(e, Env.empty, Env.empty, None)
-  def apply(e: IR, env: Env[IR]): IR = apply(e, env, Env.empty, None)
-  def apply(e: IR, env: Env[IR], aggEnv: Env[IR], aggTyp: Option[TAggregable]): IR = {
-    def subst(e: IR, env: Env[IR] = env, aggEnv: Env[IR] = aggEnv, aggTyp: Option[TAggregable] = aggTyp): IR = apply(e, env, aggEnv, aggTyp)
+  def apply(e: IR): IR = apply(e, Env.empty, Env.empty)
+  def apply(e: IR, env: Env[IR]): IR = apply(e, env, Env.empty)
+  def apply(e: IR, env: Env[IR], aggEnv: Env[IR]): IR = {
+    def subst(e: IR, env: Env[IR] = env, aggEnv: Env[IR] = aggEnv): IR = apply(e, env, aggEnv)
 
     e match {
       case x@Ref(name, typ) =>
         env.lookupOption(name).getOrElse(x)
-      case x@AggIn(typ) =>
-        aggTyp.map(AggIn).getOrElse(x)
       case Let(name, v, body) =>
         Let(name, subst(v), subst(body, env.delete(name)))
       case ArrayMap(a, name, body) =>
@@ -25,9 +21,11 @@ object Subst {
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
-      case ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
+      case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val substConstructorArgs = constructorArgs.map(arg => Recur(subst(_))(arg))
-        ApplyAggOp(subst(a, aggEnv, Env.empty), op, substConstructorArgs, initOpArgs) // Cannot subst the initOpArgs because there is an extra element (AGG) in env
+        val substInitOpArgs = initOpArgs.map(initOpArgs =>
+          initOpArgs.map(arg => Recur(subst(_))(arg)))
+        ApplyAggOp(subst(a, aggEnv, Env.empty), substConstructorArgs, substInitOpArgs, aggSig)
       case _ =>
         Recur(subst(_))(e)
     }

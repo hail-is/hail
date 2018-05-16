@@ -1203,6 +1203,33 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
         self.assertEqual(mt.transmute_entries(e3 = mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
 
+    def test_agg_explode(self):
+        t = hl.Table.parallelize([
+            hl.struct(a=[1, 2]),
+            hl.struct(a=hl.empty_array(hl.tint32)),
+            hl.struct(a=hl.null(hl.tarray(hl.tint32))),
+            hl.struct(a=[3]),
+            hl.struct(a=[hl.null(hl.tint32)])
+        ])
+        self.assertCountEqual(t.aggregate(hl.agg.collect(hl.agg.explode(t.a))),
+                              [1, 2, None, 3])
+
+    def test_agg_call_stats(self):
+        t = hl.Table.parallelize([
+            hl.struct(c=hl.call(0, 0)),
+            hl.struct(c=hl.call(0, 1)),
+            hl.struct(c=hl.call(0, 2))
+        ])
+        actual = t.aggregate(hl.agg.call_stats(t.c, ['A', 'T', 'G']))
+        expected = hl.struct(AC=[4, 1, 1],
+                             AF=[4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0],
+                             AN=6,
+                             homozygote_count=[1, 0, 0])
+
+        self.assertTrue(hl.Table.parallelize([actual]),
+                        hl.Table.parallelize([expected]))
+
+
 class GroupedMatrixTests(unittest.TestCase):
 
     def get_groupable_matrix(self):

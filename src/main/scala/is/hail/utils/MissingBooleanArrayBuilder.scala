@@ -15,7 +15,8 @@ class MissingBooleanArrayBuilder {
   }
 
   def add(x: Boolean) {
-    elements.add(len)
+    if (x)
+      elements.add(len)
     len += 1
   }
 
@@ -23,14 +24,11 @@ class MissingBooleanArrayBuilder {
 
   def foreach(whenMissing: (Int) => Unit)(whenPresent: (Int, Boolean) => Unit) {
     var i = 0
-    var j = 0
     while (i < len) {
       if (isMissing(i))
         whenMissing(i)
-      else {
-        whenPresent(i, elements(j))
-        j += 1
-      }
+      else
+        whenPresent(i, elements(i))
       i += 1
     }
   }
