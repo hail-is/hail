@@ -48,7 +48,8 @@ class IBDSuite extends SparkSuite {
 
   private def runPlinkIBD(vds: MatrixTable,
     min: Option[Double] = None,
-    max: Option[Double] = None): Map[(Annotation, Annotation), ExtendedIBDInfo] = {
+    max: Option[Double] = None,
+    maf: Option[Double] = None): Map[(Annotation, Annotation), ExtendedIBDInfo] = {
 
     val tmpdir = tmpDir.createTempFile(prefix = "plinkIBD")
     val localTmpdir = tmpDir.createLocalTempFile(prefix = "plinkIBD")
@@ -60,8 +61,9 @@ class IBDSuite extends SparkSuite {
 
     hadoopConf.copy(vcfFile, localVCFFile)
 
-    val thresholdString = min.map(x => s"--min $x").getOrElse("") + " " +
-      max.map(x => s"--max $x").getOrElse("")
+    val thresholdString = min.map(x => s" --min $x").getOrElse("") +
+      max.map(x => s" --max $x").getOrElse("") +
+      maf.map(x => s" --maf $x").getOrElse("")
 
     s"plink --double-id --allow-extra-chr --vcf ${ uriPath(localVCFFile) } --genome full --out ${ uriPath(localTmpdir) } " + thresholdString !
 
@@ -153,6 +155,18 @@ class IBDSuite extends SparkSuite {
   @Test def ibdSchemaCorrect() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
+  }
+
+  // Plink has default maf=0.01.  We try setting a different value
+  @Test def ibdWithMafExpr(): Unit = {
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds2 = vds.selectRows("annotate(va, { `dummy_maf`: 0.08 })", None)
+
+    val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("va.dummy_maf"))).collect().toMap
+    val plink = runPlinkIBD(vds, maf = Some(0.08))
+
+    mapSameElements(us, plink,
+      (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
   }
 
 }
