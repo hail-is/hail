@@ -81,13 +81,16 @@ object IRFunctionRegistry {
     }
   }
 
-  SetFunctions.registerAll()
-  CallFunctions.registerAll()
-  GenotypeFunctions.registerAll()
-  MathFunctions.registerAll()
-  ArrayFunctions.registerAll()
-  UtilFunctions.registerAll()
-  StringFunctions.registerAll()
+  Array(
+      AggregatorFunctions
+    , ArrayFunctions
+    , CallFunctions
+    , GenotypeFunctions
+    , MathFunctions
+    , SetFunctions
+    , StringFunctions
+    , UtilFunctions
+  ).map(_.registerAll())
 }
 
 abstract class RegistryFunctions {

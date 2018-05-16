@@ -670,13 +670,8 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    if predicate._aggregations:
-        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    uid = Env.get_uid()
-    ast = LambdaClassMethod('fraction', uid, predicate._ast, VariableReference(uid))
-    return construct_expr(ast, tfloat64, Indices(source=predicate._indices.source),
-                          predicate._aggregations.push(Aggregation(predicate)))
+    return _agg_func('fraction', predicate, tfloat64)
 
 @typecheck(expr=agg_expr(expr_call))
 def hardy_weinberg(expr) -> StructExpression:

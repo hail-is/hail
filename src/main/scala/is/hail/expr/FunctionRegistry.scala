@@ -1333,6 +1333,10 @@ object FunctionRegistry {
       def typ = InbreedingCombiner.signature
     })
 
+  registerAggregator[Boolean, java.lang.Double](
+    "fraction", () => new FractionAggregator(x => x)
+  )(aggregableHr(boolHr), boxedFloat64Hr)
+
   registerLambdaAggregator[Any, (Any) => Any, java.lang.Double]("fraction", (f: (Any) => Any) => new FractionAggregator(f)
   )(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxedFloat64Hr)
 
