@@ -214,37 +214,34 @@ object CompileWithAggregators {
 
   def apply[
     T0: ClassTag,
-    TAGG: ClassTag,
     S0: ClassTag,
     S1: ClassTag,
     S2: ClassTag,
     R: TypeInfo : ClassTag
   ](name0: String, typ0: Type,
-    aggName: String, aggTyp: TAggregable,
     aggName0: String, aggType0: Type,
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
     body: IR,
     transformAggIR: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
-    () => AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
+    () => AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
+    () => AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
     Type,
     () => AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
     Type) = {
-
-    assert(TypeToIRIntermediateClassTag(aggTyp) == classTag[TAGG])
-
     val args = FastSeq(
       (name0, typ0, classTag[T0]))
 
     val aggArgs = FastSeq(
-      (aggName, aggTyp.elementType, classTag[TAGG]),
       (aggName0, aggType0, classTag[S0]),
       (aggName1, aggType1, classTag[S1]),
       (aggName2, aggType2, classTag[S2]))
 
-    apply[AsmFunction10[Region, Array[RegionValueAggregator], TAGG, Boolean, S0, Boolean, S1, Boolean, S2, Boolean, Unit],
+    apply[
+      AsmFunction4[Region, Array[RegionValueAggregator], T0, Boolean, Unit],
+      AsmFunction8[Region, Array[RegionValueAggregator], S0, Boolean, S1, Boolean, S2, Boolean, Unit],
       AsmFunction5[Region, Long, Boolean, T0, Boolean, R],
-      R](aggName, aggTyp, args, aggArgs, body, transformAggIR)
+      R](args, aggArgs, body, transformAggIR)
   }
 }

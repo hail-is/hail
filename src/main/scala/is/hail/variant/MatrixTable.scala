@@ -810,14 +810,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     log.info(expr)
     val rowsAST = Parser.parseToAST(expr, ec)
 
-    rowsAST.toIROpt(Some("AGG")) match {
+    rowsAST.toIROpt(Some("AGG" -> "g")) match {
       case Some(x) if useIR(this.rowAxis, rowsAST) =>
         new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
 
       case _ =>
         log.warn(s"group_rows_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
 
-        val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, aggExpr)
+        val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, oldAggExpr)
         val newRowType = matrixType.orvdType.kType
         val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
           rowPartitionKey, rowKey, newRowType, newEntryType)

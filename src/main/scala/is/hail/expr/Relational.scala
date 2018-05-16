@@ -739,13 +739,13 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
     val nCols = prev.nCols
 
-    val (rvAggs, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
+    val (rvAggs, makeInit, makeSeq, aggResultType, makeAnnotate, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long](
       "global", child.typ.globalType,
-      "AGG", tAgg,
       "global", child.typ.globalType,
       "colValues", TArray(child.typ.colType),
       "va", child.typ.rvRowType,
-      expr, { (nAggs, aggIR) =>
+      expr,
+      { (nAggs, sequenceIR) =>
         val colIdx = ir.genUID()
 
         def rewrite(x: IR): IR = {
@@ -756,11 +756,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                 i),
                 agg)
-            case x@AggIn(_) =>
-              // FIXME: there's nothing to capture, we know what `Ref` is, why
-              // bother with genUID?
-              val dummy = genUID()
-              AggMap(x, dummy, ir.Ref("g", prev.typ.entryType))
             case _ =>
               ir.Recur(rewrite)(x)
           }
@@ -773,7 +768,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
             ir.Let("g", ir.ArrayRef(
               ir.GetField(ir.Ref("va", prev.typ.rvRowType), MatrixType.entriesIdentifier),
               ir.Ref(colIdx, TInt32())),
-              rewrite(aggIR))))
+              rewrite(sequenceIR))))
       })
     val nAggs = rvAggs.length
 
@@ -794,7 +789,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val newRVD = prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
       val partRVB = new RegionValueBuilder()
       val newRV = RegionValue()
-      val rowF = f()
 
       val partRegion = ctx.freshContext.region
 
@@ -807,10 +801,14 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
       partRVB.addAnnotation(localColsType, colValuesBc.value)
       val partColsOff = partRVB.end()
 
+      val initialize = makeInit()
+      val sequence = makeSeq()
+      val annotate = makeAnnotate()
+
       new Iterator[RegionValue] {
         var isEnd = false
         var current: RegionValue = null
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType)
+        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
         val region = ctx.region
         val rvb = ctx.rvb
         val newRV = RegionValue(region)
@@ -855,10 +853,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           rvb.addRegionValue(localColsType, partRegion, partColsOff)
           val cols = rvb.end()
 
+          initialize(region, colRVAggs, globals, false)
+
           if (colRVAggs.nonEmpty) {
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-              seqOps()(region, colRVAggs,
-                0, true, // FIXME: which argument is this?
+              sequence(region, colRVAggs,
                 globals, false,
                 cols, false,
                 current.offset, false)
@@ -895,7 +894,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           {
             var i = 0
             while (i < nCols) {
-              val newEntryOff = rowF(region,
+              val newEntryOff = annotate(region,
                 aggResultsOffsets(i), false,
                 globals, false)
 
