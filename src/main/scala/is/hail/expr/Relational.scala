@@ -100,7 +100,7 @@ case class MatrixValue(
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null): Unit = {
+  def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null): Unit = {
     val hc = HailContext.get
     val hadoopConf = hc.hadoopConf
 
@@ -119,7 +119,7 @@ case class MatrixValue(
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.writeRowsSplit(path, typ, codecSpec)
+    val partitionCounts = rvd.writeRowsSplit(path, typ, codecSpec, stageLocally)
 
     val globalsPath = path + "/globals"
     hadoopConf.mkDir(globalsPath)

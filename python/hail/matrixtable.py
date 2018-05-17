@@ -2110,8 +2110,10 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(output=str,
                       overwrite=bool,
+                      stage_locally=bool,
                       _codec_spec=nullable(str))
-    def write(self, output: str, overwrite: bool = False, _codec_spec: Optional[str] = None):
+    def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None):
         """Write to disk.
 
         Examples
@@ -2135,7 +2137,7 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jvds.write(output, overwrite, _codec_spec)
+        self._jvds.write(output, overwrite, stage_locally, _codec_spec)
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
