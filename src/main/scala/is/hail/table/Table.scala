@@ -417,6 +417,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
             case (None, Some(y)) =>
               info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
               false
+            case (None, None) =>
+              assert(false)
+              false
           }
         }
       }

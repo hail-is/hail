@@ -10,6 +10,7 @@ import is.hail.testUtils._
 import is.hail.variant.MatrixTable
 import is.hail.methods.PCASuite.samplePCA
 import org.testng.annotations.Test
+import scala.language.postfixOps
 
 import scala.sys.process._
 

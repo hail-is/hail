@@ -60,7 +60,7 @@ object RelationalSpec {
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
 
-    val referencesRelPath = jv \ "references_rel_path" match {
+    val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
 

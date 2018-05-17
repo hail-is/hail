@@ -10,11 +10,11 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T")) { case (s, v) =>
+    registerIR("contains", TSet(tv("T")), tv("T")) { (s, v) =>
       SetContains(s, v)
     }
 
-    registerIR("remove", TSet(tv("T")), tv("T")) { case (s, v) =>
+    registerIR("remove", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -24,7 +24,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), nonstrictEQ(Ref(x, t), v))))
     }
 
-    registerIR("add", TSet(tv("T")), tv("T")) { case (s, v) =>
+    registerIR("add", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -34,7 +34,7 @@ object SetFunctions extends RegistryFunctions {
           Ref(x, TArray(t))))
     }
 
-    registerIR("union", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+    registerIR("union", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -44,7 +44,7 @@ object SetFunctions extends RegistryFunctions {
           Ref(x, TArray(t))))
     }
 
-    registerIR("intersection", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+    registerIR("intersection", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -52,7 +52,7 @@ object SetFunctions extends RegistryFunctions {
           SetContains(s2, Ref(x, t))))
     }
 
-    registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { case (s1, s2) =>
+    registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -60,7 +60,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), SetContains(s2, Ref(x, t)))))
     }
 
-    registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { case (s, w) =>
+    registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { (s, w) =>
       val t = -s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()

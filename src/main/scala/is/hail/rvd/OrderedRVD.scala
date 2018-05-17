@@ -17,6 +17,7 @@ import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import scala.language.existentials
 
 class OrderedRVD(
   val typ: OrderedRVDType,

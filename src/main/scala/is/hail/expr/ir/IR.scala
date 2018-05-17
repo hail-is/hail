@@ -45,7 +45,7 @@ object Literal {
   }
 }
 
-trait InferIR extends IR {
+sealed trait InferIR extends IR {
   var _typ: Type = null
 
   def typ: Type = {

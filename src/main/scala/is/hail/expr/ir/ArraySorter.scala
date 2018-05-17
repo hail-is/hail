@@ -17,7 +17,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     val mk2l = mb.newLocal[Boolean]
 
     val comp: CodeOrdering.F[Int] = {
-      case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
+      case (r1: Code[Region],
+      (m1: Code[Boolean] @unchecked, v1: Code[Long] @unchecked),
+      r2: Code[Region],
+      (m2: Code[Boolean] @unchecked, v2: Code[Long] @unchecked)) =>
         val mk1 = Code(mk1l := ttype.isFieldMissing(r1, v1, 0), mk1l)
         val mk2 = Code(mk2l := ttype.isFieldMissing(r2, v2, 0), mk2l)
         val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
@@ -26,7 +29,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
         (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
     }
     val ceq: CodeOrdering.F[Boolean] = {
-      case (r1: Code[Region], (m1: Code[Boolean], v1: Code[Long]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
+      case (r1: Code[Region],
+      (m1: Code[Boolean] @unchecked, v1: Code[Long] @unchecked),
+      r2: Code[Region] @unchecked,
+      (m2: Code[Boolean] @unchecked, v2: Code[Long] @unchecked)) =>
         val mk1 = Code(mk1l := m1 || ttype.isFieldMissing(r1, v1, 0), mk1l)
         val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l)
         val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
