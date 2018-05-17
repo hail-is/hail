@@ -106,9 +106,11 @@ NATIVEMETHOD(void, NativeBase, copyAssign)(
   auto ptrA = ALIAS_AS_NATIVEOBJPTR(&vecA[0]);
   auto ptrB = ALIAS_AS_NATIVEOBJPTR(&vecB[0]);
   if (*ptrA != *ptrB) {
+    // This will change the contents of vecA
     *ptrA = *ptrB;
-    env->SetLongField(thisJ, addrA_id, vecA[0]);
-    env->SetLongField(thisJ, addrB_id, vecA[1]);
+    long* newA = ALIAS_AS_LONGVEC(ptrA);
+    env->SetLongField(thisJ, addrA_id, newA[0]);
+    env->SetLongField(thisJ, addrB_id, newA[1]);
   }
 }
 
@@ -127,10 +129,12 @@ NATIVEMETHOD(void, NativeBase, moveAssign)(
   auto ptrA = ALIAS_AS_NATIVEOBJPTR(&vecA[0]);
   auto ptrB = ALIAS_AS_NATIVEOBJPTR(&vecB[0]);
   *ptrA = std::move(*ptrB);
-  env->SetLongField(thisJ, addrA_id, vecA[0]);
-  env->SetLongField(thisJ, addrB_id, vecA[1]);
-  env->SetLongField(srcJ, addrA_id, vecB[0]);
-  env->SetLongField(srcJ, addrB_id, vecB[1]);
+  long* newA = ALIAS_AS_LONGVEC(ptrA);
+  env->SetLongField(thisJ, addrA_id, newA[0]);
+  env->SetLongField(thisJ, addrB_id, newA[1]);
+  long* newB = ALIAS_AS_LONGVEC(ptrB);
+  env->SetLongField(srcJ, addrA_id, newB[0]);
+  env->SetLongField(srcJ, addrB_id, newB[1]);
 }
 
 NATIVEMETHOD(void, NativeBase, nativeReset)(
