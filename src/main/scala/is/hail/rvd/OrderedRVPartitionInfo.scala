@@ -27,12 +27,13 @@ object OrderedRVPartitionInfo {
     sampleSize: Int,
     partitionIndex: Int,
     it: Iterator[RegionValue],
-    seed: Int
+    seed: Int,
+    producerContext: RVDContext
   ): OrderedRVPartitionInfo = {
-    using(RVDContext.default) { ctx =>
-      val minF = WritableRegionValue(typ.pkType, ctx.freshRegion)
-      val maxF = WritableRegionValue(typ.pkType, ctx.freshRegion)
-      val prevF = WritableRegionValue(typ.kType, ctx.freshRegion)
+    using(RVDContext.default) { localctx =>
+      val minF = WritableRegionValue(typ.pkType, localctx.freshRegion)
+      val maxF = WritableRegionValue(typ.pkType, localctx.freshRegion)
+      val prevF = WritableRegionValue(typ.kType, localctx.freshRegion)
 
       assert(it.hasNext)
       val f0 = it.next()
@@ -49,11 +50,11 @@ object OrderedRVPartitionInfo {
       var i = 0
 
       if (sampleSize > 0) {
-        samples(0) = WritableRegionValue(typ.pkType, f0, ctx.freshRegion)
+        samples(0) = WritableRegionValue(typ.pkType, f0, localctx.freshRegion)
         i += 1
       }
 
-      ctx.region.clear()
+      producerContext.region.clear()
       while (it.hasNext) {
         val f = it.next()
 
@@ -72,14 +73,14 @@ object OrderedRVPartitionInfo {
         prevF.set(f)
 
         if (i < sampleSize)
-          samples(i) = WritableRegionValue(typ.pkType, f, ctx.freshRegion)
+          samples(i) = WritableRegionValue(typ.pkType, f, localctx.freshRegion)
         else {
           val j = rng.nextInt(i)
           if (j < sampleSize)
             samples(j).set(f)
         }
 
-        ctx.region.clear()
+        producerContext.region.clear()
         i += 1
       }
 
