@@ -183,9 +183,9 @@ object MatrixTable {
             val entriesRVD = spec.entriesComponent.read(hc, path)
             val entriesRowType = entriesRVD.rowType
             rowsRVD.zipPartitions(typ.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (ctx, it1, it2) =>
-              val rv3 = RegionValue()
               val rvb = ctx.rvb
               val region = ctx.region
+              val rv3 = RegionValue(region)
               new Iterator[RegionValue] {
                 def hasNext = {
                   val hn1 = it1.hasNext
@@ -212,7 +212,7 @@ object MatrixTable {
                     i += 1
                   }
                   rvb.endStruct()
-                  rv3.set(region, rvb.end())
+                  rv3.setOffset(rvb.end())
                   rv3
                 }
               }
