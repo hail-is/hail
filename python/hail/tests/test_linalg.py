@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, FatalError
 from .utils import resource, startTestHailContext, stopTestHailContext
 import numpy as np
 import tempfile
@@ -378,6 +378,40 @@ class Tests(unittest.TestCase):
                         (slice(4, None), slice(4, None)),
                         (slice(None, None), slice(None, None))]:
             self.assertTrue(np.array_equal(bm[indices].to_numpy(), nd[indices]))
+
+        self.assertRaises(ValueError, lambda: bm[0, ])
+
+        self.assertRaises(ValueError, lambda: bm[9, 0])
+        self.assertRaises(ValueError, lambda: bm[-9, 0])
+        self.assertRaises(ValueError, lambda: bm[0, 11])
+        self.assertRaises(ValueError, lambda: bm[0, -11])
+
+        self.assertRaises(ValueError, lambda: bm[::-1, 0])
+        self.assertRaises(ValueError, lambda: bm[0, ::-1])
+
+        self.assertRaises(ValueError, lambda: bm[:0, 0])
+        self.assertRaises(ValueError, lambda: bm[0, :0])
+
+        self.assertRaises(ValueError, lambda: bm[0:9, 0])
+        self.assertRaises(ValueError, lambda: bm[-9:, 0])
+        self.assertRaises(ValueError, lambda: bm[:-9, 0])
+
+        self.assertRaises(ValueError, lambda: bm[0, :11])
+        self.assertRaises(ValueError, lambda: bm[0, -11:])
+        self.assertRaises(ValueError, lambda: bm[0, :-11])
+
+        bm2 = bm.sparsify_row_intervals([0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(bm2[0, 1], 1.0)
+        self.assertEqual(bm2[0, 2], 0.0)
+        self.assertEqual(bm2[0, 9], 0.0)
+
+        nd2 = np.zeros(shape=(8, 10))
+        nd2[0, 1] = 1.0
+        self.assertTrue(np.array_equal(bm2[:, :].to_numpy(), nd2))
+
+        self.assertRaises(FatalError, lambda: bm2[:, 0])
+        self.assertRaises(FatalError, lambda: bm2[0, :])
+        self.assertRaises(FatalError, lambda: bm2[0:1, 0:1])
 
     def test_sparsify(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],

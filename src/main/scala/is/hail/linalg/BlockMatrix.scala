@@ -852,6 +852,23 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       nRows, nColsInt)
   }
 
+  def getElement(row: Long, col: Long): Double = {
+    val blockRow = gp.indexBlockIndex(row)
+    val blockCol = gp.indexBlockIndex(col)
+    val pi = gp.coordinatesPart(blockRow, blockCol)
+    if (pi >= 0) {
+      val rowOffset = gp.indexBlockOffset(row)
+      val colOffset = gp.indexBlockOffset(col)
+      blocks.subsetPartitions(Array(pi))
+        .map { case ((i, j), lm) =>
+          assert(i == blockRow && j == blockCol)
+          lm(rowOffset, colOffset)
+        }
+        .collect()(0)
+    } else
+      0.0
+  }
+  
   def filterRows(keep: Array[Long]): BlockMatrix = {
     requireDense("filter_rows")
     transpose().filterCols(keep).transpose()

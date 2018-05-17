@@ -98,7 +98,7 @@ class BlockMatrix(object):
      - ``bm[2, :]`` is a block matrix with 1 row, 10 columns,
        and elements from row 2 of ``bm``.
 
-     - ``bm[:3, -1]`` is a block matrix with 2 rows, 1 column,
+     - ``bm[:3, -1]`` is a block matrix with 3 rows, 1 column,
        and the first 3 elements of the last column of ``bm``.
 
      - ``bm[::2, ::2]`` is a block matrix with 5 rows, 5 columns,
@@ -506,8 +506,8 @@ class BlockMatrix(object):
                                             jarray(Env.jvm().long, cols_to_keep)))
 
     @staticmethod
-    def _pos_index(i, size, name):
-        if 0 <= i < size:
+    def _pos_index(i, size, name, allow_size=False):
+        if 0 <= i < size or (i == size and allow_size):
             return i
         elif 0 <= i + size < size:
             return i + size
@@ -515,37 +515,25 @@ class BlockMatrix(object):
             raise ValueError(f'invalid {name} {i} for axis of size {size}')
 
     @staticmethod
-    def _indices_to_keep(idx, size):
+    def _range_to_keep(idx, size):
         if isinstance(idx, int):
             i = BlockMatrix._pos_index(idx, size, 'index')
             return [i]
         elif isinstance(idx, slice):
-            if idx.step is None:
-                step = 1
-            else:
-                if idx.step < 1:
-                    raise ValueError(f'slice step must be positive, found {idx.step}')
-                step = idx.step
+            if idx.step and idx.step <= 0:
+                raise ValueError(f'slice step must be positive, found {idx.step}')
 
-            if idx.start is None:
-                start = 0
-            else:
-                start = BlockMatrix._pos_index(idx.start, size, 'start index')
+            start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
+            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True) 
+            step = 1 if idx.step is None else idx.step
 
-            if idx.stop is None:
-                stop = size
-            elif idx.stop == 0:
-                raise ValueError(f'slice {start}:{stop}:{step} is empty')
-            else:
-                stop = BlockMatrix._pos_index(idx.stop - 1, size, 'stop index') + 1
-
-            if start == 0 and stop == size and step == 1:
-                return None
-            elif start < stop:
-                return range(start, stop, step)
+            if start < stop:
+                if 0 == start and stop == size and step == 1:
+                    return None
+                else:
+                    return range(start, stop, step)
             else:
                 raise ValueError(f'slice {start}:{stop}:{step} is empty')
-
 
     @typecheck_method(indices=tupleof(oneof(int, slice)))
     def __getitem__(self, indices):
@@ -557,11 +545,10 @@ class BlockMatrix(object):
         if isinstance(row_idx, int) and isinstance(col_idx, int):
             i = BlockMatrix._pos_index(row_idx, self.n_rows, 'row index')
             j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
+            return self._jbm.getElement(i, j)
 
-            return self.filter([i], [j])._jbm.toBreezeMatrix().apply(0, 0)
-
-        rows_to_keep = BlockMatrix._indices_to_keep(row_idx, self.n_rows)
-        cols_to_keep = BlockMatrix._indices_to_keep(col_idx, self.n_cols)
+        rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
+        cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
 
         if rows_to_keep is None and cols_to_keep is None:
             return self
