@@ -1007,8 +1007,8 @@ class BlockMatrixSuite extends SparkSuite {
     
     TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(v0) }
     TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(v0) }
-    TestUtils.interceptFatal("cannot multiply block matrix by scalar") { bm0 * Double.NaN }
-    TestUtils.interceptFatal("cannot divide block matrix by scalar 0.0") { bm0 / 0 }
+    TestUtils.interceptFatal("multiplication by scalar NaN") { bm0 * Double.NaN }
+    TestUtils.interceptFatal("division by scalar 0.0") { bm0 / 0 }
     
     // exponent to negative power not supported
     TestUtils.interceptFatal(notSupported) { bm0.pow(-1)}
