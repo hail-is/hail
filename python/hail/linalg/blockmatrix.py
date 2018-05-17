@@ -827,7 +827,7 @@ class BlockMatrix(object):
             raise ValueError(f'starts and stops must both have length {n_rows} (the number of rows)')
         if any([start < 0 for start in starts]):
             raise ValueError('all start values must be non-negative')
-        if any([stop < self.n_cols for stop in stops]):
+        if any([stop > self.n_cols for stop in stops]):
             raise ValueError(f'all stop values must be less than or equal to {n_cols} (the number of columns)')
         if any([starts[i] > stops[i] for i in range(0, n_rows)]):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
@@ -1515,8 +1515,9 @@ class BlockMatrix(object):
     @typecheck(path_in=str,
                path_out=str,
                rectangles=sequenceof(sequenceof(int)),
-               delimiter=str)
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t'):
+               delimiter=str,
+               n_partitions=nullable(int))
+    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None):
         """Export rectangular regions from a stored block matrix to delimited text files.
 
         Examples
@@ -1608,14 +1609,26 @@ class BlockMatrix(object):
             ``[row_start, row_stop, col_start, col_stop]``.
         delimiter: :obj:`str`
             Column delimiter.
+        n_partitions: :obj:`int`, optional
+            Maximum parallelism of export.
+            Defaults to (and cannot exceed) the number of rectangles.
         """
         n_rectangles = len(rectangles)
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 
-        bm = BlockMatrix.read(path_in)  # also checks success of write
-        n_rows = bm.n_rows
-        n_cols = bm.n_cols
+        if n_partitions is None:
+            n_partitions = n_rectangles
+        else:
+            if n_partitions > n_rectangles:
+                raise ValueError(
+                    f'n_partitions ({n_partitions}) cannot exceed the number of rectangles ({n_rectangles})')
+            elif n_partitions < 0:
+                raise ValueError(f'n_partitions must be positive, found {n_partitions}')
+
+        meta = Env.hail().linalg.BlockMatrix.readMetadata(Env.hc()._jhc, path_in)
+        n_rows = meta.nRows()
+        n_cols = meta.nCols()
 
         for r in rectangles:
             if len(r) != 4:
@@ -1627,7 +1640,7 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter)
+            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
 
 
 block_matrix_type.set(BlockMatrix)

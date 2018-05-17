@@ -422,7 +422,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.array_equal(
             bm.sparsify_row_intervals(
-                starts=[-1, 0, 2, 2],
+                starts=[1, 0, 2, 2],
                 stops= [2, 0, 3, 4]).to_numpy(),
             np.array([[ 0.,  2.,  0.,  0.],
                       [ 0.,  0.,  0.,  0.],
@@ -479,7 +479,7 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]])))
 
-        nd2 = np.random.normal(size=(8, 10))
+        nd2 = np.arange(0, 80, dtype=float).reshape(8, 10)
         bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
 
         for bounds in [[0, 0], [1, 1], [2, 2], [-5, 5], [-7, 0], [0, 9], [-100, 100]]:
@@ -531,7 +531,7 @@ class Tests(unittest.TestCase):
                       [13., 14.,  0.,  0.]])))
 
     def test_export_rectangles(self):
-        nd = np.random.normal(size=(8, 10))
+        nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
         rects1 = [[0, 1, 0, 1], [4, 5, 7, 8]]
 
