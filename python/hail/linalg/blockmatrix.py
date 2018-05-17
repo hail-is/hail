@@ -147,8 +147,10 @@ class BlockMatrix(object):
     supported only between block matrices with the same block sparsity.
 
     Matrix multiplication ``@`` is supported but always results in a dense
-    block matrix. All other methods are supported except :meth:`filter`,
-    :meth:`filter_rows`, :meth:`filter_cols`.
+    block matrix. All other methods are supported **except**
+    :meth:`filter_rows`, :meth:`filter_cols`, and :meth:`filter`
+    (as well as slicing, since ``bm[:5, :]``, ``bm[:, :5]``, and
+    ``bm[:5, :5]`` call these three methods, respectively).
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -553,7 +555,7 @@ class BlockMatrix(object):
                 raise ValueError(f'slice step must be positive, found {idx.step}')
 
             start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
-            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True) 
+            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True)
             step = 1 if idx.step is None else idx.step
 
             if start < stop:
