@@ -528,7 +528,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
 
-  def keyBy(keys: java.util.ArrayList[String]): Table = keyBy(keys, keys)
+  def keyBy(keys: java.util.ArrayList[String]): Table =
+    keyBy(Option(keys).map(_.asScala.toArray), true)
 
   def keyBy(
     keys: java.util.ArrayList[String],
@@ -574,7 +575,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey.orElse(key))
+        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
   }
 
@@ -586,13 +587,16 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def distinctByKey(): Table = {
-    require(!key.isEmpty)
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).distinctByKey())
+    require(key.isDefined)
+    val sorted = keyBy(key.get.toArray, sort = true)
+    sorted.copy2(rvd = sorted.rvd.asInstanceOf[OrderedRVD].distinctByKey())
   }
 
   def groupByKey(name: String): Table = {
-    require(!key.isEmpty)
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).groupByKey(name),
+    require(key.isDefined)
+    val sorted = keyBy(key.get.toArray, sort = true)
+    sorted.copy2(
+      rvd = sorted.rvd.asInstanceOf[OrderedRVD].groupByKey(name),
       signature = keySignature.get ++ TStruct(name -> TArray(valueSignature)))
   }
 

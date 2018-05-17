@@ -1601,6 +1601,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
   }
 }
 
+// Must not modify key ordering.
 case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
@@ -1625,7 +1626,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
-    val newRVD = tv.rvd.mapPartitions(typ.rowType) { it =>
+    val itF: (Iterator[RegionValue]) => Iterator[RegionValue] = { it =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -1639,13 +1640,28 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
         rv2
       }
     }
-    TableValue(typ,
-      tv.globals,
-      typ.key match {
-        case Some(_) => newRVD
-        case None => newRVD.toUnpartitionedRVD
-      }
-      )
+    val newRVD = tv.rvd match {
+      case ordered: OrderedRVD =>
+        typ.key match {
+          case Some(key) =>
+            val localType = ordered.typ.copy(key = key.toArray, rowType = typ.rowType)
+            val res = ordered.mapPartitionsPreservesPartitioning(ordered.typ.copy(rowType = typ.rowType))(itF)
+            assert(res.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+              val out = if (it.hasNext)
+                Iterator(OrderedRVPartitionInfo(localType, 0, i, it, 0))
+              else
+                Iterator()
+              out
+            }.collect().forall(_.sortedness == 2))
+            res
+          case None =>
+            ordered.mapPartitions(typ.rowType)(itF)
+        }
+      case unordered: UnpartitionedRVD =>
+        unordered.mapPartitions(typ.rowType)(itF)
+    }
+
+    TableValue(typ, tv.globals, newRVD)
   }
 }
 

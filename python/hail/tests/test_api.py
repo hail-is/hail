@@ -512,7 +512,7 @@ class TableTests(unittest.TestCase):
         kt = hl.utils.range_table(10)
         kt = kt.annotate_globals(foo=5, fi=3)
         kt = kt.annotate(bar=45, baz=32).key_by('bar')
-        renamed = kt.rename({'foo': 'foo2', 'bar' : 'bar2'})
+        renamed = kt.rename({'foo': 'foo2', 'bar': 'bar2'})
         renamed.count()
 
         self.assertEqual(list(renamed.key), ['bar2'])

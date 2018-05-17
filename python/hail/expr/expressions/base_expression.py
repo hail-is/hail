@@ -762,7 +762,7 @@ class Expression(object):
         """
         uid = Env.get_uid()
         t = self._to_table(uid)
-        return [r[uid] for r in t._select("collect", hl.struct(), hl.struct(**{uid: t[uid]})).collect()]
+        return [r[uid] for r in t._select("collect", None, hl.struct(**{uid: t[uid]})).collect()]
 
     @property
     def value(self):
