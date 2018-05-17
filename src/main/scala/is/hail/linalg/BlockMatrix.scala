@@ -567,7 +567,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "scalar subtraction")
   
   def scalarMul(i: Double): M = blockMap(_ *:* i,
-      "multiplication by scalar $i",
+      s"multiplication by scalar $i",
       reqDense = i.isNaN | i.isInfinity)
   
   def scalarDiv(i: Double): M = blockMap(_ /:/ i,
