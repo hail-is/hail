@@ -197,20 +197,16 @@ abstract class RegistryFunctions {
     registerCode(mname, rt, isDeterministic = true)(impl)
 
   def registerCode[A1](mname: String, mt1: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[A1]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
-      }
+    registerCode(mname, Array(mt1), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
     }
 
   def registerCode[A1](mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1]) => Code[_]): Unit =
     registerCode(mname, mt1, rt, isDeterministic = true)(impl)
 
   def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
-      }
+    registerCode(mname, Array(mt1, mt2), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
     }
 
   def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]): Unit =
@@ -218,10 +214,8 @@ abstract class RegistryFunctions {
 
   def registerCode[A1, A2, A3](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, isDeterministic: Boolean)
     (impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2, mt3), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked)) => impl(mb, a1, a2, a3)
-      }
+    registerCode(mname, Array(mt1, mt2, mt3), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked)) => impl(mb, a1, a2, a3)
     }
 
   def registerCode[A1, A2, A3](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =

@@ -103,10 +103,8 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     mname: String, arg1: Type, rt: Type, isDeterministic: Boolean)(
     impl: (EmitMethodBuilder, Code[A1]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
-      }
+    registerRGCode(mname, Array[Type](arg1), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
     }
 
   def registerRGCode[A1](
@@ -118,10 +116,8 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
-      }
+    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
     }
 
   def registerRGCode[A1, A2](
@@ -133,15 +129,13 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type, isDeterministic: Boolean)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt, isDeterministic) { (emb, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(
-        a1: Code[A1] @unchecked,
-        a2: Code[A2] @unchecked,
-        a3: Code[A3] @unchecked,
-        a4: Code[A4] @unchecked,
-        a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
-      }
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt, isDeterministic) {
+      case (mb, Array(
+      a1: Code[A1] @unchecked,
+      a2: Code[A2] @unchecked,
+      a3: Code[A3] @unchecked,
+      a4: Code[A4] @unchecked,
+      a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
     }
 
   def registerRGCode[A1, A2, A3, A4, A5](
