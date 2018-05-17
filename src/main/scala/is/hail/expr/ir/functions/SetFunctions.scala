@@ -71,16 +71,16 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("min", TSet(tnum("T"))) { s =>
-      val t = -s.typ.asInstanceOf[TSet].elementType
+      val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       Let(a, ToArray(s), If(
         ApplySpecial(">", FastSeq(ArrayLen(Ref(a, TArray(t))), I32(0))),
         ArrayRef(Ref(a, TArray(t)), I32(0)),
-        NA(t)))
+        NA(-t)))
     }
 
     registerIR("max", TSet(tnum("T"))) { s =>
-      val t = -s.typ.asInstanceOf[TSet].elementType
+      val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val size = genUID()
       val last = genUID()
@@ -88,11 +88,11 @@ object SetFunctions extends RegistryFunctions {
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
           If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(0)),
-            NA(t),
+            NA(-t),
             Let(last, ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))),
               If(IsNA(Ref(last, t)),
                 If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(1)),
-                  NA(t),
+                  NA(-t),
                   ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(2)))),
                 Ref(last, t))))))
     }
@@ -100,7 +100,7 @@ object SetFunctions extends RegistryFunctions {
     registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }
 
     registerIR("median", TSet(tnum("T"))) { s =>
-      val t = -s.typ.asInstanceOf[TSet].elementType
+      val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val size = genUID()
       val lastIdx = genUID()
@@ -110,7 +110,7 @@ object SetFunctions extends RegistryFunctions {
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
           If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(0)),
-            NA(t),
+            NA(-t),
             If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(1)),
               ArrayRef(Ref(a, TArray(t)), I32(0)),
               Let(lastIdx, ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)),
