@@ -521,7 +521,6 @@ class LinearMixedModel(object):
             Table of results for each augmented design matrix.
         """
         from hail.table import Table
-        from hail.linalg import BlockMatrix
 
         self._check_dof(self.f + 1)
 
@@ -530,11 +529,14 @@ class LinearMixedModel(object):
         elif not (self.low_rank or a_t_path is None):
             raise ValueError('model is full-rank so a_t must not be set.')
 
-        if not self._scala_model:
+        if self._scala_model is None:
             self._set_scala_model()
 
-        if not partition_size:
-            partition_size = BlockMatrix.read(pa_t_path).block_size
+        if partition_size is None:
+            block_size = Env.hail().linalg.BlockMatrix.readMetadata(Env.hc()._jhc, pa_t_path).blockSize()
+            partition_size = block_size
+        elif partition_size <= 0:
+            raise ValueError(f'partition_size must be positive, found {partition_size}')
 
         jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, pa_t_path, jsome(partition_size))
 
