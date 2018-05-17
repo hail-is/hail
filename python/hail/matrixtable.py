@@ -3226,6 +3226,24 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(self._jvds.renameFields(row_map, col_map, entry_map, global_map))
 
+    def distinct_by_row(self):
+        """Remove rows with a duplicate row key.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        return MatrixTable(self._jvds.distinctByRow())
+
+    def distinct_by_col(self):
+        """Remove columns with a duplicate row key.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        return MatrixTable(self._jvds.distinctByCol())
+
     @typecheck_method(separator=str)
     def make_table(self, separator='.') -> Table:
         """Make a table from a matrix table with one field per sample.

@@ -511,7 +511,7 @@ case class VSMSubgen(
         hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
           (vaIns(va, v), gs)
         }, nPartitions))
-        .deduplicate()
+        .distinctByRow()
     }
 }
 
@@ -703,7 +703,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def colKeys: IndexedSeq[Annotation] = {
     val queriers = colKey.map(colType.query(_))
-    colValues.value.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
+    colValues.safeValue.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
   }
 
   def rowKeysF: (Row) => Row = {
@@ -1284,9 +1284,23 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def forceCountRows(): Long = rvd.count()
 
-  def deduplicate(): MatrixTable =
+  def distinctByRow(): MatrixTable =
     copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ,
       SortedDistinctRowIterator.transformer(rvd.typ)))
+
+  def distinctByCol(): MatrixTable = {
+    val colKeys = dropRows().colKeys
+    val m = new mutable.HashSet[Any]()
+    val ab = new ArrayBuilder[Int]
+    colKeys.zipWithIndex
+      .foreach { case (ck, i) =>
+          if (!m.contains(ck)) {
+            ab += i
+            m.add(ck)
+          }
+      }
+    chooseCols(ab.result())
+  }
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
