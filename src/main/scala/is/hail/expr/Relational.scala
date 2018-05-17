@@ -810,7 +810,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val globalsBc = prev.globals.broadcast
     val newRVD = prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
       val partRVB = new RegionValueBuilder()
-      val newRV = RegionValue()
 
       val partRegion = ctx.freshContext.region
 
