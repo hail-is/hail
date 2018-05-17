@@ -1255,10 +1255,13 @@ class Tests(unittest.TestCase):
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)
  
-        assert na_lmm.sum() <= 10 # 4
-        assert np.array_equal(na_lmm, na_numpy) 
- 
-        lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][~na_lmm] - df_numpy['p_value'][~na_lmm]))
+        assert na_numpy.sum() <= 10
+        assert na_lmm.sum() <= 10
+        assert np.logical_xor(na_numpy, na_lmm).sum() <= 5
+
+        mask = ~(na_numpy | na_lmm)
+
+        lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
         assert lmm_vs_numpy_p_value[10] < 1e-12
         assert lmm_vs_numpy_p_value[-1] < 1e-8
@@ -1290,9 +1293,12 @@ class Tests(unittest.TestCase):
                                p_value = ht_lmr.lmmreg.p_value).to_pandas()
 
         na_lmr = df_lmr.isna().any(axis=1)
-        assert np.array_equal(na_lmm, na_lmr) 
 
-        lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][~na_lmm] - df_lmr['p_value'][~na_lmm]))
+        assert na_lmr.sum() <= 10
+        assert np.logical_xor(na_numpy, na_lmm).sum() <= 5
+        mask = ~(na_lmm | na_lmr)
+
+        lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
 
         assert lmm_vs_lmr[10] < 1e-7
         assert lmm_vs_lmr[-1] < 1e-3
