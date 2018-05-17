@@ -27,7 +27,7 @@ object ArrayFunctions extends RegistryFunctions {
         updateAccum(
           ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
           ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1))))),
-      If(ApplyBinaryPrimOp(EQ(), GetField(Ref(result, tAccum), "n"), I32(0)),
+      If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), "n"), I32(0)),
         NA(TFloat64()),
         ApplyBinaryPrimOp(FloatingPointDivide(),
           GetField(Ref(result, tAccum), "sum"),
@@ -116,7 +116,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     // FIXME: Add median
     
-    def argF(a: IR, op: BinaryOp): IR = {
+    def argF(a: IR, op: (Type) => ComparisonOp): IR = {
       val t = -coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32())
       val accum = genUID()
@@ -134,7 +134,7 @@ object ArrayFunctions extends RegistryFunctions {
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
                 updateAccum(Ref(value, t), Ref(idx, TInt32())),
-                If(ApplyBinaryPrimOp(op, Ref(value, t), Ref(m, t)),
+                If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
                   updateAccum(Ref(value, t), Ref(idx, TInt32())),
                   Ref(accum, tAccum))))))
 
@@ -147,11 +147,11 @@ object ArrayFunctions extends RegistryFunctions {
         ), "midx")
     }
 
-    registerIR("argmin", TArray(tv("T")))(argF(_, LT()))
+    registerIR("argmin", TArray(tv("T")))(argF(_, LT))
 
-    registerIR("argmax", TArray(tv("T")))(argF(_, GT()))
+    registerIR("argmax", TArray(tv("T")))(argF(_, GT))
 
-    def uniqueIndex(a: IR, op: BinaryOp): IR = {
+    def uniqueIndex(a: IR, op: (Type) => ComparisonOp): IR = {
       val t = -coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
       val accum = genUID()
@@ -170,9 +170,9 @@ object ArrayFunctions extends RegistryFunctions {
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
                 updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
-                If(ApplyBinaryPrimOp(op, Ref(value, t), Ref(m, t)),
+                If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
                   updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
-                  If(ApplyBinaryPrimOp(EQ(), Ref(value, t), Ref(m, t)),
+                  If(ApplyComparisonOp(EQ(t), Ref(value, t), Ref(m, t)),
                     updateAccum(Ref(value, t), Ref(idx, TInt32()), ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
                     Ref(accum, tAccum)))))))
 
@@ -182,14 +182,14 @@ object ArrayFunctions extends RegistryFunctions {
         accum,
         idx,
         body
-      ), If(ApplyBinaryPrimOp(EQ(), GetField(Ref(result, tAccum), "count"), I32(1)),
+      ), If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), "count"), I32(1)),
         GetField(Ref(result, tAccum), "midx"),
         NA(TInt32())))
     }
 
-    registerIR("uniqueMinIndex", TArray(tv("T")))(uniqueIndex(_, LT()))
+    registerIR("uniqueMinIndex", TArray(tv("T")))(uniqueIndex(_, LT))
 
-    registerIR("uniqueMaxIndex", TArray(tv("T")))(uniqueIndex(_, GT()))
+    registerIR("uniqueMaxIndex", TArray(tv("T")))(uniqueIndex(_, GT))
 
     registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
 

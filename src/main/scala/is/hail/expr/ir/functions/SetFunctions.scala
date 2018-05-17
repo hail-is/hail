@@ -87,11 +87,11 @@ object SetFunctions extends RegistryFunctions {
 
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(0)),
+          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
             NA(-t),
             Let(last, ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))),
               If(IsNA(Ref(last, t)),
-                If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(1)),
+                If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
                   NA(-t),
                   ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(2)))),
                 Ref(last, t))))))
@@ -109,9 +109,9 @@ object SetFunctions extends RegistryFunctions {
 
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(0)),
+          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
             NA(-t),
-            If(ApplyBinaryPrimOp(EQ(), Ref(size, TInt32()), I32(1)),
+            If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
               ArrayRef(Ref(a, TArray(t)), I32(0)),
               Let(lastIdx, ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)),
                 Let(lastIdx, If(
@@ -119,7 +119,7 @@ object SetFunctions extends RegistryFunctions {
                   ApplyBinaryPrimOp(Subtract(), Ref(lastIdx, TInt32()), I32(1)),
                   Ref(lastIdx, TInt32())),
                   Let(midIdx, ApplyBinaryPrimOp(RoundToNegInfDivide(), Ref(lastIdx, TInt32()), I32(2)),
-                    If(ApplyBinaryPrimOp(EQ(), Apply("%", FastSeq(Ref(lastIdx, TInt32()), I32(2))), I32(0)),
+                    If(ApplyComparisonOp(EQ(TInt32()), Apply("%", FastSeq(Ref(lastIdx, TInt32()), I32(2))), I32(0)),
                       ArrayRef(Ref(a, TArray(t)), Ref(midIdx, TInt32())), // odd number of non-missing elements
                       Let(midIdx2, ApplyBinaryPrimOp(Add(), Ref(midIdx, TInt32()), I32(1)), // even number of non-missing elements
                         ApplyBinaryPrimOp(
