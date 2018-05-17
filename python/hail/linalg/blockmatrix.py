@@ -81,6 +81,32 @@ class BlockMatrix(object):
     "outer product" of a single row and a single column, although the same
     effect can be achieved for ``*`` by using ``@``.
 
+    Block matrices also support NumPy-style 2-dimensional
+    `indexing and slicing <https://docs.scipy.org/doc/numpy/user/basics.indexing.html>`__,
+    with two differences.
+    First, slices ``start:stop:step`` must be non-empty with positive ``step``.
+    Second, even if only one index is a slice, the resulting block matrix is still
+    2-dimensional.
+
+    For example, for a block matrix ``bm`` with 10 rows and 10 columns:
+
+     - ``bm[0, 0]`` is the element in row 0 and column 0 of ``bm``.
+
+     - ``bm[0:1, 0]`` is a block matrix with 1 row, 1 column,
+       and element ``bm[0, 0]``.
+
+     - ``bm[2, :]`` is a block matrix with 1 row, 10 columns,
+       and elements from row 2 of ``bm``.
+
+     - ``bm[:3, -1]`` is a block matrix with 3 rows, 1 column,
+       and the first 3 elements of the last column of ``bm``.
+
+     - ``bm[::2, ::2]`` is a block matrix with 5 rows, 5 columns,
+       and all evenly-indexed elements of ``bm``.
+
+    Use :meth:`filter`, :meth:`filter_rows`, and :meth:`filter_cols` to
+    subset to non-slice subsets of rows and columns, e.g. to rows ``[0, 2, 5]``.
+
     Under the hood, block matrices are partitioned like a checkerboard into
     square blocks with side length a common block size (blocks in the final row
     or column of blocks may be truncated). Block size defaults to the value
@@ -478,6 +504,60 @@ class BlockMatrix(object):
         """
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
+
+    @staticmethod
+    def _pos_index(i, size, name, allow_size=False):
+        if 0 <= i < size or (i == size and allow_size):
+            return i
+        elif 0 <= i + size < size:
+            return i + size
+        else:
+            raise ValueError(f'invalid {name} {i} for axis of size {size}')
+
+    @staticmethod
+    def _range_to_keep(idx, size):
+        if isinstance(idx, int):
+            i = BlockMatrix._pos_index(idx, size, 'index')
+            return [i]
+        elif isinstance(idx, slice):
+            if idx.step and idx.step <= 0:
+                raise ValueError(f'slice step must be positive, found {idx.step}')
+
+            start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
+            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True) 
+            step = 1 if idx.step is None else idx.step
+
+            if start < stop:
+                if 0 == start and stop == size and step == 1:
+                    return None
+                else:
+                    return range(start, stop, step)
+            else:
+                raise ValueError(f'slice {start}:{stop}:{step} is empty')
+
+    @typecheck_method(indices=tupleof(oneof(int, slice)))
+    def __getitem__(self, indices):
+        if len(indices) != 2:
+            raise ValueError(f'tuple of indices or slices must have length two, found {len(indices)}')
+
+        row_idx, col_idx = indices
+
+        if isinstance(row_idx, int) and isinstance(col_idx, int):
+            i = BlockMatrix._pos_index(row_idx, self.n_rows, 'row index')
+            j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
+            return self._jbm.getElement(i, j)
+
+        rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
+        cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
+
+        if rows_to_keep is None and cols_to_keep is None:
+            return self
+        elif rows_to_keep is None and cols_to_keep is not None:
+            return self.filter_cols(cols_to_keep)
+        elif rows_to_keep is not None and cols_to_keep is None:
+            return self.filter_rows(rows_to_keep)
+        else:
+            return self.filter(rows_to_keep, cols_to_keep)
 
     @typecheck_method(table=Table,
                       radius=int,
