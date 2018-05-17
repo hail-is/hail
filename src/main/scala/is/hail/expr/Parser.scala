@@ -410,7 +410,6 @@ object Parser extends JavaTokenParsers {
     withPos("f32#" ~> "inf") ^^ (r => Const(r.pos, Float.PositiveInfinity, TFloat32())) |
     withPos("f32#" ~> "neginf") ^^ (r => Const(r.pos, Float.NegativeInfinity, TFloat32())) |
     withPos("f32#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-    withPos("f32#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
     withPos("f64#" ~> "nan") ^^ (r => Const(r.pos, Double.NaN, TFloat64())) |
     withPos("f64#" ~> "inf") ^^ (r => Const(r.pos, Double.PositiveInfinity, TFloat64())) |
     withPos("f64#" ~> "neginf") ^^ (r => Const(r.pos, Double.NegativeInfinity, TFloat64())) |
