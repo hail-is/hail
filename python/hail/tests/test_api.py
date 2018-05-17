@@ -866,6 +866,14 @@ class MatrixTests(unittest.TestCase):
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
+    def test_union_cols_example(self):
+        joined = hl.import_vcf(resource('joined.vcf'))
+
+        left = hl.import_vcf(resource('joinleft.vcf'))
+        right = hl.import_vcf(resource('joinright.vcf'))
+
+        self.assertTrue(left.union_cols(right)._same(joined))
+
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
