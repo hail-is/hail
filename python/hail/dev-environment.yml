@@ -16,3 +16,4 @@ dependencies:
 - pip:
     - parsimonious
     - ipykernel
+    - pytest-xdist
