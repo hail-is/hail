@@ -297,8 +297,8 @@ class FunctionChecker(TypeChecker):
     def check(self, x, caller, param):
         if not callable(x):
             raise TypecheckFailure
-        spec = inspect.getfullargspec(x)
-        if not len(spec.args) == self.nargs:
+        spec = inspect.signature(x)
+        if not len(spec.parameters) == self.nargs:
             raise TypecheckFailure
 
         def f(*args):
