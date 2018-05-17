@@ -258,13 +258,29 @@ private class Emit(
         val typ = ir.typ
         val codeL = emit(l)
         val codeR = emit(r)
-        EmitTriplet(Code(codeL.setup, codeR.setup),
-          codeL.m || codeR.m,
-          BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v))
+        strict(BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
       case ApplyUnaryPrimOp(op, x) =>
         val typ = ir.typ
         val v = emit(x)
-        EmitTriplet(v.setup, v.m, UnaryOp.emit(op, x.typ, v.v))
+        strict(UnaryOp.emit(op, x.typ, v.v), v)
+      case ApplyComparisonOp(op, l, r) =>
+        val f = op.codeOrdering(mb)
+        val codeL = emit(l)
+        val codeR = emit(r)
+        if (op.strict) {
+          strict(f(region, (false, codeL.v), region, (false, codeR.v)),
+            codeL, codeR)
+        } else {
+          val lm = mb.newLocal[Boolean]
+          val rm = mb.newLocal[Boolean]
+          present(Code(
+            codeL.setup,
+            codeR.setup,
+            lm := codeL.m,
+            rm := codeR.m,
+            f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
+              region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+        }
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(mb, typ)
@@ -310,7 +326,7 @@ private class Emit(
             ))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        EmitTriplet(codeA.setup, codeA.m, TContainer.loadLength(region, coerce[Long](codeA.v)))
+        strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
       case _: ArraySort | _: ToSet | _: ToDict =>
         val a = ir.children(0).asInstanceOf[IR]
@@ -723,10 +739,8 @@ private class Emit(
         val codeArgs = args.map(emit(_))
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
-        val setup = coerce[Unit](Code(codeArgs.map(_.setup): _*))
-        val missing = if (codeArgs.isEmpty) const(false) else codeArgs.map(_.m).reduce(_ || _)
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
-        EmitTriplet(setup, missing, value)
+        strict(value, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
         val unified = x.implementation.unify(args.map(_.typ))
@@ -916,6 +930,13 @@ private class Emit(
 
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
+
+  private def strict(value: Code[_], args: EmitTriplet*): EmitTriplet = {
+    EmitTriplet(
+      coerce[Unit](Code(args.map(_.setup): _*)),
+      if (args.isEmpty) false else args.map(_.m).reduce(_ || _),
+      value)
+  }
 
   private def normalArgumentPosition(idx: Int): Int = {
     1 + nSpecialArguments + idx * 2

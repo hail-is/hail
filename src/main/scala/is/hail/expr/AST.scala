@@ -738,26 +738,33 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private def tryPrimOpConversion: IndexedSeq[(Type, IR)] => Option[IR] = flatLift {
-      case IndexedSeq((xt, x)) => for {
+  private def tryPrimOpConversion: Seq[IR] => Option[IR] = flatLift {
+      case Seq(x) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.returnTypeOption(op, xt)
+        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
       } yield ir.ApplyUnaryPrimOp(op, x)
-      case IndexedSeq((xt, x), (yt, y)) => for {
+      case Seq(x, y) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.returnTypeOption(op, xt, yt)
+        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
       } yield ir.ApplyBinaryPrimOp(op, x, y)
     }
+
+  private def tryComparisonConversion: Seq[IR] => Option[IR] = flatLift {
+    case Seq(x, y) => for {
+      op <- ir.ComparisonOp.fromStringAndTypes.lift((fn, x.typ, y.typ))
+    } yield ir.ApplyComparisonOp(op, x, y)
+  }
 
   private[this] def tryIRConversion(agg: Option[(String, String)]): ToIRErr[IR] =
     for {
       irArgs <- all(args.map(_.toIR(agg)))
-      ir <- fromOption(
+      ir <- ToIRErr.exactlyOne[IR](
         this,
-        s"no function or primop found for $fn",
-        tryPrimOpConversion(args.map(_.`type`).zip(irArgs)).orElse(
-          IRFunctionRegistry.lookupConversion(fn, irArgs.map(_.typ))
-            .map { irf => irf(irArgs) }))
+        tryPrimOpConversion(irArgs),
+        tryComparisonConversion(irArgs),
+        IRFunctionRegistry
+          .lookupConversion(fn, irArgs.map(_.typ))
+          .map { irf => irf(irArgs) })
     } yield ir
 
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = {

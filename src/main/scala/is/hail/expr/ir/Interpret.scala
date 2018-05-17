@@ -104,12 +104,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
@@ -120,12 +114,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TFloat32, _: TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
@@ -136,12 +124,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
                 case RoundToNegInfDivide() => math.floor(ll / rr).toFloat
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TFloat64, _: TFloat64) =>
               val ll = lValue.asInstanceOf[Double]
@@ -152,17 +134,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
                 case RoundToNegInfDivide() => math.floor(ll / rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
-              }
-            case (_, _) =>
-              (op: @unchecked) match {
-                case EQ() => lValue == rValue
-                case NEQ() => lValue != rValue
               }
           }
       case ApplyUnaryPrimOp(op, x) =>
@@ -188,6 +159,22 @@ object Interpret {
               }
             }
         }
+      case ApplyComparisonOp(op, l, r) =>
+        val lValue = interpret(l, env, args, agg)
+        val rValue = interpret(r, env, args, agg)
+        if (op.strict && (lValue == null || rValue == null))
+          null
+        else {
+          op match {
+            case EQ(_) | EQWithNA(_) => lValue == rValue
+            case NEQ(_) | NEQWithNA(_) => lValue != rValue
+            case LT(t) => t.ordering.lt(lValue, rValue)
+            case GT(t) => t.ordering.gt(lValue, rValue)
+            case LTEQ(t) => t.ordering.lteq(lValue, rValue)
+            case GTEQ(t) => t.ordering.gteq(lValue, rValue)
+          }
+        }
+
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)

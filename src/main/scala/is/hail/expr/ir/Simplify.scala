@@ -14,6 +14,7 @@ object Simplify {
         _: ArrayLen |
         _: GetField |
         _: GetTupleElement => true
+      case ApplyComparisonOp(op, _, _) => op.strict
       case _ => false
     }
   }
@@ -24,6 +25,8 @@ object Simplify {
            _: MakeStruct |
            _: MakeTuple |
            _: IsNA |
+           ApplyComparisonOp(EQWithNA(_), _, _) |
+           ApplyComparisonOp(NEQWithNA(_), _, _) |
            _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
       case _ => false
     }

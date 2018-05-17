@@ -16,6 +16,9 @@ object Infer {
         BinaryOp.getReturnType(op, l.typ, r.typ)
       case ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
+      case ApplyComparisonOp(op, l, r) =>
+        assert(l.typ == r.typ)
+        TBoolean()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         -coerce[TArray](a.typ).elementType

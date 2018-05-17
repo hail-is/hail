@@ -38,6 +38,9 @@ object Copy {
       case ApplyUnaryPrimOp(op, _) =>
         val IndexedSeq(x: IR) = newChildren
         ApplyUnaryPrimOp(op, x)
+      case ApplyComparisonOp(op, _, _) =>
+        val IndexedSeq(l: IR, r: IR) = newChildren
+        ApplyComparisonOp(op, l, r)
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)

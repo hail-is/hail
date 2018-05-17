@@ -58,19 +58,4 @@ package object ir {
 
   def invoke(name: String, args: IR*): IR =
     IRFunctionRegistry.lookupConversion(name, args.map(_.typ)).get(args)
-
-  def nonstrictEQ(l: IR, r: IR): IR = {
-    // FIXME better as a (non-strict) BinaryOp?
-    assert(l.typ == r.typ)
-    val t = l.typ
-    val lv = genUID()
-    val rv = genUID()
-    Let(lv, l,
-      Let(rv, r,
-        If(IsNA(Ref(lv, t)),
-          IsNA(Ref(rv, t)),
-          If(IsNA(Ref(rv, t)),
-            False(),
-            ApplyBinaryPrimOp(EQ(), Ref(lv, t), Ref(rv, t))))))
-  }
 }

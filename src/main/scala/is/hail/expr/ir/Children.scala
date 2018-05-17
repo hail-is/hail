@@ -30,6 +30,8 @@ object Children {
       Array(l, r)
     case ApplyUnaryPrimOp(op, x) =>
       Array(x)
+    case ApplyComparisonOp(op, l, r) =>
+      Array(l, r)
     case MakeArray(args, typ) =>
       args.toIndexedSeq
     case ArrayRef(a, i) =>

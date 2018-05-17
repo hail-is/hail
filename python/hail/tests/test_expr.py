@@ -911,6 +911,26 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 % float64_3s, expected, tarray(tfloat64))
         self.check_expr(a_float64 % float64_3s, expected, tarray(tfloat64))
 
+    def test_comparisons(self):
+        f0 = hl.float(0.0)
+        fnull = hl.null(tfloat)
+        finf = hl.float(float('inf'))
+        fnan = hl.float(float('nan'))
+
+        self.check_expr(f0 == fnull, None, tbool)
+        self.check_expr(f0 < fnull, None, tbool)
+        self.check_expr(f0 != fnull, None, tbool)
+
+        self.check_expr(fnan == fnan, False, tbool)
+        self.check_expr(f0 == f0, True, tbool)
+        self.check_expr(finf == finf, True, tbool)
+
+        self.check_expr(f0 < finf, True, tbool)
+        self.check_expr(f0 > finf, False, tbool)
+
+        self.check_expr(fnan <= finf, False, tbool)
+        self.check_expr(fnan >= finf, False, tbool)
+
     def test_bools_can_math(self):
         b1 = hl.literal(True)
         b2 = hl.literal(False)

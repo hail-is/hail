@@ -53,6 +53,12 @@ object TypeCheck {
       case x@ApplyUnaryPrimOp(op, v) =>
         check(v)
         assert(x.typ == UnaryOp.getReturnType(op, v.typ))
+      case x@ApplyComparisonOp(op, l, r) =>
+        check(l)
+        check(r)
+        assert(l.typ.fundamentalType == r.typ.fundamentalType)
+        assert(op.typ.fundamentalType == l.typ.fundamentalType)
+        assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         if (args.length == 0)
           assert(typ != null)

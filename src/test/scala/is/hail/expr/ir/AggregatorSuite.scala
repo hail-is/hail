@@ -102,7 +102,7 @@ class AggregatorsSuite {
     assertEvalsTo(
       ApplyAggOp(
         If(
-          ApplyBinaryPrimOp(NEQ(), Ref("a", TFloat64()), F64(10.0)),
+          ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
           SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())),
             I32(0), aggSig),
           Begin(FastSeq())),
