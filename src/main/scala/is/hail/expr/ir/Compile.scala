@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.utils.{ArrayBuilder, FastSeq}
+import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -137,12 +137,17 @@ object CompileWithAggregators {
 
     val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
     val nAggs = rvAggs.length
-    val (_, initOps) = Compile[F0, Unit](args, transformInitOp(nAggs, initOpIR), 2)
-    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, transformSeqOp(nAggs, seqOpIR), 2)
+    val (_, initOps) = Compile[F0, Unit](args, trace("initop", transformInitOp(nAggs, initOpIR)), 2)
+    val (_, seqOps) = Compile[F1, Unit](aggScopeArgs, trace("seqop", transformSeqOp(nAggs, seqOpIR)), 2)
 
     val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
     val (t, f) = Compile[F2, R](args2, postAggIR, 1)
     (rvAggs, initOps, seqOps, aggResultType, f, t)
+  }
+
+  private[this] def trace(name: String, t: IR): IR = {
+    log.info(name + " " + Pretty(t))
+    t
   }
 
   def apply[

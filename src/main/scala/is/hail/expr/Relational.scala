@@ -776,7 +776,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
               SeqOp(a,
                 ir.ApplyBinaryPrimOp(ir.Add(),
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
-                i),
+                  i),
                 agg)
             case _ =>
               ir.Recur(rewrite)(x)
@@ -831,9 +831,9 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
         var isEnd = false
         var current: RegionValue = null
         val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
-        val region = ctx.region
-        val rvb = ctx.rvb
-        val newRV = RegionValue(region)
+        val consumerRegion = ctx.region
+        val rvb = new RegionValueBuilder()
+        val newRV = RegionValue(consumerRegion)
 
         def hasNext: Boolean = {
           if (isEnd || (current == null && !it.hasNext)) {
@@ -865,20 +865,21 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
             }
           }
 
-          rvb.set(region)
-          rvb.start(localGlobalsType)
-          rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-          val globals = rvb.end()
-
-          rvb.set(region)
-          rvb.start(localColsType)
-          rvb.addRegionValue(localColsType, partRegion, partColsOff)
-          val cols = rvb.end()
-
-          initialize(region, colRVAggs, globals, false)
-
           if (colRVAggs.nonEmpty) {
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+              val region = current.region
+              rvb.set(region)
+              rvb.start(localGlobalsType)
+              rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
+              val globals = rvb.end()
+
+              rvb.set(region)
+              rvb.start(localColsType)
+              rvb.addRegionValue(localColsType, partRegion, partColsOff)
+              val cols = rvb.end()
+
+              initialize(region, colRVAggs, globals, false)
+
               sequence(region, colRVAggs,
                 globals, false,
                 cols, false,
@@ -887,6 +888,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
             }
           }
 
+          rvb.set(consumerRegion)
+
+          rvb.start(localGlobalsType)
+          rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
+          val globals = rvb.end()
 
           val aggResultsOffsets = Array.tabulate(nCols) { i =>
             rvb.start(aggResultType)
@@ -916,11 +922,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           {
             var i = 0
             while (i < nCols) {
-              val newEntryOff = annotate(region,
+              val newEntryOff = annotate(consumerRegion,
                 aggResultsOffsets(i), false,
                 globals, false)
 
-              rvb.addRegionValue(rTyp, region, newEntryOff)
+              rvb.addRegionValue(rTyp, consumerRegion, newEntryOff)
 
               i += 1
             }
