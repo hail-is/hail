@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr.types._
-import is.hail.linalg.{BlockMatrix, GridPartitioner}
+import is.hail.linalg.GridPartitioner
 import is.hail.table.Table
 import is.hail.utils.{fatal, plural}
 import org.apache.spark.rdd.RDD
@@ -63,12 +63,12 @@ object UpperIndexBounds {
     val absoluteUpperIndexBounds = shiftUpperIndexBounds(relativeUpperIndexBounds)
 
     if (includeDiagonal) {
-      gp.rectangularBlocks(absoluteUpperIndexBounds.zipWithIndex.map {
-        case (j, i) => Array(i, i, i, j)
+      gp.rectanglesBlocks(absoluteUpperIndexBounds.zipWithIndex.map {
+        case (j, i) => Array(i, i + 1, i, j + 1)
       })
     } else {
-      gp.rectangularBlocks(absoluteUpperIndexBounds.zipWithIndex.flatMap {
-        case (j, i) => if (i == j) None else Some(Array(i, i, i + 1, j))
+      gp.rectanglesBlocks(absoluteUpperIndexBounds.zipWithIndex.flatMap {
+        case (j, i) => if (i == j) None else Some(Array(i, i + 1, i + 1, j + 1))
       })
     }
   }
