@@ -928,7 +928,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             AggOp.fromString.lift(method))
           bodyx <- body.toIR()
           aggSig = AggSignature(op,
-            -t.elementType,
+            bodyx.typ,
             FastIndexedSeq(),
             None)
           ca <- fromOption(
