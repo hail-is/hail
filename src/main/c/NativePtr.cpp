@@ -23,18 +23,28 @@ public:
 
 public:
   AlignedBuf() {
-    addrA() = 0;
-    addrB() = 0;
+    set_addrA(0);
+    set_addrB(0);
   }
 
   inline NativeObjPtr& as_NativeObjPtr() {
     return *reinterpret_cast<NativeObjPtr*>(&buf_[0]);
   }
   
-  inline long& addrA() { return *reinterpret_cast<long*>(&buf_[0]); }
-  
-  inline long& addrB() { return *reinterpret_cast<long*>(&buf_[sizeof(long)]); }
+  long get_addrA() const;
+  long get_addrB() const;
+  void set_addrA(long v);
+  void set_addrB(long v);
 };
+
+// We use non-inline methods to try to defeat over-aggressive reordering
+// of aliased type-punned accesses.  The cost is probably small relative
+// to the overhead of the Scala-to-C++ JNI call.
+
+long AlignedBuf::get_addrA() const { return *(long*)(&buf_[0]); }  
+long AlignedBuf::get_addrB() const { return *(long*)(&buf_[8]); }
+void AlignedBuf::set_addrA(long v) { *(long*)&buf_[0] = v; }
+void AlignedBuf::set_addrB(long v) { *(long*)&buf_[8] = v; }
 
 bool is_info_ready = false;
 jfieldID addrA_id;
@@ -49,7 +59,7 @@ void init_info(JNIEnv* env) {
   auto ptr = std::make_shared<NativeObj>();
   AlignedBuf* buf = reinterpret_cast<AlignedBuf*>(&ptr);
   assert(sizeof(ptr) == 2*sizeof(long));
-  assert(buf->addrA() == reinterpret_cast<long>(ptr.get()));
+  assert(buf->get_addrA() == reinterpret_cast<long>(ptr.get()));
 }
 
 } // end anon
@@ -65,8 +75,8 @@ void init_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
   // Ignore previous values in NativePtr
   AlignedBuf buf;
   buf.as_NativeObjPtr() = std::move(*ptr);
-  env->SetLongField(obj, addrA_id, buf.addrA());
-  env->SetLongField(obj, addrB_id, buf.addrB());
+  env->SetLongField(obj, addrA_id, buf.get_addrA());
+  env->SetLongField(obj, addrB_id, buf.get_addrB());
 }
 
 void move_to_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
@@ -75,14 +85,14 @@ void move_to_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr) {
   if (addrA) {
     // We need to reset() the existing NativePtr
     AlignedBuf old;
-    old.addrA() = addrA;
-    old.addrB() = env->GetLongField(obj, addrB_id);
+    old.set_addrA(addrA);
+    old.set_addrB(env->GetLongField(obj, addrB_id));
     old.as_NativeObjPtr().reset();
   }
   AlignedBuf buf;
   buf.as_NativeObjPtr() = std::move(*ptr);
-  env->SetLongField(obj, addrA_id, buf.addrA());
-  env->SetLongField(obj, addrB_id, buf.addrB());
+  env->SetLongField(obj, addrA_id, buf.get_addrA());
+  env->SetLongField(obj, addrB_id, buf.get_addrB());
 }
 
 NATIVEMETHOD(void, NativeBase, nativeCopyCtor)(
@@ -105,18 +115,18 @@ NATIVEMETHOD(void, NativeBase, copyAssign)(
 ) {
   if (thisJ == srcJ) return;
   AlignedBuf bufA;
-  bufA.addrA() = env->GetLongField(thisJ, addrA_id);
-  bufA.addrB() = env->GetLongField(thisJ, addrB_id);
+  bufA.set_addrA(env->GetLongField(thisJ, addrA_id));
+  bufA.set_addrB(env->GetLongField(thisJ, addrB_id));
   AlignedBuf bufB;
-  bufB.addrA() = env->GetLongField(srcJ, addrA_id);
-  bufB.addrB() = env->GetLongField(srcJ, addrB_id);
+  bufB.set_addrA(env->GetLongField(srcJ, addrA_id));
+  bufB.set_addrB(env->GetLongField(srcJ, addrB_id));
   auto& ptrA = bufA.as_NativeObjPtr();
   auto& ptrB = bufB.as_NativeObjPtr();
   if (ptrA != ptrB) {
     // This will change the contents of vecA
     ptrA = ptrB;
-    env->SetLongField(thisJ, addrA_id, bufA.addrA());
-    env->SetLongField(thisJ, addrB_id, bufA.addrB());
+    env->SetLongField(thisJ, addrA_id, bufA.get_addrA());
+    env->SetLongField(thisJ, addrB_id, bufA.get_addrB());
   }
 }
 
@@ -127,16 +137,16 @@ NATIVEMETHOD(void, NativeBase, moveAssign)(
 ) {
   if (thisJ == srcJ) return;
   AlignedBuf bufA;
-  bufA.addrA() = env->GetLongField(thisJ, addrA_id);
-  bufA.addrB() = env->GetLongField(thisJ, addrB_id);
+  bufA.set_addrA(env->GetLongField(thisJ, addrA_id));
+  bufA.set_addrB(env->GetLongField(thisJ, addrB_id));
   AlignedBuf bufB;
-  bufB.addrA() = env->GetLongField(srcJ, addrA_id);
-  bufB.addrB() = env->GetLongField(srcJ, addrB_id);
+  bufB.set_addrA(env->GetLongField(srcJ, addrA_id));
+  bufB.set_addrB(env->GetLongField(srcJ, addrB_id));
   bufA.as_NativeObjPtr() = std::move(bufB.as_NativeObjPtr());
-  env->SetLongField(thisJ, addrA_id, bufA.addrA());
-  env->SetLongField(thisJ, addrB_id, bufA.addrB());
-  env->SetLongField(srcJ, addrA_id, bufB.addrA());
-  env->SetLongField(srcJ, addrB_id, bufB.addrB());
+  env->SetLongField(thisJ, addrA_id, bufA.get_addrA());
+  env->SetLongField(thisJ, addrB_id, bufA.get_addrB());
+  env->SetLongField(srcJ, addrA_id, bufB.get_addrA());
+  env->SetLongField(srcJ, addrB_id, bufB.get_addrB());
 }
 
 NATIVEMETHOD(void, NativeBase, nativeReset)(
@@ -146,8 +156,8 @@ NATIVEMETHOD(void, NativeBase, nativeReset)(
   jlong addrB
 ) {
   AlignedBuf bufA;
-  bufA.addrA() = addrA;
-  bufA.addrB() = addrB;
+  bufA.set_addrA(addrA);
+  bufA.set_addrB(addrB);
   bufA.as_NativeObjPtr().reset();
   // The Scala object fields are cleared in the wrapper
 }
@@ -159,8 +169,8 @@ NATIVEMETHOD(long, NativeBase, nativeUseCount)(
   jlong addrB
 ) {
   AlignedBuf bufA;
-  bufA.addrA() = addrA;
-  bufA.addrB() = addrB;
+  bufA.set_addrA(addrA);
+  bufA.set_addrB(addrB);
   return bufA.as_NativeObjPtr().use_count();
 }
 
