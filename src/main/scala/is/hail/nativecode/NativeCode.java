@@ -1,23 +1,32 @@
 package is.hail.nativecode;
 
+import java.io.*;
 import java.util.*;
 import java.net.URL;
 import com.sun.jna.*;
 
 class NativeCode {
   static {
-    //
-    // Access the library by the JNA which can find the
-    // library bundled into a JAR file, but doesn't use
-    // RTLD_GLOBAL to make symbols visible to everything.
-    //
-    NativeLibrary lib = NativeLibrary.getInstance("hail");
-    String libName = lib.getFile().toString();
-    lib.dispose();
-    //
-    // Load the library again with RTLD_GLOBAL
-    //
-    System.load(libName);
+    try {
+      File file = File.createTempFile("libhail", ".lib");
+      ClassLoader loader = NativeCode.class.getClassLoader();
+      InputStream s = null;
+      String osName = System.getProperty("os.name");
+      if (osName.equals("Linux") || osName.equals("linux")) {
+        s = loader.getResourceAsStream("linux-x86-64/libhail.so");
+      } else {
+        s = loader.getResourceAsStream("darwin/libhail.dylib");
+      }
+      java.nio.file.Files.copy(s, file.getAbsoluteFile().toPath(),
+        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+      );
+      String path = file.getAbsoluteFile().toPath().toString();
+      // Unlike JNA, this loads it with RTLD_GLOBAL to make all symbols
+      // visible to DLL's loaded in future
+      System.load(path);
+    } catch (Exception e) {
+      System.err.println("ERROR: NativeCode.init caught exception");
+    }
   }
 
   final static String getIncludeDir() {
