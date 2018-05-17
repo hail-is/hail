@@ -41,6 +41,18 @@ object ToIRErr {
     if (condition) fail(blame, message, getCaller()) else success(())
   private[expr] def getCaller(): StackTraceElement =
     Thread.currentThread().getStackTrace()(3)
+
+  def exactlyOne[T](
+    blame: AST,
+    a: Option[T],
+    b: Option[T],
+    c: Option[T]
+  ): ToIRErr[T] = (a, b, c) match {
+    case (Some(x), None, None) => success(x)
+    case (None, Some(x), None) => success(x)
+    case (None, None, Some(x)) => success(x)
+    case (x, y, z) => fail(blame, s"expected exactly one of $x, $y, $z to be Some.", getCaller())
+  }
 }
 
 trait ToIRErr[T] {
