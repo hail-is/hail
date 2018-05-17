@@ -897,19 +897,50 @@ class Tests(unittest.TestCase):
         _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
-    def test_pca(self):
-        mt = hl.balding_nichols_model(3, 100, 50)
-        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=True)
+    def test_pca_against_numpy(self):
+        mt = hl.import_vcf(resource('tiny_m.vcf'))
+        mt = mt.filter_rows(hl.len(mt.alleles) == 2)
+        mt = mt.annotate_rows(AC = hl.agg.sum(mt.GT.n_alt_alleles()),
+                              n_called = hl.agg.count_where(hl.is_defined(mt.GT)))
+        mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
+        n_rows = mt.count_rows()
 
-        self.assertEqual(len(eigenvalues), 2)
-        self.assertTrue(isinstance(scores, hl.Table))
-        self.assertEqual(scores.count(), 100)
-        self.assertTrue(isinstance(loadings, hl.Table))
-        self.assertEqual(loadings.count(), 50)
+        def make_expr(mean):
+            return hl.cond(hl.is_defined(mt.GT),
+                           (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                           0)
+        eigen, scores, loadings= hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
+        hail_scores = scores.explode('scores').scores.collect()
+        hail_loadings = loadings.explode('loadings').loadings.collect()
 
-        _, _, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=False)
-        self.assertEqual(loadings, None)
-        
+        self.assertEqual(len(eigen), 3)
+        self.assertEqual(scores.count(), mt.count_cols())
+        self.assertEqual(loadings.count(), n_rows)
+
+        # compute PCA with numpy
+        def normalize(a):
+            ms = np.mean(a, axis = 0, keepdims = True)
+            return np.divide(np.subtract(a, ms), np.sqrt(2.0*np.multiply(ms/2.0, 1-ms/2.0)*a.shape[1]))
+
+        g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+        g[1, 0] = 1.0 / 3
+        n = normalize(g)
+        U, s, V = np.linalg.svd(n, full_matrices=0)
+        np_scores = U.dot(np.diag(s)).flatten()
+        np_loadings = V.transpose().flatten()
+        np_eigenvalues = np.multiply(s,s).flatten()
+
+
+        def check(hail_array, np_array):
+            self.assertEqual(len(hail_array), len(np_array))
+            for i, (left, right) in enumerate(zip(hail_array, np_array)):
+                self.assertAlmostEqual(abs(left), abs(right),
+                                       msg=f'mismatch at index {i}: np={left}, hl={right}',
+                                       places=4)
+        check(np_eigenvalues, eigen)
+        check(np_scores, hail_scores)
+        check(np_loadings, hail_loadings)
+
     def test_pca_join(self):
         mt = hl.balding_nichols_model(2, 10, 20)
         eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=1, compute_loadings=True)
