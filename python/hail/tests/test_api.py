@@ -980,6 +980,13 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(kept.all(hl.is_defined(kept.x2) & (kept.x2 == kept.x * 10)))
         self.assertTrue(removed.all(hl.is_missing(removed.x2)))
 
+    def test_entries_table_length_and_fields(self):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions = 4)
+        mt = mt.annotate_entries(x = mt.col_idx + mt.row_idx)
+        et = mt.entries()
+        self.assertEqual(et.count(), 100)
+        self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
+
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
