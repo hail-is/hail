@@ -263,15 +263,15 @@ class TypeCheckTests(unittest.TestCase):
 
     def test_complex_signature(self):
 
-        @typecheck(a=int, b=int, c=int, d=int, e=int)
-        def f(a, b=5, c=10, *d, **e):
+        @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
+        def f(a, b='5', c=[10], *d, **e):
             pass
-        f(1,2,3)
-        f(1, foo=5)
-        f(1, 2, foo=5)
-        f(1, c=25)
+        f(1, 'a', )
+        f(1, foo={})
+        f(1, 'a', foo={})
+        f(1, c=[25, 2])
         with self.assertRaises(TypeError):
-            f(1, 2, a=2)
+            f(1, '2', a=2)
 
     def test_extra_args(self):
 
