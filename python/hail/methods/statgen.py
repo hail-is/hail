@@ -4,7 +4,7 @@ from typing import *
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.update_entries_expressions import *
+from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
@@ -76,7 +76,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     dataset : :class:`.MatrixTable`
         Variant-keyed :class:`.MatrixTable` containing genotype information.
     maf : :class:`.Float64Expression`, optional
-        Row-indexed update_entries_expression for the minor allele frequency.
+        Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
         Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
         on biologically meaningful values (in the range [0,1]).
@@ -255,7 +255,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     Notes
     -----
-    With the default root and `y` a single update_entries_expression, the following row-indexed
+    With the default root and `y` a single expression, the following row-indexed
     fields are added.
 
     - **linreg.n** (:py:data:`.tint32`) -- Number of columns used.
@@ -270,7 +270,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
       :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
     - **linreg.p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
-    If `y` is a list of update_entries_expressions, then the last five fields instead have type
+    If `y` is a list of expressions, then the last five fields instead have type
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
 
@@ -301,11 +301,11 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     Parameters
     ----------
     y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
-        One or more column-indexed response update_entries_expressions.
+        One or more column-indexed response expressions.
     x : :class:`.Float64Expression`
-        Entry-indexed update_entries_expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate update_entries_expressions.
+        List of column-indexed covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
     block_size : :obj:`int`
@@ -557,14 +557,14 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
     y : :class:`.Float64Expression`
-        Column-indexed response update_entries_expression.
+        Column-indexed response expression.
         All non-missing values must evaluate to 0 or 1.
         Note that a :class:`.BooleanExpression` will be implicitly converted to
         a :class:`.Float64Expression` with this property.
     x : :class:`.Float64Expression`
-        Entry-indexed update_entries_expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate update_entries_expressions.
+        List of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
 
@@ -706,7 +706,7 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
          - true if fit by ML, false if fit by REML
        * - `beta`
          - dict<str, float64>
-         - map from *intercept* and the given `covariates` update_entries_expressions to the
+         - map from *intercept* and the given `covariates` expressions to the
            corresponding fit :math:`\beta` coefficients
        * - `sigma_g_squared`
          - float64
@@ -1061,11 +1061,11 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     kinship_matrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
     y : :class:`.Float64Expression`
-        Column-indexed response update_entries_expression.
+        Column-indexed response expression.
     x : :class:`.Float64Expression`
-        Entry-indexed update_entries_expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate update_entries_expressions.
+        List of column-indexed covariate expressions.
     global_root : :obj:`str`
         Global field root.
     row_root : :obj:`str`
@@ -1209,7 +1209,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     the R package ``skat``---which assumes rows are variants---default weights
     are given by evaluating the Beta(1, 25) density at the minor allele
     frequency. To replicate these weights in Hail using alternate allele
-    frequencies stored in a row-indexd field `AF`, one can use the update_entries_expression:
+    frequencies stored in a row-indexd field `AF`, one can use the expression:
 
     .. testsetup::
 
@@ -1275,15 +1275,15 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Parameters
     ----------
     key_expr : :class:`.Expression`
-        Row-indexed update_entries_expression for key associated to each row.
+        Row-indexed expression for key associated to each row.
     weight_expr : :class:`.Float64Expression`
-        Row-indexed update_entries_expression for row weights.
+        Row-indexed expression for row weights.
     y : :class:`.Float64Expression`
-        Column-indexed response update_entries_expression.
+        Column-indexed response expression.
     x : :class:`.Float64Expression`
-        Entry-indexed update_entries_expression for input variable.
+        Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate update_entries_expressions.
+        List of column-indexed covariate expressions.
     logistic : :obj:`bool`
         If true, use the logistic test rather than the linear test.
     max_size : :obj:`int`
@@ -1392,7 +1392,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call update_entries_expression.
+        Entry-indexed call expression.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
@@ -1497,7 +1497,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     Parameters
     ----------
     entry_expr : :class:`.Expression`
-        Numeric update_entries_expression for matrix entries.
+        Numeric expression for matrix entries.
     k : :obj:`int`
         Number of principal components.
     compute_loadings : :obj:`bool`
@@ -1768,7 +1768,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call update_entries_expression.
+        Entry-indexed call expression.
     min_individual_maf : :obj:`float`
         The minimum individual-specific minor allele frequency.
         If either individual-specific minor allele frequency for a pair of
@@ -1778,7 +1778,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         If set, `k` principal component scores are computed and used.
         Exactly one of `k` and `scores_expr` must be specified.
     scores_expr : :class:`.ArrayNumericExpression`, optional
-        Column-indexed update_entries_expression of principal component scores, with the same
+        Column-indexed expression of principal component scores, with the same
         source as `call_expr`. All array values must have the same positive length,
         corresponding to the number of principal components, and all scores must
         be non-missing. Exactly one of `k` and `scores_expr` must be specified.
@@ -2242,7 +2242,7 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call update_entries_expression.
+        Entry-indexed call expression.
 
     Returns
     -------
@@ -2325,7 +2325,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call update_entries_expression.
+        Entry-indexed call expression.
 
     Returns
     -------
@@ -2603,7 +2603,7 @@ def filter_alleles(mt: MatrixTable,
 
     `f` is a function that takes two arguments: the allele string (of type
     :class:`.StringExpression`) and the allele index (of type
-    :class:`.Int32Expression`), and returns a boolean update_entries_expression. This can
+    :class:`.Int32Expression`), and returns a boolean expression. This can
     be either a defined function or a lambda. For example, these two usages
     are equivalent:
 
@@ -2972,7 +2972,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call update_entries_expression on a matrix table with row-indexed
+        Entry-indexed call expression on a matrix table with row-indexed
         variants and column-indexed samples.
     r2 : :obj:`float`
         Squared correlation threshold (exclusive upper bound).
