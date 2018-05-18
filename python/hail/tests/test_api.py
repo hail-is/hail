@@ -921,6 +921,20 @@ class MatrixTests(unittest.TestCase):
 
         self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
+    def test_distinct_by_row(self):
+        orig_mt = hl.utils.range_matrix_table(10, 10)
+        mt = orig_mt.key_rows_by(row_idx = orig_mt.row_idx // 2)
+        self.assertTrue(mt.distinct_by_row().count_rows() == 5)
+
+        self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
+
+    def test_distinct_by_col(self):
+        orig_mt = hl.utils.range_matrix_table(10, 10)
+        mt = orig_mt.key_cols_by(col_idx = orig_mt.col_idx // 2)
+        self.assertTrue(mt.distinct_by_col().count_cols() == 5)
+
+        self.assertTrue(orig_mt.union_cols(orig_mt).distinct_by_col()._same(orig_mt))
+
     def test_computed_key_join_1(self):
         ds = self.get_vds()
         kt = hl.Table.parallelize(
