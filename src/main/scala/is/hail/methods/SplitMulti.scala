@@ -264,14 +264,15 @@ abstract class SplitMultiPartitionContext(
 
     val nAlleles = 1 + alts.length
     val nGenotypes = VariantMethods.nGenotypes(nAlleles)
-    // val it = 
-      constructSplitRow(splitVariants.iterator, rv, wasSplit)
-    // prevLocus = fullRow.getAs[Locus](locusIndex)
-    // it
+    constructSplitRow(splitVariants.iterator, rv, wasSplit)
   }
 
   def splitPartition(it: Iterator[RegionValue]): Iterator[RegionValue] =
-    it.flatMap(splitRow)
+    it.flatMap { rv =>
+      val it = splitRow(rv)
+      prevLocus = fullRow.getAs[Locus](locusIndex)
+      it
+    }
 }
 
 object SplitMulti {
@@ -346,7 +347,6 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     val localVAnnotator = vAnnotator
     val localGAnnotator = gAnnotator
     val localSplitRow = rowF
-    val locusIndex = oldRVRowType.fieldIdx("locus")
 
     val newRowType = newMatrixType.rvRowType
 
@@ -359,13 +359,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     }
 
     vsm.rvd.boundary.mapPartitions(newRowType, { (ctx, it) =>
-      val splitMultiContext = makeContext(ctx)
-      it.flatMap { rv =>
-        val splitit = splitMultiContext.splitRow(rv)
-        splitMultiContext.prevLocus = splitMultiContext.fullRow.getAs[Locus](locusIndex)
-        splitit
-      }
-      // makeContext(ctx).splitPartition(it)
+      makeContext(ctx).splitPartition(it)
     })
   }
 
