@@ -244,7 +244,7 @@ object TestUtils {
     mt.selectCols("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""", Some(FastIndexedSeq()))
       .annotateRowsExpr(
         "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
-        "pos_morgan" -> "0")
+        "cm_position" -> "0.0")
       .exportPlink(path)
   }
 

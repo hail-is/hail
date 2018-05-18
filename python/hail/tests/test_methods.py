@@ -13,6 +13,7 @@ from .utils import resource, doctest_resource, startTestHailContext, stopTestHai
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+
 class Tests(unittest.TestCase):
     _dataset = None
 
@@ -1299,7 +1300,7 @@ class Tests(unittest.TestCase):
         ds = self.get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'position_morgan',
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
                        'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
         # Test default arguments
@@ -1314,7 +1315,7 @@ class Tests(unittest.TestCase):
                                  (fam1.mat_id == "0") & (fam1.is_female == "0") &
                                  (fam1.pheno == "NA")))
         self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
-                                 (bim1.position_morgan == "0")))
+                                 (bim1.cm_position == "0.0")))
 
         # Test non-default FAM arguments
         out2 = utils.new_temp_file()
@@ -1339,11 +1340,11 @@ class Tests(unittest.TestCase):
 
         # Test non-default BIM arguments
         out4 = utils.new_temp_file()
-        hl.export_plink(ds, out4, varid="hello", position_morgan=100)
+        hl.export_plink(ds, out4, varid="hello", cm_position=100)
         bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
                 .rename(bim_mapping))
 
-        self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.position_morgan == "100")))
+        self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.cm_position == "100.0")))
 
         # Test call expr
         out5 = utils.new_temp_file()
@@ -1824,18 +1825,18 @@ class Tests(unittest.TestCase):
     def test_export_import_plink_same(self):
         mt = self.get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
-                            position_morgan=15)
+                            cm_position=15.0)
         mt = mt.select_cols(fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
                             is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
-        hl.export_plink(mt, bfile, ind_id=mt.s, position_morgan=mt.position_morgan)
+        hl.export_plink(mt, bfile, ind_id=mt.s, cm_position=mt.cm_position)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                       a2_reference=True, reference_genome='GRCh37')
         self.assertTrue(mt._same(mt_imported))
-        self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.position_morgan == 15)))
+        self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
     def test_import_plink_empty_fam(self):
         mt = self.get_dataset().drop_cols()
