@@ -545,7 +545,7 @@ object OrderedRVD {
 
     val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
-        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
+        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i), ctx))
       else
         Iterator()
       out
@@ -778,6 +778,7 @@ object OrderedRVD {
       partitioner,
       crdd.cmapPartitions { (ctx, it) =>
         it.map { rv =>
+          assert(localType.rowType.typeCheck(new UnsafeRow(localType.rowType, rv)))
           val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kRowFieldIdx)
           val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
           (keys, bytes)
@@ -788,7 +789,9 @@ object OrderedRVD {
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
             assert(partBc.value.getSafePartition(k) == i)
-            RVD.bytesToRegionValue(dec, region, rv)(bytes)
+            val rv2 = RVD.bytesToRegionValue(dec, region, rv)(bytes)
+            assert(localType.rowType.typeCheck(new UnsafeRow(localType.rowType, rv2)))
+            rv2
           }
       })
   }
@@ -938,6 +941,7 @@ object OrderedRVD {
               assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR))
 
               assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
+              assert(localType.rowType.typeCheck(new UnsafeRow(localType.rowType, rv)))
               rv
             }
           }

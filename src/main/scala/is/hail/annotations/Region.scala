@@ -10,9 +10,8 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException
 object Region {
   def apply(): Region = {
     val blockSize = 16L * 1024L
-    val firstBlock = Memory.malloc(blockSize)
     val blocks = new ArrayBuilder[Long]()
-    blocks += firstBlock
+    blocks += Memory.malloc(blockSize)
     new Region(
       blocks,
       blockSize,
@@ -157,16 +156,26 @@ final class Region private (
     assert(n >= 0)
     if (n > blockSize) {
       // FIXME: is this guaranteed to be aligned to anything?
-      log.info("Allocating a large region $n")
+      log.info(s"Allocating a large region $n")
       val mem = Memory.malloc(n)
+      var i = 0
+      while (i < blockSize) {
+        Memory.storeByte(mem + i, 0)
+        i += 1
+      }
       bigBlocks += mem
       mem
     } else {
       val required = end + n
       if (required > capacity) {
         // FIXME: is this guaranteed to be aligned to anything?
-        log.info("Allocating a new region, $end $n $capacity")
+        log.info(s"Allocating a new region, $end $n $capacity")
         val mem = Memory.malloc(blockSize)
+        var i = 0
+        while (i < blockSize) {
+          Memory.storeByte(mem + i, 0)
+          i += 1
+        }
         blocks += mem
         end = 0
         mem
@@ -299,6 +308,11 @@ final class Region private (
 
   def clear() {
     end = 0
+    blocks.result().foreach(Memory.free)
+    blocks.clear()
+    blocks += Memory.malloc(blockSize)
+    bigBlocks.result().foreach(Memory.free)
+    bigBlocks.clear()
   }
 
   def visit(t: Type, off: Long, v: ValueVisitor) {
@@ -368,7 +382,10 @@ final class Region private (
     v.result()
   }
 
-  def close(): Unit = ()
+  def close(): Unit = {
+    // blocks.underlying().foreach(Memory.free)
+    // bigBlocks.underlying().foreach(Memory.free)
+  }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()

@@ -136,6 +136,7 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def appendBinary(bytes: Code[Array[Byte]]): Code[Long] = {
     region.invoke[Array[Byte], Long]("appendBinary", bytes)
+  }
 
   def appendBinarySlice(
     fromRegion: Code[Region],
