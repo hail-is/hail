@@ -74,9 +74,9 @@ object SetFunctions extends RegistryFunctions {
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       Let(a, ToArray(s), If(
-        ApplySpecial(">", FastSeq(ArrayLen(Ref(a, TArray(t))), I32(0))),
+        ApplyComparisonOp(GT(TInt32()), ArrayLen(Ref(a, TArray(t))), I32(0)),
         ArrayRef(Ref(a, TArray(t)), I32(0)),
-        NA(-t)))
+        NA(t)))
     }
 
     registerIR("max", TSet(tnum("T"))) { s =>
@@ -88,11 +88,11 @@ object SetFunctions extends RegistryFunctions {
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
           If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
-            NA(-t),
+            NA(t),
             Let(last, ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))),
               If(IsNA(Ref(last, t)),
                 If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
-                  NA(-t),
+                  NA(t),
                   ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(2)))),
                 Ref(last, t))))))
     }
@@ -110,7 +110,7 @@ object SetFunctions extends RegistryFunctions {
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
           If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
-            NA(-t),
+            NA(t),
             If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
               ArrayRef(Ref(a, TArray(t)), I32(0)),
               Let(lastIdx, ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)),
