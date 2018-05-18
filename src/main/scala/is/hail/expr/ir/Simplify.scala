@@ -147,7 +147,7 @@ object Simplify {
       case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
 
-      // Ignore column or row data that is immediately droped
+      // Ignore column or row data that is immediately dropped
       case MatrixRowsTable(MatrixRead(typ, partitionCounts, false, dropRows, f)) =>
         MatrixRowsTable(MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f))
 
