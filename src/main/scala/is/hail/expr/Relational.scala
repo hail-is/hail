@@ -717,16 +717,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
       MatrixAggregateRowsByKey(child, expr)
   }
 
-  private[this] val tAggElt: Type = child.typ.entryType
-  // FIXME: this should come from the MatrixType
-  private[this] val aggSymTab = Map(
-    "global" -> (0, child.typ.globalType),
-    "va" -> (1, child.typ.rvRowType),
-    "g" -> (2, child.typ.entryType),
-    "sa" -> (3, child.typ.colType))
-
-  private[this] val tAgg = TAggregable(tAggElt, aggSymTab)
-
   val typ: MatrixType = child.typ.copyParts(
     rowType = child.typ.orvdType.kType,
     // FIXME: how on earth is this supposed to work, expr doesn't know its
