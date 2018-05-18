@@ -2156,19 +2156,19 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     """
 
-    row_fields = list(ds.row)
+    entry_fields = list(ds.entry)
 
     update_entries_expression = {}
     sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
 
-    if 'GT' in row_fields:
+    if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(ds.GT, sm.a_index())
-    if 'DP' in row_fields:
+    if 'DP' in entry_fields:
         update_entries_expression['DP'] = ds.DP
-    if 'AD' in row_fields:
+    if 'AD' in entry_fields:
         update_entries_expression['AD'] = hl.or_missing(hl.is_defined(ds.AD),
                                                         [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]])
-    if 'PL' in row_fields:
+    if 'PL' in entry_fields:
         pl = hl.or_missing(
             hl.is_defined(ds.PL),
             (hl.range(0, 3).map(lambda i:
@@ -2177,15 +2177,15 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
                                                                       sm.a_index()) == hl.unphased_diploid_gt_index_call(i)
                                                 ).map(lambda j: ds.PL[j]))))))
         update_entries_expression['PL'] = pl
-        if 'GQ' in row_fields:
+        if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = hl.gq_from_pl(pl)
     else:
-        if 'GQ' in row_fields:
+        if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = ds.GQ
 
-    if 'PGT' in row_fields:
+    if 'PGT' in entry_fields:
         update_entries_expression['PGT'] = hl.downcode(ds.PGT, sm.a_index())
-    if 'PID' in row_fields:
+    if 'PID' in entry_fields:
         update_entries_expression['PID'] = ds.PID
 
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
