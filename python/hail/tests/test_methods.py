@@ -935,11 +935,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(hail_array), len(np_array))
             for i, (left, right) in enumerate(zip(hail_array, np_array)):
                 self.assertAlmostEqual(abs(left), abs(right),
-                                       msg=f'mismatch at index {i}: np={left}, hl={right}',
+                                       msg=f'mismatch at index {i}: hl={left}, np={right}',
                                        places=4)
-        check(np_eigenvalues, eigen)
-        check(np_scores, hail_scores)
-        check(np_loadings, hail_loadings)
+        check(eigen, np_eigenvalues)
+        check(hail_scores, np_scores)
+        check(hail_loadings, np_loadings)
 
     def test_pca_join(self):
         mt = hl.balding_nichols_model(2, 10, 20)
