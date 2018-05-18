@@ -209,8 +209,8 @@ abstract class SplitMultiPartitionContext(
   verifyLeftAligned: Boolean
 ) extends Serializable {
 
-  // val splitRegion = ctx.region
-  // val locusIndex = oldRVRowType.fieldIdx("locus")
+  val splitRegion = ctx.region
+  val locusIndex = oldRVRowType.fieldIdx("locus")
   var fullRow = new UnsafeRow(matrixType.rvRowType)
   var prevLocus: Locus = null
   val rvv = new RegionValueVariant(matrixType.rvRowType)
