@@ -272,12 +272,10 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     l = dataset.locus
     a = dataset.alleles
 
-    cm_position0 = hl.float64(0.0) if cm_position is None else expr_or_else(cm_position, 0.0)
-
     bim_exprs = {'locus': l,
                  'alleles': a,
                  'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
-                 'cm_position': cm_position0}
+                 'cm_position': expr_or_else(cm_position, 0.0)}
 
     for exprs, axis in [(fam_exprs, dataset._col_indices),
                         (bim_exprs, dataset._row_indices),
