@@ -31,8 +31,6 @@ final class Region private (
   private[this] var end: Long,
   private[this] var bigBlocks: ArrayBuilder[Long]
 ) extends UnKryoSerializable with AutoCloseable {
-  def endd: Long = end
-
   def summary(): String = {
     s"""((${blocks.underlying.mkString(" ")})
         |$blockSize

@@ -153,8 +153,7 @@ class RegionValueBuilder(var region: Region) {
     val t = typestk.top.asInstanceOf[TArray]
     val aoff = offsetstk.top
     val length = t.loadLength(region, aoff)
-    assert(length == indexstk.top,
-      s"$length, ${indexstk.top}, $aoff\n" + region.summary())
+    assert(length == indexstk.top)
 
     typestk.pop()
     offsetstk.pop()
@@ -232,8 +231,7 @@ class RegionValueBuilder(var region: Region) {
   def addBinary(bytes: Array[Byte]) {
     assert(currentType().isInstanceOf[TBinary])
 
-    val boff = region.appendInt(bytes.length)
-    region.appendBytes(bytes)
+    region.appendBinary(bytes)
 
     if (typestk.nonEmpty) {
       val off = currentOffset()

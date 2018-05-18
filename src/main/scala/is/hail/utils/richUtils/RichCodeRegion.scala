@@ -6,8 +6,6 @@ import is.hail.asm4s.Code
 import is.hail.expr.types._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-  def end: Code[Long] = region.invoke[Long]("endd")
-
   def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
@@ -136,13 +134,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Byte, Long]("appendByte", b)
   }
 
-  def appendBytes(bytes: Code[Array[Byte]]): Code[Long] = {
-    region.invoke[Array[Byte], Long]("appendBytes", bytes)
-  }
-
-  def appendBytes(bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Long] = {
-    region.invoke[Array[Byte],Long, Int, Long]("appendBytes", bytes, bytesOff, n)
-  }
+  def appendBinary(bytes: Code[Array[Byte]]): Code[Long] = {
+    region.invoke[Array[Byte], Long]("appendBinary", bytes)
 
   def appendBinarySlice(
     fromRegion: Code[Region],
