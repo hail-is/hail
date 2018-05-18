@@ -90,10 +90,10 @@ class RichTable(ht: Table) {
   }
 
   def keyByExpr(exprs: (String, String)*): Table =
-    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", Some(exprs.map(_._1).toIndexedSeq))
+    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", Some(exprs.map(_._1).toIndexedSeq), None)
 
   def annotate(exprs: (String, String)*): Table =
-    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", None)
+    ht.select(s"annotate(row, {${ exprs.map { case (n, e) => s"${ prettyIdentifier(n) }: $e" }.mkString(",") }})", ht.key, ht.key.map(_.length))
 
   def selectGlobal(fields: Array[String]): Table = {
     val ec = EvalContext("global" -> ht.globalSignature)

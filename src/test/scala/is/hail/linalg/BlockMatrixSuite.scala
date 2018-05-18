@@ -788,7 +788,7 @@ class BlockMatrixSuite extends SparkSuite {
     val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt64(), "j" -> TInt64()),
       None, None)
 
-    assert(entriesTable.unkey().select("{i: row.i, j: row.j}", None).same(expectedTable))
+    assert(entriesTable.unkey().select("{i: row.i, j: row.j}", None, None).same(expectedTable))
   }
   
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =

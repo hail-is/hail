@@ -554,17 +554,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))
 
-  def select(expr: String, newKey: java.util.ArrayList[String]): Table =
-    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
+  def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
+    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
-  def select(expr: String, newKey: Option[IndexedSeq[String]]): Table = {
+  def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
       case Some(ir) if useIR(ast) =>
-        new Table(hc, TableMapRows(tir, ir, newKey))
+        new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
@@ -865,8 +865,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newKey: Option[IndexedSeq[String]] = keyFieldIdx.map(_.flatMap { i =>
       newFields(i).map { case (n, _) => n }
     })
+    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
 
-    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey))
+    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields))
   }
 
   // expandTypes must be called before toDF

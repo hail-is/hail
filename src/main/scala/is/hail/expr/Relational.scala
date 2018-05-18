@@ -1602,17 +1602,21 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
 }
 
 // Must not modify key ordering.
-case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
+// newKey is key of resulting Table, if newKey=None then result is unkeyed.
+// preservedKeyFields is length of initial sequence of key fields whose values are unchanged.
+// Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
+// partition bounds will remain valid.
+case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
     val newRowType = newRow.typ.asInstanceOf[TStruct]
-    child.typ.copy(rowType = newRowType, key = newKey.orElse(child.typ.key))
+    child.typ.copy(rowType = newRowType, key = newKey)
   }
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
-    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey)
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey, preservedKeyFields)
   }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts
@@ -1645,7 +1649,10 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
         typ.key match {
           case Some(key) =>
             val localType = ordered.typ.copy(key = key.toArray, rowType = typ.rowType)
-            val res = ordered.mapPartitionsPreservesPartitioning(ordered.typ.copy(rowType = typ.rowType))(itF)
+            val res = if (ordered.typ.partitionKey.length <= preservedKeyFields.get)
+              ordered.mapPartitionsPreservesPartitioning(localType)(itF)
+            else
+              OrderedRVD.coerce(localType, ordered.mapPartitions(typ.rowType)(itF))
             assert(res.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
               val out = if (it.hasNext)
                 Iterator(OrderedRVPartitionInfo(localType, 0, i, it, 0))

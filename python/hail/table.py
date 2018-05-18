@@ -417,7 +417,7 @@ class Table(ExprContainer):
         jt = base._jt
         if self.key is not None and preserved_key != list(self.key.keys()):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, preserved_key.length if preserved_key else None)
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         t = cleanup(Table(jt))
