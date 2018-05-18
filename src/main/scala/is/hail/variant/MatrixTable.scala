@@ -182,25 +182,40 @@ object MatrixTable {
           } else {
             val entriesRVD = spec.entriesComponent.read(hc, path)
             val entriesRowType = entriesRVD.rowType
-            rowsRVD.zip(typ.orvdType, entriesRVD) { (ctx, rv1, rv2) =>
+            rowsRVD.zipPartitions(typ.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (ctx, it1, it2) =>
               val rvb = ctx.rvb
               val region = ctx.region
-              rvb.start(fullRowType)
-              rvb.startStruct()
-              var i = 0
-              while (i < localEntriesIndex) {
-                rvb.addField(rowType, rv1, i)
-                i += 1
+              val rv3 = RegionValue(region)
+              new Iterator[RegionValue] {
+                def hasNext = {
+                  val hn1 = it1.hasNext
+                  val hn2 = it2.hasNext
+                  assert(hn1 == hn2)
+                  hn1
+                }
+
+                def next(): RegionValue = {
+                  val rv1 = it1.next()
+                  val rv2 = it2.next()
+
+                  rvb.start(fullRowType)
+                  rvb.startStruct()
+                  var i = 0
+                  while (i < localEntriesIndex) {
+                    rvb.addField(rowType, rv1, i)
+                    i += 1
+                  }
+                  rvb.addField(entriesRowType, rv2, 0)
+                  i += 1
+                  while (i < fullRowType.size) {
+                    rvb.addField(rowType, rv1, i - 1)
+                    i += 1
+                  }
+                  rvb.endStruct()
+                  rv3.setOffset(rvb.end())
+                  rv3
+                }
               }
-              rvb.addField(entriesRowType, rv2, 0)
-              i += 1
-              while (i < fullRowType.size) {
-                rvb.addField(rowType, rv1, i - 1)
-                i += 1
-              }
-              rvb.endStruct()
-              rv2.set(region, rvb.end())
-              rv2
             }
           }
         }

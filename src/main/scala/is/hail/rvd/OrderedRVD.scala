@@ -412,14 +412,14 @@ class OrderedRVD(
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD
+    that: RVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = zipPartitions(newTyp, newPartitioner, that, false)(zipper)
 
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD,
+    that: RVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = OrderedRVD(
@@ -428,12 +428,12 @@ class OrderedRVD(
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper))
 
   def zipPartitions[T: ClassTag](
-    that: OrderedRVD
+    that: RVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] = zipPartitions(that, false)(zipper)
 
   def zipPartitions[T: ClassTag](
-    that: OrderedRVD,
+    that: RVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] =
