@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.{BaseIR, FilterColsIR, MatrixFilterRowsIR, MatrixRead, TableFilter, TableMapGlobals, TableMapRows, TableRead, TableUnion}
+import is.hail.expr._
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -146,6 +146,13 @@ object Simplify {
 
       case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
+
+      // Ignore column or row data that is immediately dropped
+      case MatrixRowsTable(MatrixRead(typ, partitionCounts, false, dropRows, f)) =>
+        MatrixRowsTable(MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f))
+
+      case MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, false, f)) =>
+        MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f))
 
       // Keep all rows/cols = do nothing
       case MatrixFilterRowsIR(m, True()) => m
