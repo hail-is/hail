@@ -92,19 +92,18 @@ class SplitMultiPartitionContextIR(
   private val allelesType = matrixType.rowType.fieldByName("alleles").typ
   private val locusType = matrixType.rowType.fieldByName("locus").typ
   val f = rowF()
-  // private[this] val partitionRegion = ctx.freshRegion
+  private[this] val partitionRegion = ctx.freshRegion
 
-  // rvb.set(partitionRegion)
-  // rvb.start(matrixType.globalType)
-  // rvb.addAnnotation(matrixType.globalType, globalAnnotation)
-  // private[this] val partitionWideGlobals = rvb.end()
+  rvb.set(partitionRegion)
+  rvb.start(matrixType.globalType)
+  rvb.addAnnotation(matrixType.globalType, globalAnnotation)
+  private[this] val partitionWideGlobals = rvb.end()
 
   def constructSplitRow(splitVariants: Iterator[(Locus, IndexedSeq[String], Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue] = {
     splitVariants.map { case (newLocus, newAlleles, aIndex) =>
       rvb.set(splitRegion)
       rvb.start(matrixType.globalType)
-      // rvb.addRegionValue(matrixType.globalType, partitionRegion, partitionWideGlobals)
-      rvb.addAnnotation(matrixType.globalType, globalAnnotation)
+      rvb.addRegionValue(matrixType.globalType, partitionRegion, partitionWideGlobals)
       val globals = rvb.end()
 
       rvb.start(matrixType.rvRowType)
