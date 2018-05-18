@@ -31,7 +31,9 @@ class SplitSuite extends SparkSuite {
           }
       }.collect().toSet
 
-      method1 == method2
+      assert(method1 == method2,
+        s"\n\n${method2 -- method1}\n${method1 -- method2}\n$method1\n\n$method2")
+      true
     }
   }
 
