@@ -26,12 +26,20 @@ class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
-    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).aggregateRowsByKey("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC"))
+      .aggregateRowsByKey(
+        "{ max : AGG.map(g => g.GT.nNonRefAlleles()).max() }",
+        "max = AGG.map(g => g.GT.nNonRefAlleles()).max()"
+      ).count()
   }
 
   @Test def testGroupVariantsStruct() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateRowsExpr("AC" -> "{str1: \"foo\", str2: 1}")
-    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC")).aggregateRowsByKey("max = AGG.map(g => g.GT.nNonRefAlleles()).max()").count()
+    val vds2 = vds.keyRowsBy(Array("AC"), Array("AC"))
+      .aggregateRowsByKey(
+        "{ max : AGG.map(g => g.GT.nNonRefAlleles()).max() }",
+        "max = AGG.map(g => g.GT.nNonRefAlleles()).max()")
+      .count()
   }
 
   @Test def testRandomVSMEquivalence() {
@@ -44,11 +52,20 @@ class GroupBySuite extends SparkSuite {
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
         vSkipped += 1
-        val grouped = vsm.aggregateRowsByKey("first = AGG.collect()[0]")
+        val grouped = vsm.aggregateRowsByKey(
+          "{ first : AGG.collect()[0] }",
+          "first = AGG.collect()[0]")
         grouped.countRows() == uniqueVariants.size
       } else {
         val grouped = vsm
-          .aggregateRowsByKey("GT = AGG.collect()[0].GT, " +
+          .aggregateRowsByKey(
+            """{ GT : AGG.collect()[0].GT
+              |, AD : AGG.collect()[0].AD
+              |, DP : AGG.collect()[0].DP
+              |, GQ : AGG.collect()[0].GQ
+              |, PL : AGG.collect()[0].PL
+              |}""".stripMargin,
+            "GT = AGG.collect()[0].GT, " +
               "AD = AGG.collect()[0].AD, " +
               "DP = AGG.collect()[0].DP, " +
               "GQ = AGG.collect()[0].GQ, " +
@@ -93,7 +110,9 @@ class GroupBySuite extends SparkSuite {
 
     val vdsGrouped = vds.explodeRows("va.genes")
       .keyRowsBy(Array("genes"), Array("genes"))
-      .aggregateRowsByKey("sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
+      .aggregateRowsByKey(
+        "{ sum : AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum() }",
+        "sum = AGG.map(g => va.weight * g.GT.nNonRefAlleles().toFloat64).sum()")
       .annotateColsExpr("pheno" -> "sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))

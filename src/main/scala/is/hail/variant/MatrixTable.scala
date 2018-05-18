@@ -819,62 +819,74 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def aggregateRowsByKey(aggExpr: String): MatrixTable = {
+  def aggregateRowsByKey(expr: String, oldAggExpr: String): MatrixTable = {
+    val ec = colEC
 
-    val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, aggExpr)
-    val newRowType = matrixType.orvdType.kType
-    val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
-      rowPartitionKey, rowKey, newRowType, newEntryType)
+    log.info(expr)
+    val rowsAST = Parser.parseToAST(expr, ec)
 
-    val newRVType = newMatrixType.rvRowType
-    val localRVType = rvRowType
-    val selectIdx = matrixType.orvdType.kRowFieldIdx
-    val keyOrd = matrixType.orvdType.kRowOrd
+    rowsAST.toIROpt(Some("AGG" -> "g")) match {
+      case Some(x) if useIR(this.rowAxis, rowsAST) =>
+        new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
 
-    val newRVD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
-      new Iterator[RegionValue] {
-        var isEnd = false
-        var current: RegionValue = null
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
-        val region = ctx.region
-        val rvb = ctx.rvb
-        val newRV = RegionValue(region)
+      case _ =>
+        log.warn(s"group_rows_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
 
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
+        val ColFunctions(zero, seqOp, resultOp, newEntryType) = Aggregators.makeColFunctions(this, oldAggExpr)
+        val newRowType = matrixType.orvdType.kType
+        val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
+          rowPartitionKey, rowKey, newRowType, newEntryType)
+
+        val newRVType = newMatrixType.rvRowType
+        val localRVType = rvRowType
+        val selectIdx = matrixType.orvdType.kRowFieldIdx
+        val keyOrd = matrixType.orvdType.kRowOrd
+
+        val newRVD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
+          new Iterator[RegionValue] {
+            var isEnd = false
+            var current: RegionValue = null
+            val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
+            val region = ctx.region
+            val rvb = ctx.rvb
+            val newRV = RegionValue(region)
+
+            def hasNext: Boolean = {
+              if (isEnd || (current == null && !it.hasNext)) {
+                isEnd = true
+                return false
+              }
+              if (current == null)
+                current = it.next()
+              true
+            }
+
+            def next(): RegionValue = {
+              if (!hasNext)
+                throw new java.util.NoSuchElementException()
+              rvRowKey.setSelect(localRVType, selectIdx, current)
+              var aggs = zero()
+              while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
+                aggs = seqOp(aggs, current)
+                current = null
+              }
+              rvb.start(newRVType)
+              rvb.startStruct()
+              var i = 0
+              while (i < newRowType.size) {
+                rvb.addField(newRowType, rvRowKey.value, i)
+                i += 1
+              }
+              resultOp(aggs, rvb)
+              rvb.endStruct()
+              newRV.setOffset(rvb.end())
+              newRV
+            }
           }
-          if (current == null)
-            current = it.next()
-          true
-        }
+        })
 
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-          rvRowKey.setSelect(localRVType, selectIdx, current)
-          var aggs = zero()
-          while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-            aggs = seqOp(aggs, current)
-            current = null
-          }
-          rvb.start(newRVType)
-          rvb.startStruct()
-          var i = 0
-          while (i < newRowType.size) {
-            rvb.addField(newRowType, rvRowKey.value, i)
-            i += 1
-          }
-          resultOp(aggs, rvb)
-          rvb.endStruct()
-          newRV.setOffset(rvb.end())
-          newRV
-        }
-      }
-    })
-
-    copyMT(rvd = newRVD, matrixType = newMatrixType)
+        copyMT(rvd = newRVD, matrixType = newMatrixType)
+    }
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
@@ -2071,18 +2083,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }.run.forall(t => t)
   }
 
-  def colEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "va" -> (3, rvRowType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
-
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     require(colType == that.colType, s"\n${ colType }\n${ that.colType }")
     colValues.value.zip(that.colValues.value)
@@ -2177,23 +2177,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal("found one or more type check errors")
   }
 
-  def entryEC: EvalContext = EvalContext(Map(
-    "global" -> (0, globalType),
-    "va" -> (1, rvRowType),
-    "sa" -> (2, colType),
-    "g" -> (3, entryType)))
+  def entryEC: EvalContext = matrixType.genotypeEC
 
-  def rowEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "g" -> (2, entryType),
-      "sa" -> (3, colType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
+  def rowEC: EvalContext = matrixType.rowEC
+
+  def colEC: EvalContext = matrixType.colEC
 
   def globalsTable(): Table = {
     Table(hc,
