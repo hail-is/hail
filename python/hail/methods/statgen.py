@@ -2156,7 +2156,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     """
 
-    entry_fields = list(ds.entry)
+    entry_fields = set(ds.entry)
 
     update_entries_expression = {}
     sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
