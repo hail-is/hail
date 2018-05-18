@@ -749,10 +749,20 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       newRow)
     assert(rTyp == typ.rvRowType)
 
-    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
+    val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
       val rowF = f()
+      val partitionRegion = ctx.freshRegion
+
+      rvb.set(partitionRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partitionWideGlobals = rvb.end()
+
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val partitionWideCols = rvb.end()
 
       it.map { rv =>
         val region = rv.region
@@ -760,11 +770,11 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 
         rvb.set(region)
         rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        rvb.addRegionValue(localGlobalsType, partitionRegion, partitionWideGlobals)
         val globals = rvb.end()
 
         rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.addRegionValue(localColsType, partitionRegion, partitionWideCols)
         val cols = rvb.end()
 
         val off = rowF(region, globals, false, oldRow, false, cols, false)
@@ -772,7 +782,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
         newRV.set(region, off)
         newRV
       }
-    }
+    })
     prev.copy(typ = typ, rvd = newRVD)
   }
 }
