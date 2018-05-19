@@ -1,3 +1,5 @@
+import hail as hl
+
 from typing import *
 from hail.typecheck import *
 from hail.utils.java import Env
@@ -91,68 +93,63 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
     return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, name))
 
 
-@typecheck(dataset=MatrixTable, name=str)
-def variant_qc(dataset, name='variant_qc') -> MatrixTable:
+@typecheck(mt=MatrixTable, name=str)
+def variant_qc(mt, name='variant_qc') -> MatrixTable:
     """Compute common variant statistics (quality control metrics).
 
-    .. include:: ../_templates/req_biallelic.rst
     .. include:: ../_templates/req_tvariant.rst
-    .. include:: ../_templates/req_unphased_diploid_gt.rst
 
     Examples
     --------
 
-    >>> dataset_result = hl.variant_qc(dataset)
+    >>> dataset_result = hl.variant_qc(mt)
 
     Notes
     -----
-    This method computes 18 variant statistics from the genotype data,
-    returning a new struct field `name` with the following metrics:
+    This method computes variant statistics from the genotype data, returning
+    a new struct field `name` with the following metrics based on the fields
+    present in the entry schema.
 
-    +-------------------------+---------+--------------------------------------------------------+
-    | Name                    | Type    | Description                                            |
-    +=========================+=========+========================================================+
-    | ``call_rate``           | float64 | Fraction of samples with called genotypes              |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``AF``                  | float64 | Calculated alternate allele frequency (q)              |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``AC``                  | int32   | Count of alternate alleles                             |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``r_heterozygosity``    | float64 | Proportion of heterozygotes                            |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``r_het_hom_var``       | float64 | Ratio of heterozygotes to homozygous alternates        |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``r_expected_het_freq`` | float64 | Expected r_heterozygosity based on HWE                 |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``p_hwe``               | float64 | p-value from Hardy Weinberg Equilibrium null model     |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_hom_ref``           | int32   | Number of homozygous reference samples                 |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_het``               | int32   | Number of heterozygous samples                         |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_hom_var``           | int32   | Number of homozygous alternate samples                 |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_called``            | int32   | Sum of ``n_hom_ref``, ``n_het``, and ``n_hom_var``     |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_not_called``        | int32   | Number of uncalled samples                             |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``n_non_ref``           | int32   | Sum of ``n_het`` and ``n_hom_var``                     |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``dp_mean``             | float64 | Depth mean across all samples                          |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``dp_stdev``            | float64 | Depth standard deviation across all samples            |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``gq_mean``             | float64 | The average genotype quality across all samples        |
-    +-------------------------+---------+--------------------------------------------------------+
-    | ``gq_stdev``            | float64 | Genotype quality standard deviation across all samples |
-    +-------------------------+---------+--------------------------------------------------------+
+    If `mt` contains an entry field `DP` of type :py:data:`.tint32`, then the
+    field `dp_stats` is computed. If `mt` contains an entry field `GQ` of type
+    :py:data:`.tint32`, then the field `gq_stats` is computed. Both `dp_stats`
+    and `gq_stats` are structs with with four fields:
 
-    Missing values ``NA`` may result from division by zero. The empirical
-    standard deviation is computed with zero degrees of freedom.
+    - `mean` (``float64``) -- Mean value.
+    - `stdev` (``float64``) -- Standard deviation (zero degrees of freedom).
+    - `min` (``int32``) -- Minimum value.
+    - `max` (``int32``) -- Maximum value.
+
+    If `mt` contains an entry field `GT` of type :py:data:`.tcall`, then the
+    following fields are computed:
+
+    - `AF` (``array<float64>``) -- Calculated allele frequency, one element
+      per allele, including the reference. Sums to one. Equivalent to
+      `AC` / `AN`.
+
+    - `AC` (``array<int32>``) -- Calculated allele count, one element per
+      allele, including the reference. Sums to `AN`.
+
+    - `AN` (``int32``) -- Total number of called alleles.
+
+    - `homozygote_count` (``array<int32>``) -- Number of homozygotes per
+      allele. One element per allele, including the reference.
+
+    - `n_called` (``int64``) -- Number of samples with a defined `GT`.
+    - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
+    - `call_rate` (``float32``) -- Fraction of samlpes with a defined `GT`.
+      Equivalent to `n_called` / :meth:`.count_cols`.
+    - `n_het` (``int64``) -- Number of heterozygous samples.
+    - `n_non_ref` (``int64``) -- Number of samples with at least one called
+      non-reference allele.
+    - `hwe` (``array<struct{r_expected_het_freq: float64, p_hwe: float64}>``) --
+      Hardy-Weinberg statistics, one element per alternate allele. Assumes
+      that all genotype calls are diploid, and treats each allele
+      independently.
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    mt : :class:`.MatrixTable`
         Dataset.
     name : :obj:`str`
         Name for resulting field.
@@ -160,10 +157,53 @@ def variant_qc(dataset, name='variant_qc') -> MatrixTable:
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset with a new row-indexed field `name`.
     """
+    require_row_key_variant(mt, 'variant_qc')
 
-    return MatrixTable(Env.hail().methods.VariantQC.apply(require_biallelic(dataset, 'variant_qc')._jvds, name))
+    exprs = {}
+    struct_exprs = []
+    fs = []
+
+    def has_field_of_type(name, dtype):
+        return name in mt.entry and mt[name].dtype == dtype
+
+    n_samples = mt.count_cols()
+
+    if has_field_of_type('DP', hl.tint32):
+        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+
+    if has_field_of_type('GQ', hl.tint32):
+        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+
+    if has_field_of_type('GT',  hl.tcall):
+        exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+        struct_exprs.append(hl.agg.call_stats(mt.GT, mt.alleles))
+        fs.append(identity)
+
+    # the structure of this function makes it easy to add new nested computations
+    def make_struct(*struct_args):
+        struct_exprs = {}
+        for arg, f in zip(struct_args, fs):
+            arg = f(arg)
+            for k, v in arg.items():
+                struct_exprs[k] = v
+        return hl.struct(
+            **struct_exprs,
+            **exprs,
+        )
+
+    mt = mt.annotate_rows(**{name: hl.bind(make_struct, *struct_exprs)})
+
+    hwe = hl.range(1, hl.len(mt.alleles)).map(
+        lambda i: hl.hardy_weinberg_p(mt[name].homozygote_count[0],
+                                      mt[name].AC[i] - 2 * mt[name].homozygote_count[i],
+                                      mt[name].homozygote_count[i]))
+    mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
+                                                     call_rate=mt[name].n_called / n_samples,
+                                                     n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),
+                                                     n_non_ref=mt[name].n_called - mt[name].homozygote_count[0],
+                                                     hwe=hwe)})
+    return mt
 
 
 @typecheck(left=MatrixTable,

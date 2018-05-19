@@ -615,7 +615,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
       rowFields.asScala.toArray, colFields.asScala.toArray,
       partitionKeys.asScala.toArray,
-      Option(nPartitions)
+      Option(nPartitions).map(_.asInstanceOf[Int])
     )
   }
 
