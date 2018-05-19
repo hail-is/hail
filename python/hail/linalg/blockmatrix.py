@@ -615,25 +615,19 @@ class BlockMatrix(object):
         two above the diagonal and collect to NumPy:
 
         >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
-
-        .. code-block:: text
-
-            array([[ 1.,  2.,  3.,  0.],
-                   [ 5.,  6.,  7.,  8.],
-                   [ 0., 10., 11., 12.],
-                   [ 0.,  0., 15., 16.]])
+        array([[ 1.,  2.,  3.,  0.],
+               [ 5.,  6.,  7.,  8.],
+               [ 0., 10., 11., 12.],
+               [ 0.,  0., 15., 16.]])
 
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
         >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()
-
-        .. code-block:: text
-
-            [[ 1.,  2.,  0.,  0.],
-             [ 5.,  6.,  0.,  0.],
-             [ 0.,  0., 11., 12.],
-             [ 0.,  0., 15., 16.]]
+        array([[ 1.,  2.,  0.,  0.],
+               [ 5.,  6.,  0.,  0.],
+               [ 0.,  0., 11., 12.],
+               [ 0.,  0., 15., 16.]])
 
         Notes
         -----
@@ -695,25 +689,19 @@ class BlockMatrix(object):
         Filter to the upper triangle and collect to NumPy:
 
         >>> bm.sparsify_triangle().to_numpy()
-
-        .. code-block:: text
-
-            array([[ 1.,  2.,  3.,  4.],
-                   [ 0.,  6.,  7.,  8.],
-                   [ 0.,  0., 11., 12.],
-                   [ 0.,  0.,  0., 16.]])
+        array([[ 1.,  2.,  3.,  4.],
+               [ 0.,  6.,  7.,  8.],
+               [ 0.,  0., 11., 12.],
+               [ 0.,  0.,  0., 16.]])
 
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
 
         >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
-
-        .. code-block:: text
-
-            array([[ 1.,  2.,  3.,  4.],
-                   [ 5.,  6.,  7.,  8.],
-                   [ 0.,  0., 11., 12.],
-                   [ 0.,  0., 15., 16.]])
+        array([[ 1.,  2.,  3.,  4.],
+               [ 5.,  6.,  7.,  8.],
+               [ 0.,  0., 11., 12.],
+               [ 0.,  0., 15., 16.]])
 
         Notes
         -----
@@ -769,13 +757,10 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
         ...    .to_numpy())
-
-        .. code-block:: text
-
-            array([[ 0.,  2.,  0.,  0.],
-                   [ 0.,  0.,  0.,  0.],
-                   [ 0.,  0., 11.,  0.],
-                   [ 0.,  0., 15., 16.]])
+        array([[ 0.,  2.,  0.,  0.],
+               [ 0.,  0.,  0.,  0.],
+               [ 0.,  0., 11.,  0.],
+               [ 0.,  0., 15., 16.]])
 
         Set all blocks fully outside the given row intervals to
         blocks of zeros and collect to NumPy:
@@ -784,13 +769,10 @@ class BlockMatrix(object):
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
         ...    .to_numpy())
-
-        .. code-block:: text
-
-            array([[ 1.,  2.,  0.,  0.],
-                   [ 5.,  6.,  0.,  0.],
-                   [ 0.,  0., 11., 12.],
-                   [ 0.,  0., 15., 16.]])
+        array([[ 1.,  2.,  0.,  0.],
+               [ 5.,  6.,  0.,  0.],
+               [ 0.,  0., 11., 12.],
+               [ 0.,  0., 15., 16.]])
 
         Notes
         -----
@@ -825,7 +807,7 @@ class BlockMatrix(object):
         n_cols = self.n_cols
         if n_rows >= (1 << 31):
             raise ValueError(f'n_rows must be less than 2^31, found {n_rows}')
-        if len(starts) != n_rows or len(starts) != n_rows:
+        if len(starts) != n_rows or len(stops) != n_rows:
             raise ValueError(f'starts and stops must both have length {n_rows} (the number of rows)')
         if any([start < 0 for start in starts]):
             raise ValueError('all start values must be non-negative')
@@ -914,7 +896,7 @@ class BlockMatrix(object):
 
     @property
     def is_sparse(self):
-        """Returns true if sparse.
+        """Returns ``True`` if sparse.
 
         Notes
         -----
@@ -924,7 +906,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return self._jbm.gp().maybeSparse().isEmpty()
+        return self._jbm.gp().maybeSparse().isDefined()
 
     @property
     def T(self):
@@ -1335,7 +1317,7 @@ class BlockMatrix(object):
         The block matrix must be stored in row-major format, as results
         from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and from
         :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will produce an error message.
+        :meth:`export` will fail.
 
         Notes
         -----
@@ -1461,13 +1443,11 @@ class BlockMatrix(object):
         Filter to blocks covering three rectangles and collect to NumPy:
 
         >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
+        array([[ 1.,  2.,  3.,  4.],
+               [ 5.,  6.,  7.,  8.],
+               [ 9., 10.,  0.,  0.],
+               [13., 14.,  0.,  0.]])
 
-        .. code-block:: text
-
-            array([[ 1.,  2.,  3.,  4.],
-                   [ 5.,  6.,  7.,  8.],
-                   [ 9., 10.,  0.,  0.],
-                   [13., 14.,  0.,  0.]])
         Notes
         -----
         This methods creates a sparse block matrix by zeroing out (dropping)
@@ -1574,7 +1554,7 @@ class BlockMatrix(object):
         The block matrix must be stored in row-major format, as results
         from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and
         from :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will produce an error message.
+        :meth:`export` will fail.
 
         Notes
         -----

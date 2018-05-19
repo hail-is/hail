@@ -170,6 +170,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
     val blocks = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangleBlocks(r)).toArray    
     scala.util.Sorting.quickSort(blocks)
+    blocks.sorted
     blocks
   }
   
