@@ -4,6 +4,8 @@ import org.apache.spark.Partitioner
 import breeze.linalg.{DenseVector => BDV}
 import is.hail.utils._
 
+import scala.collection.mutable
+
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
   if (nRows == 0)
@@ -168,9 +170,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   // returns increasing array of all blocks intersecting the union of rectangles
   // rectangles checked in Python
   def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    val blocks = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangleBlocks(r)).toArray    
+    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray    
     scala.util.Sorting.quickSort(blocks)
-    blocks.sorted
     blocks
   }
   
