@@ -102,6 +102,11 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
+  def checkWriteSuccess(hc: HailContext, uri: String) {
+    if (!hc.hadoopConf.exists(uri + "/_SUCCESS"))
+      fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")    
+  }
+  
   def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
     hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
       implicit val formats = defaultJSONFormats
@@ -110,10 +115,7 @@ object BlockMatrix {
   }
 
   def read(hc: HailContext, uri: String): M = {
-    val hadoopConf = hc.hadoopConf
-
-    if (!hadoopConf.exists(uri + "/_SUCCESS"))
-      fatal("Write failed: no success indicator found")
+    checkWriteSuccess(hc, uri)
 
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = readMetadata(hc, uri)
 
@@ -159,9 +161,7 @@ object BlockMatrix {
     nPartitions: Int): Unit = {
     require(flattenedRectangles.length % 4 == 0)
 
-    val hadoop = hc.sc.hadoopConfiguration
-    if (!hadoop.exists(input + "/_SUCCESS"))
-      fatal("Write failed: no success indicator found")
+    checkWriteSuccess(hc, input)
 
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(hc, input)
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
@@ -169,7 +169,7 @@ object BlockMatrix {
     val rectangles = flattenedRectangles.grouped(4).toArray    
     val dRect = digitsNeeded(rectangles.length)
 
-    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hadoop))
+    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
     val partFilesBc = hc.sc.broadcast(partFiles)
 
     val rdd = hc.sc.parallelize(rectangles.zipWithIndex, numSlices = nPartitions).map { case (r, index) =>    
@@ -189,55 +189,55 @@ object BlockMatrix {
       
       if (nonEmpty) {
         val startRowOffset = gp.indexBlockOffset(startRow)
-  
+
         val startBlockCol = gp.indexBlockIndex(startCol)
         val startColOffset = gp.indexBlockOffset(startCol)
-  
+
         val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
         val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
-  
+
         val startColByteOffset = startColOffset << 3
         val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
-  
+
         val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
-  
+
         var i = startRow
         while (i < stopRow) {
           if (i == startRow || gp.indexBlockOffset(i) == 0) {
             val blockRow = gp.indexBlockIndex(i)
             val nRowsInBlock = gp.blockRowNRows(blockRow)
-  
+
             var blockCol = startBlockCol
             while (blockCol < stopBlockCol) {
               val pi = gp.coordinatesPart(blockRow, blockCol)
               if (pi < 0)
                 fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
                   s"with bounds ${ r.mkString("[", ", ", "]") }")
-  
+
               val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
               val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
-  
+
               val nColsInBlock = gp.blockColNCols(blockCol)
-  
+
               assert(in.readInt() == nRowsInBlock)
               assert(in.readInt() == nColsInBlock)
               val isTranspose = in.readBoolean()
               if (!isTranspose)
                 fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
-  
+
               if (i == startRow) {
                 val skip = startRowOffset * (nColsInBlock << 3)
                 in.skipBytes(skip)
               }
-  
+
               inPerBlockCol(blockCol - startBlockCol) = in
-  
+
               blockCol += 1
             }
           }
-  
+
           inPerBlockCol.head.skipBytes(startColByteOffset)
-  
+
           var blockCol = startBlockCol
           while (blockCol < stopBlockCol) {
             val startColOffsetInBlock =
@@ -245,17 +245,17 @@ object BlockMatrix {
                 0
               else
                 startColOffset
-  
+
             val stopColOffsetInBlock =
               if (blockCol < stopBlockCol - 1)
                 blockSize
               else
                 stopColOffset
-  
+
             val n = stopColOffsetInBlock - startColOffsetInBlock
-  
+
             inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
-  
+
             sb.clear()
             var k = 0
             while (k < n - 1) {
@@ -268,15 +268,15 @@ object BlockMatrix {
               sb.append(delimiter)
             else
               sb.append("\n")
-  
+
             osw.write(sb.result())
-  
+
             blockCol += 1
           }
           i += 1
-  
+
           inPerBlockCol.last.skipBytes(stopColByteDeficit)
-  
+
           if (i % blockSize == 0 || i == stopRow)
             inPerBlockCol.foreach(_.close())
         }

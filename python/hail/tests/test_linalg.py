@@ -495,6 +495,9 @@ class Tests(unittest.TestCase):
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
 
+        self.assertFalse(bm.is_sparse)
+        self.assertTrue(bm.sparsify_triangle().is_sparse)
+
         self.assertTrue(np.array_equal(
             bm.sparsify_triangle().to_numpy(),
             np.array([[ 1.,  2.,  3.,  4.],
