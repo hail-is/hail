@@ -58,11 +58,10 @@ class BlockMatrix(object):
 
     >>> from hail.linalg import BlockMatrix
 
-    The core operations are
-    consistent with NumPy: ``+``, ``-``, ``*``, and ``/`` for element-wise
-    addition, subtraction, multiplication, and division; ``@`` for matrix
-    multiplication; and ``**`` for element-wise exponentiation to a scalar
-    power.
+    The core operations are consistent with NumPy: ``+``, ``-``, ``*``, and
+    ``/`` for element-wise addition, subtraction, multiplication, and division;
+    ``@`` for matrix multiplication; ``T`` for transpose; and ``**`` for
+    element-wise exponentiation to a scalar power.
 
     For element-wise binary operations, each operand may be a block matrix, an
     ndarray, or a scalar (:obj:`int` or :obj:`float`). For matrix
@@ -126,31 +125,72 @@ class BlockMatrix(object):
 
     **Block sparsity**
 
-    The methods :meth:`sparsify_band`, :meth:`sparsify_rectangles`,
-    :meth:`sparsify_row_intervals`, and :meth:`sparsify_triangle` create "sparse"
-    block matrices in which zeroed blocks are not explicitly stored in memory or
-    on disk. This enables computations that would otherwise be prohibitively
-    expensive because Spark's lazy evaluation ensures that blocks that are
-    dropped prior to an action (such as :meth:`write` or :meth:`export`) are
-    never computed the first place. For example, using :meth:`sparsify_band`,
-    one can compute banded correlation for a huge number of variables.
-    Many operations are also accelerated using the sparse representation.
+    By default, block matrices compute and store all blocks explicitly.
+    However, some applications involve block matrices in which:
 
-    Not all methods are currently supported for sparse block matrices.
+    - some blocks consist entirely of zeroes.
 
-    Element-wise mathematical operations are supported if and
-    only if they cannot transform zeroed blocks to non-zero blocks. For
-    example, all forms of element-wise multiplication ``*`` are supported,
-    and element-wise multiplication results in a sparse block matrix with
-    block support equal to the intersection of that of the operands. On the
-    other hand, scalar addition is not supported, and matrix addition is
-    supported only between block matrices with the same block sparsity.
+    - some blocks are not of interest.
 
-    Matrix multiplication ``@`` is supported but always results in a dense
-    block matrix. All other methods are supported **except**
-    :meth:`filter_rows`, :meth:`filter_cols`, and :meth:`filter`
-    (as well as slicing, since ``bm[:5, :]``, ``bm[:, :5]``, and
-    ``bm[:5, :5]`` call these three methods, respectively).
+    For example, statistical geneticists often want to compute and manipulate a
+    banded correlation matrix capturing "linkage disequilibrium" between nearby
+    variants along the genome. In this case, working with the full correlation
+    matrix for tens of millions of variants would be prohibitively expensive,
+    and in any case, entries far from the diagonal are either not of interest or
+    ought to be zeroed out before downstream linear algebra.
+
+    To enable such computations, block matrices do not require that all blocks
+    be realized explicitly. Implicit (dropped) blocks behave as blocks of
+    zeroes, so we refer to a block matrix in which at least one block is
+    implicitly zero as a **block-sparse matrix**. Otherwise, we say the matrix
+    is block-dense. The property :meth:`is_sparse` encodes this state.
+
+    Dropped blocks are not stored in memory or on :meth:`write`. In fact,
+    blocks that are dropped prior to an action like :meth:`export` or
+    :meth:`to_numpy` are never computed in the first place, nor are any blocks
+    of upstream operands on which only dropped blocks depend! In addition,
+    linear algebra is accelerated by avoiding, for example, explicit addition of
+    or multiplication by blocks of zeroes.
+
+    Block-sparse matrices may be created with
+    :meth:`sparsify_band`,
+    :meth:`sparsify_rectangles`,
+    :meth:`sparsify_row_intervals`,
+    and :meth:`sparsify_triangle`.
+
+    The following methods naturally propagate block-sparsity:
+
+    - Addition and subtraction "union" realized blocks.
+
+    - Element-wise multiplication "intersects" realized blocks.
+
+    - Transpose "transposes" realized blocks.
+
+    - :meth:`sqrt` preserves the realized blocks.
+
+    These following methods always result in a block-dense matrix:
+
+    - Addition and subtraction of a scalar or broadcasted vector.
+
+    - Matrix multiplication, ``@``.
+
+    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
+      and :meth:`filter_cols`.
+
+    The following methods fail if any operand is block-sparse, but can be forced
+    by first applying :meth:`densify`.
+
+    - Division between two block matrices.
+
+    - Multiplication by a scalar or broadcasted vector which includes an
+      infinite or ``nan`` value.
+
+    - Division by a scalar or broadcasted vector which includes a zero, infinite
+      or ``nan`` value.
+
+    - Division of a scalar or broadcasted vector by a block matrix.
+
+    - Exponentiation by a negative exponent.
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -631,7 +671,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a sparse block matrix by zeroing out all blocks
+        This methods creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from a diagonal band. By default,
         all elements outside the band but inside blocks that overlap the
         band are set to zero as well.
@@ -705,7 +745,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a sparse block matrix by zeroing out all blocks
+        This methods creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from the (non-strict) upper or lower triangle. By
         default, all elements outside the triangle but inside blocks that
         overlap the triangle are set to zero as well.
@@ -738,7 +778,7 @@ class BlockMatrix(object):
                       stops=sequenceof(int),
                       blocks_only=bool)
     def sparsify_row_intervals(self, starts, stops, blocks_only=False):
-        """Creates a sparse block matrix by filtering to an interval for each row.
+        """Creates a block-sparse matrix by filtering to an interval for each row.
 
         Examples
         --------
@@ -776,7 +816,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a sparse block matrix by zeroing out all blocks
+        This methods creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from all row intervals. By default, all elements
         outside the row intervals but inside blocks that overlap the row
         intervals are set to zero as well.
@@ -896,11 +936,12 @@ class BlockMatrix(object):
 
     @property
     def is_sparse(self):
-        """Returns ``True`` if sparse.
+        """Returns ``True`` if block-sparse.
 
         Notes
         -----
-        A block matrix is sparse if some blocks are implicitly zero.
+        A block matrix is block-sparse if at least of its blocks is dropped,
+        i.e. implicitly a block of zeros.
 
         Returns
         -------
@@ -917,6 +958,15 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(self._jbm.transpose())
+
+    def densify(self):
+        """Restore all dropped blocks as explicit blocks of zeros.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.densify())
 
     def cache(self):
         """Persist this block matrix in memory.
@@ -1450,7 +1500,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a sparse block matrix by zeroing out (dropping)
+        This methods creates a block-sparse matrix by zeroing out (dropping)
         all blocks which are disjoint from the union of a set of rectangular
         regions. Partially overlapping blocks are *not* modified.
 
@@ -1596,6 +1646,8 @@ class BlockMatrix(object):
             Defaults to (and cannot exceed) the number of rectangles.
         """
         n_rectangles = len(rectangles)
+        if n_rectangles == 0:
+            raise ValueError('no rectangles provided')
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 
