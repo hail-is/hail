@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
@@ -120,4 +121,88 @@ class AggregatorsSuite {
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
       110.0)
   }
+
+  private[this] def assertArraySumEvalsTo[T: HailRep](
+    a: IndexedSeq[Seq[T]],
+    expected: Seq[T]
+  ): Unit = {
+    val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None)
+    val aggregable = a.map(Row(_))
+    assertEvalsTo(
+      ApplyAggOp(SeqOp(Ref("a", TArray(hailType[T])), I32(0), aggSig), FastSeq(), None, aggSig),
+      (aggregable, TStruct("a" -> TArray(hailType[T]))),
+      expected)
+  }
+
+  @Test
+  def arraySumFloat64OnEmpty(): Unit =
+    assertArraySumEvalsTo[Double](
+      FastIndexedSeq(),
+      null
+    )
+
+  @Test
+  def arraySumFloat64OnSingletonMissing(): Unit =
+    assertArraySumEvalsTo[Double](
+      FastIndexedSeq(null),
+      null
+    )
+
+  @Test
+  def arraySumFloat64OnAllMissing(): Unit =
+    assertArraySumEvalsTo[Double](
+      FastIndexedSeq(null, null, null),
+      null
+    )
+
+  @Test
+  def arraySumInt64OnEmpty(): Unit =
+    assertArraySumEvalsTo[Long](
+      FastIndexedSeq(),
+      null
+    )
+
+  @Test
+  def arraySumInt64OnSingletonMissing(): Unit =
+    assertArraySumEvalsTo[Long](
+      FastIndexedSeq(null),
+      null
+    )
+
+  @Test
+  def arraySumInt64OnAllMissing(): Unit =
+    assertArraySumEvalsTo[Long](
+      FastIndexedSeq(null, null, null),
+      null
+    )
+
+  @Test
+  def arraySumFloat64OnSmallArray(): Unit =
+    assertArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1.0, 2.0),
+        FastSeq(10.0, 20.0),
+        null),
+      FastSeq(11.0, 22.0)
+    )
+
+  @Test
+  def arraySumInt64OnSmallArray(): Unit =
+    assertArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1L, 2L),
+        FastSeq(10L, 20L),
+        null),
+      FastSeq(11L, 22L)
+    )
+
+  @Test
+  def arraySumInt64FirstElementMissing(): Unit =
+    assertArraySumEvalsTo(
+      FastIndexedSeq(
+        null,
+        FastSeq(1L, 33L),
+        FastSeq(42L, 3L)),
+      FastSeq(43L, 36L)
+    )
 }

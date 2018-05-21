@@ -25,7 +25,7 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
 
   private val combiner = new HistogramCombiner(indices)
 
-  def seqOp(x: Double, missing: Boolean) {
+  def seqOp(region: Region, x: Double, missing: Boolean) {
     if (!missing)
       combiner.merge(x)
   }

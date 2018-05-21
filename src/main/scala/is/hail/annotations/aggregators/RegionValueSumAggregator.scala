@@ -5,7 +5,7 @@ import is.hail.annotations._
 class RegionValueSumLongAggregator extends RegionValueAggregator {
   private var sum: Long = 0L
 
-  def seqOp(l: Long, missing: Boolean) {
+  def seqOp(region: Region, l: Long, missing: Boolean) {
     if (!missing)
       sum += l
   }
@@ -28,7 +28,7 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
 class RegionValueSumDoubleAggregator extends RegionValueAggregator {
   private var sum: Double = 0.0
 
-  def seqOp(d: Double, missing: Boolean) {
+  def seqOp(region: Region, d: Double, missing: Boolean) {
     if (!missing)
       sum += d
   }

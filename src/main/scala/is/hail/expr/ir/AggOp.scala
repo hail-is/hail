@@ -5,7 +5,12 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils._
 
-case class AggSignature(op: AggOp, inputType: Type, constructorArgs: Seq[Type], initOpArgs: Option[Seq[Type]])
+case class AggSignature(
+  op: AggOp,
+  inputType: Type,
+  constructorArgs: Seq[Type],
+  initOpArgs: Option[Seq[Type]]
+)
 
 sealed trait AggOp { }
 // nulary
@@ -70,6 +75,10 @@ object AggOp {
 
     case (Sum(), in: TInt64, Seq(), None) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
     case (Sum(), in: TFloat64, Seq(), None) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
+    case (Sum(), in@TArray(TInt64(_), _), Seq(), None) =>
+      CodeAggregator[RegionValueArraySumLongAggregator](in, TArray(TInt64()))
+    case (Sum(), in@TArray(TFloat64(_), _), Seq(), None) =>
+      CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))
 
     case (Product(), in: TInt64, Seq(), None) => CodeAggregator[RegionValueProductLongAggregator](in, TInt64())
     case (Product(), in: TFloat64, Seq(), None) => CodeAggregator[RegionValueProductDoubleAggregator](in, TFloat64())

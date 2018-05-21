@@ -18,7 +18,7 @@ class RegionValueCallStatsAggregator extends RegionValueAggregator {
       combiner = new CallStatsCombiner(nAlleles)
   }
 
-  def seqOp(x: Call, missing: Boolean): Unit = {
+  def seqOp(region: Region, x: Call, missing: Boolean): Unit = {
     if (combiner != null && !missing)
       combiner.merge(x)
   }
