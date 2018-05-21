@@ -10,6 +10,14 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
+    registerIR("size", TSet(tv("T"))) { s =>
+      ArrayLen(ToArray(s))
+    }
+
+    registerIR("isEmpty", TSet(tv("T"))) { s =>
+      ArrayFunctions.isEmpty(ToArray(s))
+    }
+
     registerIR("contains", TSet(tv("T")), tv("T")) { (s, v) =>
       SetContains(s, v)
     }
@@ -68,6 +76,14 @@ object SetFunctions extends RegistryFunctions {
         // FIXME short circuit
         ApplySpecial("&&",
           FastSeq(Ref(a, TBoolean()), SetContains(w, Ref(x, t)))))
+    }
+
+    registerIR("sum", TSet(tnum("T"))) { s =>
+      ArrayFunctions.sum(ToArray(s))
+    }
+
+    registerIR("product", TSet(tnum("T"))) { s =>
+      ArrayFunctions.product(ToArray(s))
     }
 
     registerIR("min", TSet(tnum("T"))) { s =>

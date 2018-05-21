@@ -31,5 +31,9 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(nad, null)
     assertEvalsTo(ToDict(naa), null)
     assertEvalsTo(e, Map())
+    assertEvalsTo(invoke("toDict", a0), Map((1, 3), (2, 7)))
+    assertEvalsTo(invoke("toDict", a), Map((1, 3), (2, null), (null, 1), (3, 7)))
+    assertEvalsTo(invoke("toDict", naa), null)
+    assertEvalsTo(invoke("toDict", MakeArray(Seq(), TArray(TTuple(TInt32(), TInt32())))), Map())
   }
 }

@@ -34,8 +34,55 @@ object ArrayFunctions extends RegistryFunctions {
           Cast(GetField(Ref(result, tAccum), "n"), TFloat64()))))
   }
 
+  def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
+
+  def extend(a1: IR, a2: IR): IR = {
+    val uid = genUID()
+    val typ = a1.typ
+    If(IsNA(a1), NA(typ),
+      If(IsNA(a2), NA(typ),
+        ArrayFlatMap(
+          MakeArray(Seq(a1, a2), TArray(typ)),
+          uid,
+          Ref(uid, a1.typ)
+        )
+      ))
+  }
+
+  def sum(a: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    val sum = genUID()
+    val v = genUID()
+    val zero = Cast(I64(0), t)
+    ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
+  }
+
+  def product(a: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    val product = genUID()
+    val v = genUID()
+    val one = Cast(I64(1), t)
+    ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
+  }
+
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
+
+    registerIR("length", TArray(tv("T")))(ArrayLen)
+
+    registerIR("isEmpty", TArray(tv("T")))(isEmpty)
+
+    registerIR("sort", TArray(tv("T")), TBoolean())(ArraySort)
+
+    registerIR("sort", TArray(tv("T"))) { a =>
+      ArraySort(a, True())
+    }
+
+    registerIR("extend", TArray(tv("T")), TArray(tv("T")))(extend)
+
+    registerIR("append", TArray(tv("T")), tv("T")) { (a, c) =>
+      extend(a, MakeArray(Seq(c), TArray(c.typ)))
+    }
 
     val arrayOps: Array[(String, (IR, IR) => IR)] =
       Array(
@@ -72,21 +119,9 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerIR("sum", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val sum = genUID()
-      val v = genUID()
-      val zero = Cast(I64(0), t)
-      ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
-    }
+    registerIR("sum", TArray(tnum("T")))(sum)
 
-    registerIR("product", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val product = genUID()
-      val v = genUID()
-      val one = Cast(I64(1), t)
-      ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
-    }
+    registerIR("product", TArray(tnum("T")))(product)
 
     registerIR("min", TArray(tnum("T"))) { a =>
       val t = -coerce[TArray](a.typ).elementType

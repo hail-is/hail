@@ -15,6 +15,8 @@ class SetFunctionsSuite extends TestNGSuite {
   val nas = NA(TSet(TInt32()))
   val t = ToSet(MakeArray(Seq(I32(3), I32(8)), TArray(TInt32())))
   val t2 = ToSet(MakeArray(Seq(I32(3), I32(8), NA(TInt32())), TArray(TInt32())))
+  val e = ToSet(MakeArray(Seq(), TArray(TInt32())))
+  val sna = ToSet(MakeArray(Seq(NA(TInt32())), TArray(TInt32())))
 
   @Test def toSet() {
     assertEvalsTo(s0, Set(3, 7))
@@ -24,6 +26,22 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("toSet", a0), Set(3, 7))
     assertEvalsTo(invoke("toSet", a), Set(null, 3, 7))
     assertEvalsTo(invoke("toSet", naa), null)
+  }
+
+  @Test def size() {
+    assertEvalsTo(invoke("size", s0), 2)
+    assertEvalsTo(invoke("size", s), 3)
+    assertEvalsTo(invoke("size", e), 0)
+    assertEvalsTo(invoke("size", sna), 1)
+    assertEvalsTo(invoke("size", nas), null)
+  }
+
+  @Test def isEmpty() {
+    assertEvalsTo(invoke("isEmpty", s0), false)
+    assertEvalsTo(invoke("isEmpty", s), false)
+    assertEvalsTo(invoke("isEmpty", e), true)
+    assertEvalsTo(invoke("isEmpty", sna), false)
+    assertEvalsTo(invoke("isEmpty", nas), null)
   }
 
   @Test def contains() {
@@ -68,5 +86,21 @@ class SetFunctionsSuite extends TestNGSuite {
   @Test def difference() {
     assertEvalsTo(invoke("difference", s, t), Set(null, 7))
     assertEvalsTo(invoke("difference", s, t2), Set(7))
+  }
+
+  @Test def sum() {
+    assertEvalsTo(invoke("sum", s0), 10)
+    assertEvalsTo(invoke("sum", s), 10)
+    assertEvalsTo(invoke("sum", e), 0)
+    assertEvalsTo(invoke("sum", sna), 0)
+    assertEvalsTo(invoke("sum", nas), null)
+  }
+
+  @Test def product() {
+    assertEvalsTo(invoke("product", s0), 21)
+    assertEvalsTo(invoke("product", s), 21)
+    assertEvalsTo(invoke("product", e), 1)
+    assertEvalsTo(invoke("product", sna), 1)
+    assertEvalsTo(invoke("product", nas), null)
   }
 }
