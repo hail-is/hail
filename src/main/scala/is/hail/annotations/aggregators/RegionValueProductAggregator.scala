@@ -5,7 +5,7 @@ import is.hail.annotations._
 class RegionValueProductLongAggregator extends RegionValueAggregator {
   private var product: Long = 1L
 
-  def seqOp(l: Long, missing: Boolean) {
+  def seqOp(region: Region, l: Long, missing: Boolean) {
     if (!missing)
       product *= l
   }
@@ -28,7 +28,7 @@ class RegionValueProductLongAggregator extends RegionValueAggregator {
 class RegionValueProductDoubleAggregator extends RegionValueAggregator {
   private var product: Double = 1.0
 
-  def seqOp(d: Double, missing: Boolean) {
+  def seqOp(region: Region, d: Double, missing: Boolean) {
     if (!missing)
       product *= d
   }

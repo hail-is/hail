@@ -6,7 +6,7 @@ import is.hail.utils._
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
   private val ab = new MissingBooleanArrayBuilder()
 
-  def seqOp(b: Boolean, missing: Boolean) {
+  def seqOp(region: Region, b: Boolean, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else
@@ -36,7 +36,7 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
 class RegionValueCollectIntAggregator extends RegionValueAggregator {
   private val ab = new MissingIntArrayBuilder()
 
-  def seqOp(x: Int, missing: Boolean) {
+  def seqOp(region: Region, x: Int, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else

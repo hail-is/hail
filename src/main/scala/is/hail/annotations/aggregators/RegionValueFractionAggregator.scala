@@ -6,7 +6,7 @@ class RegionValueFractionAggregator extends RegionValueAggregator {
   private var trues = 0L
   private var total = 0L
 
-  def seqOp(i: Boolean, missing: Boolean) {
+  def seqOp(region: Region, i: Boolean, missing: Boolean) {
     total += 1
     if (!missing && i)
       trues += 1

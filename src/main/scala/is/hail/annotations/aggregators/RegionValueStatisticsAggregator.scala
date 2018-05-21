@@ -18,7 +18,7 @@ object RegionValueStatisticsAggregator {
 class RegionValueStatisticsAggregator extends RegionValueAggregator {
   private var sc = new StatCounter()
 
-  def seqOp(x: Double, missing: Boolean) {
+  def seqOp(region: Region, x: Double, missing: Boolean) {
     if (!missing)
       sc.merge(x)
   }

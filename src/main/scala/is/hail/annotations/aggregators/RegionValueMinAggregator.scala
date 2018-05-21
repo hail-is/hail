@@ -6,7 +6,7 @@ class RegionValueMinBooleanAggregator extends RegionValueAggregator {
   private var min: Boolean = false
   private var empty: Boolean = true
 
-  def seqOp(i: Boolean, missing: Boolean) {
+  def seqOp(region: Region, i: Boolean, missing: Boolean) {
     if (!missing && (i < min || empty)) {
       empty = false
       min = i
@@ -40,7 +40,7 @@ class RegionValueMinIntAggregator extends RegionValueAggregator {
   private var min: Int = 0
   private var empty: Boolean = true
 
-  def seqOp(i: Int, missing: Boolean) {
+  def seqOp(region: Region, i: Int, missing: Boolean) {
     if (!missing && (i < min || empty)) {
       empty = false
       min = i
@@ -74,7 +74,7 @@ class RegionValueMinLongAggregator extends RegionValueAggregator {
   private var min: Long = 0L
   private var empty: Boolean = true
 
-  def seqOp(i: Long, missing: Boolean) {
+  def seqOp(region: Region, i: Long, missing: Boolean) {
     if (!missing && (i < min || empty)) {
       empty = false
       min = i
@@ -108,7 +108,7 @@ class RegionValueMinFloatAggregator extends RegionValueAggregator {
   private var min: Float = 0.0f
   private var empty: Boolean = true
 
-  def seqOp(i: Float, missing: Boolean) {
+  def seqOp(region: Region, i: Float, missing: Boolean) {
     if (!missing && (i < min || empty)) {
       empty = false
       min = i
@@ -142,7 +142,7 @@ class RegionValueMinDoubleAggregator extends RegionValueAggregator {
   private var min: Double = 0.0
   private var empty: Boolean = true
 
-  def seqOp(i: Double, missing: Boolean) {
+  def seqOp(region: Region, i: Double, missing: Boolean) {
     if (!missing && (i < min || empty)) {
       empty = false
       min = i

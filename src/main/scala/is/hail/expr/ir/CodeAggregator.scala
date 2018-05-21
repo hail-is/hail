@@ -26,12 +26,30 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
     Code.checkcast[Agg](rva).invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
-  def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] = {
+  def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] = {
     TypeToIRIntermediateClassTag(in) match {
       case ct: ClassTag[t] =>
         mv.mux(
-          Code.checkcast[Agg](rva).invoke("seqOp", coerce[t](defaultValue(in)), true)(ct, classTag[Boolean], classTag[Unit]),
-          Code.checkcast[Agg](rva).invoke("seqOp", coerce[t](v), false)(ct, classTag[Boolean], classTag[Unit]))
+          Code.checkcast[Agg](rva).invoke(
+            "seqOp",
+            region,
+            coerce[t](defaultValue(in)),
+            true
+          )(classTag[Region],
+            ct,
+            classTag[Boolean],
+            classTag[Unit]
+          ),
+          Code.checkcast[Agg](rva).invoke(
+            "seqOp",
+            region,
+            coerce[t](v),
+            false
+          )(classTag[Region],
+            ct,
+            classTag[Boolean],
+            classTag[Unit]
+          ))
     }
   }
 

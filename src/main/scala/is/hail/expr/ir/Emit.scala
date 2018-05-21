@@ -581,7 +581,7 @@ private class Emit(
           Code(codeI.setup, codeA.setup,
             codeI.m.mux(
               Code._empty,
-               agg.seqOp(aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
+               agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
           const(false),
           Code._empty)
 

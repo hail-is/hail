@@ -6,7 +6,7 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
   private var max: Boolean = false
   private var empty: Boolean = true
 
-  def seqOp(i: Boolean, missing: Boolean) {
+  def seqOp(region: Region, i: Boolean, missing: Boolean) {
     if (!missing && (i > max || empty)) {
       empty = false
       max = i
@@ -40,7 +40,7 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
   private var max: Int = 0
   private var empty: Boolean = true
 
-  def seqOp(i: Int, missing: Boolean) {
+  def seqOp(region: Region, i: Int, missing: Boolean) {
     if (!missing && (i > max || empty)) {
       empty = false
       max = i
@@ -74,7 +74,7 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
   private var max: Long = 0L
   private var empty: Boolean = true
 
-  def seqOp(i: Long, missing: Boolean) {
+  def seqOp(region: Region, i: Long, missing: Boolean) {
     if (!missing && (i > max || empty)) {
       empty = false
       max = i
@@ -108,7 +108,7 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
   private var max: Float = 0.0f
   private var empty: Boolean = true
 
-  def seqOp(i: Float, missing: Boolean) {
+  def seqOp(region: Region, i: Float, missing: Boolean) {
     if (!missing && (i > max || empty)) {
       empty = false
       max = i
@@ -142,7 +142,7 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
   private var max: Double = 0.0
   private var empty: Boolean = true
 
-  def seqOp(i: Double, missing: Boolean) {
+  def seqOp(region: Region, i: Double, missing: Boolean) {
     if (!missing && (i > max || empty)) {
       empty = false
       max = i

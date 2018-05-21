@@ -8,7 +8,7 @@ import is.hail.utils._
 class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
   private val ab = new MissingBooleanArrayBuilder()
 
-  def seqOp(x: Boolean, missing: Boolean) {
+  def seqOp(region: Region, x: Boolean, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
         ab.addMissing()
@@ -41,7 +41,7 @@ class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
   private val ab = new MissingIntArrayBuilder()
 
-  def seqOp(x: Int, missing: Boolean) {
+  def seqOp(region: Region, x: Int, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
         ab.addMissing()
@@ -74,7 +74,7 @@ class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
   private val ab = new MissingLongArrayBuilder()
 
-  def seqOp(x: Long, missing: Boolean) {
+  def seqOp(region: Region, x: Long, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
         ab.addMissing()
@@ -107,7 +107,7 @@ class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
   private val ab = new MissingFloatArrayBuilder()
 
-  def seqOp(x: Float, missing: Boolean) {
+  def seqOp(region: Region, x: Float, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
         ab.addMissing()
@@ -140,7 +140,7 @@ class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
   private val ab = new MissingDoubleArrayBuilder()
 
-  def seqOp(x: Double, missing: Boolean) {
+  def seqOp(region: Region, x: Double, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
         ab.addMissing()
