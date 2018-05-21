@@ -941,16 +941,6 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
-    def test_pca_join(self):
-        mt = hl.balding_nichols_model(2, 10, 20)
-        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=1, compute_loadings=True)
-        eigenvalues2 , scores2, loadings2 = hl.pca(
-            mt.GT.n_alt_alleles() * hl.literal([1])[0], k=1, compute_loadings=True)
-
-        self.assertAlmostEqual(eigenvalues[0], eigenvalues2[0])
-        self.assertTrue(scores._same(scores2))
-        self.assertTrue(loadings._same(loadings2))
-
     def _R_pc_relate(self, mt, maf):
         plink_file = utils.uri_path(utils.new_temp_file())
         hl.export_plink(mt, plink_file, ind_id=hl.str(mt.col_key[0]))
