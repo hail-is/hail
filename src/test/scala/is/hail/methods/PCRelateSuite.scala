@@ -8,11 +8,28 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.MatrixTable
-import is.hail.methods.PCASuite.samplePCA
+import is.hail.table.Table
 import org.testng.annotations.Test
 import scala.language.postfixOps
 
 import scala.sys.process._
+
+object PCRelateSuite {
+
+  def samplePCA(
+    vsm: MatrixTable,
+    k: Int = 10,
+    computeLoadings: Boolean = false): (IndexedSeq[Double], BDM[Double], Option[Table]) = {
+
+    var prePCA = vsm.annotateRowsExpr(
+      "AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()", "nCalled" -> "AGG.filter(g => isDefined(g.GT)).count()")
+      .filterRowsExpr("va.AC > 0 && va.AC.toInt64 < 2L * va.nCalled").persist()
+    val nVariants = prePCA.countRows()
+    prePCA = prePCA.selectEntries(s"{__gt: let mean = va.AC.toFloat64 / va.nCalled.toFloat64 in if (isDefined(g.GT)) (g.GT.nNonRefAlleles().toFloat64 - mean) / sqrt(mean * (2d - mean) * ${ nVariants }d / 2d) else 0d}")
+
+    PCA(prePCA, "__gt", k, computeLoadings)
+  }
+}
 
 class PCRelateSuite extends SparkSuite {
   private val blockSize: Int = BlockMatrix.defaultBlockSize
@@ -119,7 +136,7 @@ class PCRelateSuite extends SparkSuite {
     val nVariants = 10000
     val vds: MatrixTable = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
       .annotateColsExpr("s" -> "str(sa.sample_idx)").keyColsBy("s")
-    val pcs = samplePCA(vds, 2)._2
+    val pcs = PCRelateSuite.samplePCA(vds, 2)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01).mapValues(quadMap(toD).tupled)
 
@@ -132,7 +149,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: MatrixTable = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
-    val pcs = samplePCA(vds, 2)._2
+    val pcs = PCRelateSuite.samplePCA(vds, 2)._2
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
@@ -157,7 +174,7 @@ class PCRelateSuite extends SparkSuite {
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-    val pcs = samplePCA(vds.coalesce(10), 2)._2
+    val pcs = PCRelateSuite.samplePCA(vds.coalesce(10), 2)._2
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
@@ -198,7 +215,7 @@ class PCRelateSuite extends SparkSuite {
   def sampleVcfReferenceMatchesR() {
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
 
-    val pcs = samplePCA(vds.coalesce(10), 2)._2
+    val pcs = PCRelateSuite.samplePCA(vds.coalesce(10), 2)._2
 
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
@@ -210,7 +227,7 @@ class PCRelateSuite extends SparkSuite {
   def kinshipFiltering() {
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz"))
 
-    val pcs = samplePCA(vds.coalesce(10), 2)._2
+    val pcs = PCRelateSuite.samplePCA(vds.coalesce(10), 2)._2
 
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .filter { case (_, (kin, _, _, _)) => kin >= 0.125 }
@@ -227,7 +244,7 @@ class PCRelateSuite extends SparkSuite {
     val nVariants = 1000
     val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
       .annotateColsExpr("s" -> "str(sa.sample_idx)").keyColsBy("s")
-    val pcs = samplePCA(vds)._2
+    val pcs = PCRelateSuite.samplePCA(vds)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)
     val phionly = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, statistics=PCRelate.PhiOnly)
