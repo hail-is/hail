@@ -1449,10 +1449,7 @@ class Tests(unittest.TestCase):
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
         t = hl.set([3, 8])
-<<<<<<< ba19f21cc96022144027d2024071780bb3f8e747
 
-=======
->>>>>>> added tests
         self.assert_evals_to(s, set([1, 3, 7]))
 
         self.assert_evals_to(s.add(3), set([1, 3, 7]))
@@ -1471,7 +1468,6 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(s.is_subset(hl.set([1, 3])), False)
 
         self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
-<<<<<<< ba19f21cc96022144027d2024071780bb3f8e747
 
     def test_set_numeric_functions(self):
         empty = hl.empty_set(tint32)
@@ -1507,5 +1503,3 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(even_n), 5)
         self.assert_evals_to(hl.median(odd_n_w_null), 3)
         self.assert_evals_to(hl.median(even_n_w_null), 2)
-=======
->>>>>>> added tests
