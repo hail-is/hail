@@ -1,10 +1,13 @@
 package is.hail.expr.ir.functions
 
-import is.hail.asm4s.Code
+import is.hail.annotations.Region
+import is.hail.asm4s.{AsmFunction2, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
 import is.hail.expr.ir.coerce
+import is.hail.stats.uniroot
+import is.hail.utils.fatal
 
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)
@@ -48,6 +51,31 @@ object MathFunctions extends RegistryFunctions {
   def pcoin(p: Double): Boolean = math.random < p
 
   def runif(min: Double, max: Double): Double = min + (max - min) * math.random
+
+  def iruniroot(region: Region, f: AsmFunction2[Region, java.lang.Double, java.lang.Double], min: Double, max: Double): java.lang.Double = {
+    val r = uniroot({ (x: Double) =>
+      if (!(min < max))
+        fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
+
+      val fmin = f(min)
+      val fmax = f(max)
+
+      if (fmin == null || fmax == null)
+        fatal(s"result of f($x) missing in call to uniroot")
+
+      if (fmin.asInstanceOf[Double] * fmax.asInstanceOf[Double] > 0.0)
+        fatal(s"sign of endpoints must have opposite signs, got: f(min) = $fmin, f(max) = $fmax")
+
+      val y = f(x)
+      if (y == null)
+        fatal(s"result of f($x) missing in call to uniroot")
+      y.asInstanceOf[Double]
+    }, min, max)
+    (r match {
+      case Some(r) => r
+      case None => null
+    }): java.lang.Double
+  }
 
   def registerAll() {
     val thisClass = getClass

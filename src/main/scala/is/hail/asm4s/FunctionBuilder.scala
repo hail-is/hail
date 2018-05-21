@@ -232,6 +232,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     df
   }
 
+  def newDependentFunction[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction2[A1, A2, R]] = {
+    val df = new DependentFunction[AsmFunction2[A1, A2, R]](this, Array(GenericTypeInfo[A1], GenericTypeInfo[A1]), GenericTypeInfo[R])
+    children += df
+    df
+  }
+
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()

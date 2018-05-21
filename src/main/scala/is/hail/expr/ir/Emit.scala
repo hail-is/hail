@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.expr.ir.functions.MathFunctions
 import is.hail.expr.types._
 import is.hail.utils._
 
@@ -746,8 +747,35 @@ private class Emit(
         val unified = x.implementation.unify(args.map(_.typ))
         assert(unified)
         x.implementation.apply(mb, args.map(emit(_)): _*)
+      case x@Uniroot(argname, fn, min, max) =>
+        val asmfunction = getAsDependentFunction[Region, Double, java.lang.Double](fn, argname, env, mb.fb)
+
+//        Code.invokeScalaObject[AsmFunction2[Region, java.lang.Double, java.lang.Double], Double, Double, java.lang.Double](MathFunctions.getClass, )
     }
   }
+
+  // FIXME: need to change srvb to not assume region as first arg
+  // FIXME: also need to somehow get all the environment stuff from EmitFunctionBuilder
+  // FIXME: maybe this means I should rethink how it's stored.
+  private def getAsDependentFunction[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo](
+    ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_]
+  ): DependentFunction[AsmFunction2[A1, A2, R]] = {
+    var set = Set[String]()
+    def getReferenced: IR => IR = {
+      case Ref(id, typ) if id == argname =>
+        In(0, typ)
+      case node@Ref(id, typ) =>
+        set += id
+        node
+      case node => Recur(getReferenced)(node)
+    }
+
+    val ir = getReferenced(ir)
+
+    val f = fb.newDependentFunction[A1, A2, R]
+
+  }
+
 
   private def emitArrayIterator(ir: IR, env: E): ArrayIteratorTriplet = {
 

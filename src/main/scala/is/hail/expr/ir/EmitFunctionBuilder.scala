@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.AbstractInsnNode
 
 import scala.collection.generic.Growable
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 object EmitFunctionBuilder {
   def apply[R: TypeInfo](): EmitFunctionBuilder[AsmFunction0[R]] =
@@ -55,6 +56,18 @@ class EmitMethodBuilder(
 
   def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t, op, missingGreatest)
+}
+
+class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
+  parentfb: EmitFunctionBuilder[_],
+  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated"
+) extends DependentFunction[F](parentfb, parameterTypeInfo, returnTypeInfo, packageName) {
+
+
+
+
 }
 
 class EmitFunctionBuilder[F >: Null](

@@ -453,6 +453,9 @@ object Interpret {
           SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
             .get(0)
         }
+      case Uniroot(functionid, fn, min, max) =>
+        //FIXME: come back to this later. maybe you can compile the function.
+
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
