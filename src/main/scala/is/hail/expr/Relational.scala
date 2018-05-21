@@ -1648,19 +1648,20 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       case ordered: OrderedRVD =>
         typ.key match {
           case Some(key) =>
-            val localType = ordered.typ.copy(key = key.toArray, rowType = typ.rowType)
-            val res = if (ordered.typ.partitionKey.length <= preservedKeyFields.get)
-              ordered.mapPartitionsPreservesPartitioning(localType)(itF)
-            else
-              OrderedRVD.coerce(localType, ordered.mapPartitions(typ.rowType)(itF))
-            assert(res.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-              val out = if (it.hasNext)
-                Iterator(OrderedRVPartitionInfo(localType, 0, i, it, 0))
-              else
-                Iterator()
-              out
-            }.collect().forall(_.sortedness == 2))
-            res
+            val pkLength = ordered.typ.partitionKey.length
+            if (pkLength <= preservedKeyFields.get) {
+              val newType = ordered.typ.copy(
+                partitionKey = key.take(pkLength).toArray,
+                key = key.toArray,
+                rowType = typ.rowType)
+              ordered.mapPartitionsPreservesPartitioning(newType)(itF)
+            } else {
+              val newType = ordered.typ.copy(
+                partitionKey = key.toArray,
+                key = key.toArray,
+                rowType = typ.rowType)
+              OrderedRVD.coerce(newType, ordered.mapPartitions(typ.rowType)(itF))
+            }
           case None =>
             ordered.mapPartitions(typ.rowType)(itF)
         }

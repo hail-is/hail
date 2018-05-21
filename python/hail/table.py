@@ -415,9 +415,9 @@ class Table(ExprContainer):
         analyze(caller, row, self._row_indices)
 
         jt = base._jt
-        if self.key is not None and preserved_key != list(self.key.keys()):
+        if self.key is not None and preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new, preserved_key.length if preserved_key else None)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         t = cleanup(Table(jt))
@@ -1313,7 +1313,7 @@ class Table(ExprContainer):
             def joiner(left):
                 left = Table(left._jt.select(ApplyMethod('annotate',
                                                          left._row._ast,
-                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None)).key_by(*uids)
+                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)).key_by(*uids)
                 left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
