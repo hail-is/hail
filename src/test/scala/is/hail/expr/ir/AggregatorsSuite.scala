@@ -129,14 +129,7 @@ class AggregatorsSuite {
     val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None)
     val aggregable = a.map(Row(_))
     assertEvalsTo(
-      ApplyAggOp(
-        SeqOp(
-          Ref("a", TArray(hailType[T])),
-          I32(0),
-          aggSig),
-        FastSeq(),
-        None,
-        aggSig),
+      ApplyAggOp(SeqOp(Ref("a", TArray(hailType[T])), I32(0), aggSig), FastSeq(), None, aggSig),
       (aggregable, TStruct("a" -> TArray(hailType[T]))),
       expected)
   }
