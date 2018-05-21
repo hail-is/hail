@@ -441,12 +441,16 @@ class AggregatorSuite extends SparkSuite {
   @Test def testArraySumInt64() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.select("{foo : [row.idx]}", None).aggregate("AGG.sum()")._1 == Seq(5050))
+    assert(kt.select("{foo : [row.idx]}", Some(IndexedSeq("foo")))
+      .aggregate("AGG.map(r => r.foo).sum()")._1
+      == Seq(5050))
   }
 
   @Test def testArraySumFloat64() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.select("{foo : [row.idx/2.0]}", None).aggregate("AGG.sum()")._1 == Seq(5050))
+    assert(kt.select("{foo : [row.idx.toFloat64()/2.0]}", Some(IndexedSeq("foo")))
+      .aggregate("AGG.map(r => r.foo).sum()")._1
+      == Seq(5050))
   }
 }
