@@ -6,7 +6,6 @@ dependencies:
 - sphinxcontrib
 - conda-forge::nbsphinx
 - conda-forge::sphinx_rtd_theme
-- decorator
 - numpy
 - pandas
 - matplotlib

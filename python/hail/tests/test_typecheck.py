@@ -2,7 +2,7 @@ import unittest
 from hail.typecheck.check import *
 
 
-class ContextTests(unittest.TestCase):
+class TypeCheckTests(unittest.TestCase):
     def test_varargs(self):
         @typecheck(x=int, y=int)
         def f1(x, y):
@@ -260,3 +260,24 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: foo(l1))
         self.assertRaises(TypeError, lambda: foo(l2))
         foo(l3)
+
+    def test_complex_signature(self):
+
+        @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
+        def f(a, b='5', c=[10], *d, **e):
+            pass
+        f(1, 'a', )
+        f(1, foo={})
+        f(1, 'a', foo={})
+        f(1, c=[25, 2])
+        with self.assertRaises(TypeError):
+            f(1, '2', a=2)
+
+    def test_extra_args(self):
+
+        @typecheck(x=int)
+        def f(x):
+            pass
+        f(1)
+        with self.assertRaises(TypeError):
+            f(1,2)

@@ -1,8 +1,8 @@
-from decorator import decorator
 import re
 import inspect
 import abc
 import collections
+from functools import wraps, update_wrapper
 
 
 class TypecheckFailure(Exception):
@@ -293,12 +293,12 @@ class FunctionChecker(TypeChecker):
         self.nargs = nargs
         self.ret_checker = ret_checker
         super(FunctionChecker, self).__init__()
-        
+
     def check(self, x, caller, param):
         if not callable(x):
             raise TypecheckFailure
-        spec = inspect.getfullargspec(x)
-        if not len(spec.args) == self.nargs:
+        spec = inspect.signature(x)
+        if not len(spec.parameters) == self.nargs:
             raise TypecheckFailure
 
         def f(*args):
@@ -389,6 +389,7 @@ def transformed(*tcs):
 def lazy():
     return LazyChecker()
 
+
 anytype = AnyChecker()
 
 numeric = oneof(int, float)
@@ -400,119 +401,152 @@ table_key_type = nullable(
         transformed((str, lambda x: [x])),
         sequenceof(str)))
 
-def check_all(f, args, kwargs, checks, is_method):
-    if not hasattr(f, '_cached_spec'):
-        setattr(f, '_cached_spec', inspect.getfullargspec(f))
 
-    spec = f._cached_spec
+def get_signature(f) -> inspect.Signature:
+    if hasattr(f, '__memo'):
+        return f.__memo
+    else:
+        signature = inspect.signature(f)
+        f.__memo = signature
+        return signature
+
+
+def check_meta(f, checks, is_method):
+    if hasattr(f, '__checked'):
+        return
+    else:
+        spec = get_signature(f)
+        params = list(spec.parameters)
+        if is_method:
+            params = params[1:]
+        signature_namespace = set(params)
+        tc_namespace = set(checks.keys())
+
+        # ensure that the typecheck signature is appropriate and matches the function signature
+        if signature_namespace != tc_namespace:
+            unmatched_tc = list(tc_namespace - signature_namespace)
+            unmatched_sig = list(signature_namespace - tc_namespace)
+            if unmatched_sig or unmatched_tc:
+                msg = ''
+                if unmatched_tc:
+                    msg += 'unmatched typecheck arguments: %s' % unmatched_tc
+                if unmatched_sig:
+                    if msg:
+                        msg += ', and '
+                    msg += 'function parameters with no defined type: %s' % unmatched_sig
+                raise RuntimeError('%s: invalid typecheck signature: %s' % (f.__name__, msg))
+        f.__checked = True
+
+
+def check_all(f, args, kwargs, checks, is_method):
+    spec = get_signature(f)
+    check_meta(f, checks, is_method)
     name = f.__name__
+    arg_list = list(args)
 
     args_ = []
+    kwargs_ = {}
 
-    # strip the first argument if is_method is true (this is the self parameter)
-    if is_method:
-        if not (len(args) > 0 and isinstance(args[0], object)):
-            raise RuntimeError(
-                '%s: no class found as first argument. Use typecheck instead of typecheck_method?' % name)
-        named_args = spec.args[1:]
-        pos_args = args[1:]
-        args_.append(args[0])
-    else:
-        named_args = spec.args[:]
-        pos_args = args[:]
+    has_varargs = any(param.kind == param.VAR_POSITIONAL for param in spec.parameters.values())
+    n_pos_args = len(
+        list(filter(
+            lambda p: p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD),
+            spec.parameters.values())))
+    if not has_varargs and len(args) > n_pos_args:
+        raise TypeError(f"'{name}' takes {n_pos_args} positional arguments, found {len(args)}")
 
-    signature_namespace = set(named_args).union(spec.kwonlyargs).union(
-        set(filter(lambda x: x is not None, [spec.varargs, spec.varkw])))
-    tc_namespace = set(checks.keys())
-
-    # ensure that the typecheck signature is appropriate and matches the function signature
-    if signature_namespace != tc_namespace:
-        unmatched_tc = list(tc_namespace - signature_namespace)
-        unmatched_sig = list(signature_namespace - tc_namespace)
-        if unmatched_sig or unmatched_tc:
-            msg = ''
-            if unmatched_tc:
-                msg += 'unmatched typecheck arguments: %s' % unmatched_tc
-            if unmatched_sig:
-                if msg:
-                    msg += ', and '
-                msg += 'function parameters with no defined type: %s' % unmatched_sig
-            raise RuntimeError('%s: invalid typecheck signature: %s' % (name, msg))
-
-    for i in range(len(pos_args)):
-        arg = pos_args[i]
-        argname = named_args[i] if i < len(named_args) else spec.varargs
-        tc = checks[argname]
-        try:
-            arg_ = tc.check(arg, name, argname)
-            args_.append(arg_)
-        except TypecheckFailure as e:
-            if i < len(named_args):
+    for i, (arg_name, param) in enumerate(spec.parameters.items()):
+        if i == 0 and is_method:
+            if not isinstance(arg_list[0], object):
+                raise RuntimeError("no class found as first argument. Did you mean to use 'typecheck' "
+                                   "instead of 'typecheck_method'?")
+            args_.append(args[i])
+            continue
+        checker = checks[arg_name]
+        assert isinstance(param, inspect.Parameter)
+        if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+            try:
+                if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
+                    # must be positional
+                    if i < len(args):
+                        arg = args[i]
+                        args_.append(checker.check(arg, name, arg_name))
+                    # passed as keyword
+                    else:
+                        if arg_name in kwargs:
+                            arg = kwargs.pop(arg_name)
+                        else:
+                            if param.default is inspect._empty:
+                                raise TypeError(f'Expected {n_pos_args} positional arguments, '
+                                                f'found {len(args)}')
+                            arg = param.default
+                        args_.append(checker.check(arg, name, arg_name))
+                else:
+                    if arg_name in kwargs:
+                        arg = kwargs.pop(arg_name)
+                    else:
+                        if param.default is inspect._empty:
+                            raise TypeError(f"{name}() missing required keyword-only argument '{arg_name}'")
+                        arg = param.default
+                    kwargs_[arg_name] = checker.check(arg, name, arg_name)
+            except TypecheckFailure as e:
                 raise TypeError("{fname}: parameter '{argname}': "
                                 "expected {expected}, found {found}".format(
                     fname=name,
-                    argname=argname,
-                    expected=tc.expects(),
-                    found=tc.format(arg)
+                    argname=arg_name,
+                    expected=checker.expects(),
+                    found=checker.format(arg)
                 )) from e
-            else:
-                raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
-                                "expected {expected}, found {found}".format(
-                    fname=name,
-                    argname=argname,
-                    idx=i - len(named_args),
-                    tot=len(pos_args) - len(named_args),
-                    expected=tc.expects(),
-                    found=tc.format(arg)
-                )) from e
-
-    kwargs_ = {}
-
-    for kw in spec.kwonlyargs:
-        tc = checks[kw]
-        try:
-            arg_ = tc.check(kwargs[kw], name, kw)
-            kwargs_[kw] = arg_
-        except TypecheckFailure:
-            raise TypeError("{fname}: keyword argument '{argname}': "
-                            "expected {expected}, found {found}".format(
-                fname=name,
-                argname=kw,
-                expected=tc.expects(),
-                found=tc.format(kwargs[kw])
-            )) from None
-    if spec.varkw:
-        tc = checks[spec.varkw]
-        for argname, arg in kwargs.items():
-            try:
-                arg_ = tc.check(arg, name, argname)
-                kwargs_[argname] = arg_
-            except TypecheckFailure:
-                raise TypeError("{fname}: keyword argument '{argname}': "
-                                "expected {expected}, found {found}".format(
-                    fname=name,
-                    argname=argname,
-                    expected=tc.expects(),
-                    found=tc.format(arg)
-                )) from None
-
+        elif param.kind == param.VAR_POSITIONAL:
+            # consume the rest of the positional arguments
+            varargs = args[i:]
+            for j, arg in enumerate(varargs):
+                try:
+                    args_.append(checker.check(arg, name, arg_name))
+                except TypecheckFailure as e:
+                    raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
+                                    "expected {expected}, found {found}".format(
+                        fname=name,
+                        argname=arg_name,
+                        idx=j,
+                        tot=len(varargs),
+                        expected=checker.expects(),
+                        found=checker.format(arg)
+                    )) from e
+        else:
+            assert param.kind == param.VAR_KEYWORD
+            # kwargs now holds all variable kwargs
+            for kwarg_name, arg in kwargs.items():
+                try:
+                    kwargs_[kwarg_name] = checker.check(arg, name, arg_name)
+                except TypecheckFailure as e:
+                    raise TypeError("{fname}: keyword argument '{argname}': "
+                                    "expected {expected}, found {found}".format(
+                        fname=name,
+                        argname=kwarg_name,
+                        expected=checker.expects(),
+                        found=checker.format(arg))) from e
     return args_, kwargs_
 
 
 def typecheck_method(**checkers):
-    checkers = {k: only(v) for k, v in checkers.items()}
+    return _make_dec(checkers, is_method=True)
 
-    def _typecheck(__orig_func__, *args, **kwargs):
-        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=True)
-        return __orig_func__(*args_, **kwargs_)
-
-    return decorator(_typecheck)
 
 def typecheck(**checkers):
+    return _make_dec(checkers, is_method=False)
+
+
+def _make_dec(checkers, is_method):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def _typecheck(__orig_func__, *args, **kwargs):
-        args_, kwargs_ = check_all(__orig_func__, args, kwargs, checkers, is_method=False)
-        return __orig_func__(*args_, **kwargs_)
+    def actual_decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=is_method)
+            return f(*args_, **kwargs_)
 
-    return decorator(_typecheck)
+        update_wrapper(wrapper, f)
+        return wrapper
+
+    return actual_decorator

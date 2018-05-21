@@ -1,7 +1,6 @@
 name: hail
 dependencies:
 - python=3.6
-- decorator
 - numpy
 - pandas
 - matplotlib
