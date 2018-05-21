@@ -58,8 +58,6 @@ class EmitMethodBuilder(
     fb.getCodeOrdering[T](t, op, missingGreatest)
 }
 
-
-//FIXME: This should not reparse fields (types, reference genomes, etc.) that already exist in parent fb
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parentfb: EmitFunctionBuilder[_],
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
@@ -67,6 +65,25 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   packageName: String = "is/hail/codegen/generated"
 ) extends EmitFunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F] {
 
+  private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
+    mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
+
+  private[this] val typMap: mutable.Map[Type, Code[Type]] =
+    mutable.Map[Type, Code[Type]]()
+
+  override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
+    rgMap.getOrElse(rg, {
+      val fromParent = parentfb.getReferenceGenome(rg)
+      val field = addField[ReferenceGenome](fromParent)
+      field.load()
+    })
+
+  override def getType(t: Type): Code[Type] =
+    typMap.getOrElse(t, {
+      val fromParent = parentfb.getType(t)
+      val field = addField[Type](fromParent)
+      field.load()
+    })
 
 }
 
