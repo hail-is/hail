@@ -58,15 +58,8 @@ package object ir {
 
   private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
 
-<<<<<<< 36d1cb42ece1b27853d9fd504b6d833aa36453a5
   def invoke(name: String, args: IR*): IR =
     IRFunctionRegistry.lookupConversion(name, args.map(_.typ)).get(args)
-=======
-  def invoke(name: String, args: IR*): IR = {
-    IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
-      case Some(f) => f(args)
-    }
-  }
 
   case class IRBinding(v: String, t: Type)
 
@@ -94,7 +87,6 @@ package object ir {
         IsNA(rx),
         If(IsNA(rx),
           False(),
-          ApplyBinaryPrimOp(EQ(), lx, rx))))
+          ApplyComparisonOp(EQ(l.typ), lx, rx))))
   }
->>>>>>> make set function tests smaller grained
 }

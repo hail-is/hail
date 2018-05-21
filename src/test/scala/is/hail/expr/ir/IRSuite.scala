@@ -113,32 +113,10 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32())), 5)
     assertEvalsTo(Let("v", NA(TInt32()), Ref("v", TInt32())), null)
     assertEvalsTo(Let("v", I32(5), NA(TInt32())), null)
-    // FIXME test shadowing with environment
   }
-
-  // FIXME testRef in environment
 
   @Test def testMakeArray() {
     assertEvalsTo(MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())), FastIndexedSeq(5, null, -3))
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
-  }
-
-  @Test def testArrayFilter() {
-    val naa = NA(TArray(TInt32()))
-        val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
-
-    assertEvalsTo(ArrayFilter(naa, "x", True()), null)
-
-    assertEvalsTo(ArrayFilter(a, "x", NA(TBoolean())), FastIndexedSeq())
-    assertEvalsTo(ArrayFilter(a, "x", False()), FastIndexedSeq())
-    assertEvalsTo(ArrayFilter(a, "x", True()), FastIndexedSeq(3, null, 7))
-
-    assertEvalsTo(ArrayFilter(a, "x",
-      IsNA(Ref("x", TInt32()))), FastIndexedSeq(null))
-    assertEvalsTo(ArrayFilter(a, "x",
-      ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
-
-    assertEvalsTo(ArrayFilter(a, "x",
-      ApplyBinaryPrimOp(LT(), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 }
