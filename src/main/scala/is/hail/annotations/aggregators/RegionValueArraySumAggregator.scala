@@ -47,6 +47,7 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
       var i = 0
       while (i < sum.length) {
         sum(i) += that.sum(i)
+        i += 1
       }
     }
   }
@@ -111,6 +112,7 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
       var i = 0
       while (i < sum.length) {
         sum(i) += that.sum(i)
+        i += 1
       }
     }
   }
