@@ -139,22 +139,29 @@ class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   packageName: String = "is/hail/codegen/generated"
 ) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) {
 
-  var definedFields: mutable.ArrayBuffer[CodeObject[F] => Code[Unit]] = new mutable.ArrayBuffer(16)
+  var definedFields: mutable.ArrayBuffer[Code[F] => Code[Unit]] = new mutable.ArrayBuffer(16)
 
   def addField[T : TypeInfo : ClassTag](value: Code[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
-    val add = { (codeF: CodeObject[F]) =>
-      codeF.put[T](cfr.name, value)
+    val add = { (codeF: Code[F]) =>
+      new Code[Unit] {
+        def emit(il: Growable[AbstractInsnNode]): Unit = {
+          codeF.emit(il)
+          il += new TypeInsnNode(CHECKCAST, name)
+          value.emit(il)
+          il += new FieldInsnNode(PUTFIELD,
+            name, cfr.name, typeInfo[T].name)
+        }
+      }
     }
     definedFields += add
     cfr
   }
 
   def newInstance(localF: ClassFieldRef[F]): Code[Unit] = {
-    val codeF = new CodeObject[F](localF)
     Code(
       localF := Code.newInstance(this),
-      coerce[Unit](Code(definedFields.result().map(add => add(codeF)): _*)))
+      coerce[Unit](Code(definedFields.result().map(add => add(localF)): _*)))
   }
 
   override def result(pw: Option[PrintWriter]): () => F =
