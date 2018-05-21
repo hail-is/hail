@@ -119,6 +119,17 @@ object Code {
       }
     }
 
+  def newInstance[F >: Null](fb: FunctionBuilder[F])(implicit fct: ClassTag[F]): Code[F] = {
+    new Code[F] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        il += new TypeInsnNode(NEW, fb.name)
+        il += new InsnNode(DUP)
+        il += new MethodInsnNode(INVOKESPECIAL, fb.name, "<init>", "()V", false)
+        il += new TypeInsnNode(CHECKCAST, Type.getInternalName(fct.runtimeClass))
+      }
+    }
+  }
+
   def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -724,7 +735,7 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
     throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
 }
 
-class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String) extends Settable[T] {
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], val name: String) extends Settable[T] {
   val desc: String = typeInfo[T].name
   val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
 

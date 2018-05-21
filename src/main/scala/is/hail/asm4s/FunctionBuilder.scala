@@ -7,13 +7,14 @@ import scala.collection.JavaConverters._
 import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.language.{higherKinds, implicitConversions}
-
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+
+import scala.reflect.ClassTag
 
 object FunctionBuilder {
   val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
@@ -131,6 +132,35 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   }
 }
 
+class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
+  parentfb: FunctionBuilder[_],
+  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated"
+) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) {
+
+  var definedFields: mutable.ArrayBuffer[CodeObject[F] => Code[Unit]] = new mutable.ArrayBuffer(16)
+
+  def addField[T : TypeInfo : ClassTag](value: Code[T]): ClassFieldRef[T] = {
+    val cfr = newField[T]
+    val add = { (codeF: CodeObject[F]) =>
+      codeF.put[T](cfr.name, value)
+    }
+    definedFields += add
+    cfr
+  }
+
+  def newInstance(localF: ClassFieldRef[F]): Code[Unit] = {
+    val codeF = new CodeObject[F](localF)
+    Code(
+      localF := Code.newInstance(this),
+      coerce[Unit](Code(definedFields.result().map(add => add(codeF)): _*)))
+  }
+
+  override def result(pw: Option[PrintWriter]): () => F =
+    throw new UnsupportedOperationException("cannot call result() on a dependent function")
+}
+
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
   val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
 
@@ -156,7 +186,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
   init.instructions.add(new InsnNode(RETURN))
 
-  private[this] val children: mutable.Map[String, (Array[Byte], CodeObject[_])] = mutable.Map[String, (Array[Byte], CodeObject[_])]()
+  private[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -183,19 +213,10 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
 
-  private[this] def newDependentFunction[F2 >: Null <: AnyRef : TypeInfo : ClassTag](fb: FunctionBuilder[F2]): (Array[Byte], CodeObject[_]) = {
-    val n = fb.localName
-    val b = fb.classAsBytes()
-    val c = loadClass(n, b)
-    val obj = newLazyField(Code.newInstance()(ClassTag(c), fb.interfaceTi))(fb.interfaceTi)
-    (b, new CodeObject[F2](obj))
-  }
-
-  def invokeDependentFunction[R: TypeInfo](fb: FunctionBuilder[_], args: Code[_]*): Code[R] = {
-    val genericArgs = fb.parameterTypeInfo.zip(args).map { case (ti, c) => ti.castUnknownToGeneric(c) }
-    val (_, f) = children.getOrElseUpdate(fb.localName, newDependentFunction(fb))
-    val genericReturn = f.invoke[java.lang.Object]("apply", Array.fill[Class[_]](genericArgs.length)(classOf[java.lang.Object]), genericArgs)
-    NotGenericTypeInfo[R].castFromGeneric(genericReturn)
+  def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
+    val df = new DependentFunction[AsmFunction1[A1, R]](this, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    children += df
+    df
   }
 
   val localName: String = name.replace("/",".")
@@ -309,7 +330,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def result(print: Option[PrintWriter] = None): () => F = {
 
-    val childClasses = children.result()
+    val childClasses = children.result().map(f => (f.localName, f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
     val n = localName
@@ -326,7 +347,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
           if (f == null) {
             this.synchronized {
               if (f == null) {
-                childClasses.foreach { case (n, (b, f)) => loadClass(n, b) }
+                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
                 f = loadClass(n, bytes).newInstance().asInstanceOf[F]
               }
             }

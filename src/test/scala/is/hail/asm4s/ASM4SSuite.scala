@@ -423,13 +423,17 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def fbFunctionsCanBeNested(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Boolean]
-    val fb2 = FunctionBuilder.functionBuilder[Int, Boolean]
+    val fb2 = fb.newDependentFunction[Int, Boolean]
+    val localF = fb.newField[AsmFunction1[Int, Boolean]]
+
+    val wrappedInt = Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
+    val rawOut = localF.load().invoke[java.lang.Object, java.lang.Object]("apply", wrappedInt)
 
     fb2.emit(true)
-    fb.emit(fb.invokeDependentFunction[](fb2, 0))
-    val wrappedInt = Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
-    val rawOut = fb.newDependentFunction(fb2).invoke[java.lang.Object, java.lang.Object]("apply", wrappedInt)
-    fb.emit(checkcast[java.lang.Boolean](rawOut).invoke[Boolean]("booleanValue"))
+    fb.emit(Code(
+      fb2.newInstance(localF),
+      checkcast[java.lang.Boolean](rawOut).invoke[Boolean]("booleanValue")
+    ))
 
     val f = fb.result()()
     assert(f())
