@@ -119,17 +119,6 @@ object Code {
       }
     }
 
-  def newInstance[F >: Null](fb: FunctionBuilder[F])(implicit fct: ClassTag[F]): Code[F] = {
-    new Code[F] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += new TypeInsnNode(NEW, fb.name)
-        il += new InsnNode(DUP)
-        il += new MethodInsnNode(INVOKESPECIAL, fb.name, "<init>", "()V", false)
-        il += new TypeInsnNode(CHECKCAST, Type.getInternalName(fct.runtimeClass))
-      }
-    }
-  }
-
   def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {

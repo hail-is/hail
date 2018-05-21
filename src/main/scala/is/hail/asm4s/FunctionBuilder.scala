@@ -33,7 +33,7 @@ object FunctionBuilder {
   }
 
   def functionBuilder[R: TypeInfo]: FunctionBuilder[AsmFunction0[R]] =
-    new FunctionBuilder[AsmFunction0[R]](Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+    new FunctionBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction1[A, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
@@ -112,7 +112,6 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   }
 
   def emit(insn: AbstractInsnNode) {
-    require(!fb.closed)
     l += insn
   }
 
@@ -159,8 +158,17 @@ class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   }
 
   def newInstance(localF: ClassFieldRef[F]): Code[Unit] = {
+    val instance: Code[F] =
+      new Code[F] {
+        def emit(il: Growable[AbstractInsnNode]): Unit = {
+          il += new TypeInsnNode(NEW, name)
+          il += new InsnNode(DUP)
+          il += new MethodInsnNode(INVOKESPECIAL, name, "<init>", "()V", false)
+          il += new TypeInsnNode(CHECKCAST, classInfo[F].iname)
+        }
+      }
     Code(
-      localF := Code.newInstance(this),
+      localF := instance,
       coerce[Unit](Code(definedFields.result().map(add => add(localF)): _*)))
   }
 
@@ -226,8 +234,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     df
   }
 
-  val localName: String = name.replace("/",".")
-
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
@@ -276,10 +282,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  var closed: Boolean = false
-
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
-    assert(!closed)
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 
@@ -329,7 +332,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
       val tcv = new TraceClassVisitor(null, new Textifier, pw)
       cr.accept(tcv, 0)
     }
-    closed = true
     bytes
   }
 
@@ -337,10 +339,10 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def result(print: Option[PrintWriter] = None): () => F = {
 
-    val childClasses = children.result().map(f => (f.localName, f.classAsBytes(print)))
+    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
-    val n = localName
+    val n = name.replace("/",".")
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
