@@ -57,7 +57,7 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
+  def copy(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator()
 
   def clear() {
     sum = null
@@ -117,7 +117,7 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
+  def copy(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator()
 
   def clear() {
     sum = null
