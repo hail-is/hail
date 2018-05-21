@@ -58,14 +58,14 @@ class EmitMethodBuilder(
     fb.getCodeOrdering[T](t, op, missingGreatest)
 }
 
+
+//FIXME: This should not reparse fields (types, reference genomes, etc.) that already exist in parent fb
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parentfb: EmitFunctionBuilder[_],
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated"
-) extends DependentFunction[F](parentfb, parameterTypeInfo, returnTypeInfo, packageName) {
-
-
+) extends EmitFunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F] {
 
 
 }
@@ -170,4 +170,11 @@ class EmitFunctionBuilder[F >: Null](
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
+
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
+    val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
+      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
+    children += df
+    df
+  }
 }

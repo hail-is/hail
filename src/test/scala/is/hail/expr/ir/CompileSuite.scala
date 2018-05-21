@@ -661,4 +661,32 @@ class CompileSuite {
       assert(SafeRow(TStruct("foo" -> TInt32()), region, off).get(0) == 6)
     }
   }
+
+  @Test def testUniroot() {
+    val ir = Uniroot("x",
+      ApplyBinaryPrimOp(Add(), Ref("x", TFloat64()), F64(3)),
+      F64(-6), F64(0))
+    val fb = EmitFunctionBuilder[Region, Double]
+    doit(ir, fb)
+    val f = fb.result()()
+    Region.scoped { region =>
+      assert(f(region) == -3)
+    }
+  }
+
+  @Test def testUnirootWithExternalBindings() {
+    val fn = ApplyBinaryPrimOp(Add(),
+      Ref("x", TFloat64()),
+      GetTupleElement(MakeTuple(FastSeq(Ref("b", TFloat64()))), 0))
+    val ir = Let("b", F64(3),
+      Uniroot("x",
+      fn,
+      F64(-6), F64(0)))
+    val fb = EmitFunctionBuilder[Region, Double]
+    doit(ir, fb)
+    val f = fb.result()()
+    Region.scoped { region =>
+      assert(f(region) == -3)
+    }
+  }
 }

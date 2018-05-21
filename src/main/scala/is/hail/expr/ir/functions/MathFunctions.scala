@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{AsmFunction2, Code}
+import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
@@ -52,29 +52,22 @@ object MathFunctions extends RegistryFunctions {
 
   def runif(min: Double, max: Double): Double = min + (max - min) * math.random
 
-  def iruniroot(region: Region, f: AsmFunction2[Region, java.lang.Double, java.lang.Double], min: Double, max: Double): java.lang.Double = {
-    val r = uniroot({ (x: Double) =>
-      if (!(min < max))
-        fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
+  def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
+    val f: Double => Double = irf(region, _, false)
+    if (!(min < max))
+      fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
 
-      val fmin = f(min)
-      val fmax = f(max)
+    val fmin = f(min)
+    val fmax = f(max)
 
-      if (fmin == null || fmax == null)
-        fatal(s"result of f($x) missing in call to uniroot")
+    if (fmin * fmax > 0.0)
+      fatal(s"sign of endpoints must have opposite signs, got: f(min) = $fmin, f(max) = $fmax")
 
-      if (fmin.asInstanceOf[Double] * fmax.asInstanceOf[Double] > 0.0)
-        fatal(s"sign of endpoints must have opposite signs, got: f(min) = $fmin, f(max) = $fmax")
-
-      val y = f(x)
-      if (y == null)
-        fatal(s"result of f($x) missing in call to uniroot")
-      y.asInstanceOf[Double]
-    }, min, max)
-    (r match {
-      case Some(r) => r
-      case None => null
-    }): java.lang.Double
+    val r = uniroot(f, min, max)
+    if (r.isEmpty)
+      null
+    else
+      r.get
   }
 
   def registerAll() {

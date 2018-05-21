@@ -134,7 +134,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
   var definedFields: ArrayBuilder[Growable[AbstractInsnNode] => Unit] = new ArrayBuilder(16)
 
-  def addField[T : TypeInfo : ClassTag](value: Code[T]): ClassFieldRef[T] = {
+  def addField[T : TypeInfo](value: Code[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
     val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
       il += new TypeInsnNode(CHECKCAST, name)
@@ -167,7 +167,6 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
 
 }
 
-
 class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
@@ -199,7 +198,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
   init.instructions.add(new InsnNode(RETURN))
 
-  private[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
+  protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -228,12 +227,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
     val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
-    children += df
-    df
-  }
-
-  def newDependentFunction[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction2[A1, A2, R]] = {
-    val df = new DependentFunction[AsmFunction2[A1, A2, R]](this, Array(GenericTypeInfo[A1], GenericTypeInfo[A1]), GenericTypeInfo[R])
     children += df
     df
   }

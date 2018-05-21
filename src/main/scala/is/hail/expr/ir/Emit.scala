@@ -748,32 +748,62 @@ private class Emit(
         assert(unified)
         x.implementation.apply(mb, args.map(emit(_)): _*)
       case x@Uniroot(argname, fn, min, max) =>
-        val asmfunction = getAsDependentFunction[Region, Double, java.lang.Double](fn, argname, env, mb.fb)
+        val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
+        val asmfunction = getAsDependentFunction[Double, Double](fn, argname, env, mb.fb, missingError)
 
-//        Code.invokeScalaObject[AsmFunction2[Region, java.lang.Double, java.lang.Double], Double, Double, java.lang.Double](MathFunctions.getClass, )
+        val localF = mb.newField[AsmFunction3[Region, Double, Boolean, Double]]
+        val codeMin = emit(min)
+        val codeMax = emit(max)
+
+        val res = mb.newLocal[java.lang.Double]
+
+        val setup = Code(codeMin.setup, codeMax.setup)
+        val m = Code(
+          asmfunction.newInstance(localF),
+          res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
+            MathFunctions.getClass,
+            "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
+          res.isNull)
+
+        EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
     }
   }
 
   // FIXME: need to change srvb to not assume region as first arg
   // FIXME: also need to somehow get all the environment stuff from EmitFunctionBuilder
   // FIXME: maybe this means I should rethink how it's stored.
-  private def getAsDependentFunction[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo](
-    ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_]
-  ): DependentFunction[AsmFunction2[A1, A2, R]] = {
-    var set = Set[String]()
+  private def getAsDependentFunction[A1 : TypeInfo, R : TypeInfo](
+    ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_], errorMsg: String
+  ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
+    var ids = Set[String]()
     def getReferenced: IR => IR = {
       case Ref(id, typ) if id == argname =>
         In(0, typ)
-      case node@Ref(id, typ) =>
-        set += id
+      case node@Ref(id, _) =>
+        ids += id
         node
       case node => Recur(getReferenced)(node)
     }
 
-    val ir = getReferenced(ir)
+    val f = fb.newDependentFunction[Region, A1, Boolean, R]
 
-    val f = fb.newDependentFunction[A1, A2, R]
+    val newIR = getReferenced(ir)
+    val newEnv = ids.foldLeft(
+      Env.empty[(TypeInfo[_], Code[Boolean], Code[_])]) { (e: Emit.E, id: String) =>
+      val (ti, m, v) = env.lookup(id)
+      val newM = f.addField[Boolean](m)
+      val newV = f.addField(v)(ti.asInstanceOf[TypeInfo[Any]])
+      e.bind(id, (ti, newM.load(), newV.load()))
+    }
 
+    val foo = new Emit(f.apply_method, 1)
+    val EmitTriplet(setup, m, v) = foo.emit(newIR, newEnv)
+
+    val call = Code(
+      setup,
+      m.mux(Code._fatal(errorMsg), v))
+    f.emit(call)
+    f
   }
 
 
