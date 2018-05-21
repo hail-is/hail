@@ -21,7 +21,7 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
         if (len != sum.length)
           fatal(
             s"""cannot aggregate arrays of unequal length with `sum'
-               |Found conflicting arrays of size (${ sum.length }) and (${ len })""".stripMargin)
+               |Found conflicting arrays of size (${ sum.length }) and ($len)""".stripMargin)
         else {
           var i = 0
           while (i < len) {
@@ -81,7 +81,7 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
         if (len != sum.length)
           fatal(
             s"""cannot aggregate arrays of unequal length with `sum'
-               |Found conflicting arrays of size (${ sum.length }) and (${ len })""".stripMargin)
+               |Found conflicting arrays of size (${ sum.length }) and ($len)""".stripMargin)
         else {
           var i = 0
           while (i < len) {
