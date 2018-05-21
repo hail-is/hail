@@ -131,12 +131,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   }
 }
 
-class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
-  parentfb: FunctionBuilder[_],
-  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
-  returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated"
-) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) {
+trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
 
   var definedFields: mutable.ArrayBuffer[Code[F] => Code[Unit]] = new mutable.ArrayBuffer(16)
 
@@ -157,7 +152,7 @@ class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
     cfr
   }
 
-  def newInstance(localF: ClassFieldRef[F]): Code[Unit] = {
+  def newInstance(localF: ClassFieldRef[F])(implicit fct: ClassTag[F]): Code[Unit] = {
     val instance: Code[F] =
       new Code[F] {
         def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -174,7 +169,16 @@ class DependentFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
 
   override def result(pw: Option[PrintWriter]): () => F =
     throw new UnsupportedOperationException("cannot call result() on a dependent function")
+
 }
+
+
+class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
+  parentfb: FunctionBuilder[_],
+  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated"
+) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
   val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
@@ -229,7 +233,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
 
   def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
-    val df = new DependentFunction[AsmFunction1[A1, R]](this, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](this, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
     children += df
     df
   }
