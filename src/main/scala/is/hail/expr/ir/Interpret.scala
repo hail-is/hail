@@ -3,14 +3,14 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
+import is.hail.expr.{SymbolTable, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object Interpret {
-  type AggElement = (Any, Env[Any])
-  type Agg = (TAggregable, IndexedSeq[AggElement])
+  type Agg = (IndexedSeq[Row], TStruct)
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
@@ -21,7 +21,6 @@ object Interpret {
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg],
     optimize: Boolean = true): T = {
-
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
@@ -29,14 +28,20 @@ object Interpret {
     var ir = ir0.unwrap
     if (optimize)
       ir = Optimize(ir)
-    TypeCheck(ir, agg.map(_._1), typeEnv)
+    TypeCheck(ir, typeEnv, agg.map { agg =>
+      agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
+          env.bind(f.name, f.typ)
+      }
+    })
 
     log.info("interpret:\n" + Pretty(ir))
 
-    interpret(ir, valueEnv, args, agg.orNull).asInstanceOf[T]
+    apply(ir, valueEnv, args, agg, None).asInstanceOf[T]
   }
 
-  private def interpret(ir: IR, env: Env[Any], args: IndexedSeq[Any], agg: Agg): Any = {
+  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[Any], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]]): Any = {
+    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[Any] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
+      apply(ir, env, args, agg, aggregator)
     ir match {
       case I32(x) => x
       case I64(x) => x
@@ -99,12 +104,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
@@ -115,12 +114,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TFloat32, _: TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
@@ -131,12 +124,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
                 case RoundToNegInfDivide() => math.floor(ll / rr).toFloat
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
               }
             case (_: TFloat64, _: TFloat64) =>
               val ll = lValue.asInstanceOf[Double]
@@ -147,17 +134,6 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
                 case RoundToNegInfDivide() => math.floor(ll / rr)
-                case GT() => ll > rr
-                case GTEQ() => ll >= rr
-                case LTEQ() => ll <= rr
-                case LT() => ll < rr
-                case EQ() => ll == rr
-                case NEQ() => ll != rr
-              }
-            case (_, _) =>
-              op match {
-                case EQ() => lValue == rValue
-                case NEQ() => lValue != rValue
               }
           }
       case ApplyUnaryPrimOp(op, x) =>
@@ -183,6 +159,22 @@ object Interpret {
               }
             }
         }
+      case ApplyComparisonOp(op, l, r) =>
+        val lValue = interpret(l, env, args, agg)
+        val rValue = interpret(r, env, args, agg)
+        if (op.strict && (lValue == null || rValue == null))
+          null
+        else {
+          op match {
+            case EQ(_) | EQWithNA(_) => lValue == rValue
+            case NEQ(_) | NEQWithNA(_) => lValue != rValue
+            case LT(t) => t.ordering.lt(lValue, rValue)
+            case GT(t) => t.ordering.gt(lValue, rValue)
+            case LTEQ(t) => t.ordering.lteq(lValue, rValue)
+            case GTEQ(t) => t.ordering.gteq(lValue, rValue)
+          }
+        }
+
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
@@ -230,8 +222,8 @@ object Interpret {
           null
         else
           cValue match {
-            case s: Set[Any] => s.toIndexedSeq
-            case d: Map[Any, Any] => d.toIndexedSeq
+            case s: Set[_] => s.toIndexedSeq
+            case d: Map[_, _] => d.toIndexedSeq
             case a => a
           }
 
@@ -310,13 +302,23 @@ object Interpret {
           }
         }
         ()
-      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-        val aValue = interpretAgg(a, agg._2)
-        val aggType = a.typ.asInstanceOf[TAggregable].elementType
-        assert(aValue != null)
-        assert(AggOp.getType(op, x.inputType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ))) == x.typ)
-        val aggregator = op match {
+      case Begin(xs) =>
+        xs.foreach(x => Interpret(x))
+      case x@SeqOp(a, i, aggSig) =>
+        assert(i == I32(0))
+        aggregator.get.seqOp(interpret(a))
+      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+        val aggType = aggSig.inputType
+        assert(AggOp.getType(aggSig) == x.typ)
+        val aggregator = aggSig.op match {
+          case CallStats() =>
+            assert(aggType == TCall())
+            val nAlleles = interpret(initOpArgs.get(0))
+            new CallStatsAggregator(_ => nAlleles)
           case Collect() => new CollectAggregator(aggType)
+          case Fraction() =>
+            assert(aggType == TBoolean())
+            new FractionAggregator(a => a)
           case Sum() =>
             aggType match {
               case TInt32(_) => new SumAggregator[Int]()
@@ -355,12 +357,21 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
         }
-        aValue.foreach { case (element, _) =>
-          aggregator.seqOp(element)
+        val Some((aggElements, aggElementType)) = agg
+        aggElements.foreach { element =>
+          val env = (element.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (env, (v, n)) =>
+              env.bind(n, v)
+            }
+          interpret(a, env, FastIndexedSeq(), None, Some(aggregator))
         }
         aggregator.result
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })
+      case SelectFields(old, fields) =>
+        val oldt = coerce[TStruct](old.typ)
+        val oldRow = interpret(old, env, args, agg).asInstanceOf[Row]
+        Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
       case InsertFields(old, fields) =>
         var struct = interpret(old, env, args, agg)
         var t = old.typ
@@ -457,14 +468,12 @@ object Interpret {
         tableValue.export(path, typesFile, header, exportType)
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
-        val tAgg = child.typ.aggEnv.lookup("AGG").asInstanceOf[TAggregable]
-
-        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long](
           "global", child.typ.globalType,
-          "AGG", tAgg,
           "global", child.typ.globalType,
           "row", child.typ.rowType,
           MakeTuple(Array(query)),
+          (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val value = child.execute(HailContext.get)
@@ -491,8 +500,7 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
 
-            seqOps()(rv.region, rvAggs, rowOffset, false, globalsOffset, false, rowOffset, false)
-
+            seqOps()(rv.region, rvAggs, globalsOffset, false, rowOffset, false)
             rvAggs
           }, { (rvAggs1, rvAggs2) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
@@ -520,32 +528,6 @@ object Interpret {
           SafeRow(coerce[TTuple](t), region, resultOffset)
             .get(0)
         }
-    }
-  }
-
-  private def interpretAgg(ir: IR, agg: IndexedSeq[AggElement]): IndexedSeq[AggElement] = {
-    (ir: @unchecked) match {
-      case AggIn(_) =>
-        assert(agg != null)
-        agg
-      case AggMap(a, name, body) =>
-        interpretAgg(a, agg)
-          .map { case (element, env) =>
-            interpret(body, env.bind(name, element), null, null) -> env
-          }
-      case AggFilter(a, name, body) =>
-        interpretAgg(a, agg)
-          .filter { case (element, env) =>
-            // casting to boolean treats null as false
-            interpret(body, env.bind(name, element), null, null).asInstanceOf[Boolean]
-          }
-      case AggFlatMap(a, name, body) =>
-        interpretAgg(a, agg)
-          .flatMap { case (element, env) =>
-            interpret(body, env.bind(name, element), null, null)
-              .asInstanceOf[Iterable[Any]]
-              .map(_ -> env)
-          }
     }
   }
 }

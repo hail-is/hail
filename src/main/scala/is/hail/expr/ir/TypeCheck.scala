@@ -3,13 +3,13 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 
 object TypeCheck {
-  def apply(ir: IR, tAgg: Option[TAggregable] = None) {
-    apply(ir, tAgg, new Env[Type]())
+  def apply(ir: IR, aggEnv: Option[Env[Type]] = None) {
+    apply(ir, new Env[Type](), aggEnv)
   }
 
-  def apply(ir: IR, tAgg: Option[TAggregable], env: Env[Type]) {
-    def check(ir: IR, tAgg: Option[TAggregable] = tAgg, env: Env[Type] = env) {
-      apply(ir, tAgg, env)
+  def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
+    def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
+      apply(ir, env, aggEnv)
     }
 
     ir match {
@@ -53,6 +53,12 @@ object TypeCheck {
       case x@ApplyUnaryPrimOp(op, v) =>
         check(v)
         assert(x.typ == UnaryOp.getReturnType(op, v.typ))
+      case x@ApplyComparisonOp(op, l, r) =>
+        check(l)
+        check(r)
+        assert(l.typ.fundamentalType == r.typ.fundamentalType)
+        assert(op.typ.fundamentalType == l.typ.fundamentalType)
+        assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         if (args.length == 0)
           assert(typ != null)
@@ -131,57 +137,38 @@ object TypeCheck {
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
-      case x@AggIn(typ) =>
-        (tAgg, typ) match {
-          case (Some(t), null) => x.typ = t
-          case (Some(t), t2) => assert(t == t2)
-          case (None, _) => throw new RuntimeException("must provide type of aggregable to TypeCheck")
-        }
-      case x@AggMap(a, name, body) =>
-        check(a)
-        val tagg = coerce[TAggregable](a.typ)
-        check(body, env = aggScope(tagg).bind(name, tagg.elementType))
-        val tagg2 = tagg.copy(elementType = body.typ)
-        tagg2.symTab = tagg.symTab
-        assert(x.typ == tagg2)
-      case x@AggFilter(a, name, body) =>
-        check(a)
-        val tagg = coerce[TAggregable](a.typ)
-        check(body, env = aggScope(tagg).bind(name, tagg.elementType))
-        assert(body.typ.isInstanceOf[TBoolean])
-        assert(x.typ == tagg)
-      case x@AggFlatMap(a, name, body) =>
-        check(a)
-        val tagg = coerce[TAggregable](a.typ)
-        check(body, env = aggScope(tagg).bind(name, tagg.elementType))
-        val tout = coerce[TArray](body.typ)
-        val tagg2 = tagg.copy(elementType = tout.elementType)
-        tagg2.symTab = tagg.symTab
-        assert(x.typ == tagg2)
-      case x@InitOp(i, _, args) =>
+        assert(body.typ == TVoid)
+      case x@InitOp(i, args, _) =>
         args.foreach(check(_))
         check(i)
         assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(a, i, _) =>
+      case x@SeqOp(a, i, aggSig) =>
         check(a)
         check(i)
+        assert(a.typ == aggSig.inputType)
         assert(i.typ.isInstanceOf[TInt32])
       case x@Begin(xs) =>
         xs.foreach { x =>
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-        val tAgg = coerce[TAggregable](a.typ)
-        check(a)
+      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+        check(a, env = aggEnv.get)
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(x.typ == AggOp.getType(op, tAgg.elementType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ))))
+        assert(a.typ == TVoid)
+        assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*))
+      case x@SelectFields(old, fields) =>
+        check(old)
+        assert{
+          val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
+          fields.forall { id => oldfields.contains(id) }
+        }
       case x@InsertFields(old, fields) =>
         check(old)
         fields.foreach { case (name, a) => check(a) }
@@ -223,14 +210,15 @@ object TypeCheck {
         assert(x.implementation.unify(args.map(_.typ)))
       case MatrixWrite(_, _) =>
       case x@TableAggregate(child, query) =>
-        check(query, tAgg = Some(child.typ.tAgg), env = child.typ.aggEnv)
+        check(query,
+          env = child.typ.aggEnv,
+          aggEnv = Some(child.typ.tAgg.symTab.foldLeft(Env.empty[Type]) { case (env, (n, (i, t))) =>
+              env.bind(n, t)
+          }))
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _) =>
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
     }
   }
-
-  private def aggScope(t: TAggregable): Env[Type] =
-    Env.empty.bind(t.bindings: _*)
 }

@@ -3,62 +3,55 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 
 object Infer {
-  def apply(ir: IR): Type = {
+  def apply(ir: InferIR): Type = {
     ir match {
-      case x@If(cond, cnsq, altr) =>
+      case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"${ cnsq.typ }, ${ altr.typ }, $cond")
         cnsq.typ
 
-      case x@Let(name, value, body) =>
+      case Let(name, value, body) =>
         body.typ
-      case x@ApplyBinaryPrimOp(op, l, r) =>
+      case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ)
-      case x@ApplyUnaryPrimOp(op, v) =>
+      case ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
-      case x@ArrayRef(a, i) =>
+      case ApplyComparisonOp(op, l, r) =>
+        assert(l.typ == r.typ)
+        TBoolean()
+      case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         -coerce[TArray](a.typ).elementType
-      case x@ArraySort(a) =>
+      case ArraySort(a) =>
         a.typ
-      case x@ToSet(a) =>
+      case ToSet(a) =>
         TSet(coerce[TArray](a.typ).elementType)
-      case x@ToDict(a) =>
+      case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case x@ToArray(a) =>
+      case ToArray(a) =>
         TArray(coerce[TContainer](a.typ).elementType)
-      case x@DictGet(dict, key) =>
+      case DictGet(dict, key) =>
         -coerce[TDict](dict.typ).valueType
-      case x@ArrayMap(a, name, body) =>
+      case ArrayMap(a, name, body) =>
         TArray(-body.typ)
-      case x@ArrayFilter(a, name, cond) =>
+      case ArrayFilter(a, name, cond) =>
         a.typ
-      case x@ArrayFlatMap(a, name, body) =>
+      case ArrayFlatMap(a, name, body) =>
         TArray(coerce[TContainer](body.typ).elementType)
-      case x@ArrayFold(a, zero, accumName, valueName, body) =>
+      case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
-      case x@AggMap(a, name, body) =>
-        val tagg = coerce[TAggregable](a.typ)
-        val tagg2 = tagg.copy(elementType = body.typ)
-        tagg2.symTab = tagg.symTab
-        tagg2
-      case x@AggFilter(a, name, body) =>
-        a.typ
-      case x@AggFlatMap(a, name, body) =>
-        val tagg = coerce[TAggregable](a.typ)
-        val tagg2 = tagg.copy(elementType = coerce[TContainer](body.typ).elementType)
-        tagg2.symTab = tagg.symTab
-        tagg2
-      case x@ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-        val tAgg = coerce[TAggregable](a.typ)
-        AggOp.getType(op, tAgg.elementType, constructorArgs.map(_.typ), initOpArgs.map(_.map(_.typ)))
-      case x@MakeStruct(fields) =>
+      case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+        AggOp.getType(aggSig)
+      case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*)
-      case x@InsertFields(old, fields) =>
+      case SelectFields(old, fields) =>
+        val tbs = coerce[TStruct](old.typ)
+        TStruct(fields.map { id => (id, tbs.field(id).typ) }: _*)
+      case InsertFields(old, fields) =>
         fields.foldLeft(old.typ) { case (t, (name, a)) =>
           t match {
             case t2: TStruct =>
@@ -69,17 +62,17 @@ object Infer {
             case _ => TStruct(name -> a.typ)
           }
         }.asInstanceOf[TStruct]
-      case x@GetField(o, name) =>
+      case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
         -t.field(name).typ
-      case x@MakeTuple(types) =>
+      case MakeTuple(types) =>
         TTuple(types.map(_.typ): _*)
-      case x@GetTupleElement(o, idx) =>
+      case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         assert(idx >= 0 && idx < t.size)
         -t.types(idx)
-      case x@TableAggregate(child, query) =>
+      case TableAggregate(child, query) =>
         query.typ
     }
   }

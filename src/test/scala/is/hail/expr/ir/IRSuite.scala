@@ -7,11 +7,6 @@ import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
 class IRSuite extends TestNGSuite {
-  @Test def testNonstrictEQ() {
-    assertEvalsTo(nonstrictEQ(NA(TInt32()), NA(TInt32())), true)
-    assertEvalsTo(nonstrictEQ(I32(5), I32(5)), true)
-    assertEvalsTo(nonstrictEQ(NA(TInt32()), I32(5)), false)
-  }
 
   @Test def testArrayFilter() {
     val naa = NA(TArray(TInt32()))
@@ -29,6 +24,6 @@ class IRSuite extends TestNGSuite {
       ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
 
     assertEvalsTo(ArrayFilter(a, "x",
-      ApplyBinaryPrimOp(LT(), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
+      ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 }

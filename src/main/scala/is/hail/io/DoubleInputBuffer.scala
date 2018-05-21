@@ -22,16 +22,16 @@ final class DoubleInputBuffer(in: InputStream, bufSize: Int) extends Closeable {
     assert(toOff0 <= to.length - n0)
 
     var toOff = toOff0
-    var n = n0
+    var n = n0.toLong
 
     while (n > 0) {
       if (end == off) {
-        val len = math.min(bufSize, n << 3)
+        val len = math.min(bufSize, n << 3).toInt
         in.readFully(buf, 0, len)
         end = len
         off = 0
       }
-      val p = math.min(end - off, n << 3) >>> 3
+      val p = math.min(end - off, n << 3).toInt >>> 3
       assert(p > 0)
       Memory.memcpy(to, toOff, buf, off, p)
       toOff += p
@@ -61,9 +61,9 @@ final class DoubleOutputBuffer(out: OutputStream, bufSize: Int) extends Closeabl
     assert(fromOff0 >= 0)
     assert(fromOff0 <= from.length - n0)
     var fromOff = fromOff0
-    var n = n0
+    var n = n0.toLong
 
-    while (off + (n << 3) > buf.length) {
+    while (off + (n << 3) > bufSize) {
       val p = (buf.length - off) >>> 3
       Memory.memcpy(buf, off, from, fromOff, p)
       off += (p << 3)
@@ -73,6 +73,6 @@ final class DoubleOutputBuffer(out: OutputStream, bufSize: Int) extends Closeabl
       off = 0
     }
     Memory.memcpy(buf, off, from, fromOff, n)
-    off += (n << 3)
+    off += (n.toInt << 3)
   }
 }

@@ -108,36 +108,30 @@ abstract class RegistryFunctions {
     tv(name, _.isInstanceOf[TNumeric])
 
   def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
-    case _: TBoolean => { case c: Code[Boolean] => c }
-    case _: TInt32 => { case c: Code[Int] => c }
-    case _: TInt64 => { case c: Code[Long] => c }
-    case _: TFloat32 => { case c: Code[Float] => c }
-    case _: TFloat64 => { case c: Code[Double] => c }
-    case _: TString => {
-      case c: Code[Long] =>
+    case _: TBoolean => coerce[Boolean]
+    case _: TInt32 => coerce[Int]
+    case _: TInt64 => coerce[Long]
+    case _: TFloat32 => coerce[Float]
+    case _: TFloat64 => coerce[Double]
+    case _: TString => c =>
         Code.invokeScalaObject[Region, Long, String](
           TString.getClass, "loadString",
-          mb.getArg[Region](1), c)
-    }
-    case t => {
-      case c: Code[Long] =>
+          mb.getArg[Region](1), coerce[Long](c))
+    case _ => c =>
         Code.invokeScalaObject[Type, Region, Long, Any](
           UnsafeRow.getClass, "read",
           mb.getType(t),
-          mb.getArg[Region](1), c)
-    }
+          mb.getArg[Region](1), coerce[Long](c))
   }
 
   def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
-    case _: TBoolean => { case c: Code[Boolean] => c }
-    case _: TInt32 => { case c: Code[Int] => c }
-    case _: TInt64 => { case c: Code[Long] => c }
-    case _: TFloat32 => { case c: Code[Float] => c }
-    case _: TFloat64 => { case c: Code[Double] => c }
-    case _: TString => {
-      case c: Code[String] =>
-        mb.getArg[Region](1).load().appendString(c)
-    }
+    case _: TBoolean => coerce[Boolean]
+    case _: TInt32 => coerce[Int]
+    case _: TInt64 => coerce[Long]
+    case _: TFloat32 => coerce[Float]
+    case _: TFloat64 => coerce[Double]
+    case _: TString => c =>
+        mb.getArg[Region](1).load().appendString(coerce[String](c))
   }
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type, isDet: Boolean)(impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]) {
@@ -193,28 +187,38 @@ abstract class RegistryFunctions {
   }
 
   def registerCode(mname: String, rt: Type, isDeterministic: Boolean)(impl: EmitMethodBuilder => Code[_]): Unit =
-    registerCode(mname, Array[Type](), rt, isDeterministic) { case (mb, Array()) => impl(mb) }
+    registerCode(mname, Array[Type](), rt, isDeterministic) { (emb, array) =>
+      (emb: @unchecked, array: @unchecked) match {
+        case (mb, Array()) => impl(mb)
+      }
+    }
 
   def registerCode(mname: String, rt: Type)(impl: EmitMethodBuilder => Code[_]): Unit =
     registerCode(mname, rt, isDeterministic = true)(impl)
 
-  def registerCode(mname: String, mt1: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[_]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1), rt, isDeterministic) { case (mb, Array(a1)) => impl(mb, a1) }
+  def registerCode[A1](mname: String, mt1: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[A1]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
+    }
 
-  def registerCode(mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_]) => Code[_]): Unit =
+  def registerCode[A1](mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1]) => Code[_]): Unit =
     registerCode(mname, mt1, rt, isDeterministic = true)(impl)
 
-  def registerCode(mname: String, mt1: Type, mt2: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2), rt, isDeterministic) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+  def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    }
 
-  def registerCode(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]): Unit =
+  def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]): Unit =
     registerCode(mname, mt1, mt2, rt, isDeterministic = true)(impl)
 
-  def registerCode(mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, isDeterministic: Boolean)
-    (impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
-    registerCode(mname, Array(mt1, mt2, mt3), rt, isDeterministic) { case (mb, Array(a1, a2, a3)) => impl(mb, a1, a2, a3) }
+  def registerCode[A1, A2, A3](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, isDeterministic: Boolean)
+    (impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =
+    registerCode(mname, Array(mt1, mt2, mt3), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked)) => impl(mb, a1, a2, a3)
+    }
 
-  def registerCode(mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (EmitMethodBuilder, Code[_], Code[_], Code[_]) => Code[_]): Unit =
+  def registerCode[A1, A2, A3](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =
     registerCode(mname, mt1, mt2, mt3, rt, isDeterministic = true)(impl)
 
   def registerCodeWithMissingness(mname: String, rt: Type, isDeterministic: Boolean)(impl: EmitMethodBuilder => EmitTriplet): Unit =

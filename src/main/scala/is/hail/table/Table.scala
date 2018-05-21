@@ -417,6 +417,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
             case (None, Some(y)) =>
               info(s"ROW IN RIGHT, NOT LEFT: ${ y.mkString("\n    ") }\n")
               false
+            case (None, None) =>
+              assert(false)
+              false
           }
         }
       }
@@ -432,8 +435,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = aggEvalContext()
 
     val queryAST = Parser.parseToAST(expr, ec)
-    queryAST.toIROpt(Some("AGG")) match {
-      case Some(ir) if useIR(queryAST) => aggregate(ir)
+    queryAST.toIROpt(Some("AGG" -> "row")) match {
+      case Some(ir) if useIR(queryAST) =>
+        aggregate(ir)
       case _ =>
         val globalsBc = globals.broadcast
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -640,11 +644,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val localColData = rvd.mapPartitions { it =>
       val ur = new UnsafeRow(fullRowType)
       it.map { rv =>
-        val rvCopy = rv.copy()
-        ur.set(rvCopy)
-
-        val colKey = Row.fromSeq(colKeyIndices.map(ur.get))
-        val colValues = Row.fromSeq(colValueIndices.map(ur.get))
+        val colKey = SafeRow.selectFields(fullRowType, rv)(colKeyIndices)
+        val colValues = SafeRow.selectFields(fullRowType, rv)(colValueIndices)
         colKey -> colValues
       }
     }.reduceByKey({ case (l, _) => l }) // poor man's distinctByKey

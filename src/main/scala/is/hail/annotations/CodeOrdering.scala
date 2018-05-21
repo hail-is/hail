@@ -16,6 +16,7 @@ object CodeOrdering {
   val lteq: Op = 3
   val gt: Op = 4
   val gteq: Op = 5
+  val neq: Op = 6
 
   type F[R] = (Code[Region], (Code[Boolean], Code[_]), Code[Region], (Code[Boolean], Code[_])) => Code[R]
 

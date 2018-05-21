@@ -173,10 +173,10 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
            is_female=nullable(expr_bool),
            pheno=oneof(nullable(expr_bool), nullable(expr_numeric)),
            varid=nullable(expr_str),
-           position_morgan=nullable(expr_numeric))
+           cm_position=nullable(expr_float64))
 def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
                  mat_id=None, is_female=None, pheno=None, varid=None,
-                 position_morgan=None):
+                 cm_position=None):
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
@@ -240,9 +240,9 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     varid : :class:`.StringExpression`, optional
         Expression for the variant ID (2nd column of the BIM file). The default
         value is ``hl.delimit([dataset.locus.contig, hl.str(dataset.locus.position), dataset.alleles[0], dataset.alleles[1]], ':')``
-    position_morgan : :class:`.NumericExpression`, optional
-        Expression for the position in either morgans or centimorgans (3rd
-        column of the BIM file). The default and missing values are ``'0'``.
+    cm_position : :class:`.Float64Expression`, optional
+        Expression for the 3rd column of the BIM file (position in centimorgans).
+        The default value is ``0.0``. The missing value is ``0.0``.
     """
 
     require_biallelic(dataset, 'export_plink')
@@ -275,7 +275,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     bim_exprs = {'locus': l,
                  'alleles': a,
                  'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
-                 'pos_morgan': expr_or_else(position_morgan, 0)}
+                 'cm_position': expr_or_else(cm_position, 0.0)}
 
     for exprs, axis in [(fam_exprs, dataset._col_indices),
                         (bim_exprs, dataset._row_indices),
@@ -1445,8 +1445,6 @@ def import_plink(bed, bim, fam,
     file from individual-major mode to SNP-major mode, use PLINK to read in
     your fileset and use the ``--make-bed`` option.
 
-    Hail ignores the centimorgan position (Column 3 in BIM file).
-
     Hail uses the individual ID (column 2 in FAM file) as the sample id (`s`).
     The individual IDs must be unique.
 
@@ -1464,7 +1462,8 @@ def import_plink(bed, bim, fam,
           array containing the alleles of the variant. The reference allele (A2
           if `a2_reference` is ``True``) is the first element in the array.
         * `rsid` (:py:data:`.tstr`) -- Column 2 in the BIM file.
-        * `position_morgan` (:py:data:`.tint32`) -- Column 3 in the BIM file.
+        * `cm_position` (:py:data:`.tfloat64`) -- Column 3 in the BIM file,
+          the position in centimorgans.
 
     * Column fields:
 

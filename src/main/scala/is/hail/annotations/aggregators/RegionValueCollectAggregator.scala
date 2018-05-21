@@ -9,7 +9,7 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
   def seqOp(b: Boolean, missing: Boolean) {
     if (missing)
       ab.addMissing()
-    else if (b)
+    else
       ab.add(b)
   }
 

@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, FatalError
 from .utils import resource, startTestHailContext, stopTestHailContext
 import numpy as np
 import tempfile
@@ -349,6 +349,69 @@ class Tests(unittest.TestCase):
         assert_eq(m.diagonal(), np.array([1.0, 5.0]))
         assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+
+    def test_slicing(self):
+        nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
+        bm = BlockMatrix.from_numpy(nd, block_size=3)
+
+        for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
+            self.assertTrue(np.array_equal(bm[indices], nd[indices]))
+
+        for indices in [(0, slice(3, 4)),
+                        (1, slice(3, 4)),
+                        (-8, slice(3, 4)),
+                        (-1, slice(3, 4))]:
+            self.assertTrue(np.array_equal(bm[indices].to_numpy(), np.expand_dims(nd[indices], 0)))
+
+        for indices in [(slice(3, 4), 0),
+                        (slice(3, 4), 1),
+                        (slice(3, 4), -8),
+                        (slice(3, 4), -1)]:
+            self.assertTrue(np.array_equal(bm[indices].to_numpy(), np.expand_dims(nd[indices], 1)))
+
+        for indices in [(slice(0, 8), slice(0, 10)),
+                        (slice(0, 8, 2), slice(0, 10, 2)),
+                        (slice(2, 4), slice(5, 7)),
+                        (slice(-8, -1), slice(-10, -1)),
+                        (slice(-8, -1, 2), slice(-10, -1, 2)),
+                        (slice(None, 4, 1), slice(None, 4, 1)),
+                        (slice(4, None), slice(4, None)),
+                        (slice(None, None), slice(None, None))]:
+            self.assertTrue(np.array_equal(bm[indices].to_numpy(), nd[indices]))
+
+        self.assertRaises(ValueError, lambda: bm[0, ])
+
+        self.assertRaises(ValueError, lambda: bm[9, 0])
+        self.assertRaises(ValueError, lambda: bm[-9, 0])
+        self.assertRaises(ValueError, lambda: bm[0, 11])
+        self.assertRaises(ValueError, lambda: bm[0, -11])
+
+        self.assertRaises(ValueError, lambda: bm[::-1, 0])
+        self.assertRaises(ValueError, lambda: bm[0, ::-1])
+
+        self.assertRaises(ValueError, lambda: bm[:0, 0])
+        self.assertRaises(ValueError, lambda: bm[0, :0])
+
+        self.assertRaises(ValueError, lambda: bm[0:9, 0])
+        self.assertRaises(ValueError, lambda: bm[-9:, 0])
+        self.assertRaises(ValueError, lambda: bm[:-9, 0])
+
+        self.assertRaises(ValueError, lambda: bm[0, :11])
+        self.assertRaises(ValueError, lambda: bm[0, -11:])
+        self.assertRaises(ValueError, lambda: bm[0, :-11])
+
+        bm2 = bm.sparsify_row_intervals([0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(bm2[0, 1], 1.0)
+        self.assertEqual(bm2[0, 2], 0.0)
+        self.assertEqual(bm2[0, 9], 0.0)
+
+        nd2 = np.zeros(shape=(8, 10))
+        nd2[0, 1] = 1.0
+        self.assertTrue(np.array_equal(bm2[:, :].to_numpy(), nd2))
+
+        self.assertRaises(FatalError, lambda: bm2[:, 0])
+        self.assertRaises(FatalError, lambda: bm2[0, :])
+        self.assertRaises(FatalError, lambda: bm2[0:1, 0:1])
 
     def test_sparsify(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],

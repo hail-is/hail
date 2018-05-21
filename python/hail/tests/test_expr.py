@@ -911,6 +911,26 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 % float64_3s, expected, tarray(tfloat64))
         self.check_expr(a_float64 % float64_3s, expected, tarray(tfloat64))
 
+    def test_comparisons(self):
+        f0 = hl.float(0.0)
+        fnull = hl.null(tfloat)
+        finf = hl.float(float('inf'))
+        fnan = hl.float(float('nan'))
+
+        self.check_expr(f0 == fnull, None, tbool)
+        self.check_expr(f0 < fnull, None, tbool)
+        self.check_expr(f0 != fnull, None, tbool)
+
+        self.check_expr(fnan == fnan, False, tbool)
+        self.check_expr(f0 == f0, True, tbool)
+        self.check_expr(finf == finf, True, tbool)
+
+        self.check_expr(f0 < finf, True, tbool)
+        self.check_expr(f0 > finf, False, tbool)
+
+        self.check_expr(fnan <= finf, False, tbool)
+        self.check_expr(fnan >= finf, False, tbool)
+
     def test_bools_can_math(self):
         b1 = hl.literal(True)
         b2 = hl.literal(False)
@@ -1128,20 +1148,15 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.len([0, 1, 4, 6])), 4)
 
-        self.assertEqual(hl.eval_expr(hl.max([0, 1, 4, 6])), 6)
+        self.assertEqual(hl.eval_expr(hl.mean(hl.empty_array(hl.tint))), None)
+        self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6, hl.null(tint32)])), 2.75)
 
-        self.assertEqual(hl.eval_expr(hl.max(hl.empty_array(hl.tint))), None)
-
-        self.assertEqual(hl.eval_expr(hl.min([0, 1, 4, 6])), 0)
-
-        self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6])), 2.75)
-
+        self.assertEqual(hl.eval_expr(hl.median(hl.empty_array(hl.tint))), None)
         self.assertTrue(1 <= hl.eval_expr(hl.median([0, 1, 4, 6])) <= 4)
 
         for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
             self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).value, 24)
             self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).value, 11)
-            self.assertEqual(hl.max([f(x) for x in [-5, -4, -3, -2]]).value, -2)
 
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
@@ -1156,7 +1171,7 @@ class Tests(unittest.TestCase):
     def test_array_neg(self):
         self.assertEqual(hl.eval_expr(-(hl.literal([1, 2, 3]))), [-1, -2, -3])
 
-    def test_min_max(self):
+    def test_max(self):
         self.assertEqual(hl.eval_expr(hl.max(1, 2)), 2)
         self.assertEqual(hl.eval_expr(hl.max(1.0, 2)), 2.0)
         self.assertEqual(hl.eval_expr(hl.max([1, 2])), 2)
@@ -1165,7 +1180,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.max(0, 1, 2)), 2)
         self.assertEqual(hl.eval_expr(hl.max([0, 10, 2, 3, 4, 5, 6, ])), 10)
         self.assertEqual(hl.eval_expr(hl.max(0, 10, 2, 3, 4, 5, 6)), 10)
+        self.assert_evals_to(hl.max([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -2)
 
+    def test_min(self):
         self.assertEqual(hl.eval_expr(hl.min(1, 2)), 1)
         self.assertEqual(hl.eval_expr(hl.min(1.0, 2)), 1.0)
         self.assertEqual(hl.eval_expr(hl.min([1, 2])), 1)
@@ -1174,6 +1191,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.min(0, 1, 2)), 0)
         self.assertEqual(hl.eval_expr(hl.min([0, 10, 2, 3, 4, 5, 6, ])), 0)
         self.assertEqual(hl.eval_expr(hl.min(4, 10, 2, 3, 4, 5, 6)), 2)
+        self.assert_evals_to(hl.min([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -5)
 
     def test_abs(self):
         self.assertEqual(hl.eval_expr(hl.abs(-5)), 5)
@@ -1191,6 +1209,7 @@ class Tests(unittest.TestCase):
         a = hl.array([2, 1, 1, 4, 4, 3])
         self.assertEqual(hl.eval_expr(hl.argmax(a)), 3)
         self.assertEqual(hl.eval_expr(hl.argmax(a, unique=True)), None)
+        self.assertEqual(hl.eval_expr(hl.argmax(hl.empty_array(tint32))), None)
         self.assertEqual(hl.eval_expr(hl.argmin(a)), 1)
         self.assertEqual(hl.eval_expr(hl.argmin(a, unique=True)), None)
         self.assertEqual(hl.eval_expr(hl.argmin(hl.empty_array(tint32))), None)
@@ -1404,6 +1423,7 @@ class Tests(unittest.TestCase):
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
         t = hl.set([3, 8])
+
         self.assert_evals_to(s, set([1, 3, 7]))
 
         self.assert_evals_to(s.add(3), set([1, 3, 7]))
@@ -1422,3 +1442,38 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(s.is_subset(hl.set([1, 3])), False)
 
         self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
+
+    def test_set_numeric_functions(self):
+        empty = hl.empty_set(tint32)
+        only_null = hl.set([hl.null(tint32)])
+        s_w_null = hl.set([1, 3, 5, hl.null(tint32)])
+        s_wout_null = hl.set([1, 3, 5])
+        s_size_1 = hl.set([1])
+
+        self.assert_evals_to(hl.min(empty), None)
+        self.assert_evals_to(hl.min(only_null), None)
+        self.assert_evals_to(hl.min(s_w_null), 1)
+        self.assert_evals_to(hl.min(s_wout_null), 1)
+
+        self.assert_evals_to(hl.max(empty), None)
+        self.assert_evals_to(hl.max(only_null), None)
+        self.assert_evals_to(hl.max(s_w_null), 5)
+        self.assert_evals_to(hl.max(s_wout_null), 5)
+
+        self.assertEqual(hl.min(s_size_1).value, hl.max(s_size_1).value)
+
+        self.assert_evals_to(hl.mean(empty), None)
+        self.assert_evals_to(hl.mean(only_null), None)
+        self.assert_evals_to(hl.mean(s_w_null), 3)
+
+        odd_n = hl.set([1, 3, 7, 8, 10])
+        even_n = hl.set([1, 3, 7, 8])
+        odd_n_w_null = hl.set([1, 3, 6, hl.null(tint32)])
+        even_n_w_null = hl.set([1, 4, hl.null(tint32)])
+
+        self.assert_evals_to(hl.median(empty), None)
+        self.assert_evals_to(hl.median(only_null), None)
+        self.assert_evals_to(hl.median(odd_n), 7)
+        self.assert_evals_to(hl.median(even_n), 5)
+        self.assert_evals_to(hl.median(odd_n_w_null), 3)
+        self.assert_evals_to(hl.median(even_n_w_null), 2)

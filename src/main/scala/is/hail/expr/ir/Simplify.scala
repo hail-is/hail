@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.{BaseIR, FilterColsIR, FilterRowsIR, MatrixRead, TableFilter, TableMapGlobals, TableMapRows, TableRead, TableUnion}
+import is.hail.expr._
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -14,6 +14,7 @@ object Simplify {
         _: ArrayLen |
         _: GetField |
         _: GetTupleElement => true
+      case ApplyComparisonOp(op, _, _) => op.strict
       case _ => false
     }
   }
@@ -24,6 +25,8 @@ object Simplify {
            _: MakeStruct |
            _: MakeTuple |
            _: IsNA |
+           ApplyComparisonOp(EQWithNA(_), _, _) |
+           ApplyComparisonOp(NEQWithNA(_), _, _) |
            _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
       case _ => false
     }
@@ -67,8 +70,6 @@ object Simplify {
 
       case ArrayFilter(a, _, True()) => a
 
-      case AggFilter(a, _, True()) => a
-        
       case Let(n, v, b) if !Mentions(b, n) => b
 
       case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
@@ -78,15 +79,6 @@ object Simplify {
       case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
       case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
-
-      case AggFilter(AggMap(a, n1, b), n2, p) if !Mentions(p, n2) =>
-        AggMap(AggFilter(a, n2, p), n1, b)
-
-      case AggMap(AggMap(a, n1, b1), n2, b2) =>
-        AggMap(a, n1, Let(n2, b1, b2))
-
-      case AggFlatMap(AggMap(a, n1, b1), n2, b2) =>
-        AggFlatMap(a, n1, Let(n2, b1, b2))
 
       case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
         ArrayFlatMap(a, n1, Let(n2, b1, b2))
@@ -149,14 +141,21 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case FilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
+      case MatrixFilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f)
 
       case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
 
+      // Ignore column or row data that is immediately dropped
+      case MatrixRowsTable(MatrixRead(typ, partitionCounts, false, dropRows, f)) =>
+        MatrixRowsTable(MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f))
+
+      case MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, false, f)) =>
+        MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f))
+
       // Keep all rows/cols = do nothing
-      case FilterRowsIR(m, True()) => m
+      case MatrixFilterRowsIR(m, True()) => m
 
       case FilterColsIR(m, True()) => m
     })

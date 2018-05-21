@@ -17,6 +17,7 @@ import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import scala.language.existentials
 
 class OrderedRVD(
   val typ: OrderedRVDType,
@@ -193,9 +194,12 @@ class OrderedRVD(
       return this
     if (shuffle) {
       val shuffled = stably(_.shuffleCoalesce(maxPartitions))
+      val pki = OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled))
+      if (pki.isEmpty)
+        return OrderedRVD.empty(sparkContext, typ)
       val ranges = OrderedRVD.calculateKeyRanges(
         typ,
-        OrderedRVD.getPartitionKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled)),
+        pki,
         shuffled.getNumPartitions)
       OrderedRVD.shuffle(
         typ,
@@ -408,14 +412,14 @@ class OrderedRVD(
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD
+    that: RVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = zipPartitions(newTyp, newPartitioner, that, false)(zipper)
 
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD,
+    that: RVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = OrderedRVD(
@@ -424,12 +428,12 @@ class OrderedRVD(
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper))
 
   def zipPartitions[T: ClassTag](
-    that: OrderedRVD
+    that: RVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] = zipPartitions(that, false)(zipper)
 
   def zipPartitions[T: ClassTag](
-    that: OrderedRVD,
+    that: RVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] =
@@ -468,6 +472,7 @@ object OrderedRVD {
   def localKeySort(
     consumerRegion: Region,
     producerRegion: Region,
+    ctx: RVDContext,
     typ: OrderedRVDType,
     // it: Iterator[RegionValue[rowType]]
     it: Iterator[RegionValue]
@@ -487,14 +492,20 @@ object OrderedRVD {
         if (q.isEmpty) {
           do {
             val rv = bit.next()
-            // FIXME ugh, no good answer here
-            q.enqueue(rv.copy())
+            val r = ctx.freshRegion
+            rvb.set(r)
+            rvb.start(typ.rowType)
+            rvb.addRegionValue(typ.rowType, rv)
+            q.enqueue(RegionValue(rvb.region, rvb.end()))
             producerRegion.clear()
           } while (bit.hasNext && typ.pkInRowOrd.compare(q.head, bit.head) == 0)
         }
 
+        rvb.set(consumerRegion)
         rvb.start(typ.rowType)
-        rvb.addRegionValue(typ.rowType, q.dequeue())
+        val fromQueue = q.dequeue()
+        rvb.addRegionValue(typ.rowType, fromQueue)
+        ctx.closeChild(fromQueue.region)
         rv.set(consumerRegion, rvb.end())
         rv
       }
@@ -535,7 +546,7 @@ object OrderedRVD {
 
     val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
-        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i)))
+        Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i), ctx))
       else
         Iterator()
       out
@@ -668,7 +679,7 @@ object OrderedRVD {
             partitioner,
             adjustedRDD.cmapPartitionsAndContext { (consumerCtx, it) =>
               val producerCtx = consumerCtx.freshContext
-              localKeySort(consumerCtx.region, producerCtx.region, typ, it.flatMap(_(producerCtx)))
+              localKeySort(consumerCtx.region, producerCtx.region, consumerCtx, typ, it.flatMap(_(producerCtx)))
             })
       }
     } else {
@@ -686,6 +697,7 @@ object OrderedRVD {
 
   def calculateKeyRanges(typ: OrderedRVDType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): Array[Interval] = {
     assert(nPartitions > 0)
+    assert(pkis.nonEmpty)
 
     val pkOrd = typ.pkType.ordering.toOrdering
     val keys = pkis

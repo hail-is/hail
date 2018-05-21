@@ -21,13 +21,19 @@ class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
     val v2l1 = mb.newLocal[Long]
 
     val comp: CodeOrdering.F[Int] = {
-      case (r1: Code[Region], (mk1: Code[Boolean], k1: Code[_]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
+      case (r1: Code[Region],
+      (mk1: Code[Boolean], k1: Code[_]),
+      r2: Code[Region],
+      (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
         val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l)
         val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
         findMB.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
     }
     val ceq: CodeOrdering.F[Boolean] = {
-      case (r1: Code[Region], (mk1: Code[Boolean], k1: Code[_]), r2: Code[Region], (m2: Code[Boolean], v2: Code[Long])) =>
+      case (r1: Code[Region],
+      (mk1: Code[Boolean], k1: Code[_]),
+      r2: Code[Region],
+      (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
         val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l1)
         val k2 = mk2l1.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
         mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))

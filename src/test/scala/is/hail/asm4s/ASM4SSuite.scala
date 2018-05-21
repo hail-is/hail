@@ -8,6 +8,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import is.hail.asm4s.FunctionBuilder._
 import org.objectweb.asm.tree.InsnNode
+import scala.language.postfixOps
 
 trait Z2Z { def apply(z:Boolean): Boolean }
 

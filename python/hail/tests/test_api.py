@@ -10,6 +10,7 @@ from hail.utils.java import Env, scala_object
 from hail.utils.misc import new_temp_file
 import pyspark.sql
 from .utils import resource, startTestHailContext, stopTestHailContext
+import operator
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -308,6 +309,11 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.filter((kt.d == -1) | (kt.c == 20) | (kt.e == "hello")).count(), 3)
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
         self.assertEqual(kt.filter(True).count(), 3)
+
+    def test_filter_na(self):
+        ht = hl.utils.range_table(1, 1)
+
+        self.assertEqual(ht.filter(hl.null(hl.tbool)).count(), 0)
 
     def test_transmute(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
@@ -629,6 +635,23 @@ class MatrixTests(unittest.TestCase):
                                  z2=vds.x1 + vds.y1 + vds.foo)
         self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
 
+    def test_annotate_globals(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        ht = hl.utils.range_table(1, 1)
+        data = [
+            (5, hl.tint, operator.eq),
+            (float('nan'), hl.tfloat32, lambda x, y: str(x) == str(y)),
+            (float('inf'), hl.tfloat64, lambda x, y: str(x) == str(y)),
+            (float('-inf'), hl.tfloat64, lambda x, y: str(x) == str(y)),
+            (1.111, hl.tfloat64, operator.eq),
+            ([hl.Struct(**{'a': None, 'b': 5}),
+              hl.Struct(**{'a': 'hello', 'b': 10})], hl.tarray(hl.tstruct(a=hl.tstr, b=hl.tint)), operator.eq)
+        ]
+
+        for x, t, f in data:
+            self.assertTrue(f(mt.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
+            self.assertTrue(f(ht.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
+
     def test_filter(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
@@ -743,6 +766,26 @@ class MatrixTests(unittest.TestCase):
         vds = vds.drop_cols()
         self.assertEqual(vds.count_cols(), 0)
 
+    def test_explode_rows(self):
+        mt = hl.utils.range_matrix_table(4, 4)
+        mt = mt.annotate_entries(e = mt.row_idx * 10 + mt.col_idx)
+
+        self.assertTrue(mt.annotate_rows(x = [1]).explode_rows('x').drop('x')._same(mt))
+
+        self.assertEqual(mt.annotate_rows(x = hl.empty_array('int')).explode_rows('x').count_rows(), 0)
+        self.assertEqual(mt.annotate_rows(x = hl.null('array<int>')).explode_rows('x').count_rows(), 0)
+        self.assertEqual(mt.annotate_rows(x = hl.range(0, mt.row_idx)).explode_rows('x').count_rows(), 6)
+
+    def test_explode_cols(self):
+        mt = hl.utils.range_matrix_table(4, 4)
+        mt = mt.annotate_entries(e = mt.row_idx * 10 + mt.col_idx)
+
+        self.assertTrue(mt.annotate_cols(x = [1]).explode_cols('x').drop('x')._same(mt))
+
+        self.assertEqual(mt.annotate_cols(x = hl.empty_array('int')).explode_cols('x').count_cols(), 0)
+        self.assertEqual(mt.annotate_cols(x = hl.null('array<int>')).explode_cols('x').count_cols(), 0)
+        self.assertEqual(mt.annotate_cols(x = hl.range(0, mt.col_idx)).explode_cols('x').count_cols(), 6)
+
     def test_collect_cols_by_key(self):
         mt = hl.utils.range_matrix_table(3, 3)
         col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
@@ -839,6 +882,10 @@ class MatrixTests(unittest.TestCase):
         repart = vds.naive_coalesce(2)
         self.assertTrue(vds._same(repart))
 
+    def test_coalesce_with_no_rows(self):
+        mt = self.get_vds().filter_rows(False)
+        self.assertEqual(mt.repartition(1).count_rows(), 0)
+
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -856,6 +903,14 @@ class MatrixTests(unittest.TestCase):
         ds = dataset.union_cols(dataset).union_cols(dataset)
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
+
+    def test_union_cols_example(self):
+        joined = hl.import_vcf(resource('joined.vcf'))
+
+        left = hl.import_vcf(resource('joinleft.vcf'))
+        right = hl.import_vcf(resource('joinright.vcf'))
+
+        self.assertTrue(left.union_cols(right)._same(joined))
 
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
@@ -885,6 +940,20 @@ class MatrixTests(unittest.TestCase):
         ds2 = ds.annotate_cols(foo = [0, 0]).explode_cols('foo').drop('foo')
 
         self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
+
+    def test_distinct_by_row(self):
+        orig_mt = hl.utils.range_matrix_table(10, 10)
+        mt = orig_mt.key_rows_by(row_idx = orig_mt.row_idx // 2)
+        self.assertTrue(mt.distinct_by_row().count_rows() == 5)
+
+        self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
+
+    def test_distinct_by_col(self):
+        orig_mt = hl.utils.range_matrix_table(10, 10)
+        mt = orig_mt.key_cols_by(col_idx = orig_mt.col_idx // 2)
+        self.assertTrue(mt.distinct_by_col().count_cols() == 5)
+
+        self.assertTrue(orig_mt.union_cols(orig_mt).distinct_by_col()._same(orig_mt))
 
     def test_computed_key_join_1(self):
         ds = self.get_vds()
@@ -970,6 +1039,13 @@ class MatrixTests(unittest.TestCase):
 
         self.assertTrue(kept.all(hl.is_defined(kept.x2) & (kept.x2 == kept.x * 10)))
         self.assertTrue(removed.all(hl.is_missing(removed.x2)))
+
+    def test_entries_table_length_and_fields(self):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions = 4)
+        mt = mt.annotate_entries(x = mt.col_idx + mt.row_idx)
+        et = mt.entries()
+        self.assertEqual(et.count(), 100)
+        self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
 
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
@@ -1117,6 +1193,13 @@ class MatrixTests(unittest.TestCase):
         entries = ds.entries()
         self.assertTrue(entries.all((entries.col_idx * entries.row_idx) % 4 == 0))
 
+    def test_filter_na(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+
+        self.assertEqual(mt.filter_rows(hl.null(hl.tbool)).count_rows(), 0)
+        self.assertEqual(mt.filter_cols(hl.null(hl.tbool)).count_cols(), 0)
+        self.assertEqual(mt.filter_entries(hl.null(hl.tbool)).entries().count(), 0)
+
     def test_to_table_on_various_fields(self):
         mt = self.get_vds()
 
@@ -1202,6 +1285,36 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.transmute_rows(r3 = mt.r2 + 1).row_value.dtype, hl.tstruct(r1=hl.tint, r3=hl.tint))
         self.assertEqual(mt.transmute_cols(c3 = mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
         self.assertEqual(mt.transmute_entries(e3 = mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
+
+    def test_agg_explode(self):
+        t = hl.Table.parallelize([
+            hl.struct(a=[1, 2]),
+            hl.struct(a=hl.empty_array(hl.tint32)),
+            hl.struct(a=hl.null(hl.tarray(hl.tint32))),
+            hl.struct(a=[3]),
+            hl.struct(a=[hl.null(hl.tint32)])
+        ])
+        self.assertCountEqual(t.aggregate(hl.agg.collect(hl.agg.explode(t.a))),
+                              [1, 2, None, 3])
+
+    def test_agg_call_stats(self):
+        t = hl.Table.parallelize([
+            hl.struct(c=hl.call(0, 0)),
+            hl.struct(c=hl.call(0, 1)),
+            hl.struct(c=hl.call(0, 2, phased=True)),
+            hl.struct(c=hl.call(1)),
+            hl.struct(c=hl.call(0)),
+            hl.struct(c=hl.call())
+        ])
+        actual = t.aggregate(hl.agg.call_stats(t.c, ['A', 'T', 'G']))
+        expected = hl.struct(AC=[5, 2, 1],
+                             AF=[5.0 / 8.0, 2.0 / 8.0, 1.0 / 8.0],
+                             AN=8,
+                             homozygote_count=[1, 0, 0])
+
+        self.assertTrue(hl.Table.parallelize([actual]),
+                        hl.Table.parallelize([expected]))
+
 
 class GroupedMatrixTests(unittest.TestCase):
 

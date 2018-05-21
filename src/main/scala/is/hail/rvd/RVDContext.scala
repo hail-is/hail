@@ -11,9 +11,11 @@ object RVDContext {
 }
 
 class RVDContext(r: Region) extends AutoCloseable {
-  private[this] val children: mutable.ArrayBuffer[AutoCloseable] = new mutable.ArrayBuffer()
+  private[this] val children = new mutable.HashSet[AutoCloseable]()
 
   private[this] def own(child: AutoCloseable): Unit = children += child
+  private[this] def disown(child: AutoCloseable): Unit =
+    assert(children.remove(child))
 
   own(r)
 
@@ -37,10 +39,9 @@ class RVDContext(r: Region) extends AutoCloseable {
   // frees the memory associated with this context
   def close(): Unit = {
     var e: Exception = null
-    var i = 0
-    while (i < children.size) {
+    children.foreach { child =>
       try {
-        children(i).close()
+        child.close()
       } catch {
         case e2: Exception =>
           if (e == null)
@@ -48,10 +49,14 @@ class RVDContext(r: Region) extends AutoCloseable {
           else
             e.addSuppressed(e2)
       }
-      i += 1
     }
 
     if (e != null)
       throw e
+  }
+
+  def closeChild(child: AutoCloseable): Unit = {
+    child.close()
+    disown(child)
   }
 }

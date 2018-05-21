@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.BaseIR
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object Children {
   private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -30,6 +30,8 @@ object Children {
       Array(l, r)
     case ApplyUnaryPrimOp(op, x) =>
       Array(x)
+    case ApplyComparisonOp(op, l, r) =>
+      Array(l, r)
     case MakeArray(args, typ) =>
       args.toIndexedSeq
     case ArrayRef(a, i) =>
@@ -64,24 +66,18 @@ object Children {
       Array(a, body)
     case MakeStruct(fields) =>
       fields.map(_._2).toIndexedSeq
+    case SelectFields(old, fields) =>
+      Array(old)
     case InsertFields(old, fields) =>
       (old +: fields.map(_._2)).toIndexedSeq
-    case AggIn(_) =>
-      none
-    case AggMap(a, _, body) =>
-      Array(a, body)
-    case AggFilter(a, name, body) =>
-      Array(a, body)
-    case AggFlatMap(a, name, body) =>
-      Array(a, body)
-    case InitOp(i, _, args) =>
-      i +: args.toIndexedSeq
+    case InitOp(i, args, aggSig) =>
+      i +: args
     case SeqOp(a, i, _) =>
       Array(a, i)
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, op, constructorArgs, initOpArgs) =>
-      (a +: constructorArgs ++: initOpArgs.getOrElse(FastSeq())).toIndexedSeq
+    case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

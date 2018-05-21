@@ -117,7 +117,7 @@ class AggregatorSuite extends SparkSuite {
       var vds2 = VariantQC(vds, "qc")
       vds2 = vds2
         .annotateRowsExpr("oneHotAC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()")
-        .annotateRowsExpr("same" -> ("(AGG.filter(g => isDefined(g.GT)).count() == 0) || " +
+        .annotateRowsExpr("same" -> ("(AGG.filter(g => isDefined(g.GT)).count() == 0L) || " +
           "(va.oneHotAC[0] == va.qc.n_called * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.n_het + 2 * va.qc.n_hom_var)"))
       vds2.rowsTable().forall("row.same")
     }

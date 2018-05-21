@@ -11,6 +11,7 @@ import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.utils.FastSeq
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 
@@ -428,7 +429,7 @@ class CompileSuite {
   @Test
   def testArrayFilterCutoff() {
     val t = TArray(TInt32())
-    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyBinaryPrimOp(LT(), Ref("x", TInt32()), In(1, TInt32())))
+    val ir = ArrayFilter(ArrayRange(I32(0), In(0, TInt32()), I32(1)), "x", ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), In(1, TInt32())))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Int, Boolean, Long]
     doit(ir, fb)
@@ -447,7 +448,7 @@ class CompileSuite {
   @Test
   def testArrayFilterElement() {
     val t = TArray(TInt32())
-    val ir = ArrayFilter(In(0, t), "x", ApplyBinaryPrimOp(EQ(), Ref("x", TInt32()), In(1, TInt32())))
+    val ir = ArrayFilter(In(0, t), "x", ApplyComparisonOp(EQ(TInt32()), Ref("x", TInt32()), In(1, TInt32())))
     val region = Region()
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Int, Boolean, Long]
     doit(ir, fb)
@@ -526,7 +527,7 @@ class CompileSuite {
   def testArrayFlatMapVsFilter() {
     val tRange = TArray(TInt32())
     val inputIR = ArrayRange(I32(0), In(0, TInt32()), I32(1))
-    val filterCond = { x: IR => ApplyBinaryPrimOp(EQ(), x, I32(1)) }
+    val filterCond = { x: IR => ApplyComparisonOp(EQ(TInt32()), x, I32(1)) }
     val filterIR = ArrayFilter(inputIR, "i", filterCond(Ref("i", TInt32())))
     val flatMapIR = ArrayFlatMap(inputIR, "i", If(filterCond(Ref("i", TInt32())), MakeArray(Seq(Ref("i", TInt32())), TArray(TInt32())), MakeArray(Seq(), tRange)))
 
@@ -657,5 +658,20 @@ class CompileSuite {
     val region = Region()
     val off = f(region)
     assert(TString.loadString(region, off) == "hello")
+  }
+
+  @Test def testSelectFields() {
+    val ir = SelectFields(
+      MakeStruct(FastSeq(
+        "foo" -> I32(6),
+        "bar" -> F64(0.0))),
+      FastSeq("foo"))
+    val fb = EmitFunctionBuilder[Region, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    Region.scoped { region =>
+      val off = f(region)
+      assert(SafeRow(TStruct("foo" -> TInt32()), region, off).get(0) == 6)
+    }
   }
 }

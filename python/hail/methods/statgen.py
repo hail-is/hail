@@ -2930,7 +2930,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
            bp_window_size=int,
            memory_per_core=int)
 def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
-    """Prune variants in linkage disequilibrium.
+    """Returns a maximal subset of nearly-uncorrelated variants.
 
     .. include:: ../_templates/req_diploid_gt.rst
 
@@ -2942,21 +2942,21 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     -----
     This method finds a maximal subset of variants such that the squared
     Pearson correlation coefficient :math:`r^2` of any pair at most
-    `window_size` base pairs apart is strictly less than `r2`. Each variant is
+    `bp_window_size` base pairs apart is strictly less than `r2`. Each variant is
     represented as a vector over samples with elements given by the
     (mean-imputed) number of alternate alleles. In particular, even if present,
     **phase information is ignored**.
 
-    The method proceeds in two stages. The first stage is a local pruning step,
-    which prunes variants in the same partition. The parallelism in this step
-    will be affected by the number of partitions in the dataset, as well as
-    the memory per core, which is used to calculate a queue size for local
-    pruning.
+    The method prunes variants in linkage disequilibirum in two stages.
+    
+    The first (local) stage prunes correlated variants within each partition,
+    using a local variant queue whose size is determined by `memory_per_core`.
+    A larger queue may facilitate more local pruning in this stage.
+    The parallelism is the number of partitions in the dataset.
 
-    The second stage is a global pruning step which computes the correlation
-    matrix across all remaining variants. In the global pruning step, correlated
-    variants are passed to a method that computes a maximal independent set of
-    those variants.
+    The second (global) stage computes the correlation matrix across all
+    remaining variants. Correlated variants within `bp_window_size` base pairs
+    form the edges of a graph to which :func:`.maximal_independent_set` is applied.
 
     Parameters
     ----------
@@ -2968,7 +2968,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     bp_window_size: :obj:`int`
         Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
-        Memory in MB per core for local pruning.
+        Memory in MB per core for local pruning queue.
 
     Returns
     -------

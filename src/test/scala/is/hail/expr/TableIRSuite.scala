@@ -21,14 +21,14 @@ class TableIRSuite extends SparkSuite {
   @Test def testFilter() {
     val kt = getKT
     val kt2 = new Table(hc, TableFilter(kt.tir,
-      ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.I32(3))))
+      ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.I32(3))))
     assert(kt2.count() == 1)
   }
 
   @Test def testFilterGlobals() {
     val kt = getKT.selectGlobal("{g: 3}")
     val kt2 = new Table(hc, TableFilter(kt.tir,
-      ir.ApplyBinaryPrimOp(ir.EQ(), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.GetField(ir.Ref("global", kt.typ.globalType), "g"))))
+      ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.GetField(ir.Ref("global", kt.typ.globalType), "g"))))
     assert(kt2.count() == 1)
   }
 }

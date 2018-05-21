@@ -99,39 +99,48 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registerCode(newName, args, rt, isDeterministic)(impl)
   }
 
-  def registerRGCode(
+  def registerRGCode[A1](
     mname: String, arg1: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[_]) => Code[_]
+    impl: (EmitMethodBuilder, Code[A1]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1), rt, isDeterministic) { case (mb, Array(a1)) => impl(mb, a1) }
-
-  def registerRGCode(
-    mname: String, arg1: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[_]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, rt, isDeterministic = true)(impl)
-
-  def registerRGCode(
-    mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]
-  ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
-
-  def registerRGCode(
-    mname: String, arg1: Type, arg2: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[_], Code[_]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
-
-  def registerRGCode(
-    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[_], Code[_], Code[_], Code[_], Code[_]) => Code[_]
-  ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt, isDeterministic) {
-      case (mb, Array(a1, a2, a3, a4, a5)) => impl(mb, a1, a2, a3, a4, a5)
+    registerRGCode(mname, Array[Type](arg1), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
     }
 
-  def registerRGCode(
+  def registerRGCode[A1](
+    mname: String, arg1: Type, rt: Type)(
+    impl: (EmitMethodBuilder, Code[A1]) => Code[_]
+  ): Unit = registerRGCode(mname, arg1, rt, isDeterministic = true)(impl)
+
+  def registerRGCode[A1, A2](
+    mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    }
+
+  def registerRGCode[A1, A2](
+    mname: String, arg1: Type, arg2: Type, rt: Type)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+  ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
+
+  def registerRGCode[A1, A2, A3, A4, A5](
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type, isDeterministic: Boolean)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt, isDeterministic) {
+      case (mb, Array(
+      a1: Code[A1] @unchecked,
+      a2: Code[A2] @unchecked,
+      a3: Code[A3] @unchecked,
+      a4: Code[A4] @unchecked,
+      a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
+    }
+
+  def registerRGCode[A1, A2, A3, A4, A5](
     mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[_], Code[_], Code[_], Code[_], Code[_]) => Code[_]
+    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
   ): Unit = registerRGCode(mname, arg1, arg2, arg3, arg4, arg5, rt, isDeterministic = true)(impl)
 
   def registerAll() {
@@ -139,7 +148,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     val locusClass = Locus.getClass
 
     registerRGCode("Locus", TString(), TLocus(rg)) {
-      case (mb, locusoff: Code[Long]) =>
+      (mb, locusoff: Code[Long]) =>
         val slocus = asm4s.coerce[String](wrapArg(mb, TString())(locusoff))
         val locus = Code
           .invokeScalaObject[String, RGBase, Locus](
@@ -148,7 +157,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
     registerRGCode("Locus", TString(), TInt32(), TLocus(rg)) {
-      case (mb, contig: Code[Long], pos: Code[Int]) =>
+      (mb, contig: Code[Long], pos: Code[Int]) =>
         val srvb = new StagedRegionValueBuilder(mb, tlocus)
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
         Code(
@@ -161,7 +170,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
     registerRGCode("LocusAlleles", TString(), tvariant) {
-      case (mb, variantoff: Code[Long]) =>
+      (mb, variantoff: Code[Long]) =>
         val svar = asm4s.coerce[String](wrapArg(mb, TString())(variantoff))
         val variant = Code
           .invokeScalaObject[String, RGBase, (Locus, IndexedSeq[String])](
@@ -170,7 +179,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
     registerRGCode("LocusInterval", TString(), tinterval) {
-      case (mb, ioff: Code[Long]) =>
+      (mb, ioff: Code[Long]) =>
         val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff))
         val interval = Code
           .invokeScalaObject[String, RGBase, Interval](
@@ -179,7 +188,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
     registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), tinterval) {
-      case (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean]) =>
+      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean]) =>
         val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff))
         val interval = Code
           .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Interval](

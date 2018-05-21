@@ -36,7 +36,7 @@ object ExportPlink {
     osw.write('\t')
     osw.write(varid)
     osw.write('\t')
-    osw.write(a.positionMorgan().toString)
+    osw.write(a.cmPosition().toString)
     osw.write('\t')
     osw.write(position.toString)
     osw.write('\t')
@@ -121,14 +121,14 @@ object ExportPlink {
 
 class BimAnnotationView(rowType: TStruct) extends View {
   private val varidField = rowType.fieldByName("varid")
-  private val posMorganField = rowType.fieldByName("pos_morgan")
+  private val cmPosField = rowType.fieldByName("cm_position")
 
   private val varidIdx = varidField.index
-  private val posMorganIdx = posMorganField.index
+  private val cmPosIdx = cmPosField.index
 
   private var region: Region = _
   private var varidOffset: Long = _
-  private var posMorganOffset: Long = _
+  private var cmPosOffset: Long = _
 
   private var cachedVarid: String = _
 
@@ -136,16 +136,16 @@ class BimAnnotationView(rowType: TStruct) extends View {
     this.region = region
 
     assert(rowType.isFieldDefined(region, offset, varidIdx))
-    assert(rowType.isFieldDefined(region, offset, posMorganIdx))
+    assert(rowType.isFieldDefined(region, offset, cmPosIdx))
 
     this.varidOffset = rowType.loadField(region, offset, varidIdx)
-    this.posMorganOffset = rowType.loadField(region, offset, posMorganIdx)
+    this.cmPosOffset = rowType.loadField(region, offset, cmPosIdx)
 
     cachedVarid = null
   }
 
-  def positionMorgan(): Int =
-    region.loadInt(posMorganOffset)
+  def cmPosition(): Double =
+    region.loadDouble(cmPosOffset)
 
   def varid(): String = {
     if (cachedVarid == null)

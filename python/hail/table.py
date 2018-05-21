@@ -1,5 +1,6 @@
 import pandas
 import pyspark
+import warnings
 
 import hail as hl
 from hail.expr.expr_ast import *
@@ -320,6 +321,9 @@ class Table(ExprContainer):
                     )
                 )
 
+            warnings.warn('The ht[:] syntax is deprecated, and will be removed before 0.2 release.\n'
+                          '  Use the following instead:\n'
+                          '    ht.index_globals()\n', stacklevel=2)
             return self.index_globals()
         else:
             exprs = item if isinstance(item, tuple) else (item,)
@@ -1159,6 +1163,74 @@ class Table(ExprContainer):
         return self._jt.showString(n, joption(truncate), types, width)
 
     def index(self, *exprs):
+        """Expose the row values as if looked up in a dictionary, indexing
+        with `exprs`.
+
+        Examples
+        --------
+        In the example below, both `table1` and `table2` are keyed by one
+        field `ID` of type ``int``.
+
+        >>> table_result = table1.select(B = table2.index(table1.ID).B)
+        >>> table_result.B.show()
+        +-------+--------+
+        |    ID | B      |
+        +-------+--------+
+        | int32 | str    |
+        +-------+--------+
+        |     1 | cat    |
+        |     2 | dog    |
+        |     3 | mouse  |
+        |     4 | rabbit |
+        +-------+--------+
+
+        Using `key` as the sole index expression is equivalent to passing all
+        key fields individually:
+        >>> table_result = table1.select(B = table2.index(table1.key).B)
+
+        It is also possible to use non-key fields or expressions as the index
+        expressions:
+        >>> table_result = table1.select(B = table2.index(table1.C1 % 4).B)
+        >>> table_result.show()
+        +-------+-------+
+        |    ID | B     |
+        +-------+-------+
+        | int32 | str   |
+        +-------+-------+
+        |     1 | dog   |
+        |     2 | dog   |
+        |     3 | dog   |
+        |     4 | mouse |
+        +-------+-------+
+
+        Notes
+        -----
+        :meth:`.Table.index` is used to expose one table's fields for use in
+        expressions involving the another table or matrix table's fields. The
+        result of the method call is a struct expression that is usable in the
+        same scope as `exprs`, just as if `exprs` were used to look up values of
+        the table in a dictionary.
+
+        The type of the struct expression is the same as the indexed table's
+        :meth:`.row_value` (the key fields are removed, as they are available
+        in the form of the index expressions).
+
+        Note
+        ----
+        There is a shorthand syntax for :meth:`.Table.index` using square
+        brackets (the Python ``__getitem__`` syntax). This syntax is preferred.
+
+        >>> table_result = table1.select(B = table2[table1.ID].B)
+
+        Parameters
+        ----------
+        exprs : variable-length args of :class:`.Expression`
+            Index expressions.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         exprs = tuple(exprs)
         hail.methods.misc.require_key(self, 'index')
         if not len(exprs) > 0:
@@ -1332,6 +1404,17 @@ class Table(ExprContainer):
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
     def index_globals(self):
+        """Return this table's global variables for use in another
+        expression context.
+
+        Examples
+        --------
+        >>> table_result = table2.annotate(C = table2.A * table1.index_globals().global_field_1)
+
+        Returns
+        -------
+        :class:`.StructExpression`
+        """
         uid = Env.get_uid()
 
         def joiner(obj):

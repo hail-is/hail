@@ -3,7 +3,9 @@ package is.hail.stats
 import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{Call, VariantMethods}
+import is.hail.variant.Call
+
+import scala.annotation.switch
 
 object CallStats {
   def schema = TStruct(
@@ -25,11 +27,18 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
   val homozygoteCount = new Array[Int](nAlleles)
 
   def merge(c: Call): CallStatsCombiner = {
-    val p = Call.allelePair(c)
-    alleleCount(p.j) += 1
-    alleleCount(p.k) += 1
-    if (p.j == p.k)
-      homozygoteCount(p.j) += 1
+    (Call.ploidy(c): @switch) match {
+      case 0 =>
+      case 1 =>
+        alleleCount(Call.alleleByIndex(c, 0)) += 1
+      case 2 =>
+        val p = Call.allelePair(c)
+        alleleCount(p.j) += 1
+        alleleCount(p.k) += 1
+        if (p.j == p.k)
+          homozygoteCount(p.j) += 1
+      case _ => throw new UnsupportedOperationException
+    }
     this
   }
 

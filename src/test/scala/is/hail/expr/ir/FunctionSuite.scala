@@ -31,12 +31,13 @@ object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR("addone", TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
     registerIR("sumaggregator32", TAggregable(TInt32())) { ir =>
-      ApplyAggOp(AggMap(ir, "__i", Cast(Ref("__i", TInt32()), TInt64())), Sum(), FastSeq())
+      val aggSig = AggSignature(Sum(), TInt64(), FastSeq(), None)
+      ApplyAggOp(SeqOp(Cast(ir, TInt64()), I32(0), aggSig), FastSeq(), None, aggSig)
     }
     registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
-    registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ case (_, a: Code[Int], b: Code[Int]) => a + b }
+    registerCode("testCodeUnification", tnum("x"), tv("x", _.isInstanceOf[TInt32]), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }
     registerCode("testCodeUnification2", tv("x"), tv("x")){ case (_, a: Code[Long]) => a }
   }
 }
@@ -108,7 +109,7 @@ class FunctionSuite extends SparkSuite {
     val t = Table.range(hc, 10)
 
     val tagg = TAggregable(t.signature)
-    val idxField = AggMap(AggIn(tagg), "row", GetField(Ref("row", t.signature), "idx"))
+    val idxField = GetField(Ref("row", t.signature), "idx")
     val ir = lookup("sumaggregator32", TAggregable(TInt32()))(idxField)
 
     val actual = Interpret[Long](TableAggregate(t.tir, ir))

@@ -13,6 +13,7 @@ from .utils import resource, doctest_resource, startTestHailContext, stopTestHai
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+
 class Tests(unittest.TestCase):
     _dataset = None
 
@@ -897,28 +898,49 @@ class Tests(unittest.TestCase):
         _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
-    def test_pca(self):
-        mt = hl.balding_nichols_model(3, 100, 50)
-        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=True)
+    def test_pca_against_numpy(self):
+        mt = hl.import_vcf(resource('tiny_m.vcf'))
+        mt = mt.filter_rows(hl.len(mt.alleles) == 2)
+        mt = mt.annotate_rows(AC = hl.agg.sum(mt.GT.n_alt_alleles()),
+                              n_called = hl.agg.count_where(hl.is_defined(mt.GT)))
+        mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
+        n_rows = mt.count_rows()
 
-        self.assertEqual(len(eigenvalues), 2)
-        self.assertTrue(isinstance(scores, hl.Table))
-        self.assertEqual(scores.count(), 100)
-        self.assertTrue(isinstance(loadings, hl.Table))
-        self.assertEqual(loadings.count(), 50)
+        def make_expr(mean):
+            return hl.cond(hl.is_defined(mt.GT),
+                           (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                           0)
+        eigen, scores, loadings= hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
+        hail_scores = scores.explode('scores').scores.collect()
+        hail_loadings = loadings.explode('loadings').loadings.collect()
 
-        _, _, loadings = hl.pca(mt.GT.n_alt_alleles(), k=2, compute_loadings=False)
-        self.assertEqual(loadings, None)
-        
-    def test_pca_join(self):
-        mt = hl.balding_nichols_model(2, 10, 20)
-        eigenvalues, scores, loadings = hl.pca(mt.GT.n_alt_alleles(), k=1, compute_loadings=True)
-        eigenvalues2 , scores2, loadings2 = hl.pca(
-            mt.GT.n_alt_alleles() * hl.literal([1])[0], k=1, compute_loadings=True)
+        self.assertEqual(len(eigen), 3)
+        self.assertEqual(scores.count(), mt.count_cols())
+        self.assertEqual(loadings.count(), n_rows)
 
-        self.assertAlmostEqual(eigenvalues[0], eigenvalues2[0])
-        self.assertTrue(scores._same(scores2))
-        self.assertTrue(loadings._same(loadings2))
+        # compute PCA with numpy
+        def normalize(a):
+            ms = np.mean(a, axis = 0, keepdims = True)
+            return np.divide(np.subtract(a, ms), np.sqrt(2.0*np.multiply(ms/2.0, 1-ms/2.0)*a.shape[1]))
+
+        g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+        g[1, 0] = 1.0 / 3
+        n = normalize(g)
+        U, s, V = np.linalg.svd(n, full_matrices=0)
+        np_scores = U.dot(np.diag(s)).flatten()
+        np_loadings = V.transpose().flatten()
+        np_eigenvalues = np.multiply(s,s).flatten()
+
+
+        def check(hail_array, np_array):
+            self.assertEqual(len(hail_array), len(np_array))
+            for i, (left, right) in enumerate(zip(hail_array, np_array)):
+                self.assertAlmostEqual(abs(left), abs(right),
+                                       msg=f'mismatch at index {i}: hl={left}, np={right}',
+                                       places=4)
+        check(eigen, np_eigenvalues)
+        check(hail_scores, np_scores)
+        check(hail_loadings, np_loadings)
 
     def _R_pc_relate(self, mt, maf):
         plink_file = utils.uri_path(utils.new_temp_file())
@@ -1299,7 +1321,7 @@ class Tests(unittest.TestCase):
         ds = self.get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'position_morgan',
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
                        'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
         # Test default arguments
@@ -1314,7 +1336,7 @@ class Tests(unittest.TestCase):
                                  (fam1.mat_id == "0") & (fam1.is_female == "0") &
                                  (fam1.pheno == "NA")))
         self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
-                                 (bim1.position_morgan == "0")))
+                                 (bim1.cm_position == "0.0")))
 
         # Test non-default FAM arguments
         out2 = utils.new_temp_file()
@@ -1339,11 +1361,11 @@ class Tests(unittest.TestCase):
 
         # Test non-default BIM arguments
         out4 = utils.new_temp_file()
-        hl.export_plink(ds, out4, varid="hello", position_morgan=100)
+        hl.export_plink(ds, out4, varid="hello", cm_position=100)
         bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
                 .rename(bim_mapping))
 
-        self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.position_morgan == "100")))
+        self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.cm_position == "100.0")))
 
         # Test call expr
         out5 = utils.new_temp_file()
@@ -1563,7 +1585,7 @@ class Tests(unittest.TestCase):
         assert (pruned_table.count() == 1)
 
     def test_ld_prune_call_expression(self):
-        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         assert (pruned_table.count() == 1)
@@ -1824,18 +1846,18 @@ class Tests(unittest.TestCase):
     def test_export_import_plink_same(self):
         mt = self.get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
-                            position_morgan=15)
+                            cm_position=15.0)
         mt = mt.select_cols(fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
                             is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
-        hl.export_plink(mt, bfile, ind_id=mt.s, position_morgan=mt.position_morgan)
+        hl.export_plink(mt, bfile, ind_id=mt.s, cm_position=mt.cm_position)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                       a2_reference=True, reference_genome='GRCh37')
         self.assertTrue(mt._same(mt_imported))
-        self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.position_morgan == 15)))
+        self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
     def test_import_plink_empty_fam(self):
         mt = self.get_dataset().drop_cols()

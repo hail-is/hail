@@ -28,8 +28,8 @@ class RegionValueCallStatsAggregator extends RegionValueAggregator {
     if (other.combiner != null) {
       if (combiner == null)
         combiner = new CallStatsCombiner(other.combiner.nAlleles)
+      combiner.merge(other.combiner)
     }
-    combiner.merge(other.combiner)
   }
 
   def result(rvb: RegionValueBuilder): Unit = {

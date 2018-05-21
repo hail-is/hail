@@ -15,30 +15,7 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("triangle", TInt32(), TInt32()) { case (_, n: Code[Int]) => (n * (n + 1)) / 2 }
-
-    registerIR("sum", TAggregable(TInt64()))(ApplyAggOp(_, Sum()))
-    registerIR("sum", TAggregable(TFloat64()))(ApplyAggOp(_, Sum()))
-
-    registerIR("product", TAggregable(TInt64()))(ApplyAggOp(_, Product()))
-    registerIR("product", TAggregable(TFloat64()))(ApplyAggOp(_, Product()))
-
-    registerIR("max", TAggregable(tnum("T")))(ApplyAggOp(_, Max()))
-
-    registerIR("min", TAggregable(tnum("T")))(ApplyAggOp(_, Min()))
-
-    registerIR("count", TAggregable(tv("T"))) { agg =>
-      val uid = genUID()
-      ApplyAggOp(AggMap(agg, uid, I32(0)), Count())
-    }
-
-    registerIR("hist", TAggregable(TFloat64()), TFloat64(), TFloat64(), TInt32()){ (agg, start, end, nbins) =>
-      ApplyAggOp(agg, Histogram(), constructorArgs = FastSeq(start, end, nbins))
-    }
-
-    registerIR("callStats", TAggregable(TCall()), TInt32()){ (agg, nAlleles) =>
-      ApplyAggOp(agg, CallStats(), initOpArgs = Some(FastSeq(nAlleles)))
-    }
+    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
     registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
     registerIR("isMissing", tv("T")) { a => IsNA(a) }
@@ -55,52 +32,32 @@ object UtilFunctions extends RegistryFunctions {
       InsertFields(s, annotations.asInstanceOf[MakeStruct].fields)
     }
 
-    registerCode("toInt32", TBoolean(), TInt32()) { case (_, x: Code[Boolean]) => x.toI }
-    registerCode("toInt64", TBoolean(), TInt64()) { case (_, x: Code[Boolean]) => x.toI.toL }
-    registerCode("toFloat32", TBoolean(), TFloat32()) { case (_, x: Code[Boolean]) => x.toI.toF }
-    registerCode("toFloat64", TBoolean(), TFloat64()) { case (_, x: Code[Boolean]) => x.toI.toD }
-    registerCode("toInt32", TString(), TInt32()) { case (mb, x: Code[Long]) =>
+    registerCode("toInt32", TBoolean(), TInt32()) { (_, x: Code[Boolean]) => x.toI }
+    registerCode("toInt64", TBoolean(), TInt64()) { (_, x: Code[Boolean]) => x.toI.toL }
+    registerCode("toFloat32", TBoolean(), TFloat32()) { (_, x: Code[Boolean]) => x.toI.toF }
+    registerCode("toFloat64", TBoolean(), TFloat64()) { (_, x: Code[Boolean]) => x.toI.toD }
+    registerCode("toInt32", TString(), TInt32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", s)
     }
-    registerCode("toInt64", TString(), TInt64()) { case (mb, x: Code[Long]) =>
+    registerCode("toInt64", TString(), TInt64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Long, String, Long]("parseLong", s)
     }
-    registerCode("toFloat32", TString(), TFloat32()) { case (mb, x: Code[Long]) =>
+    registerCode("toFloat32", TString(), TFloat32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", s)
     }
-    registerCode("toFloat64", TString(), TFloat64()) { case (mb, x: Code[Long]) =>
+    registerCode("toFloat64", TString(), TFloat64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", s)
     }
-    registerCode("toBoolean", TString(), TBoolean()) { case (mb, x: Code[Long]) =>
+    registerCode("toBoolean", TString(), TBoolean()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
-    val compareOps = Array(
-      ("==", CodeOrdering.equiv),
-      ("<", CodeOrdering.lt),
-      ("<=", CodeOrdering.lteq),
-      (">", CodeOrdering.gt),
-      (">=", CodeOrdering.gteq))
-    for ((sym, op) <- compareOps) {
-      registerCodeWithMissingness(sym, tv("T"), tv("T"), TBoolean()) { case (mb, a, b) =>
-        val t = tv("T").t
-        val cop = mb.getCodeOrdering[Boolean](t, op, missingGreatest = true)
-        val am = mb.newLocal[Boolean]
-        val bm = mb.newLocal[Boolean]
-        val av = mb.newLocal(typeToTypeInfo(t))
-        val bv = mb.newLocal(typeToTypeInfo(t))
-        val v = Code(
-          am := a.m, bm := b.m, av.storeAny(a.v), bv.storeAny(b.v),
-          cop(mb.getArg[Region](1), (am, av), mb.getArg[Region](1), (bm, bv)))
-        EmitTriplet(Code(a.setup, b.setup), const(false), v)
-      }
-    }
-
-    registerIR("!=", tv("T"), tv("T")) { case (a, b) => ApplyUnaryPrimOp(Bang(), ApplySpecial("==", FastSeq(a, b))) }
+    registerIR("min", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(LT(a.typ), a, b), a, b) }
+    registerIR("max", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(GT(a.typ), a, b), a, b) }
   }
 }

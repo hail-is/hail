@@ -4,7 +4,7 @@ import is.hail.expr.types._
 import is.hail.annotations._
 import scala.collection.mutable
 
-class MissingIntArrayBuilder {
+class MissingIntArrayBuilder extends Serializable {
   private var len = 0
   private val elements = new ArrayBuilder[Int]()
   private val isMissing = new mutable.BitSet()
@@ -40,11 +40,14 @@ class MissingIntArrayBuilder {
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)
     var i = 0
+    var j = 0
     while (i < len) {
       if (isMissing(i))
         rvb.setMissing()
-      else
-        rvb.addInt(elements(i))
+      else {
+        rvb.addInt(elements(j))
+        j += 1
+      }
       i += 1
     }
     rvb.endArray()
