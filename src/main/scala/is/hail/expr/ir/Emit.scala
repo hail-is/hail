@@ -412,6 +412,44 @@ private class Emit(
           a.m,
           bs.getClosestIndex(a.value[Long], e.m, e.v))
 
+      case GroupBy(collection, element, keyMap, group, groupMap) =>
+        //sort collection by group
+        val atyp = coerce[TArray](collection.typ)
+        val eti = typeToTypeInfo(atyp.elementType)
+        val ktyp = keyMap.typ
+        val kti = typeToTypeInfo(ktyp)
+
+        val aout = emitArrayIterator(collection)
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+        val kab = new StagedArrayBuilder(keyMap.typ, mb, 16)
+        val sorter = new ArraySorter(mb, kab, keyOnly = false)
+
+        val em = mb.newField[Boolean]
+        val ev = mb.newField()(kti)
+
+        val codeK = emit(keyMap, env = env.bind(element -> (eti, em.load(), ev.load())))
+
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            em := m,
+            ev.storeAny(v),
+            codeK.setup,
+            codeK.m.mux(
+              kab.addMissing(),
+              kab.add(codeK.v)),
+            em.mux(vab.addMissing(), vab.add(ev)))
+        }
+
+        val processArrayElts = aout.arrayEmitter(cont)
+        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
+          vab.clear,
+          kab.clear,
+          aout.calcLength,
+          processArrayElts.addElements,
+          sorter.sort(Some(vab)),
+          ))
+
+
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(mb, ir.typ)
@@ -1000,6 +1038,9 @@ private class Emit(
         val lenCalc = xvcond.mux(aCnsq.calcLength, aAltr.calcLength)
         val optLen = aCnsq.length.flatMap(l1 => aAltr.length.map(xvcond.mux(l1, _)))
         ArrayIteratorTriplet(lenCalc, optLen, f)
+
+      case Ref(x, _) if arrayEnv.lookupOption(x).isDefined =>
+        arrayEnv.lookup(x)
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)

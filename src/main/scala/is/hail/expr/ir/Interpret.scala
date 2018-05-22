@@ -264,6 +264,9 @@ object Interpret {
           Integer.max(0, nSmaller - 1)
         }
 
+      case GroupBy(collection, element, keyMap, group, groupMap) =>
+        // FIXME: implement this!
+
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
