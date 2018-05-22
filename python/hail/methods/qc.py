@@ -177,10 +177,6 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     .. include:: ../_templates/req_unphased_diploid_gt.rst
 
-    .. testsetup::
-
-        dataset2 = dataset
-
     Examples
     --------
 

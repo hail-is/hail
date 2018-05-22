@@ -72,10 +72,8 @@ def collect(expr) -> ArrayExpression:
     --------
     Collect the `ID` field where `HT` is greater than 68:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.collect(agg.filter(table1.HT > 68, table1.ID)))
-        [2, 3]
+    >>> table1.aggregate(agg.collect(agg.filter(table1.HT > 68, table1.ID)))
+    [2, 3]
 
     Notes
     -----
@@ -108,10 +106,8 @@ def collect_as_set(expr) -> SetExpression:
     --------
     Collect the unique `ID` field where `HT` is greater than 68:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
-        set([2, 3]
+    >>> table1.aggregate(agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
+    set([2, 3]
 
     Warning
     -------
@@ -137,19 +133,17 @@ def count(expr=None) -> Int64Expression:
     --------
     Group by the `SEX` field and count the number of rows in each category:
 
-    .. doctest::
-
-        >>> (table1.group_by(table1.SEX)
-        ...        .aggregate(n=agg.count())
-        ...        .show())
-        +-----+-------+
-        | SEX |     n |
-        +-----+-------+
-        | str | int64 |
-        +-----+-------+
-        | M   |     2 |
-        | F   |     2 |
-        +-----+-------+
+    >>> (table1.group_by(table1.SEX)
+    ...        .aggregate(n=agg.count())
+    ...        .show())
+    +-----+-------+
+    | SEX |     n |
+    +-----+-------+
+    | str | int64 |
+    +-----+-------+
+    | M   |     2 |
+    | F   |     2 |
+    +-----+-------+
 
     Notes
     -----
@@ -182,10 +176,8 @@ def count_where(condition) -> Int64Expression:
 
     Count the number of individuals with `HT` greater than 68:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.count_where(table1.HT > 68))
-        2
+    >>> table1.aggregate(agg.count_where(table1.HT > 68))
+    2
 
     Parameters
     ----------
@@ -206,19 +198,18 @@ def any(condition) -> BooleanExpression:
 
     Examples
     --------
-    .. doctest::
 
-        >>> (table1.group_by(table1.SEX)
-        ... .aggregate(any_over_70 = agg.any(table1.HT > 70))
-        ... .show())
-        +-----+-------------+
-        | SEX | any_over_70 |
-        +-----+-------------+
-        | str | bool        |
-        +-----+-------------+
-        | M   | true        |
-        | F   | false       |
-        +-----+-------------+
+    >>> (table1.group_by(table1.SEX)
+    ... .aggregate(any_over_70 = agg.any(table1.HT > 70))
+    ... .show())
+    +-----+-------------+
+    | SEX | any_over_70 |
+    +-----+-------------+
+    | str | bool        |
+    +-----+-------------+
+    | M   | true        |
+    | F   | false       |
+    +-----+-------------+
 
     Notes
     -----
@@ -244,19 +235,18 @@ def all(condition) -> BooleanExpression:
 
     Examples
     --------
-    .. doctest::
 
-        >>> (table1.group_by(table1.SEX)
-        ... .aggregate(all_under_70 = agg.all(table1.HT < 70))
-        ... .show())
-        +-----+--------------+
-        | SEX | all_under_70 |
-        +-----+--------------+
-        | str | bool         |
-        +-----+--------------+
-        | M   | false        |
-        | F   | false        |
-        +-----+--------------+
+    >>> (table1.group_by(table1.SEX)
+    ... .aggregate(all_under_70 = agg.all(table1.HT < 70))
+    ... .show())
+    +-----+--------------+
+    | SEX | all_under_70 |
+    +-----+--------------+
+    | str | bool         |
+    +-----+--------------+
+    | M   | false        |
+    | F   | false        |
+    +-----+--------------+
 
     Notes
     -----
@@ -286,10 +276,8 @@ def counter(expr) -> DictExpression:
     --------
     Count the number of individuals for each unique `SEX` value:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.counter(table1.SEX))
-        {'M': 2L, 'F': 2L}
+    >>> table1.aggregate(agg.counter(table1.SEX))
+    {'M': 2L, 'F': 2L}
 
     Notes
     -----
@@ -327,19 +315,15 @@ def take(expr, n, ordering=None) -> ArrayExpression:
     --------
     Take 3 elements of field `X`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.take(table1.X, 3))
-        [5, 6, 7]
+    >>> table1.aggregate(agg.take(table1.X, 3))
+    [5, 6, 7]
 
     Take the `ID` and `HT` fields, ordered by `HT` (descending):
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.take(hl.struct(ID=table1.ID, HT=table1.HT),
-        ...                           3,
-        ...                           ordering=-table1.HT))
-        [Struct(ID=2, HT=72), Struct(ID=3, HT=70), Struct(ID=1, HT=65)]
+    >>> table1.aggregate(agg.take(hl.struct(ID=table1.ID, HT=table1.HT),
+    ...                           3,
+    ...                           ordering=-table1.HT))
+    [Struct(ID=2, HT=72), Struct(ID=3, HT=70), Struct(ID=1, HT=65)]
 
     Notes
     -----
@@ -413,10 +397,8 @@ def min(expr) -> NumericExpression:
     --------
     Compute the minimum value of `HT`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.min(table1.HT))
-        min_ht=60
+    >>> table1.aggregate(agg.min(table1.HT))
+    min_ht=60
 
     Notes
     -----
@@ -443,10 +425,8 @@ def max(expr) -> NumericExpression:
     --------
     Compute the maximum value of `HT`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.max(table1.HT))
-        max_ht=72
+    >>> table1.aggregate(agg.max(table1.HT))
+    max_ht=72
 
     Notes
     -----
@@ -473,10 +453,8 @@ def sum(expr):
     --------
     Compute the sum of field `C1`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.sum(table1.C1))
-        25
+    >>> table1.aggregate(agg.sum(table1.C1))
+    25
 
     Notes
     -----
@@ -512,10 +490,8 @@ def array_sum(expr) -> ArrayExpression:
     --------
     Compute the sum of `C1` and `C2`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.array_sum([table1.C1, table1.C2]))
-        [25, 46]
+    >>> table1.aggregate(agg.array_sum([table1.C1, table1.C2]))
+    [25, 46]
 
     Notes
     ------
@@ -540,10 +516,8 @@ def mean(expr) -> Float64Expression:
     --------
     Compute the mean of field `HT`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.mean(table1.HT))
-        66.75
+    >>> table1.aggregate(agg.mean(table1.HT))
+    66.75
 
     Notes
     -----
@@ -569,10 +543,8 @@ def stats(expr) -> StructExpression:
     --------
     Compute statistics about field `HT`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.stats(table1.HT))
-        Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, n=4, mean=66.75)
+    >>> table1.aggregate(agg.stats(table1.HT))
+    Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, n=4, mean=66.75)
 
     Notes
     -----
@@ -611,10 +583,8 @@ def product(expr):
     --------
     Compute the product of field `C1`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.product(table1.C1))
-        440
+    >>> table1.aggregate(agg.product(table1.C1))
+    440
 
     Notes
     -----
@@ -651,10 +621,8 @@ def fraction(predicate) -> Float64Expression:
     --------
     Compute the fraction of rows where `SEX` is "F" and `HT` > 65:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.fraction((table1.SEX == 'F') & (table1.HT > 65)))
-        0.25
+    >>> table1.aggregate(agg.fraction((table1.SEX == 'F') & (table1.HT > 65)))
+    0.25
 
     Notes
     -----
@@ -686,16 +654,12 @@ def hardy_weinberg(expr) -> StructExpression:
     --------
     Compute HWE statistics per row of a dataset:
 
-    .. doctest::
-
-        >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
+    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
 
     Compute HWE statistics for a single population:
 
-    .. doctest::
-
-        >>> dataset_result = dataset.annotate_rows(
-        ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    >>> dataset_result = dataset.annotate_rows(
+    ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
@@ -738,25 +702,21 @@ def explode(expr) -> Aggregable:
     --------
     Compute the mean of all elements in fields `C1`, `C2`, and `C3`:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
-        24.8333333333
+    >>> table1.aggregate(agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
+    24.8333333333
 
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
-    .. doctest::
-
-        >>> dataset.aggregate_rows(agg.collect_as_set(agg.explode(dataset.filters)))
-        set([u'VQSRTrancheSNP99.80to99.90',
-             u'VQSRTrancheINDEL99.95to100.00',
-             u'VQSRTrancheINDEL99.00to99.50',
-             u'VQSRTrancheINDEL97.00to99.00',
-             u'VQSRTrancheSNP99.95to100.00',
-             u'VQSRTrancheSNP99.60to99.80',
-             u'VQSRTrancheINDEL99.50to99.90',
-             u'VQSRTrancheSNP99.90to99.95',
-             u'VQSRTrancheINDEL96.00to97.00']))
+    >>> dataset.aggregate_rows(agg.collect_as_set(agg.explode(dataset.filters)))
+    set([u'VQSRTrancheSNP99.80to99.90',
+         u'VQSRTrancheINDEL99.95to100.00',
+         u'VQSRTrancheINDEL99.00to99.50',
+         u'VQSRTrancheINDEL97.00to99.00',
+         u'VQSRTrancheSNP99.95to100.00',
+         u'VQSRTrancheSNP99.60to99.80',
+         u'VQSRTrancheINDEL99.50to99.90',
+         u'VQSRTrancheSNP99.90to99.95',
+         u'VQSRTrancheINDEL96.00to97.00']))
 
     Notes
     -----
@@ -789,10 +749,8 @@ def filter(condition, expr) -> Aggregable:
     --------
     Collect the `ID` field where `HT` >= 70:
 
-    .. doctest::
-
-        >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
-        [2, 3]
+    >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
+    [2, 3]
 
     Notes
     -----
@@ -841,26 +799,24 @@ def inbreeding(expr, prior) -> StructExpression:
     --------
     Compute inbreeding statistics per column:
 
-    .. doctest::
-
-        >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
-        >>> dataset_result.cols().show()
-        +----------------+--------------+-------------+------------------+------------------+
-        | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
-        +----------------+--------------+-------------+------------------+------------------+
-        | str            |      float64 |       int64 |          float64 |            int64 |
-        +----------------+--------------+-------------+------------------+------------------+
-        | C1046::HG02024 | -1.23867e-01 |         338 |      2.96180e+02 |              291 |
-        | C1046::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
-        | C1046::HG02026 |  5.47269e-02 |         336 |      2.94742e+02 |              297 |
-        | C1047::HG00731 | -1.89046e-02 |         337 |      2.95779e+02 |              295 |
-        | C1047::HG00732 |  1.38718e-01 |         337 |      2.95202e+02 |              301 |
-        | C1047::HG00733 |  3.50684e-01 |         338 |      2.96418e+02 |              311 |
-        | C1048::HG02024 | -1.95603e-01 |         338 |      2.96180e+02 |              288 |
-        | C1048::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
-        | C1048::HG02026 |  6.74296e-02 |         338 |      2.96180e+02 |              299 |
-        | C1049::HG00731 | -1.00467e-02 |         337 |      2.95418e+02 |              295 |
-        +----------------+--------------+-------------+------------------+------------------+
+    >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
+    >>> dataset_result.cols().show()
+    +----------------+--------------+-------------+------------------+------------------+
+    | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
+    +----------------+--------------+-------------+------------------+------------------+
+    | str            |      float64 |       int64 |          float64 |            int64 |
+    +----------------+--------------+-------------+------------------+------------------+
+    | C1046::HG02024 | -1.23867e-01 |         338 |      2.96180e+02 |              291 |
+    | C1046::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
+    | C1046::HG02026 |  5.47269e-02 |         336 |      2.94742e+02 |              297 |
+    | C1047::HG00731 | -1.89046e-02 |         337 |      2.95779e+02 |              295 |
+    | C1047::HG00732 |  1.38718e-01 |         337 |      2.95202e+02 |              301 |
+    | C1047::HG00733 |  3.50684e-01 |         338 |      2.96418e+02 |              311 |
+    | C1048::HG02024 | -1.95603e-01 |         338 |      2.96180e+02 |              288 |
+    | C1048::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
+    | C1048::HG02026 |  6.74296e-02 |         338 |      2.96180e+02 |              299 |
+    | C1049::HG00731 | -1.00467e-02 |         337 |      2.95418e+02 |              295 |
+    +----------------+--------------+-------------+------------------+------------------+
 
     Notes
     -----
@@ -918,26 +874,24 @@ def call_stats(call, alleles) -> StructExpression:
     --------
     Compute call statistics per row:
 
-    .. doctest::
-
-        >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
-        >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
-        +---------------+--------------+----------------+-------------+---------------------------+
-        | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.homozygote_count |
-        +---------------+--------------+----------------+-------------+---------------------------+
-        | locus<GRCh37> | array<int32> | array<float64> |       int32 | array<int32>              |
-        +---------------+--------------+----------------+-------------+---------------------------+
-        | 20:10579373   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
-        | 20:13695607   | [177,23]     | [0.885,0.115]  |         200 | [77,0]                    |
-        | 20:13698129   | [198,2]      | [0.99,0.01]    |         200 | [98,0]                    |
-        | 20:14306896   | [142,58]     | [0.71,0.29]    |         200 | [51,9]                    |
-        | 20:14306953   | [121,79]     | [0.605,0.395]  |         200 | [38,17]                   |
-        | 20:15948325   | [172,2]      | [0.989,0.012]  |         174 | [85,0]                    |
-        | 20:15948326   | [174,8]      | [0.956,0.043]  |         182 | [83,0]                    |
-        | 20:17479423   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
-        | 20:17600357   | [79,121]     | [0.395,0.605]  |         200 | [24,45]                   |
-        | 20:17640833   | [193,3]      | [0.985,0.015]  |         196 | [95,0]                    |
-        +---------------+--------------+----------------+-------------+---------------------------+
+    >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
+    >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
+    +---------------+--------------+----------------+-------------+---------------------------+
+    | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.homozygote_count |
+    +---------------+--------------+----------------+-------------+---------------------------+
+    | locus<GRCh37> | array<int32> | array<float64> |       int32 | array<int32>              |
+    +---------------+--------------+----------------+-------------+---------------------------+
+    | 20:10579373   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
+    | 20:13695607   | [177,23]     | [0.885,0.115]  |         200 | [77,0]                    |
+    | 20:13698129   | [198,2]      | [0.99,0.01]    |         200 | [98,0]                    |
+    | 20:14306896   | [142,58]     | [0.71,0.29]    |         200 | [51,9]                    |
+    | 20:14306953   | [121,79]     | [0.605,0.395]  |         200 | [38,17]                   |
+    | 20:15948325   | [172,2]      | [0.989,0.012]  |         174 | [85,0]                    |
+    | 20:15948326   | [174,8]      | [0.956,0.043]  |         182 | [83,0]                    |
+    | 20:17479423   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
+    | 20:17600357   | [79,121]     | [0.395,0.605]  |         200 | [24,45]                   |
+    | 20:17640833   | [193,3]      | [0.985,0.015]  |         196 | [95,0]                    |
+    +---------------+--------------+----------------+-------------+---------------------------+
 
     Notes
     -----
@@ -994,13 +948,11 @@ def hist(expr, start, end, bins) -> StructExpression:
     --------
     Compute a histogram of field `GQ`:
 
-    .. doctest::
-
-        >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
-        Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-               bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
-               nLess=0,
-               nGreater=0)
+    >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
+    Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+           bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
+           nLess=0,
+           nGreater=0)
 
     Notes
     -----

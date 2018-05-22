@@ -94,11 +94,6 @@ class GroupedTable(ExprContainer):
 
     There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
     and :meth:`.GroupedTable.aggregate`.
-
-    .. testsetup ::
-
-        table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
-
     """
 
     def __init__(self, parent: 'Table', groups):
@@ -489,7 +484,7 @@ class Table(ExprContainer):
         -------
         Setting the key to the empty key using
 
-        >>> table.key_by([])
+        >>> table1.key_by([])
 
         will cause the entire table to condense into a single partition.
 
@@ -638,33 +633,24 @@ class Table(ExprContainer):
 
         Create a single field from an expression of `C1`, `C2`, and `C3`.
 
-        .. testsetup::
+        >>> table4.show()
+        +-------+------+-------+-------+-------+-------+-------+-------+
+        |     A | B.B0 | B.B1  | C     | D.cat | D.dog |   E.A |   E.B |
+        +-------+------+-------+-------+-------+-------+-------+-------+
+        | int32 | bool | str   | bool  | int32 | int32 | int32 | int32 |
+        +-------+------+-------+-------+-------+-------+-------+-------+
+        |    32 | true | hello | false |     5 |     7 |     5 |     7 |
+        +-------+------+-------+-------+-------+-------+-------+-------+
 
-            table4 = hl.import_table('data/kt_example4.tsv', impute=True,
-                                  types={'B': hl.tstruct(B0=hl.tbool, B1=hl.tstr),
-                                 'D': hl.tstruct(cat=hl.tint32, dog=hl.tint32),
-                                 'E': hl.tstruct(A=hl.tint32, B=hl.tint32)})
-
-        .. doctest::
-
-            >>> table4.show()
-            +-------+------+-------+-------+-------+-------+-------+-------+
-            |     A | B.B0 | B.B1  | C     | D.cat | D.dog |   E.A |   E.B |
-            +-------+------+-------+-------+-------+-------+-------+-------+
-            | int32 | bool | str   | bool  | int32 | int32 | int32 | int32 |
-            +-------+------+-------+-------+-------+-------+-------+-------+
-            |    32 | true | hello | false |     5 |     7 |     5 |     7 |
-            +-------+------+-------+-------+-------+-------+-------+-------+
-
-            >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
-            >>> table_result.show()
-            +------+-------+-------+-------+-------+-------+
-            | B.B0 | B.B1  | C     | D.cat | D.dog |     F |
-            +------+-------+-------+-------+-------+-------+
-            | bool | str   | bool  | int32 | int32 | int32 |
-            +------+-------+-------+-------+-------+-------+
-            | true | hello | false |     5 |     7 |    46 |
-            +------+-------+-------+-------+-------+-------+
+        >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
+        >>> table_result.show()
+        +------+-------+-------+-------+-------+-------+
+        | B.B0 | B.B1  | C     | D.cat | D.dog |     F |
+        +------+-------+-------+-------+-------+-------+
+        | bool | str   | bool  | int32 | int32 | int32 |
+        +------+-------+-------+-------+-------+-------+
+        | true | hello | false |     5 |     7 |    46 |
+        +------+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -1665,7 +1651,7 @@ class Table(ExprContainer):
             table = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
             other_table = table
 
-        >>> union_table = table.union(other_table)
+        >>> union_table = table1.union(other_table)
 
         Notes
         -----
@@ -2163,12 +2149,6 @@ class Table(ExprContainer):
         --------
 
         `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
-
-        .. testsetup::
-
-            people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                     types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
-
 
         >>> people_table.show()
         +----------+-------+--------------------------+
