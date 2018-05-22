@@ -1038,17 +1038,20 @@ def hist(expr, start, end, bins) -> StructExpression:
                 n_larger=tint64)
     return _agg_func('hist', expr, t, start, end, bins)
 
+
 @typecheck(gp=agg_expr(expr_array(expr_float64)))
-def info_score(gp):
-    """Compute the IMPUTE information score.
+def info_score(gp) -> StructExpression:
+    r"""Compute the IMPUTE information score.
 
     Examples
     --------
     Calculate the info score per variant:
+
     >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> gen_mt = gen_mt.annotate_rows(info_score = hl.agg.info_score(gen_mt.GP))
 
     Calculate group-specific info scores per variant:
+
     >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> gen_mt = gen_mt.annotate_cols(is_case = hl.rand_bool(0.5))
     >>> gen_mt = gen_mt.annotate_rows(info_score_case = hl.agg.info_score(hl.agg.filter(gen_mt.is_case, gen_mt.GP)),
@@ -1058,9 +1061,9 @@ def info_score(gp):
     -----
     The result of :func:`.info_score` is a struct with two fields:
 
-    - `score` (``float64``) -- Info score.
-    - `n_included` (``int32``) -- Number of non-missing samples included in the
-      calculation.
+        - `score` (``float64``) -- Info score.
+        - `n_included` (``int32``) -- Number of non-missing samples included in the
+          calculation.
 
     We implemented the IMPUTE info measure as described in the supplementary
     information from `Marchini & Howie. Genotype imputation for genome-wide
@@ -1069,6 +1072,7 @@ def info_score(gp):
     calculate the info score :math:`I_{A}` for one SNP:
 
     .. math::
+
         I_{A} =
         \begin{cases}
         1 - \frac{\sum_{i=1}^{N}(f_{i} - e_{i}^2)}{2N\hat{\theta}(1 - \hat{\theta})} & \text{when } \hat{\theta} \in (0, 1) \\
@@ -1080,23 +1084,23 @@ def info_score(gp):
     - :math:`e_{i} = p_{i1} + 2p_{i2}` is the expected genotype per sample
     - :math:`f_{i} = p_{i1} + 4p_{i2}`
     - :math:`\hat{\theta} = \frac{\sum_{i=1}^{N}e_{i}}{2N}` is the MLE for the
-    population minor allele frequency
+      population minor allele frequency
 
     Hail will not generate identical results to `QCTOOL
     <http://www.well.ox.ac.uk/~gav/qctool/#overview>`__ for the following
     reasons:
 
-    - The floating point number Hail stores for each genotype probability is
-      slightly different than the original data due to rounding and
-      normalization of probabilities.
     - Hail automatically removes genotype probability distributions that do not
-      meet certain requirements on data import with :meth:`.import_gen` and
-      :meth:`.import_bgen`.
+      meet certain requirements on data import with :func:`.import_gen` and
+      :func:`.import_bgen`.
     - Hail does not use the population frequency to impute genotype
       probabilities when a genotype probability distribution has been set to
       missing.
     - Hail calculates the same statistic for sex chromosomes as autosomes while
       QCTOOL incorporates sex information.
+    - The floating point number Hail stores for each genotype probability is
+      slightly different than the original data due to rounding and
+      normalization of probabilities.
 
     Warning
     -------
@@ -1104,8 +1108,8 @@ def info_score(gp):
       a SNP has a high missing rate.
     - If the `gp` array must contain 3 elements, and its elements may not be
       missing.
-    - If the genotype data was not imported using the :meth:`.import_gen` or
-      :meth:`.import_bgen` functions, then the results for all variants will be
+    - If the genotype data was not imported using the :func:`.import_gen` or
+      :func:`.import_bgen` functions, then the results for all variants will be
       ``score = NA`` and ``n_included = 0``.
     - It only makes semantic sense to compute the info score per variant. While
       the aggregator will run in any context if its arguments are the right
@@ -1114,7 +1118,8 @@ def info_score(gp):
     Parameters
     ----------
     gp : :class:`.ArrayNumericExpression`
-        Genotype probability array.
+        Genotype probability array. Must have 3 elements, all of which must be
+        defined.
 
     Returns
     -------
