@@ -319,7 +319,7 @@ object TestUtils {
 
     val e = eval(x, env, args, agg)
     assert(t.typeCheck(e))
-    assert(t.valuesSimilar(eval(x), expected))
+    assert(t.valuesSimilar(eval(x, env, args, agg), expected))
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
