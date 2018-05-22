@@ -330,7 +330,7 @@ private class Emit(
 
       case _: ArraySort | _: ToSet | _: ToDict =>
         val a = ir.children(0).asInstanceOf[IR]
-        val atyp = coerce[TArray](a.typ)
+        val atyp = coerce[TContainer](ir.typ)
 
         val aout = emitArrayIterator(a)
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)

@@ -8,37 +8,40 @@ import is.hail.utils._
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean) {
   val typ: Type = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
+  val sortmb: EmitMethodBuilder = mb.fb.newMethod[Region, Int, Int, Unit]
 
   val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean]) = if (keyOnly) {
     val ttype = coerce[TBaseStruct](typ)
     require(ttype.size == 2)
     val kt = ttype.types(0)
-    val mk1l = mb.newLocal[Boolean]
-    val mk2l = mb.newLocal[Boolean]
 
     val comp: CodeOrdering.F[Int] = {
-      case (r1: Code[Region],
-      (m1: Code[Boolean] @unchecked, v1: Code[Long] @unchecked),
-      r2: Code[Region],
-      (m2: Code[Boolean] @unchecked, v2: Code[Long] @unchecked)) =>
-        val mk1 = Code(mk1l := ttype.isFieldMissing(r1, v1, 0), mk1l)
-        val mk2 = Code(mk2l := ttype.isFieldMissing(r2, v2, 0), mk2l)
-        val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
-        val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        val cmp = mb.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
-        (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
+      val mk1l = sortmb.newLocal[Boolean]
+      val mk2l = sortmb.newLocal[Boolean]
+
+      { case (r1: Code[Region], (m1: Code[Boolean]@unchecked, v1: Code[Long]@unchecked),
+              r2: Code[Region], (m2: Code[Boolean]@unchecked, v2: Code[Long]@unchecked)) =>
+          val mk1 = Code(mk1l := ttype.isFieldMissing(r1, v1, 0), mk1l)
+          val mk2 = Code(mk2l := ttype.isFieldMissing(r2, v2, 0), mk2l)
+          val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
+          val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+          val cmp = mb.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+          (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
+      }
     }
     val ceq: CodeOrdering.F[Boolean] = {
-      case (r1: Code[Region],
-      (m1: Code[Boolean] @unchecked, v1: Code[Long] @unchecked),
-      r2: Code[Region] @unchecked,
-      (m2: Code[Boolean] @unchecked, v2: Code[Long] @unchecked)) =>
-        val mk1 = Code(mk1l := m1 || ttype.isFieldMissing(r1, v1, 0), mk1l)
-        val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l)
-        val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
-        val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+      val mk1l = mb.newLocal[Boolean]
+      val mk2l = mb.newLocal[Boolean]
 
-        mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+      { case (r1: Code[Region], (m1: Code[Boolean]@unchecked, v1: Code[Long]@unchecked),
+              r2: Code[Region]@unchecked, (m2: Code[Boolean]@unchecked, v2: Code[Long]@unchecked)) =>
+          val mk1 = Code(mk1l := m1 || ttype.isFieldMissing(r1, v1, 0), mk1l)
+          val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(r2, v2, 0), mk2l)
+          val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
+          val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+
+          mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+      }
     }
 
     (comp, ceq)
@@ -47,16 +50,15 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
       mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv, missingGreatest = true))
 
   def sort(): Code[Unit] = {
-    val sort = mb.fb.newMethod[Region, Int, Int, Unit]
-    val region = sort.getArg[Region](1)
-    val start = sort.getArg[Int](2)
-    val end = sort.getArg[Int](3)
+    val region = sortmb.getArg[Region](1)
+    val start = sortmb.getArg[Int](2)
+    val end = sortmb.getArg[Int](3)
 
-    val pi: LocalRef[Int] = sort.newLocal[Int]
-    val i: LocalRef[Int] = sort.newLocal[Int]
+    val pi: LocalRef[Int] = sortmb.newLocal[Int]
+    val i: LocalRef[Int] = sortmb.newLocal[Int]
 
-    val m1: LocalRef[Boolean] = sort.newLocal[Boolean]
-    val v1: LocalRef[_] = sort.newLocal(ti)
+    val m1: LocalRef[Boolean] = sortmb.newLocal[Boolean]
+    val v1: LocalRef[_] = sortmb.newLocal(ti)
 
     def loadPivot(start: Code[Int], end: Code[Int]): Code[Unit] = {
       def median(v1: Code[Int], v2: Code[Int], v3: Code[Int]): Code[Int] = {
@@ -89,7 +91,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
         array.setMissing(j, m1),
         m1.mux(Code._empty, array.update(j, v1)))
 
-    sort.emit(Code(
+    sortmb.emit(Code(
       loadPivot(start, end),
       i := start,
       Code.whileLoop(i < pi,
@@ -100,10 +102,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
               Code(swap(pi, pi - 1), swap(i, pi))),
             pi += -1),
           i += 1)),
-      (start < pi - 1).mux(sort.invoke(region, start, pi - 1), Code._empty),
-      (pi + 1 < end).mux(sort.invoke(region, pi + 1, end), Code._empty)))
+      (start < pi - 1).mux(sortmb.invoke(region, start, pi - 1), Code._empty),
+      (pi + 1 < end).mux(sortmb.invoke(region, pi + 1, end), Code._empty)))
 
-    sort.invoke(mb.getArg[Region](1), 0, array.size - 1)
+    sortmb.invoke(mb.getArg[Region](1), 0, array.size - 1)
   }
 
   def toRegion(): Code[Long] = {
