@@ -2194,7 +2194,8 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> pli_dict = dataset.index_globals().pli
+        >>> dataset1 = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014})
+        >>> pli_dict = dataset1.index_globals().pli
         >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(lambda x: pli_dict.get(x)))
 
         Returns
