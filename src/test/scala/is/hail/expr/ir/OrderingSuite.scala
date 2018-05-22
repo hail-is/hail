@@ -7,9 +7,10 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class OrderingSuite {
+class OrderingSuite extends TestNGSuite {
 
   def recursiveSize(t: Type): Int = {
     val inner = t match {
@@ -182,7 +183,7 @@ class OrderingSuite {
     val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
       val array: IndexedSeq[Row] = a ++ a
       val irF = { irs: Seq[IR] => ToDict(irs(0)) }
-      val f = getCompiledFunction(irF, TArray(telt), TArray(telt))
+      val f = getCompiledFunction(irF, TArray(telt), TArray(+telt))
 
       Region.scoped { region =>
         val actual = f(region, Seq(array)).asInstanceOf[IndexedSeq[Row]]
