@@ -198,9 +198,9 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
-    val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
-      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction4[A1, A2, A3, A4, R]] = {
+    val df = new DependentEmitFunction[AsmFunction4[A1, A2, A3, A4, R]](
+      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R])
     children += df
     df
   }
