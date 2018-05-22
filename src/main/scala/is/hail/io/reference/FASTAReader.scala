@@ -71,7 +71,7 @@ object FASTAReader {
 }
 
 class FASTAReader(hConf: SerializableHadoopConfiguration, rg: ReferenceGenome,
-  fastaFile: String, indexFile: String, blockSize: Int, capacity: Int) extends Serializable {
+  val fastaFile: String, val indexFile: String, blockSize: Int, capacity: Int) extends Serializable {
 
   val reader = new SerializableReferenceSequenceFile(hConf, fastaFile, indexFile)
   assert(reader.value.isIndexed)

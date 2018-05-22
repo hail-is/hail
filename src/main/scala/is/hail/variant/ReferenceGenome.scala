@@ -465,10 +465,25 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     assert(nChunks > 0)
 
     val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
-    val stringAssembler =
+    val fromString =
       chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
-    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
+    val sequenceFiles = Option(fastaReader).map { fr => (fr.fastaFile, fr.indexFile) }
+    val liftoverFiles = liftoverMaps.toArray.map { case (destRG, lo) => (destRG, lo.chainFile) }.toFastIndexedSeq
+
+    (sequenceFiles, liftoverFiles) match {
+      case (None, IndexedSeq()) =>
+        Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", fromString)
+
+      case (Some(fr), IndexedSeq()) =>
+        Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parseWithSequence", fromString, fr.fastaFile, fr.indexFile)
+
+      case (None, _) => //parse reference sequence
+
+      case _ => //parse everything
+
+    }
+
   }
 
   private[this] var registeredFunctions: Set[String] = null

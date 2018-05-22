@@ -44,7 +44,7 @@ object LiftOver {
   }
 }
 
-class LiftOver(hConf: SerializableHadoopConfiguration, chainFile: String) extends Serializable {
+class LiftOver(hConf: SerializableHadoopConfiguration, val chainFile: String) extends Serializable {
   val lo = new SerializableHtsjdkLiftOver(hConf, chainFile)
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): is.hail.utils.Interval = {
