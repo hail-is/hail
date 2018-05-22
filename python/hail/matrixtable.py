@@ -165,10 +165,6 @@ class GroupedMatrixTable(ExprContainer):
         Aggregate to a matrix with cohort as column keys, computing the call rate
         as an entry field:
 
-        .. testsetup::
-
-            dataset = dataset.annotate_cols(cohort = 'cohort')
-
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
         ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
 
@@ -1010,10 +1006,6 @@ class MatrixTable(ExprContainer):
         Examples
         --------
         Select one existing field and compute a new one:
-
-        .. testsetup::
-
-            dataset = dataset.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
         >>> dataset_result = dataset.select_globals(dataset.global_field_1,
         ...                                         another_global=['AFR', 'EUR', 'EAS', 'AMR', 'SAS'])

@@ -1646,11 +1646,6 @@ class Table(ExprContainer):
 
         Take the union of rows from two tables:
 
-        .. testsetup::
-
-            table = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
-            other_table = table
-
         >>> union_table = table1.union(other_table)
 
         Notes

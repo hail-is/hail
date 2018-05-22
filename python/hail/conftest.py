@@ -65,7 +65,7 @@ def init(doctest_namespace):
                           cov2=hl.rand_norm(0, 1))
     ds = ds.annotate_globals(global_field_1=5, global_field_2=10)
     ds = ds.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
-                             populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
+                             populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS', cohort='cohort')
