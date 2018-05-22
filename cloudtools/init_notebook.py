@@ -38,6 +38,7 @@ if role == 'Master':
         'jupyter-spark',
         'bokeh',
         'ipywidgets',
+        'google-cloud=0.32.0',
         'jgscm'
     ]
 
