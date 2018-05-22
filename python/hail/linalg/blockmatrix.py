@@ -1596,6 +1596,8 @@ class BlockMatrix(object):
             Defaults to (and cannot exceed) the number of rectangles.
         """
         n_rectangles = len(rectangles)
+        if n_rectangles == 0:
+            raise ValueError('no rectangles provided')
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 

@@ -533,6 +533,8 @@ class Tests(unittest.TestCase):
                       [ 9., 10.,  0.,  0.],
                       [13., 14.,  0.,  0.]])))
 
+        self.assertTrue(np.array_equal(bm.sparsify_rectangles([]).to_numpy(), np.zeros(shape=(4, 4))))
+                        
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
