@@ -31,12 +31,6 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(bind(I32(5), x => ApplyBinaryPrimOp(Subtract(), x, I32(1))), 4)
     assertEvalsTo(bind(I32(5), I32(3), (x, y) => ApplyBinaryPrimOp(Subtract(), x, y)), 2)
   }
-  
-  @Test def testNonstrictEQ() {
-    assertEvalsTo(nonstrictEQ(NA(TInt32()), NA(TInt32())), true)
-    assertEvalsTo(nonstrictEQ(I32(5), I32(5)), true)
-    assertEvalsTo(nonstrictEQ(NA(TInt32()), I32(5)), false)
-  }
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)

@@ -78,15 +78,4 @@ package object ir {
     val b2 = IRBinding(v2, x2.typ)
     Let(v1, x1, Let(v2, x2, f(b1, b2)))
   }
-
-  def nonstrictEQ(l: IR, r: IR): IR = {
-    // FIXME better as a (non-strict) BinaryOp?
-    assert(l.typ == r.typ)
-    bind(l, r, (lx, rx) =>
-      If(IsNA(lx),
-        IsNA(rx),
-        If(IsNA(rx),
-          False(),
-          ApplyComparisonOp(EQ(l.typ), lx, rx))))
-  }
 }
