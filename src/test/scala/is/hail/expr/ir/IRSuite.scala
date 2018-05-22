@@ -8,25 +8,6 @@ import org.scalatest.testng.TestNGSuite
 
 class IRSuite extends TestNGSuite {
 
-  @Test def testArrayFilter() {
-    val naa = NA(TArray(TInt32()))
-        val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
-
-    assertEvalsTo(ArrayFilter(naa, "x", True()), null)
-
-    assertEvalsTo(ArrayFilter(a, "x", NA(TBoolean())), FastIndexedSeq())
-    assertEvalsTo(ArrayFilter(a, "x", False()), FastIndexedSeq())
-    assertEvalsTo(ArrayFilter(a, "x", True()), FastIndexedSeq(3, null, 7))
-
-    assertEvalsTo(ArrayFilter(a, "x",
-      IsNA(Ref("x", TInt32()))), FastIndexedSeq(null))
-    assertEvalsTo(ArrayFilter(a, "x",
-      ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
-
-    assertEvalsTo(ArrayFilter(a, "x",
-      ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
-  }
-
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
@@ -107,5 +88,54 @@ class IRSuite extends TestNGSuite {
   @Test def testMakeArray() {
     assertEvalsTo(MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())), FastIndexedSeq(5, null, -3))
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
+  }
+
+  @Test def testArrayRef() {
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(0)), 5)
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(0)), null)
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), NA(TInt32())), null)
+  }
+
+  @Test def testArrayLen() {
+    assertEvalsTo(ArrayLen(NA(TArray(TInt32()))), null)
+    assertEvalsTo(ArrayLen(MakeArray(FastIndexedSeq(), TArray(TInt32()))), 0)
+    assertEvalsTo(ArrayLen(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32()))), 2)
+  }
+
+  @Test def testArrayRange() {
+    for {
+      start <- 0 to 2
+      stop <- start to 10
+      step <- 1 to 3
+    } {
+      assertEvalsTo(
+        ArrayRange(I32(start), I32(stop), I32(step)),
+        IndexedSeq.range(start, stop, step))
+    }
+
+    val (start, stop, step) = (Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
+    val len = Range.count(start, stop, step, isInclusive = false)
+    assertEvalsTo(
+      ArrayRange(I32(start), I32(stop), I32(step)),
+      IndexedSeq.tabulate(len)(start + _ * step))
+  }
+
+  @Test def testArrayFilter() {
+    val naa = NA(TArray(TInt32()))
+    val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
+
+    assertEvalsTo(ArrayFilter(naa, "x", True()), null)
+
+    assertEvalsTo(ArrayFilter(a, "x", NA(TBoolean())), FastIndexedSeq())
+    assertEvalsTo(ArrayFilter(a, "x", False()), FastIndexedSeq())
+    assertEvalsTo(ArrayFilter(a, "x", True()), FastIndexedSeq(3, null, 7))
+
+    assertEvalsTo(ArrayFilter(a, "x",
+      IsNA(Ref("x", TInt32()))), FastIndexedSeq(null))
+    assertEvalsTo(ArrayFilter(a, "x",
+      ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
+
+    assertEvalsTo(ArrayFilter(a, "x",
+      ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 }

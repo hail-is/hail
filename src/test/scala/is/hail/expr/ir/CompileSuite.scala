@@ -647,19 +647,6 @@ class CompileSuite {
     assert(fb.result()()("X", "Y") == expected)
   }
 
-  @Test
-  def testStringConstantWorks() {
-    val ir = Str("hello")
-
-    val fb = EmitFunctionBuilder[Region, Long]
-    doit(ir, fb)
-    val f = fb.result()()
-
-    val region = Region()
-    val off = f(region)
-    assert(TString.loadString(region, off) == "hello")
-  }
-
   @Test def testSelectFields() {
     val ir = SelectFields(
       MakeStruct(FastSeq(
