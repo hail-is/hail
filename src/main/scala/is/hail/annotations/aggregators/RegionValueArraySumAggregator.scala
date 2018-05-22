@@ -36,14 +36,19 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
 
   def combOp(_that: RegionValueAggregator) {
     val that = _that.asInstanceOf[RegionValueArraySumLongAggregator]
-    if (that.sum.length != sum.length)
+    if (that.sum != null && sum != null && that.sum.length != sum.length)
       fatal(
         s"""cannot aggregate arrays of unequal length with `sum'
                |Found conflicting arrays of size (${ sum.length })
                |and (${ that.sum.length })""".stripMargin)
-    var i = 0
-    while (i < sum.length) {
-      sum(i) += that.sum(i)
+    if (sum == null)
+      sum = that.sum
+    else if (that.sum != null) {
+      var i = 0
+      while (i < sum.length) {
+        sum(i) += that.sum(i)
+        i += 1
+      }
     }
   }
 
@@ -57,7 +62,7 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
+  def copy(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator()
 
   def clear() {
     sum = null
@@ -96,14 +101,19 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
 
   def combOp(_that: RegionValueAggregator) {
     val that = _that.asInstanceOf[RegionValueArraySumDoubleAggregator]
-    if (that.sum.length != sum.length)
+    if (that.sum != null && sum != null && that.sum.length != sum.length)
       fatal(
         s"""cannot aggregate arrays of unequal length with `sum'
                |Found conflicting arrays of size (${ sum.length })
                |and (${ that.sum.length })""".stripMargin)
-    var i = 0
-    while (i < sum.length) {
-      sum(i) += that.sum(i)
+    if (sum == null)
+      sum = that.sum
+    else if (that.sum != null) {
+      var i = 0
+      while (i < sum.length) {
+        sum(i) += that.sum(i)
+        i += 1
+      }
     }
   }
 
@@ -117,7 +127,7 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
+  def copy(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator()
 
   def clear() {
     sum = null

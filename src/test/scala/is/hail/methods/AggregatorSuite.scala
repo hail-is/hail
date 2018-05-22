@@ -437,4 +437,20 @@ class AggregatorSuite extends SparkSuite {
     assert(kt.aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
     assert(kt.union(kt, kt).aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
   }
+
+  @Test def testArraySumInt64() {
+    val kt = Table.range(hc, 100, nPartitions = Some(10))
+
+    assert(kt.select("{foo : [row.idx]}", Some(IndexedSeq("foo")))
+      .aggregate("AGG.map(r => r.foo).sum()")._1
+      == Seq((0 until 100).sum))
+  }
+
+  @Test def testArraySumFloat64() {
+    val kt = Table.range(hc, 100, nPartitions = Some(10))
+
+    assert(kt.select("{foo : [row.idx.toFloat64()/2.0]}", Some(IndexedSeq("foo")))
+      .aggregate("AGG.map(r => r.foo).sum()")._1
+      == Seq((0 until 100).map(_ / 2.0).sum))
+  }
 }
