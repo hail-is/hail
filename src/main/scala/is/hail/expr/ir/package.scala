@@ -5,8 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 
-import scala.language.implicitConversions
-
 package object ir {
   var uidCounter: Long = 0
 
