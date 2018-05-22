@@ -27,11 +27,6 @@ class IRSuite extends TestNGSuite {
       ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 
-  @Test def testBind() {
-    assertEvalsTo(bind(I32(5), x => ApplyBinaryPrimOp(Subtract(), x, I32(1))), 4)
-    assertEvalsTo(bind(I32(5), I32(3), (x, y) => ApplyBinaryPrimOp(Subtract(), x, y)), 2)
-  }
-
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }

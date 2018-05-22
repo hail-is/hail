@@ -60,22 +60,4 @@ package object ir {
 
   def invoke(name: String, args: IR*): IR =
     IRFunctionRegistry.lookupConversion(name, args.map(_.typ)).get(args)
-
-  case class IRBinding(v: String, t: Type)
-
-  implicit def irBindingToIR(b: IRBinding): IR = Ref(b.v, b.t)
-
-  def bind(x: IR, f: (IRBinding) => IR): IR = {
-    val v = genUID()
-    val b = IRBinding(v, x.typ)
-    Let(v, x, f(b))
-  }
-
-  def bind(x1: IR, x2: IR, f: (IRBinding, IRBinding) => IR): IR = {
-    val v1 = genUID()
-    val v2 = genUID()
-    val b1 = IRBinding(v1, x1.typ)
-    val b2 = IRBinding(v2, x2.typ)
-    Let(v1, x1, Let(v2, x2, f(b1, b2)))
-  }
 }

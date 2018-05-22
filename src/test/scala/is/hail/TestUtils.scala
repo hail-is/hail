@@ -256,55 +256,6 @@ object TestUtils {
       .exportGen(path, precision)
   }
 
-  def eval(x: IR, env: Env[(Any, Type)]): Any = {
-    val (substEnv, args) = env.m.toFastSeq
-      .zipWithIndex
-      .foldLeft((Env.empty[IR], FastSeq.empty[(Any, Type)])) { case ((e, xs), ((n, (v, t)), i)) => (e.bind(n, In(i, t)), xs :+  (v, t)) }
-    eval(Subst(x, substEnv), args)
-  }
-
-  def eval(x: IR, args: IndexedSeq[(Any, Type)]): Any = {
-    val i = Interpret[Any](x, Env.empty[(Any, Type)], args, None)
-
-    val i2 = Interpret[Any](x, Env.empty[(Any, Type)], args, None, optimize = false)
-    assert(i == i2)
-
-    // verify compiler and interpreter agree
-    val argsVar = genUID()
-    val argsType = TTuple(args.map(_._2): _*)
-    val resultType = TTuple(x.typ)
-
-    def rewrite(x: IR): IR = {
-      x match {
-        case In(i, t) =>
-          GetTupleElement(Ref(argsVar, argsType), i)
-        case _ =>
-          Recur(rewrite)(x)
-      }
-    }
-
-    val (resultType2, f) = Compile[Long, Long]("args", argsType, MakeTuple(FastSeq(rewrite(x))))
-    assert(resultType2 == resultType)
-
-    val c = Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(argsType)
-      rvb.startTuple()
-      args.foreach { case (v, t) =>
-          rvb.addAnnotation(t, v)
-      }
-      rvb.endTuple()
-      val argsOff = rvb.end()
-
-      val resultOff = f()(region, argsOff, false)
-      SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
-    }
-
-    assert(i == c)
-
-    i
-  }
-
   def assertEvalsTo(x: IR, expected: Any) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
   }
