@@ -1835,17 +1835,22 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
   }
 }
 
-case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
+// Must not modify key ordering.
+// newKey is key of resulting Table, if newKey=None then result is unkeyed.
+// preservedKeyFields is length of initial sequence of key fields whose values are unchanged.
+// Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
+// partition bounds will remain valid.
+case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
     val newRowType = newRow.typ.asInstanceOf[TStruct]
-    child.typ.copy(rowType = newRowType, key = newKey.orElse(child.typ.key))
+    child.typ.copy(rowType = newRowType, key = newKey)
   }
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
-    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey)
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey, preservedKeyFields)
   }
 
   override def partitionCounts: Option[Array[Long]] = child.partitionCounts
@@ -1859,7 +1864,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
-    val newRVD = tv.rvd.mapPartitions(typ.rowType) { it =>
+    val itF: (Iterator[RegionValue]) => Iterator[RegionValue] = { it =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -1873,13 +1878,32 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
         rv2
       }
     }
-    TableValue(typ,
-      tv.globals,
-      typ.key match {
-        case Some(_) => newRVD
-        case None => newRVD.toUnpartitionedRVD
-      }
-      )
+    val newRVD = tv.rvd match {
+      case ordered: OrderedRVD =>
+        typ.key match {
+          case Some(key) =>
+            val pkLength = ordered.typ.partitionKey.length
+            if (pkLength <= preservedKeyFields.get) {
+              val newType = ordered.typ.copy(
+                partitionKey = key.take(pkLength).toArray,
+                key = key.toArray,
+                rowType = typ.rowType)
+              ordered.mapPartitionsPreservesPartitioning(newType)(itF)
+            } else {
+              val newType = ordered.typ.copy(
+                partitionKey = key.toArray,
+                key = key.toArray,
+                rowType = typ.rowType)
+              OrderedRVD.coerce(newType, ordered.mapPartitions(typ.rowType)(itF))
+            }
+          case None =>
+            ordered.mapPartitions(typ.rowType)(itF)
+        }
+      case unordered: UnpartitionedRVD =>
+        unordered.mapPartitions(typ.rowType)(itF)
+    }
+
+    TableValue(typ, tv.globals, newRVD)
   }
 }
 

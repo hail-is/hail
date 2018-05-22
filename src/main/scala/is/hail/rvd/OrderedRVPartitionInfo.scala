@@ -75,7 +75,7 @@ object OrderedRVPartitionInfo {
         if (i < sampleSize)
           samples(i) = WritableRegionValue(typ.pkType, f, localctx.freshRegion)
         else {
-          val j = rng.nextInt(i)
+          val j = if (i > 0) rng.nextInt(i) else 0
           if (j < sampleSize)
             samples(j).set(f)
         }

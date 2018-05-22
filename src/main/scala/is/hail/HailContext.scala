@@ -465,7 +465,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZip(forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        keyNames, skipBlankLines)
+        skipBlankLines).keyBy(keyNames.map(_.toArray), sort = false)
     }
   }
 

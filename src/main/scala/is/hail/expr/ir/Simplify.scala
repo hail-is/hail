@@ -126,7 +126,7 @@ object Simplify {
 
       case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
 
-      case TableCount(TableMapRows(child, _, _)) => TableCount(child)
+      case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
 
       case TableCount(TableUnion(children)) =>
         children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))

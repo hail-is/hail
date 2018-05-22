@@ -380,23 +380,47 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
-    @typecheck_method(caller=str, key_struct=nullable(expr_struct()), value_struct=nullable(expr_struct()))
-    def _select(self, caller, key_struct=None, value_struct=None):
-        if key_struct is None:
+    @typecheck_method(caller=str, key_struct=oneof(nullable(expr_struct()), exactly("default")), value_struct=nullable(expr_struct()))
+    def _select(self, caller, key_struct="default", value_struct=None):
+        def is_copy(ast, name):
+            return (isinstance(ast, Select) and
+                ast.name == name and
+                isinstance(ast.parent, TopLevelReference) and
+                ast.parent.name == 'row' and
+                ast.parent.indices.source is self
+                )
+        if isinstance(key_struct, str):
             assert value_struct is not None
-            new_key = None
+            preserved_key = preserved_key_new = new_key = list(self.key.keys()) if self.key is not None else None
             row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
-        else:
+        elif key_struct is not None:
+            if self.key is None:
+                preserved_key_pairs = []
+            else:
+                preserved_key_pairs = list(map(lambda pair: (pair[1]._ast.name, pair[0]),
+                    itertools.takewhile(
+                        lambda pair: is_copy(pair[1]._ast, pair[2]),
+                        zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
+            (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
             new_key = list(key_struct.keys())
             if value_struct is None:
                 row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
             else:
                 row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
+        else:
+            preserved_key = preserved_key_new = new_key = None
+            row = value_struct if value_struct is not None else hl.struct()
 
         base, cleanup = self._process_joins(row)
         analyze(caller, row, self._row_indices)
 
-        t = cleanup(Table(base._jt.select(row._ast.to_hql(), new_key)))
+        jt = base._jt
+        if self.key is not None and preserved_key != list(self.key):
+            jt = jt.keyBy(preserved_key)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
+        if new_key != preserved_key_new:
+            jt = jt.keyBy(new_key)
+        t = cleanup(Table(jt))
         return t
 
     @typecheck_method(caller=str, s=expr_struct())
@@ -1289,7 +1313,7 @@ class Table(ExprContainer):
             def joiner(left):
                 left = Table(left._jt.select(ApplyMethod('annotate',
                                                          left._row._ast,
-                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None)).key_by(*uids)
+                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)).key_by(*uids)
                 left = Table(left._jt.join(right.distinct()._jt, 'left'))
                 return left
 
@@ -1972,7 +1996,7 @@ class Table(ExprContainer):
             new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
             new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
-                                  key_struct=hl.struct(**new_keys) if new_keys else None,
+                                  key_struct=hl.struct(**new_keys) if new_keys else "default",
                                   value_struct=hl.struct(**new_values))
         if global_map:
             table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})

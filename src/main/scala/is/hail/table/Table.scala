@@ -528,7 +528,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
 
-  def keyBy(keys: java.util.ArrayList[String]): Table = keyBy(keys, keys)
+  def keyBy(keys: java.util.ArrayList[String]): Table =
+    keyBy(Option(keys).map(_.asScala.toArray), true)
 
   def keyBy(
     keys: java.util.ArrayList[String],
@@ -553,17 +554,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))
 
-  def select(expr: String, newKey: java.util.ArrayList[String]): Table =
-    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
+  def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
+    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
-  def select(expr: String, newKey: Option[IndexedSeq[String]]): Table = {
+  def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
       case Some(ir) if useIR(ast) =>
-        new Table(hc, TableMapRows(tir, ir, newKey))
+        new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
         val newSignature = t.asInstanceOf[TStruct]
@@ -574,7 +575,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           f().asInstanceOf[Row]
         }
 
-        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey.orElse(key))
+        copy(rdd = rdd.map(annotF), signature = newSignature, key = newKey)
     }
   }
 
@@ -586,13 +587,16 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def distinctByKey(): Table = {
-    require(!key.isEmpty)
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).distinctByKey())
+    require(key.isDefined)
+    val sorted = keyBy(key.get.toArray, sort = true)
+    sorted.copy2(rvd = sorted.rvd.asInstanceOf[OrderedRVD].distinctByKey())
   }
 
   def groupByKey(name: String): Table = {
-    require(!key.isEmpty)
-    copy2(rvd = toOrderedRVD(hintPartitioner = None, partitionKeys = key.get.length).groupByKey(name),
+    require(key.isDefined)
+    val sorted = keyBy(key.get.toArray, sort = true)
+    sorted.copy2(
+      rvd = sorted.rvd.asInstanceOf[OrderedRVD].groupByKey(name),
       signature = keySignature.get ++ TStruct(name -> TArray(valueSignature)))
   }
 
@@ -861,8 +865,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newKey: Option[IndexedSeq[String]] = keyFieldIdx.map(_.flatMap { i =>
       newFields(i).map { case (n, _) => n }
     })
+    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
 
-    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey))
+    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields))
   }
 
   // expandTypes must be called before toDF
