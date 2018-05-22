@@ -471,19 +471,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val sequenceFiles = Option(fastaReader).map { fr => (fr.fastaFile, fr.indexFile) }
     val liftoverFiles = liftoverMaps.toArray.map { case (destRG, lo) => (destRG, lo.chainFile) }.toFastIndexedSeq
 
-    (sequenceFiles, liftoverFiles) match {
-      case (None, IndexedSeq()) =>
+    var rg: Code[ReferenceGenome] = sequenceFiles match {
+      case None =>
         Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", fromString)
-
-      case (Some(fr), IndexedSeq()) =>
-        Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parseWithSequence", fromString, fr.fastaFile, fr.indexFile)
-
-      case (None, _) => //parse reference sequence
-
-      case _ => //parse everything
-
+      case Some((fasta, index)) =>
+        Code.invokeScalaObject[String, String, String, ReferenceGenome](ReferenceGenome.getClass, "parseWithSequence", fromString, fasta, index)
     }
 
+    for ((destRG, filename) <- liftoverFiles) {
+      rg = rg.invoke[String, String, ReferenceGenome]("withLiftover", destRG, filename)
+    }
+    rg
   }
 
   private[this] var registeredFunctions: Set[String] = null
@@ -557,6 +555,11 @@ object ReferenceGenome {
   def parse(str: String): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
+  }
+
+  def parseWithSequence(str: String, fasta: String, index: String): ReferenceGenome = {
+    val rg = parse(str)
+    rg.addSequence(hc, fasta, index)
   }
 
   def fromResource(file: String): ReferenceGenome = {
