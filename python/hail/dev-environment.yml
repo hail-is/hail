@@ -12,6 +12,7 @@ dependencies:
 - bokeh
 - jupyter
 - pip
+- pytest
 - pip:
     - parsimonious
     - ipykernel
