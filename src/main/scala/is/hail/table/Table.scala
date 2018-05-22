@@ -13,6 +13,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.commons.lang3.StringUtils
+import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -1147,5 +1148,96 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val orderedKTType = new OrderedRVDType(key.get.take(partitionKeys).toArray, key.get.toArray, signature)
     assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
     OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
+  }
+
+  def intervalJoin(other: Table, fieldName: String): Table = {
+    assert(other.keySignature.exists(s => s.size == 1 && s.types(0).isInstanceOf[TInterval]))
+    val intervalType = other.keySignature.get.types(0).asInstanceOf[TInterval]
+    assert(keySignature.exists(s => s.size == 1 && s.types(0) == intervalType.pointType))
+
+    val leftORVD = rvd match {
+      case ordered: OrderedRVD => ordered
+      case unordered =>
+        OrderedRVD.coerce(
+          new OrderedRVDType(key.get.toArray, key.get.toArray, signature),
+          unordered)
+    }
+
+
+    val typOrdering = intervalType.pointType.ordering
+
+    val typToInsert: Type = other.valueSignature
+
+    val (newRVType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
+
+    val partBc = hc.sc.broadcast(leftORVD.partitioner)
+    val rightSignature = other.signature
+    val rightKeyFieldIdx = other.keyFieldIdx.get(0)
+    val rightValueFieldIdx = other.valueFieldIdx
+    val partitionKeyedIntervals = other.rvd.boundary.crdd
+      .cflatMap { (ctx, rv) =>
+        val region = ctx.region
+        val r = SafeRow(rightSignature, rv)
+        val ur = new UnsafeRow(rightSignature, rv)
+        val interval = ur.getAs[Interval](rightKeyFieldIdx)
+        if (interval != null) {
+          val rangeTree = partBc.value.rangeTree
+          val pkOrd = partBc.value.pkType.ordering
+          val wrappedInterval = interval.copy(
+            start = Row(Annotation.copy(intervalType.pointType, interval.start)),
+            end = Row(Annotation.copy(intervalType.pointType, interval.end)))
+          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+        } else
+          Iterator()
+      }
+
+    val nParts = rvd.getNumPartitions
+    val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
+      def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+      def numPartitions: Int = nParts
+    }).values
+
+    val localRVRowType = signature
+    val pkIndex = signature.fieldIdx(key.get(0))
+    val newTableType = typ.copy(rowType = newRVType)
+    val newOrderedRVType = new OrderedRVDType(key.get.toArray, key.get.toArray, newRVType)
+    val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
+      newOrderedRVType,
+      zipRDD
+    ) { case (it, intervals) =>
+      val intervalAnnotations: Array[(Interval, Any)] =
+        intervals.map { r =>
+          val interval = r.getAs[Interval](rightKeyFieldIdx)
+          (interval, Row.fromSeq(rightValueFieldIdx.map(r.get)))
+        }.toArray
+
+      val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
+
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
+      it.map { rv =>
+        val ur = new UnsafeRow(localRVRowType, rv)
+        val pk = ur.get(pkIndex)
+        val queries = iTree.queryValues(typOrdering, pk)
+        val value = if (queries.isEmpty)
+          null
+        else
+          queries(0)
+        assert(typToInsert.typeCheck(value))
+
+        rvb.set(rv.region)
+        rvb.start(newRVType)
+
+        ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
+
+        rv2.set(rv.region, rvb.end())
+
+        rv2
+      }
+    }
+
+    copy2(rvd = newRVD, signature = newRVType)
   }
 }

@@ -1264,8 +1264,7 @@ class Table(ExprContainer):
             left = list(left)
             right = list(right)
             return (types_match(left, right)
-                    or (isinstance(src, MatrixTable)
-                        and len(left) == 1
+                    or (len(left) == 1
                         and len(right) == 1
                         and isinstance(left[0].dtype, tinterval)
                         and left[0].dtype.point_type == right[0].dtype))
@@ -1296,17 +1295,29 @@ class Table(ExprContainer):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            right = self.select(**{uid: self.row})
-            uids = [Env.get_uid() for i in range(len(exprs))]
+            is_key = len(exprs) == len(src.key) and all(
+                exprs[i] is src._fields[list(src.key)[i]] for i in range(len(exprs)))
+            is_interval = (len(self.key) == 1
+                           and isinstance(self.key[0].dtype, hl.tinterval)
+                           and exprs[0].dtype == self.key[0].dtype.point_type)
+
+            if not is_key:
+                uids = [Env.get_uid() for i in range(len(exprs))]
+                all_uids = uids[:]
+            else:
+                all_uids = []
 
             def joiner(left):
-                left = Table(left._jt.select(ApplyMethod('annotate',
-                                                         left._row._ast,
-                                                         hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)).key_by(*uids)
-                left = Table(left._jt.join(right.distinct()._jt, 'left'))
-                return left
+                if not is_key:
+                    left = Table(left._jt.select(ApplyMethod('annotate',
+                                                             left._row._ast,
+                                                             hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)).key_by(*uids)
+                if is_interval:
+                    return Table(left._jt.intervalJoin(self._jt, uid))
+                else:
+                    right = self.select(**{uid: self.row})
+                    return Table(left._jt.join(right.distinct()._jt, 'left'))
 
-            all_uids = uids[:]
             all_uids.append(uid)
             ast = Join(Select(TopLevelReference('row', src._row_indices), uid),
                        all_uids,

@@ -420,6 +420,15 @@ class TableTests(unittest.TestCase):
         kt2 = kt2.annotate_globals(kt_foo=kt.index_globals().foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
 
+    def test_interval_join(self):
+        left = hl.utils.range_table(50, n_partitions=10)
+        intervals = hl.utils.range_table(4)
+        intervals = intervals.key_by(interval = hl.interval(intervals.idx * 10, intervals.idx * 10 + 5))
+        left = left.annotate(interval_matches = intervals.index(left.key))
+        self.assertTrue(left.all(hl.case()
+                                 .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
+                                 .default(hl.is_missing(left.interval_matches))))
+
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
         kt2 = kt.head(0)
