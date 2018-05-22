@@ -38,7 +38,7 @@ if role == 'Master':
         'jupyter-spark',
         'bokeh',
         'ipywidgets',
-        'google-cloud=0.32.0',
+        'google-cloud==0.32.0',
         'jgscm'
     ]
 
@@ -50,6 +50,10 @@ if role == 'Master':
     else:
         pkgs.extend(user_pkgs.split(','))
 
+    call('/opt/conda/bin/conda update setuptools', shell=True)
+    for pkg in pkgs:
+        call('/opt/conda/bin/pip install {}'.format(pkg), shell=True)
+
     py4j = decode_f(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
 
     jar_path = get_metadata('JAR')
@@ -57,10 +61,6 @@ if role == 'Master':
 
     call(['gsutil', 'cp', jar_path, '/home/hail/hail.jar'])
     call(['gsutil', 'cp', zip_path, '/home/hail/hail.zip'])
-
-    call('/opt/conda/bin/conda update setuptools', shell=True)
-    for pkg in pkgs:
-        call('/opt/conda/bin/pip install {}'.format(pkg), shell=True)
 
     env_to_set = {
         'PYTHONHASHSEED': '0',
