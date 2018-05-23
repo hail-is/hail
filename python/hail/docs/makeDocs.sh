@@ -2,9 +2,6 @@
 
 set -e
 
-# clean directories
-rm -rf build/www/ build/tmp/python build/tmp/docs
-
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 

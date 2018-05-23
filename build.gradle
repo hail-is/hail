@@ -101,13 +101,6 @@ task generateBuildInfo(type: Exec) {
     outputs.upToDateWhen { false }
 }
 
-task generateDistLinks(type: Exec) {
-    executable 'sh'
-    args(['generate-dist-links.sh'])
-    args(hailVersion)
-    args(deployedSparkVersions)
-}
-
 compileScala {
     dependsOn generateBuildInfo
 
@@ -382,6 +375,17 @@ task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
 
+task cleanDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
+}
+
+task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(deployedSparkVersions)
+}
+
 task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
     commandLine 'sh', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
@@ -389,7 +393,7 @@ task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash
-    environment SPHINXOPTS: '-tchecktutorial -j ' + parallelism
+    environment SPHINXOPTS: '-tchecktutorial'
 }
 
 task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
@@ -399,7 +403,7 @@ task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash
-    environment SPHINXOPTS: '-j ' + parallelism
+    environment SPHINXOPTS: ''
 }
 
 task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
