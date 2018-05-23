@@ -598,9 +598,9 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     .. code-block:: text
 
-        hail.nirvana.location = /path/to/dotnet/netcoreapp1.1/Nirvana.dll
+        hail.nirvana.location = /path/to/dotnet/netcoreapp2.0/Nirvana.dll
         hail.nirvana.reference = /path/to/nirvana/References/Homo_sapiens.GRCh37.Nirvana.dat
-        hail.nirvana.cache = /path/to/nirvana/Cache/GRCh37/Ensembl84
+        hail.nirvana.cache = /path/to/nirvana/Cache/GRCh37/Ensembl
         hail.nirvana.supplementaryAnnotationDirectory = /path/to/nirvana/SupplementaryDatabase/GRCh37
 
     **Annotations**
@@ -632,11 +632,13 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                 isReferenceMinor: bool,
                 variantType: str,
                 vid: str,
-                isRecomposed: bool,
+                hgvsg: str,
+                isRecomposedVariant: bool,
+                isDecomposedVariant: bool,
                 regulatoryRegions: array<struct {
                     id: str,
-                    consequence: set<str>,
-                    type: str
+                    type: str,
+                    consequence: set<str>
                 }>,
                 clinvar: array<struct {
                     id: str,
@@ -649,7 +651,6 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                     medGenIds: array<str>,
                     omimIds: array<str>,
                     orphanetIds: array<str>,
-                    geneReviewsId: str,
                     significance: str,
                     lastUpdatedDate: str,
                     pubMedIds: array<str>
@@ -670,43 +671,92 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                 dbsnp: struct {
                     ids: array<str>
                 },
-                evs: struct {
-                    coverage: int32,
-                    sampleCount: int32,
-                    allAf: float64,
-                    afrAf: float64,
-                    eurAf: float64
-                },
-                exac: struct {
-                    coverage: int32,
-                    allAf: float64,
-                    allAc: int32,
-                    allAn: int32,
-                    afrAf: float64,
-                    afrAc: int32,
-                    afrAn: int32,
-                    amrAf: float64,
-                    amrAc: int32,
-                    amrAn: int32,
-                    easAf: float64,
-                    easAc: int32,
-                    easAn: int32,
-                    finAf: float64,
-                    finAc: int32,
-                    finAn: int32,
-                    nfeAf: float64,
-                    nfeAc: int32,
-                    nfeAn: int32,
-                    othAf: float64,
-                    othAc: int32,
-                    othAn: int32,
-                    sasAf: float64,
-                    sasAc: int32,
-                    sasAn: int32
-                },
                 globalAllele: struct {
                     globalMinorAllele: str,
                     globalMinorAlleleFrequency: float64
+                },
+                gnomad: struct {
+                    coverage: str,
+                    allAf: float64,
+                    allAc: int32,
+                    allAn: int32,
+                    allHc: int32,
+                    afrAf: float64,
+                    afrAc: int32,
+                    afrAn: int32,
+                    afrHc: int32,
+                    amrAf: float64,
+                    amrAc: int32,
+                    amrAn: int32,
+                    amrHc: int32,
+                    easAf: float64,
+                    easAc: int32,
+                    easAn: int32,
+                    easHc: int32,
+                    finAf: float64,
+                    finAc: int32,
+                    finAn: int32,
+                    finHc: int32,
+                    nfeAf: float64,
+                    nfeAc: int32,
+                    nfeAn: int32,
+                    nfeHc: int32,
+                    othAf: float64,
+                    othAc: int32,
+                    othAn: int32,
+                    othHc: int32,
+                    asjAf: float64,
+                    asjAc: int32,
+                    asjAn: int32,
+                    asjHc: int32,
+                    failedFilter: bool
+                },
+                gnomadExome: struct {
+                    coverage: str,
+                    allAf: float64,
+                    allAc: int32,
+                    allAn: int32,
+                    allHc: int32,
+                    afrAf: float64,
+                    afrAc: int32,
+                    afrAn: int32,
+                    afrHc: int32,
+                    amrAf: float64,
+                    amrAc: int32,
+                    amrAn: int32,
+                    amrHc: int32,
+                    easAf: float64,
+                    easAc: int32,
+                    easAn: int32,
+                    easHc: int32,
+                    finAf: float64,
+                    finAc: int32,
+                    finAn: int32,
+                    finHc: int32,
+                    nfeAf: float64,
+                    nfeAc: int32,
+                    nfeAn: int32,
+                    nfeHc: int32,
+                    othAf: float64,
+                    othAc: int32,
+                    othAn: int32,
+                    othHc: int32,
+                    asjAf: float64,
+                    asjAc: int32,
+                    asjAn: int32,
+                    asjHc: int32,
+                    sasAf: float64,
+                    sasAc: int32,
+                    sasAn: int32,
+                    sasHc: int32,
+                    failedFilter: bool
+                },
+                topmed: struct {
+                    failedFilter: bool,
+                    allAc: int32,
+                    allAn: int32,
+                    allAf: float64,
+                    allHc: int32
                 },
                 oneKg: struct {
                     ancestralAllele: str,
@@ -729,12 +779,27 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                     sasAc: int32,
                     sasAn: int32
                 },
+                mitomap: array<struct {
+                    refAllele: str,
+                    altAllele: str,
+                    diseases : array<str>,
+                    hasHomoplasmy: bool,
+                    hasHeteroplasmy: bool,
+                    status: str,
+                    clinicalSignificance: str,
+                    scorePercentile: float64,
+                    isAlleleSpecific: bool,
+                    chromosome: str,
+                    begin: int32,
+                    end: int32,
+                    variantType: str
+                }
                 transcripts: struct {
                     refSeq: array<struct {
                         transcript: str,
                         bioType: str,
                         aminoAcids: str,
-                        cDnaPos: str,
+                        cdnaPos: str,
                         codons: str,
                         cdsPos: str,
                         exons: str,
@@ -756,7 +821,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                         transcript: str,
                         bioType: str,
                         aminoAcids: str,
-                        cDnaPos: str,
+                        cdnaPos: str,
                         codons: str,
                         cdsPos: str,
                         exons: str,
@@ -775,21 +840,27 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
                         siftPrediction: str
                     }>
                 },
-                genes: array<struct {
-                    name: str,
-                    omim: array<struct {
+                overlappingGenes: array<str>
+            }>
+            genes: array<struct {
+                name: str,
+                omim: array<struct {
+                    mimNumber: int32,
+                    hgnc: str,
+                    description: str,
+                    phenotypes: array<struct {
                         mimNumber: int32,
-                        hgnc: str,
-                        description: str,
-                        phenotypes: array<struct {
-                            mimNumber: int32,
-                            phenotype: str,
-                            mapping: str,
-                            inheritance: array<str>,
-                            comments: str
-                        }>
+                        phenotype: str,
+                        mapping: str,
+                        inheritance: array<str>,
+                        comments: str
                     }>
                 }>
+                exac: struct {
+                    pLi: float64,
+                    pRec: float64,
+                    pNull: float64
+                }
             }>
         }
 

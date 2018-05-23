@@ -19,7 +19,8 @@ import scala.collection.JavaConverters._
 
 object Nirvana {
 
-  //NOTE THIS SCHEMA IS FOR NIRVANA 1.6.2 as of JUNE 19th
+  //For Nirnava v2.0.8
+
   val nirvanaSignature = TStruct(
     "chromosome" -> TString(),
     "refAllele" -> TString(),
@@ -32,6 +33,65 @@ object Nirvana {
     "copyNumber" -> TInt32(),
     "strandBias" -> TFloat64(),
     "recalibratedQuality" -> TFloat64(),
+    "clingen" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "clinicalInterpretation" -> TString(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "validated" -> TBoolean(),
+      "phenotypes" -> TArray(TString()),
+      "phenotypeIds" -> TArray(TString()),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "dgv" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "variantFreqAll" -> TFloat64(),
+      "sampleSize" -> TInt32(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "oneKg" -> TArray(TStruct(
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "id" -> TString(),
+      "variantFreqAll" -> TFloat64(),
+      "variantFreqAfr" -> TFloat64(),
+      "variantFreqAmr" -> TFloat64(),
+      "variantFreqEas" -> TFloat64(),
+      "variantFreqEur" -> TFloat64(),
+      "variantFreqSas" -> TFloat64(),
+      "sampleSize" -> TInt32(),
+      "sampleSizeAfr" -> TInt32(),
+      "sampleSizeAmr" -> TInt32(),
+      "sampleSizeEas" -> TInt32(),
+      "sampleSizeEur" -> TInt32(),
+      "sampleSizeSas" -> TInt32(),
+      "observedGains" -> TInt32(),
+      "observedLosses" -> TInt32(),
+      "reciprocalOverlap" -> TFloat64()
+    )),
+    "cosmic" -> TArray(TStruct(
+      "id" -> TInt32(),
+      "chromosome" -> TString(),
+      "begin" -> TInt32(),
+      "end" -> TInt32(),
+      "variantType" -> TString(),
+      "copyNumber" -> TInt32(),
+      "cancerTypes" -> TArray(TTuple(TString(),TInt32())),
+      "tissues" -> TArray(TTuple(TString(),TInt32())),
+      "reciprocalOverlap" -> TFloat64()
+    )),
     "variants" -> TArray(TStruct(
       "altAllele" -> TString(),
       "refAllele" -> TString(),
@@ -42,11 +102,13 @@ object Nirvana {
       "isReferenceMinor" -> TBoolean(),
       "variantType" -> TString(),
       "vid" -> TString(),
-      "isRecomposed" -> TBoolean(),
+      "hgvsg" -> TString(),
+      "isRecomposedVariant" -> TBoolean(),
+      "isDecomposedVariant" -> TBoolean(),
       "regulatoryRegions" -> TArray(TStruct(
         "id" -> TString(),
-        "consequence" -> TSet(TString()),
-        "type" -> TString()
+        "type" -> TString(),
+        "consequence" -> TSet(TString())
       )),
       "clinvar" -> TArray(TStruct(
         "id" -> TString(),
@@ -59,7 +121,6 @@ object Nirvana {
         "medGenIds" -> TArray(TString()),
         "omimIds" -> TArray(TString()),
         "orphanetIds" -> TArray(TString()),
-        "geneReviewsId" -> TString(),
         "significance" -> TString(),
         "lastUpdatedDate" -> TString(),
         "pubMedIds" -> TArray(TString())
@@ -78,39 +139,88 @@ object Nirvana {
         ))
       )),
       "dbsnp" -> TStruct("ids" -> TArray(TString())),
-      "evs" -> TStruct(
-        "coverage" -> TInt32(),
-        "sampleCount" -> TInt32(),
-        "allAf" -> TFloat64(),
-        "afrAf" -> TFloat64(),
-        "eurAf" -> TFloat64()
-      ),
-      "exac" -> TStruct(
-        "coverage" -> TInt32(),
+      "gnomad" -> TStruct(
+        "coverage" -> TString(),
         "allAf" -> TFloat64(),
         "allAc" -> TInt32(),
         "allAn" -> TInt32(),
+        "allHc" -> TInt32(),
         "afrAf" -> TFloat64(),
         "afrAc" -> TInt32(),
         "afrAn" -> TInt32(),
+        "afrHc" -> TInt32(),
         "amrAf" -> TFloat64(),
         "amrAc" -> TInt32(),
         "amrAn" -> TInt32(),
+        "amrHc" -> TInt32(),
         "easAf" -> TFloat64(),
         "easAc" -> TInt32(),
         "easAn" -> TInt32(),
+        "easHc" -> TInt32(),
         "finAf" -> TFloat64(),
         "finAc" -> TInt32(),
         "finAn" -> TInt32(),
+        "finHc" -> TInt32(),
         "nfeAf" -> TFloat64(),
         "nfeAc" -> TInt32(),
         "nfeAn" -> TInt32(),
+        "nfeHc" -> TInt32(),
         "othAf" -> TFloat64(),
         "othAc" -> TInt32(),
         "othAn" -> TInt32(),
+        "othHc" -> TInt32(),
+        "asjAf" -> TFloat64(),
+        "asjAc" -> TInt32(),
+        "asjAn" -> TInt32(),
+        "asjHc" -> TInt32(),
+        "failedFilter" -> TBoolean()
+      ),
+      "gnomadExome" -> TStruct(
+        "coverage" -> TString(),
+        "allAf" -> TFloat64(),
+        "allAc" -> TInt32(),
+        "allAn" -> TInt32(),
+        "allHc" -> TInt32(),
+        "afrAf" -> TFloat64(),
+        "afrAc" -> TInt32(),
+        "afrAn" -> TInt32(),
+        "afrHc" -> TInt32(),
+        "amrAf" -> TFloat64(),
+        "amrAc" -> TInt32(),
+        "amrAn" -> TInt32(),
+        "amrHc" -> TInt32(),
+        "easAf" -> TFloat64(),
+        "easAc" -> TInt32(),
+        "easAn" -> TInt32(),
+        "easHc" -> TInt32(),
+        "finAf" -> TFloat64(),
+        "finAc" -> TInt32(),
+        "finAn" -> TInt32(),
+        "finHc" -> TInt32(),
+        "nfeAf" -> TFloat64(),
+        "nfeAc" -> TInt32(),
+        "nfeAn" -> TInt32(),
+        "nfeHc" -> TInt32(),
+        "othAf" -> TFloat64(),
+        "othAc" -> TInt32(),
+        "othAn" -> TInt32(),
+        "othHc" -> TInt32(),
+        "asjAf" -> TFloat64(),
+        "asjAc" -> TInt32(),
+        "asjAn" -> TInt32(),
+        "asjHc" -> TInt32(),
         "sasAf" -> TFloat64(),
         "sasAc" -> TInt32(),
-        "sasAn" -> TInt32()
+        "sasAn" -> TInt32(),
+        "sasHc" -> TInt32(),
+        "failedFilter" -> TBoolean()
+      ),
+      "topmed" -> TStruct(
+        "failedFilter" -> TBoolean(),
+        "allAc" -> TInt32(),
+        "allAn" -> TInt32(),
+        "allAf" -> TFloat64(),
+        "allHc" -> TInt32()
       ),
       "globalAllele" -> TStruct(
         "globalMinorAllele" -> TString(),
@@ -137,12 +247,27 @@ object Nirvana {
         "sasAc" -> TInt32(),
         "sasAn" -> TInt32()
       ),
+      "mitomap" -> TArray(TStruct(
+        "refAllele" -> TString(),
+        "altAllele" -> TString(),
+        "diseases"  -> TArray(TString()),
+        "hasHomoplasmy" -> TBoolean(),
+        "hasHeteroplasmy" -> TBoolean(),
+        "status" -> TString(),
+        "clinicalSignificance" -> TString(),
+        "scorePercentile" -> TFloat64(),
+        "isAlleleSpecific" -> TBoolean(),
+        "chromosome" -> TString(),
+        "begin" -> TInt32(),
+        "end" -> TInt32(),
+        "variantType" -> TString()
+      )),
       "transcripts" -> TStruct(
         "refSeq" -> TArray(TStruct(
           "transcript" -> TString(),
           "bioType" -> TString(),
           "aminoAcids" -> TString(),
-          "cDnaPos" -> TString(),
+          "cdnaPos" -> TString(),
           "codons" -> TString(),
           "cdsPos" -> TString(),
           "exons" -> TString(),
@@ -164,7 +289,7 @@ object Nirvana {
           "transcript" -> TString(),
           "bioType" -> TString(),
           "aminoAcids" -> TString(),
-          "cDnaPos" -> TString(),
+          "cdnaPos" -> TString(),
           "codons" -> TString(),
           "cdsPos" -> TString(),
           "exons" -> TString(),
@@ -183,21 +308,27 @@ object Nirvana {
           "siftPrediction" -> TString()
         ))
       ),
-      "genes" -> TArray(TStruct(
-        "name" -> TString(),
-        "omim" -> TArray(TStruct(
+      "overlappingGenes" -> TArray(TString())
+    )),
+    "genes" -> TArray(TStruct(
+      "name" -> TString(),
+      "omim" -> TArray(TStruct(
+        "mimNumber" -> TInt32(),
+        "hgnc" -> TString(),
+        "description" -> TString(),
+        "phenotypes" -> TArray(TStruct(
           "mimNumber" -> TInt32(),
-          "hgnc" -> TString(),
-          "description" -> TString(),
-          "phenotypes" -> TArray(TStruct(
-            "mimNumber" -> TInt32(),
-            "phenotype" -> TString(),
-            "mapping" -> TString(),
-            "inheritance" -> TArray(TString()),
-            "comments" -> TString()
-          ))
+          "phenotype" -> TString(),
+          "mapping" -> TString(),
+          "inheritance" -> TArray(TString()),
+          "comments" -> TString()
         ))
-      ))
+      )),
+      "exac" -> TStruct(
+        "pLi" -> TFloat64(),
+        "pRec" -> TFloat64(),
+        "pNull" -> TFloat64()
+      )
     ))
   )
 
@@ -216,7 +347,7 @@ object Nirvana {
     sb.append("\t.\t")
     sb.append(alleles(0))
     sb += '\t'
-    sb.append(alleles.tail.mkString(","))
+    sb.append(alleles.tail.filter(_ != "*").mkString(","))
     sb += '\t'
     sb.append("\t.\t.\tGT")
     w(sb.result())
@@ -256,7 +387,7 @@ object Nirvana {
     val cmd: List[String] = List[String](dotnet, s"$nirvanaLocation") ++
       List("-c", cache) ++
       supplementaryAnnotationDirectory ++
-      List("-r", reference,
+      List("--disable-recomposition", "-r", reference,
         "-i", "-",
         "-o", "-")
 
