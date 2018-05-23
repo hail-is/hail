@@ -779,7 +779,7 @@ private class Emit(
     def getReferenced: IR => IR = {
       case Ref(id, typ) if id == argname =>
         In(0, typ)
-      case node@Ref(id, _) =>
+      case node@Ref(id, _) if env.lookupOption(id).isDefined =>
         ids += id
         node
       case node => Recur(getReferenced)(node)
@@ -805,7 +805,6 @@ private class Emit(
     f.emit(call)
     f
   }
-
 
   private def emitArrayIterator(ir: IR, env: E): ArrayIteratorTriplet = {
 
