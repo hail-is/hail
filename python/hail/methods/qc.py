@@ -137,15 +137,19 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     - `n_called` (``int64``) -- Number of samples with a defined `GT`.
     - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
-    - `call_rate` (``float32``) -- Fraction of samlpes with a defined `GT`.
+    - `call_rate` (``float32``) -- Fraction of samples with a defined `GT`.
       Equivalent to `n_called` / :meth:`.count_cols`.
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
-    - `hwe` (``array<struct{r_expected_het_freq: float64, p_hwe: float64}>``) --
-      Hardy-Weinberg statistics, one element per alternate allele. Assumes
-      that all genotype calls are diploid, and treats each allele
-      independently.
+    - `p_hwe` (``float64``) -- Hardy-Weinberg p-value corresponding to
+      the probability that the distribution of genotypes is under Hardy-Weinberg
+      equilibrium. **Assumes that all genotype calls are diploid, and is only
+      defined for biallelic variants**.
+    - `r_expected_het_freq` (``float64``) -- Ratio of heterozygote count to the
+      expected number of heterozygotes under Hardy-Weinberg equilibrium.
+      **Assumes that all genotype calls are diploid, and is only defined for
+      biallelic variants**.
 
     Parameters
     ----------
@@ -162,7 +166,6 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     exprs = {}
     struct_exprs = []
-    fs = []
 
     def has_field_of_type(name, dtype):
         return name in mt.entry and mt[name].dtype == dtype
@@ -175,34 +178,35 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     if has_field_of_type('GQ', hl.tint32):
         exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
-    if has_field_of_type('GT',  hl.tcall):
-        exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-        struct_exprs.append(hl.agg.call_stats(mt.GT, mt.alleles))
-        fs.append(identity)
+    if not has_field_of_type('GT',  hl.tcall):
+        raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
+    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    struct_exprs.append(hl.agg.call_stats(mt.GT, mt.alleles))
+
 
     # the structure of this function makes it easy to add new nested computations
-    def make_struct(*struct_args):
-        struct_exprs = {}
-        for arg, f in zip(struct_args, fs):
-            arg = f(arg)
-            for k, v in arg.items():
-                struct_exprs[k] = v
+    def flatten_struct(*struct_exprs):
+        flat = {}
+        for struct in struct_exprs:
+            for k, v in struct.items():
+                flat[k] = v
         return hl.struct(
-            **struct_exprs,
+            **flat,
             **exprs,
         )
 
-    mt = mt.annotate_rows(**{name: hl.bind(make_struct, *struct_exprs)})
+    mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
 
-    hwe = hl.range(1, hl.len(mt.alleles)).map(
-        lambda i: hl.hardy_weinberg_p(mt[name].homozygote_count[0],
-                                      mt[name].AC[i] - 2 * mt[name].homozygote_count[i],
-                                      mt[name].homozygote_count[i]))
+    hwe = hl.hardy_weinberg_p(mt[name].homozygote_count[0],
+                              mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
+                              mt[name].homozygote_count[1])
     mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
                                                      call_rate=mt[name].n_called / n_samples,
                                                      n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),
                                                      n_non_ref=mt[name].n_called - mt[name].homozygote_count[0],
-                                                     hwe=hwe)})
+                                                     **hl.cond(hl.len(mt.alleles) == 2,
+                                                               hwe,
+                                                               hl.null(hwe.dtype)))})
     return mt
 
 

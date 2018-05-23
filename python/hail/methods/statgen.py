@@ -693,7 +693,6 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
        * - Field
          - Type
          - Value
-
        * - `use_ml`
          - bool
          - true if fit by ML, false if fit by REML

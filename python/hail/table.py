@@ -2241,9 +2241,27 @@ class Table(ExprContainer):
                       partition_key=nullable(sequenceof(str)),
                       n_partitions=nullable(int))
     def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], partition_key=None, n_partitions=None):
+        """
+
+        Parameters
+        ----------
+        row_key : Sequence[str]
+        col_key : Sequence[str]
+        row_fields : Sequence[str]
+        col_fields : Sequence[str]
+        partition_key : Sequence[str] or None
+        n_partitions : int or None
+
+        Returns
+        -------
+
+        """
         all_fields = list(itertools.chain(row_key, col_key, row_fields, col_fields))
         c = Counter(all_fields)
+        row_field_set = set(self.row)
         for k, v in c.items():
+            if k not in row_field_set:
+                raise ValueError(f"'to_matrix_table': field {repr(k)} is not a row field")
             if v > 1:
                 raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
 
