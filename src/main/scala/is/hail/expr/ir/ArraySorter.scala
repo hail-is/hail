@@ -34,13 +34,13 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
 
   def sort(): Code[Unit] = {
 
-    def newSortFunction[T: TypeInfo]: (DependentEmitFunction[AsmFunction4[T, Boolean, T, Boolean, Boolean]], () => Code[Unit]) = {
-      val s = mb.fb.newDependentFunction[T, Boolean, T, Boolean, Boolean]
-      val f = mb.newField[AsmFunction4[T, Boolean, T, Boolean, Boolean]]
-      (s, { () => Code(s.newInstance(f), array.sort(f)) })
-    }
+    type F[T] = AsmFunction4[T, Boolean, T, Boolean, Boolean]
 
-    val (sorter, createF) = ti match {
+    def newSortFunction[T: TypeInfo]: (DependentEmitFunction[F[T]], ClassFieldRef[F[T]]) =
+      (mb.fb.newDependentFunction[T, Boolean, T, Boolean, Boolean],
+        mb.newField[AsmFunction4[T, Boolean, T, Boolean, Boolean]])
+
+    val (sorter, localF) = ti match {
       case BooleanInfo => newSortFunction[Boolean]
       case IntInfo => newSortFunction[Int]
       case LongInfo => newSortFunction[Long]
@@ -78,7 +78,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
         sorterRegion, (sorter.getArg[Boolean](2), sorter.getArg(1)(ti)),
         sorterRegion, (sorter.getArg[Boolean](4), sorter.getArg(3)(ti))) < 0)
     }
-    createF()
+
+    Code(
+      localF.storeAny(sorter.newInstance()),
+      array.sort(localF))
   }
 
   def toRegion(): Code[Long] = {
