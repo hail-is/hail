@@ -79,7 +79,7 @@ class EmitFunctionBuilder[F >: Null](
 
   def numTypes: Int = typMap.size
 
-  def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
+  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
     val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", const(rg.name))
     val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
