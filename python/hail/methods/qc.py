@@ -575,10 +575,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     >>> result = hl.nirvana(dataset, "data/nirvana.properties") # doctest: +SKIP
 
-    Notes
-    -----
-
-    ***Configuration***
+    **Configuration**
 
     :func:`.nirvana` requires a configuration file. The format is a
     `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each
