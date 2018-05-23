@@ -759,7 +759,7 @@ private class Emit(
 
         val setup = Code(codeMin.setup, codeMax.setup)
         val m = Code(
-          asmfunction.newInstance(localF),
+          localF := asmfunction.newInstance(),
           res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
             MathFunctions.getClass,
             "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
