@@ -140,10 +140,9 @@ object TextTableReader {
           }
           i += 1
         }
-      }
-      }
+      }}
       Iterator.single(ma)
-      }
+    }
       .reduce({ case (ma1, ma2) =>
       var i = 0
       while (i < nFields) {

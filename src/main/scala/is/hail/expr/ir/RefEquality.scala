@@ -26,7 +26,9 @@ object Memo {
 
 class Memo[T] private (val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def bind(ir: BaseIR, t: T): Memo[T] = {
-    m += RefEquality(ir) -> t
+    val re = RefEquality(ir)
+    assert(!m.contains(re))
+    m += re -> t
     this
   }
 

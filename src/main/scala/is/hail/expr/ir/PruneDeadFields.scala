@@ -369,7 +369,7 @@ object PruneDeadFields {
       case x@TableFilter(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
         val child2 = rebuild(child, unify(child.typ, dep, irDep))
-        val pred2 = rebuildIR(pred, child2.typ, memo)
+        val pred2 = rewrite(pred, child2.typ, memo)
         TableFilter(child2, pred2)
       case x@TableKeyBy(child, keys, nPartitionKeys, sort) =>
         val childKeyFields = child.typ.key.iterator.flatten.toSet
@@ -380,12 +380,12 @@ object PruneDeadFields {
       case x@TableMapRows(child, newRow, newKey) =>
         val (rowDep, memo) = getDeps(newRow, dep.rowType, child.typ)
         val child2 = rebuild(child, unify(child.typ, minimal(child.typ).copy(globalType = dep.globalType), rowDep))
-        TableMapRows(child2, rebuildIR(newRow, child2.typ, memo), newKey)
+        TableMapRows(child2, rewrite(newRow, child2.typ, memo), newKey)
       case x@TableMapGlobals(child, newRow, value) =>
         val (globalDep, memo) = getDeps(newRow, dep.globalType, child.typ)
         // fixme push down into value
         val child2 = rebuild(child, unify(child.typ, dep.copy(globalType = globalDep.globalType), globalDep))
-        TableMapGlobals(child2, rebuildIR(newRow, child2.typ, memo, "value" -> value.t), value)
+        TableMapGlobals(child2, rewrite(newRow, child2.typ, memo, "value" -> value.t), value)
       case x@MatrixColsTable(child) =>
         val minChild = minimal(child.typ)
         val mtDep = minChild.copy(
@@ -434,15 +434,15 @@ object PruneDeadFields {
       case x@FilterColsIR(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
         val child2 = rebuild(child, unify(child.typ, dep, irDep))
-        FilterColsIR(child2, rebuildIR(pred, child2.typ, memo))
+        FilterColsIR(child2, rewrite(pred, child2.typ, memo))
       case x@MatrixFilterRowsIR(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
         val child2 = rebuild(child, unify(child.typ, dep, irDep))
-        MatrixFilterRowsIR(child2, rebuildIR(pred, child2.typ, memo))
+        MatrixFilterRowsIR(child2, rewrite(pred, child2.typ, memo))
       case x@MatrixFilterEntries(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
         val child2 = rebuild(child, unify(child.typ, dep, irDep))
-        MatrixFilterEntries(child2, rebuildIR(pred, child2.typ, memo))
+        MatrixFilterEntries(child2, rewrite(pred, child2.typ, memo))
       case x@MatrixMapEntries(child, newEntries) =>
         val (irDep, memo) = getDeps(newEntries, dep.entryType, child.typ)
         val depMod = dep.copy(rvRowType = TStruct(dep.rvRowType.required, dep.rvRowType.fields.map { f =>
@@ -452,7 +452,7 @@ object PruneDeadFields {
             f.name -> f.typ
         }: _*))
         val child2 = rebuild(child, unify(child.typ, depMod, irDep))
-        MatrixMapEntries(child2, rebuildIR(newEntries, child2.typ, memo))
+        MatrixMapEntries(child2, rewrite(newEntries, child2.typ, memo))
       case x@MatrixMapRows(child, newRow, newKey) =>
         val (irDep, memo) = getDeps(newRow, dep.rowType, child.typ)
         val depMod = child.typ.copy(rvRowType = TStruct(irDep.rvRowType.fields.map { f =>
@@ -464,20 +464,20 @@ object PruneDeadFields {
             f.name -> f.typ
         }: _*), colType = dep.colType, globalType = dep.globalType)
         val child2 = rebuild(child, unify(child.typ, depMod, irDep))
-        MatrixMapRows(child2, rebuildIR(newRow, child2.typ, memo), newKey)
+        MatrixMapRows(child2, rewrite(newRow, child2.typ, memo), newKey)
       case x@MatrixMapCols(child, newCol, newKey) =>
         // FIXME account for key
         val (irDep, memo) = getDeps(newCol, dep.colType, child.typ)
         val depMod = minimal(child.typ).copy(rvRowType = dep.rvRowType,
           globalType = dep.globalType)
         val child2 = rebuild(child, unify(child.typ, depMod, irDep))
-        MatrixMapCols(child2, rebuildIR(newCol, child2.typ, memo), newKey)
+        MatrixMapCols(child2, rewrite(newCol, child2.typ, memo), newKey)
       case x@MatrixMapGlobals(child, newRow, value) =>
         val (irDep, memo) = getDeps(newRow, dep.globalType, child.typ)
         // fixme push down into value
         val child2 = rebuild(child, unify(child.typ, dep.copy(globalType = irDep.globalType), irDep))
-        MatrixMapGlobals(child2, rebuildIR(newRow, child2.typ, memo, "value" -> value.t), value)
-      case x@MatrixRead(_, _, _, _, _) => upcast(x, dep)
+        MatrixMapGlobals(child2, rewrite(newRow, child2.typ, memo, "value" -> value.t), value)
+      case x@MatrixRead(_, _, _, _, _) => x
       case x@MatrixLiteral(typ, value) => x
       case x@FilterCols(child, cond) =>
         FilterCols(rebuild(child, child.typ), cond)
@@ -512,7 +512,7 @@ object PruneDeadFields {
           colType = unify(irDep.colType, dep.colType)
         )
         val child2 = rebuild(child, childDep)
-        MatrixAggregateRowsByKey(child2, rebuildIR(expr, child2.typ, memo))
+        MatrixAggregateRowsByKey(child2, rewrite(expr, child2.typ, memo))
     }
   }
 
@@ -525,7 +525,7 @@ object PruneDeadFields {
       case TableAggregate(child, query) =>
         val (queryDep, memo) = getDeps(query, query.typ, child.typ)
         val child2 = rebuild(child, queryDep)
-        val query2 = rebuildIR(query, child2.typ, memo)
+        val query2 = rewrite(query, child2.typ, memo)
         TableAggregate(child2, query2)
       case MatrixWrite(child, f) =>
         MatrixWrite(rebuild(child, child.typ), f)
@@ -533,30 +533,30 @@ object PruneDeadFields {
     }
   }
 
-  def rebuildIR(ir: IR, in: BaseType, memo: Memo[Type], bindings: (String, Type)*): IR = {
-    rewriteIR(ir, baseTypeToEnv(in).bind(bindings: _*), memo)
+  def rewrite(ir: IR, in: BaseType, memo: Memo[Type], bindings: (String, Type)*): IR = {
+    rewrite(ir, baseTypeToEnv(in).bind(bindings: _*), memo)
   }
 
-  def rewriteIR(ir: IR, in: Env[Type], memo: Memo[Type]): IR = {
+  def rewrite(ir: IR, in: Env[Type], memo: Memo[Type]): IR = {
     val dep = memo.lookup(ir)
     ir match {
       case NA(typ) =>
         assert(isSupertype(dep, typ))
         NA(dep)
       case If(cond, cnsq, alt) =>
-        val cond2 = rewriteIR(cond, in, memo)
-        val cnsq2 = rewriteIR(cnsq, in, memo)
-        val alt2 = rewriteIR(alt, in, memo)
+        val cond2 = rewrite(cond, in, memo)
+        val cnsq2 = rewrite(cnsq, in, memo)
+        val alt2 = rewrite(alt, in, memo)
         if (cnsq2.typ != alt2.typ)
           If(cond2, upcast(cnsq2, dep), upcast(alt2, dep))
         else
           If(cond2, cnsq2, alt2)
       case x@Let(name, value, body) =>
-        val value2 = rewriteIR(value, in, memo)
+        val value2 = rewrite(value, in, memo)
         Let(
           name,
           value2,
-          rewriteIR(body, in.bind(name, value2.typ), memo)
+          rewrite(body, in.bind(name, value2.typ), memo)
         )
       case Ref(name, t) =>
 //        assert(isSupertype(dep, t), s"ref dep is not a supertype of base:\n  ref to '$name'\n  dep:  ${ dep.parsableString }\n  base: ${ t.parsableString }")
@@ -565,29 +565,29 @@ object PruneDeadFields {
         Ref(name, envT)
       case MakeArray(args, t) =>
         val depArray = dep.asInstanceOf[TArray]
-        MakeArray(args.map(a => upcast(rewriteIR(a, in, memo), depArray.elementType)), dep.asInstanceOf[TArray])
+        MakeArray(args.map(a => upcast(rewrite(a, in, memo), depArray.elementType)), dep.asInstanceOf[TArray])
       case ArrayMap(a, name, body) =>
-        val a2 = rewriteIR(a, in, memo)
-        ArrayMap(a2, name, rewriteIR(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        val a2 = rewrite(a, in, memo)
+        ArrayMap(a2, name, rewrite(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
       case ArrayFilter(a, name, cond) =>
-        val a2 = rewriteIR(a, in, memo)
-        ArrayFilter(a2, name, rewriteIR(cond, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        val a2 = rewrite(a, in, memo)
+        ArrayFilter(a2, name, rewrite(cond, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
       case ArrayFlatMap(a, name, body) =>
-        val a2 = rewriteIR(a, in, memo)
-        ArrayFlatMap(a2, name, rewriteIR(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        val a2 = rewrite(a, in, memo)
+        ArrayFlatMap(a2, name, rewrite(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        val a2 = rewriteIR(a, in, memo)
-        val z2 = rewriteIR(zero, in, memo)
+        val a2 = rewrite(a, in, memo)
+        val z2 = rewrite(zero, in, memo)
         ArrayFold(
           a2,
           z2,
           accumName,
           valueName,
-          rewriteIR(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+          rewrite(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         )
       case ArrayFor(a, valueName, body) =>
-        val a2 = rewriteIR(a, in, memo)
-        val body2 = rewriteIR(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+        val a2 = rewrite(a, in, memo)
+        val body2 = rewrite(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         ArrayFor(a2, valueName, body2)
       case MakeStruct(fields) =>
         val depStruct = dep.asInstanceOf[TStruct]
@@ -595,26 +595,26 @@ object PruneDeadFields {
         val depFields = depStruct.fieldNames.toSet
         MakeStruct(fields.flatMap { case (f, fir) =>
           if (depFields.contains(f))
-            Some(f -> rewriteIR(fir, in, memo))
+            Some(f -> rewrite(fir, in, memo))
           else
             None
         })
       case InsertFields(old, fields) =>
         val depStruct = dep.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
-        InsertFields(rewriteIR(old, in, memo),
+        InsertFields(rewrite(old, in, memo),
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
-              Some(f -> rewriteIR(fir, in, memo))
+              Some(f -> rewrite(fir, in, memo))
             else
               None
           })
       case SelectFields(old, fields) =>
         val depStruct = dep.asInstanceOf[TStruct]
-        val old2 = rewriteIR(old, in, memo)
+        val old2 = rewrite(old, in, memo)
         SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
       case _ => Copy(ir, newChildren = ir.children.map {
-        case valueIR: IR => rewriteIR(valueIR, in, memo)
+        case valueIR: IR => rewrite(valueIR, in, memo)
         case x => x
       }).asInstanceOf[IR]
     }
