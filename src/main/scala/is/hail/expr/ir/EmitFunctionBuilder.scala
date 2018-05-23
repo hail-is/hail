@@ -87,9 +87,9 @@ class EmitFunctionBuilder[F >: Null](
 
   def getType(t: Type): Code[Type] = {
     val references = ReferenceGenome.getReferences(t).toArray
-    val setup = coerce[Type](Code(references.map(addReferenceGenome): _*,
+    val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, Type](
-        Parser.getClass, "parseType", const(t.parsableString()))))
+        Parser.getClass, "parseType", const(t.parsableString())))
     typMap.getOrElseUpdate(t,
       newLazyField[Type](setup))
   }
