@@ -104,10 +104,11 @@ class IRSuite extends TestNGSuite {
 
   @Test def testArrayRange() {
     for {
-      start <- 0 to 2
-      stop <- start to 10
+      start <- -10 to 10
+      stop <- -10 to 10
       step <- 1 to 3
     } {
+      println(start, stop, step, IndexedSeq.range(start, stop, step))
       assertEvalsTo(
         ArrayRange(I32(start), I32(stop), I32(step)),
         IndexedSeq.range(start, stop, step))

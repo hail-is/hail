@@ -392,7 +392,7 @@ class CompileSuite {
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
   }
-  
+
   @Test
   def testArrayFilterCutoff() {
     val t = TArray(TInt32())
