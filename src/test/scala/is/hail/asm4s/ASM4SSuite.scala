@@ -431,7 +431,7 @@ class ASM4SSuite extends TestNGSuite {
 
     fb2.emit(true)
     fb.emit(Code(
-      fb2.newInstance(localF),
+      localF := fb2.newInstance(),
       checkcast[java.lang.Boolean](rawOut).invoke[Boolean]("booleanValue")
     ))
 
@@ -455,7 +455,7 @@ class ASM4SSuite extends TestNGSuite {
     fb2.emit(field2 + fb2.getArg[Int](1))
     fb.emit(Code(
       field1 := fb.getArg[Int](1),
-      fb2.newInstance(localF),
+      localF := fb2.newInstance(),
       checkcast[java.lang.Integer](wrappedCall(fb.getArg[Int](2))).invoke[Int]("intValue")
     ))
 

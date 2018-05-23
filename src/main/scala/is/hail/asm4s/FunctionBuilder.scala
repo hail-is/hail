@@ -132,27 +132,20 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 }
 
 trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
-
-  var definedFields: mutable.ArrayBuffer[Code[F] => Code[Unit]] = new mutable.ArrayBuffer(16)
+  var definedFields: ArrayBuilder[Growable[AbstractInsnNode] => Unit] = new ArrayBuilder(16)
 
   def addField[T : TypeInfo : ClassTag](value: Code[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
-    val add = { (codeF: Code[F]) =>
-      new Code[Unit] {
-        def emit(il: Growable[AbstractInsnNode]): Unit = {
-          codeF.emit(il)
-          il += new TypeInsnNode(CHECKCAST, name)
-          value.emit(il)
-          il += new FieldInsnNode(PUTFIELD,
-            name, cfr.name, typeInfo[T].name)
-        }
-      }
+    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
+      il += new TypeInsnNode(CHECKCAST, name)
+      value.emit(il)
+      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
     }
     definedFields += add
     cfr
   }
 
-  def newInstance(localF: ClassFieldRef[F])(implicit fct: ClassTag[F]): Code[Unit] = {
+  def newInstance()(implicit fct: ClassTag[F]): Code[F] = {
     val instance: Code[F] =
       new Code[F] {
         def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -160,11 +153,13 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
           il += new InsnNode(DUP)
           il += new MethodInsnNode(INVOKESPECIAL, name, "<init>", "()V", false)
           il += new TypeInsnNode(CHECKCAST, classInfo[F].iname)
+          definedFields.result().foreach { add =>
+            il += new InsnNode(DUP)
+            add(il)
+          }
         }
       }
-    Code(
-      localF := instance,
-      coerce[Unit](Code(definedFields.result().map(add => add(localF)): _*)))
+    instance
   }
 
   override def result(pw: Option[PrintWriter]): () => F =
@@ -174,7 +169,6 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
 
 
 class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
-  parentfb: FunctionBuilder[_],
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated"
@@ -233,7 +227,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
 
   def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
-    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](this, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
     children += df
     df
   }
@@ -342,7 +336,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
   def result(print: Option[PrintWriter] = None): () => F = {
-
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
