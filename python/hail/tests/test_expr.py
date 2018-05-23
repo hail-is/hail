@@ -4,7 +4,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import dtype, coercer_from_dtype
 from hail.expr.types import *
-from .utils import startTestHailContext, stopTestHailContext
+from .utils import startTestHailContext, stopTestHailContext, resource
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -162,6 +162,32 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(11)
         r = table.aggregate(agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
+
+    def test_aggregator_info_score(self):
+        gen_file = resource('infoScoreTest.gen')
+        sample_file = resource('infoScoreTest.sample')
+        truth_result_file = resource('infoScoreTest.result')
+
+        mt = hl.import_gen(gen_file, sample_file=sample_file)
+        mt = mt.annotate_rows(info_score = hl.agg.info_score(mt.GP))
+
+        truth = hl.import_table(truth_result_file, impute=True, delimiter=' ', no_header=True, missing='None')
+        truth = truth.drop('f1', 'f2').rename({'f0': 'variant', 'f3': 'score', 'f4': 'n_included'})
+        truth = truth.transmute(**hl.parse_variant(truth.variant)).key_by('locus', 'alleles')
+
+        computed = mt.rows()
+
+        joined = truth[computed.key]
+        computed = computed.select(score = computed.info_score.score,
+                                   score_truth = joined.score,
+                                   n_included = computed.info_score.n_included,
+                                   n_included_truth = joined.n_included)
+        violations = computed.filter(
+            (computed.n_included != computed.n_included_truth) |
+            (hl.abs(computed.score - computed.score_truth) > 1e-3))
+        if not violations.count() == 0:
+            violations.show()
+            self.fail("disagreement between computed info score and truth")
 
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)

@@ -1037,3 +1037,94 @@ def hist(expr, start, end, bins) -> StructExpression:
                 n_smaller=tint64,
                 n_larger=tint64)
     return _agg_func('hist', expr, t, start, end, bins)
+
+
+@typecheck(gp=agg_expr(expr_array(expr_float64)))
+def info_score(gp) -> StructExpression:
+    r"""Compute the IMPUTE information score.
+
+    Examples
+    --------
+    Calculate the info score per variant:
+
+    >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> gen_mt = gen_mt.annotate_rows(info_score = hl.agg.info_score(gen_mt.GP))
+
+    Calculate group-specific info scores per variant:
+
+    >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> gen_mt = gen_mt.annotate_cols(is_case = hl.rand_bool(0.5))
+    >>> gen_mt = gen_mt.annotate_rows(info_score_case = hl.agg.info_score(hl.agg.filter(gen_mt.is_case, gen_mt.GP)),
+    ...                               info_score_ctrl = hl.agg.info_score(hl.agg.filter(~gen_mt.is_case, gen_mt.GP)))
+
+    Notes
+    -----
+    The result of :func:`.info_score` is a struct with two fields:
+
+        - `score` (``float64``) -- Info score.
+        - `n_included` (``int32``) -- Number of non-missing samples included in the
+          calculation.
+
+    We implemented the IMPUTE info measure as described in the supplementary
+    information from `Marchini & Howie. Genotype imputation for genome-wide
+    association studies. Nature Reviews Genetics (2010)
+    <http://www.nature.com/nrg/journal/v11/n7/extref/nrg2796-s3.pdf>`__. To
+    calculate the info score :math:`I_{A}` for one SNP:
+
+    .. math::
+
+        I_{A} =
+        \begin{cases}
+        1 - \frac{\sum_{i=1}^{N}(f_{i} - e_{i}^2)}{2N\hat{\theta}(1 - \hat{\theta})} & \text{when } \hat{\theta} \in (0, 1) \\
+        1 & \text{when } \hat{\theta} = 0, \hat{\theta} = 1\\
+        \end{cases}
+
+    - :math:`N` is the number of samples with imputed genotype probabilities
+      [:math:`p_{ik} = P(G_{i} = k)` where :math:`k \in \{0, 1, 2\}`]
+    - :math:`e_{i} = p_{i1} + 2p_{i2}` is the expected genotype per sample
+    - :math:`f_{i} = p_{i1} + 4p_{i2}`
+    - :math:`\hat{\theta} = \frac{\sum_{i=1}^{N}e_{i}}{2N}` is the MLE for the
+      population minor allele frequency
+
+    Hail will not generate identical results to `QCTOOL
+    <http://www.well.ox.ac.uk/~gav/qctool/#overview>`__ for the following
+    reasons:
+
+    - Hail automatically removes genotype probability distributions that do not
+      meet certain requirements on data import with :func:`.import_gen` and
+      :func:`.import_bgen`.
+    - Hail does not use the population frequency to impute genotype
+      probabilities when a genotype probability distribution has been set to
+      missing.
+    - Hail calculates the same statistic for sex chromosomes as autosomes while
+      QCTOOL incorporates sex information.
+    - The floating point number Hail stores for each genotype probability is
+      slightly different than the original data due to rounding and
+      normalization of probabilities.
+
+    Warning
+    -------
+    - The info score Hail reports will be extremely different from QCTOOL when
+      a SNP has a high missing rate.
+    - If the `gp` array must contain 3 elements, and its elements may not be
+      missing.
+    - If the genotype data was not imported using the :func:`.import_gen` or
+      :func:`.import_bgen` functions, then the results for all variants will be
+      ``score = NA`` and ``n_included = 0``.
+    - It only makes semantic sense to compute the info score per variant. While
+      the aggregator will run in any context if its arguments are the right
+      type, the results are only meaningful in a narrow context.
+
+    Parameters
+    ----------
+    gp : :class:`.ArrayNumericExpression`
+        Genotype probability array. Must have 3 elements, all of which must be
+        defined.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Struct with fields `score` and `n_included`.
+    """
+    t = hl.tstruct(score=hl.tfloat64, n_included=hl.tint32)
+    return _agg_func('infoScore', gp, t)

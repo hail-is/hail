@@ -5,7 +5,7 @@ import is.hail.expr.types._
 import is.hail.utils._
 
 object InfoScoreCombiner {
-  def signature = TStruct("score" -> TFloat64(), "nIncluded" -> TInt32())
+  def signature = TStruct("score" -> TFloat64(), "n_included" -> TInt32())
 }
 
 class InfoScoreCombiner extends Serializable {
@@ -14,14 +14,20 @@ class InfoScoreCombiner extends Serializable {
   var totalDosage = 0d
   var nIncluded = 0
 
-  def expectedVariance(gp: IndexedSeq[Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
+  def expectedVariance(gp: IndexedSeq[java.lang.Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
-  def merge(gp: IndexedSeq[Double]): InfoScoreCombiner = {
+  def merge(gp: IndexedSeq[java.lang.Double]): InfoScoreCombiner = {
     if (gp != null) {
+      if (gp.length != 3)
+        fatal(s"'info_score': invalid GP array: expected 3 elements, found ${gp.length}: [${gp.mkString(", ")}]")
+      if (gp.contains(null))
+        fatal(s"'info_score': invalid GP array: missing elements are not supported: [${gp.mkString(", ")}]")
       val mean = gp(1) + 2 * gp(2)
       result += expectedVariance(gp, mean)
       expectedAlleleCount += mean
-      totalDosage += gp.sum
+      totalDosage += gp(0)
+      totalDosage += gp(1)
+      totalDosage += gp(2)
       nIncluded += 1
     }
     this

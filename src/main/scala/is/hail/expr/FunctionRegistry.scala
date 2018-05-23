@@ -1281,7 +1281,7 @@ object FunctionRegistry {
 
   registerAggregator[Double, java.lang.Double]("min", () => new MinAggregator[Double, java.lang.Double]())(aggregableHr(float64Hr), boxedFloat64Hr)
 
-  registerAggregator[IndexedSeq[Double], Any]("infoScore", () => new InfoScoreAggregator())(aggregableHr(arrayHr(float64Hr)),
+  registerAggregator[IndexedSeq[java.lang.Double], Any]("infoScore", () => new InfoScoreAggregator())(aggregableHr(arrayHr(boxedFloat64Hr)),
     new HailRep[Any] {
       def typ: Type = InfoScoreCombiner.signature
     })

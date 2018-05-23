@@ -33,6 +33,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     filter
     inbreeding
     call_stats
+    info_score
     hist
 
 .. autofunction:: collect
@@ -56,4 +57,5 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: filter
 .. autofunction:: inbreeding
 .. autofunction:: call_stats
+.. autofunction:: info_score
 .. autofunction:: hist
