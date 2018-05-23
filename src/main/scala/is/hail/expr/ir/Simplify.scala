@@ -115,8 +115,8 @@ object Simplify {
       case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
       case SelectFields(MakeStruct(fields), fieldNames) =>
-        val includedSet = fieldNames.toSet
-        MakeStruct(fields.filter(f => includedSet.contains(f._1)))
+        val makeStructFields = fields.toMap
+        MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
 
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
