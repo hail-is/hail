@@ -342,7 +342,7 @@ object PruneDeadFields {
   def rebuild(tir: TableIR, dep: TableType): TableIR = {
     assert(isSupertype(dep, tir.typ), s"not subtype: \n  $tir\n  ${ tir.typ }\n  $dep")
     tir match {
-      case x@TableRead(_, _, _) => upcast(x, dep)
+      case x@TableRead(_, _, _) => x
       case x@TableLiteral(_) => x
       case x@TableParallelize(_, _, _) => x
       case x@TableImport(paths, typ, readerOpts) =>
@@ -377,10 +377,10 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, dep.rowType),
           globalType = dep.globalType)),
           keys, nPartitionKeys, sort)
-      case x@TableMapRows(child, newRow, newKey) =>
+      case x@TableMapRows(child, newRow, newKey, preservedKeyFields) =>
         val (rowDep, memo) = getDeps(newRow, dep.rowType, child.typ)
         val child2 = rebuild(child, unify(child.typ, minimal(child.typ).copy(globalType = dep.globalType), rowDep))
-        TableMapRows(child2, rewrite(newRow, child2.typ, memo), newKey)
+        TableMapRows(child2, rewrite(newRow, child2.typ, memo), newKey, preservedKeyFields)
       case x@TableMapGlobals(child, newRow, value) =>
         val (globalDep, memo) = getDeps(newRow, dep.globalType, child.typ)
         // fixme push down into value
@@ -644,29 +644,29 @@ object PruneDeadFields {
       }
     }
   }
-
-  def upcast(mir: MatrixIR, mt: MatrixType): MatrixIR = {
-//    assert(isSupertype(mt, mir.typ))
-    var ir = mir
-    if (ir.typ.globalType != mt.globalType)
-      ir = MatrixMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), mt.globalType),
-        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
-    if (ir.typ.colType != mt.colType)
-      ir = MatrixMapCols(ir, upcast(Ref("sa", ir.typ.colType), mt.colType), None)
-    if (ir.typ.rvRowType != mt.rvRowType)
-      ir = MatrixMapRows(ir, upcast(Ref("va", ir.typ.rvRowType), mt.rvRowType), None)
-    ir
-  }
-
-  def upcast(tir: TableIR, tt: TableType): TableIR = {
-//    assert(isSupertype(tt, tir.typ), s"cannot upcast \n  ir: $tir:\n  base: ${ tir.typ }\n  sub:  $tt")
-    var ir = tir
-    if (ir.typ.globalType != tt.globalType)
-      ir = TableMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), tt.globalType),
-        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
-    if (ir.typ.rowType != tt.rowType)
-      ir = TableMapRows(ir, upcast(Ref("row", ir.typ.rowType), tt.rowType), None)
-    ir
-  }
+//
+//  def upcast(mir: MatrixIR, mt: MatrixType): MatrixIR = {
+////    assert(isSupertype(mt, mir.typ))
+//    var ir = mir
+//    if (ir.typ.globalType != mt.globalType)
+//      ir = MatrixMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), mt.globalType),
+//        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
+//    if (ir.typ.colType != mt.colType)
+//      ir = MatrixMapCols(ir, upcast(Ref("sa", ir.typ.colType), mt.colType), None)
+//    if (ir.typ.rvRowType != mt.rvRowType)
+//      ir = MatrixMapRows(ir, upcast(Ref("va", ir.typ.rvRowType), mt.rvRowType), None)
+//    ir
+//  }
+//
+//  def upcast(tir: TableIR, tt: TableType): TableIR = {
+////    assert(isSupertype(tt, tir.typ), s"cannot upcast \n  ir: $tir:\n  base: ${ tir.typ }\n  sub:  $tt")
+//    var ir = tir
+//    if (ir.typ.globalType != tt.globalType)
+//      ir = TableMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), tt.globalType),
+//        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
+//    if (ir.typ.rowType != tt.rowType)
+//      ir = TableMapRows(ir, upcast(Ref("row", ir.typ.rowType), tt.rowType), None)
+//    ir
+//  }
 }
 

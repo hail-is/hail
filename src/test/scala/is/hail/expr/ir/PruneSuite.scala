@@ -57,7 +57,7 @@ class PruneSuite extends SparkSuite {
       "b" -> GetField(row, "b"),
       "c" -> GetField(row, "c"),
       "d" -> GetField(row, "d"),
-      "e" -> I32(10))), None)
+      "e" -> I32(10))), None, None)
 
     var aggir3 = TableAggregate(ir3, ApplyAggOp(SeqOp(GetField(GetField(Ref("row", ir3.typ.rowType), "c"), "c1"), I32(0), sig), FastIndexedSeq(), None, sig))
     assert(Interpret[Long](aggir3, optimize = true) == Interpret[Long](aggir3, optimize = false))
