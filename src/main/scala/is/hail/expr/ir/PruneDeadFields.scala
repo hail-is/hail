@@ -374,7 +374,7 @@ object PruneDeadFields {
       case x@TableKeyBy(child, keys, nPartitionKeys, sort) =>
         val childKeyFields = child.typ.key.iterator.flatten.toSet
         TableKeyBy(rebuild(child, child.typ.copy(
-          rowType = unify(child.typ.rowType, dep.rowType),
+          rowType = unify(child.typ.rowType, minimal(child.typ).rowType, dep.rowType),
           globalType = dep.globalType)),
           keys, nPartitionKeys, sort)
       case x@TableMapRows(child, newRow, newKey, preservedKeyFields) =>
