@@ -36,20 +36,13 @@ object LinearRegression {
     info(s"linear_regression: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
-    println("y.shape", y.rows, y.cols)
-    println("cov.shape", cov.rows, cov.cols)
-
     val Qt =
       if (k > 0)
         qr.reduced.justQ(cov).t
       else
         DenseMatrix.zeros[Double](0, n)
 
-    println("Qt.shape", Qt.rows, Qt.cols)
-
     val Qty = Qt * y
-
-    println("Qty.shape", Qty.rows, Qty.cols)
 
     val sc = vsm.sparkContext
     val completeColIdxBc = sc.broadcast(completeColIdx)

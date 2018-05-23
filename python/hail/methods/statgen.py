@@ -253,7 +253,8 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
-    of `x` are mean-imputed over these columns.
+    of `x` are mean-imputed over these columns. As in the example, the intercept
+    covariate ``1.0`` must be included explicitly if desired.
 
     Notes
     -----
@@ -384,7 +385,6 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
 
     Examples
     --------
-
     Run the logistic regression Wald test per variant using a Boolean
     phenotype, intercept and two covariates stored in column-indexed
     fields:
@@ -401,7 +401,8 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     variable in predicting a binary (case-control) response variable based on
     the logistic regression model. The response variable type must either be
     numeric (with all present values 0 or 1) or Boolean, in which case true and
-    false are coded as 1 and 0, respectively.
+    false are coded as 1 and 0, respectively. As in the example, the intercept
+    covariate ``1.0`` must be included explicitly if desired.
 
     Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
     score test ('score'), and Firth test ('firth'). Hail only includes columns
@@ -568,7 +569,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate expressions.
+        Non-empty list of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
 
@@ -577,6 +578,9 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
     """
+    if len(covariates) == 0:
+        raise ValueError('logistic regression requires at least one covariate expression')
+
     mt = matrix_table_source('logistic_regression/x', x)
     check_entry_indexed('logistic_regression/x', x)
 
@@ -627,7 +631,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
+def skat(key_expr, weight_expr, y, x, covariates=(), logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
@@ -643,7 +647,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
     ...                      x=burden_ds.GT.n_alt_alleles(),
-    ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
+    ...                      covariates=[1.0, burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
 
@@ -669,9 +673,10 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
     <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
-    The test is run on columns with `y` and all `covariates` non-missing. For
-    each row, missing input (`x`) values are imputed as the mean of all
-    non-missing input values.
+    The test is run on columns with `y` and all `covariates` non-missing.
+    As in the example, the intercept covariate ``1.0`` must be included
+    explicitly if desired. For each row, missing input (`x`) values are
+    imputed as the mean of all non-missing input values.
 
     Row weights must be non-negative. Rows with missing weights are ignored. In
     the R package ``skat``---which assumes rows are variants---default weights
