@@ -112,6 +112,12 @@ object Simplify {
           fields2.filter { case (name, _) => !fields1Set.contains(name) }
         MakeStruct(finalFields)
 
+      case GetField(SelectFields(old, fields), name) => GetField(old, name)
+
+      case SelectFields(MakeStruct(fields), fieldNames) =>
+        val makeStructFields = fields.toMap
+        MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
+
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
       // optimize TableIR
