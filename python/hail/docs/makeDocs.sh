@@ -20,10 +20,8 @@ xsltproc --html -o build/www/jobs.html www/jobs.xslt build/tmp/jobs.html
 pandoc -s www/about.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/about.html
 xsltproc --html -o build/www/about.html www/about.xslt build/tmp/about.html
 
-cp -r python/ build/tmp/python/
+cp -r python/ build/tmp/
 
-pwd
-(cd build/tmp/python/hail/docs && pwd && make clean html)
-pwd
+(cd build/tmp/python/hail/docs && make clean html)
 
 mv build/tmp/python/hail/docs/_build/html build/www/docs/$HAIL_VERSION
