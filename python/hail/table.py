@@ -1295,7 +1295,7 @@ class Table(ExprContainer):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            is_key = len(exprs) == len(src.key) and all(
+            is_key = src.key is not None and len(exprs) == len(src.key) and all(
                 exprs[i] is src._fields[list(src.key)[i]] for i in range(len(exprs)))
             is_interval = (len(self.key) == 1
                            and isinstance(self.key[0].dtype, hl.tinterval)
