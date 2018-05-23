@@ -9,12 +9,13 @@ import is.hail._
 import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
-import is.hail.io.{BlockingBufferSpec, BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec}
+import is.hail.io._
 import is.hail.methods.UpperIndexBounds
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
+import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
@@ -101,6 +102,11 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
+  def checkWriteSuccess(hc: HailContext, uri: String) {
+    if (!hc.hadoopConf.exists(uri + "/_SUCCESS"))
+      fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")    
+  }
+  
   def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
     hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
       implicit val formats = defaultJSONFormats
@@ -109,10 +115,7 @@ object BlockMatrix {
   }
 
   def read(hc: HailContext, uri: String): M = {
-    val hadoopConf = hc.hadoopConf
-
-    if (!hadoopConf.exists(uri + "/_SUCCESS"))
-      fatal("Write failed: no success indicator found")
+    checkWriteSuccess(hc, uri)
 
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = readMetadata(hc, uri)
 
@@ -146,6 +149,153 @@ object BlockMatrix {
     } else {
       None
     }
+  }
+
+  // rectangles checked in Python
+  def exportRectangles(
+    hc: HailContext,
+    input: String,
+    output: String,
+    flattenedRectangles: Array[Long],
+    delimiter: String,
+    nPartitions: Int): Unit = {
+    require(flattenedRectangles.length % 4 == 0)
+
+    checkWriteSuccess(hc, input)
+
+    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(hc, input)
+    val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
+
+    val rectangles = flattenedRectangles.grouped(4).toArray    
+    val dRect = digitsNeeded(rectangles.length)
+
+    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
+    val partFilesBc = hc.sc.broadcast(partFiles)
+
+    val rdd = hc.sc.parallelize(rectangles.zipWithIndex, numSlices = nPartitions).map { case (r, index) =>
+      val partFiles = partFilesBc.value
+      val data = new Array[Double](blockSize)
+      val sb = new StringBuilder(blockSize << 2)
+      val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
+      val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
+
+      val osw = new OutputStreamWriter(sHadoopBc.value.value.unsafeWriter(outputFile))
+      try {
+        val startRow = r(0)
+        val stopRow = r(1)
+        val startCol = r(2)
+        val stopCol = r(3)
+
+        val nonEmpty = startRow < stopRow && startCol < stopCol
+
+        if (nonEmpty) {
+          val startRowOffset = gp.indexBlockOffset(startRow)
+
+          val startBlockCol = gp.indexBlockIndex(startCol)
+          val startColOffset = gp.indexBlockOffset(startCol)
+
+          val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
+          val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
+
+          val startColByteOffset = startColOffset << 3
+          val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
+
+          val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
+          try {
+            var i = startRow
+            while (i < stopRow) {
+              if (i == startRow || gp.indexBlockOffset(i) == 0) {
+                val blockRow = gp.indexBlockIndex(i)
+                val nRowsInBlock = gp.blockRowNRows(blockRow)
+
+                var blockCol = startBlockCol
+                while (blockCol < stopBlockCol) {
+                  val pi = gp.coordinatesPart(blockRow, blockCol)
+                  if (pi < 0)
+                    fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
+                      s"with bounds ${ r.mkString("[", ", ", "]") }")
+
+                  val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
+                  val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+                  val nColsInBlock = gp.blockColNCols(blockCol)
+
+                  assert(in.readInt() == nRowsInBlock)
+                  assert(in.readInt() == nColsInBlock)
+                  val isTranspose = in.readBoolean()
+                  if (!isTranspose)
+                    fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
+
+                  if (i == startRow) {
+                    val skip = startRowOffset * (nColsInBlock << 3)
+                    in.skipBytes(skip)
+                  }
+
+                  inPerBlockCol(blockCol - startBlockCol) = in
+
+                  blockCol += 1
+                }
+              }
+
+              inPerBlockCol.head.skipBytes(startColByteOffset)
+
+              var blockCol = startBlockCol
+              while (blockCol < stopBlockCol) {
+                val startColOffsetInBlock =
+                  if (blockCol > startBlockCol)
+                    0
+                  else
+                    startColOffset
+
+                val stopColOffsetInBlock =
+                  if (blockCol < stopBlockCol - 1)
+                    blockSize
+                  else
+                    stopColOffset
+
+                val n = stopColOffsetInBlock - startColOffsetInBlock
+
+                inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
+
+                sb.clear()
+                var k = 0
+                while (k < n - 1) {
+                  sb.append(data(k))
+                  sb.append(delimiter)
+                  k += 1
+                }
+                sb.append(data(n - 1))
+                if (blockCol < stopBlockCol)
+                  sb.append(delimiter)
+                else
+                  sb.append("\n")
+
+                osw.write(sb.result())
+
+                blockCol += 1
+              }
+              i += 1
+
+              inPerBlockCol.last.skipBytes(stopColByteDeficit)
+
+              if (i % blockSize == 0 && i < stopRow)
+                inPerBlockCol.foreach(_.close())
+            }
+          } finally {
+            inPerBlockCol.foreach(in => if (in != null) in.close())
+          }
+        }
+      } finally {
+        osw.close()
+      }
+      
+      1
+    }
+
+    val nFiles = rdd.reduce(_ + _)
+    assert(nFiles == rectangles.length)
+    
+    info(s"wrote $nFiles rectangular regions to files")
   }
 
   object ops {
@@ -210,48 +360,92 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     else
       new BlockMatrix(blocks.subsetPartitions(partsToKeep, Some(filteredGP)), blockSize, nRows, nCols)
   }
+
+  // filter to blocks overlapping diagonal band of all elements with lower <= jj - ii <= upper
+  // if not blocksOnly, also zero out all remaining elements outside band
+  def filterBand(lower: Long, upper: Long, blocksOnly: Boolean): BlockMatrix = {
+    require(lower <= upper)
+
+    val filteredBM = filterBlocks(gp.bandBlocks(lower, upper))
+
+    if (blocksOnly)
+      filteredBM
+    else
+      filteredBM.zeroBand(lower, upper)
+  }
+  
+  def zeroBand(lower: Long, upper: Long): BlockMatrix = {    
+    val zeroedBlocks = blocks.mapPartitions( { it =>
+      assert(it.hasNext)
+      val ((i, j), lm0) = it.next()
+      assert(!it.hasNext)
+      
+      val nRowsInBlock = lm0.rows
+      val nColsInBlock = lm0.cols
+
+      val diagIndex = (j - i).toLong * blockSize
+      val lowestDiagIndex = diagIndex - (nRowsInBlock - 1)
+      val highestDiagIndex = diagIndex + (nColsInBlock - 1)
+      
+      if (lowestDiagIndex >= lower && highestDiagIndex <= upper)
+        Iterator.single(((i, j), lm0))
+      else {
+        val lm = lm0.copy // avoidable?
+        
+        if (lower > lowestDiagIndex) {
+          val iiLeft = math.max(diagIndex - lower, 0).toInt
+          val iiRight = math.min(diagIndex - lower + nColsInBlock, nRowsInBlock).toInt
+
+          var ii = iiLeft
+          var jj = math.max(lower - diagIndex, 0).toInt
+          while (ii < iiRight) {
+            lm(ii to ii, 0 until jj) := 0.0
+            ii += 1
+            jj += 1
+          }
+          
+          lm(iiRight until nRowsInBlock, ::) := 0.0
+        }
+        
+        if (upper < highestDiagIndex) {
+          val iiLeft = math.max(diagIndex - upper, 0).toInt
+          val iiRight = math.min(diagIndex - upper + nColsInBlock, nRowsInBlock).toInt
+
+          lm(0 until iiLeft, ::) := 0.0
+          
+          var ii = iiLeft
+          var jj = math.max(upper - diagIndex, 0).toInt + 1
+          while (ii < iiRight) {
+            lm(ii to ii, jj until nColsInBlock) := 0.0
+            ii += 1
+            jj += 1
+          }
+        }
+        Iterator.single(((i, j), lm))
+      }
+    }, preservesPartitioning = true)
+    
+    new BlockMatrix(zeroedBlocks, blockSize, nRows, nCols)
+  }
   
   // for row i, filter to indices [starts[i], stops[i]) by dropping non-overlapping blocks
   // if not blocksOnly, also zero out elements outside ranges in overlapping blocks
+  // checked in Python: start >= 0 && start <= stop && stop <= nCols
   def filterRowIntervals(starts: Array[Long], stops: Array[Long], blocksOnly: Boolean): BlockMatrix = {
     require(nRows <= Int.MaxValue)
     require(starts.length == nRows)
     require(stops.length == nRows)
-    
-    val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
-      .zipWithIndex
-      .flatMap { case ((startsInBlockRow, stopsInBlockRow), blockRow) =>
-        val nRowsInBlockRow = gp.blockRowNRows(blockRow)
-        var minStart = Long.MaxValue
-        var maxStop = Long.MinValue
-        var ii = 0
-        while (ii < nRowsInBlockRow) {
-          val start = startsInBlockRow(ii)
-          val stop = stopsInBlockRow(ii)
-          assert(start >= 0 && start <= stop && stop <= nCols) // require start <= stop?
-          if (start < stop) {
-            minStart = minStart min start
-            maxStop = maxStop max stop
-          }
-          ii += 1
-        }
-        if (minStart < maxStop) {
-          val row = blockRow * blockSize
-          Some(Array(row, row, minStart, maxStop - 1))
-        } else
-          None
-      }.toArray
 
-    val filteredBM = filterBlocks(gp.rectangularBlocks(rectangles))
+    val filteredBM = filterBlocks(gp.rowIntervalsBlocks(starts, stops))
 
     if (blocksOnly)
-       filteredBM
+      filteredBM
     else
-       filteredBM.zeroRowIntervals(starts, stops)
+      filteredBM.zeroRowIntervals(starts, stops)
   }
-  
+
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
-    val sc = blocks.sparkContext    
+    val sc = blocks.sparkContext
     val startBlockIndexBc = sc.broadcast(starts.map(gp.indexBlockIndex))
     val stopBlockIndexBc = sc.broadcast(stops.map(stop => (stop / blockSize).toInt))
     val startBlockOffsetBc = sc.broadcast(starts.map(gp.indexBlockOffset))
@@ -263,12 +457,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       assert(!it.hasNext)
 
       val lm = lm0.copy // avoidable?
-      
+
       val startBlockIndex = startBlockIndexBc.value
       val stopBlockIndex = stopBlockIndexBc.value
       val startBlockOffset = startBlockOffsetBc.value
       val stopBlockOffset = stopBlockOffsetsBc.value
-      
+
       val nRowsInBlock = lm.rows
       val nColsInBlock = lm.cols
 
@@ -293,6 +487,13 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }, preservesPartitioning = true)
     
     new BlockMatrix(zeroedBlocks, blockSize, nRows, nCols)
+  }
+  
+  def filterRectangles(flattenedRectangles: Array[Long]): BlockMatrix = {
+    require(flattenedRectangles.length % 4 == 0)
+    val rectangles = flattenedRectangles.grouped(4).toArray
+    
+    filterBlocks(gp.rectanglesBlocks(rectangles))
   }
   
   // element-wise ops
@@ -320,8 +521,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   
   def div(that: M): M = blockMap2(that, _ /:/ _,
     "element-wise division")
-
-  private val badDivSet: Set[Double] = Set(0.0, Double.NaN, Double.NegativeInfinity, Double.PositiveInfinity)
   
   // row broadcast
   def rowVectorAdd(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) + lv,
@@ -331,12 +530,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "broadcasted subtraction of row-vector")(a)
   
   def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv,
-    "broadcasted multiplication by row-vector",
-    reqDense = false)(a)
+    "broadcasted multiplication by row-vector containing nan, or infinity",
+    reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
   def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv, 
     "broadcasted division by row-vector containing zero, nan, or infinity",
-    reqDense = a.exists(badDivSet))(a)
+    reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
   def reverseRowVectorSub(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv - _),
     "broadcasted row-vector minus block matrix")(a)
@@ -352,12 +551,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "broadcasted subtraction of column-vector")(a)
   
   def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv,
-    "broadcasted multiplication by column-vector",
-    reqDense = false)(a)
+    "broadcasted multiplication column-vector containing nan or infinity",
+    reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
   def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv,
-    "broadcasted division by column-vector containing zero",
-    reqDense = a.exists(badDivSet))(a)
+    "broadcasted division by column-vector containing zero, nan, or infinity",
+    reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
   def reverseColVectorSub(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv - _),
     "broadcasted column-vector minus block matrix")(a)
@@ -373,16 +572,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "scalar subtraction")
   
   def scalarMul(i: Double): M = blockMap(_ *:* i,
-    "scaler multiplication",
-    reqDense = false)
+      s"multiplication by scalar $i",
+      reqDense = i.isNaN | i.isInfinity)
   
-  def scalarDiv(i: Double): M = {
-    if (badDivSet(i))
-      fatal(s"cannot divide block matrix by scalar $i")
-    blockMap(_ /:/ i,
-      "scalar division",
-      reqDense = false)
-  }
+  def scalarDiv(i: Double): M = blockMap(_ /:/ i,
+      s"division by scalar $i",
+      reqDense = i == 0.0 | i.isNaN | i.isInfinity)
   
   def reverseScalarSub(i: Double): M = blockMap(i - _,
     s"scalar minus block matrix")
@@ -1135,7 +1330,7 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   private val (newGP, inverseTransposePI) = bm.gp.transpose
-  
+
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = Array(inverseTransposePI(partitionId))

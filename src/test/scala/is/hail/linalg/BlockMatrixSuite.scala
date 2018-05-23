@@ -1007,56 +1007,10 @@ class BlockMatrixSuite extends SparkSuite {
     
     TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(v0) }
     TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(v0) }
-    TestUtils.interceptFatal("cannot divide block matrix by scalar 0.0") { bm0 / 0 }
+    TestUtils.interceptFatal("multiplication by scalar NaN") { bm0 * Double.NaN }
+    TestUtils.interceptFatal("division by scalar 0.0") { bm0 / 0 }
     
     // exponent to negative power not supported
     TestUtils.interceptFatal(notSupported) { bm0.pow(-1)}
-  }
-  
-  @Test
-  def testFilterRowIntervals() {
-    val lm = toLM(4, 4, Array(
-      1, 2, 3, 4,
-      5, 6, 7, 8,
-      9, 10, 11, 12,
-      13, 14, 15, 16))
-    
-    val bm = toBM(lm, blockSize = 2)
-
-    val starts = Array[Long](1, 0, 0, 2)
-    val stops = Array[Long](4, 4, 0, 3)
-
-    val filteredLM = toLM(4, 4, Array(
-      1, 2, 3, 4,
-      5, 6, 7, 8,
-      0, 0, 11, 12,
-      0, 0, 15, 16))
-    
-    val zeroedLM = toLM(4, 4, Array(
-      0, 2, 3, 4,
-      5, 6, 7, 8,
-      0, 0, 0, 0,
-      0, 0, 15, 0))
-    
-    assert(bm.filterRowIntervals(starts, stops, blocksOnly = true).toBreezeMatrix() === filteredLM)
-    assert(bm.filterRowIntervals(starts, stops, blocksOnly = false).toBreezeMatrix() === zeroedLM)
-    
-    val starts2 = Array[Long](0, 1, 2, 3)
-    val stops2 = Array[Long](1, 2, 3, 4)
-
-    val filteredLM2 = toLM(4, 4, Array(
-      1, 2, 0, 0,
-      5, 6, 0, 0,
-      0, 0, 11, 12,
-      0, 0, 15, 16))
-    
-    val zeroedLM2 = toLM(4, 4, Array(
-      1, 0, 0, 0,
-      0, 6, 0, 0,
-      0, 0, 11, 0,
-      0, 0, 0, 16))
-    
-    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = true).toBreezeMatrix() === filteredLM2)
-    assert(bm.filterRowIntervals(starts2, stops2, blocksOnly = false).toBreezeMatrix() === zeroedLM2)
   }
 }

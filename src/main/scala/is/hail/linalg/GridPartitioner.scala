@@ -4,10 +4,17 @@ import org.apache.spark.Partitioner
 import breeze.linalg.{DenseVector => BDV}
 import is.hail.utils._
 
+import scala.collection.mutable
+
 
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
-  require(nRows > 0 && nRows <= Int.MaxValue.toLong * blockSize)
-  require(nCols > 0 && nCols <= Int.MaxValue.toLong * blockSize)
+  if (nRows == 0)
+    fatal("block matrix must have at least one row")
+  if (nCols == 0)
+    fatal("block matrix must have at least one column")
+  
+  require(nRows <= Int.MaxValue.toLong * blockSize)
+  require(nCols <= Int.MaxValue.toLong * blockSize)
   
   def indexBlockIndex(index: Long): Int = (index / blockSize).toInt
 
@@ -133,42 +140,66 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   }
   
   // returns increasing array of all blocks intersecting the diagonal band consisting of
-  //   all entries with -lowerBandwidth <= (colIndex - rowIndex) <= upperBandwidth
-  def bandedBlocks(lowerBandwidth: Long, upperBandwidth: Long): Array[Int] = {
-    require(lowerBandwidth >= 0 && upperBandwidth >= 0)
+  //   all elements with lower <= jj - ii <= upper
+  def bandBlocks(lower: Long, upper: Long): Array[Int] = {
+    require(lower <= upper)
     
-    val lowerBlockBandwidth = indexBlockIndex(lowerBandwidth + blockSize - 1)
-    val upperBlockBandwidth = indexBlockIndex(upperBandwidth + blockSize - 1)
+    val lowerBlock = java.lang.Math.floorDiv(lower, blockSize).toInt
+    val upperBlock = java.lang.Math.floorDiv(upper + blockSize - 1, blockSize).toInt
 
     (for { j <- 0 until nBlockCols
-           i <- ((j - upperBlockBandwidth) max 0) to
-                ((j + lowerBlockBandwidth) min (nBlockRows - 1))
+           i <- ((j - upperBlock) max 0) to
+                ((j - lowerBlock) min (nBlockRows - 1))
     } yield (j * nBlockRows) + i).toArray
   }
 
-  // returns increasing array of all blocks intersecting the rectangle [firstRow, lastRow] x [firstCol, lastCol]
-  def rectangularBlocks(firstRow: Long, lastRow: Long, firstCol: Long, lastCol: Long): Array[Int] = {
-    require(firstRow >= 0 && lastRow < nRows)
-    require(firstCol >= 0 && lastCol < nCols)
+  // returns increasing array of all blocks intersecting the rectangle
+  // [r(0), r(1)) x [r(2), r(3)), i.e. [startRow, stopRow) x [startCol, stopCol)
+  // rectangle checked in Python
+  def rectangleBlocks(r: Array[Long]): Array[Int] = {
+    val startBlockRow = indexBlockIndex(r(0))
+    val stopBlockRow = java.lang.Math.floorDiv(r(1) - 1, blockSize).toInt + 1
+    val startBlockCol = indexBlockIndex(r(2))
+    val stopBlockCol = java.lang.Math.floorDiv(r(3) - 1, blockSize).toInt + 1
     
-    if (firstRow > lastRow || firstCol > lastCol)
-      return Array.empty[Int]
-    
-    val firstBlockRow = indexBlockIndex(firstRow)
-    val lastBlockRow = indexBlockIndex(lastRow)
-    val firstBlockCol = indexBlockIndex(firstCol)
-    val lastBlockCol = indexBlockIndex(lastCol)
-    
-    (for { j <- firstBlockCol to lastBlockCol
-           i <- firstBlockRow to lastBlockRow
+    (for { j <- startBlockCol until stopBlockCol
+           i <- startBlockRow until stopBlockRow
     } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the union of rectangles
-  def rectangularBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    require(rectangles.forall(r => r.length == 4))
-    val rects = rectangles.foldLeft(Set[Int]())((s, r) => s ++ rectangularBlocks(r(0), r(1), r(2), r(3))).toArray    
-    scala.util.Sorting.quickSort(rects)
-    rects
+  // rectangles checked in Python
+  def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
+    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray    
+    scala.util.Sorting.quickSort(blocks)
+    blocks
+  }
+  
+  // starts, stops checked in Python
+  def rowIntervalsBlocks(starts: Array[Long], stops: Array[Long]): Array[Int] = {
+    val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
+      .zipWithIndex
+      .flatMap { case ((startsInBlockRow, stopsInBlockRow), blockRow) =>
+        val nRowsInBlockRow = blockRowNRows(blockRow)
+        var minStart = Long.MaxValue
+        var maxStop = Long.MinValue
+        var ii = 0
+        while (ii < nRowsInBlockRow) {
+          val start = startsInBlockRow(ii)
+          val stop = stopsInBlockRow(ii)
+          if (start < stop) {
+            minStart = minStart min start
+            maxStop = maxStop max stop
+          }
+          ii += 1
+        }
+        if (minStart < maxStop) {
+          val row = blockRow * blockSize
+          Some(Array(row, row + 1, minStart, maxStop))
+        } else
+          None
+      }.toArray
+    
+    rectanglesBlocks(rectangles)
   }
 }
