@@ -143,6 +143,12 @@ class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
     b(i) = x
     missing(i) = false
   }
+
+  def sort(ordering: AsmFunction4[Byte, Boolean, Byte, Boolean, Boolean]): Unit = {
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
+  }
 }
 
 class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
@@ -179,7 +185,9 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
   }
 
   def sort(ordering: AsmFunction4[Int, Boolean, Int, Boolean, Boolean]): Unit = {
-    (missing, b) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
   }
 }
 
@@ -217,7 +225,9 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
   }
 
   def sort(ordering: AsmFunction4[Long, Boolean, Long, Boolean, Boolean]): Unit = {
-    (missing, b) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
   }
 }
 
@@ -255,7 +265,9 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initia
   }
 
   def sort(ordering: AsmFunction4[Float, Boolean, Float, Boolean, Boolean]): Unit = {
-    (missing, b) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
   }
 }
 
@@ -293,7 +305,9 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
   }
 
   def sort(ordering: AsmFunction4[Double, Boolean, Double, Boolean, Boolean]): Unit = {
-    (missing, b) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
   }
 }
 
@@ -331,6 +345,8 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(init
   }
 
   def sort(ordering: AsmFunction4[Boolean, Boolean, Boolean, Boolean, Boolean]): Unit = {
-    (missing, b) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
+    missing = newmissing
+    b = newb
   }
 }

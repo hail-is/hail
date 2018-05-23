@@ -28,29 +28,33 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
           mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
       }
     }
-
     ceq
   } else
       mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv, missingGreatest = true)
 
   def sort(): Code[Unit] = {
 
-    def newSortFunction[T: TypeInfo](
-      fb: EmitFunctionBuilder[_]
-    ): DependentEmitFunction[AsmFunction4[T, Boolean, T, Boolean, Boolean]] =
-      fb.newDependentFunction[T, Boolean, T, Boolean, Boolean]
+    def newSortFunction[T: TypeInfo]: (DependentEmitFunction[AsmFunction4[T, Boolean, T, Boolean, Boolean]], () => Code[Unit]) = {
+      val s = mb.fb.newDependentFunction[T, Boolean, T, Boolean, Boolean]
+      val f = mb.newField[AsmFunction4[T, Boolean, T, Boolean, Boolean]]
+      (s, { () => Code(s.newInstance(f), array.sort(f)) })
+    }
 
-    val sorter = if (keyOnly) {
+    val (sorter, createF) = ti match {
+      case BooleanInfo => newSortFunction[Boolean]
+      case IntInfo => newSortFunction[Int]
+      case LongInfo => newSortFunction[Long]
+      case FloatInfo => newSortFunction[Float]
+      case DoubleInfo => newSortFunction[Double]
+    }
+    val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
+    if (keyOnly) {
       val ttype = coerce[TBaseStruct](typ)
       require(ttype.size == 2)
       val kt = ttype.types(0)
-      val kti = typeToTypeInfo(kt)
-
-      val sorter = newSortFunction[Long](mb.fb)
 
       val mk1 = sorter.newLocal[Boolean]
       val mk2 = sorter.newLocal[Boolean]
-      val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
 
       val m1 = sorter.getArg[Boolean](2)
       val m2 = sorter.getArg[Boolean](4)
@@ -68,29 +72,13 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
         (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
       )
       sorter.emit(comparison < 0)
-      sorter
     } else {
-      val sorter = ti match {
-        case BooleanInfo => newSortFunction[Boolean](mb.fb)
-        case IntInfo => newSortFunction[Int](mb.fb)
-        case LongInfo => newSortFunction[Long](mb.fb)
-        case FloatInfo => newSortFunction[Float](mb.fb)
-        case DoubleInfo => newSortFunction[Double](mb.fb)
-      }
-
-      val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
       val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true)
       sorter.emit(cmp(
-        sorterRegion,
-        (sorter.getArg[Boolean](2), sorter.getArg(1)(ti)),
-        sorterRegion,
-        (sorter.getArg[Boolean](2), sorter.getArg(1)(ti))) < 0)
-      sorter
+        sorterRegion, (sorter.getArg[Boolean](2), sorter.getArg(1)(ti)),
+        sorterRegion, (sorter.getArg[Boolean](4), sorter.getArg(3)(ti))) < 0)
     }
-    val sorterField = mb.newField()(sorter.interfaceTi)
-    Code(
-      sorter.newInstance(sorterField),
-      array.sort(sorterField.load()))
+    createF()
   }
 
   def toRegion(): Code[Long] = {
