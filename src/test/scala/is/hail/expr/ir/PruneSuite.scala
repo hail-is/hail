@@ -24,13 +24,13 @@ class PruneSuite extends SparkSuite {
       ))
     )
 
-    assert(PruneDeadFields.unionType(base, TStruct()) == TStruct())
-    assert(PruneDeadFields.unionType(base, TStruct("b" -> TInt32())) == TStruct("b" -> TInt32()))
-    assert(PruneDeadFields.unionType(base, TStruct("a" -> TStruct())) == TStruct("a" -> TStruct()))
-    assert(PruneDeadFields.unionType(base, TStruct("a" -> TStruct()),
+    assert(PruneDeadFields.unify(base, TStruct()) == TStruct())
+    assert(PruneDeadFields.unify(base, TStruct("b" -> TInt32())) == TStruct("b" -> TInt32()))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct())) == TStruct("a" -> TStruct()))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct()),
       TStruct("b" -> TInt32())) == TStruct("a" -> TStruct(), "b" -> TInt32()))
-    assert(PruneDeadFields.unionType(base, TStruct("c" -> TArray(TStruct()))) == TStruct("c" -> TArray(TStruct())))
-    assert(PruneDeadFields.unionType(base, TStruct("a" -> TStruct("ab" -> TStruct())),
+    assert(PruneDeadFields.unify(base, TStruct("c" -> TArray(TStruct()))) == TStruct("c" -> TArray(TStruct())))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct("ab" -> TStruct())),
       TStruct("c" -> TArray(TStruct()))) == TStruct("a" -> TStruct("ab" -> TStruct()), "c" -> TArray(TStruct())))
   }
 

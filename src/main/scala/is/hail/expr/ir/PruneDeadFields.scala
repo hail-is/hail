@@ -32,6 +32,11 @@ object PruneDeadFields {
             } else
               false
           }
+        case (t1: TTuple, t2: TTuple) =>
+          t1.required == t2.required &&
+            t1.size == t2.size &&
+            t1.types.zip(t2.types)
+              .forall { case (elt1, elt2) => isSupertype(elt1, elt2)}
         case (agg1: TAggregable, agg2: TAggregable) => isSupertype(agg1.elementType, agg2.elementType)
         case (t1: Type, t2: Type) => t1 == t2
         case _ => fatal(s"invalid comparison: $superType / $subType")
@@ -84,56 +89,66 @@ object PruneDeadFields {
     result.asInstanceOf[T]
   }
 
-  def unionBaseType[T <: BaseType](base: T, children: T*): T = {
-    val r = base match {
+  def unifyBaseType(base: BaseType, children: BaseType*): BaseType = {
+    base match {
       case tt: TableType =>
         val ttChildren = children.map(_.asInstanceOf[TableType])
         tt.copy(
-          rowType = unionType(tt.rowType, ttChildren.map(_.rowType): _*),
-          globalType = unionType(tt.globalType, ttChildren.map(_.globalType): _*)
+          rowType = unify(tt.rowType, ttChildren.map(_.rowType): _*),
+          globalType = unify(tt.globalType, ttChildren.map(_.globalType): _*)
         )
       case mt: MatrixType =>
         val mtChildren = children.map(_.asInstanceOf[MatrixType])
         mt.copy(
-          globalType = unionType(mt.globalType, mtChildren.map(_.globalType): _*),
-          rvRowType = unionType(mt.rvRowType, mtChildren.map(_.rvRowType): _*),
-          colType = unionType(mt.colType, mtChildren.map(_.colType): _*)
+          globalType = unify(mt.globalType, mtChildren.map(_.globalType): _*),
+          rvRowType = unify(mt.rvRowType, mtChildren.map(_.rvRowType): _*),
+          colType = unify(mt.colType, mtChildren.map(_.colType): _*)
         )
-    }
-    r.asInstanceOf[T]
-  }
-
-  def unionType[T <: Type](base: T, children: T*): T = {
-    children.foreach(t => assert(isSupertype(t, base), s"incompatibility:\n  ${ t.parsableString() }\n  ${ base.parsableString }"))
-
-    if (children.isEmpty)
-      return minimal(base)
-
-    val r = base match {
-      case ts: TStruct =>
-        val subStructs = children.map(_.asInstanceOf[TStruct])
-        val subFields = ts.fields.map { f =>
-          f -> subStructs.flatMap(s => s.fieldOption(f.name))
+      case t: Type =>
+//        children.foreach(t => assert(isSupertype(t, base), s"incompatibility:\n  ${ t.parsableString() }\n  ${ base.parsableString }"))
+        if (children.isEmpty)
+          return minimal(t)
+        t match {
+          case ts: TStruct =>
+            val subStructs = children.map(_.asInstanceOf[TStruct])
+            val subFields = ts.fields.map { f =>
+              f -> subStructs.flatMap(s => s.fieldOption(f.name))
+            }
+              .filter(_._2.nonEmpty)
+              .map { case (f, ss) => f.name -> unify(f.typ, ss.map(_.typ): _*) }
+            TStruct(ts.required, subFields: _*)
+          case tt: TTuple =>
+            val subTuples = children.map(_.asInstanceOf[TTuple])
+            TTuple(tt.required, tt.types.indices.map(i => unify(tt.types(i), subTuples.map(_.types(i)): _*)): _*)
+          case ta: TArray =>
+            TArray(unify(ta.elementType, children.map(_.asInstanceOf[TArray].elementType): _*), ta.required)
+          case tagg: TAggregable => tagg.copy(elementType =
+            unify(tagg.elementType, children.map(_.asInstanceOf[TAggregable].elementType): _*))
+          case _ =>
+            assert(children.forall(_.asInstanceOf[Type].isOfType(t)))
+            base
         }
-          .filter(_._2.nonEmpty)
-          .map { case (f, ss) => f.name -> unionType(f.typ, ss.map(_.typ): _*) }
-        TStruct(ts.required, subFields: _*)
-      case ta: TArray =>
-        TArray(unionType(ta.elementType, children.map(_.asInstanceOf[TArray].elementType): _*), ta.required)
-      case tagg: TAggregable => tagg.copy(elementType =
-        unionType(tagg.elementType, children.map(_.asInstanceOf[TAggregable].elementType): _*))
-      case _ =>
-        assert(children.forall(_ == base))
-        base
     }
-    r.asInstanceOf[T]
   }
 
-  def unify(base: Env[Type], envs: Env[Type]*): Env[Type] = {
-    val bindings = base.m.toArray.map { case (name, baseType) =>
-      name -> unionType[Type](baseType, envs.flatMap(_.lookupOption(name)): _*)
+  def unify[T <: BaseType](base: T, children: T*): T = unifyBaseType(base, children: _*).asInstanceOf[T]
+
+  def unifyEnvs(envs: Env[(Type, Type)]*): Env[(Type, Type)] = {
+    val lc = envs.lengthCompare(1)
+    if (lc < 0)
+      Env.empty[(Type, Type)]
+    else if (lc == 0)
+      envs.head
+    else {
+      val allKeys = envs.flatMap(_.m.keys).toSet
+      val bindings = allKeys.toArray.map { k =>
+        val envMatches = envs.flatMap(_.lookupOption(k))
+        assert(envMatches.nonEmpty)
+        val base = envMatches.head._1
+        k -> (base, unify(base, envMatches.map(_._2): _*))
+      }
+      new Env[(Type, Type)].bind(bindings: _*)
     }
-    new Env[Type].bind(bindings: _*)
   }
 
   def baseTypeToEnv(bt: BaseType): Env[Type] = {
@@ -153,152 +168,129 @@ object PruneDeadFields {
     }
   }
 
-  def getDeps(ir: IR, rType: Type, base: TableType): (TableType, Memo[Type]) = {
-    val env = baseTypeToEnv(base)
+  def getDeps(ir: IR, requestedType: Type, base: TableType): (TableType, Memo[Type]) = {
+    //    val env = baseTypeToEnv(base)
     val memo = Memo.empty[Type]
-    val depEnv = getDeps(ir, rType, env, memo)
+    val depEnv = getDeps(ir, requestedType, memo).m.mapValues(_._2)
     val min = minimal(base)
     val rowArgs = (Iterator.single(min.rowType) ++
-      depEnv.lookupOption("row").map(_.asInstanceOf[TStruct]).iterator ++
-      depEnv.lookupOption("AGG").map(_.asInstanceOf[TAggregable].elementType.asInstanceOf[TStruct]).iterator).toArray
-    val globalArgs = (Iterator.single(min.globalType) ++ depEnv.lookupOption("global").map(_.asInstanceOf[TStruct]).iterator).toArray
-    base.copy(rowType = unionType(base.rowType, rowArgs: _*),
-      globalType = unionType(base.globalType, globalArgs: _*)) -> memo
+      depEnv.get("row").map(_.asInstanceOf[TStruct]).iterator ++
+      depEnv.get("AGG").map(_.asInstanceOf[TAggregable].elementType.asInstanceOf[TStruct]).iterator).toArray
+    val globalArgs = (Iterator.single(min.globalType) ++ depEnv.get("global").map(_.asInstanceOf[TStruct]).iterator).toArray
+    base.copy(rowType = unify(base.rowType, rowArgs: _*),
+      globalType = unify(base.globalType, globalArgs: _*)) -> memo
   }
 
-  def getDeps(ir: IR, rType: Type, base: MatrixType): (MatrixType, Memo[Type]) = {
-    val env = baseTypeToEnv(base)
+  def getDeps(ir: IR, requestedType: Type, base: MatrixType): (MatrixType, Memo[Type]) = {
+    //    val env = baseTypeToEnv(base)
     val memo = Memo.empty[Type]
-    val depEnv = getDeps(ir, rType, env, memo)
+    val depEnv = getDeps(ir, requestedType, memo).m.mapValues(_._2)
     val min = minimal(base)
     val eField = base.rvRowType.field(MatrixType.entriesIdentifier)
-    val rowArgs = (Iterator.single(min.rvRowType) ++ depEnv.lookupOption("va").iterator ++
+    val rowArgs = (Iterator.single(min.rvRowType) ++ depEnv.get("va").iterator ++
       Iterator.single(TStruct(eField.name -> TArray(
-        unionType(eField.typ.asInstanceOf[TArray].elementType,
-          (depEnv.lookupOption("g").iterator ++ depEnv.lookupOption("AGG").map(_.asInstanceOf[TAggregable].elementType).iterator).toArray: _*),
+        unify(eField.typ.asInstanceOf[TArray].elementType,
+          (depEnv.get("g").iterator ++ depEnv.get("AGG").map(_.asInstanceOf[TAggregable].elementType).iterator).toArray: _*),
         eField.typ.required)))).toArray
-    val colArgs = (Iterator.single(min.colType) ++ depEnv.lookupOption("sa").iterator).toArray
-    val globalArgs = (Iterator.single(min.globalType) ++ depEnv.lookupOption("global").iterator).toArray
-    base.copy(rvRowType = unionType(base.rvRowType, rowArgs: _*).asInstanceOf[TStruct],
-      globalType = unionType(base.globalType, globalArgs: _*).asInstanceOf[TStruct],
-      colType = unionType(base.colType, colArgs: _*).asInstanceOf[TStruct]) -> memo
+    val colArgs = (Iterator.single(min.colType) ++ depEnv.get("sa").iterator).toArray
+    val globalArgs = (Iterator.single(min.globalType) ++ depEnv.get("global").iterator).toArray
+    base.copy(rvRowType = unify(base.rvRowType, rowArgs: _*).asInstanceOf[TStruct],
+      globalType = unify(base.globalType, globalArgs: _*).asInstanceOf[TStruct],
+      colType = unify(base.colType, colArgs: _*).asInstanceOf[TStruct]) -> memo
   }
 
-  def getDeps(ir: IR, rType: Type, base: Env[Type], memo: Memo[Type]): Env[Type] = {
-    memo.bind(ir, rType)
+  def getDeps(ir: IR, requestedType: Type, memo: Memo[Type]): Env[(Type, Type)] = {
+    memo.bind(ir, requestedType)
     ir match {
-      case I32(_) => Env.empty[Type]
-      case I64(_) => Env.empty[Type]
-      case F32(_) => Env.empty[Type]
-      case F64(_) => Env.empty[Type]
-      case Str(_) => Env.empty[Type]
-      case True() => Env.empty[Type]
-      case False() => Env.empty[Type]
-      case Cast(v, t) => getDeps(v, v.typ, base, memo)
-      case NA(typ) => Env.empty[Type]
-      case IsNA(value) => getDeps(value, minimal(value.typ), base, memo)
+      case IsNA(value) => getDeps(value, minimal(value.typ), memo)
       case If(cond, cnsq, alt) =>
-        unify(base,
-          getDeps(cond, cond.typ, base, memo),
-          getDeps(cnsq, rType, base, memo),
-          getDeps(alt, rType, base, memo)
+        unifyEnvs(
+          getDeps(cond, cond.typ, memo),
+          getDeps(cnsq, requestedType, memo),
+          getDeps(alt, requestedType, memo)
         )
       case Let(name, value, body) =>
-        val min = minimal(value.typ)
-        val bodyEnv = getDeps(body, rType, base.bind(name, min), memo)
-        val valueType = bodyEnv.lookupOption(name).getOrElse(min)
-        unify(base,
+        val bodyEnv = getDeps(body, requestedType, memo)
+        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(value.typ))
+        unifyEnvs(
           bodyEnv.delete(name),
-          getDeps(value, valueType, base, memo)
+          getDeps(value, valueType, memo)
         )
       case Ref(name, t) =>
-        assert(isSupertype(rType, t), s"not subtype:\n  ret:  ${ rType.parsableString() }\n  base: ${ t.parsableString() }")
-        Env.empty[Type].bind(name, rType)
-      case ApplyBinaryPrimOp(_, l, r) =>
-        unify(base,
-          getDeps(l, l.typ, base, memo),
-          getDeps(r, r.typ, base, memo))
-      case ApplyUnaryPrimOp(_, x) =>
-        getDeps(x, x.typ, base, memo)
+//        assert(isSupertype(requestedType, t), s"not subtype:\n  ret:  ${ requestedType.parsableString() }\n  base: ${ t.parsableString() }")
+        Env.empty[(Type, Type)].bind(name, t -> requestedType)
       case MakeArray(args, _) =>
-        val eltType = rType.asInstanceOf[TArray].elementType
-        unify(base, args.map(a => getDeps(a, eltType, base, memo)): _*)
+        val eltType = requestedType.asInstanceOf[TArray].elementType
+        unifyEnvs(args.map(a => getDeps(a, eltType, memo)): _*)
       case ArrayRef(a, i) =>
-        unify(base, getDeps(a, a.typ.asInstanceOf[TArray].copy(elementType = rType), base, memo), getDeps(i, i.typ, base, memo))
+        unifyEnvs(
+          getDeps(a, a.typ.asInstanceOf[TArray].copy(elementType = requestedType), memo),
+          getDeps(i, i.typ, memo))
       case ArrayLen(a) =>
-        getDeps(a, minimal(a.typ), base, memo)
-      case ArrayRange(start, stop, step) =>
-        unify(base,
-          getDeps(start, start.typ, base, memo),
-          getDeps(stop, start.typ, base, memo),
-          getDeps(step, step.typ, base, memo))
+        getDeps(a, minimal(a.typ), memo)
       case ArrayMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TArray]
-        val bodyEnv = getDeps(body,
-          rType.asInstanceOf[TArray].elementType,
-          base.bind(name, -aType.elementType),
+        val bodyDep = getDeps(body,
+          requestedType.asInstanceOf[TArray].elementType,
           memo)
-        val valueType = bodyEnv.lookupOption(name).getOrElse(minimal(-aType.elementType))
-        unify(base,
-          bodyEnv.delete(name),
-          getDeps(a, aType.copy(elementType = valueType), base, memo)
+        val valueType = bodyDep.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
+          bodyDep.delete(name),
+          getDeps(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFilter(a, name, cond) =>
         val aType = a.typ.asInstanceOf[TArray]
-        val bodyEnv = getDeps(cond, cond.typ, base.bind(name, -aType.elementType), memo)
-        val valueType = bodyEnv.lookupOption(name).getOrElse(minimal(-aType.elementType))
-        unify(base,
+        val bodyEnv = getDeps(cond, cond.typ, memo)
+        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
           bodyEnv.delete(name),
-          getDeps(a, aType.copy(elementType = valueType), base, memo)
+          getDeps(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFlatMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TArray]
-        val bodyEnv = getDeps(body, rType, base.bind(name, -aType.elementType), memo)
-        val valueType = bodyEnv.lookupOption(name).getOrElse(minimal(-aType.elementType))
-        unify(base,
+        val bodyEnv = getDeps(body, requestedType, memo)
+        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
           bodyEnv.delete(name),
-          getDeps(a, aType.copy(elementType = valueType), base, memo)
+          getDeps(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        assert(rType == zero.typ)
+        assert(requestedType == zero.typ)
         val aType = a.typ.asInstanceOf[TArray]
-        val zeroEnv = getDeps(zero, zero.typ, base, memo)
-        val bodyEnv = getDeps(body,
-          zero.typ,
-          base.bind(accumName -> zero.typ, valueName -> -aType.elementType),
-          memo)
-        val valueType = bodyEnv.lookupOption(valueName).getOrElse(minimal(-aType.elementType))
-        unify(base,
+        val zeroEnv = getDeps(zero, zero.typ, memo)
+        val bodyEnv = getDeps(body, body.typ, memo)
+        val valueType = bodyEnv.lookupOption(valueName).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
           zeroEnv,
           bodyEnv.delete(accumName).delete(valueName),
-          getDeps(a, aType.copy(elementType = valueType), base, memo)
+          getDeps(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFor(a, valueName, body) =>
         val aType = a.typ.asInstanceOf[TArray]
-        val bodyEnv = getDeps(body,
-          body.typ,
-          base.bind(valueName -> -aType.elementType),
-          memo)
-        val valueType = bodyEnv.lookupOption(valueName).getOrElse(minimal(-aType.elementType))
-        unify(base,
+        val bodyEnv = getDeps(body, body.typ, memo)
+        val valueType = bodyEnv.lookupOption(valueName).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
           bodyEnv.delete(valueName),
-          getDeps(a, aType.copy(elementType = valueType), base, memo)
+          getDeps(a, aType.copy(elementType = valueType), memo)
         )
-      case ApplyAggOp(a, constructorArgs, initOpArgs, _) =>
-        unify(base,
-          Seq(getDeps(a, a.typ, base, memo)) ++
-            (constructorArgs ++ initOpArgs.toSeq.flatten).map(arg => getDeps(arg, arg.typ, base, memo)): _*
-        )
-      case SeqOp(a, i, _) => unify(base, getDeps(a, a.typ, base, memo), getDeps(i, i.typ, base, memo))
-      case Begin(xs) => unify(base, xs.map(x => getDeps(x, x.typ, base, memo)): _*)
+      //      case ApplyAggOp(a, constructorArgs, initOpArgs, _) =>
+      //        unifyEnvs(
+      //          (Array(a) ++ constructorArgs ++ initOpArgs.toArray.flatten).map(ir => getDeps(ir, ir.typ, memo)): _*
+      //        )
+      //        unify(base,
+      //          Seq(getDeps(a, a.typ, base, memo)) ++
+      //            (constructorArgs ++ initOpArgs.toSeq.flatten).map(arg => getDeps(arg, arg.typ, base, memo)): _*
+      //        )
+      //      case SeqOp(a, i, _) => unify(base, getDeps(a, a.typ, base, memo), getDeps(i, i.typ, base, memo))
+      //      case Begin(xs) => unify(base, xs.map(x => getDeps(x, x.typ, base, memo)): _*)
       case MakeStruct(fields) =>
-        val sType = rType.asInstanceOf[TStruct]
-        unify(base, fields.flatMap { case (fname, fir) =>
+        val sType = requestedType.asInstanceOf[TStruct]
+        unifyEnvs(fields.flatMap { case (fname, fir) =>
           // ignore unreachable fields, these are eliminated on the upwards pass
-          sType.fieldOption(fname).map(f => getDeps(fir, f.typ, base, memo))
+          sType.fieldOption(fname).map(f => getDeps(fir, f.typ, memo))
         }: _*)
       case InsertFields(old, fields) =>
-        val sType = rType.asInstanceOf[TStruct]
+        val sType = requestedType.asInstanceOf[TStruct]
         val insFieldNames = fields.map(_._1).toSet
         val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
         val rightDepFields = rightDep.fieldNames.toSet
@@ -311,21 +303,23 @@ object PruneDeadFields {
               else
                 sType.fieldOption(f.name).map(f.name -> _.typ)
             }: _*)
-        unify(base,
-          Seq(getDeps(old, leftDep, base, memo)) ++
+        unifyEnvs(
+          FastSeq(getDeps(old, leftDep, memo)) ++
             // ignore unreachable fields, these are eliminated on the upwards pass
             fields.flatMap { case (fname, fir) =>
-              rightDep.fieldOption(fname).map(f => getDeps(fir, f.typ, base, memo))
+              rightDep.fieldOption(fname).map(f => getDeps(fir, f.typ, memo))
             }: _*
         )
+      case SelectFields(old, fields) =>
+        val sType = requestedType.asInstanceOf[TStruct]
+        getDeps(old, TStruct(old.typ.required, fields.flatMap(f => sType.fieldOption(f).map(f -> _.typ)): _*), memo)
       case x@GetField(o, name) =>
-        getDeps(o, o.typ.asInstanceOf[TStruct].filter(_.name == name)._1, base, memo)
+        getDeps(o, TStruct(o.typ.required, name -> requestedType), memo)
       case x@MakeTuple(types) =>
-        val tType = rType.asInstanceOf[TTuple]
+        val tType = requestedType.asInstanceOf[TTuple]
         assert(types.length == tType.size)
-        unify(
-          base,
-          types.zip(tType.types).map { case (tir, t) => getDeps(tir, t, base, memo) }: _*
+        unifyEnvs(
+          types.zip(tType.types).map { case (tir, t) => getDeps(tir, t, memo) }: _*
         )
       case GetTupleElement(o, idx) =>
         // FIXME handle tuples better
@@ -333,22 +327,15 @@ object PruneDeadFields {
         val tupleDep = TTuple(childTupleType.required,
           childTupleType.types
             .zipWithIndex
-            .map { case (t, i) => if (i == idx) rType else minimal(t) }: _*)
-        getDeps(o, tupleDep, base, memo)
-      case In(i, _) => Env.empty[Type]
-      case Die(_) => Env.empty[Type]
-      case Apply(function, args) =>
-        // assume everything is required
-        unify(
-          base,
-          args.map(a => getDeps(a, a.typ, base, memo)): _*
-        )
-      case ApplySpecial(function, args) =>
-        // assume everything is required
-        unify(
-          base,
-          args.map(a => getDeps(a, a.typ, base, memo)): _*
-        )
+            .map { case (t, i) => if (i == idx) requestedType else minimal(t) }: _*)
+        getDeps(o, tupleDep, memo)
+      case x: IR =>
+        val irChildren = x.children.flatMap {
+          case ir: IR => Some(ir)
+          case _ => None
+        }
+
+        unifyEnvs(irChildren.map(child => getDeps(child, child.typ, memo)): _*)
     }
   }
 
@@ -375,25 +362,29 @@ object PruneDeadFields {
         TableJoin(rebuild(left, leftDep), rebuild(right, rightDep), joinType)
       case x@TableExplode(child, field) =>
         val minChild = minimal(child.typ)
-        val dep2 = unionBaseType(child.typ, dep.copy(rowType = dep.rowType.filter(_.name != field)._1),
-          minChild.copy(rowType = unionType(
+        val dep2 = unify(child.typ, dep.copy(rowType = dep.rowType.filter(_.name != field)._1),
+          minChild.copy(rowType = unify(
             child.typ.rowType, minChild.rowType, child.typ.rowType.filter(_.name == field)._1)))
         TableExplode(rebuild(child, dep2), field)
       case x@TableFilter(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep, irDep))
+        val child2 = rebuild(child, unify(child.typ, dep, irDep))
         val pred2 = rebuildIR(pred, child2.typ, memo)
         TableFilter(child2, pred2)
       case x@TableKeyBy(child, keys, nPartitionKeys, sort) =>
-        TableKeyBy(rebuild(child, dep.copy(key = child.typ.key)), keys, nPartitionKeys, sort)
+        val childKeyFields = child.typ.key.iterator.flatten.toSet
+        TableKeyBy(rebuild(child, child.typ.copy(
+          rowType = unify(child.typ.rowType, dep.rowType),
+          globalType = dep.globalType)),
+          keys, nPartitionKeys, sort)
       case x@TableMapRows(child, newRow, newKey) =>
         val (rowDep, memo) = getDeps(newRow, dep.rowType, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep.copy(rowType = rowDep.rowType, key = child.typ.key), rowDep))
+        val child2 = rebuild(child, unify(child.typ, minimal(child.typ).copy(globalType = dep.globalType), rowDep))
         TableMapRows(child2, rebuildIR(newRow, child2.typ, memo), newKey)
       case x@TableMapGlobals(child, newRow, value) =>
         val (globalDep, memo) = getDeps(newRow, dep.globalType, child.typ)
         // fixme push down into value
-        val child2 = rebuild(child, unionBaseType(child.typ, dep.copy(globalType = globalDep.globalType), globalDep))
+        val child2 = rebuild(child, unify(child.typ, dep.copy(globalType = globalDep.globalType), globalDep))
         TableMapGlobals(child2, rebuildIR(newRow, child2.typ, memo, "value" -> value.t), value)
       case x@MatrixColsTable(child) =>
         val minChild = minimal(child.typ)
@@ -405,7 +396,7 @@ object PruneDeadFields {
         val minChild = minimal(child.typ)
         val mtDep = minChild.copy(
           globalType = dep.globalType,
-          rvRowType = unionType(child.typ.rvRowType, minChild.rvRowType, dep.rowType))
+          rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, dep.rowType))
         MatrixRowsTable(rebuild(child, mtDep))
       case x@MatrixEntriesTable(child) =>
         val mtDep = child.typ.copy(
@@ -426,6 +417,14 @@ object PruneDeadFields {
         MatrixEntriesTable(child2)
       case x@TableUnion(children) =>
         TableUnion(children.map(rebuild(_, dep)))
+      case x@TableUnkey(child) =>
+        child.typ.key match {
+          case Some(k) =>
+            val childKeyFields = k.toSet
+            TableUnkey(rebuild(child, unify(child.typ, dep.copy(key = Some(k),
+              rowType = unify(child.typ.rowType, dep.rowType, child.typ.rowType.filter(f => childKeyFields.contains(f.name))._1)))))
+          case None => TableUnkey(rebuild(child, dep))
+        }
     }
   }
 
@@ -434,15 +433,15 @@ object PruneDeadFields {
     mir match {
       case x@FilterColsIR(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep, irDep))
+        val child2 = rebuild(child, unify(child.typ, dep, irDep))
         FilterColsIR(child2, rebuildIR(pred, child2.typ, memo))
       case x@MatrixFilterRowsIR(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep, irDep))
+        val child2 = rebuild(child, unify(child.typ, dep, irDep))
         MatrixFilterRowsIR(child2, rebuildIR(pred, child2.typ, memo))
       case x@MatrixFilterEntries(child, pred) =>
         val (irDep, memo) = getDeps(pred, pred.typ, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep, irDep))
+        val child2 = rebuild(child, unify(child.typ, dep, irDep))
         MatrixFilterEntries(child2, rebuildIR(pred, child2.typ, memo))
       case x@MatrixMapEntries(child, newEntries) =>
         val (irDep, memo) = getDeps(newEntries, dep.entryType, child.typ)
@@ -452,31 +451,31 @@ object PruneDeadFields {
           else
             f.name -> f.typ
         }: _*))
-        val child2 = rebuild(child, unionBaseType(child.typ, depMod, irDep))
+        val child2 = rebuild(child, unify(child.typ, depMod, irDep))
         MatrixMapEntries(child2, rebuildIR(newEntries, child2.typ, memo))
       case x@MatrixMapRows(child, newRow, newKey) =>
         val (irDep, memo) = getDeps(newRow, dep.rowType, child.typ)
-        val depMod = dep.copy(rvRowType = TStruct(irDep.rvRowType.fields.map { f =>
+        val depMod = child.typ.copy(rvRowType = TStruct(irDep.rvRowType.fields.map { f =>
           if (f.name == MatrixType.entriesIdentifier)
-            f.name -> unionType(child.typ.rvRowType.field(MatrixType.entriesIdentifier).typ,
+            f.name -> unify(child.typ.rvRowType.field(MatrixType.entriesIdentifier).typ,
               f.typ,
               dep.rvRowType.field(MatrixType.entriesIdentifier).typ)
           else
             f.name -> f.typ
-        }: _*), rowKey = child.typ.rowKey)
-        val child2 = rebuild(child, unionBaseType(child.typ, depMod, irDep))
+        }: _*), colType = dep.colType, globalType = dep.globalType)
+        val child2 = rebuild(child, unify(child.typ, depMod, irDep))
         MatrixMapRows(child2, rebuildIR(newRow, child2.typ, memo), newKey)
       case x@MatrixMapCols(child, newCol, newKey) =>
+        // FIXME account for key
         val (irDep, memo) = getDeps(newCol, dep.colType, child.typ)
-        val child2 = rebuild(child, unionBaseType(child.typ, dep.copy(
-          colType = irDep.colType,
-          colKey = child.typ.colKey
-        ), irDep))
+        val depMod = minimal(child.typ).copy(rvRowType = dep.rvRowType,
+          globalType = dep.globalType)
+        val child2 = rebuild(child, unify(child.typ, depMod, irDep))
         MatrixMapCols(child2, rebuildIR(newCol, child2.typ, memo), newKey)
       case x@MatrixMapGlobals(child, newRow, value) =>
         val (irDep, memo) = getDeps(newRow, dep.globalType, child.typ)
         // fixme push down into value
-        val child2 = rebuild(child, unionBaseType(child.typ, dep.copy(globalType = irDep.globalType), irDep))
+        val child2 = rebuild(child, unify(child.typ, dep.copy(globalType = irDep.globalType), irDep))
         MatrixMapGlobals(child2, rebuildIR(newRow, child2.typ, memo, "value" -> value.t), value)
       case x@MatrixRead(_, _, _, _, _) => upcast(x, dep)
       case x@MatrixLiteral(typ, value) => x
@@ -506,6 +505,14 @@ object PruneDeadFields {
           })
         )
         CollectColsByKey(rebuild(child, explodedDep))
+      case MatrixAggregateRowsByKey(child, expr) =>
+        val (irDep, memo) = getDeps(expr, dep.entryType, child.typ)
+        val childDep = child.typ.copy(globalType = unify(irDep.globalType, dep.globalType),
+          rvRowType = irDep.rvRowType,
+          colType = unify(irDep.colType, dep.colType)
+        )
+        val child2 = rebuild(child, childDep)
+        MatrixAggregateRowsByKey(child2, rebuildIR(expr, child2.typ, memo))
     }
   }
 
@@ -533,22 +540,9 @@ object PruneDeadFields {
   def rewriteIR(ir: IR, in: Env[Type], memo: Memo[Type]): IR = {
     val dep = memo.lookup(ir)
     ir match {
-      case I32(_) => ir
-      case I64(_) => ir
-      case F32(_) => ir
-      case F64(_) => ir
-      case Str(_) => ir
-      case True() => ir
-      case False() => ir
-      case Cast(v, t) =>
-        assert(dep == t)
-        Cast(rewriteIR(v, in, memo), t)
       case NA(typ) =>
         assert(isSupertype(dep, typ))
         NA(dep)
-      case IsNA(value) =>
-        assert(dep.isOfType(TBoolean()))
-        IsNA(rewriteIR(value, in, memo))
       case If(cond, cnsq, alt) =>
         val cond2 = rewriteIR(cond, in, memo)
         val cnsq2 = rewriteIR(cnsq, in, memo)
@@ -565,27 +559,13 @@ object PruneDeadFields {
           rewriteIR(body, in.bind(name, value2.typ), memo)
         )
       case Ref(name, t) =>
-        assert(isSupertype(dep, t), s"ref dep is not a supertype of base:\n  ref to '$name'\n  dep:  ${dep.parsableString}\n  base: ${t.parsableString}")
+//        assert(isSupertype(dep, t), s"ref dep is not a supertype of base:\n  ref to '$name'\n  dep:  ${ dep.parsableString }\n  base: ${ t.parsableString }")
         val envT = in.lookup(name)
-        assert(isSupertype(dep, envT), s"ref dep is not a subtype of env type:\n  ref to '$name'\n  dep: ${dep.parsableString()}n  env: ${envT.parsableString()}")
+//        assert(isSupertype(dep, envT), s"ref dep is not a subtype of env type:\n  ref to '$name'\n  dep: ${ dep.parsableString() }n  env: ${ envT.parsableString() }")
         Ref(name, envT)
-      case ApplyBinaryPrimOp(op, l, r) =>
-        ApplyBinaryPrimOp(op, rewriteIR(l, in, memo), rewriteIR(r, in, memo))
-      case ApplyUnaryPrimOp(op, x) =>
-        ApplyUnaryPrimOp(op, rewriteIR(x, in, memo))
       case MakeArray(args, t) =>
         val depArray = dep.asInstanceOf[TArray]
         MakeArray(args.map(a => upcast(rewriteIR(a, in, memo), depArray.elementType)), dep.asInstanceOf[TArray])
-      case ArrayRef(a, i) =>
-        ArrayRef(rewriteIR(a, in, memo), rewriteIR(i, in, memo))
-      case ArrayLen(a) =>
-        ArrayLen(rewriteIR(a, in, memo))
-      case ArrayRange(start, stop, step) =>
-        ArrayRange(
-          rewriteIR(start, in, memo),
-          rewriteIR(stop, in, memo),
-          rewriteIR(step, in, memo)
-        )
       case ArrayMap(a, name, body) =>
         val a2 = rewriteIR(a, in, memo)
         ArrayMap(a2, name, rewriteIR(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
@@ -609,14 +589,6 @@ object PruneDeadFields {
         val a2 = rewriteIR(a, in, memo)
         val body2 = rewriteIR(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         ArrayFor(a2, valueName, body2)
-      case ApplyAggOp(a, constructorArgs, initOpArgs, signature) =>
-        val a2 = rewriteIR(a, in, memo)
-        ApplyAggOp(a2,
-          constructorArgs.map(rewriteIR(_, in, memo)),
-          initOpArgs.map(args => args.map(rewriteIR(_, in, memo))),
-          signature)
-      case SeqOp(a, i, agg) => SeqOp(rewriteIR(a, in, memo), rewriteIR(i, in, memo), agg)
-      case Begin(xs) => Begin(xs.map(rewriteIR(_, in, memo)))
       case MakeStruct(fields) =>
         val depStruct = dep.asInstanceOf[TStruct]
         // drop unnecessary field IRs
@@ -637,18 +609,14 @@ object PruneDeadFields {
             else
               None
           })
-      case x@GetField(o, name) =>
-        GetField(rewriteIR(o, in, memo), name)
-      case x@MakeTuple(types) =>
-        MakeTuple(types.map(rewriteIR(_, in, memo)))
-      case GetTupleElement(o, idx) =>
-        GetTupleElement(rewriteIR(o, in, memo), idx)
-      case In(i, _) => ir
-      case Die(_) => ir
-      case Apply(function, args) =>
-        Apply(function, args.map(rewriteIR(_, in, memo)))
-      case ApplySpecial(function, args) =>
-        ApplySpecial(function, args.map(rewriteIR(_, in, memo)))
+      case SelectFields(old, fields) =>
+        val depStruct = dep.asInstanceOf[TStruct]
+        val old2 = rewriteIR(old, in, memo)
+        SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
+      case _ => Copy(ir, newChildren = ir.children.map {
+        case valueIR: IR => rewriteIR(valueIR, in, memo)
+        case x => x
+      }).asInstanceOf[IR]
     }
   }
 
@@ -656,7 +624,7 @@ object PruneDeadFields {
     if (ir.typ == rType)
       ir
     else {
-      assert(isSupertype(rType, ir.typ), s"cannot upcast $ir:\n  sub:  ${ ir.typ.parsableString() }\n  super:  ${ rType.parsableString() }")
+//      assert(isSupertype(rType, ir.typ), s"cannot upcast $ir:\n  sub:  ${ ir.typ.parsableString() }\n  super:  ${ rType.parsableString() }")
       ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
@@ -678,7 +646,7 @@ object PruneDeadFields {
   }
 
   def upcast(mir: MatrixIR, mt: MatrixType): MatrixIR = {
-    assert(isSupertype(mt, mir.typ))
+//    assert(isSupertype(mt, mir.typ))
     var ir = mir
     if (ir.typ.globalType != mt.globalType)
       ir = MatrixMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), mt.globalType),
@@ -691,7 +659,7 @@ object PruneDeadFields {
   }
 
   def upcast(tir: TableIR, tt: TableType): TableIR = {
-    assert(isSupertype(tt, tir.typ), s"cannot upcast \n  ir: $tir:\n  base: ${ tir.typ }\n  sub:  $tt")
+//    assert(isSupertype(tt, tir.typ), s"cannot upcast \n  ir: $tir:\n  base: ${ tir.typ }\n  sub:  $tt")
     var ir = tir
     if (ir.typ.globalType != tt.globalType)
       ir = TableMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), tt.globalType),
