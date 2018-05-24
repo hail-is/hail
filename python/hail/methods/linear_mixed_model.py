@@ -50,7 +50,7 @@ class LinearMixedModel(object):
 
     .. math::
 
-        Py \sim \mathrm{N}(PX \beta, \, \sigma_g^2 (\gamma S + I))
+        Py \sim \mathrm{N}(PX \beta, \, \sigma^2 (\gamma S + I))
 
     where
 
