@@ -661,6 +661,7 @@ object ReferenceGenome {
     RecurTypes.forall {
       case tl@TLocus(rg, _) =>
         rgs += rg.asInstanceOf[ReferenceGenome]
+      case _ =>
     }(t)
     rgs
   }
