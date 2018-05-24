@@ -43,7 +43,6 @@ final class Region private (
 
   def copyFrom(other: Region, readStart: Long, writeStart: Long, n: Long) {
     assert(end <= capacity)
-    // assert(other.end <= other.capacity)
     assert(n >= 0)
     assert(readStart >= 0)
     assert(writeStart >= 0)
