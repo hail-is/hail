@@ -177,3 +177,4 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     get_sequence
     mendel_error_code
     liftover
+    min_rep

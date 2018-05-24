@@ -33,6 +33,7 @@ Genetics functions
     get_sequence
     mendel_error_code
     liftover
+    min_rep
 
 .. autofunction:: locus
 .. autofunction:: locus_interval
@@ -62,3 +63,4 @@ Genetics functions
 .. autofunction:: get_sequence
 .. autofunction:: mendel_error_code
 .. autofunction:: liftover
+.. autofunction:: min_rep
