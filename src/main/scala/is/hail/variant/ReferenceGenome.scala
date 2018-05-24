@@ -658,10 +658,10 @@ object ReferenceGenome {
 
   def getReferences(t: Type): Set[ReferenceGenome] = {
     var rgs = Set[ReferenceGenome]()
-    Recur.forall {
+    RecurTypes.forall {
       case tl@TLocus(rg, _) =>
         rgs += rg.asInstanceOf[ReferenceGenome]
-    }
+    }(t)
     rgs
   }
 

@@ -1,6 +1,6 @@
 package is.hail.expr.types
 
-object Recur {
+object RecurTypes {
   def apply(f: Type => Type)(typ: Type): Type = typ match {
     case TInterval(pointType, req) => TInterval(f(pointType), req)
     case TArray(elt, req) => TArray(f(elt), req)
@@ -12,6 +12,6 @@ object Recur {
   }
 
   def forall(f: Type => Unit)(typ: Type): Type = {
-    Recur({t => f(t); t})(typ)
+    RecurTypes({t => f(t); t})(typ)
   }
 }
