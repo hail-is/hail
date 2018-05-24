@@ -32,8 +32,9 @@ object Infer {
         TDict(elt.types(0), elt.types(1))
       case ToArray(a) =>
         TArray(coerce[TContainer](a.typ).elementType)
-      case GroupBy(collection, element, keyMap, group, groupMap) =>
-        TDict(keyMap.typ, groupMap.typ)
+      case GroupByKey(collection) =>
+        val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
+        TDict(elt.types(0), TArray(elt.types(1)))
       case ArrayMap(a, name, body) =>
         TArray(-body.typ)
       case ArrayFilter(a, name, cond) =>

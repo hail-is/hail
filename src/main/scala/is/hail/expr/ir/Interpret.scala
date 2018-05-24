@@ -264,8 +264,10 @@ object Interpret {
           Integer.max(0, nSmaller - 1)
         }
 
-      case GroupBy(collection, element, keyMap, group, groupMap) =>
-        // FIXME: implement this!
+      case GroupByKey(collection) =>
+        interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
+          .groupBy { case Row(k, _) => k }
+          .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
 
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)

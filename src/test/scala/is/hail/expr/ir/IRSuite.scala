@@ -273,5 +273,13 @@ class IRSuite extends TestNGSuite {
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
+
+  @Test def testGroupByKey() {
+    def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
+
+    def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
+    val collection1 = groupby(tuple("", 0), tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10))
+
+    assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
   }
 }

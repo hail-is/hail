@@ -412,42 +412,83 @@ private class Emit(
           a.m,
           bs.getClosestIndex(a.value[Long], e.m, e.v))
 
-      case GroupBy(collection, element, keyMap, group, groupMap) =>
+      case GroupByKey(collection) =>
         //sort collection by group
         val atyp = coerce[TArray](collection.typ)
-        val eti = typeToTypeInfo(atyp.elementType)
-        val ktyp = keyMap.typ
+        val etyp = coerce[TBaseStruct](atyp.elementType)
+        val ktyp = etyp.types(0)
+        val vtyp = etyp.types(1)
         val kti = typeToTypeInfo(ktyp)
+        val eltOut = coerce[TBaseStruct](coerce[TDict](ir.typ).elementType)
+
 
         val aout = emitArrayIterator(collection)
-        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val kab = new StagedArrayBuilder(keyMap.typ, mb, 16)
-        val sorter = new ArraySorter(mb, kab, keyOnly = false)
-
-        val em = mb.newField[Boolean]
-        val ev = mb.newField()(kti)
-
-        val codeK = emit(keyMap, env = env.bind(element -> (eti, em.load(), ev.load())))
+        val eab = new StagedArrayBuilder(etyp, mb, 16)
+        val sorter = new ArraySorter(mb, eab, keyOnly = false)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
-          Code(
-            em := m,
-            ev.storeAny(v),
-            codeK.setup,
-            codeK.m.mux(
-              kab.addMissing(),
-              kab.add(codeK.v)),
-            em.mux(vab.addMissing(), vab.add(ev)))
+          m.mux(eab.addMissing(), eab.add(v))
         }
+
+        val nab = new StagedArrayBuilder(TInt32(), mb, 16)
+        val i = mb.newLocal[Int]
+
+        def loadKey(n: Code[Int]): Code[_] =
+          region.loadIRIntermediate(ktyp)(etyp.fieldOffset(coerce[Long](eab(n)), 0))
+
+        def loadValue(n: Code[Int]): Code[_] =
+          region.loadIRIntermediate(vtyp)(etyp.fieldOffset(coerce[Long](eab(n)), 1))
+
+        val isSame =
+          sorter.equiv(region, (eab.isMissing(i - 1), eab(i - 1)), region, (eab.isMissing(i), eab(i)))
+
+        val srvb = new StagedRegionValueBuilder(mb, ir.typ)
 
         val processArrayElts = aout.arrayEmitter(cont)
         EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-          vab.clear,
-          kab.clear,
+          eab.clear,
+          nab.clear,
           aout.calcLength,
           processArrayElts.addElements,
-          sorter.sort(Some(vab)),
-          ))
+          sorter.sort(),
+          sorter.pruneMissing(),
+          eab.size.ceq(0).mux(
+            Code(srvb.start(0), srvb.offset),
+            Code(
+              i := 1,
+              nab.add(1),
+              Code.whileLoop(i < eab.size,
+                isSame.mux(
+                  nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
+                  nab.add(1)
+                ),
+                i += 1
+              ),
+              i := 0,
+              srvb.start(nab.size),
+              Code.whileLoop(srvb.arrayIdx < nab.size,
+                srvb.addBaseStruct(eltOut, { structbuilder =>
+                  Code(
+                    structbuilder.start(),
+                    structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
+                    structbuilder.advance(),
+                    structbuilder.addArray(coerce[TArray](eltOut.types(1)), { arraybuilder =>
+                      Code(
+                        arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
+                        Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
+                          etyp.isFieldMissing(region, coerce[Long](eab(i)), 1).mux(
+                            arraybuilder.setMissing(),
+                            arraybuilder.addIRIntermediate(etyp.types(1))(loadValue(i))
+                          ),
+                          i += 1,
+                          arraybuilder.advance()
+                        ))
+                    }))
+                }),
+                srvb.advance()
+              ),
+              srvb.offset
+            ))))
 
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
@@ -505,9 +546,9 @@ private class Emit(
         val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean](name2+"_missing")
+        val xmv = mb.newField[Boolean](name2 + "_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmout = mb.newField[Boolean](name1+"_missing")
+        val xmout = mb.newField[Boolean](name1 + "_missing")
         val xvout = coerce[Any](mb.newField(name1)(tti))
         val i = mb.newLocal[Int]("af_i")
         val len = mb.newLocal[Int]("af_len")
@@ -616,7 +657,7 @@ private class Emit(
           Code(codeI.setup, codeA.setup,
             codeI.m.mux(
               Code._empty,
-               agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
+              agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
           const(false),
           Code._empty)
 
@@ -647,16 +688,16 @@ private class Emit(
         val addFields =
           Code(srvb.start(),
             Code(fields.map { name =>
-                val i = oldt.fieldIdx(name)
-                val t = oldt.types(i)
-                val fieldMissing = oldt.isFieldMissing(region, oldv, i)
-                val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
-                Code(
-                  fieldMissing.mux(
-                    srvb.setMissing(),
-                    srvb.addIRIntermediate(t)(fieldValue)),
-                  srvb.advance())
-              }: _*))
+              val i = oldt.fieldIdx(name)
+              val t = oldt.types(i)
+              val fieldMissing = oldt.isFieldMissing(region, oldv, i)
+              val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
+              Code(
+                fieldMissing.mux(
+                  srvb.setMissing(),
+                  srvb.addIRIntermediate(t)(fieldValue)),
+                srvb.advance())
+            }: _*))
 
         EmitTriplet(
           old.setup,

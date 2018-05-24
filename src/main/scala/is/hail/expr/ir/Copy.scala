@@ -68,9 +68,9 @@ object Copy {
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
         LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)
-      case GroupBy(_, element, _, group, _) =>
-        val IndexedSeq(collection: IR, keyMap: IR, groupMap: IR) = newChildren
-        GroupBy(collection, element, keyMap, group, groupMap)
+      case GroupByKey(_) =>
+        val IndexedSeq(collection: IR) = newChildren
+        GroupByKey(collection)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)
