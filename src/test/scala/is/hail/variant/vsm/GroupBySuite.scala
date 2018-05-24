@@ -6,7 +6,9 @@ import org.testng.annotations.Test
 import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.check.Prop.forAll
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.expr.types._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
@@ -16,35 +18,48 @@ class GroupBySuite extends SparkSuite {
   lazy val sampleVDS: MatrixTable = hc.importVCF("src/test/resources/sample.vcf")
 
   @Test def testAggregateColumnsByKeyOnSmallExampleGoingThroughIR() {
+    val aggExpression = "{sum: AGG.map(g=>g.x).sum(), min: AGG.map(g=>g.x).min()}"
+
     // convert to Int64 to make this go through the IR (int32 sum aggregator goes through ast)
     val mt = MatrixTable.range(hc, nRows = 5, nCols = 4, None).annotateColsExpr("group" -> "sa.col_idx%2==0")
       .annotateEntriesExpr("x" -> "(sa.col_idx+va.row_idx).toInt64()")
 
-    val result = mt.keyColsBy("group")
-      .aggregateColsByKey("{sum: AGG.map(g=>g.x).sum(), min: AGG.map(g=>g.x).min()}")
-    
-    val resultRows = result.entriesTable().collect().map(row => Array(row.get(0), row.get(1), row.get(2), row.get(3)))
+    // confirm that aggregation goes through ir
+    assert(Parser.parseToAST(aggExpression, mt.matrixType.rowEC).toIROpt(Some("AGG" -> "g")).isDefined)
 
-    val expectedRows = Array(Array(0, true, 2, 0), Array(0, false, 4, 1),
-      Array(1, true, 4, 1), Array(1, false, 6, 2),
-      Array(2, true, 6, 2), Array(2, false, 8, 3),
-      Array(3, true, 8, 3), Array(3, false, 10, 4),
-      Array(4, true, 10, 4), Array(4, false, 12, 5))
-    assert(resultRows.deep sameElements expectedRows.deep)
+    val result = mt.keyColsBy("group")
+      .aggregateColsByKey(aggExpression)
+
+    val expectedEntriesTableRows = IndexedSeq[(Int, Boolean, Int, Int)]((0, true, 2, 0), (0, false, 4, 1),
+      (1, true, 4, 1), (1, false, 6, 2), (2, true, 6, 2), (2, false, 8, 3),
+      (3, true, 8, 3), (3, false, 10, 4), (4, true, 10, 4), (4, false, 12, 5))
+      .map { case (rowIdx, group, sum, min) => Row(rowIdx, group, sum.toLong, min.toLong) }
+    val expectedEntriesTable = Table.parallelize(hc, expectedEntriesTableRows,
+      TStruct("row_idx" -> TInt32(), "group" -> TBoolean(), "sum" -> TInt64(), "min" -> TInt64()),
+      Some(IndexedSeq("row_idx", "group")), None)
+
+    assert(result.entriesTable().same(expectedEntriesTable))
   }
-  
+
   @Test def testAggregateColumnsByKeyOnSmallExampleGoingThroughAST() {
+    val aggExpression = "{sum: AGG.map(g=>g.x).sum()}"
+
     val mt = MatrixTable.range(hc, nRows = 3, nCols = 4, None).annotateColsExpr("group" -> "sa.col_idx%2==0")
       .annotateEntriesExpr("x" -> "sa.col_idx+va.row_idx")
 
-    val result = mt.keyColsBy("group").aggregateColsByKey("{sum: AGG.map(g=>g.x).sum()}")
+    // confirm aggregation goes through AST (delete this test when AST is gone) 
+    assert(!Parser.parseToAST(aggExpression, mt.matrixType.rowEC).toIROpt(Some("AGG" -> "g")).isDefined)
 
-    val resultRows = result.entriesTable().collect().map(row => Array(row.get(0), row.get(1), row.get(2)))
+    val result = mt.keyColsBy("group").aggregateColsByKey(aggExpression)
 
-    val expectedRows = Array(Array(0, true, 2), Array(0, false, 4),
-      Array(1, true, 4), Array(1, false, 6),
-      Array(2, true, 6), Array(2, false, 8))
-    assert(resultRows.deep sameElements expectedRows.deep)
+    val expectedEntriesTableRows = IndexedSeq[(Int, Boolean, Int)]((0, true, 2), (0, false, 4),
+      (1, true, 4), (1, false, 6), (2, true, 6), (2, false, 8))
+      .map { case (rowIdx, group, sum) => Row(rowIdx, group, sum) }
+    val expectedEntriesTable = Table.parallelize(hc, expectedEntriesTableRows,
+      TStruct("row_idx" -> TInt32(), "group" -> TBoolean(), "sum" -> TInt32()),
+      Some(IndexedSeq("row_idx", "group")), None)
+
+    assert(result.entriesTable().same(expectedEntriesTable))
   }
 
   @Test def testResultSchemaFromAggregateColsByKey() {
