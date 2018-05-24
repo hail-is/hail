@@ -177,7 +177,7 @@ final class Region private (
           i += 1
         }
         blocks += mem
-        end = 0
+        end = n
         mem
       } else {
         val mem = blocks.last + end
