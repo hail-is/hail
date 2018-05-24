@@ -618,9 +618,9 @@ case class MatrixFilterRowsIR(
       rvb.set(partRegion)
       rvb.start(localGlobalsType)
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val partGlobalsOff = rvb.end()
+      val globals = rvb.end()
 
-      val partColsOff = if (rvAggs.nonEmpty) {
+      val cols = if (rvAggs.nonEmpty) {
         rvb.start(localColsType)
         rvb.addAnnotation(localColsType, colValuesBc.value)
         rvb.end()
@@ -630,17 +630,7 @@ case class MatrixFilterRowsIR(
         val region = rv.region
         val row = rv.offset
 
-        rvb.set(region)
-        rvb.start(localGlobalsType)
-        rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-        val globals = rvb.end()
-
         val aggResultsOff = if (rvAggs.nonEmpty) {
-          rvb.set(region)
-          rvb.start(localColsType)
-          rvb.addRegionValue(localColsType, partRegion, partColsOff)
-          val cols = rvb.end()
-
           var j = 0
           while (j < rvAggs.length) {
             rvAggs(j).clear()
@@ -805,11 +795,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
       rvb.set(partRegion)
       rvb.start(localGlobalsType)
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val partGlobalsOff = rvb.end()
+      val globals = rvb.end()
 
       rvb.start(localColsType)
       rvb.addAnnotation(localColsType, colValuesBc.value)
-      val partColsOff = rvb.end()
+      val cols = rvb.end()
 
       val initialize = makeInit()
       val sequence = makeSeq()
@@ -855,26 +845,9 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           if (colRVAggs.nonEmpty) {
             colRVAggs.foreach(_.clear())
 
-            val region = current.region
-            rvb.set(region)
-            rvb.start(localGlobalsType)
-            rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-            val globals = rvb.end()
-
             initialize(region, colRVAggs, globals, false)
 
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-              val region = current.region
-              rvb.set(region)
-              rvb.start(localGlobalsType)
-              rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-              val globals = rvb.end()
-
-              rvb.set(region)
-              rvb.start(localColsType)
-              rvb.addRegionValue(localColsType, partRegion, partColsOff)
-              val cols = rvb.end()
-
               sequence(region, colRVAggs,
                 globals, false,
                 cols, false,
@@ -884,10 +857,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           }
 
           rvb.set(consumerRegion)
-
-          rvb.start(localGlobalsType)
-          rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-          val globals = rvb.end()
 
           val aggResultsOffsets = Array.tabulate(nCols) { i =>
             rvb.start(aggResultType)
@@ -1209,24 +1178,15 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       rvb.set(partitionRegion)
       rvb.start(localGlobalsType)
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val partitionWideGlobals = rvb.end()
+      val globals = rvb.end()
 
       rvb.start(localColsType)
       rvb.addAnnotation(localColsType, colValuesBc.value)
-      val partitionWideCols = rvb.end()
+      val cols = rvb.end()
 
       it.map { rv =>
         val region = rv.region
         val oldRow = rv.offset
-
-        rvb.set(region)
-        rvb.start(localGlobalsType)
-        rvb.addRegionValue(localGlobalsType, partitionRegion, partitionWideGlobals)
-        val globals = rvb.end()
-
-        rvb.start(localColsType)
-        rvb.addRegionValue(localColsType, partitionRegion, partitionWideCols)
-        val cols = rvb.end()
 
         val off = rowF(region, globals, false, oldRow, false, cols, false)
 
@@ -1300,9 +1260,9 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       rvb.set(partRegion)
       rvb.start(localGlobalsType)
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val partGlobalsOff = rvb.end()
+      val globals = rvb.end()
 
-      val partColsOff = if (rvAggs.nonEmpty) {
+      val cols = if (rvAggs.nonEmpty) {
         rvb.start(localColsType)
         rvb.addAnnotation(localColsType, colValuesBc.value)
         rvb.end()
@@ -1312,17 +1272,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         val region = rv.region
         val oldRow = rv.offset
 
-        rvb.set(region)
-        rvb.start(localGlobalsType)
-        rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
-        val globals = rvb.end()
-
         val aggResultsOff = if (rvAggs.nonEmpty) {
-          rvb.set(region)
-          rvb.start(localColsType)
-          rvb.addRegionValue(localColsType, partRegion, partColsOff)
-          val cols = rvb.end()
-
           var j = 0
           while (j < rvAggs.length) {
             rvAggs(j).clear()
@@ -2121,17 +2071,15 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
     assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
-    val itF: (Iterator[RegionValue]) => Iterator[RegionValue] = { it =>
-      val globalRV = RegionValue()
-      val globalRVb = new RegionValueBuilder()
+    val itF = { (ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val rvb = new RegionValueBuilder(ctx.freshRegion)
+      rvb.start(gType)
+      rvb.addAnnotation(gType, globalsBc.value)
+      val globals = rvb.end()
       val rv2 = RegionValue()
       val newRow = f()
       it.map { rv =>
-        globalRVb.set(rv.region)
-        globalRVb.start(gType)
-        globalRVb.addAnnotation(gType, globalsBc.value)
-        globalRV.set(rv.region, globalRVb.end())
-        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globals, false))
         rv2
       }
     }
@@ -2145,19 +2093,19 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
                 partitionKey = key.take(pkLength).toArray,
                 key = key.toArray,
                 rowType = typ.rowType)
-              ordered.mapPartitionsPreservesPartitioning(newType)(itF)
+              ordered.mapPartitionsPreservesPartitioning(newType, itF)
             } else {
               val newType = ordered.typ.copy(
                 partitionKey = key.toArray,
                 key = key.toArray,
                 rowType = typ.rowType)
-              OrderedRVD.coerce(newType, ordered.mapPartitions(typ.rowType)(itF))
+              OrderedRVD.coerce(newType, ordered.mapPartitions(typ.rowType, itF))
             }
           case None =>
-            ordered.mapPartitions(typ.rowType)(itF)
+            ordered.mapPartitions(typ.rowType, itF)
         }
       case unordered: UnpartitionedRVD =>
-        unordered.mapPartitions(typ.rowType)(itF)
+        unordered.mapPartitions(typ.rowType, itF)
     }
 
     TableValue(typ, tv.globals, newRVD)
@@ -2254,10 +2202,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
           val n = lengthF()(rv.region, rv.offset, false)
           Iterator.range(0, n)
             .map { i =>
-              ctx.rvb.start(childRowType)
-              ctx.rvb.addRegionValue(childRowType, rv)
-              val incomingRow = ctx.rvb.end()
-              val off = explodeF()(ctx.region, incomingRow, false, i, false)
+              val off = explodeF()(ctx.region, rv.offset, false, i, false)
               rv2.set(ctx.region, off)
               rv2
             }
@@ -2395,31 +2340,26 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
       x)
     assert(t == typ.rvRowType)
 
-    val mapPartitionF = { it: Iterator[RegionValue] =>
-      val rvb = new RegionValueBuilder()
+    val mapPartitionF = { (ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val rvb = new RegionValueBuilder(ctx.freshRegion)
+      rvb.start(localGlobalType)
+      rvb.addAnnotation(localGlobalType, globalsBc.value)
+      val globals = rvb.end()
+
+      rvb.start(localColValuesType)
+      rvb.addAnnotation(localColValuesType, colValuesBc.value)
+      val cols = rvb.end()
       val rowF = f()
+
       val newRV = RegionValue()
-
       it.map { rv =>
-        val region = rv.region
-        rvb.set(region)
-
-        rvb.start(localGlobalType)
-        rvb.addAnnotation(localGlobalType, globalsBc.value)
-        val globalsOff = rvb.end()
-
-        rvb.start(localColValuesType)
-        rvb.addAnnotation(localColValuesType, colValuesBc.value)
-        val colValuesOff = rvb.end()
-
-        val off = rowF(region, globalsOff, false, colValuesOff, false, rv.offset, false)
-
-        newRV.set(region, off)
+        val off = rowF(rv.region, globals, false, cols, false, rv.offset, false)
+        newRV.set(rv.region, off)
         newRV
       }
     }
 
-    val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
+    val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
     mv.copy(rvd = newRVD)
   }
 }
