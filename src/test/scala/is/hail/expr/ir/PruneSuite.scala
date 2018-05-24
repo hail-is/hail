@@ -34,6 +34,10 @@ class PruneSuite extends SparkSuite {
       TStruct("c" -> TArray(TStruct()))) == TStruct("a" -> TStruct("ab" -> TStruct()), "c" -> TArray(TStruct())))
   }
 
+  @Test def testFoo() {
+    Interpret(Apply("/", Array(MakeArray(Array(I32(1), I32(2)), TArray(TInt32())), MakeArray(Array(I32(1), I32(2)), TArray(TInt32())))))
+  }
+
   @Test def testPipeline() {
     hc // initialize
     var ir = TableParallelize(TableType(TStruct(

@@ -404,7 +404,7 @@ case class MatrixLiteral(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
-    this
+    MatrixLiteral(typ, value)
   }
 
   override def toString: String = "MatrixLiteral(...)"
@@ -421,7 +421,7 @@ case class MatrixRead(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    this
+    MatrixRead(typ, partitionCounts, dropCols, dropRows, f)
   }
 
   def execute(hc: HailContext): MatrixValue = f(this)
@@ -1688,7 +1688,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
     assert(newChildren.isEmpty)
-    this
+    TableLiteral(value)
   }
 
   def execute(hc: HailContext): TableValue = value
@@ -1703,7 +1703,7 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
-    this
+    TableRead(path, spec, dropRows)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1723,7 +1723,7 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
     assert(newChildren.isEmpty)
-    this
+    TableParallelize(typ, rows, nPartitions)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1742,7 +1742,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
     assert(newChildren.isEmpty)
-    this
+    TableImport(paths, typ, readerOpts)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1870,8 +1870,8 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {
-    assert(newChildren.length == 0)
-    this
+    assert(newChildren.isEmpty)
+    TableRange(n, nPartitions)
   }
 
   private val partCounts = partition(n, nPartitionsAdj)
