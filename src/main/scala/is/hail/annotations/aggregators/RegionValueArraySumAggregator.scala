@@ -71,7 +71,7 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
 
 class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
   private var sum: Array[Double] = _
-  private[this] val t = TArray(TInt64())
+  private[this] val t = TArray(TFloat64())
 
   def seqOp(region: Region, aoff: Long, missing: Boolean) {
     if (!missing)
