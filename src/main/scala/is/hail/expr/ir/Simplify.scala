@@ -66,7 +66,10 @@ object Simplify {
 
       case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-      case ArrayRef(MakeArray(args, _), I32(i)) => args(i)
+      case ArrayRef(MakeArray(args, _), I32(i)) =>
+        if (i < 0 || i >= args.length)
+          fatal(s"array index out of bounds: $i / ${args.length}")
+        args(i)
 
       case ArrayFilter(a, _, True()) => a
 

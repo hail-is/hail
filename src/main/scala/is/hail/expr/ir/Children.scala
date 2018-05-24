@@ -86,7 +86,7 @@ object Children {
       Array(o)
     case In(i, typ) =>
       none
-    case Die(message) =>
+    case Die(message, typ) =>
       none
     case ApplyIR(_, args, _) =>
       args.toIndexedSeq

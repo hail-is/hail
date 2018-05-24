@@ -199,7 +199,7 @@ object TypeCheck {
         assert(x.typ == -t.types(idx))
       case In(i, typ) =>
         assert(typ != null)
-      case Die(msg) =>
+      case Die(msg, typ) =>
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
       case x@Apply(fn, args) =>

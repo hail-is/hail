@@ -122,7 +122,7 @@ object Copy {
         GetTupleElement(o, idx)
       case In(_, _) =>
         same
-      case Die(message) =>
+      case Die(message, typ) =>
         same
       case ApplyIR(fn, args, conversion) =>
         ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)

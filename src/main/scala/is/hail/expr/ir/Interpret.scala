@@ -181,8 +181,14 @@ object Interpret {
         val iValue = interpret(i, env, args, agg)
         if (aValue == null || iValue == null)
           null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int])
+        else {
+          val iv = iValue.asInstanceOf[Int]
+          val av = aValue.asInstanceOf[IndexedSeq[Any]]
+          if (iv < 0 || iv >= av.length)
+            fatal(s"array index out of bounds: $iv / ${av.length}")
+          else
+            aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int])
+        }
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
@@ -408,7 +414,7 @@ object Interpret {
         else
           oValue.asInstanceOf[Row].get(idx)
       case In(i, _) => args(i)
-      case Die(message) => fatal(message)
+      case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
       case ir@Apply(function, functionArgs) =>

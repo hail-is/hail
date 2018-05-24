@@ -115,7 +115,11 @@ object ArrayFunctions extends RegistryFunctions {
         val body =
           ArrayMap(ArrayRange(I32(0), ArrayLen(a1), I32(1)), iid,
             irOp(ArrayRef(a1, i), ArrayRef(a2, i)))
-        Let(a1id, array1, Let(a2id, array2, body))
+        val guarded =
+          If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(a1), ArrayLen(a2)),
+            body,
+            Die("Arrays must have same length", body.typ))
+        Let(a1id, array1, Let(a2id, array2, guarded))
       }
     }
 
@@ -233,9 +237,12 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("[*:]", TArray(tv("T")), TInt32()) { (a, i) =>
       val idx = genUID()
       ArrayMap(
-        ArrayRange(If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-          ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-          i),
+        ArrayRange(
+          UtilFunctions.max(
+            If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
+              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+              i),
+            I32(0)),
           ArrayLen(a),
           I32(1)),
         idx,

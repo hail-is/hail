@@ -1,6 +1,9 @@
 package is.hail.utils
 
-class HailException(val msg: String, val logMsg: Option[String] = None, cause: Throwable = null) extends RuntimeException(msg, cause)
+class HailException(val msg: String, val logMsg: Option[String], cause: Throwable) extends RuntimeException(msg, cause) {
+  def this(msg: String) = this(msg, None, null)
+  def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null)
+}
 
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)

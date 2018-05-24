@@ -316,7 +316,7 @@ private class Emit(
 
         EmitTriplet(setup, xmv, Code(
           len := tarray.loadLength(region, xa),
-          (xi < len).mux(
+          (xi < len && xi >= 0).mux(
             region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
             Code._fatal(
               const("array index out of bounds: ")
@@ -732,8 +732,8 @@ private class Emit(
         EmitTriplet(Code._empty,
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
-      case Die(m) =>
-        present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case Die(m, typ) =>
+        present(Code._throw(Code.newInstance[HailException, String](m)))
       case ir@ApplyIR(fn, args, conversion) =>
         emit(ir.explicitNode)
       case ir@Apply(fn, args) =>
