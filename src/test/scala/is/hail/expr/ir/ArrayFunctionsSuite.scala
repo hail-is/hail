@@ -6,167 +6,221 @@ import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 class ArrayFunctionsSuite extends TestNGSuite {
-  def IRArray(a: Seq[Integer]): IR =
+  def toIRArray(a: Seq[Integer]): IR =
     if (a == null)
       NA(TArray(TInt32()))
     else
       MakeArray(a.map { ji => Option(ji).map(I32(_)).getOrElse(NA(TInt32())) }, TArray(TInt32()))
 
+  def IRArray(a: Integer*): IR = toIRArray(a)
+
   val naa = NA(TArray(TInt32()))
-  val a0 = IRArray(Seq(3, 7))
-  val a = IRArray(Seq(3, null, 7, null))
-  val b = IRArray(Seq(3, null, 3, null, 1))
-  val c = IRArray(Seq(2, null, null, 5, 7))
-  val d = IRArray(Seq(1, null, 1, null, 3))
-  val e = IRArray(Seq())
 
-  @Test def length() {
-    assertEvalsTo(invoke("length", a0), 2)
-    assertEvalsTo(invoke("length", naa), null)
-    assertEvalsTo(invoke("length", a), 4)
-    assertEvalsTo(invoke("length", e), 0)
+  @DataProvider(name = "basic")
+  def basicData(): Array[Array[Any]] = Array(
+    Array(IndexedSeq(3, 7)),
+    Array(null),
+    Array(IndexedSeq(3, null, 7, null)),
+    Array(IndexedSeq())
+  )
+
+  @DataProvider(name = "basicPairs")
+  def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
+
+  @Test(dataProvider = "basic")
+  def length(a: Seq[Integer]) {
+    assertEvalsTo(invoke("length", toIRArray(a)),
+      Option(a).map(_.length).orNull)
   }
 
-  @Test def size() {
-    assertEvalsTo(invoke("size", a0), 2)
-    assertEvalsTo(invoke("size", naa), null)
-    assertEvalsTo(invoke("size", a), 4)
-    assertEvalsTo(invoke("size", e), 0)
+  @Test(dataProvider = "basic")
+  def size(a: Seq[Integer]) {
+    assertEvalsTo(invoke("size", toIRArray(a)),
+      Option(a).map(_.length).orNull)
   }
 
-  @Test def isEmpty() {
-    assertEvalsTo(invoke("isEmpty", a0), false)
-    assertEvalsTo(invoke("isEmpty", naa), null)
-    assertEvalsTo(invoke("isEmpty", a), false)
-    assertEvalsTo(invoke("isEmpty", e), true)
+  @Test(dataProvider = "basic")
+  def isEmpty(a: Seq[Integer]) {
+    assertEvalsTo(invoke("isEmpty", toIRArray(a)),
+      Option(a).map(_.isEmpty).orNull)
   }
 
-  @Test def sort() {
-    assertEvalsTo(invoke("sort", a0), IndexedSeq(3, 7))
-    assertEvalsTo(invoke("sort", a0, True()), IndexedSeq(3, 7))
-    assertEvalsTo(invoke("sort", a0, False()), IndexedSeq(7, 3))
-    assertEvalsTo(invoke("sort", naa), null)
-    assertEvalsTo(invoke("sort", a), IndexedSeq(3, 7, null, null))
-    assertEvalsTo(invoke("sort", a, False()), IndexedSeq(7, 3, null, null))
-    assertEvalsTo(invoke("sort", b), IndexedSeq(1, 3, 3, null, null))
-    assertEvalsTo(invoke("sort", b, False()), IndexedSeq(3, 3, 1, null, null))
-    assertEvalsTo(invoke("sort", e), IndexedSeq())
+  @Test(dataProvider = "basic")
+  def append(a: Seq[Integer]) {
+    assertEvalsTo(invoke("append", toIRArray(a), I32(1)),
+      Option(a).map(_ :+ 1).orNull)
   }
 
-  @Test def append() {
-    assertEvalsTo(invoke("append", a0, I32(1)), IndexedSeq(3, 7, 1))
-    assertEvalsTo(invoke("append", a0, NA(TInt32())), IndexedSeq(3, 7, null))
-    assertEvalsTo(invoke("append", naa, I32(1)), null)
-    assertEvalsTo(invoke("append", a, I32(1)), IndexedSeq(3, null, 7, null, 1))
-    assertEvalsTo(invoke("append", e, I32(1)), IndexedSeq(1))
+  @Test(dataProvider = "basic")
+  def appendNull(a: Seq[Integer]) {
+    assertEvalsTo(invoke("append", toIRArray(a), NA(TInt32())),
+      Option(a).map(_ :+ null).orNull)
   }
 
-  @Test def extend() {
-    assertEvalsTo(invoke("extend", a0, a0), IndexedSeq(3, 7, 3, 7))
-    assertEvalsTo(invoke("extend", a0, naa), null)
-    assertEvalsTo(invoke("extend", naa, a0), null)
-    assertEvalsTo(invoke("extend", a, a0), IndexedSeq(3, null, 7, null, 3, 7))
-    assertEvalsTo(invoke("extend", a, e), IndexedSeq(3, null, 7, null))
-    assertEvalsTo(invoke("extend", e, a), IndexedSeq(3, null, 7, null))
-    assertEvalsTo(invoke("extend", e, e), IndexedSeq())
+  @Test(dataProvider = "basic")
+  def sum(a: Seq[Integer]) {
+    assertEvalsTo(invoke("sum", toIRArray(a)),
+      Option(a).map(_.filter(_ != null).map(_.toInt).sum).orNull)
   }
 
-  @Test def sum() {
-    assertEvalsTo(invoke("sum", a0), 10)
-    assertEvalsTo(invoke("sum", naa), null)
-    assertEvalsTo(invoke("sum", a), 10)
-    assertEvalsTo(invoke("sum", e), 0)
+  @Test(dataProvider = "basic")
+  def product(a: Seq[Integer]) {
+    assertEvalsTo(invoke("product", toIRArray(a)),
+      Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
   }
 
-  @Test def product() {
-    assertEvalsTo(invoke("product", a0), 21)
-    assertEvalsTo(invoke("product", naa), null)
-    assertEvalsTo(invoke("product", a), 21)
-    assertEvalsTo(invoke("product", e), 1)
+  @Test(dataProvider = "basicPairs")
+  def extend(a: Seq[Integer], b: Seq[Integer]) {
+    assertEvalsTo(invoke("extend", toIRArray(a), toIRArray(b)),
+      Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y}.orNull)
   }
 
-  @Test def min() {
-    assertEvalsTo(invoke("min", a0), 3)
-    assertEvalsTo(invoke("min", naa), null)
-    assertEvalsTo(invoke("min", a), 3)
-    assertEvalsTo(invoke("min", b), 1)
-    assertEvalsTo(invoke("min", e), null)
+  @DataProvider(name = "sort")
+  def sortData(): Array[Array[Any]] = Array(
+    Array(IndexedSeq(3, 9, 7), IndexedSeq(3, 7, 9), IndexedSeq(9, 7, 3)),
+    Array(null, null, null),
+    Array(IndexedSeq(3, null, 1, null, 3), IndexedSeq(1, 3, 3, null, null), IndexedSeq(3, 3, 1, null, null)),
+    Array(IndexedSeq(1, null, 3, null, 1), IndexedSeq(1, 1, 3, null, null), IndexedSeq(3, 1, 1, null, null)),
+    Array(IndexedSeq(), IndexedSeq(), IndexedSeq())
+  )
+
+  @Test(dataProvider = "sort")
+  def sort(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("sort", toIRArray(a)), asc)
   }
 
-  @Test def argmin() {
-    assertEvalsTo(invoke("argmin", a0), 0)
-    assertEvalsTo(invoke("argmin", naa), null)
-    assertEvalsTo(invoke("argmin", a), 0)
-    assertEvalsTo(invoke("argmin", b), 4)
-    assertEvalsTo(invoke("argmin", d), 0)
-    assertEvalsTo(invoke("argmin", e), null)
-
-    assertEvalsTo(invoke("uniqueMinIndex", a0), 0)
-    assertEvalsTo(invoke("uniqueMinIndex", naa), null)
-    assertEvalsTo(invoke("uniqueMinIndex", a), 0)
-    assertEvalsTo(invoke("uniqueMinIndex", b), 4)
-    assertEvalsTo(invoke("uniqueMinIndex", d), null)
-    assertEvalsTo(invoke("uniqueMinIndex", e), null)
+  @Test(dataProvider = "sort")
+  def sortAsc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("sort", toIRArray(a), True()), asc)
   }
 
-  @Test def max() {
-    assertEvalsTo(invoke("max", a0), 7)
-    assertEvalsTo(invoke("max", naa), null)
-    assertEvalsTo(invoke("max", a), 7)
-    assertEvalsTo(invoke("max", b), 3)
-    assertEvalsTo(invoke("max", e), null)
+  @Test(dataProvider = "sort")
+  def sortDesc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("sort", toIRArray(a), False()), desc)
   }
 
-  @Test def argmax() {
-    assertEvalsTo(invoke("argmax", a0), 1)
-    assertEvalsTo(invoke("argmax", naa), null)
-    assertEvalsTo(invoke("argmax", a), 2)
-    assertEvalsTo(invoke("argmax", b), 0)
-    assertEvalsTo(invoke("argmax", d), 4)
-    assertEvalsTo(invoke("argmax", e), null)
-
-    assertEvalsTo(invoke("uniqueMaxIndex", a0), 1)
-    assertEvalsTo(invoke("uniqueMaxIndex", naa), null)
-    assertEvalsTo(invoke("uniqueMaxIndex", a), 2)
-    assertEvalsTo(invoke("uniqueMaxIndex", b), null)
-    assertEvalsTo(invoke("uniqueMaxIndex", d), 4)
-    assertEvalsTo(invoke("uniqueMaxIndex", e), null)
+  @Test(dataProvider = "sort")
+  def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("min", toIRArray(a)),
+      Option(asc).flatMap(_.headOption).orNull)
   }
 
-  @Test def arrayOps() {
-    assertEvalsTo(invoke("+", b, c), IndexedSeq(5, null, null, null, 8))
-    assertFatal(invoke("+", a0, a), "Arrays must have same length")
-    assertFatal(invoke("+", a, a0), "Arrays must have same length")
-    assertEvalsTo(invoke("+", naa, a), null)
-    assertEvalsTo(invoke("+", a, naa), null)
-    assertEvalsTo(invoke("+", I32(1), a), IndexedSeq(4, null, 8, null))
-    assertEvalsTo(invoke("+", a, I32(1)), IndexedSeq(4, null, 8, null))
-    assertEvalsTo(invoke("+", NA(TInt32()), a), IndexedSeq(null, null, null, null))
-    assertEvalsTo(invoke("+", a, NA(TInt32())), IndexedSeq(null, null, null, null))
+  @DataProvider(name = "argminmax")
+  def argMinMaxData(): Array[Array[Any]] = Array(
+    Array(IndexedSeq(3, 9, 7), 0, 1),
+    Array(null, null, null),
+    Array(IndexedSeq(3, null, 1, null, 3), 2, 0),
+    Array(IndexedSeq(1, null, 3, null, 1), 0, 2),
+    Array(IndexedSeq(), null, null)
+  )
 
-    assertEvalsTo(invoke("-", b, c), IndexedSeq(1, null, null, null, -6))
-    assertEvalsTo(invoke("*", b, c), IndexedSeq(6, null, null, null, 7))
-    assertEvalsTo(invoke("/", b, c), IndexedSeq(3f/2, null, null, null, 1f/7))
-    assertEvalsTo(invoke("//", b, c), IndexedSeq(1, null, null, null, 0))
-    assertEvalsTo(invoke("**", b, c), IndexedSeq[java.lang.Double](9, null, null, null, 1))
-    assertEvalsTo(invoke("%", b, c), IndexedSeq(1, null, null, null, 1))
+  @Test(dataProvider = "argminmax")
+  def argmin(a: Seq[Integer], argmin: Integer, argmax: Integer) {
+    assertEvalsTo(invoke("argmin", toIRArray(a)), argmin)
   }
 
-  @Test def slicing() {
-    assertEvalsTo(invoke("[]", a, I32(0)), 3)
+  @Test(dataProvider = "argminmax")
+  def argmax(a: Seq[Integer], argmin: Integer, argmax: Integer) {
+    assertEvalsTo(invoke("argmax", toIRArray(a)), argmax)
+  }
+
+  @DataProvider(name = "uniqueMinMaxIndex")
+  def uniqueMinMaxData(): Array[Array[Any]] = Array(
+    Array(IndexedSeq(3, 9, 7), 0, 1),
+    Array(null, null, null),
+    Array(IndexedSeq(3, null, 1, null, 3), 2, null),
+    Array(IndexedSeq(1, null, 3, null, 1), null, 2),
+    Array(IndexedSeq(), null, null)
+  )
+
+  @Test(dataProvider = "uniqueMinMaxIndex")
+  def uniqueMinIndex(a: Seq[Integer], argmin: Integer, argmax: Integer) {
+    assertEvalsTo(invoke("uniqueMinIndex", toIRArray(a)), argmin)
+  }
+
+  @Test(dataProvider = "uniqueMinMaxIndex")
+  def uniqueMaxIndex(a: Seq[Integer], argmin: Integer, argmax: Integer) {
+    assertEvalsTo(invoke("uniqueMaxIndex", toIRArray(a)), argmax)
+  }
+
+  def arrayOpsData(): Array[Array[Any]] = Array[Any](
+    IndexedSeq(3, 9, 7, 1),
+    IndexedSeq(null, 2, null, 8),
+    IndexedSeq(5, 3, null, null),
+    null
+  ).combinations(2).toArray
+
+  @DataProvider(name = "arrayOpsOperations")
+  def arrayOpsOperations: Array[Array[Any]] = Array[(String, (Int, Int) => Int)](
+    ("+", _ + _),
+    ("-", _ - _),
+    ("*", _ * _),
+    ("//", _ / _),
+    ("**", math.pow(_, _).toInt),
+    ("%", _ % _)
+  ).map(_.productIterator.toArray)
+
+  @DataProvider(name = "arrayOps")
+  def arrayOpsPairs(): Array[Array[Any]] =
+    for (Array(a, b) <- arrayOpsData(); Array(s, f) <- arrayOpsOperations)
+      yield Array(a, b, s, f)
+
+  def lift(f: (Int, Int) => Int): (Seq[Integer], Seq[Integer]) => Seq[Integer] = {
+    case (a, b) =>
+      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull }
+      }.orNull
+  }
+
+  @Test(dataProvider = "arrayOps")
+  def arrayOps(a: Seq[Integer], b: Seq[Integer], s: String, f: (Int, Int) => Int) {
+    assertEvalsTo(invoke(s, toIRArray(a), toIRArray(b)), lift(f)(a, b))
+  }
+
+  @Test(dataProvider = "arrayOpsOperations")
+  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int) {
+    assertFatal(invoke(s, IRArray(1, 2, 3), IRArray(1, 2)), "Arrays must have same length")
+    assertFatal(invoke(s, IRArray(1, 2), IRArray(1, 2, 3)), "Arrays must have same length")
+  }
+
+  @Test def indexing() {
+    val a = IRArray(0, null, 2)
+    assertEvalsTo(invoke("[]", a, I32(0)), 0)
     assertEvalsTo(invoke("[]", a, I32(1)), null)
-    assertEvalsTo(invoke("[]", a, I32(2)), 7)
+    assertEvalsTo(invoke("[]", a, I32(2)), 2)
     assertFatal(invoke("[]", a, I32(4)), "array index out of bounds")
     assertFatal(invoke("[]", a, I32(-1)), "array index out of bounds")
     assertEvalsTo(invoke("[]", naa, I32(2)), null)
+    assertEvalsTo(invoke("[]", a, NA(TInt32())), null)
+  }
 
-    assertEvalsTo(invoke("[:]", a), IndexedSeq(3, null, 7, null))
+  @Test def slicing() {
+    val a = IRArray(0, null, 2)
+    assertEvalsTo(invoke("[:]", a), IndexedSeq(0, null, 2))
     assertEvalsTo(invoke("[:]", naa), null)
 
-    assertEvalsTo(invoke("[*:]", a, I32(1)), IndexedSeq(null, 7, null))
-    assertEvalsTo(invoke("[*:]", a, I32(-2)), IndexedSeq(7, null))
-    assertEvalsTo(invoke("[*:]", naa, I32(1)), null)
+    assertEvalsTo(invoke("[*:]", a, I32(1)), IndexedSeq(null, 2))
+    assertEvalsTo(invoke("[*:]", a, I32(-2)), IndexedSeq(null, 2))
     assertEvalsTo(invoke("[*:]", a, I32(5)), IndexedSeq())
-    assertEvalsTo(invoke("[*:]", a, I32(-5)), IndexedSeq(3, null, 7, null))
+    assertEvalsTo(invoke("[*:]", a, I32(-5)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:]", naa, I32(1)), null)
+    assertEvalsTo(invoke("[*:]", a, NA(TInt32())), null)
+
+    assertEvalsTo(invoke("[:*]", a, I32(2)), IndexedSeq(0, null))
+    assertEvalsTo(invoke("[:*]", a, I32(-1)), IndexedSeq(0, null))
+    assertEvalsTo(invoke("[:*]", a, I32(5)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[:*]", a, I32(-5)), IndexedSeq())
+    assertEvalsTo(invoke("[:*]", naa, I32(1)), null)
+    assertEvalsTo(invoke("[:*]", a, NA(TInt32())), null)
+
+    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(3)), IndexedSeq(null, 2))
+    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(2)), IndexedSeq(null))
+    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(2)), IndexedSeq(0, null))
+    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(3)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:*]", a, I32(-1), I32(3)), IndexedSeq(2))
+    assertEvalsTo(invoke("[*:*]", a, I32(-4), I32(4)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:*]", naa, I32(1), I32(2)), null)
+    assertEvalsTo(invoke("[*:*]", a, I32(1), NA(TInt32())), null)
+    assertEvalsTo(invoke("[*:*]", a, NA(TInt32()), I32(1)), null)
   }
 }
