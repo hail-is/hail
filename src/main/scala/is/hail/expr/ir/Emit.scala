@@ -323,6 +323,8 @@ private class Emit(
                 .invoke[String, String]("concat", xi.load().toS)
                 .invoke[String, String]("concat", " / ")
                 .invoke[String, String]("concat", len.load().toS)
+                .invoke[String, String]("concat", ". IR: ")
+                .invoke[String, String]("concat", Pretty(x))
             ))))
       case ArrayLen(a) =>
         val codeA = emit(a)
