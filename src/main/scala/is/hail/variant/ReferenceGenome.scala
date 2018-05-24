@@ -658,16 +658,9 @@ object ReferenceGenome {
 
   def getReferences(t: Type): Set[ReferenceGenome] = {
     var rgs = Set[ReferenceGenome]()
-    (t: @unchecked) match {
-      case tc: TContainer =>
-        rgs ++= getReferences(tc.elementType)
-      case tbs: TBaseStruct =>
-        tbs.types.foreach(ft => rgs ++= getReferences(ft))
-      case TInterval(ptype, _) =>
-        rgs ++= getReferences(ptype)
-      case TLocus(rg, _) =>
+    Recur.forall {
+      case tl@TLocus(rg, _) =>
         rgs += rg.asInstanceOf[ReferenceGenome]
-      case _ =>
     }
     rgs
   }
