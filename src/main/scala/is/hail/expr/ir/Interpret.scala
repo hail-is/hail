@@ -415,6 +415,13 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
+      case StringSlice(s, start, n) =>
+        val Array(vs: String, vstart: Int, vn: Int) =
+          Array(s, start, n).map(interpret(_, env, args, agg))
+        assert(vstart > 0)
+        assert(vn > 0)
+        assert(vstart - vn > 0)
+        vs.substring(vstart, vn - vstart)
       case In(i, _) =>
         val (a, _) = args(i)
         a

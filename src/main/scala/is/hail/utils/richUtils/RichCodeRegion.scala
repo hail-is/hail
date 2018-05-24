@@ -76,6 +76,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
+  def loadBytes(off: Code[Long], n: Code[Int]): Code[Array[Byte]] = {
+    region.invoke[Long, Int, Array[Byte]]("loadBytes", off, n)
+  }
+
   def loadIRIntermediate(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: TBoolean => loadBoolean
     case _: TInt32 => loadInt
@@ -140,9 +144,33 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Array[Byte],Long, Int, Long]("appendBytes", bytes, bytesOff, n)
   }
 
+  def appendBytesSlice(
+    fromRegion: Code[Region],
+    fromOff: Code[Long],
+    start: Code[Int],
+    n: Code[Int]
+  ): Code[Long] =
+    region.invoke[Region, Long, Int, Int, Long]("appendBytesSlice", fromRegion, fromOff, start, n)
+
+  def appendBinarySlice(
+    fromRegion: Code[Region],
+    fromOff: Code[Long],
+    start: Code[Int],
+    n: Code[Int]
+  ): Code[Long] =
+    region.invoke[Region, Long, Int, Int, Long]("appendBinarySlice", fromRegion, fromOff, start, n)
+
   def appendString(string: Code[String]): Code[Long] = {
     region.invoke[String, Long]("appendString", string)
   }
+
+  def appendStringSlice(
+    fromRegion: Code[Region],
+    fromOff: Code[Long],
+    start: Code[Int],
+    n: Code[Int]
+  ): Code[Long] =
+    region.invoke[Region, Long, Int, Int, Long]("appendStringSlice", fromRegion, fromOff, start, n)
 
   def clear(): Code[Unit] = {
     region.invoke[Unit]("clear")

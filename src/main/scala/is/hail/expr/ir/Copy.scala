@@ -120,6 +120,9 @@ object Copy {
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)
+      case StringSlice(_, _, _) =>
+        val IndexedSeq(s: IR, start: IR, n: IR) = newChildren
+        StringSlice(s, start, n)
       case In(_, _) =>
         same
       case Die(message, typ) =>

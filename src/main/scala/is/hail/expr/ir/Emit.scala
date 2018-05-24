@@ -730,6 +730,35 @@ private class Emit(
           xmo || !t.isFieldDefined(region, xo, idx),
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
+      case StringSlice(s, start, n) =>
+        val t = coerce[TString](s.typ)
+        val cs = emit(s)
+        val cstart = emit(start)
+        val cn = emit(n)
+        val vs = mb.newLocal[Long]()
+        val vstart = mb.newLocal[Int]()
+        val vn = mb.newLocal[Int]()
+        val checks = Code(
+          vs := coerce[Long](cs.v),
+          vstart := coerce[Int](cstart.v),
+          vn := coerce[Int](cn.v),
+          (TString.loadLength(region, vs) <= (vstart + vn)).mux(
+            Code._empty,
+            Code._fatal(
+              const("string slice out of bounds: ")
+                .invoke[String, String]("concat", TString.loadString(region, vs))
+                .invoke[String, String]("concat", "[")
+                .invoke[Int, String]("concat", vstart)
+                .invoke[String, String]("concat", ":")
+                .invoke[Int, String]("concat", vstart + vn)
+                .invoke[String, String]("concat", "]")
+            )
+          )
+        )
+        val sliced = region.appendStringSlice(
+          region, vs, vstart, vn)
+        strict(Code(checks, sliced), cs, cstart, cn)
+
       case In(i, typ) =>
         EmitTriplet(Code._empty,
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),

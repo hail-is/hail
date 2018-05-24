@@ -197,6 +197,7 @@ object TypeCheck {
         val t = coerce[TTuple](o.typ)
         assert(idx >= 0 && idx < t.size)
         assert(x.typ == -t.types(idx))
+      case StringSlice(_, _, _) =>
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>

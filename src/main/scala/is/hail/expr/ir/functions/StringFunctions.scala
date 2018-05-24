@@ -31,6 +31,14 @@ object StringFunctions extends RegistryFunctions {
   def registerWrappedStringScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
     registerWrappedStringScalaFunction(mname, Array(a1, a2), rType)(cls, method)
 
+  def str(x: Int): String = x.toString
+
+  def str(x: Long): String = x.toString
+
+  def str(x: Float): String = x.formatted("%.5e")
+
+  def str(x: Double): String = x.formatted("%.5e")
+
   def upper(s: String): String = s.toUpperCase
 
   def lower(s: String): String = s.toLowerCase
@@ -51,6 +59,24 @@ object StringFunctions extends RegistryFunctions {
     val thisClass = getClass
 
     registerIR("[:]", TString())(_)
+    registerIR("[*:]", TString(), TInt32()) { (s, start) =>
+      ir.StringSlice(s, start, ir.ApplyBinaryPrimOp(ir.Subtract(), ir.StringLength(s), start))
+    }
+    registerIR("[:*]", TString(), TInt32()) { (s, end) =>
+      ir.StringSlice(s, ir.I32(0), end)
+    }
+    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
+      ir.StringSlice(s, start, ir.ApplyBinaryPrimOp(ir.Subtract(), end, start))
+    }
+
+    registerIR("len", TString()) { (s) =>
+      ir.StringLength(s)
+    }
+
+    registerWrappedStringScalaFunction("str", TInt32(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TInt64(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TFloat32(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TFloat64(), TString())(thisClass, "str")
 
     registerWrappedStringScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedStringScalaFunction("lower", TString(), TString())(thisClass, "lower")
