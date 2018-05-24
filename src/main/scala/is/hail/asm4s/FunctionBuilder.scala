@@ -7,13 +7,14 @@ import scala.collection.JavaConverters._
 import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.language.{higherKinds, implicitConversions}
-
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+
+import scala.reflect.ClassTag
 
 object FunctionBuilder {
   val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
@@ -130,8 +131,51 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   }
 }
 
+trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
+  var definedFields: ArrayBuilder[Growable[AbstractInsnNode] => Unit] = new ArrayBuilder(16)
+
+  def addField[T : TypeInfo : ClassTag](value: Code[T]): ClassFieldRef[T] = {
+    val cfr = newField[T]
+    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
+      il += new TypeInsnNode(CHECKCAST, name)
+      value.emit(il)
+      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
+    }
+    definedFields += add
+    cfr
+  }
+
+  def newInstance()(implicit fct: ClassTag[F]): Code[F] = {
+    val instance: Code[F] =
+      new Code[F] {
+        def emit(il: Growable[AbstractInsnNode]): Unit = {
+          il += new TypeInsnNode(NEW, name)
+          il += new InsnNode(DUP)
+          il += new MethodInsnNode(INVOKESPECIAL, name, "<init>", "()V", false)
+          il += new TypeInsnNode(CHECKCAST, classInfo[F].iname)
+          definedFields.result().foreach { add =>
+            il += new InsnNode(DUP)
+            add(il)
+          }
+        }
+      }
+    instance
+  }
+
+  override def result(pw: Option[PrintWriter]): () => F =
+    throw new UnsupportedOperationException("cannot call result() on a dependent function")
+
+}
+
+
+class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
+  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated"
+) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
+
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
-  val packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
+  val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -155,6 +199,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
   init.instructions.add(new InsnNode(RETURN))
 
+  private[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -180,6 +225,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   val classBitSet = new ClassBitSet(this)
 
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
+
+  def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
+    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    children += df
+    df
+  }
 
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
@@ -285,8 +336,10 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
   def result(print: Option[PrintWriter] = None): () => F = {
+    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
+
     val bytes = classAsBytes(print)
-    val localName = name.replaceAll("/", ".")
+    val n = name.replace("/",".")
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -300,7 +353,8 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
           if (f == null) {
             this.synchronized {
               if (f == null) {
-                f = loadClass(localName, bytes).newInstance().asInstanceOf[F]
+                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
+                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
               }
             }
           }
