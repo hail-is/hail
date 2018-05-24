@@ -383,8 +383,8 @@ final class Region private (
   }
 
   def close(): Unit = {
-    blocks.underlying().foreach(Memory.free)
-    bigBlocks.underlying().foreach(Memory.free)
+    blocks.result().foreach(Memory.free)
+    bigBlocks.result().foreach(Memory.free)
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
