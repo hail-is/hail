@@ -256,6 +256,23 @@ object TestUtils {
       .exportGen(path, precision)
   }
 
+  def assertEvalsTo(x: IR, expected: Any) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
+  }
+
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
+  }
+
+  def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
+    val t = x.typ
+    assert(t.typeCheck(expected))
+
+    val e = eval(x, env, args, agg)
+    assert(t.typeCheck(e))
+    assert(t.valuesSimilar(eval(x, env, args, agg), expected))
+  }
+
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
@@ -383,13 +400,5 @@ object TestUtils {
     assert(i == c)
 
     i
-  }
-
-  def assertEvalsTo(x: IR, expected: Any) {
-    assert(eval(x) == expected)
-  }
-
-  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
-    assert(eval(x, agg) == expected)
   }
 }

@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.utils._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
@@ -93,7 +94,7 @@ class AggregatorsSuite {
   @Test def testHist() {
     runAggregator(Histogram(), TFloat64(),
       FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
-      Row((0 to 10).map(_.toDouble), FastIndexedSeq(1, 0, 2, 0, 2, 0, 0, 0, 0, 1), 1, 2),
+      Row((0 to 10).map(_.toDouble).toFastIndexedSeq, FastIndexedSeq(1L, 0L, 2L, 0L, 2L, 0L, 0L, 0L, 0L, 1L), 1L, 2L),
       args = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
   }
 
