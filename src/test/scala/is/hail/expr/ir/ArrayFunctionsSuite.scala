@@ -2,18 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.expr.ir.TestUtils._
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 class ArrayFunctionsSuite extends TestNGSuite {
-  def toIRArray(a: Seq[Integer]): IR =
-    if (a == null)
-      NA(TArray(TInt32()))
-    else
-      MakeArray(a.map { ji => Option(ji).map(I32(_)).getOrElse(NA(TInt32())) }, TArray(TInt32()))
-
-  def IRArray(a: Integer*): IR = toIRArray(a)
-
   val naa = NA(TArray(TInt32()))
 
   @DataProvider(name = "basic")
@@ -143,6 +136,7 @@ class ArrayFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("uniqueMaxIndex", toIRArray(a)), argmax)
   }
 
+  @DataProvider(name = "arrayOpsData")
   def arrayOpsData(): Array[Array[Any]] = Array[Any](
     IndexedSeq(3, 9, 7, 1),
     IndexedSeq(null, 2, null, 8),
@@ -156,7 +150,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
     ("-", _ - _),
     ("*", _ * _),
     ("//", _ / _),
-    ("**", math.pow(_, _).toInt),
     ("%", _ % _)
   ).map(_.productIterator.toArray)
 
@@ -165,7 +158,7 @@ class ArrayFunctionsSuite extends TestNGSuite {
     for (Array(a, b) <- arrayOpsData(); Array(s, f) <- arrayOpsOperations)
       yield Array(a, b, s, f)
 
-  def lift(f: (Int, Int) => Int): (Seq[Integer], Seq[Integer]) => Seq[Integer] = {
+  def lift(f: (Int, Int) => Int): (IndexedSeq[Integer], IndexedSeq[Integer]) => IndexedSeq[Integer] = {
     case (a, b) =>
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
         a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull }
@@ -173,8 +166,24 @@ class ArrayFunctionsSuite extends TestNGSuite {
   }
 
   @Test(dataProvider = "arrayOps")
-  def arrayOps(a: Seq[Integer], b: Seq[Integer], s: String, f: (Int, Int) => Int) {
+  def arrayOps(a: IndexedSeq[Integer], b: IndexedSeq[Integer], s: String, f: (Int, Int) => Int) {
     assertEvalsTo(invoke(s, toIRArray(a), toIRArray(b)), lift(f)(a, b))
+  }
+
+  @Test(dataProvider = "arrayOpsData")
+  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
+    assertEvalsTo(invoke("/", toIRArray(a), toIRArray(b)),
+      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Float] { case (m, n) => m.toFloat / n }.orNull }
+      }.orNull )
+  }
+
+  @Test(dataProvider = "arrayOpsData")
+  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
+    assertEvalsTo(invoke("**", toIRArray(a), toIRArray(b)),
+      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) => math.pow(m.toDouble, n.toDouble) }.orNull }
+      }.orNull )
   }
 
   @Test(dataProvider = "arrayOpsOperations")

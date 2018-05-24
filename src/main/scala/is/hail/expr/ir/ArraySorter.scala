@@ -143,7 +143,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     val n = mb.newLocal[Int]
 
     val removeMissing = Code(i := array.size - 1,
-      Code.whileLoop(i > 0 && array.isMissing(i), i += -1),
+      Code.whileLoop(i >= 0 && array.isMissing(i), i += -1),
       array.size.ceq(i + 1).mux(Code._empty, array.setSize(i + 1)))
 
     Code(
