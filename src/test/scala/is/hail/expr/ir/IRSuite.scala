@@ -102,25 +102,6 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ArrayLen(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32()))), 2)
   }
 
-  @Test def testArrayRange() {
-    for {
-      start <- -10 to 10
-      stop <- -10 to 10
-      step <- 1 to 3
-    } {
-      println(start, stop, step, IndexedSeq.range(start, stop, step))
-      assertEvalsTo(
-        ArrayRange(I32(start), I32(stop), I32(step)),
-        IndexedSeq.range(start, stop, step))
-    }
-
-    val (start, stop, step) = (Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
-    val len = Range.count(start, stop, step, isInclusive = false)
-    assertEvalsTo(
-      ArrayRange(I32(start), I32(stop), I32(step)),
-      IndexedSeq.tabulate(len)(start + _ * step))
-  }
-
   @Test def testArrayFilter() {
     val naa = NA(TArray(TInt32()))
     val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
