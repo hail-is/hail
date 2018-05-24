@@ -1,8 +1,9 @@
 package is.hail.expr.ir
 
+import is.hail.TestUtils
 import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils._
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -119,5 +120,18 @@ class IRSuite extends TestNGSuite {
 
     assertEvalsTo(ArrayFilter(a, "x",
       ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
+  }
+
+  @Test def testArrayRange() {
+    val range = { (start: Int, stop: Int, step: Int) => ArrayRange(I32(start), I32(stop), I32(step)) }
+
+    assertEvalsTo(range(-9, -10, 2), FastIndexedSeq())
+    assertEvalsTo(range(-9, -10, 3), FastIndexedSeq())
+    assertEvalsTo(range(1, 5, -2), FastIndexedSeq())
+    assertEvalsTo(range(5, 1, -2), FastIndexedSeq(5, 3))
+
+    assertEvalsTo(ArrayRange(I32(0), I32(5), NA(TInt32())), null)
+    assertEvalsTo(ArrayRange(I32(0), NA(TInt32()), I32(1)), null)
+    assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
   }
 }

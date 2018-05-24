@@ -832,10 +832,9 @@ private class Emit(
           step.ceq(0).mux(
             Code._fatal("Array range cannot have step size 0."),
             Code._empty[Unit]),
-          llen := start.ceq(stop).mux(0L,
-            (step < 0).mux(
-              (start.toL - stop.toL - 1L) / (-step).toL + 1L,
-              (stop.toL - start.toL - 1L) / step.toL + 1L)),
+          llen := (step < 0).mux(
+              (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
+              (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
           (llen > const(Int.MaxValue.toLong)).mux(
             Code._fatal("Array range cannot have more than MAXINT elements."),
             len := (llen < 0L).mux(0L, llen).toI)

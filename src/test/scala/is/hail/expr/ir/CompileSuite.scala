@@ -10,6 +10,8 @@ import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.TestUtils
+import is.hail.TestUtils.eval
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.utils.FastSeq
 import is.hail.variant.ReferenceGenome
@@ -424,6 +426,8 @@ class CompileSuite {
     val aoff = f(region, start, false, stop, false, step, false)
     val actual = new UnsafeIndexedSeq(tRange, region, aoff)
     assert(actual.sameElements(expected))
+
+    TestUtils.interceptFatal("step size"){ f(region, 1, false, 5, false, 0, false) }
   }
 
   @Test
