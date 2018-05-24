@@ -15,47 +15,45 @@ import org.testng.annotations.Test
 class AggregatorSuite extends SparkSuite {
 
   @Test def testRows() {
-    var vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds.typecheck()
+    var vds = hc.importVCF("src/test/resources/sample2.vcf")
     vds = TestUtils.splitMultiHTS(vds)
-    vds.typecheck()
     vds = VariantQC(vds, "qc")
-    // vds = vds
-    //   .annotateRowsExpr("test" ->
-    //     """{callrate: AGG.fraction(g => isDefined(g.GT)),
-    //       |AC: AGG.map(g => g.GT.nNonRefAlleles()).sum(),
-    //       |AF: AGG.map(g => g.GT.nNonRefAlleles().toFloat64).stats().sum / AGG.filter(g => isDefined(g.GT)).count().toFloat64 / 2.0,
-    //       |gqstats: AGG.map(g => g.GQ.toFloat64).stats(),
-    //       |gqhetstats: AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats()}
-    //       """.stripMargin,
-    //     "lowGqGts" -> "AGG.filter(g => g.GQ < 60).collect()")
+    vds = vds
+      .annotateRowsExpr("test" ->
+        """{callrate: AGG.fraction(g => isDefined(g.GT)),
+          |AC: AGG.map(g => g.GT.nNonRefAlleles()).sum(),
+          |AF: AGG.map(g => g.GT.nNonRefAlleles().toFloat64).stats().sum / AGG.filter(g => isDefined(g.GT)).count().toFloat64 / 2.0,
+          |gqstats: AGG.map(g => g.GQ.toFloat64).stats(),
+          |gqhetstats: AGG.filter(g => g.GT.isHet()).map(g => g.GQ.toFloat64).stats()}
+          """.stripMargin,
+        "lowGqGts" -> "AGG.filter(g => g.GQ < 60).collect()")
 
-    // val qCallRate = vds.queryVA("va.test.callrate")._2
-    // val qCallRateQC = vds.queryVA("va.qc.call_rate")._2
-    // val qAC = vds.queryVA("va.test.AC")._2
-    // val qACQC = vds.queryVA("va.qc.AC")._2
-    // val qAF = vds.queryVA("va.test.AF")._2
-    // val qAFQC = vds.queryVA("va.qc.AF")._2
-    // val gqStatsMean = vds.queryVA("va.test.gqstats.mean")._2
-    // val gqStatsMeanQC = vds.queryVA("va.qc.gq_mean")._2
-    // val gqStatsStDev = vds.queryVA("va.test.gqstats.stdev")._2
-    // val gqStatsStDevQC = vds.queryVA("va.qc.gq_stdev")._2
-    // val gqStatsHetMean = vds.queryVA("va.test.gqhetstats.mean")._2
-    // val gqStatsHetStDev = vds.queryVA("va.test.gqhetstats.stdev")._2
-    // val lowGqGts = vds.queryVA("va.lowGqGts")._2
+    val qCallRate = vds.queryVA("va.test.callrate")._2
+    val qCallRateQC = vds.queryVA("va.qc.call_rate")._2
+    val qAC = vds.queryVA("va.test.AC")._2
+    val qACQC = vds.queryVA("va.qc.AC")._2
+    val qAF = vds.queryVA("va.test.AF")._2
+    val qAFQC = vds.queryVA("va.qc.AF")._2
+    val gqStatsMean = vds.queryVA("va.test.gqstats.mean")._2
+    val gqStatsMeanQC = vds.queryVA("va.qc.gq_mean")._2
+    val gqStatsStDev = vds.queryVA("va.test.gqstats.stdev")._2
+    val gqStatsStDevQC = vds.queryVA("va.qc.gq_stdev")._2
+    val gqStatsHetMean = vds.queryVA("va.test.gqhetstats.mean")._2
+    val gqStatsHetStDev = vds.queryVA("va.test.gqhetstats.stdev")._2
+    val lowGqGts = vds.queryVA("va.lowGqGts")._2
 
     vds.rdd.collect()
-      // .foreach { case (v, (va, gs)) =>
-      //   assert(qCallRate(va) == qCallRateQC(va))
-      //   assert(qAC(va) == qACQC(va))
-      //   assert(D_==(qAF(va).asInstanceOf[Double], qAFQC(va).asInstanceOf[Double]))
-      //   assert(Option(gqStatsMean(va)).zip(Option(gqStatsMeanQC(va))).forall {
-      //     case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-      //   })
-      //   assert(Option(gqStatsStDev(va)).zip(Option(gqStatsStDevQC(va))).forall {
-      //     case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-      //   })
-      // }
+      .foreach { case (v, (va, gs)) =>
+        assert(qCallRate(va) == qCallRateQC(va))
+        assert(qAC(va) == qACQC(va))
+        assert(D_==(qAF(va).asInstanceOf[Double], qAFQC(va).asInstanceOf[Double]))
+        assert(Option(gqStatsMean(va)).zip(Option(gqStatsMeanQC(va))).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
+        assert(Option(gqStatsStDev(va)).zip(Option(gqStatsStDevQC(va))).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
+      }
   }
 
   @Test def testColumns() {
