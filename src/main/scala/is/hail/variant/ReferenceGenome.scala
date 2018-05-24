@@ -612,18 +612,25 @@ object ReferenceGenome {
       rg.asInstanceOf[ReferenceGenome].write(hc, rgPath)
   }
 
-  def exportReferences(hc: HailContext, path: String, t: Type) {
+  def getReferences(t: Type): Set[ReferenceGenome] = {
+    var rgs = Set[ReferenceGenome]()
     (t: @unchecked) match {
-      case TArray(elementType, _) => exportReferences(hc, path, elementType)
-      case TSet(elementType, req) => exportReferences(hc, path, elementType)
-      case TDict(keyType, valueType, _) =>
-        exportReferences(hc, path, keyType)
-        exportReferences(hc, path, valueType)
-      case TStruct(fields, _) => fields.foreach(fd => exportReferences(hc, path, fd.typ))
-      case TLocus(rg, _) => writeReference(hc, path, rg)
-      case TInterval(TLocus(rg, _), _) => writeReference(hc, path, rg)
+      case tc: TContainer =>
+        rgs ++= getReferences(tc.elementType)
+      case tbs: TBaseStruct =>
+        tbs.types.foreach(ft => rgs ++= getReferences(ft))
+      case TInterval(ptype, _) =>
+        rgs ++= getReferences(ptype)
+      case TLocus(rg, _) =>
+        rgs += rg.asInstanceOf[ReferenceGenome]
       case _ =>
     }
+    rgs
+  }
+
+  def exportReferences(hc: HailContext, path: String, t: Type) {
+    val rgs = getReferences(t)
+    rgs.foreach(writeReference(hc, path, _))
   }
 
   def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {

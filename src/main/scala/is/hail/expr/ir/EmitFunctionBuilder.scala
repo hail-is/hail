@@ -79,10 +79,20 @@ class EmitFunctionBuilder[F >: Null](
 
   def numTypes: Int = typMap.size
 
-  def getType(t: Type): Code[Type] =
+  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
+    val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", const(rg.name))
+    val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
+    rgExists.mux(Code._empty, addRG)
+  }
+
+  def getType(t: Type): Code[Type] = {
+    val references = ReferenceGenome.getReferences(t).toArray
+    val setup = Code(Code(references.map(addReferenceGenome): _*),
+      Code.invokeScalaObject[String, Type](
+        Parser.getClass, "parseType", const(t.parsableString())))
     typMap.getOrElseUpdate(t,
-      newLazyField[Type](
-        Code.invokeScalaObject[String, Type](Parser.getClass, "parseType", const(t.parsableString()))))
+      newLazyField[Type](setup))
+  }
 
   def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] = {
     val f = compareMap.getOrElseUpdate((t, op, missingGreatest), {
