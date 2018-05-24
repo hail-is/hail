@@ -16,7 +16,7 @@ class MathFunctionsSuite extends TestNGSuite {
       ApplyBinaryPrimOp(Add(), Ref("x", tfloat), F64(3)),
       F64(-6), F64(0))
 
-    assertEvalsTo(ir, -3)
+    assertEvalsTo(ir, -3.0)
   }
 
   @Test def unirootWithExternalBinding() {
@@ -26,7 +26,7 @@ class MathFunctionsSuite extends TestNGSuite {
     val ir = Let("b", F64(3),
       Uniroot("x", fn, F64(-6), F64(0)))
 
-    assertEvalsTo(ir, -3)
+    assertEvalsTo(ir, -3.0)
   }
 
   @Test def unirootWithRegionManipulation() {
@@ -38,6 +38,6 @@ class MathFunctionsSuite extends TestNGSuite {
     val ir = Let("b", F64(6),
       Uniroot("x", fn, F64(-6), F64(0)))
 
-    assertEvalsTo(ir, -3)
+    assertEvalsTo(ir, -3.0)
   }
 }
