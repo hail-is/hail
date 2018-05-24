@@ -299,13 +299,15 @@ final class Region private (
     appendBinarySlice(fromRegion, fromOff, start, n)
 
   def appendArrayInt(a: Array[Int]): Long = {
-    val off = appendInt(a.length)
+    val t = TArray(TInt32())
+    val aoff = t.allocate(this, a.length)
+    t.initialize(this, aoff, a.length)
     var i = 0
     while (i < a.length) {
-      appendInt(a(i))
+      storeInt(t.elementOffset(aoff, a.length, i), a(i))
       i += 1
     }
-    off
+    aoff
   }
 
   def clear() {
