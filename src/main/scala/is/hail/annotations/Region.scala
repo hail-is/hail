@@ -15,6 +15,7 @@ object Region {
     new Region(
       blocks,
       blockSize,
+      0,
       0L,
       new ArrayBuilder()
     )
@@ -27,6 +28,7 @@ object Region {
 final class Region private (
   private[this] var blocks: ArrayBuilder[Long],
   private[this] var blockSize: Long,
+  private[this] var activeBlock: Int,
   private[this] var end: Long,
   private[this] var bigBlocks: ArrayBuilder[Long]
 ) extends UnKryoSerializable with AutoCloseable {
@@ -177,10 +179,11 @@ final class Region private (
           i += 1
         }
         blocks += mem
+        activeBlock += 1
         end = n
         mem
       } else {
-        val mem = blocks.last + end
+        val mem = blocks(activeBlock) + end
         end += n
         mem
       }
@@ -308,9 +311,7 @@ final class Region private (
 
   def clear() {
     end = 0
-    blocks.result().foreach(Memory.free)
-    blocks.clear()
-    blocks += Memory.malloc(blockSize)
+    activeBlock = 0
     bigBlocks.result().foreach(Memory.free)
     bigBlocks.clear()
   }
@@ -383,8 +384,8 @@ final class Region private (
   }
 
   def close(): Unit = {
-    // blocks.underlying().foreach(Memory.free)
-    // bigBlocks.underlying().foreach(Memory.free)
+    blocks.underlying().foreach(Memory.free)
+    bigBlocks.underlying().foreach(Memory.free)
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
