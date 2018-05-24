@@ -769,9 +769,6 @@ private class Emit(
     }
   }
 
-  // FIXME: need to change srvb to not assume region as first arg
-  // FIXME: also need to somehow get all the environment stuff from EmitFunctionBuilder
-  // FIXME: maybe this means I should rethink how it's stored.
   private def getAsDependentFunction[A1 : TypeInfo, R : TypeInfo](
     ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_], errorMsg: String
   ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
