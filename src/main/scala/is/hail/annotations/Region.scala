@@ -170,15 +170,15 @@ final class Region private (
       val required = end + n
       if (required > capacity) {
         // FIXME: is this guaranteed to be aligned to anything?
-        log.info(s"Allocating a new region, $end $n $capacity")
-        val mem = Memory.malloc(blockSize)
-        var i = 0
-        while (i < blockSize) {
-          Memory.storeByte(mem + i, 0)
-          i += 1
-        }
-        blocks += mem
         activeBlock += 1
+        val mem = if (activeBlock == blocks.length) {
+          log.info(s"Allocating a new region, $end $n $capacity")
+          val temp = Memory.malloc(blockSize)
+          blocks += temp
+          temp
+        } else {
+          blocks(activeBlock)
+        }
         end = n
         mem
       } else {
