@@ -395,19 +395,6 @@ class CompileSuite {
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
   }
 
-
-  @Test
-  def testArrayRangeZeroStepSize() {
-    val tRange = TArray(TInt32())
-    val ir = ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32()))
-    val region = Region()
-    val fb = EmitFunctionBuilder[Region, Int, Boolean, Int, Boolean, Int, Boolean, Long]
-    doit(ir, fb)
-    val f = fb.result()()
-
-    TestUtils.interceptFatal("step size"){ f(region, 1, false, 5, false, 0, false) }
-  }
-
   @Test
   def testArrayFilterCutoff() {
     val t = TArray(TInt32())

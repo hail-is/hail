@@ -122,9 +122,11 @@ class IRSuite extends TestNGSuite {
       ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
   }
 
-  @Test def testArrayRangeMissingness() {
+  @Test def testArrayRange() {
     assertEvalsTo(ArrayRange(I32(0), I32(5), NA(TInt32())), null)
     assertEvalsTo(ArrayRange(I32(0), NA(TInt32()), I32(1)), null)
     assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
+
+    assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
   }
 }
