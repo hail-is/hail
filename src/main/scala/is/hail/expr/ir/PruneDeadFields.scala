@@ -432,7 +432,9 @@ object PruneDeadFields {
       case ArrayFilter(a, name, cond) =>
         val aType = a.typ.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(cond, cond.typ, memo)
-        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        val valueType = unify(aType.elementType,
+          requestedType.asInstanceOf[TArray].elementType,
+          bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType)))
         unifyEnvs(
           bodyEnv.delete(name),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
@@ -457,6 +459,7 @@ object PruneDeadFields {
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFor(a, valueName, body) =>
+        assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(body, body.typ, memo)
         val valueType = bodyEnv.lookupOption(valueName).map(_._2).getOrElse(minimal(-aType.elementType))

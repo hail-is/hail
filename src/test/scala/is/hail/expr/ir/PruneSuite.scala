@@ -74,9 +74,8 @@ class PruneSuite extends SparkSuite {
       case ir: IR => PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], memo)
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
-      val memoDep = memo.lookup(child)
-      if (expected(i) != null && expected(i) != memoDep) {
-        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   $memoDep")
+      if (expected(i) != null && expected(i) != memo.lookup(child)) {
+        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${memo.lookup(child)}")
       }
     }
   }
@@ -349,6 +348,107 @@ class PruneSuite extends SparkSuite {
       subsetMatrixTable(magg.typ, "sa.c3", "g.foo"),
       Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2"), null)
     )
+  }
+
+
+  val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
+  val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
+  val empty = TStruct()
+  val justA = TStruct("a" -> TInt32())
+  val justB = TStruct("b" -> TInt32())
+
+  @Test def testIfMemo() {
+    checkMemo(If(True(), ref, ref),
+      justA,
+      Array(TBoolean(), justA, justA))
+  }
+
+  @Test def testLetMemo() {
+    checkMemo(Let("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
+    checkMemo(Let("foo", ref, True()), TBoolean(), Array(empty, null))
+  }
+
+  @Test def testMakeArrayMemo() {
+    checkMemo(arr, TArray(justB), Array(justB, justB))
+  }
+
+  @Test def testArrayRefMemo() {
+    checkMemo(ArrayRef(arr, I32(0)), justB, Array(TArray(justB), null))
+  }
+
+  @Test def testArrayLenMemo() {
+    checkMemo(ArrayLen(arr), TInt32(), Array(TArray(empty)))
+  }
+
+  @Test def testArrayMapMemo() {
+    checkMemo(ArrayMap(arr, "foo", Ref("foo", ref.typ)),
+      TArray(justB), Array(TArray(justB), null))
+  }
+
+  @Test def testArrayFilterMemo() {
+    checkMemo(ArrayFilter(arr, "foo", Let("foo2", GetField(Ref("foo", ref.typ), "b"), False())),
+      TArray(empty), Array(TArray(justB), null))
+    checkMemo(ArrayFilter(arr, "foo", False()),
+      TArray(empty), Array(TArray(empty), null))
+    checkMemo(ArrayFilter(arr, "foo", False()),
+      TArray(justB), Array(TArray(justB), null))
+  }
+  
+  @Test def testArrayFlatMapMemo() {
+    checkMemo(ArrayFlatMap(arr, "foo", MakeArray(IndexedSeq(Ref("foo", ref.typ)), TArray(ref.typ))),
+      TArray(justA),
+      Array(TArray(justA), null))
+  }
+
+  @Test def testArrayFoldMemo() {
+    checkMemo(ArrayFold(arr, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
+      TInt32(),
+      Array(TArray(justA), null, null))
+  }
+
+  @Test def testArrayForMemo() {
+    checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
+      TVoid,
+      Array(TArray(justA), null))
+  }
+
+  @Test def testMakeStructMemo() {
+    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+      TStruct("a" -> justA), Array(justA, null))
+    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+      TStruct(), Array(null, null))
+  }
+
+  @Test def testInsertFieldsMemo() {
+    checkMemo(InsertFields(ref, Seq("d" -> ref)),
+      justA ++ TStruct("d" -> justB),
+      Array(justA, justB))
+  }
+
+  @Test def testSelectFieldsMemo() {
+    checkMemo(SelectFields(ref, Seq("a", "b")), justA, Array(justA))
+  }
+
+  @Test def testGetFieldMemo() {
+    checkMemo(GetField(ref, "a"), TInt32(), Array(justA))
+  }
+
+  @Test def testMakeTupleMemo() {
+    checkMemo(MakeTuple(Seq(ref)), TTuple(justA), Array(justA))
+  }
+
+  @Test def testGetTupleElementMemo() {
+    checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
+  }
+
+  @Test def testTableCountMemo() {
+    checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
+  }
+
+  @Test def testTableAggregate() {
+    checkMemo(TableAggregate(tab, GetField(Ref("global", tab.typ.globalType), "g1")),
+      TInt32(),
+      Array(subsetTable(tab.typ, "global.g1"), null))
   }
 }
 
