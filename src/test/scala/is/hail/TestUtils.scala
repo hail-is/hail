@@ -269,8 +269,7 @@ object TestUtils {
     val resultType = TTuple(x.typ)
     val argsVar = genUID()
 
-    val substEnv = Env.empty[IR]
-    env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
       (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
     }
 
@@ -344,7 +343,7 @@ object TestUtils {
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
-          "args", argsType,
+          argsVar, argsType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
         assert(resultType2 == resultType)
 
@@ -393,6 +392,10 @@ object TestUtils {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
   }
 
+  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any) {
+    assertEvalsTo(x, Env.empty, args, None, expected)
+  }
+
   def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
   }
@@ -426,6 +429,10 @@ object TestUtils {
 
   def assertFatal(x: IR, regex: String) {
     assertThrows[HailException](x, regex)
+  }
+
+  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String) {
+    assertThrows[HailException](x, Env.empty[(Any, Type)], args, None, regex)
   }
 
   def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {

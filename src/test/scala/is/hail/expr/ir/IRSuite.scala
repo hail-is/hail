@@ -95,12 +95,101 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(0)), 5)
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(1)), null)
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), NA(TInt32())), null)
+
+    assertFatal(ArrayRef(MakeArray(FastIndexedSeq(I32(5)), TArray(TInt32())), I32(2)), "array index out of bounds")
   }
 
   @Test def testArrayLen() {
     assertEvalsTo(ArrayLen(NA(TArray(TInt32()))), null)
     assertEvalsTo(ArrayLen(MakeArray(FastIndexedSeq(), TArray(TInt32()))), 0)
     assertEvalsTo(ArrayLen(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32()))), 2)
+  }
+
+  @Test def testArraySort() {
+    assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
+
+    val a = MakeArray(FastIndexedSeq(I32(-7), NA(TInt32()), I32(2)), TArray(TInt32()))
+    assertEvalsTo(ArraySort(a),
+      FastIndexedSeq(-7, 2, null))
+  }
+
+  @Test def testToSet() {
+    assertEvalsTo(ToSet(NA(TArray(TInt32()))), null)
+
+    val a = MakeArray(FastIndexedSeq(I32(-7), NA(TInt32()), I32(2)), TArray(TInt32()))
+    assertEvalsTo(ToSet(a), Set(-7, 2, null))
+  }
+
+  @Test def testToArrayFromSet() {
+    val t = TSet(TInt32())
+    assertEvalsTo(ToArray(NA(t)), null)
+    assertEvalsTo(ToArray(In(0, t)),
+      FastIndexedSeq((Set(-7, 2, null), t)),
+      FastIndexedSeq(-7, 2, null))
+  }
+
+  @Test def testToArrayFromDict() {
+    val t = TDict(TInt32(), TString())
+    assertEvalsTo(ToArray(NA(t)), null)
+    assertEvalsTo(ToArray(In(0, t)),
+      // wtf you can't do null -> ...
+      FastIndexedSeq((Map(1 -> "a", 2 -> null, (null, "c")), t)),
+      FastIndexedSeq(Map(1 -> "a", 2 -> null, (null, "c"))))
+  }
+
+  @Test def testToArrayFromArray() {
+    val t = TArray(TInt32())
+    assertEvalsTo(ToArray(NA(t)), null)
+    assertEvalsTo(ToArray(In(0, t)),
+      FastIndexedSeq((FastIndexedSeq(-7, null, 2), t)),
+      FastIndexedSeq(-7, null, 2))
+  }
+
+  @Test def testSetContains() {
+    val t = TSet(TInt32())
+    assertEvalsTo(SetContains(NA(t), I32(2)), null)
+
+    assertEvalsTo(SetContains(In(0, t), NA(TInt32())),
+      FastIndexedSeq((Set(-7, 2, null), t)),
+      true)
+    assertEvalsTo(SetContains(In(0, t), I32(2)),
+      FastIndexedSeq((Set(-7, 2, null), t)),
+      true)
+    assertEvalsTo(SetContains(In(0, t), I32(0)),
+      FastIndexedSeq((Set(-7, 2, null), t)),
+      false)
+  }
+
+  @Test def testDictContains() {
+    val t = TDict(TInt32(), TString())
+    assertEvalsTo(DictContains(NA(t), I32(2)), null)
+
+    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    assertEvalsTo(DictContains(In(0, t), NA(TInt32())),
+      FastIndexedSeq((d, t)),
+      true)
+    assertEvalsTo(DictContains(In(0, t), I32(2)),
+      FastIndexedSeq((d, t)),
+      true)
+    assertEvalsTo(DictContains(In(0, t), I32(0)),
+      FastIndexedSeq((d, t)),
+      false)
+  }
+
+  @Test def testDictGet() {
+    val t = TDict(TInt32(), TString())
+    assertEvalsTo(DictGet(NA(t), I32(2)), null)
+
+    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    assertEvalsTo(DictGet(In(0, t), NA(TInt32())),
+      FastIndexedSeq((d, t)),
+      "c")
+    assertEvalsTo(DictGet(In(0, t), I32(2)),
+      FastIndexedSeq((d, t)),
+      null)
+    assertEvalsTo(DictGet(In(0, t), I32(0)),
+      FastIndexedSeq((d, t)),
+      null)
   }
 
   @Test def testArrayFilter() {
