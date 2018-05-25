@@ -30,7 +30,7 @@ abstract class BaseIR {
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
 
-  def deepCopy(): BaseIR = copy(newChildren = children.map(_.deepCopy()))
+  def deepCopy(): this.type = copy(newChildren = children.map(_.deepCopy())).asInstanceOf[this.type]
 
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
     copy(children.map(f))
