@@ -566,24 +566,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
   override def typecheckThis(): Type = {
     (fn, args) match {
-      case ("merge", rhs) =>
-        val (t1, t2) = args.map(_.`type`) match {
-          case Array(t1: TStruct, t2: TStruct) => (t1, t2)
-          case other => parseError(
-            s"""invalid arguments to `$fn'
-               |  Expected $fn(Struct, Struct), found $fn(${ other.mkString(", ") })""".stripMargin)
-        }
-
-        val (t, _) = try {
-          t1.merge(t2)
-        } catch {
-          case e: Throwable => parseError(
-            s"""invalid arguments for method `$fn'
-               |  $e""".stripMargin)
-        }
-
-        t
-
       case ("annotate", rhs) =>
         val (t1, t2) = args.map(_.`type`) match {
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
@@ -612,37 +594,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
          |  Expected struct field identifiers as arguments, but found a `${ other.getClass.getSimpleName }' expression
          |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
     fn match {
-      case "index" =>
-        if (args.length != 2)
-          parseError(
-            s"""invalid arguments for method `$fn'
-               |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
-               |  Found ${ args.length } arguments""".stripMargin)
-        args.head.typecheck(ec)
-        val t = args.head.`type` match {
-          case TArray(t: TStruct, _) => t
-          case error => parseError(
-            s"""invalid arguments for method `$fn'
-               |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
-        }
-        val key = args(1) match {
-          case SymRef(_, id) => id
-          case other =>
-            parseError(
-              s"""invalid arguments for method `$fn'
-                 |  Expected struct field identifier as the second argument, but found a `${ other.getClass.getSimpleName }' expression
-                 |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
-        }
-
-        t.getOption(key) match {
-          case Some(keyType) =>
-            val (newS, _) = t.delete(key)
-            `type` = TDict(keyType, newS)
-          case None => parseError(
-            s"""invalid arguments for method `$fn'
-               |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
-        }
-
       case "select" =>
         val struct = args(0)
         struct.typecheck(ec)
@@ -689,12 +640,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = ((fn, args): @unchecked) match {
-    case ("merge", Array(struct1, struct2)) => for (
-      f1 <- struct1.compile();
-      f2 <- struct2.compile();
-      (_, merger) = struct1.`type`.asInstanceOf[TStruct].merge(struct2.`type`.asInstanceOf[TStruct]);
-      result <- CM.invokePrimitive2(merger)(f1, f2)
-    ) yield result.asInstanceOf[Code[AnyRef]] // totally could be a problem
 
     case ("select" | "drop", Array(head, tail@_*)) =>
       val struct = head.`type`.asInstanceOf[TStruct]
@@ -717,22 +662,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       (_, annotator) = struct1.`type`.asInstanceOf[TStruct].annotate(struct2.`type`.asInstanceOf[TStruct]);
       result <- CM.invokePrimitive2(annotator)(f1, f2)
     ) yield result.asInstanceOf[Code[AnyRef]]
-
-    case ("index", Array(structArray, k)) =>
-      val key = (k: @unchecked) match {
-        case SymRef(_, id) => id
-      }
-      val t = structArray.`type`.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
-      val querier = t.query(key)
-      val (_, deleter) = t.delete(key)
-
-      AST.evalComposeCodeM[AnyRef](structArray)(CM.invokePrimitive1 { is =>
-        is.asInstanceOf[IndexedSeq[AnyRef]]
-          .filter(_ != null)
-          .map { r => (querier(r), deleter(r)) }
-          .filter { case (k, v) => k != null }
-          .toMap
-      })
 
     case (_, _) =>
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
@@ -769,12 +698,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = {
     fn match {
-      case "merge" | "select" | "index" =>
-        fail(this)
-      case "annotate" =>
-        if (!args(1).isInstanceOf[StructConstructor])
-          return fail(this, "annotate only supports annotating a struct literal")
-        tryIRConversion(agg)
+      case "select" =>
+        for (structIR <- args(0).toIR(agg)) yield {
+          val identifiers = args.tail.map { case SymRef(_, id) => id }
+          ir.SelectFields(structIR, identifiers)
+        }
       case "drop" =>
         for (structIR <- args(0).toIR(agg)) yield {
           val t = types.coerce[TStruct](structIR.typ)
