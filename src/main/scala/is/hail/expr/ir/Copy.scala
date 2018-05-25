@@ -123,6 +123,9 @@ object Copy {
       case StringSlice(_, _, _) =>
         val IndexedSeq(s: IR, start: IR, n: IR) = newChildren
         StringSlice(s, start, n)
+      case StringLength(_) =>
+        val IndexedSeq(s: IR) = newChildren
+        StringLength(s)
       case In(_, _) =>
         same
       case Die(message, typ) =>

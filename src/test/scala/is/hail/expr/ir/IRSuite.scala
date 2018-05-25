@@ -268,5 +268,40 @@ class IRSuite extends TestNGSuite {
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
+=======
+  @Test def stringLengthIsLength() {
+    assertEvalsTo(StringLength(Str("abc")), 3)
+    assertEvalsTo(StringLength(Str("")), 0)
+  }
+
+  @Test def stringLengthEmojiIsSizeOne() {
+    assertEvalsTo(StringLength(Str("💩")), 1)
+  }
+
+  @Test def stringLengthNAIsNA() {
+    assertEvalsTo(StringLength(NA(TString())), null)
+  }
+
+  @Test def stringSliceWholeThingIsSame() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
+  }
+
+  @Test def stringSliceItoIIsEmptyString() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(3), I32(3)), "")
+    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
+  }
+
+  @Test def stringSliceSameAsJavaSubstring() {
+    assertEvalsTo(
+      StringSlice(Str("abc"), I32(0), I32(2)),
+      "abc".substring(0, 2))
+    assertEvalsTo(
+      StringSlice(Str("foobarbaz"), I32(3), I32(5)),
+      "foobarbaz".substring(3, 5))
+  }
+
+  @Test def stringSliceEmoji() {
+    assertEvalsTo(StringSlice(Str("💩"), I32(0), I32(1)), "💩")
   }
 }

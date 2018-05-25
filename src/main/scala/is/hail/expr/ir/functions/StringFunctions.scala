@@ -60,13 +60,13 @@ object StringFunctions extends RegistryFunctions {
 
     registerIR("[:]", TString())(_)
     registerIR("[*:]", TString(), TInt32()) { (s, start) =>
-      ir.StringSlice(s, start, ir.ApplyBinaryPrimOp(ir.Subtract(), ir.StringLength(s), start))
+      ir.StringSlice(s, start, ir.StringLength(s))
     }
     registerIR("[:*]", TString(), TInt32()) { (s, end) =>
       ir.StringSlice(s, ir.I32(0), end)
     }
     registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
-      ir.StringSlice(s, start, ir.ApplyBinaryPrimOp(ir.Subtract(), end, start))
+      ir.StringSlice(s, start, end)
     }
 
     registerIR("len", TString()) { (s) =>
