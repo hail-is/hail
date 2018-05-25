@@ -75,7 +75,7 @@ class PruneSuite extends SparkSuite {
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
       if (expected(i) != null && expected(i) != memo.lookup(child)) {
-        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${memo.lookup(child)}")
+        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${ memo.lookup(child) }")
       }
     }
   }
@@ -393,7 +393,7 @@ class PruneSuite extends SparkSuite {
     checkMemo(ArrayFilter(arr, "foo", False()),
       TArray(justB), Array(TArray(justB), null))
   }
-  
+
   @Test def testArrayFlatMapMemo() {
     checkMemo(ArrayFlatMap(arr, "foo", MakeArray(IndexedSeq(Ref("foo", ref.typ)), TArray(ref.typ))),
       TArray(justA),
@@ -449,6 +449,106 @@ class PruneSuite extends SparkSuite {
     checkMemo(TableAggregate(tab, GetField(Ref("global", tab.typ.globalType), "g1")),
       TInt32(),
       Array(subsetTable(tab.typ, "global.g1"), null))
+  }
+
+  @Test def testTableImportRebuild() {
+
+  }
+
+  @Test def testTableFilterRebuild() {
+
+  }
+
+  @Test def testTableMapRowsRebuild() {
+
+  }
+
+  @Test def testTableMapGlobalsRebuild() {
+
+  }
+
+  @Test def testMatrixFilterColsRebuild() {
+
+  }
+
+  @Test def testMatrixFilterEntriesRebuild() {
+
+  }
+
+  @Test def testMatrixMapRowsRebuild() {
+
+  }
+
+  @Test def testMatrixMapColsRebuild() {
+
+  }
+
+  @Test def testMatrixMapEntriesRebuild() {
+
+  }
+
+  @Test def testMatrixMapGlobalsRebuild() {
+
+  }
+
+  @Test def testMatrixAggregateRowsByKeyRebuild() {
+
+  }
+
+  @Test def testNARebuild() {
+
+  }
+
+  @Test def testIfRebuild() {
+
+  }
+
+  @Test def testLetRebuild() {
+
+  }
+
+  @Test def testRefRebuild() {
+
+  }
+
+  @Test def testMakeArrayRebuild() {
+
+  }
+
+  @Test def testArrayMapRebuild() {
+
+  }
+
+  @Test def testArrayFilterRebuild() {
+
+  }
+
+  @Test def testArrayFlatmapRebuild() {
+
+  }
+
+  @Test def testArrayFoldRebuild() {
+
+  }
+
+  @Test def testArrayForRebuild() {
+
+  }
+
+  @Test def testMakeStructRebuild() {
+
+  }
+
+  @Test def testInsertFieldsRebuild() {
+
+  }
+
+  @Test def testSelectFieldsRebuild() {
+
+  }
+
+  @Test def testTableAggregateRebuild() {
+
   }
 }
 
