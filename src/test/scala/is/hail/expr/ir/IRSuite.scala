@@ -131,10 +131,12 @@ class IRSuite extends TestNGSuite {
   @Test def testToArrayFromDict() {
     val t = TDict(TInt32(), TString())
     assertEvalsTo(ToArray(NA(t)), null)
+
+    val a = FastIndexedSeq(2, null, -7)
     assertEvalsTo(ToArray(In(0, t)),
       // wtf you can't do null -> ...
-      FastIndexedSeq((Map(1 -> "a", 2 -> null, (null, "c")), t)),
-      FastIndexedSeq(Map(1 -> "a", 2 -> null, (null, "c"))))
+      FastIndexedSeq((a, t)),
+      a)
   }
 
   @Test def testToArrayFromArray() {
