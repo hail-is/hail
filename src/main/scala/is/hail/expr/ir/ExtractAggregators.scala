@@ -25,11 +25,10 @@ object ExtractAggregators {
     val (ir2, aggs) = extract(ir.unwrap)
 
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
-        .zipWithIndex
-        .map { case (x, i) =>
-          val agg = AggOp.get(x.aggSig)
-          (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
-        }.unzip
+      .zipWithIndex
+      .map { case (x, i) =>
+        (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
+      }.unzip
 
     val seqOpIR = Begin(seqOps)
     val initOpIR = Begin(initOps.flatten[InitOp])

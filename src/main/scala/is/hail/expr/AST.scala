@@ -782,6 +782,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           val keep = t.fieldNames.filter(!identifiers.contains(_))
           ir.SelectFields(structIR, keep)
         }
+      case "uniroot" =>
+        val IndexedSeq(Lambda(_, param, body), min, max) = args.toFastIndexedSeq
+        for {
+          irF <- body.toIR(agg)
+          minIR <- min.toIR(agg)
+          maxIR <- max.toIR(agg)
+        } yield ir.Uniroot(param, irF, minIR, maxIR)
       case _ =>
         tryIRConversion(agg)
     }

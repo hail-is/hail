@@ -90,7 +90,7 @@ final case class ToArray(a: IR) extends InferIR
 
 final case class SetContains(set: IR, elem: IR) extends IR { val typ: Type = TBoolean() }
 final case class DictContains(set: IR, elem: IR) extends IR { val typ: Type = TBoolean() }
-final case class DictGet(set: IR, key: IR) extends InferIR
+final case class DictGet(dict: IR, key: IR) extends InferIR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)
@@ -179,6 +179,8 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
   
   def isDeterministic: Boolean = implementation.isDeterministic
 }
+
+final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR { val typ: Type = TFloat64() }
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }
 final case class TableAggregate(child: TableIR, query: IR) extends InferIR

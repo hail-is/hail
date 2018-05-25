@@ -210,6 +210,10 @@ object TypeCheck {
         val impl = x.implementation
         args.foreach(check(_))
         assert(x.implementation.unify(args.map(_.typ)))
+      case Uniroot(_, fn, min, max) =>
+        assert(fn.typ.isInstanceOf[TFloat64])
+        assert(min.typ.isInstanceOf[TFloat64])
+        assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
       case x@TableAggregate(child, query) =>
         check(query,

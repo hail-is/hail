@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
+import is.hail.{HailContext, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.expr.{SymbolTable, TypedAggregator}
@@ -466,6 +466,12 @@ object Interpret {
           SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
             .get(0)
         }
+      case Uniroot(functionid, fn, minIR, maxIR) =>
+        val f = { x: Double => interpret(fn, env.bind(functionid, x), args, agg).asInstanceOf[Double] }
+        val min = interpret(minIR, env, args, agg)
+        val max = interpret(maxIR, env, args, agg)
+        stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
+
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)

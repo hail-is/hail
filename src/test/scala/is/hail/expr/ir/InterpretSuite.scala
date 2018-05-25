@@ -29,248 +29,248 @@ class InterpretSuite {
   private val tuple = MakeTuple(List(i32, f32, ArrayRange(I32(0), I32(5), I32(1))))
 
   @Test def testUnaryPrimOp() {
-    eval(t)
-    eval(f)
-    eval(ApplyUnaryPrimOp(Bang(), t))
-    eval(ApplyUnaryPrimOp(Bang(), f))
+    assertEvalSame(t)
+    assertEvalSame(f)
+    assertEvalSame(ApplyUnaryPrimOp(Bang(), t))
+    assertEvalSame(ApplyUnaryPrimOp(Bang(), f))
 
-    eval(ApplyUnaryPrimOp(Negate(), i32))
-    eval(ApplyUnaryPrimOp(Negate(), i64))
-    eval(ApplyUnaryPrimOp(Negate(), f32))
-    eval(ApplyUnaryPrimOp(Negate(), f64))
+    assertEvalSame(ApplyUnaryPrimOp(Negate(), i32))
+    assertEvalSame(ApplyUnaryPrimOp(Negate(), i64))
+    assertEvalSame(ApplyUnaryPrimOp(Negate(), f32))
+    assertEvalSame(ApplyUnaryPrimOp(Negate(), f64))
   }
 
   @Test def testApplyBinaryPrimOp() {
-    eval(i32)
-    eval(i64)
-    eval(f32)
-    eval(f64)
+    assertEvalSame(i32)
+    assertEvalSame(i64)
+    assertEvalSame(f32)
+    assertEvalSame(f64)
 
-    eval(ApplyBinaryPrimOp(Add(), i32, i32))
-    eval(ApplyBinaryPrimOp(Add(), i64, i64))
-    eval(ApplyBinaryPrimOp(Add(), f32, f32))
-    eval(ApplyBinaryPrimOp(Add(), f64, f64))
+    assertEvalSame(ApplyBinaryPrimOp(Add(), i32, i32))
+    assertEvalSame(ApplyBinaryPrimOp(Add(), i64, i64))
+    assertEvalSame(ApplyBinaryPrimOp(Add(), f32, f32))
+    assertEvalSame(ApplyBinaryPrimOp(Add(), f64, f64))
 
-    eval(ApplyBinaryPrimOp(Subtract(), i32, i32))
-    eval(ApplyBinaryPrimOp(Subtract(), i64, i64))
-    eval(ApplyBinaryPrimOp(Subtract(), f32, f32))
-    eval(ApplyBinaryPrimOp(Subtract(), f64, f64))
+    assertEvalSame(ApplyBinaryPrimOp(Subtract(), i32, i32))
+    assertEvalSame(ApplyBinaryPrimOp(Subtract(), i64, i64))
+    assertEvalSame(ApplyBinaryPrimOp(Subtract(), f32, f32))
+    assertEvalSame(ApplyBinaryPrimOp(Subtract(), f64, f64))
 
-    eval(ApplyBinaryPrimOp(FloatingPointDivide(), i32, i32))
-    eval(ApplyBinaryPrimOp(FloatingPointDivide(), i64, i64))
-    eval(ApplyBinaryPrimOp(FloatingPointDivide(), f32, f32))
-    eval(ApplyBinaryPrimOp(FloatingPointDivide(), f64, f64))
+    assertEvalSame(ApplyBinaryPrimOp(FloatingPointDivide(), i32, i32))
+    assertEvalSame(ApplyBinaryPrimOp(FloatingPointDivide(), i64, i64))
+    assertEvalSame(ApplyBinaryPrimOp(FloatingPointDivide(), f32, f32))
+    assertEvalSame(ApplyBinaryPrimOp(FloatingPointDivide(), f64, f64))
 
-    eval(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32, i32))
-    eval(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64, i64))
-    eval(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32, f32))
-    eval(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64, f64))
+    assertEvalSame(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32, i32))
+    assertEvalSame(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64, i64))
+    assertEvalSame(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32, f32))
+    assertEvalSame(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64, f64))
 
-    eval(ApplyBinaryPrimOp(Multiply(), i32, i32))
-    eval(ApplyBinaryPrimOp(Multiply(), i64, i64))
-    eval(ApplyBinaryPrimOp(Multiply(), f32, f32))
-    eval(ApplyBinaryPrimOp(Multiply(), f64, f64))
+    assertEvalSame(ApplyBinaryPrimOp(Multiply(), i32, i32))
+    assertEvalSame(ApplyBinaryPrimOp(Multiply(), i64, i64))
+    assertEvalSame(ApplyBinaryPrimOp(Multiply(), f32, f32))
+    assertEvalSame(ApplyBinaryPrimOp(Multiply(), f64, f64))
   }
 
   @Test def testApplyComparisonOp() {
-    eval(ApplyComparisonOp(EQ(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(EQ(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(EQ(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(EQ(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat64()), f64, f64))
 
-    eval(ApplyComparisonOp(GT(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(GT(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(GT(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(GT(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(GT(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(GT(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(GT(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(GT(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(GT(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(GT(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(GT(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(GT(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(GT(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(GT(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(GT(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(GT(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(GT(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(GT(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(GT(TFloat64()), f64, f64Zero))
 
-    eval(ApplyComparisonOp(GTEQ(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(GTEQ(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(GTEQ(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(GTEQ(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(GTEQ(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(GTEQ(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(GTEQ(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(GTEQ(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(GTEQ(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(GTEQ(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(GTEQ(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(GTEQ(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(GTEQ(TFloat64()), f64, f64Zero))
 
-    eval(ApplyComparisonOp(LT(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(LT(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(LT(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(LT(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(LT(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(LT(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(LT(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(LT(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(LT(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(LT(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(LT(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(LT(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(LT(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(LT(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(LT(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(LT(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(LT(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(LT(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(LT(TFloat64()), f64, f64Zero))
 
-    eval(ApplyComparisonOp(LTEQ(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(LTEQ(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(LTEQ(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(LTEQ(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(LTEQ(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(LTEQ(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(LTEQ(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(LTEQ(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(LTEQ(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(LTEQ(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(LTEQ(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(LTEQ(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(LTEQ(TFloat64()), f64, f64Zero))
 
-    eval(ApplyComparisonOp(EQ(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(EQ(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(EQ(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(EQ(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(EQ(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(EQ(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(EQ(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(EQ(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(EQ(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(EQ(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(EQ(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(EQ(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(EQ(TFloat64()), f64, f64Zero))
 
-    eval(ApplyComparisonOp(NEQ(TInt32()), i32, i32))
-    eval(ApplyComparisonOp(NEQ(TInt32()), i32Zero, i32))
-    eval(ApplyComparisonOp(NEQ(TInt32()), i32, i32Zero))
-    eval(ApplyComparisonOp(NEQ(TInt64()), i64, i64))
-    eval(ApplyComparisonOp(NEQ(TInt64()), i64Zero, i64))
-    eval(ApplyComparisonOp(NEQ(TInt64()), i64, i64Zero))
-    eval(ApplyComparisonOp(NEQ(TFloat32()), f32, f32))
-    eval(ApplyComparisonOp(NEQ(TFloat32()), f32Zero, f32))
-    eval(ApplyComparisonOp(NEQ(TFloat32()), f32, f32Zero))
-    eval(ApplyComparisonOp(NEQ(TFloat64()), f64, f64))
-    eval(ApplyComparisonOp(NEQ(TFloat64()), f64Zero, f64))
-    eval(ApplyComparisonOp(NEQ(TFloat64()), f64, f64Zero))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt32()), i32, i32))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt32()), i32Zero, i32))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt32()), i32, i32Zero))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt64()), i64, i64))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt64()), i64Zero, i64))
+    assertEvalSame(ApplyComparisonOp(NEQ(TInt64()), i64, i64Zero))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat32()), f32, f32))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat32()), f32Zero, f32))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat32()), f32, f32Zero))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat64()), f64, f64))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat64()), f64Zero, f64))
+    assertEvalSame(ApplyComparisonOp(NEQ(TFloat64()), f64, f64Zero))
   }
 
   @Test def testCasts() {
-    eval(Cast(i32, TInt32()))
-    eval(Cast(i32, TInt64()))
-    eval(Cast(i32, TFloat32()))
-    eval(Cast(i32, TFloat64()))
+    assertEvalSame(Cast(i32, TInt32()))
+    assertEvalSame(Cast(i32, TInt64()))
+    assertEvalSame(Cast(i32, TFloat32()))
+    assertEvalSame(Cast(i32, TFloat64()))
 
-    eval(Cast(i64, TInt32()))
-    eval(Cast(i64, TInt64()))
-    eval(Cast(i64, TFloat32()))
-    eval(Cast(i64, TFloat64()))
+    assertEvalSame(Cast(i64, TInt32()))
+    assertEvalSame(Cast(i64, TInt64()))
+    assertEvalSame(Cast(i64, TFloat32()))
+    assertEvalSame(Cast(i64, TFloat64()))
 
-    eval(Cast(f32, TInt32()))
-    eval(Cast(f32, TInt64()))
-    eval(Cast(f32, TFloat32()))
-    eval(Cast(f32, TFloat64()))
+    assertEvalSame(Cast(f32, TInt32()))
+    assertEvalSame(Cast(f32, TInt64()))
+    assertEvalSame(Cast(f32, TFloat32()))
+    assertEvalSame(Cast(f32, TFloat64()))
 
-    eval(Cast(f64, TInt32()))
-    eval(Cast(f64, TInt64()))
-    eval(Cast(f64, TFloat32()))
-    eval(Cast(f64, TFloat64()))
+    assertEvalSame(Cast(f64, TInt32()))
+    assertEvalSame(Cast(f64, TInt64()))
+    assertEvalSame(Cast(f64, TFloat32()))
+    assertEvalSame(Cast(f64, TFloat64()))
   }
 
   @Test def testNA() {
-    eval(NA(TInt32()))
-    eval(NA(TStruct("a" -> TInt32(), "b" -> TString())))
+    assertEvalSame(NA(TInt32()))
+    assertEvalSame(NA(TStruct("a" -> TInt32(), "b" -> TString())))
 
-    eval(ApplyBinaryPrimOp(Add(), NA(TInt32()), i32))
-    eval(ApplyComparisonOp(EQ(TInt32()), NA(TInt32()), i32))
+    assertEvalSame(ApplyBinaryPrimOp(Add(), NA(TInt32()), i32))
+    assertEvalSame(ApplyComparisonOp(EQ(TInt32()), NA(TInt32()), i32))
   }
 
   @Test def testIsNA() {
-    eval(IsNA(NA(TInt32())))
-    eval(IsNA(NA(TStruct("a" -> TInt32(), "b" -> TString()))))
-    eval(IsNA(ApplyBinaryPrimOp(Add(), NA(TInt32()), i32)))
-    eval(IsNA(ApplyComparisonOp(EQ(TInt32()), NA(TInt32()), i32)))
+    assertEvalSame(IsNA(NA(TInt32())))
+    assertEvalSame(IsNA(NA(TStruct("a" -> TInt32(), "b" -> TString()))))
+    assertEvalSame(IsNA(ApplyBinaryPrimOp(Add(), NA(TInt32()), i32)))
+    assertEvalSame(IsNA(ApplyComparisonOp(EQ(TInt32()), NA(TInt32()), i32)))
   }
 
   @Test def testIf() {
-    eval(If(t, t, f))
-    eval(If(t, f, f))
-    eval(If(t, f, NA(TBoolean())))
-    eval(If(t, Cast(i32, TFloat64()), f64))
+    assertEvalSame(If(t, t, f))
+    assertEvalSame(If(t, f, f))
+    assertEvalSame(If(t, f, NA(TBoolean())))
+    assertEvalSame(If(t, Cast(i32, TFloat64()), f64))
   }
 
   @Test def testLet() {
-    eval(Let("foo", i64, ApplyBinaryPrimOp(Add(), f64, Cast(Ref("foo", TInt64()), TFloat64()))))
+    assertEvalSame(Let("foo", i64, ApplyBinaryPrimOp(Add(), f64, Cast(Ref("foo", TInt64()), TFloat64()))))
   }
 
   @Test def testMakeArray() {
-    eval(arr)
+    assertEvalSame(arr)
   }
 
   @Test def testArrayRef() {
-    eval(ArrayRef(arr, I32(1)))
+    assertEvalSame(ArrayRef(arr, I32(1)))
   }
 
   @Test def testArrayLen() {
-    eval(ArrayLen(arr))
+    assertEvalSame(ArrayLen(arr))
   }
 
   @Test def testArrayRange() {
-    eval(ArrayRange(I32(0), I32(10), I32(2)))
-    eval(ArrayRange(I32(0), I32(10), I32(1)))
-    eval(ArrayRange(I32(0), I32(10), I32(3)))
+    assertEvalSame(ArrayRange(I32(0), I32(10), I32(2)))
+    assertEvalSame(ArrayRange(I32(0), I32(10), I32(1)))
+    assertEvalSame(ArrayRange(I32(0), I32(10), I32(3)))
   }
 
   @Test def testArrayMap() {
-    eval(ArrayMap(arr, "foo", ApplyBinaryPrimOp(Multiply(), Ref("foo", TInt32()), Ref("foo", TInt32()))))
+    assertEvalSame(ArrayMap(arr, "foo", ApplyBinaryPrimOp(Multiply(), Ref("foo", TInt32()), Ref("foo", TInt32()))))
   }
 
   @Test def testArrayFilter() {
-    eval(ArrayFilter(arr, "foo", ApplyComparisonOp(LT(TInt32()), Ref("foo", TInt32()), I32(2))))
-    eval(ArrayFilter(arr, "foo", ApplyComparisonOp(LT(TInt32()), Ref("foo", TInt32()), NA(TInt32()))))
+    assertEvalSame(ArrayFilter(arr, "foo", ApplyComparisonOp(LT(TInt32()), Ref("foo", TInt32()), I32(2))))
+    assertEvalSame(ArrayFilter(arr, "foo", ApplyComparisonOp(LT(TInt32()), Ref("foo", TInt32()), NA(TInt32()))))
   }
 
   @Test def testArrayFlatMap() {
-    eval(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))))
+    assertEvalSame(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))))
   }
 
   @Test def testArrayFold() {
-    eval(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
+    assertEvalSame(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
   }
 
   @Test def testMakeStruct() {
-    eval(struct)
+    assertEvalSame(struct)
   }
 
   @Test def testInsertFields() {
-    eval(InsertFields(struct, List("a" -> f64, "bar" -> i32)))
+    assertEvalSame(InsertFields(struct, List("a" -> f64, "bar" -> i32)))
   }
 
   @Test def testGetField() {
-    eval(GetField(struct, "a"))
+    assertEvalSame(GetField(struct, "a"))
   }
 
   @Test def testMakeTuple() {
-    eval(tuple)
+    assertEvalSame(tuple)
   }
 
   @Test def testGetTupleElement() {
-    eval(GetTupleElement(tuple, 0))
-    eval(GetTupleElement(tuple, 1))
-    eval(GetTupleElement(tuple, 2))
+    assertEvalSame(GetTupleElement(tuple, 0))
+    assertEvalSame(GetTupleElement(tuple, 1))
+    assertEvalSame(GetTupleElement(tuple, 2))
   }
 
   @Test def testApplyMethods() {
-    eval(Apply("log10", List(f64)))
+    assertEvalSame(Apply("log10", List(f64)))
 
-    eval(ApplySpecial("||", List(t, f)))
-    eval(ApplySpecial("||", List(t, t)))
-    eval(ApplySpecial("||", List(f, f)))
-    eval(ApplySpecial("&&", List(t, t)))
-    eval(ApplySpecial("&&", List(t, f)))
-    eval(ApplySpecial("&&", List(f, f)))
+    assertEvalSame(ApplySpecial("||", List(t, f)))
+    assertEvalSame(ApplySpecial("||", List(t, t)))
+    assertEvalSame(ApplySpecial("||", List(f, f)))
+    assertEvalSame(ApplySpecial("&&", List(t, t)))
+    assertEvalSame(ApplySpecial("&&", List(t, f)))
+    assertEvalSame(ApplySpecial("&&", List(f, f)))
   }
 
   @Test def testAggregator() {

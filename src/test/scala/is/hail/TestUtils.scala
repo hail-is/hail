@@ -366,6 +366,29 @@ object TestUtils {
     }
   }
 
+  def assertEvalSame(x: IR) {
+    assertEvalSame(x, Env.empty, FastIndexedSeq(), None)
+  }
+
+  def assertEvalSame(x: IR, agg: (IndexedSeq[Row], TStruct)) {
+    assertEvalSame(x, Env.empty, FastIndexedSeq(), Some(agg))
+  }
+
+  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]) {
+    val t = x.typ
+
+    val i = Interpret[Any](x, env, args, agg)
+    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
+    val c = eval(x, env, args, agg)
+
+    assert(t.typeCheck(i))
+    assert(t.typeCheck(i2))
+    assert(t.typeCheck(c))
+
+    assert(t.valuesSimilar(i, c))
+    assert(t.valuesSimilar(i2, c))
+  }
+
   def assertEvalsTo(x: IR, expected: Any) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
   }
@@ -398,7 +421,7 @@ object TestUtils {
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
     interceptException[E](regex)(Interpret[Any](x, env, args, agg))
     interceptException[E](regex)(Interpret[Any](x, env, args, agg, optimize = false))
-    interceptException[E](regex)(eval(x))
+    interceptException[E](regex)(eval(x, env, args, agg))
   }
 
   def assertFatal(x: IR, regex: String) {
