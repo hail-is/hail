@@ -1163,7 +1163,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
           unordered)
     }
 
-
     val typOrdering = intervalType.pointType.ordering
 
     val typToInsert: Type = other.valueSignature
@@ -1175,17 +1174,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val rightKeyFieldIdx = other.keyFieldIdx.get(0)
     val rightValueFieldIdx = other.valueFieldIdx
     val partitionKeyedIntervals = other.rvd.boundary.crdd
-      .cflatMap { (ctx, rv) =>
-        val region = ctx.region
+      .flatMap { rv =>
         val r = SafeRow(rightSignature, rv)
-        val ur = new UnsafeRow(rightSignature, rv)
-        val interval = ur.getAs[Interval](rightKeyFieldIdx)
+        val interval = r.getAs[Interval](rightKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
           val wrappedInterval = interval.copy(
-            start = Row(Annotation.copy(intervalType.pointType, interval.start)),
-            end = Row(Annotation.copy(intervalType.pointType, interval.end)))
+            start = Row(interval.start),
+            end = Row(interval.end))
           rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
         } else
           Iterator()
@@ -1205,7 +1202,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD
-    ) { case (it, intervals) =>
+    ) { (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { r =>
           val interval = r.getAs[Interval](rightKeyFieldIdx)

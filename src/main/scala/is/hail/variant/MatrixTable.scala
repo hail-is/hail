@@ -1050,17 +1050,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val pType = coerce[TInterval](ktSignature.types(ktKeyFieldIdx)).pointType
     val ktValueFieldIdx = kt.valueFieldIdx
     val partitionKeyedIntervals = kt.rvd.boundary.crdd
-      .cflatMap { (ctx, rv) =>
-        val region = ctx.region
+      .flatMap { rv =>
         val r = SafeRow(ktSignature, rv)
-        val ur = new UnsafeRow(ktSignature, rv)
-        val interval = ur.getAs[Interval](ktKeyFieldIdx)
+        val interval = r.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
           val pkOrd = partBc.value.pkType.ordering
           val wrappedInterval = interval.copy(
-            start = Row(Annotation.copy(pType, interval.start)),
-            end = Row(Annotation.copy(pType, interval.end)))
+            start = Row(interval.start),
+            end = Row(interval.end))
           rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
         } else
           Iterator()
@@ -1079,7 +1077,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = rvd.zipPartitionsPreservesPartitioning(
       newMatrixType.orvdType,
       zipRDD
-    ) { case (it, intervals) =>
+    ) { (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =
         intervals.map { r =>
           val interval = r.getAs[Interval](ktKeyFieldIdx)
