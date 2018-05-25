@@ -218,9 +218,15 @@ class InterpretSuite {
   }
 
   @Test def testArrayRange() {
-    assertEvalSame(ArrayRange(I32(0), I32(10), I32(2)))
-    assertEvalSame(ArrayRange(I32(0), I32(10), I32(1)))
-    assertEvalSame(ArrayRange(I32(0), I32(10), I32(3)))
+    for {
+      start <- -2 to 2
+      stop <- -2 to 8
+      step <- 1 to 3
+    } {
+      assertEvalSame(ArrayRange(I32(start), I32(stop), I32(step)))
+      assertEvalSame(ArrayRange(I32(start), I32(stop), I32(-step)))
+    }
+    assertEvalSame(ArrayRange(I32(Int.MinValue), I32(Int.MaxValue), I32(Int.MaxValue / 5)))
   }
 
   @Test def testArrayMap() {

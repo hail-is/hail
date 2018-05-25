@@ -193,6 +193,8 @@ object Interpret {
         val startValue = interpret(start, env, args, agg)
         val stopValue = interpret(stop, env, args, agg)
         val stepValue = interpret(step, env, args, agg)
+        if (stepValue == 0)
+          fatal("Array range cannot have step size 0.")
         if (startValue == null || stopValue == null || stepValue == null)
           null
         else
