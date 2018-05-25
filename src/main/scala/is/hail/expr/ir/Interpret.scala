@@ -269,6 +269,15 @@ object Interpret {
           .groupBy { case Row(k, _) => k }
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
 
+//        var out = Map[Any, Any]()
+//        interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
+//          .foreach { case Row(k, v) =>
+//            out = out.updated(k,
+//              out.getOrElse(k, FastIndexedSeq.empty)
+//                .asInstanceOf[IndexedSeq[Any]] :+ v)
+//          }
+//        out
+
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)

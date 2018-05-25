@@ -418,13 +418,11 @@ private class Emit(
         val etyp = coerce[TBaseStruct](atyp.elementType)
         val ktyp = etyp.types(0)
         val vtyp = etyp.types(1)
-        val kti = typeToTypeInfo(ktyp)
         val eltOut = coerce[TBaseStruct](coerce[TDict](ir.typ).elementType)
-
 
         val aout = emitArrayIterator(collection)
         val eab = new StagedArrayBuilder(etyp, mb, 16)
-        val sorter = new ArraySorter(mb, eab, keyOnly = false)
+        val sorter = new ArraySorter(mb, eab, keyOnly = true)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           m.mux(eab.addMissing(), eab.add(v))
