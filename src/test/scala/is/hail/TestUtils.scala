@@ -20,34 +20,25 @@ object TestUtils {
 
   import org.scalatest.Assertions._
 
-  def interceptFatal(regex: String)(f: => Any) {
-    val thrown = intercept[HailException](f)
+  def interceptException[E <: Throwable : Manifest](regex: String)(f: => Any) {
+    val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(
         s"""expected fatal exception with pattern `$regex'
            |  Found: ${ thrown.getMessage } """.stripMargin)
     assert(p)
+  }
+  def interceptFatal(regex: String)(f: => Any) {
+    interceptException[HailException](regex)(f)
   }
 
   def interceptSpark(regex: String)(f: => Any) {
-    val thrown = intercept[SparkException](f)
-    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
-    if (!p)
-      println(
-        s"""expected fatal exception with pattern `$regex'
-           |  Found: ${ thrown.getMessage } """.stripMargin)
-    assert(p)
+    interceptException[SparkException](regex)(f)
   }
 
   def interceptAssertion(regex: String)(f: => Any) {
-    val thrown = intercept[AssertionError](f)
-    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
-    if (!p)
-      println(
-        s"""expected assertion error with pattern `$regex'
-           |  Found: ${ thrown.getMessage } """.stripMargin)
-    assert(p)
+    interceptException[AssertionError](regex)(f)
   }
 
   def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = utils.defaultTolerance) {
@@ -256,34 +247,11 @@ object TestUtils {
       .exportGen(path, precision)
   }
 
-  def assertEvalsTo(x: IR, expected: Any) {
-    assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
-  }
-
-  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
-    assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
-  }
-
-  def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
-    val t = x.typ
-    assert(t.typeCheck(expected))
-
-    val e = eval(x, env, args, agg)
-    assert(t.typeCheck(e))
-    assert(t.valuesSimilar(eval(x, env, args, agg), expected))
-  }
-
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
 
   def eval(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
-    val i = Interpret[Any](x, env, args, agg)
-
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    assert(i == i2)
-
-    // verify compiler and interpreter agree
     val inputTypesB = new ArrayBuilder[Type]()
     val inputsB = new ArrayBuilder[Any]()
 
@@ -301,7 +269,7 @@ object TestUtils {
     val resultType = TTuple(x.typ)
     val argsVar = genUID()
 
-    var substEnv = Env.empty[IR]
+    val substEnv = Env.empty[IR]
     env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
       (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
     }
@@ -315,7 +283,7 @@ object TestUtils {
       }
     }
 
-    val c = agg match {
+    agg match {
       case Some((aggElements, aggType)) =>
         val aggVar = genUID()
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
@@ -396,9 +364,48 @@ object TestUtils {
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
     }
+  }
 
-    assert(i == c)
+  def assertEvalsTo(x: IR, expected: Any) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
+  }
 
-    i
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
+  }
+
+  def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
+    val t = x.typ
+    assert(t.typeCheck(expected))
+
+    val i = Interpret[Any](x, env, args, agg)
+    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
+    val c = eval(x, env, args, agg)
+
+    assert(t.typeCheck(i))
+    assert(t.typeCheck(i2))
+    assert(t.typeCheck(c))
+
+    assert(t.valuesSimilar(i, expected))
+    assert(t.valuesSimilar(i2, expected))
+    assert(t.valuesSimilar(c, expected))
+  }
+
+  def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {
+    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+  }
+
+  def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
+    interceptException[E](regex)(Interpret[Any](x, env, args, agg))
+    interceptException[E](regex)(Interpret[Any](x, env, args, agg, optimize = false))
+    interceptException[E](regex)(eval(x))
+  }
+
+  def assertFatal(x: IR, regex: String) {
+    assertThrows[HailException](x, regex)
+  }
+
+  def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
+    assertThrows[HailException](x, env, args, agg, regex)
   }
 }
