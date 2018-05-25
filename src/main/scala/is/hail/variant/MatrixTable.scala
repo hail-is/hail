@@ -627,9 +627,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
           ast.`type`.asInstanceOf[TStruct].size < 500 &&
             globalType.size < 3 &&
             (colType.size < 1 ||
-            colType.size == 1 &&
-            Set(TInt32(), +TInt32(), TString(), +TString())
-              .contains(colType.types(0)))
+              colType.size == 1 &&
+                Set(TInt32(), +TInt32(), TString(), +TString())
+                  .contains(colType.types(0)))
     }
   }
 
@@ -736,7 +736,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rowFields = rowType.fieldNames.toSet
     assert(keys.forall(rowFields.contains), s"${ keys.filter(k => !rowFields.contains(k)).mkString(", ") }")
     assert(partitionKeys.length <= keys.length)
-    assert(keys.zip(partitionKeys).forall{ case (k, pk) => k == pk })
+    assert(keys.zip(partitionKeys).forall { case (k, pk) => k == pk })
 
     val newMatrixType = matrixType.copy(rowKey = keys,
       rowPartitionKey = partitionKeys)
@@ -770,53 +770,65 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def collectColsByKey(): MatrixTable = new MatrixTable(hc, CollectColsByKey(ast))
 
-  def groupColsBy(keyExpr: String, aggExpr: String): MatrixTable = {
-    val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
-      Annotation.COL_HEAD -> (1, colType)))
-    val (keyNames, keyTypes, keyFs) = Parser.parseNamedExprs(keyExpr, sEC)
-    sEC.set(0, globals.value)
-    val keysBySample = colValues.value.map { sa =>
-      sEC.set(1, sa)
-      Row.fromSeq(keyFs())
-    }
-    val newKeys = keysBySample.toSet.toArray
-    val keyMap = newKeys.zipWithIndex.toMap
-    val samplesMap = keysBySample.map { k => if (k == null) -1 else keyMap(k) }.toArray
-
-    val nKeys = newKeys.size
-
+  def aggregateColsByKey(aggExpr: String): MatrixTable = {
     val ec = rowEC
-    val (newEntryNames, newEntryTypes, entryF) = Parser.parseNamedExprs(aggExpr, ec)
-    val newEntryType = TStruct(newEntryNames.zip(newEntryTypes): _*)
+    val aggAST = Parser.parseToAST(aggExpr, ec)
+    assert(aggAST.`type`.isInstanceOf[TStruct])
+    
+    aggAST.toIROpt(Some("AGG" -> "g")) match {
+      case Some(ir) if useIR(this.colAxis, aggAST) =>
+        new MatrixTable(hc, MatrixGroupColsByKey(ast, ir))
+      case _ =>
+        log.warn(s"group_cols_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(aggAST) }")
 
-    val newColKey = keyNames
-    val newColType = TStruct(keyNames.zip(keyTypes): _*)
+        val newColType = TStruct(colKey.map(k => (colType.field(k).name, colType.field(k).typ)): _*)
 
-    val aggregate = Aggregators.buildRowAggregationsByKey(this, nKeys, samplesMap, ec)
+        val keyIndices = colKey.map(k => colType.field(k).index)
 
-    insertEntries(noOp,
-      newColType = newColType,
-      newColValues = colValues.copy(value = newKeys, t = TArray(newColType)),
-      newColKey = newColKey)(newEntryType, { case (_, rv, rvb) =>
+        val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
+          Annotation.COL_HEAD -> (1, colType)))
 
-      val aggArr = aggregate(rv)
-      rvb.startArray(nKeys)
-
-      var i = 0
-      while (i < nKeys) {
-        aggArr(i)()
-        rvb.startStruct()
-        val fields = entryF()
-        var j = 0
-        while (j < fields.length) {
-          rvb.addAnnotation(newEntryType.types(j), fields(j))
-          j += 1
+        sEC.set(0, globals.value)
+        val keysBySample = colValues.value.map { sa =>
+          sEC.set(1, sa)
+          Row.fromSeq(keyIndices.map(sa.asInstanceOf[Row].get))
         }
-        rvb.endStruct()
-        i += 1
-      }
-      rvb.endArray()
-    })
+
+        val newKeys = keysBySample.toSet.toArray
+        val keyMap = newKeys.zipWithIndex.toMap
+        val samplesMap = keysBySample.map { k => if (k == null) -1 else keyMap(k) }.toArray
+
+        val nKeys = newKeys.length
+
+        val (t, f) = Parser.parseExpr(aggExpr, ec)
+        val newEntryType = coerce[TStruct](t)
+
+        val aggregate = Aggregators.buildRowAggregationsByKey(this, nKeys, samplesMap, ec)
+
+        insertEntries(noOp,
+          newColType = newColType,
+          newColValues = colValues.copy(value = newKeys, t = TArray(newColType)),
+          newColKey = colKey)(newEntryType, { case (_, rv, rvb) =>
+
+          val aggArr = aggregate(rv)
+          rvb.startArray(nKeys)
+
+          var i = 0
+          while (i < nKeys) {
+            aggArr(i)()
+            rvb.startStruct()
+            val fields = f().asInstanceOf[Row]
+            var j = 0
+            while (j < fields.length) {
+              rvb.addAnnotation(newEntryType.types(j), fields(j))
+              j += 1
+            }
+            rvb.endStruct()
+            i += 1
+          }
+          rvb.endArray()
+        })
+    }
   }
 
   def aggregateRowsByKey(expr: String, oldAggExpr: String): MatrixTable = {
@@ -1125,8 +1137,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       orderedRVDLeftJoinDistinctAndInsert(rightORVD, root, product)
     } else if (
       keyTypes.length == 1 &&
-      rowPartitionKeyTypes.length == 1 &&
-      keyTypes(0) == TInterval(rowPartitionKeyTypes(0))
+        rowPartitionKeyTypes.length == 1 &&
+        keyTypes(0) == TInterval(rowPartitionKeyTypes(0))
     ) {
       annotateRowsIntervalTable(kt, root, product)
     } else {
@@ -2059,8 +2071,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
           println(
             s"""row fields not the same:
-                 |  $row1
-                 |  $row2""".stripMargin)
+               |  $row1
+               |  $row2""".stripMargin)
           partSame = false
         }
 
@@ -2073,8 +2085,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             partSame = false
             println(
               s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
-                   |  ${ gs1(i) }
-                   |  ${ gs2(i) }""".stripMargin)
+                 |  ${ gs1(i) }
+                 |  ${ gs2(i) }""".stripMargin)
           }
           i += 1
         }
@@ -2168,8 +2180,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         foundError = true
         warn(
           s"""found violation in row
-          |Schema: $localRVRowType
-          |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
+             |Schema: $localRVRowType
+             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
     }
 
