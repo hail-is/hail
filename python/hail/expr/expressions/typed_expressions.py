@@ -1309,7 +1309,7 @@ class StructExpression(Mapping, Expression):
 
         indices, aggregations = unify_all(self, kwargs_struct)
 
-        return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
+        return construct_expr(ApplyMethod('annotate', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
                               result_type, indices, aggregations)
 
     @typecheck_method(fields=str)
