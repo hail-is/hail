@@ -62,6 +62,20 @@ class ArrayFunctionsSuite extends TestNGSuite {
       Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
   }
 
+  @Test(dataProvider = "basic")
+  def mean(a: Seq[Integer]) {
+    assertEvalsTo(invoke("mean", toIRArray(a)),
+      Option(a).flatMap { aa =>
+        val nonnull = aa.filter(_ != null)
+        if (nonnull.isEmpty)
+          None
+        else {
+          val sum = nonnull.filter(_ != null).map(_.toInt).sum.toDouble
+          Some(sum / nonnull.length)
+        }
+      }.orNull)
+  }
+
   @Test(dataProvider = "basicPairs")
   def extend(a: Seq[Integer], b: Seq[Integer]) {
     assertEvalsTo(invoke("extend", toIRArray(a), toIRArray(b)),
