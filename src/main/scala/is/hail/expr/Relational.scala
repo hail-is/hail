@@ -934,13 +934,13 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
   }
 }
 
-case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
+case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, aggIR)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MatrixGroupColsByKey = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateColsByKey = {
     newChildren match {
       case Seq(child: MatrixIR, aggExpr: IR) =>
-        MatrixGroupColsByKey(child, aggExpr)
+        MatrixAggregateColsByKey(child, aggExpr)
     }
   }
 
@@ -970,14 +970,10 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
     val nKeys = keys.length
     val newColValues = oldColValues.copy(value = keys, t = TArray(newColType))
 
-    val columnMap = {
-      val keysByColumn = oldColValues.value.map { sa => Row.fromSeq(keyIndices.map(sa.asInstanceOf[Row].get)) }
-      val keyMap = keys.zipWithIndex.toMap
-
-      keysByColumn.map { k => if (k == null) -1 else keyMap(k) }
-        .zipWithIndex.map { case (newIndex, oldIndex) => (oldIndex, newIndex) }.toMap
-    }
-    val columnMapType = TDict(TInt32(), TInt32())
+    val keysByColumn = oldColValues.value.map { sa => Row.fromSeq(keyIndices.map(sa.asInstanceOf[Row].get)) }
+    val keyMap = keys.zipWithIndex.toMap
+    val newColumnIndices = keysByColumn.map { k => if (k == null) -1 else keyMap(k) }.toArray
+    val newColumnIndicesType = TArray(TInt32())
 
     val transformInitOp: (Int, IR) => IR = { (nAggs, initOpIR) =>
       val colIdx = ir.genUID()
@@ -988,7 +984,7 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
             InitOp(ir.ApplyBinaryPrimOp(ir.Add(),
               ir.ApplyBinaryPrimOp(
                 ir.Multiply(),
-                ir.DictGet(ir.Ref("colMap", columnMapType), ir.Ref(colIdx, TInt32())),
+                ir.ArrayRef(ir.Ref("newColumnIndices", newColumnIndicesType), ir.Ref(colIdx, TInt32())),
                 ir.I32(nAggs)),
               i),
               args,
@@ -1014,7 +1010,7 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
               ir.ApplyBinaryPrimOp(ir.Add(),
                 ir.ApplyBinaryPrimOp(
                   ir.Multiply(),
-                  ir.DictGet(ir.Ref("colMap", columnMapType), ir.Ref(colIdx, TInt32())),
+                  ir.ArrayRef(ir.Ref("newColumnIndices", newColumnIndicesType), ir.Ref(colIdx, TInt32())),
                   ir.I32(nAggs)),
                 i),
               aggSig)
@@ -1037,11 +1033,11 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
     val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
       "global", oldGlobalsType,
       "va", oldRVRowType,
-      "colMap", columnMapType,
+      "newColumnIndices", newColumnIndicesType,
       "global", oldGlobalsType,
       "colValues", oldColsType,
       "va", oldRVRowType,
-      "colMap", columnMapType,
+      "newColumnIndices", newColumnIndicesType,
       aggIR,
       transformInitOp,
       transformSeqOp)
@@ -1077,8 +1073,14 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
       rvb.addAnnotation(oldColsType, oldColValuesBc.value)
       val partitionWideColumnsOffset = rvb.end()
 
-      rvb.start(columnMapType)
-      rvb.addAnnotation(columnMapType, columnMap)
+      rvb.start(newColumnIndicesType)
+      rvb.startArray(newColumnIndices.length)
+      var i = 0
+      while (i < newColumnIndices.length){
+        rvb.addAnnotation(TInt32(), newColumnIndices(i))
+        i +=1
+      }
+      rvb.endArray()
       val partitionWideMapOffset = rvb.end()
 
       it.map { rv =>
@@ -1095,8 +1097,8 @@ case class MatrixGroupColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
         val columnsOffset = rvb.end()
 
         rvb.set(rv.region)
-        rvb.start(columnMapType)
-        rvb.addRegionValue(columnMapType, partitionRegion, partitionWideMapOffset)
+        rvb.start(newColumnIndicesType)
+        rvb.addRegionValue(newColumnIndicesType, partitionRegion, partitionWideMapOffset)
         val mapOffset = rvb.end()
 
         var j = 0
