@@ -307,7 +307,6 @@ object PruneDeadFields {
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
       case MatrixMapCols(child, newCol, newKey) =>
         val irDep = memoizeAndGetDep(newCol, requestedType.colType, child.typ, memo)
-        println(irDep)
         val depMod = minimal(child.typ).copy(rvRowType = requestedType.rvRowType,
           globalType = requestedType.globalType)
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
@@ -345,9 +344,9 @@ object PruneDeadFields {
         memoizeMatrixIR(child, explodedDep, memo)
       case MatrixAggregateRowsByKey(child, expr) =>
         val irDep = memoizeAndGetDep(expr, requestedType.entryType, child.typ, memo)
-        val childDep = child.typ.copy(globalType = unify(irDep.globalType, requestedType.globalType),
+        val childDep = child.typ.copy(globalType = unify(child.typ.globalType, irDep.globalType, requestedType.globalType),
           rvRowType = irDep.rvRowType,
-          colType = unify(irDep.colType, requestedType.colType)
+          colType = unify(child.typ.colType, irDep.colType, requestedType.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
     }
@@ -381,6 +380,17 @@ object PruneDeadFields {
       colType = unify(base.colType, colArgs: _*).asInstanceOf[TStruct])
   }
 
+  /**
+    * This function does *not* necessarily bind each child node in `memo`.
+    * Known dead code is not memoized. For instance:
+    *
+    * ir = MakeStruct(Seq("a" -> (child1), "b" -> (child2)))
+    * requestedType = TStruct("a" -> (reqType of a))
+    *
+    * In the above, `child2` will not be memoized because `ir` does not require
+    * any of the "b" dependencies in order to create its own requested type,
+    * which only contains "a".
+    */
   def memoizeValueIR(ir: IR, requestedType: Type, memo: Memo[BaseType]): Env[(Type, Type)] = {
     memo.bind(ir, requestedType)
     ir match {
@@ -399,7 +409,6 @@ object PruneDeadFields {
           memoizeValueIR(value, valueType, memo)
         )
       case Ref(name, t) =>
-        //        assert(isSupertype(requestedType, t), s"not subtype:\n  ret:  ${ requestedType.parsableString() }\n  base: ${ t.parsableString() }")
         Env.empty[(Type, Type)].bind(name, t -> requestedType)
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TArray].elementType
@@ -525,27 +534,16 @@ object PruneDeadFields {
 
   def rebuild(tir: TableIR, memo: Memo[BaseType]): TableIR = {
     val dep = memo.lookup(tir).asInstanceOf[TableType]
-    //    assert(isSupertype(dep, tir.typ), s"not subtype: \n  $tir\n  ${ tir.typ }\n  $dep")
     tir match {
-//      case x@TableRead(_, _, _) => x
-//      case x@TableLiteral(_) => x
-//      case x@TableParallelize(_, _, _) => x
       case TableImport(paths, typ, readerOpts) =>
         val fieldsToRead = readerOpts.originalType.fields.flatMap(f => dep.rowType.fieldOption(f.name).map(_ => f.index)).toArray
         val newTyp = typ.copy(rowType = TStruct(typ.rowType.required,
           fieldsToRead.map(i => readerOpts.originalType.fieldNames(i) -> readerOpts.originalType.types(i)): _*))
         TableImport(paths, newTyp, readerOpts.copy(useColIndices = fieldsToRead))
-//      case x@TableRange(_, _) => x
-//      case TableJoin(left, right, joinType) =>
-//        TableJoin(rebuild(left, memo), rebuild(right, memo), joinType)
-//      case TableExplode(child, field) =>
-//        TableExplode(rebuild(child, memo), field)
       case TableFilter(child, pred) =>
         val child2 = rebuild(child, memo)
         val pred2 = rebuild(pred, child2.typ, memo)
         TableFilter(child2, pred2)
-//      case TableKeyBy(child, keys, nPartitionKeys, sort) =>
-//        TableKeyBy(rebuild(child, memo), keys, nPartitionKeys, sort)
       case TableMapRows(child, newRow, newKey, preservedKeyFields) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuild(newRow, child2.typ, memo)
@@ -554,16 +552,6 @@ object PruneDeadFields {
         // fixme push down into value
         val child2 = rebuild(child, memo)
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
-//      case MatrixColsTable(child) =>
-//        MatrixColsTable(rebuild(child, memo))
-//      case MatrixRowsTable(child) =>
-//        MatrixRowsTable(rebuild(child, memo))
-//      case MatrixEntriesTable(child) =>
-//        MatrixEntriesTable(rebuild(child, memo))
-//      case TableUnion(children) =>
-//        TableUnion(children.map(rebuild(_, memo)))
-//      case TableUnkey(child) =>
-//        TableUnkey(rebuild(child, memo))
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -597,16 +585,16 @@ object PruneDeadFields {
       case MatrixMapGlobals(child, newRow, value) =>
         val child2 = rebuild(child, memo)
         MatrixMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
-//      case x@MatrixRead(_, _, _, _, _) => x
-//      case x@MatrixLiteral(typ, value) => x
-//      case FilterCols(child, cond) =>
-//        FilterCols(rebuild(child, memo), cond)
-//      case MatrixFilterRowsAST(child, cond) =>
-//        MatrixFilterRowsAST(rebuild(child, memo), cond)
-//      case ChooseCols(child, oldIndices) =>
-//        ChooseCols(rebuild(child, memo), oldIndices)
-//      case CollectColsByKey(child) =>
-//        CollectColsByKey(rebuild(child, memo))
+      //      case x@MatrixRead(_, _, _, _, _) => x
+      //      case x@MatrixLiteral(typ, value) => x
+      //      case FilterCols(child, cond) =>
+      //        FilterCols(rebuild(child, memo), cond)
+      //      case MatrixFilterRowsAST(child, cond) =>
+      //        MatrixFilterRowsAST(rebuild(child, memo), cond)
+      //      case ChooseCols(child, oldIndices) =>
+      //        ChooseCols(rebuild(child, memo), oldIndices)
+      //      case CollectColsByKey(child) =>
+      //        CollectColsByKey(rebuild(child, memo))
       case MatrixAggregateRowsByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateRowsByKey(child2, rebuild(expr, child2.typ, memo))
@@ -700,10 +688,10 @@ object PruneDeadFields {
         TableAggregate(child2, query2)
       case _ =>
         ir.copy(ir.children.map {
-        case valueIR: IR => rebuild(valueIR, in, memo)
-        case mir: MatrixIR => rebuild(mir, memo)
-        case tir: TableIR => rebuild(tir, memo)
-      }).asInstanceOf[IR]
+          case valueIR: IR => rebuild(valueIR, in, memo)
+          case mir: MatrixIR => rebuild(mir, memo)
+          case tir: TableIR => rebuild(tir, memo)
+        }).asInstanceOf[IR]
     }
   }
 
@@ -730,30 +718,5 @@ object PruneDeadFields {
       }
     }
   }
-
-  //
-  //  def upcast(mir: MatrixIR, mt: MatrixType): MatrixIR = {
-  ////    assert(isSupertype(mt, mir.typ))
-  //    var ir = mir
-  //    if (ir.typ.globalType != mt.globalType)
-  //      ir = MatrixMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), mt.globalType),
-  //        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
-  //    if (ir.typ.colType != mt.colType)
-  //      ir = MatrixMapCols(ir, upcast(Ref("sa", ir.typ.colType), mt.colType), None)
-  //    if (ir.typ.rvRowType != mt.rvRowType)
-  //      ir = MatrixMapRows(ir, upcast(Ref("va", ir.typ.rvRowType), mt.rvRowType), None)
-  //    ir
-  //  }
-  //
-  //  def upcast(tir: TableIR, tt: TableType): TableIR = {
-  ////    assert(isSupertype(tt, tir.typ), s"cannot upcast \n  ir: $tir:\n  base: ${ tir.typ }\n  sub:  $tt")
-  //    var ir = tir
-  //    if (ir.typ.globalType != tt.globalType)
-  //      ir = TableMapGlobals(ir, upcast(Ref("global", ir.typ.globalType), tt.globalType),
-  //        BroadcastRow(Row(), TStruct(), HailContext.get.sc))
-  //    if (ir.typ.rowType != tt.rowType)
-  //      ir = TableMapRows(ir, upcast(Ref("row", ir.typ.rowType), tt.rowType), None)
-  //    ir
-  //  }
 }
 

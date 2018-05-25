@@ -99,259 +99,256 @@ class PruneSuite extends SparkSuite {
       fatal(s"IR did not rebuild the same:\n  Expect: $expected\n  Actual: $rebuilt")
   }
 
-  val tableLiteral = TableLiteral(Table.parallelize(
+  val tab = TableLiteral(Table.parallelize(
     hc,
     FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))))),
     TStruct("1" -> TString(),
       "2" -> TArray(TStruct("2A" -> TInt32())),
       "3" -> TString(),
       "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString())))),
-    None, None).annotateGlobal(5, TInt32(), "x").value)
+    None, None).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
 
 
-  val matrixLiteral = MatrixLiteral(MatrixType.fromParts(
-    TStruct("glob1" -> TInt32()),
+  val mat = MatrixLiteral(MatrixType.fromParts(
+    TStruct("glob1" -> TInt32(), "glob2" -> TFloat64()),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
     FastIndexedSeq("rk"),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TInt32())),
-    TStruct("entry1" -> TFloat64(), "entry2" -> TFloat64())), null)
+    TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
 
   val emptyTableDep = TableType(TStruct(), None, TStruct())
 
+  def tableRefBoolean(tt: TableType, fields: String*): IR = {
+    var let: IR = True()
+    fields.foreach { f =>
+      val split = f.split("\\.")
+      var ir: IR = split(0) match {
+        case "row" => Ref("row", tt.rowType)
+        case "global" => Ref("global", tt.globalType)
+      }
+
+      split.tail.foreach { field =>
+        ir = GetField(ir, field)
+      }
+      let = Let(genUID(), ir, let)
+    }
+    let
+  }
+
+  def tableRefStruct(tt: TableType, fields: String*): IR = {
+    MakeStruct(FastIndexedSeq("foo" -> tableRefBoolean(tt, fields: _*)))
+  }
+
+  def matrixRefBoolean(mt: MatrixType, fields: String*): IR = {
+    var let: IR = True()
+    fields.foreach { f =>
+      val split = f.split("\\.")
+      var ir: IR = split(0) match {
+        case "va" => Ref("va", mt.rvRowType)
+        case "sa" => Ref("sa", mt.colType)
+        case "g" => Ref("g", mt.entryType)
+        case "global" => Ref("global", mt.globalType)
+      }
+
+      split.tail.foreach { field =>
+        ir = GetField(ir, field)
+      }
+      let = Let(genUID(), ir, let)
+    }
+    let
+  }
+
+  def matrixRefStruct(mt: MatrixType, fields: String*): IR = {
+    MakeStruct(FastIndexedSeq("foo" -> matrixRefBoolean(mt, fields: _*)))
+  }
+
+  def subsetType(t: Type, path: Array[String], index: Int): Type = {
+    if (index == path.length)
+      PruneDeadFields.minimal(t)
+    else
+      t match {
+        case ts: TStruct => TStruct(ts.required, path(index) -> subsetType(ts.field(path(index)).typ, path, index + 1))
+        case ta: TArray => TArray(subsetType(ta.elementType, path, index), ta.required)
+      }
+  }
+
+  def subsetTable(tt: TableType, fields: String*): TableType = {
+    val rowFields = new ArrayBuilder[TStruct]()
+    val globalFields = new ArrayBuilder[TStruct]()
+    fields.foreach { f =>
+      val split = f.split("\\.")
+      val (head, ab) = split(0) match {
+        case "row" => tt.rowType -> rowFields
+        case "global" => tt.globalType -> globalFields
+      }
+      ab += subsetType(head, split, 1).asInstanceOf[TStruct]
+    }
+    val min = PruneDeadFields.minimal(tt)
+    tt.copy(
+      rowType = PruneDeadFields.unify(tt.rowType, Array(min.rowType) ++ rowFields.result(): _*),
+      globalType = PruneDeadFields.unify(tt.globalType, globalFields.result(): _*)
+    )
+  }
+
+  def subsetMatrixTable(mt: MatrixType, fields: String*): MatrixType = {
+    val rowFields = new ArrayBuilder[TStruct]()
+    val colFields = new ArrayBuilder[TStruct]()
+    val entryFields = new ArrayBuilder[TStruct]()
+    val globalFields = new ArrayBuilder[TStruct]()
+    fields.foreach { f =>
+      val split = f.split("\\.")
+      val (head, ab) = split(0) match {
+        case "va" => mt.rvRowType -> rowFields
+        case "sa" => mt.colType -> colFields
+        case "g" => mt.entryType -> entryFields
+        case "global" => mt.globalType -> globalFields
+      }
+      ab += subsetType(head, split, 1).asInstanceOf[TStruct]
+    }
+    val min = PruneDeadFields.minimal(mt)
+    mt.copyParts(
+      globalType = PruneDeadFields.unify(mt.globalType, globalFields.result(): _*),
+      colType = PruneDeadFields.unify(mt.colType, Array(min.colType) ++ colFields.result(): _*),
+      rowType = PruneDeadFields.unify(mt.rowType, Array(min.rowType) ++ rowFields.result(): _*),
+      entryType = PruneDeadFields.unify(mt.entryType, Array(min.entryType) ++ entryFields.result(): _*)
+    )
+  }
+
   @Test def testTableJoinMemo() {
-    val tj = TableJoin(TableKeyBy(tableLiteral, Array("1"), 1), TableKeyBy(tableLiteral, Array("3"), 1), "inner")
-    val dep = TableType(
-      globalType = TStruct(),
-      key = Some(FastIndexedSeq("1")),
-      rowType = TStruct("1" -> TString(), "4" -> TStruct("A" -> TInt32()), "1_1" -> TString()))
-    checkMemo(tj, dep,
+    val tk1 = TableKeyBy(tab, Array("1"), 1)
+    val tk2 = TableKeyBy(tab, Array("3"), 1)
+    val tj = TableJoin(tk1, tk2, "inner")
+    checkMemo(tj,
+      subsetTable(tj.typ, "row.1", "row.4", "row.1_1"),
       Array(
-        TableType(
-          globalType = TStruct(),
-          key = Some(FastIndexedSeq("1")),
-          rowType = TStruct("1" -> TString(), "4" -> TStruct("A" -> TInt32()))),
-        TableType(
-          globalType = TStruct(),
-          key = Some(FastIndexedSeq("3")),
-          rowType = TStruct("1" -> TString(), "3" -> TString()))
+        subsetTable(tk1.typ, "row.1", "row.4"),
+        subsetTable(tk2.typ, "row.1", "row.3")
       )
     )
   }
 
   @Test def testTableExplodeMemo() {
-    val te = TableExplode(tableLiteral, "2")
-    checkMemo(te, tableLiteral.typ.copy(rowType = TStruct()), Array(tableLiteral.typ.copy(rowType = TStruct("2" -> TArray(TStruct())))))
+    val te = TableExplode(tab, "2")
+    checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
   }
 
   @Test def testTableFilterMemo() {
-    val row = Ref("row", tableLiteral.typ.rowType)
-    val tf = TableFilter(tableLiteral, ApplyComparisonOp(GT(TInt32()), ArrayLen(GetField(row, "2")), GetField(GetField(row, "4"), "A")))
-    checkMemo(tf, emptyTableDep,
-      Array(tableLiteral.typ.copy(
-        globalType = TStruct(),
-        rowType = TStruct("2" -> TArray(TStruct()), "4" -> TStruct("A" -> TInt32()))),
-        TBoolean()))
-    checkMemo(TableFilter(tableLiteral, False()), emptyTableDep, Array(emptyTableDep, TBoolean()))
+    checkMemo(TableFilter(tab, tableRefBoolean(tab.typ, "row.2")),
+      subsetTable(tab.typ, "row.3"),
+      Array(subsetTable(tab.typ, "row.2", "row.3"), null))
+    checkMemo(TableFilter(tab, False()),
+      subsetTable(tab.typ, "row.1"),
+      Array(subsetTable(tab.typ, "row.1"), TBoolean()))
   }
 
   @Test def testTableKeyByMemo() {
-    val tk = TableKeyBy(tableLiteral, Array("1"), 1)
-    checkMemo(tk, TableType(TStruct("1" -> TString()), Some(FastIndexedSeq("1")), TStruct()),
-      Array(TableType(TStruct("1" -> TString()), None, TStruct())))
+    val tk = TableKeyBy(tab, Array("1"), 1)
+    checkMemo(tk, subsetTable(tk.typ, "row.2"), Array(subsetTable(tab.typ, "row.1", "row.2")))
   }
 
   @Test def testTableMapRowsEmptyMemo() {
-    val tmr = TableMapRows(tableLiteral, MakeStruct(FastIndexedSeq()), None, None)
-    checkMemo(tmr, emptyTableDep, Array(emptyTableDep, null))
-  }
-
-  @Test def testTableMapRowsSelectMemo() {
-    val row = Ref("row", tableLiteral.typ.rowType)
-    val tmr = TableMapRows(tableLiteral, MakeStruct(FastSeq("foo" -> GetField(row, "1"))), None, None)
-    checkMemo(tmr, emptyTableDep.copy(rowType = TStruct("foo" -> TString())),
-      Array(emptyTableDep.copy(rowType = TStruct("1" -> TString())), null))
+    val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"), None, None)
+    checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2"), null))
   }
 
   @Test def testTableMapGlobalsMemo() {
-    val tmg = TableMapGlobals(tableLiteral, MakeStruct(FastIndexedSeq()), null)
-    checkMemo(tmg, tableLiteral.typ.copy(globalType = TStruct()), Array(tableLiteral.typ.copy(globalType = TStruct()), null))
+    val tmg = TableMapGlobals(tab, tableRefStruct(tab.typ, "global.g1"), null)
+    checkMemo(tmg, subsetTable(tmg.typ, "global.foo"), Array(subsetTable(tab.typ, "global.g1"), null))
   }
 
   @Test def testMatrixColsTableMemo() {
-    checkMemo(MatrixColsTable(matrixLiteral),
-      TableType(TStruct("ck" -> TString()), Some(FastIndexedSeq("ck")), TStruct()),
-      Array(matrixLiteral.typ.copyParts(
-        rowType = TStruct("rk" -> TInt32()),
-        globalType = TStruct(),
-        colType = TStruct("ck" -> TString()),
-        entryType = TStruct())))
+    val mct = MatrixColsTable(mat)
+    checkMemo(mct,
+      subsetTable(mct.typ, "global.glob1", "row.c2"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2")))
   }
 
   @Test def testMatrixRowsTableMemo() {
-    checkMemo(MatrixRowsTable(matrixLiteral),
-      TableType(TStruct("rk" -> TInt32()), Some(FastIndexedSeq("rk")), TStruct()),
-      Array(matrixLiteral.typ.copyParts(
-        rowType = TStruct("rk" -> TInt32()),
-        globalType = TStruct(),
-        colType = TStruct("ck" -> TString()),
-        entryType = TStruct())))
+    val mrt = MatrixRowsTable(mat)
+    checkMemo(mrt,
+      subsetTable(mrt.typ, "global.glob1", "row.r2"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2")))
   }
 
   @Test def testMatrixEntriesTableMemo() {
-    checkMemo(MatrixEntriesTable(matrixLiteral),
-      TableType(TStruct("rk" -> TInt32(), "ck" -> TString(), "c3" -> TArray(TStruct()), "entry1" -> TFloat64()),
-        Some(FastIndexedSeq("rk", "ck")), TStruct()),
-      Array(matrixLiteral.typ.copyParts(
-        rowType = TStruct("rk" -> TInt32()),
-        globalType = TStruct(),
-        colType = TStruct("ck" -> TString(), "c3" -> TArray(TStruct())),
-        entryType = TStruct("entry1" -> TFloat64()))))
-  }
-
-  @Test def testMatrixEntriesTableNoEntryFieldsMemo() {
-    checkMemo(MatrixEntriesTable(matrixLiteral),
-      TableType(TStruct("rk" -> TInt32(), "ck" -> TString(), "c3" -> TArray(TStruct())),
-        Some(FastIndexedSeq("rk", "ck")), TStruct()),
-      Array(matrixLiteral.typ.copyParts(
-        rowType = TStruct("rk" -> TInt32()),
-        globalType = TStruct(),
-        colType = TStruct("ck" -> TString(), "c3" -> TArray(TStruct())),
-        entryType = TStruct())))
+    val met = MatrixEntriesTable(mat)
+    checkMemo(met,
+      subsetTable(met.typ, "global.glob1", "row.r2", "row.c2", "row.e2"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c2", "g.e2")))
   }
 
   @Test def testTableUnionMemo() {
-    val tu = TableUnion(FastIndexedSeq(tableLiteral, tableLiteral))
-    val dep = tableLiteral.typ.copy(rowType = TStruct("2" -> TArray(TStruct())))
-    checkMemo(tu, dep, Array(dep, dep))
-  }
-
-  @Test def testTableUnkeyMemo() {
-    val tu = TableUnkey(TableKeyBy(tableLiteral, Array("1"), 1))
-    checkMemo(tu, emptyTableDep.copy(rowType = TStruct("2" -> TArray(TStruct()))),
-      Array(TableType(TStruct("1" -> TString(), "2" -> TArray(TStruct())), Some(FastIndexedSeq("1")), TStruct())))
-  }
-
-  @Test def testMatrixFilterColsMemo() {
-    val fc1 = FilterColsIR(matrixLiteral, True())
-    val fc2 = FilterColsIR(matrixLiteral,
-      ApplyComparisonOp(GT(TInt32()), GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"), I32(0)))
-    val dep1 = matrixLiteral.typ.copyParts(colType = TStruct("ck" -> TString()), entryType = TStruct())
-    checkMemo(fc1, dep1, Array(dep1, null))
-    checkMemo(fc2, dep1, Array(dep1.copy(globalType = TStruct("glob1" -> TInt32())), null))
-  }
-
-  @Test def testMatrixFilterRowsMemo() {
-    val fr1 = MatrixFilterRowsIR(matrixLiteral, True())
-    val fr2 = MatrixFilterRowsIR(matrixLiteral,
-      ApplyComparisonOp(GT(TInt32()), GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"), I32(0)))
-    val dep1 = matrixLiteral.typ.copyParts(colType = TStruct("ck" -> TString()), entryType = TStruct())
-    checkMemo(fr1, dep1, Array(dep1, null))
-    checkMemo(fr2, dep1, Array(dep1.copy(globalType = TStruct("glob1" -> TInt32())), null))
-  }
-
-  @Test def testMatrixFilterEntriesMemo() {
-    val fe1 = MatrixFilterEntries(matrixLiteral, True())
-    val fe2 = MatrixFilterEntries(matrixLiteral,
-      ApplyComparisonOp(GT(TInt32()), GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"), I32(0)))
-    val dep1 = matrixLiteral.typ.copyParts(colType = TStruct("ck" -> TString()), entryType = TStruct())
-    checkMemo(fe1, dep1, Array(dep1, null))
-    checkMemo(fe2, dep1, Array(dep1.copy(globalType = TStruct("glob1" -> TInt32())), null))
-  }
-
-  @Test def testMatrixMapEntriesMemo() {
-    val mme = MatrixMapEntries(matrixLiteral, MakeStruct(FastIndexedSeq("x" -> ApplyBinaryPrimOp(Add(),
-      GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"),
-      GetField(Ref("sa", matrixLiteral.typ.colType), "c2")))))
-    checkMemo(mme, matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32()),
-      colType = TStruct("ck" -> TString()),
-      entryType = TStruct("x" -> TInt32())), Array(matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32()),
-      colType = TStruct("ck" -> TString(), "c2" -> TInt32()),
-      entryType = TStruct()), null))
-  }
-
-  @Test def testMatrixMapColsMemo() {
-    val mmc = MatrixMapCols(matrixLiteral, MakeStruct(FastIndexedSeq(
-      "ck" -> GetField(Ref("sa", matrixLiteral.typ.colType), "ck"),
-      "x" -> ApplyBinaryPrimOp(Add(),
-        GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"),
-        GetField(Ref("sa", matrixLiteral.typ.colType), "c2")))), None)
-    checkMemo(mmc, matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32()),
-      entryType = TStruct(),
-      colType = TStruct("ck" -> TString(), "x" -> TInt32())),
-      Array(matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32()),
-        colType = TStruct("ck" -> TString(), "c2" -> TInt32()),
-        entryType = TStruct()), null))
-  }
-
-  @Test def testMatrixMapRowsMemo() {
-    val mmr = MatrixMapRows(matrixLiteral, MakeStruct(FastIndexedSeq(
-      "rk" -> GetField(Ref("va", matrixLiteral.typ.rvRowType), "rk"),
-      "x" -> ApplyBinaryPrimOp(Add(),
-        GetField(Ref("global", matrixLiteral.typ.globalType), "glob1"),
-        GetField(GetField(Ref("va", matrixLiteral.typ.rvRowType), "r2"), "x")))), None)
-    checkMemo(mmr,
-      matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32(), "x" -> TInt32()),
-        entryType = TStruct(),
-        colType = TStruct("ck" -> TString())),
-      Array(matrixLiteral.typ.copyParts(rowType = TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32())),
-        colType = TStruct("ck" -> TString()),
-        entryType = TStruct()), null))
-  }
-
-  @Test def testMatrixMapGlobalsMemo() {
-    val mmg = MatrixMapGlobals(matrixLiteral, MakeStruct(FastIndexedSeq()), null)
-    checkMemo(mmg, matrixLiteral.typ.copy(globalType = TStruct()),
-      Array(matrixLiteral.typ.copy(globalType = TStruct()), null))
-  }
-
-  @Test def testCollectColsByKeyMemo() {
-    checkMemo(CollectColsByKey(matrixLiteral),
-      MatrixType.fromParts(
-        TStruct(),
-        FastIndexedSeq("ck"),
-        TStruct("ck" -> TString(), "c2" -> +TArray(TInt32())),
-        FastIndexedSeq("rk"),
-        FastIndexedSeq("rk"),
-        TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32())),
-        TStruct("entry2" -> +TArray(TFloat64()))),
-      Array(MatrixType.fromParts(
-        TStruct(),
-        FastIndexedSeq("ck"),
-        TStruct("ck" -> TString(), "c2" -> TInt32()),
-        FastIndexedSeq("rk"),
-        FastIndexedSeq("rk"),
-        TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32())),
-        TStruct("entry2" -> TFloat64())), null))
-  }
-
-  @Test def testMatrixAggregateRowsByKeyMemo() {
-    val aggSig = AggSignature(Sum(), TFloat64(), Seq(), None)
-    val magg = MatrixAggregateRowsByKey(matrixLiteral,
-      MakeStruct(FastIndexedSeq("foo" -> ApplyAggOp(SeqOp(GetField(Ref("g", matrixLiteral.typ.entryType), "entry1"), I32(0), aggSig),
-        FastIndexedSeq(), None, aggSig))))
-    checkMemo(magg, MatrixType.fromParts(
-      TStruct(),
-      FastIndexedSeq("ck"),
-      TStruct("ck" -> TString()),
-      FastIndexedSeq("rk"),
-      FastIndexedSeq("rk"),
-      TStruct("rk" -> TInt32()),
-      TStruct("foo" -> TFloat64())),
-      Array(
-        MatrixType.fromParts(
-          TStruct(),
-          FastIndexedSeq("ck"),
-          TStruct("ck" -> TString()),
-          FastIndexedSeq("rk"),
-          FastIndexedSeq("rk"),
-          TStruct("rk" -> TInt32()),
-          TStruct("entry1" -> TFloat64())),
-        null
-      )
+    checkMemo(
+      TableUnion(FastIndexedSeq(tab, tab)),
+      subsetTable(tab.typ, "row.1", "global.g1"),
+      Array(subsetTable(tab.typ, "row.1", "global.g1"),
+        subsetTable(tab.typ, "row.1", "global.g1"))
     )
   }
 
+  @Test def testTableUnkeyMemo() {
+    val tk = TableKeyBy(tab, Array("1"), 1)
+    val tu = TableUnkey(tk)
+    checkMemo(tu, subsetTable(tu.typ, "row.2"),
+      Array(subsetTable(tk.typ, "row.2")))
+  }
+
+  @Test def testMatrixFilterColsMemo() {
+    val mfc = FilterColsIR(mat, matrixRefBoolean(mat.typ, "global.glob1", "sa.c2"))
+    checkMemo(mfc,
+      subsetMatrixTable(mfc.typ, "sa.c3"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "sa.c3"), null))
+  }
+
+  @Test def testMatrixFilterRowsMemo() {
+    val mfr = MatrixFilterRowsIR(mat, matrixRefBoolean(mat.typ, "global.glob1", "va.r2"))
+    checkMemo(mfr,
+      subsetMatrixTable(mfr.typ, "sa.c3", "va.r3"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c3", "va.r3"), null))
+  }
+
+  @Test def testMatrixFilterEntriesMemo() {
+    val mfe = MatrixFilterEntries(mat, matrixRefBoolean(mat.typ, "global.glob1", "va.r2", "sa.c2", "g.e2"))
+    checkMemo(mfe,
+      subsetMatrixTable(mfe.typ, "sa.c3", "va.r3"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c3", "sa.c2", "va.r3", "g.e2"), null))
+  }
+
+  @Test def testMatrixMapColsMemo() {
+    val mmc = MatrixMapCols(mat, matrixRefStruct(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2"), Some(FastIndexedSeq()))
+    checkMemo(mmc, subsetMatrixTable(mmc.typ, "va.r3", "sa.foo"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
+  }
+
+  @Test def testMatrixMapRowsMemo() {
+    val mmr = MatrixMapRows(mat, matrixRefStruct(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2"),
+      Some(IndexedSeq(), IndexedSeq()))
+    checkMemo(mmr, subsetMatrixTable(mmr.typ, "sa.c3", "va.foo"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2", "sa.c3"), null))
+  }
+
+  @Test def testMatrixMapGlobalsMemo() {
+    val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.glob1"), null)
+    checkMemo(mmg, subsetMatrixTable(mmg.typ, "global.foo", "va.r3", "sa.c3"),
+      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r3", "sa.c3"), null))
+  }
+
+  @Test def testCollectColsByKeyMemo() {
+    val ccbk = CollectColsByKey(mat)
+    checkMemo(ccbk,
+      subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2"),
+      Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))
+  }
+
+  @Test def testMatrixAggregateRowsByKeyMemo() {
+    val magg = MatrixAggregateRowsByKey(mat,
+      matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"))
+    checkMemo(magg,
+      subsetMatrixTable(magg.typ, "sa.c3", "g.foo"),
+      Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2"), null)
+    )
+  }
 }
 
