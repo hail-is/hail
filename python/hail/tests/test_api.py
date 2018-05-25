@@ -1420,7 +1420,6 @@ class FunctionsTests(unittest.TestCase):
             exp=hl.exp(kt.c),
             fet=hl.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
             hwe=hl.hardy_weinberg_p(1, 2, 1),
-            index=hl.index(kt.g, 'z'),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
             is_nan=hl.is_nan(hl.float64(kt.a)),
