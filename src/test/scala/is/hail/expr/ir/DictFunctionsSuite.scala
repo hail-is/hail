@@ -24,8 +24,8 @@ class DictFunctionsSuite extends TestNGSuite {
   val e = ToDict(MakeArray(Seq(), TArray(TTuple(TInt32(), TInt32()))))
 
   @Test def toDict() {
-    eval(a0)
-    eval(d0)
+    assertEvalSame(a0)
+    assertEvalSame(d0)
     assertEvalsTo(d0, Map((1, 3), (2, 7)))
     assertEvalsTo(d, Map((1, 3), (2, null), (null, 1), (3, 7)))
     assertEvalsTo(nad, null)
