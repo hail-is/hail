@@ -220,7 +220,7 @@ class InterpretSuite {
   @Test def testArrayRange() {
     for {
       start <- -2 to 2
-      stop <- -2 to 10
+      stop <- -2 to 8
       step <- 1 to 3
     } {
       assertEvalSame(ArrayRange(I32(start), I32(stop), I32(step)))
