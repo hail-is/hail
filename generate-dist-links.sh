@@ -1,5 +1,9 @@
 #!/bin/sh
 
+set -e
+
+mkdir -p build/tmp/python/hail/docs
+
 TARGET=build/tmp/python/hail/docs/distLinks.rst
 rm -f $TARGET
 

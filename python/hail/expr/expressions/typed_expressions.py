@@ -16,7 +16,7 @@ class CollectionExpression(Expression):
 
     >>> a = hl.literal([1, 2, 3, 4, 5])
 
-    >>> s = hl.literal({'Alice', 'Bob', 'Charlie'})
+    >>> s3 = hl.literal({'Alice', 'Bob', 'Charlie'})
     """
 
     @typecheck_method(f=func_spec(1, expr_bool))
@@ -30,7 +30,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.any(lambda x: x % 2 == 0))
             True
 
-            >>> hl.eval_expr(s.any(lambda x: x[0] == 'D'))
+            >>> hl.eval_expr(s3.any(lambda x: x[0] == 'D'))
             False
 
         Notes
@@ -67,7 +67,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.filter(lambda x: x % 2 == 0))
             [2, 4]
 
-            >>> hl.eval_expr(s.filter(lambda x: ~(x[-1] == 'e')))
+            >>> hl.eval_expr(s3.filter(lambda x: ~(x[-1] == 'e')))
             {'Bob'}
 
         Notes
@@ -106,7 +106,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.find(lambda x: x ** 2 > 20))
             5
 
-            >>> hl.eval_expr(s.find(lambda x: x[0] == 'D'))
+            >>> hl.eval_expr(s3.find(lambda x: x[0] == 'D'))
             None
 
         Notes
@@ -143,7 +143,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.flatmap(lambda x: hl.range(0, x)))
             [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-            >>> hl.eval_expr(s.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))
+            >>> hl.eval_expr(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))
             {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
@@ -211,7 +211,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.group_by(lambda x: x % 2 == 0))
             {False: [1, 3, 5], True: [2, 4]}
 
-            >>> hl.eval_expr(s.group_by(lambda x: x.length()))
+            >>> hl.eval_expr(s3.group_by(lambda x: x.length()))
             {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
@@ -238,7 +238,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.map(lambda x: x ** 3))
             [1.0, 8.0, 27.0, 64.0, 125.0]
 
-            >>> hl.eval_expr(s.map(lambda x: x.length()))
+            >>> hl.eval_expr(s3.map(lambda x: x.length()))
             {3, 5, 7}
 
         Parameters
@@ -263,7 +263,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.length())
             5
 
-            >>> hl.eval_expr(s.length())
+            >>> hl.eval_expr(s3.length())
             3
 
         Returns
@@ -283,7 +283,7 @@ class CollectionExpression(Expression):
             >>> hl.eval_expr(a.size())
             5
 
-            >>> hl.eval_expr(s.size())
+            >>> hl.eval_expr(s3.size())
             3
 
         Returns
@@ -297,7 +297,7 @@ class CollectionExpression(Expression):
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.tarray`.
 
-    >>> a = hl.literal(['Alice', 'Bob', 'Charlie'])
+    >>> names = hl.literal(['Alice', 'Bob', 'Charlie'])
 
     See Also
     --------
@@ -314,17 +314,17 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> hl.eval_expr(a[1])
+            >>> hl.eval_expr(names[1])
             'Bob'
 
-            >>> hl.eval_expr(a[-1])
+            >>> hl.eval_expr(names[-1])
             'Charlie'
 
         Slicing is also supported:
 
         .. doctest::
 
-            >>> hl.eval_expr(a[1:])
+            >>> hl.eval_expr(names[1:])
             ['Bob', 'Charlie']
 
         Parameters
@@ -355,10 +355,10 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> hl.eval_expr(a.contains('Charlie'))
+            >>> hl.eval_expr(names.contains('Charlie'))
             True
 
-            >>> hl.eval_expr(a.contains('Helen'))
+            >>> hl.eval_expr(names.contains('Helen'))
             False
 
         Parameters
@@ -390,7 +390,7 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> hl.eval_expr(a.append('Dan'))
+            >>> hl.eval_expr(names.append('Dan'))
             ['Alice', 'Bob', 'Charlie', 'Dan']
 
         Note
@@ -422,7 +422,7 @@ class ArrayExpression(CollectionExpression):
 
         .. doctest::
 
-            >>> hl.eval_expr(a.extend(['Dan', 'Edith']))
+            >>> hl.eval_expr(names.extend(['Dan', 'Edith']))
             ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith']
 
         Parameters
@@ -1092,21 +1092,21 @@ class DictExpression(Expression):
 class StructExpression(Mapping, Expression):
     """Expression of type :class:`.tstruct`.
 
-    >>> s = hl.struct(a=5, b='Foo')
+    >>> struct = hl.struct(a=5, b='Foo')
 
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
 
     .. doctest::
 
-        >>> hl.eval_expr(s.a)
+        >>> hl.eval_expr(struct.a)
         5
 
     However, it is recommended to use square brackets to select fields:
 
     .. doctest::
 
-        >>> hl.eval_expr(s['a'])
+        >>> hl.eval_expr(struct['a'])
         5
 
     The latter syntax is safer, because fields that share their name with
@@ -1171,10 +1171,10 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(s['a'])
+            >>> hl.eval_expr(struct['a'])
             5
 
-            >>> hl.eval_expr(s[1])
+            >>> hl.eval_expr(struct[1])
             'Foo'
 
         Parameters
@@ -1215,7 +1215,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(s.annotate(a=10, c=2*2*2))
+            >>> hl.eval_expr(struct.annotate(a=10, c=2*2*2))
             Struct(a=10, b='Foo', c=8)
 
         Notes
@@ -1260,7 +1260,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(s.select('a', c=['bar', 'baz']))
+            >>> hl.eval_expr(struct.select('a', c=['bar', 'baz']))
             Struct(a=5, c=[u'bar', u'baz'])
 
         Notes
@@ -1320,7 +1320,7 @@ class StructExpression(Mapping, Expression):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(s.drop('b'))
+            >>> hl.eval_expr(struct.drop('b'))
             Struct(a=5)
 
         Parameters
@@ -1356,7 +1356,7 @@ class StructExpression(Mapping, Expression):
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
 
-    >>> t = hl.literal(("a", 1, [1, 2, 3]))
+    >>> tup = hl.literal(("a", 1, [1, 2, 3]))
     """
 
     @typecheck_method(item=int)
@@ -1367,7 +1367,7 @@ class TupleExpression(Expression, Sequence):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(t[1])
+            >>> hl.eval_expr(tup[1])
             1
 
         Parameters
@@ -1390,7 +1390,7 @@ class TupleExpression(Expression, Sequence):
         --------
         .. doctest::
 
-            >>> hl.eval_expr(len(t))
+            >>> hl.eval_expr(len(tup))
             3
 
         Returns
@@ -2703,7 +2703,7 @@ class LocusExpression(Expression):
         .. doctest::
             :options: +SKIP
 
-            >>> locus.sequence_context().value
+            >>> locus.sequence_context().value # doctest: +SKIP
             "G"
 
         Get the reference sequence at a locus including the previous 5 bases:
@@ -2711,7 +2711,7 @@ class LocusExpression(Expression):
         .. doctest::
             :options: +SKIP
 
-            >>> locus.sequence_context(before=5).value
+            >>> locus.sequence_context(before=5).value # doctest: +SKIP
             "ACTCGG"
 
         Notes

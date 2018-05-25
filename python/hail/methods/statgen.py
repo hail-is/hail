@@ -642,14 +642,6 @@ def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lm
     Compute a :class:`.KinshipMatrix`, and use it to test variants for
     association using a linear mixed model:
 
-    .. testsetup::
-
-        lmmreg_ds = hl.variant_qc(hl.split_multi_hts(hl.import_vcf('data/sample.vcf.bgz')))
-        lmmreg_tsv = hl.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
-        lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
-        lmmreg_ds = lmmreg_ds.annotate_rows(use_in_kinship = lmmreg_ds.variant_qc.AF > 0.05)
-        lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
-
     >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
     >>> kinship_matrix = hl.realized_relationship_matrix(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
     >>> lmm_ds = hl.linear_mixed_regression(kinship_matrix,
@@ -1159,17 +1151,6 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    .. testsetup::
-
-        burden_ds = hl.import_vcf('data/example_burden.vcf')
-        burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
-        burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
-        burden_ds = burden_ds.annotate_rows(weight = hl.float64(burden_ds.locus.position))
-        burden_ds = hl.variant_qc(burden_ds)
-        genekt = hl.import_locus_intervals('data/gene.interval_list')
-        burden_ds = burden_ds.annotate_rows(gene = genekt[burden_ds.locus])
-        burden_ds.write('data/example_burden.vds', overwrite=True)
-
     >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
     >>> skat_table = hl.skat(key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
@@ -1211,15 +1192,8 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     frequency. To replicate these weights in Hail using alternate allele
     frequencies stored in a row-indexd field `AF`, one can use the expression:
 
-    .. testsetup::
-
-        ds2 = hl.variant_qc(dataset)
-        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
-
-    .. doctest::
-
-        >>> hl.dbeta(hl.min(ds2.AF, 1 - ds2.AF),
-        ...          1.0, 25.0) ** 2
+    >>> hl.dbeta(hl.min(ds2.AF, 1 - ds2.AF),
+    ...          1.0, 25.0) ** 2
 
     In the logistic case, the response `y` must either be numeric (with all
     present values 0 or 1) or Boolean, in which case true and false are coded

@@ -302,24 +302,18 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     Examples
     --------
     Compute TDT association statistics and show the first two results:
-
-    .. testsetup::
-
-        tdt_dataset = hl.import_vcf('data/tdt_tiny.vcf')
-
-    .. doctest::
     
-        >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
-        >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
-        >>> tdt_table.show(2)
-        +---------------+------------+-------+-------+-------------+-------------+
-        | locus         | alleles    |     t |     u |        chi2 |    p_values |
-        +---------------+------------+-------+-------+-------------+-------------+
-        | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
-        +---------------+------------+-------+-------+-------------+-------------+
-        | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
-        | 2:167262169   | ["T","C"]  |    NA |    NA |          NA |          NA |
-        +---------------+------------+-------+-------+-------------+-------------+
+    >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
+    >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
+    >>> tdt_table.show(2)
+    +---------------+------------+-------+-------+-------------+-------------+
+    | locus         | alleles    |     t |     u |        chi2 |    p_values |
+    +---------------+------------+-------+-------+-------------+-------------+
+    | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
+    +---------------+------------+-------+-------+-------------+-------------+
+    | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
+    | 2:167262169   | ["T","C"]  |    NA |    NA |          NA |          NA |
+    +---------------+------------+-------+-------+-------------+-------------+
 
     Export variants with p-values below 0.001:
 

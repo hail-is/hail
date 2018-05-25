@@ -101,13 +101,6 @@ task generateBuildInfo(type: Exec) {
     outputs.upToDateWhen { false }
 }
 
-task generateDistLinks(type: Exec) {
-    executable 'sh'
-    args(['generate-dist-links.sh'])
-    args(hailVersion)
-    args(deployedSparkVersions)
-}
-
 compileScala {
     dependsOn generateBuildInfo
 
@@ -183,6 +176,8 @@ task(checkSettings) << {
     System.setProperty("check.count", checkCount)
 }
 
+String parallelism = System.getProperty("test.parallelism", "2")
+
 test {
     useTestNG {}
 
@@ -199,25 +194,34 @@ test {
     beforeTest { descriptor ->
         logger.lifecycle("Running test: " + descriptor)
     }
+
+    maxParallelForks parallelism.toInteger()
 }
 
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python3',
-             '-m',
-             'nose',
-             '-c',
-             'python/hail/setup.cfg',
-             'python/hail/tests'
-     environment SPARK_HOME: sparkHome
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-     environment PYSPARK_PYTHON: 'python3'
-     environment NOSE_NOLOGCAPTURE: '1'
+    commandLine 'pytest',
+            '-n',
+            parallelism,
+            '--dist=loadscope',
+            '--noconftest',
+            'python/hail/tests'
+    environment SPARK_HOME: sparkHome
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYSPARK_PYTHON: 'python3'
 }
 
-task testAll(dependsOn: ['testPython', 'test'])
+task doctest(type: Exec, dependsOn: shadowJar) {
+    commandLine 'sh', 'python/hail/docs/doctest.sh', '-n', parallelism
+    environment SPARK_HOME: sparkHome
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYSPARK_PYTHON: 'python3'
+}
+
+task testAll(dependsOn: ['testPython', 'test', 'doctest'])
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -371,102 +375,38 @@ task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
 
-task cleanHailDocs(type: Exec) {
+task cleanDocs(type: Exec) {
     commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
 }
 
-task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
-    commandLine 'mkdir', '-p', 'build/www/', 'build/tmp/python/', 'build/tmp/docs', 'build/www/docs'
+task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(deployedSparkVersions)
 }
 
-task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
-    from 'docs/LeveneHaldane.pdf'
-    into 'build/www'
-}
-
-task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
-    from 'www/'
-    include '*.js'
-    include '*.css'
-    include '*.css.map'
-    include '*.html'
-    include '*.png'
-    include 'annotationdb/*'
-    into 'build/www'
-}
-
-task readmeToHtml(type: Exec, dependsOn: setupDocsDirs) {
-    commandLine 'pandoc', '-s', 'README.md', '-f', 'markdown', '-t', 'html', '--mathjax',
-            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/README.html'
-}
-
-task jobsToHtml(type: Exec, dependsOn: setupDocsDirs) {
-    commandLine 'pandoc', '-s', 'www/jobs.md', '-f', 'markdown', '-t', 'html', '--mathjax',
-            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/jobs.html'
-}
-
-task aboutToHtml(type: Exec, dependsOn: setupDocsDirs) {
-    commandLine 'pandoc', '-s', 'www/about.md', '-f', 'markdown', '-t', 'html', '--mathjax',
-            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/about.html'
-}
-
-task buildIndex(type: Exec, dependsOn: ['readmeToHtml']) {
-    args('--html', '-o', 'build/www/index.html', 'www/readme-to-index.xslt', 'build/tmp/README.html')
-    executable 'xsltproc'
-}
-
-task buildJobs(type: Exec, dependsOn: ['jobsToHtml']) {
-    args('--html', '-o', 'build/www/jobs.html', 'www/jobs.xslt', 'build/tmp/jobs.html')
-    executable 'xsltproc'
-}
-
-task buildAbout(type: Exec, dependsOn: ['aboutToHtml']) {
-    args('--html', '-o', 'build/www/about.html', 'www/about.xslt', 'build/tmp/about.html')
-    executable 'xsltproc'
-}
-
-task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {
-    from 'python'
-    into 'build/tmp/python'
-}
-
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'copyPythonDirToTmp']) {
-    workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
+task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash
+    environment SPHINXOPTS: '-tchecktutorial'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'copyPythonDirToTmp']) {
-    workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'clean', 'html'
+task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash
+    environment SPHINXOPTS: ''
 }
 
-task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
-}
-
-task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/' + hailVersion
-}
-
-task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout', 'copyHailDocs'])
-
-task createDocs(dependsOn: createWebsite)
-
-task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
-
-task testDocs(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'buildAbout'])
-
-task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
+task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }

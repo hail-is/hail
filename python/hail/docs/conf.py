@@ -36,7 +36,7 @@ needs_sphinx = '1.5.4'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'hail_doctest', # replaced 'sphinx.ext.doctest'; new version does not check output
+    'sphinx.ext.doctest',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
@@ -81,24 +81,6 @@ napoleon_use_param = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
-
-
-with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'doctest_setup.py'), 'r') as f:
-    setup_str = f.read()
-
-doctest_global_setup = setup_str
-
-doctest_global_cleanup = """import shutil, os
-
-# if os.path.isdir("output/"):
-#     shutil.rmtree("output/")
-# 
-# files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-# for f in files:
-#     if os.path.isdir(f):
-#         shutil.rmtree(f)
-
-"""
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:

@@ -3563,7 +3563,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
     .. doctest::
         :options: +SKIP
 
-        >>> hl.get_sequence('1', 45323, 'GRCh37').value
+        >>> hl.get_sequence('1', 45323, 'GRCh37').value # doctest: +SKIP
         "T"
 
     Notes
@@ -3808,7 +3808,7 @@ def liftover(x, dest_reference_genome, min_match=0.95):
     .. doctest::
         :options: +SKIP
 
-        >>> hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38').value
+        >>> hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38').value # doctest: +SKIP
         Locus(contig='chr1', position=1098865, reference_genome='GRCh38')
 
     Lift over the locus interval coordinates from reference genome ``'GRCh37'``
@@ -3817,7 +3817,7 @@ def liftover(x, dest_reference_genome, min_match=0.95):
     .. doctest::
         :options: +SKIP
 
-        >>> hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38').value
+        >>> hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38').value # doctest: +SKIP
         Interval(Locus(contig='chr20', position=79360, reference_genome='GRCh38'),
                  Locus(contig='chr20', position=101815, reference_genome='GRCh38'),
                  True,

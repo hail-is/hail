@@ -15,16 +15,16 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     .. doctest::
         :options: +SKIP
 
-        >>> with hadoop_open('gs://my-bucket/notes.txt') as f:
+        >>> with hadoop_open('gs://my-bucket/notes.txt') as f: # doctest: +SKIP
         ...     for line in f:
         ...         print(line.strip())
 
-        >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f:
+        >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f: # doctest: +SKIP
         ...     f.write('result1: %s\\n' % result1)
         ...     f.write('result2: %s\\n' % result2)
 
         >>> from struct import unpack
-        >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f:
+        >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f: # doctest: +SKIP
         ...     print(unpack('<f', bytearray(f.read())))
 
     Notes

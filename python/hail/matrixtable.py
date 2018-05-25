@@ -20,17 +20,6 @@ class GroupedMatrixTable(ExprContainer):
 
     There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
     and :meth:`.GroupedMatrixTable.aggregate`.
-
-    .. testsetup::
-
-        dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows()
-        table1 = table1.annotate_globals(global_field=5)
-        table1 = table1.annotate(consequence='SYN')
-
-        table2 = dataset.cols()
-        table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
-
     """
 
     def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None):
@@ -175,10 +164,6 @@ class GroupedMatrixTable(ExprContainer):
         --------
         Aggregate to a matrix with cohort as column keys, computing the call rate
         as an entry field:
-
-        .. testsetup::
-
-            dataset = dataset.annotate_cols(cohort = 'cohort')
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
         ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
@@ -368,16 +353,6 @@ class MatrixTable(ExprContainer):
 
     Examples
     --------
-
-    .. testsetup::
-
-        dataset2 = dataset.annotate_globals(global_field=5)
-        table1 = dataset.rows()
-        table1 = table1.annotate_globals(global_field=5)
-        table1 = table1.annotate(consequence='SYN')
-
-        table2 = dataset.cols()
-        table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     Add annotations:
 
@@ -850,7 +825,7 @@ class MatrixTable(ExprContainer):
         Add global fields from another table and matrix table:
 
         >>> dataset_result = dataset.annotate_globals(thing1 = dataset2.index_globals().global_field,
-        ...                                           thing2 = table1.index_globals().global_field)
+        ...                                           thing2 = v_metadata.index_globals().global_field)
 
         Note
         ----
@@ -898,7 +873,7 @@ class MatrixTable(ExprContainer):
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
         :class:`.MatrixTable`.
 
-        >>> dataset_result = dataset.annotate_rows(consequence = table1[dataset.locus, dataset.alleles].consequence,
+        >>> dataset_result = dataset.annotate_rows(consequence = v_metadata[dataset.locus, dataset.alleles].consequence,
         ...                                        dataset2_AF = dataset2.index_rows(dataset.row_key).info.AF)
 
         Note
@@ -946,7 +921,7 @@ class MatrixTable(ExprContainer):
 
         Add sample metadata from a :class:`.hail.Table`.
 
-        >>> dataset_result = dataset.annotate_cols(population = table2[dataset.s].pop)
+        >>> dataset_result = dataset.annotate_cols(population = s_metadata[dataset.s].pop)
 
         Note
         ----
@@ -1036,10 +1011,6 @@ class MatrixTable(ExprContainer):
         Examples
         --------
         Select one existing field and compute a new one:
-
-        .. testsetup::
-
-            dataset = dataset.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
         >>> dataset_result = dataset.select_globals(dataset.global_field_1,
         ...                                         another_global=['AFR', 'EUR', 'EAS', 'AMR', 'SAS'])
@@ -1933,10 +1904,6 @@ class MatrixTable(ExprContainer):
         Aggregate to a matrix with cohort as column keys, computing the call rate
         as an entry field:
 
-        .. testsetup::
-
-            dataset = dataset.annotate_cols(cohort = 'cohort')
-
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
         ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
 
@@ -2232,7 +2199,8 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> pli_dict = dataset.index_globals().pli
+        >>> dataset1 = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014})
+        >>> pli_dict = dataset1.index_globals().pli
         >>> dataset_result = dataset2.annotate_rows(gene_pli = dataset2.gene.map(lambda x: pli_dict.get(x)))
 
         Returns
@@ -3028,11 +2996,6 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
-        .. testsetup::
-
-            dataset_to_union_1 = dataset
-            dataset_to_union_2 = dataset
 
         Union the columns of two datasets:
 
