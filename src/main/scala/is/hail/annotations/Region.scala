@@ -159,11 +159,6 @@ final class Region private (
       // FIXME: is this guaranteed to be aligned to anything?
       log.info(s"Allocating a large region $n")
       val mem = Memory.malloc(n)
-      var i = 0
-      while (i < blockSize) {
-        Memory.storeByte(mem + i, 0)
-        i += 1
-      }
       bigBlocks += mem
       mem
     } else {
