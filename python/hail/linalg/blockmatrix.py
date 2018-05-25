@@ -671,7 +671,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a block-sparse matrix by zeroing out all blocks
+        This method creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from a diagonal band. By default,
         all elements outside the band but inside blocks that overlap the
         band are set to zero as well.
@@ -745,7 +745,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a block-sparse matrix by zeroing out all blocks
+        This method creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from the (non-strict) upper or lower triangle. By
         default, all elements outside the triangle but inside blocks that
         overlap the triangle are set to zero as well.
@@ -816,7 +816,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a block-sparse matrix by zeroing out all blocks
+        This method creates a block-sparse matrix by zeroing out all blocks
         which are disjoint from all row intervals. By default, all elements
         outside the row intervals but inside blocks that overlap the row
         intervals are set to zero as well.
@@ -1500,7 +1500,7 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This methods creates a block-sparse matrix by zeroing out (dropping)
+        This method creates a block-sparse matrix by zeroing out (dropping)
         all blocks which are disjoint from the union of a set of rectangular
         regions. Partially overlapping blocks are *not* modified.
 
