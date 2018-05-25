@@ -155,9 +155,9 @@ final class Region private (
 
   private def allocate(n: Long): Long = {
     assert(n >= 0)
-    if (n > blockSize) {
+    if (n > blockSize / 2) {
       // FIXME: is this guaranteed to be aligned to anything?
-      log.info(s"Allocating a large region $n")
+      log.info(s"Allocating a large block $n, currently have ${bigBlocks.length} large blocks")
       val mem = Memory.malloc(n)
       bigBlocks += mem
       mem
@@ -167,7 +167,7 @@ final class Region private (
         // FIXME: is this guaranteed to be aligned to anything?
         activeBlock += 1
         val mem = if (activeBlock == blocks.length) {
-          log.info(s"Allocating a new region, $end $n $capacity")
+          log.info(s"Allocating a new block, $end $n $capacity, currently have ${blocks.length} blocks")
           val temp = Memory.malloc(blockSize)
           blocks += temp
           temp
@@ -292,6 +292,7 @@ final class Region private (
   }
 
   def clear() {
+    log.info(s"Clearing the region. $end ${blocks.length} ${bigBlocks.length}")
     end = 0
     activeBlock = 0
     bigBlocks.result().foreach(Memory.free)
@@ -366,6 +367,7 @@ final class Region private (
   }
 
   def close(): Unit = {
+    log.info(s"Freeing all blocks. ${blocks.length} ${bigBlocks.length}")
     blocks.result().foreach(Memory.free)
     bigBlocks.result().foreach(Memory.free)
   }
