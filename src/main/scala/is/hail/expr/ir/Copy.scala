@@ -130,6 +130,9 @@ object Copy {
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
       case ApplySpecial(fn, args) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
+      case Uniroot(argname, _, _, _) =>
+        val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
+        Uniroot(argname, fn, min, max)
       // from MatrixIR
       case MatrixWrite(_, f) =>
         val IndexedSeq(child: MatrixIR) = newChildren

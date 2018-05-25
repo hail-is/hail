@@ -94,6 +94,8 @@ object Children {
       args.toIndexedSeq
     case ApplySpecial(_, args) =>
       args.toIndexedSeq
+    case Uniroot(_, fn, min, max) =>
+      FastIndexedSeq(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => IndexedSeq(child)
     // from TableIR
