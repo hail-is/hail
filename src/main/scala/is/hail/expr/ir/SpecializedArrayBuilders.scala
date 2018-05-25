@@ -144,7 +144,16 @@ class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
     missing(i) = false
   }
 
-  def sort(ordering: AsmFunction4[Byte, Boolean, Byte, Boolean, Boolean]): Unit = {
+  def sort(ordering: AsmFunction2[Byte, Byte, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size_) {
+      if (!missing(i)) {
+
+      }
+
+      i += 1
+    }
     val (newmissing, newb) = missing.zip(b).take(size_).sortWith { (x, y) => ordering(x._2, x._1, y._2, y._1) }.unzip
     missing = newmissing
     b = newb
