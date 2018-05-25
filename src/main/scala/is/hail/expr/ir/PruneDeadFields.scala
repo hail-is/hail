@@ -212,7 +212,7 @@ object PruneDeadFields {
             minChild.rowType,
             TStruct(field -> requestedType.rowType
               .fieldOption(field)
-              .map(_.typ.asInstanceOf[TArray].elementType)
+              .map(f => TArray(f.typ))
               .getOrElse(minimal(child.typ.rowType.field(field).typ))))))
         memoizeTableIR(child, dep2, memo)
       case TableFilter(child, pred) =>
