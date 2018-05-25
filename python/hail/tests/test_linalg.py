@@ -409,9 +409,9 @@ class Tests(unittest.TestCase):
         nd2[0, 1] = 1.0
         self.assertTrue(np.array_equal(bm2[:, :].to_numpy(), nd2))
 
-        self.assertRaises(FatalError, lambda: bm2[:, 0])
-        self.assertRaises(FatalError, lambda: bm2[0, :])
-        self.assertRaises(FatalError, lambda: bm2[0:1, 0:1])
+        self.assertTrue(np.array_equal(bm2[:, 1].to_numpy(), nd2[:, 1:2]))
+        self.assertTrue(np.array_equal(bm2[1, :].to_numpy(), nd2[1:2, :]))
+        self.assertTrue(np.array_equal(bm2[0:5, 0:5].to_numpy(), nd2[0:5, 0:5]))
 
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],

@@ -15,6 +15,8 @@ import scala.collection.mutable
 
 case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition
 
+case class SupersetRDDPartition(index: Int, maybeParentPartition: Option[Partition]) extends Partition
+
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
     new ReorderedPartitionsRDD[T](r, oldIndices)
@@ -115,6 +117,40 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
       
+      @transient override val partitioner: Option[Partitioner] = newPartitioner
+    }
+  }
+
+  def supersetPartitions(
+    oldToNewPI: Array[Int],
+    newNPartitions: Int,
+    newPIPartition: Int => Iterator[T],
+    newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
+    
+    require(oldToNewPI.length == r.partitions.length)
+    require(oldToNewPI.forall(pi => pi >= 0 && pi < newNPartitions))
+    require(oldToNewPI.areDistinct())
+    
+    val parentPartitions = r.partitions
+    val newToOldPI = oldToNewPI.zipWithIndex.toMap
+
+    new RDD[T](r.sparkContext, FastSeq(new NarrowDependency[T](r) {
+      def getParents(partitionId: Int): Seq[Int] = newToOldPI.get(partitionId) match {
+        case Some(oldPI) => Array(oldPI)
+        case None => Array.empty[Int]
+      }
+    })) {
+      def getPartitions: Array[Partition] = Array.tabulate(newNPartitions) { i =>
+        SupersetRDDPartition(i, newToOldPI.get(i).map(parentPartitions))
+      }
+
+      def compute(split: Partition, context: TaskContext): Iterator[T] = {
+        split.asInstanceOf[SupersetRDDPartition].maybeParentPartition match {
+          case Some(part) => r.compute(part, context)
+          case None => newPIPartition(split.index)
+        }
+      }
+
       @transient override val partitioner: Option[Partitioner] = newPartitioner
     }
   }

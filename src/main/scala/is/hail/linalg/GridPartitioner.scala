@@ -27,7 +27,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   
   require(maybeSparse.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
-      bis.length < maxNBlocks))) // a sparse block matrix cannot have all blocks present
+      bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
@@ -48,43 +48,27 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     i + j * nBlockRows
   }
   
-  def filterBlocks(blocksToKeep: Array[Int]): (GridPartitioner, Array[Int]) = {
-    require(blocksToKeep.isEmpty ||
-      (blocksToKeep.isIncreasing && blocksToKeep.head >= 0 && blocksToKeep.last < maxNBlocks)) // could move into Some
-    
-    val (filteredBlocks, partsToKeep) = maybeSparse match {
-      case Some(bis) =>
-        val blocksToKeepSet = blocksToKeep.toSet
-        bis.zipWithIndex.filter { case (bi, _) => blocksToKeepSet(bi) }.unzip
-      case None => (blocksToKeep, blocksToKeep)
-    }
-    
-    val filteredGP =
-      if (partsToKeep.length == numPartitions)
-        this
-      else
-        GridPartitioner(blockSize, nRows, nCols, Some(filteredBlocks))
-
-    (filteredGP, partsToKeep)
-  }
-  
-  def intersectBlocks(that: GridPartitioner): Option[Array[Int]] = {
-    (maybeSparse, that.maybeSparse) match {
+  def intersect(that: GridPartitioner): GridPartitioner = {
+    copy(maybeSparse = (maybeSparse, that.maybeSparse) match {
       case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
       case (Some(bis), None) => Some(bis)
       case (None, Some(bis2)) => Some(bis2)
       case (None, None) => None
-    }
+    })
   }
   
-  def unionBlocks(that: GridPartitioner): Option[Array[Int]] = {
-    (maybeSparse, that.maybeSparse) match {
+  def union(that: GridPartitioner): GridPartitioner = {
+    copy(maybeSparse = (maybeSparse, that.maybeSparse) match {
       case (Some(bis), Some(bis2)) =>
-        val union = bis.union(bis2)
-        scala.util.Sorting.quickSort(union)
-        Some(union)
+        val union = (bis ++ bis2).distinct
+        if (union.length == maxNBlocks)
+          None
+        else {
+          scala.util.Sorting.quickSort(union)
+          Some(union)
+        }
       case _ => None
-    }
+    })
   }
 
   override val numPartitions: Int = maybeSparse match {
