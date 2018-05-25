@@ -30,7 +30,6 @@ Collection functions
     sorted
     find
     group_by
-    index
 
 .. autofunction:: len
 .. autofunction:: map
@@ -44,4 +43,3 @@ Collection functions
 .. autofunction:: sorted
 .. autofunction:: find
 .. autofunction:: group_by
-.. autofunction:: index

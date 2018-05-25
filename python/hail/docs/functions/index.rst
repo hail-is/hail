@@ -78,7 +78,6 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     find
     group_by
     len
-    index
 
 .. rubric:: Numeric functions
 
