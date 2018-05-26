@@ -231,7 +231,7 @@ object Interpret {
         else
           cValue match {
             case s: Set[_] => s.toIndexedSeq
-            case d: Map[_, _] => d.toIndexedSeq
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
             case a => a
           }
 

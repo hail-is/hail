@@ -4,6 +4,7 @@ import is.hail.TestUtils
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -132,11 +133,11 @@ class IRSuite extends TestNGSuite {
     val t = TDict(TInt32(), TString())
     assertEvalsTo(ToArray(NA(t)), null)
 
-    val a = FastIndexedSeq(2, null, -7)
+    val d = Map(1 -> "a", 2 -> null, (null, "c"))
     assertEvalsTo(ToArray(In(0, t)),
       // wtf you can't do null -> ...
-      FastIndexedSeq((a, t)),
-      a)
+      FastIndexedSeq((d, t)),
+      FastIndexedSeq(Row(1, "a"), Row(2, null), Row(null, "c")))
   }
 
   @Test def testToArrayFromArray() {
@@ -194,6 +195,19 @@ class IRSuite extends TestNGSuite {
       null)
   }
 
+  @Test def testArrayMap() {
+    val naa = NA(TArray(TInt32()))
+    val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
+
+    assertEvalsTo(ArrayMap(naa, "a", I32(5)), null)
+
+    assertEvalsTo(ArrayMap(a, "a", ApplyBinaryPrimOp(Add(), Ref("a", TInt32()), I32(1))), FastIndexedSeq(4, null, 8))
+
+    assertEvalsTo(Let("a", I32(5),
+      ArrayMap(a, "a", Ref("a", TInt32()))),
+      FastIndexedSeq(3, null, 7))
+  }
+
   @Test def testArrayFilter() {
     val naa = NA(TArray(TInt32()))
     val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))
@@ -211,6 +225,30 @@ class IRSuite extends TestNGSuite {
 
     assertEvalsTo(ArrayFilter(a, "x",
       ApplyComparisonOp(LT(TInt32()), Ref("x", TInt32()), I32(6))), FastIndexedSeq(3))
+  }
+
+  @Test def testArrayFlatMap() {
+    val ta = TArray(TInt32())
+    val taa = TArray(ta)
+    val naa = NA(taa)
+    val naaa = MakeArray(FastIndexedSeq(NA(ta), NA(ta)), taa)
+    val a = MakeArray(FastIndexedSeq(
+      MakeArray(FastIndexedSeq(I32(7), NA(TInt32())), ta),
+      NA(ta),
+      MakeArray(FastIndexedSeq(I32(2)), ta)),
+      taa)
+
+    assertEvalsTo(ArrayFlatMap(naa, "a", MakeArray(FastIndexedSeq(I32(5)), ta)), null)
+
+    assertEvalsTo(ArrayFlatMap(naaa, "a", Ref("a", ta)), FastIndexedSeq())
+
+    assertEvalsTo(ArrayFlatMap(a, "a", Ref("a", ta)), FastIndexedSeq(7, null, 2))
+
+    assertEvalsTo(ArrayFlatMap(ArrayRange(I32(0), I32(3), I32(1)), "i", ArrayRef(a, Ref("i", TInt32()))), FastIndexedSeq(7, null, 2))
+
+    assertEvalsTo(Let("a", I32(5),
+      ArrayFlatMap(a, "a", Ref("a", ta))),
+      FastIndexedSeq(7, null, 2))
   }
 
   @Test def testArrayRange() {
