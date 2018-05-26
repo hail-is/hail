@@ -972,7 +972,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
 
     val keysByColumn = oldColValues.value.map { sa => Row.fromSeq(keyIndices.map(sa.asInstanceOf[Row].get)) }
     val keyMap = keys.zipWithIndex.toMap
-    val newColumnIndices = keysByColumn.map { k => if (k == null) -1 else keyMap(k) }.toArray
+    val newColumnIndices = keysByColumn.map { k => keyMap(k) }.toArray
     val newColumnIndicesType = TArray(TInt32())
 
     val transformInitOp: (Int, IR) => IR = { (nAggs, initOpIR) =>
@@ -1077,7 +1077,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
       rvb.startArray(newColumnIndices.length)
       var i = 0
       while (i < newColumnIndices.length){
-        rvb.addAnnotation(TInt32(), newColumnIndices(i))
+        rvb.addInt(newColumnIndices(i))
         i +=1
       }
       rvb.endArray()
