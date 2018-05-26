@@ -45,6 +45,9 @@ case class MatrixType(
   val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
   val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
+  val entriesRVType: TStruct = TStruct(
+    MatrixType.entriesIdentifier -> TArray(entryType))
+
   assert({
     val rowFields = rowType.fieldNames.toSet
     rowKey.forall(rowFields.contains)

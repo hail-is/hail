@@ -1070,13 +1070,11 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val fullRowType = t.rvRowType
     val rowsRVType = t.rowType
     val localEntriesIndex = t.entriesIdx
-
-    val entriesRVType = TStruct(
-      MatrixType.entriesIdentifier -> TArray(t.entryType))
+    val entriesRVType = t.entriesRVType
 
     val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+    val makeEntriesEnc = codecSpec.buildEncoder(t.entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value

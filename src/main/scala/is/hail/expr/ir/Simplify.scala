@@ -123,8 +123,8 @@ object Simplify {
       // optimize TableIR
       case TableFilter(t, True()) => t
 
-      case TableFilter(TableRead(path, spec, _), False() | NA(_)) =>
-        TableRead(path, spec, dropRows = true)
+      case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
+        TableRead(path, spec, typ, dropRows = true)
 
       case TableFilter(TableFilter(t, p1), p2) =>
         TableFilter(t,

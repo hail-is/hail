@@ -92,16 +92,16 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String): RVD = {
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
-      .read(hc, rvdPath)
+      .read(hc, rvdPath, requestedType)
   }
 
-  def readLocal(hc: HailContext, path: String): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
-      .readLocal(hc, rvdPath)
+      .readLocal(hc, rvdPath, requestedType)
   }
 }
 
@@ -136,13 +136,13 @@ object MatrixTable {
 
     val f: (MatrixRead) => MatrixValue = { mr =>
       val hc = HailContext.get
-      val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path)(0)).asInstanceOf[Row]
+      val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)).asInstanceOf[Row]
 
       val colAnnotations =
         if (mr.dropCols)
           IndexedSeq.empty[Annotation]
         else
-          Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path)).asInstanceOf[IndexedSeq[Annotation]]
+          Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path, typ.colType)).asInstanceOf[IndexedSeq[Annotation]]
 
       val rvd =
         if (mr.dropRows)
@@ -152,7 +152,7 @@ object MatrixTable {
           val rowType = typ.rowType
           val localEntriesIndex = typ.entriesIdx
 
-          val rowsRVD = spec.rowsComponent.read(hc, path).asInstanceOf[OrderedRVD]
+          val rowsRVD = spec.rowsComponent.read(hc, path, typ.rowType).asInstanceOf[OrderedRVD]
           if (mr.dropCols) {
             rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
               val rv2b = new RegionValueBuilder()
@@ -180,7 +180,7 @@ object MatrixTable {
               }
             }
           } else {
-            val entriesRVD = spec.entriesComponent.read(hc, path)
+            val entriesRVD = spec.entriesComponent.read(hc, path, typ.entriesRVType)
             val entriesRowType = entriesRVD.rowType
             rowsRVD.zipPartitions(typ.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (ctx, it1, it2) =>
               val rvb = ctx.rvb

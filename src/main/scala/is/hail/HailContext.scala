@@ -539,9 +539,10 @@ class HailContext private(val sc: SparkContext,
     path: String,
     t: TStruct,
     codecSpec: CodecSpec,
-    partFiles: Array[String]
+    partFiles: Array[String],
+    requestedType: TStruct
   ): ContextRDD[RVDContext, RegionValue] = {
-    val makeDec = codecSpec.buildDecoder(t, t)
+    val makeDec = codecSpec.buildDecoder(t, requestedType)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
