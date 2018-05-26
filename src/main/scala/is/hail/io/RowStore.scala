@@ -338,6 +338,18 @@ trait InputBuffer extends Closeable {
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
 
+  def skipBoolean(): Unit = skipByte()
+
+  def skipByte(): Unit
+
+  def skipInt(): Unit
+
+  def skipLong(): Unit
+
+  def skipFloat(): Unit
+
+  def skipDouble(): Unit
+
   def skipBytes(n: Int): Unit
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit
@@ -383,6 +395,24 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readDouble(): Double = in.readDouble()
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
+
+  def skipByte(): Unit = in.skipByte()
+
+  def skipInt() {
+    var b: Byte = readByte()
+    while ((b & 0x80) != 0)
+      b = readByte()
+  }
+
+  def skipLong() {
+    var b: Byte = readByte()
+    while ((b & 0x80) != 0)
+      b = readByte()
+  }
+
+  def skipFloat(): Unit = in.skipFloat()
+
+  def skipDouble(): Unit = in.skipDouble()
 
   def skipBytes(n: Int): Unit = in.skipBytes(n)
 
@@ -480,6 +510,31 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     }
   }
 
+  def skipByte() {
+    ensure(1)
+    off += 1
+  }
+
+  def skipInt() {
+    ensure(4)
+    off += 4
+  }
+
+  def skipLong() {
+    ensure(8)
+    off += 8
+  }
+
+  def skipFloat() {
+    ensure(4)
+    off += 4
+  }
+
+  def skipDouble() {
+    ensure(8)
+    off += 8
+  }
+
   def skipBytes(n0: Int) {
     var n = n0
     while (n > 0) {
@@ -546,20 +601,24 @@ object EmitPackDecoder {
     val moff = mb.newLocal[Long]
 
     val initCode = Code(
-      moff := region.allocate(const(1), const(t.nMissingBytes)),
       srvb.start(init = true),
       off := srvb.offset,
+      moff := region.allocate(const(1), const(t.nMissingBytes)),
       in.readBytes(region, moff, t.nMissingBytes))
 
     val fieldCode = new Array[Code[Unit]](t.size)
+
+    assert(t.isInstanceOf[TTuple] || t.isInstanceOf[TStruct])
 
     var i = 0
     var j = 0
     while (i < t.size) {
       val f = t.fields(i)
       fieldCode(i) =
-        if (j < requestedType.size && requestedType.fields(j).name == f.name) {
+        if (t.isInstanceOf[TTuple] ||
+          (j < requestedType.size && requestedType.fields(j).name == f.name)) {
           val rf = requestedType.fields(j)
+          assert(f.typ.required == rf.typ.required)
           j += 1
           val readElement = emit(f.typ, rf.typ, mb, in, srvb)
           Code(
@@ -572,7 +631,7 @@ object EmitPackDecoder {
             },
             srvb.advance())
         } else {
-          val skipField = skip(f.typ, mb, in)
+          val skipField = skip(f.typ, mb, in, region)
           if (f.typ.required)
             skipField
           else {
@@ -623,13 +682,27 @@ object EmitPackDecoder {
           i := i + const(1))))
   }
 
-  def skipBaseStruct(t: TBaseStruct, mb: MethodBuilder, in: Code[InputBuffer]): Code[Unit] = {
-    Code(t.fields.map { f => skip(f.typ, mb, in) }: _*).asInstanceOf[Code[Unit]]
+  def skipBaseStruct(t: TBaseStruct, mb: MethodBuilder, in: Code[InputBuffer], region: Code[Region]): Code[Unit] = {
+    val moff = mb.newLocal[Long]
+    Code(
+      moff := region.allocate(const(1), const(t.nMissingBytes)),
+      in.readBytes(region, moff, t.nMissingBytes),
+      Code(t.fields.map { f =>
+        val skipField = skip(f.typ, mb, in, region)
+        if (f.typ.required)
+          skipField
+        else
+          region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+            Code._empty,
+            skipField)
+      }: _*),
+      Code._empty)
   }
 
   def skipArray(t: TArray,
     mb: MethodBuilder,
-    in: Code[InputBuffer]): Code[Unit] = {
+    in: Code[InputBuffer],
+    region: Code[Region]): Code[Unit] = {
     val length = mb.newLocal[Int]
     val i = mb.newLocal[Int]
 
@@ -639,25 +712,24 @@ object EmitPackDecoder {
         i := 0,
         Code.whileLoop(i < length,
           Code(
-            skip(t.elementType, mb, in),
+            skip(t.elementType, mb, in, region),
             i := i + const(1))))
     } else {
+      val moff = mb.newLocal[Long]
       val nMissing = mb.newLocal[Int]
       val m = mb.newLocal[Int]
+      val n = mb.newLocal[Int]
       Code(
         length := in.readInt(),
         nMissing := ((length + 7) >>> 3),
+        moff := region.allocate(const(1), nMissing.toL),
+        in.readBytes(region, moff, nMissing),
         i := 0,
-        // FIXME this code can be better
-        Code.whileLoop(i < nMissing,
-          Code(
-            m := in.readByte().toI,
-            Code.whileLoop(m.cne(const(0)),
-              Code(
-                (m & const(1)).cne(const(0)).mux(
-                  skip(t.elementType, mb, in),
-                  Code._empty),
-                m := (m >> const(1)))))))
+        Code.whileLoop(i < length,
+          region.loadBit(moff, i.toL).mux(
+            Code._empty,
+            skip(t.elementType, mb, in, region)),
+          i := i + const(1)))
     }
   }
 
@@ -668,18 +740,17 @@ object EmitPackDecoder {
       in.skipBytes(length))
   }
 
-  def skip(t: Type, mb: MethodBuilder, in: Code[InputBuffer]): Code[Unit] = {
+  def skip(t: Type, mb: MethodBuilder, in: Code[InputBuffer], region: Code[Region]): Code[Unit] = {
     t match {
       case t2: TBaseStruct =>
-        skipBaseStruct(t2, mb, in)
+        skipBaseStruct(t2, mb, in, region)
       case t2: TArray =>
-        skipArray(t2, mb, in)
-        // FIXME skip routines
-      case _: TBoolean => Code.toUnit(in.readBoolean())
-      case _: TInt64 => Code.toUnit(in.readLong())
-      case _: TInt32 => Code.toUnit(in.readInt())
-      case _: TFloat32 => Code.toUnit(in.readFloat())
-      case _: TFloat64 => Code.toUnit(in.readDouble())
+        skipArray(t2, mb, in, region)
+      case _: TBoolean => in.skipBoolean()
+      case _: TInt64 => in.skipLong()
+      case _: TInt32 => in.skipInt()
+      case _: TFloat32 => in.skipFloat()
+      case _: TFloat64 => in.skipDouble()
       case t2: TBinary => skipBinary(t2, mb, in)
     }
   }
@@ -714,7 +785,7 @@ object EmitPackDecoder {
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
     val region = fb.arg2
-    val srvb = new StagedRegionValueBuilder(fb, t)
+    val srvb = new StagedRegionValueBuilder(fb, requestedType)
 
     var c = t.fundamentalType match {
       case t: TBaseStruct =>
