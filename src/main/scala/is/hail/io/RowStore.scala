@@ -91,7 +91,7 @@ object CodecSpec {
 trait CodecSpec extends Serializable {
   def buildEncoder(t: Type): (OutputStream) => Encoder
 
-  def buildDecoder(t: Type): (InputStream) => Decoder
+  def buildDecoder(t: Type, requestedType: Type): (InputStream) => Decoder
 
   override def toString: String = {
     implicit val formats = RVDSpec.formats
@@ -107,8 +107,8 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   // def buildDecoder(t: Type)(in: InputStream): Decoder = new PackDecoder(t, child.buildInputBuffer(in))
 
-  def buildDecoder(t: Type): (InputStream) => Decoder = {
-    val f = EmitPackDecoder(t)
+  def buildDecoder(t: Type, requestedType: Type): (InputStream) => Decoder = {
+    val f = EmitPackDecoder(t, requestedType)
     (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
   }
 }
@@ -536,33 +536,61 @@ object EmitPackDecoder {
 
   def emitBaseStruct(
     t: TBaseStruct,
+    requestedType: TBaseStruct,
     mb: MethodBuilder,
     in: Code[InputBuffer],
     srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val region = srvb.region
+
     val off = mb.newLocal[Long]
+    val moff = mb.newLocal[Long]
 
     val initCode = Code(
-      srvb.start(init = false),
+      moff := region.allocate(const(1), const(t.nMissingBytes)),
+      srvb.start(init = true),
       off := srvb.offset,
-      in.readBytes(srvb.region, off, t.nMissingBytes))
+      in.readBytes(region, moff, t.nMissingBytes))
 
-    val fieldCode = (0 until t.size).map { i =>
-      val ft = t.types(i)
-      val readField = emit(ft, mb, in, srvb)
-      Code(if (ft.required)
-        readField
-      else
-        t.isFieldDefined(srvb.region, off, i).mux(
-          readField,
-          srvb.setMissing()),
-        srvb.advance())
+    val fieldCode = new Array[Code[Unit]](t.size)
+
+    var i = 0
+    var j = 0
+    while (i < t.size) {
+      val f = t.fields(i)
+      fieldCode(i) =
+        if (j < requestedType.size && requestedType.fields(j).name == f.name) {
+          val rf = requestedType.fields(j)
+          j += 1
+          val readElement = emit(f.typ, rf.typ, mb, in, srvb)
+          Code(
+            if (f.typ.required)
+              readElement
+            else {
+              region.loadBit(moff, const(t.missingIdx(i))).mux(
+                srvb.setMissing(),
+                readElement)
+            },
+            srvb.advance())
+        } else {
+          val skipField = skip(f.typ, mb, in)
+          if (f.typ.required)
+            skipField
+          else {
+            region.loadBit(moff, const(t.missingIdx(i))).mux(
+              Code._empty,
+              skipField)
+          }
+        }
+      i += 1
     }
+    assert(j == requestedType.size)
 
     Code(initCode, Code(fieldCode: _*), Code._empty)
   }
 
   def emitArray(
     t: TArray,
+    requestedType: TArray,
     mb: MethodBuilder,
     in: Code[InputBuffer],
     srvb: StagedRegionValueBuilder): Code[Unit] = {
@@ -583,7 +611,7 @@ object EmitPackDecoder {
       Code.whileLoop(
         i < length,
         Code({
-          val readElement = emit(t.elementType, mb, in, srvb)
+          val readElement = emit(t.elementType, requestedType.elementType, mb, in, srvb)
           if (t.elementType.required)
             readElement
           else
@@ -595,19 +623,83 @@ object EmitPackDecoder {
           i := i + const(1))))
   }
 
+  def skipBaseStruct(t: TBaseStruct, mb: MethodBuilder, in: Code[InputBuffer]): Code[Unit] = {
+    Code(t.fields.map { f => skip(f.typ, mb, in) }: _*).asInstanceOf[Code[Unit]]
+  }
+
+  def skipArray(t: TArray,
+    mb: MethodBuilder,
+    in: Code[InputBuffer]): Code[Unit] = {
+    val length = mb.newLocal[Int]
+    val i = mb.newLocal[Int]
+
+    if (t.elementType.required) {
+      Code(
+        length := in.readInt(),
+        i := 0,
+        Code.whileLoop(i < length,
+          Code(
+            skip(t.elementType, mb, in),
+            i := i + const(1))))
+    } else {
+      val nMissing = mb.newLocal[Int]
+      val m = mb.newLocal[Int]
+      Code(
+        length := in.readInt(),
+        nMissing := ((length + 7) >>> 3),
+        i := 0,
+        // FIXME this code can be better
+        Code.whileLoop(i < nMissing,
+          Code(
+            m := in.readByte().toI,
+            Code.whileLoop(m.cne(const(0)),
+              Code(
+                (m & const(1)).cne(const(0)).mux(
+                  skip(t.elementType, mb, in),
+                  Code._empty),
+                m := (m >> const(1)))))))
+    }
+  }
+
+  def skipBinary(t: Type, mb: MethodBuilder, in: Code[InputBuffer]): Code[Unit] = {
+    val length = mb.newLocal[Int]
+    Code(
+      length := in.readInt(),
+      in.skipBytes(length))
+  }
+
+  def skip(t: Type, mb: MethodBuilder, in: Code[InputBuffer]): Code[Unit] = {
+    t match {
+      case t2: TBaseStruct =>
+        skipBaseStruct(t2, mb, in)
+      case t2: TArray =>
+        skipArray(t2, mb, in)
+        // FIXME skip routines
+      case _: TBoolean => Code.toUnit(in.readBoolean())
+      case _: TInt64 => Code.toUnit(in.readLong())
+      case _: TInt32 => Code.toUnit(in.readInt())
+      case _: TFloat32 => Code.toUnit(in.readFloat())
+      case _: TFloat64 => Code.toUnit(in.readDouble())
+      case t2: TBinary => skipBinary(t2, mb, in)
+    }
+  }
+
   def emit(
     t: Type,
+    requestedType: Type,
     mb: MethodBuilder,
     in: Code[InputBuffer],
     srvb: StagedRegionValueBuilder): Code[Unit] = {
     t match {
       case t2: TBaseStruct =>
-        srvb.addBaseStruct(t2, { srvb2 =>
-          emitBaseStruct(t2, mb, in, srvb2)
+        val requestedType2 = requestedType.asInstanceOf[TBaseStruct]
+        srvb.addBaseStruct(requestedType2, { srvb2 =>
+          emitBaseStruct(t2, requestedType2, mb, in, srvb2)
         })
       case t2: TArray =>
-        srvb.addArray(t2, { srvb2 =>
-          emitArray(t2, mb, in, srvb2)
+        val requestedType2 = requestedType.asInstanceOf[TArray]
+        srvb.addArray(requestedType2, { srvb2 =>
+          emitArray(t2, requestedType2, mb, in, srvb2)
         })
       case _: TBoolean => srvb.addBoolean(in.readBoolean())
       case _: TInt64 => srvb.addLong(in.readLong())
@@ -618,7 +710,7 @@ object EmitPackDecoder {
     }
   }
 
-  def apply(t: Type): () => AsmFunction2[Region, InputBuffer, Long] = {
+  def apply(t: Type, requestedType: Type): () => AsmFunction2[Region, InputBuffer, Long] = {
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
     val region = fb.arg2
@@ -626,9 +718,9 @@ object EmitPackDecoder {
 
     var c = t.fundamentalType match {
       case t: TBaseStruct =>
-        emitBaseStruct(t, mb, region, srvb)
+        emitBaseStruct(t, requestedType.fundamentalType.asInstanceOf[TBaseStruct], mb, region, srvb)
       case t: TArray =>
-        emitArray(t, mb, region, srvb)
+        emitArray(t, requestedType.fundamentalType.asInstanceOf[TArray], mb, region, srvb)
     }
 
     mb.emit(Code(

@@ -45,7 +45,7 @@ object RVDSpec {
       val f = path + "/parts/" + p
       hConf.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
-          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType))(ctx, in)
+          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, rowType))(ctx, in)
             .map { rv =>
               val r = SafeRow(rowType, rv.region, rv.offset)
               ctx.region.clear()
@@ -190,7 +190,7 @@ trait RVD {
     stable: ContextRDD[RVDContext, Array[Byte]],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
-    val dec = codec.buildDecoder(rowType)
+    val dec = codec.buildDecoder(rowType, rowType)
     stable.cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
       it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
@@ -242,7 +242,7 @@ trait RVD {
     head(n).encodedRDD(codec).collect()
 
   final def take(n: Int, codec: CodecSpec): Array[Row] = {
-    val dec = codec.buildDecoder(rowType)
+    val dec = codec.buildDecoder(rowType, rowType)
     val encodedData = takeAsBytes(n, codec)
     Region.scoped { region =>
       encodedData.iterator
@@ -287,7 +287,7 @@ trait RVD {
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
-      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType), region, RegionValue(region)))
+      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType, rowType), region, RegionValue(region)))
 
   // Only use on CRDD's whose T is not dependent on the context
   private[rvd] def clearingRun[T: ClassTag](
@@ -367,7 +367,7 @@ trait RVD {
 
     val makeEnc = RVD.memoryCodec.buildEncoder(localRowType)
 
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowType)
+    val makeDec = RVD.memoryCodec.buildDecoder(localRowType, localRowType)
 
     // copy, persist region values
     val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
