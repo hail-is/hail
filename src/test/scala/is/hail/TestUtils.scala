@@ -405,16 +405,18 @@ object TestUtils {
     assert(t.typeCheck(expected))
 
     val i = Interpret[Any](x, env, args, agg)
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    val c = eval(x, env, args, agg)
-
     assert(t.typeCheck(i))
-    assert(t.typeCheck(i2))
-    assert(t.typeCheck(c))
-
     assert(t.valuesSimilar(i, expected))
+
+    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
+    assert(t.typeCheck(i2))
     assert(t.valuesSimilar(i2, expected))
-    assert(t.valuesSimilar(c, expected))
+
+    if (Compilable(x)) {
+      val c = eval(x, env, args, agg)
+      assert(t.typeCheck(c))
+      assert(t.valuesSimilar(c, expected))
+    }
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {

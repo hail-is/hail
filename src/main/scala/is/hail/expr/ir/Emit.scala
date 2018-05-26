@@ -719,8 +719,8 @@ private class Emit(
         EmitTriplet(Code._empty,
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
-      case Die(m) =>
-        present(Code._throw(Code.newInstance[RuntimeException, String](m)))
+      case Die(m, typ) =>
+        present(Code._throw(Code.newInstance[HailException, String](m)))
       case ir@ApplyIR(fn, args, conversion) =>
         emit(ir.explicitNode)
       case ir@Apply(fn, args) =>

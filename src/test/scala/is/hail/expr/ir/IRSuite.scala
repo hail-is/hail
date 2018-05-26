@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils
 import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.expr.TableRange
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -251,11 +252,20 @@ class IRSuite extends TestNGSuite {
       FastIndexedSeq(7, null, 2))
   }
 
+  @Test def testDie() {
+    assertFatal(Die("mumblefoo", TFloat64()), "mble")
+  }
+
   @Test def testArrayRange() {
     assertEvalsTo(ArrayRange(I32(0), I32(5), NA(TInt32())), null)
     assertEvalsTo(ArrayRange(I32(0), NA(TInt32()), I32(1)), null)
     assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
 
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
+  }
+
+  @Test def testTableCount() {
+    assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
+    assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 }
