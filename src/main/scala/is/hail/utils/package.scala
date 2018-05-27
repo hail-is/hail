@@ -598,6 +598,26 @@ package object utils extends Logging
       case _: MatchError => None
     }
   }
+
+  // unlike Scala's String.split, the length of the result is one more
+  // than the nubmer of sep characters in s
+  def splitStringWithChar(s: String, sep: Char): Array[String] = {
+    val ab = new ArrayBuilder[String]()
+    val sb = new StringBuilder()
+    var i = 0
+    while (i < s.length) {
+      if (s(i) == sep) {
+        ab += sb.result()
+        sb.clear()
+      } else
+        sb += s(i)
+      i += 1
+    }
+    ab += sb.result()
+    sb.clear()
+
+    ab.result()
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
