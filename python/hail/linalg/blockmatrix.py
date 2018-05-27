@@ -165,7 +165,7 @@ class BlockMatrix(object):
 
     - Transpose "transposes" realized blocks.
 
-    - :meth:`sqrt` preserves the realized blocks.
+    - :meth:`abs` and :meth:`sqrt` preserve the realized blocks.
 
     These following methods always result in a block-dense matrix:
 
@@ -190,6 +190,8 @@ class BlockMatrix(object):
     - Division of a scalar or broadcasted vector by a block matrix.
 
     - Exponentiation by a negative exponent.
+
+    - Natural logarithm, :meth:`log`.
     """
     def __init__(self, jbm):
         self._jbm = jbm
@@ -1275,6 +1277,24 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(self._jbm.sqrt())
+
+    def abs(self):
+        """Element-wise absolute value.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.abs())
+
+    def log(self):
+        """Element-wise natural logarithm.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return BlockMatrix(self._jbm.log())
 
     def diagonal(self):
         """Extracts diagonal elements as ndarray.

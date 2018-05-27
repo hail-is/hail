@@ -3,7 +3,7 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
-import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt}
+import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt, log => breezeLog, abs => breezeAbs}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
@@ -651,8 +651,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     reqDense = false)
 
   def pow(exponent: Double): M = blockMap(breezePow(_, exponent),
-    s"exponentiation by negative power",
+    s"exponentiation by negative power $exponent",
     reqDense = exponent < 0)
+  
+  def log(): M = blockMap(breezeLog(_),
+    "natural logarithm")
+
+  def abs(): M = blockMap(breezeAbs(_),
+    "absolute value",
+    reqDense = false)
   
   // matrix ops
   def dot(that: M): M = new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
