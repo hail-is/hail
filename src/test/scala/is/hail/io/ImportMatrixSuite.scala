@@ -64,11 +64,13 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
-    (vsm.rowType.fieldNames, vsm.rowType.types)
+    (vsm.matrixType.rowValueStruct.fieldNames, vsm.matrixType.rowValueStruct.types)
   }
 
   def exportImportableVds(vsm: MatrixTable, header: Boolean=true): String = {
-    val path = tmpDir.createTempFile(extension = "txt")
+    // val path = tmpDir.createTempFile(extension = "txt")
+    val path = "/tmp/foo.txt"
+    println("path", path)
     val kt = vsm
       .selectEntries("{``: g.x}")
       .makeTable()
@@ -133,9 +135,11 @@ class ImportMatrixSuite extends SparkSuite {
 
   @Test def testWithHeaderNoKey() {
     checkValidResult { vsm =>
+      println(vsm.matrixType.parsableString())
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
+        println("va", vaNames.toFastIndexedSeq, vaTypes.toFastIndexedSeq)
         LoadMatrix(hc, Array(f), Map(vaNames.zip(vaTypes): _*), Array(), cellType = vsm.entryType)
       }
       (reKeyRows(vsm), actual)

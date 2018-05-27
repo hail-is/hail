@@ -47,7 +47,7 @@ object RVDSpec {
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
             .map { rv =>
-              val r = SafeRow(rowType, rv.region, rv.offset)
+              val r = SafeRow(requestedType, rv.region, rv.offset)
               ctx.region.clear()
               r
             }.toFastIndexedSeq
@@ -76,7 +76,7 @@ case class UnpartitionedRVDSpec(
   partFiles: Array[String]) extends RVDSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): UnpartitionedRVD =
     new UnpartitionedRVD(
-      rowType,
+      requestedType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
@@ -89,9 +89,14 @@ case class OrderedRVDSpec(
   partFiles: Array[String],
   jRangeBounds: JValue) extends RVDSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
-    val rangeBoundsType = TArray(TInterval(orvdType.pkType))
-    OrderedRVD(orvdType,
-      new OrderedRVDPartitioner(orvdType.partitionKey, orvdType.kType,
+    val requestedORVDType = orvdType.copy(rowType = requestedType)
+    assert(requestedORVDType.pkType == orvdType.pkType)
+    assert(requestedORVDType.kType == orvdType.kType)
+    assert(requestedORVDType.partitionKey sameElements orvdType.partitionKey)
+
+    val rangeBoundsType = TArray(TInterval(requestedORVDType.pkType))
+    OrderedRVD(requestedORVDType,
+      new OrderedRVDPartitioner(requestedORVDType.partitionKey, requestedORVDType.kType,
         JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles, requestedType))
   }

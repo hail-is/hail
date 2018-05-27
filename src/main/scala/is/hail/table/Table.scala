@@ -59,16 +59,22 @@ object Table {
     Table(hc, df.rdd, signature, key)
   }
 
-  def read(hc: HailContext, path: String): Table = {
+  def read(hc: HailContext, path: String, rowFields: Set[String] = null): Table = {
+    val successFile = path + "/_SUCCESS"
+    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
+      fatal(s"write failed: file not found: $successFile")
+
     val spec = (RelationalSpec.read(hc, path): @unchecked) match {
       case ts: TableSpec => ts
       case _: MatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
     }
 
-    val successFile = path + "/_SUCCESS"
-    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
-      fatal(s"write failed: file not found: $successFile")
-    new Table(hc, TableRead(path, spec, spec.table_type, dropRows = false))
+    var typ = spec.table_type
+    if (rowFields != null)
+      typ = typ.copy(
+        rowType = typ.rowType.filter(rowFields)._1)
+
+    new Table(hc, TableRead(path, spec, typ, dropRows = false))
   }
 
   def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,

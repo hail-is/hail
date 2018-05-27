@@ -508,8 +508,12 @@ class HailContext private(val sc: SparkContext,
   def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
     read(file, dropSamples, dropVariants)
 
-  def readTable(path: String): Table =
-    Table.read(this, path)
+  def readTable(path: String, rowFields: java.util.ArrayList[String] = null): Table =
+    Table.read(this, path,
+      if (rowFields != null)
+        rowFields.asScala.toSet
+      else
+        null)
 
   def readPartitions[T: ClassTag](
     path: String,

@@ -295,6 +295,7 @@ object LoadMatrix {
       fatal("no files specified for import_matrix_table.")
 
     val (header1, nCols) = parseHeader(hConf, files.head, sep, nAnnotations, noHeader)
+    println("header", header1.toFastIndexedSeq, nCols)
     val (rowFieldNames, colIDs) = splitHeader(header1, nAnnotations, nCols)
 
     val rowFieldType: TStruct = verifyRowFields(rowFieldNames, rowFields)
