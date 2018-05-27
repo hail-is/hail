@@ -145,7 +145,7 @@ final case class GetTupleElement(o: IR, idx: Int) extends InferIR
 
 final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
-final case class Die(message: String) extends IR { val typ = TVoid }
+final case class Die(message: String, typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
   val explicitNode: IR = conversion(args)

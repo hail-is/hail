@@ -39,8 +39,8 @@ object Interpret {
     apply(ir, valueEnv, args, agg, None).asInstanceOf[T]
   }
 
-  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[Any], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]]): Any = {
-    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[Any] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
+  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[(Any, Type)], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]]): Any = {
+    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
       apply(ir, env, args, agg, aggregator)
     ir match {
       case I32(x) => x
@@ -181,8 +181,14 @@ object Interpret {
         val iValue = interpret(i, env, args, agg)
         if (aValue == null || iValue == null)
           null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int])
+        else {
+          val a = aValue.asInstanceOf[IndexedSeq[Any]]
+          val i = iValue.asInstanceOf[Int]
+          if (i < 0 || i >= a.length)
+            fatal(s"array index out of bounds: $i / ${ a.length }")
+          else
+            a.apply(i)
+        }
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
@@ -204,7 +210,7 @@ object Interpret {
         if (aValue == null)
           null
         else
-          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.ordering.toOrdering)
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.asInstanceOf[TArray].elementType.ordering.toOrdering)
       case ToSet(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
@@ -225,7 +231,7 @@ object Interpret {
         else
           cValue match {
             case s: Set[_] => s.toIndexedSeq
-            case d: Map[_, _] => d.toIndexedSeq
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
             case a => a
           }
 
@@ -402,8 +408,10 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
-      case In(i, _) => args(i)
-      case Die(message) => fatal(message)
+      case In(i, _) =>
+        val (a, _) = args(i)
+        a
+      case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
       case ir@Apply(function, functionArgs) =>
