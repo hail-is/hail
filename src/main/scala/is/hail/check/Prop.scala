@@ -9,7 +9,7 @@ abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
 
   def check() {
-    val size = System.getProperty("check.size", "100").toInt
+    val size = System.getProperty("check.size", "1000").toInt
     val count = System.getProperty("check.count", "10").toInt
 
     println(s"check: size = $size, count = $count")
