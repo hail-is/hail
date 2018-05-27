@@ -459,7 +459,7 @@ object MatrixTable {
     }
 
     new MatrixTable(kt.hc, matrixType,
-      BroadcastRow(Row(), matrixType.globalType, kt.hc.sc),
+      kt.globals,
       BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
       OrderedRVD.coerce(matrixType.orvdType, rdd))
   }
