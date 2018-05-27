@@ -777,7 +777,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     
     aggAST.toIROpt(Some("AGG" -> "g")) match {
       case Some(ir) if useIR(this.colAxis, aggAST) =>
-        new MatrixTable(hc, MatrixGroupColsByKey(ast, ir))
+        new MatrixTable(hc, MatrixAggregateColsByKey(ast, ir))
       case _ =>
         log.warn(s"group_cols_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(aggAST) }")
 
