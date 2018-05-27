@@ -451,8 +451,9 @@ class OrderedRVD(
   def writeRowsSplit(
     path: String,
     t: MatrixType,
-    codecSpec: CodecSpec
-  ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner)
+    codecSpec: CodecSpec,
+    stageLocally: Boolean
+  ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
 
   override def toUnpartitionedRVD: UnpartitionedRVD =
     new UnpartitionedRVD(typ.rowType, crdd)

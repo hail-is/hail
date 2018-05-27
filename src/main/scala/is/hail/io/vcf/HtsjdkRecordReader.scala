@@ -5,10 +5,11 @@ import java.util
 import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.VCFConstants
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant._
+
+import scala.collection.JavaConverters._
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -66,6 +67,23 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
   def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean,
     canonicalFlags: Int, infoFlagFieldNames: Set[String]): Unit = {
 
+    rvb.startStruct() // row
+
+    rvb.startStruct() // locus
+    rvb.addString(vc.getContig)
+    rvb.addInt(vc.getStart)
+    rvb.endStruct()
+
+    val nAlleles = vc.getNAlleles
+    val alleles = vc.getAlleles.asScala
+    rvb.startArray(nAlleles)
+    var i = 0
+    while (i < nAlleles) {
+      rvb.addString(alleles(i).getDisplayString)
+      i += 1
+    }
+    rvb.endArray()
+
     readVariantInfo(vc, rvb, infoType, infoFlagFieldNames)
 
     if (dropSamples) {
@@ -74,7 +92,6 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
       return
     }
 
-    val nAlleles = vc.getNAlleles
     val nGenotypes = VariantMethods.nGenotypes(nAlleles)
     val haploidPL = new Array[Int](nGenotypes)
 
@@ -179,6 +196,8 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
       rvb.endStruct() // g
     }
     rvb.endArray() // gs
+
+    rvb.endStruct() // row
   }
 }
 

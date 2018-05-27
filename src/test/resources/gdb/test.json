@@ -1,0 +1,7 @@
+{
+    "sample_names": ["HG00096", "HG00268"],
+    "shards": [
+	{ "chr20:17960223-18022672": "shard-001.tar" },
+	{ "chr20:18022746-18140117": "shard-002.tar" }],
+    "vcfheader": "vcfheader.vcf"
+}

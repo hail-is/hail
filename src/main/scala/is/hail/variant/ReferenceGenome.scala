@@ -371,6 +371,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     fastaReader = null
   }
 
+  def localFastaFile: String = {
+    if (!hasSequence)
+      fatal(s"Reference genome '$name' does not have sequence loaded.")
+    fastaReader.reader.localFastaFile
+  }
+
   private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
 
   def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)

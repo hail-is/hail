@@ -1315,6 +1315,14 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    def test_write_stage_locally(self):
+        mt = self.get_vds()
+        f = new_temp_file(suffix='mt')
+        mt.write(f, stage_locally=True)
+
+        mt2 = hl.read_matrix_table(f)
+        self.assertTrue(mt._same(mt2))
+
 
 class GroupedMatrixTests(unittest.TestCase):
 

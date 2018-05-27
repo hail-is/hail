@@ -1771,6 +1771,59 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
+@typecheck(metadata_file=str,
+           call_fields=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           array_elements_required=bool,
+           tar=nullable(str))
+def import_genomicsdb(metadata_file,
+                      call_fields=[],
+                      reference_genome='default',
+                      array_elements_required=True,
+                      tar=None) -> MatrixTable:
+    """Import GenomicsDB database.
+
+    .. include:: _templates/experimental.rst
+
+    Parameters
+    ----------
+    metadata_file : :obj:`str`
+        Path to GenomicsDB JSON metadata file.
+    call_fields : :obj:`list` of :obj:`str`
+        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is loaded as
+        a call automatically.
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    array_elements_required : :obj:`bool`
+        If ``True`` (default), elements of entry fields which are
+        arrays are required.
+    tar : :obj:`str`
+        Tar command to use to unpack GenomicsDB shards.  Defaults to
+        gtar (GNU tar) on OS X, otherwise tar.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    rg = reference_genome._jrep if reference_genome else None
+
+    if tar is None:
+        from sys import platform
+
+        if platform == "darwin":
+            tar = 'gtar'
+        else:
+            tar = 'tar'
+
+    return MatrixTable(
+        Env.hail().io.genomicsdb.ImportGenomicsDB.apply(
+            metadata_file,
+            jset_args(call_fields),
+            joption(rg),
+            array_elements_required,
+            tar))
+
+
 @typecheck(path=oneof(str, sequenceof(str)))
 def index_bgen(path):
     """Index BGEN files as required by :func:`.import_bgen`.
