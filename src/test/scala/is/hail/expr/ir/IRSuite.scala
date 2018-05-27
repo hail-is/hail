@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.TestUtils
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.TableRange
@@ -110,15 +109,15 @@ class IRSuite extends TestNGSuite {
   @Test def testArraySort() {
     assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
 
-    val a = MakeArray(FastIndexedSeq(I32(-7), NA(TInt32()), I32(2)), TArray(TInt32()))
+    val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
     assertEvalsTo(ArraySort(a),
-      FastIndexedSeq(-7, 2, null))
+      FastIndexedSeq(-7, 2, 2, null))
   }
 
   @Test def testToSet() {
     assertEvalsTo(ToSet(NA(TArray(TInt32()))), null)
 
-    val a = MakeArray(FastIndexedSeq(I32(-7), NA(TInt32()), I32(2)), TArray(TInt32()))
+    val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
     assertEvalsTo(ToSet(a), Set(-7, 2, null))
   }
 
@@ -145,8 +144,8 @@ class IRSuite extends TestNGSuite {
     val t = TArray(TInt32())
     assertEvalsTo(ToArray(NA(t)), null)
     assertEvalsTo(ToArray(In(0, t)),
-      FastIndexedSeq((FastIndexedSeq(-7, null, 2), t)),
-      FastIndexedSeq(-7, null, 2))
+      FastIndexedSeq((FastIndexedSeq(-7, 2, null, 2), t)),
+      FastIndexedSeq(-7, 2, null, 2))
   }
 
   @Test def testSetContains() {
