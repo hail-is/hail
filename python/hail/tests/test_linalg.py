@@ -334,7 +334,7 @@ class Tests(unittest.TestCase):
 
     def test_matrix_ops(self):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-        m = BlockMatrix.from_numpy(nm)
+        m = BlockMatrix.from_numpy(nm, block_size=2)
 
         self._assert_eq(m.T, nm.T)
         self._assert_eq(m.T, nm.T)
@@ -351,6 +351,40 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+
+    def test_fill(self):
+        nd = np.ones((3, 5))
+
+        bm = BlockMatrix.fill(3, 5, 1.0)
+        self.assertTrue(bm.block_size == BlockMatrix.default_block_size())
+        self.assertTrue(np.array_equal(bm.to_numpy(), nd))
+
+        bm2 = BlockMatrix.fill(3, 5, 1.0, block_size=2)
+        self.assertTrue(bm2.block_size == 2)
+        self.assertTrue(np.array_equal(bm2.to_numpy(), nd))
+
+    def test_sum(self):
+        def sums_agree(bm, nd):
+            self.assertAlmostEqual(bm.sum(), np.sum(nd))
+            self.assertTrue(np.allclose(bm.sum(axis=0).to_numpy(), np.sum(nd, axis=0, keepdims=True)))
+            self.assertTrue(np.allclose(bm.sum(axis=1).to_numpy(), np.sum(nd, axis=1, keepdims=True)))
+
+        nd = np.random.normal(size=(11, 13))
+        bm = BlockMatrix.from_numpy(nd, block_size=3)
+
+        nd2 = np.zeros(shape=(5, 7))
+        nd2[2, 4] = 1.0
+        nd2[2, 5] = 2.0
+        nd2[3, 4] = 3.0
+        nd2[3, 5] = 4.0
+        bm2 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
+
+        nd3 = np.zeros(shape=(5, 7))
+        bm3 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+
+        sums_agree(bm, nd)
+        sums_agree(bm2, nd2)
+        sums_agree(bm3, nd3)
 
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
