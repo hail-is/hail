@@ -73,14 +73,14 @@ object EmitUtils {
   private val maxBytecodeSizeTarget: Int = 4096
 
   def getChunkBounds(sizes: Seq[Int]): Array[Int] = {
-    var total = 0
     val ab = new ArrayBuilder[Int]()
     ab += 0
-    sizes.zipWithIndex.foreach { case (size, i) =>
-      if (total == 0 || total + size <= maxBytecodeSizeTarget)
+    var total = sizes.head
+    sizes.zipWithIndex.tail.foreach { case (size, i) =>
+      if (total + size <= maxBytecodeSizeTarget)
         total += size
       else {
-        ab += (i - 1)
+        ab += i
         total = size
       }
     }
