@@ -207,9 +207,4 @@ class UtilsSuite extends SparkSuite {
     assert(c4.toSeq == Seq("a", "b", "c", "aD", "aDD", "cD", "aDDD"))
     assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
   }
-
-  @Test def testSplitStringWithChar() {
-    assert(splitStringWithChar("abc", 'x') sameElements Array("abc"))
-    assert(splitStringWithChar("abcxx", 'x') sameElements Array("abc", "", ""))
-  }
 }

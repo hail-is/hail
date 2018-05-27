@@ -599,24 +599,14 @@ package object utils extends Logging
     }
   }
 
-  // unlike Scala's String.split, the length of the result is one more
-  // than the nubmer of sep characters in s
-  def splitStringWithChar(s: String, sep: Char): Array[String] = {
-    val ab = new ArrayBuilder[String]()
-    val sb = new StringBuilder()
-    var i = 0
-    while (i < s.length) {
-      if (s(i) == sep) {
-        ab += sb.result()
-        sb.clear()
-      } else
-        sb += s(i)
-      i += 1
-    }
-    ab += sb.result()
-    sb.clear()
-
-    ab.result()
+  def charRegex(c: Char): String = {
+    // See: https://docs.oracle.com/javase/tutorial/essential/regex/literals.html
+    val metacharacters = "<([{\\^-=$!|]})?*+.>"
+    val s = c.toString
+    if (metacharacters.contains(c))
+      "\\" + s
+    else
+      s
   }
 }
 
