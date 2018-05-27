@@ -1798,8 +1798,9 @@ def index_bgen(path):
     Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
 
 
-@typecheck(path=str)
-def read_table(path) -> Table:
+@typecheck(path=str,
+           _row_fields=nullable(sequenceof(str)))
+def read_table(path, _row_fields=None) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -1811,7 +1812,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table(Env.hc()._jhc.readTable(path))
+    return Table(Env.hc()._jhc.readTable(path, _row_fields))
 
 @typecheck(t=Table,
            host=str,

@@ -48,6 +48,18 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
       in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
+  def skipBoolean(): Code[Unit] = in.invoke[Unit]("skipBoolean")
+
+  def skipByte(): Code[Unit] = in.invoke[Unit]("skipByte")
+
+  def skipInt(): Code[Unit] = in.invoke[Unit]("skipInt")
+
+  def skipLong(): Code[Unit] = in.invoke[Unit]("skipLong")
+
+  def skipFloat(): Code[Unit] = in.invoke[Unit]("skipFloat")
+
+  def skipDouble(): Code[Unit] = in.invoke[Unit]("skipDouble")
+
   def skipBytes(n: Code[Int]): Code[Unit] = {
     in.invoke[Int, Unit]("skipBytes", n)
   }

@@ -216,7 +216,7 @@ class OrderingSuite extends TestNGSuite {
   @Test def testSetContainsOnRandomSet() {
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
-    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1: Any) =>
+    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
       val telt = tset.elementType
 
       val ir = { irs: Seq[IR] => SetContains(irs(0), irs(1)) }
@@ -244,7 +244,7 @@ class OrderingSuite extends TestNGSuite {
       case (k, v) =>
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue)
     }
-    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1: Any) =>
+    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
       val telt = coerce[TBaseStruct](tdict.elementType)
 
       val ir = { irs: Seq[IR] => DictGet(irs(0), irs(1)) }

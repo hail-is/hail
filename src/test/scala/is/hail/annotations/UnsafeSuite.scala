@@ -13,10 +13,45 @@ import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
+import scala.util.Random
+
 class UnsafeSuite extends SparkSuite {
+  def subsetType(t: Type): Type = {
+    t match {
+      case t: TStruct =>
+        TStruct(t.required,
+          t.fields.filter(_ => Random.nextDouble() < 0.4)
+            .map(f => f.name -> f.typ): _*)
+
+      case t: TArray =>
+        TArray(subsetType(t.elementType), t.required)
+
+      case _ => t
+    }
+  }
+
+  def subset(t: Type, requestedType: Type, a: Annotation): Annotation = {
+    t match {
+      case t2: TStruct =>
+        val requestedType2 = requestedType.asInstanceOf[TStruct]
+        if (a == null)
+          null
+        else {
+          val a2 = a.asInstanceOf[Row]
+          Row.fromSeq(requestedType2.fields.map { rf =>
+            val f = t2.field(rf.name)
+            subset(f.typ, rf.typ, a2.get(f.index))
+          })
+        }
+
+      case _ => a
+    }
+  }
+
   @Test def testCodec() {
     val region = Region()
     val region2 = Region()
+    val region3 = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -26,6 +61,10 @@ class UnsafeSuite extends SparkSuite {
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
+
+      val requestedType = subsetType(t).asInstanceOf[TStruct]
+      val a2 = subset(t, requestedType, a)
+      assert(requestedType.typeCheck(a2))
 
       CodecSpec.codecSpecs.foreach { codecSpec =>
         region.clear()
@@ -41,12 +80,19 @@ class UnsafeSuite extends SparkSuite {
 
         region2.clear()
         val ais = new ByteArrayInputStream(aos.toByteArray)
-        val dec = codecSpec.buildDecoder(t)(ais)
+        val dec = codecSpec.buildDecoder(t, t)(ais)
         val offset2 = dec.readRegionValue(region2)
         val ur2 = new UnsafeRow(t, region2, offset2)
         assert(t.typeCheck(ur2))
 
-        assert(t.valuesSimilar(a, ur2))
+        region3.clear()
+        val ais3 = new ByteArrayInputStream(aos.toByteArray)
+        val dec3 = codecSpec.buildDecoder(t, requestedType)(ais3)
+        val offset3 = dec3.readRegionValue(region3)
+        val ur3 = new UnsafeRow(requestedType, region3, offset3)
+        assert(requestedType.typeCheck(ur3))
+
+        assert(requestedType.valuesSimilar(a2, ur3))
       }
 
       true

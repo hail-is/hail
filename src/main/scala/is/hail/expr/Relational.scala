@@ -141,7 +141,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       hc.version,
       "../references",
-      typ.rowsTableType,
+      TableType(typ.entriesRVType, None, typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -1714,8 +1714,8 @@ case class TableLiteral(value: TableValue) extends TableIR {
   def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends TableIR {
-  def typ: TableType = spec.table_type
+case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
+  // FIXME assert typ is a supertype of spec.table_type
 
   override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
 
@@ -1727,13 +1727,13 @@ case class TableRead(path: String, spec: TableSpec, dropRows: Boolean) extends T
   }
 
   def execute(hc: HailContext): TableValue = {
-    val globals = spec.globalsComponent.readLocal(hc, path)(0)
+    val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
     TableValue(typ,
       BroadcastRow(globals, typ.globalType, hc.sc),
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
-        spec.rowsComponent.read(hc, path))
+        spec.rowsComponent.read(hc, path, typ.rowType))
   }
 }
 
