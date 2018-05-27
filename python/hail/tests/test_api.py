@@ -1091,10 +1091,11 @@ class MatrixTests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
     def test_from_rows_table(self):
-        ds = hl.import_vcf(resource('sample.vcf'))
-        rt = ds.rows()
+        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = mt.annotate_globals(foo = 'bar')
+        rt = mt.rows()
         rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
-        self.assertTrue(rm._same(ds.drop_cols().select_entries().key_cols_by().select_cols()))
+        self.assertTrue(rm._same(mt.drop_cols().select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
         ds = self.get_vds()
