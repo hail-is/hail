@@ -589,7 +589,7 @@ object EmitPackDecoder {
 
   def emitTypeSize(t: Type): Int = {
     t match {
-      case t: TArray => 20 + emitTypeSize(t.elementType)
+      case t: TArray => 120 + emitTypeSize(t.elementType)
       case t: TStruct => 100
       case _ => 20
     }
