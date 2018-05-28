@@ -105,12 +105,12 @@ object EmitUtils {
       val c = items.slice(start, end)
       newMBLike.mb.emit(Code(c.map(_.emit(newMBLike)): _*))
       new EstimableEmitter[M] {
-        def estimatedSize: Int = 5
-
         def emit(mbLike: M): Code[Unit] = {
           val args = mbLike.mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mbLike.mb.getArg(i + 1)(ti).load() }
           coerce[Unit](newMBLike.mb.invoke(args: _*))
         }
+
+        def estimatedSize: Int = 5
       }
     }
     wrapToMethod(chunks, mbLike)
