@@ -59,9 +59,10 @@ class BlockMatrix(object):
     >>> from hail.linalg import BlockMatrix
 
     Under the hood, block matrices are partitioned like a checkerboard into
-    square blocks with side length a common block size (blocks in the final row
-    or column of blocks may be truncated). Block size defaults to the value
-    given by :meth:`default_block_size`.
+    square blocks with side length a common block size. Blocks in the final row
+    or column of blocks may be truncated, so block size need not evenly divide
+    the matrix dimensions. Block size defaults to the value given by
+    :meth:`default_block_size`.
 
     **Operations and broadcasting**
 
