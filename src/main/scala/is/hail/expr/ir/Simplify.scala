@@ -137,6 +137,14 @@ object Simplify {
       case TableCount(TableUnion(children)) =>
         children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
+      case TableCount(TableKeyBy(child, _, _, _)) => TableCount(child)
+
+      case TableCount(TableUnkey(child)) => TableCount(child)
+
+      case TableCount(TableRange(n, _)) => I64(n)
+
+      case TableParallelize(TableParallelize(_, rows, _, _)) => I64(rows.length)
+
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
         TableUnion(children.flatMap {
