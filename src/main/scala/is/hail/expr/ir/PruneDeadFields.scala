@@ -408,8 +408,8 @@ object PruneDeadFields {
     * This function does *not* necessarily bind each child node in `memo`.
     * Known dead code is not memoized. For instance:
     *
-    * ir = MakeStruct(Seq("a" -> (child1), "b" -> (child2)))
-    * requestedType = TStruct("a" -> (reqType of a))
+    *   ir = MakeStruct(Seq("a" -> (child1), "b" -> (child2)))
+    *   requestedType = TStruct("a" -> (reqType of a))
     *
     * In the above, `child2` will not be memoized because `ir` does not require
     * any of the "b" dependencies in order to create its own requested type,
@@ -567,6 +567,7 @@ object PruneDeadFields {
         val newTyp = typ.copy(rowType = TStruct(typ.rowType.required,
           fieldsToRead.map(i => readerOpts.originalType.fieldNames(i) -> readerOpts.originalType.types(i)): _*))
         TableImport(paths, newTyp, readerOpts.copy(useColIndices = fieldsToRead))
+      case TableRead(path, spec, _, dropRows) => TableRead(path, spec, dep, dropRows)
       case TableFilter(child, pred) =>
         val child2 = rebuild(child, memo)
         val pred2 = rebuild(pred, child2.typ, memo)
