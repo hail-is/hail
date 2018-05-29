@@ -532,7 +532,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(rvd = rvd.head(n))
   }
 
-  def keyBy(key: String*): Table = keyBy(key.toArray, key.toArray)
+  def keyBy(key: String*): Table = keyBy(key.toArray, null)
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
     keyBy(Option(keys).map(_.asScala.toArray), true)
@@ -542,9 +542,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     partitionKeys: java.util.ArrayList[String]
   ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
 
-  def keyBy(keys: Array[String]): Table = keyBy(keys, keys, true)
+  def keyBy(keys: Array[String]): Table = keyBy(keys, sort = true)
 
-  def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, keys, sort)
+  def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, null, sort)
 
   def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, true)
 
@@ -555,7 +555,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table =
-    new Table(hc, TableKeyBy(tir, keys, partitionKeys.length, sort))
+    new Table(hc, TableKeyBy(tir, keys, Option(partitionKeys).map(_.length), sort))
 
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))

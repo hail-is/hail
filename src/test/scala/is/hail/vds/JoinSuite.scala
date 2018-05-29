@@ -2,6 +2,7 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations._
+import is.hail.expr.MatrixRowsTable
 import is.hail.expr.types.{TLocus, TStruct}
 import is.hail.table.Table
 import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}

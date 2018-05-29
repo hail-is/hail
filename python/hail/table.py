@@ -924,9 +924,9 @@ class Table(ExprContainer):
             # need to drop row fields
             for f in fields_to_drop:
                 check_keys(f, self._row_indices)
-            new_row_fields = [f for f in table.row_value if
-                              f not in fields_to_drop]
-            table = table.select(*new_row_fields)
+            row_fields = set(table.row)
+            to_drop = [f for f in fields_to_drop if f in row_fields]
+            table = table._select('drop', 'default', table.row_value.drop(*to_drop))
 
         return table
 
@@ -1461,7 +1461,7 @@ class Table(ExprContainer):
         broadcast_f = lambda left, data, jt: Table(left._jt.annotateGlobalJSON(data, jt))
         left, cleanup = process_joins(self, exprs, broadcast_f)
 
-        if left is not self:
+        if left is not self and list(left.key) != original_key:
             if original_key is not None:
                 if original_key != list(left.key):
                     left = left.key_by(*original_key)
@@ -2339,7 +2339,7 @@ class Table(ExprContainer):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        return self._row.drop(*self.key.keys()) if self.key else self._row
+        return self._row.drop(*self.key.keys()) if self.key is not None else self._row
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
