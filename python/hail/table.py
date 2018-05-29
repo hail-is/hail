@@ -663,6 +663,10 @@ class Table(ExprContainer):
         All row-indexed top-level fields found in an expression are dropped
         after the new fields are created.
 
+        Note
+        ----
+        :meth:`transmute` will not drop key fields.
+
         Warning
         -------
         References to fields inside a top-level struct will remove the entire

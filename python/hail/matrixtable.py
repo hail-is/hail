@@ -1534,6 +1534,10 @@ class MatrixTable(ExprContainer):
 
         Note
         ----
+        :meth:`transmute_rows` will not drop key fields.
+
+        Note
+        ----
         This method supports aggregation over columns.
 
         See Also
@@ -1567,6 +1571,10 @@ class MatrixTable(ExprContainer):
         drops all column fields referenced in those expressions. See
         :meth:`.Table.transmute` for full documentation on how transmute
         methods work.
+
+        Note
+        ----
+        :meth:`transmute_cols` will not drop key fields.
 
         Note
         ----
