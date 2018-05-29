@@ -30,7 +30,8 @@ from .methods import *
 from . import methods as methods
 from . import linalg as linalg
 from hail.expr import aggregators as agg
-from hail.utils import Struct, Interval, hadoop_copy, hadoop_open
+from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
+    hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
 
 
 __all__ = ['init',
@@ -46,6 +47,10 @@ __all__ = ['init',
            'desc',
            'hadoop_open',
            'hadoop_copy',
+           'hadoop_is_dir',
+           'hadoop_is_file',
+           'hadoop_stat',
+           'hadoop_ls',
            'Struct',
            'Interval',
            'agg',

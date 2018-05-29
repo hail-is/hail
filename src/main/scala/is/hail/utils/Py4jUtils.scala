@@ -7,6 +7,8 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.Type
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
+import org.apache.hadoop.fs.FileStatus
+import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -50,6 +52,32 @@ trait Py4jUtils {
   def makeDouble(f: Float): Double = f.toDouble
 
   def makeDouble(d: Double): Double = d
+
+  def exists(path: String, hc: HailContext): Boolean = hc.hadoopConf.exists(path)
+
+  def isFile(path: String, hc: HailContext): Boolean = hc.hadoopConf.isFile(path)
+
+  def isDir(path: String, hc: HailContext): Boolean = hc.hadoopConf.isDir(path)
+
+  def ls(path: String, hc: HailContext): String = {
+    val statuses = hc.hadoopConf.listStatus(path)
+    JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
+  }
+
+  def stat(path: String, hc: HailContext): String = {
+    val stat = hc.hadoopConf.fileStatus(path)
+    JsonMethods.compact(statusToJson(stat))
+  }
+
+  private def statusToJson(fs: FileStatus): JObject= {
+    JObject(
+      "path" -> JString(fs.getPath.toString),
+      "length" -> JInt(fs.getLen),
+      "is_dir" -> JBool(fs.isDirectory),
+      "modification_time" -> JString(new java.util.Date(fs.getModificationTime).toString),
+      "owner" -> JString(fs.getOwner)
+    )
+  }
 
   def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
     new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffSize)
