@@ -1190,10 +1190,9 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     the R package ``skat``---which assumes rows are variants---default weights
     are given by evaluating the Beta(1, 25) density at the minor allele
     frequency. To replicate these weights in Hail using alternate allele
-    frequencies stored in a row-indexd field `AF`, one can use the expression:
+    frequencies stored in a row-indexed field `AF`, one can use the expression:
 
-    >>> hl.dbeta(hl.min(ds2.AF, 1 - ds2.AF),
-    ...          1.0, 25.0) ** 2
+    >>> hl.dbeta(hl.min(ds2.AF), 1.0, 25.0) ** 2
 
     In the logistic case, the response `y` must either be numeric (with all
     present values 0 or 1) or Boolean, in which case true and false are coded
