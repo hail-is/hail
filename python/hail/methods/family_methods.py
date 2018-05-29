@@ -511,6 +511,7 @@ def de_novo(mt: MatrixTable,
 
      - `locus` (``locus``) -- Variant locus.
      - `alleles` (``array<str>``) -- Variant alleles.
+     - `id` (``str``) -- Proband sample ID.
      - `prior` (``float64``) -- Site frequency prior. It is the maximum of:
        the computed dataset alternate allele frequency, the
        `pop_frequency_prior` parameter, and the global prior
@@ -527,6 +528,8 @@ def de_novo(mt: MatrixTable,
        event in a parent.
      - `confidence` (``str``) Validation confidence. One of: ``'HIGH'``,
        ``'MEDIUM'``, ``'LOW'``.
+
+    The key of the table is ``['locus', 'alleles', 'id']``.
 
     The model looks for de novo events in which both parents are homozygous
     reference and the proband is a heterozygous. The model makes the simplifying
