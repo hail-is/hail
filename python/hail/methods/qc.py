@@ -120,21 +120,18 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `min` (``int32``) -- Minimum value.
     - `max` (``int32``) -- Maximum value.
 
-    If `mt` contains an entry field `GT` of type :py:data:`.tcall`, then the
-    following fields are computed:
+    If the dataset does not contain an entry field `GT` of type
+    :py:data:`.tcall`, then an error is raised. The following fields are always
+    computed from `GT`:
 
     - `AF` (``array<float64>``) -- Calculated allele frequency, one element
       per allele, including the reference. Sums to one. Equivalent to
       `AC` / `AN`.
-
     - `AC` (``array<int32>``) -- Calculated allele count, one element per
       allele, including the reference. Sums to `AN`.
-
     - `AN` (``int32``) -- Total number of called alleles.
-
     - `homozygote_count` (``array<int32>``) -- Number of homozygotes per
       allele. One element per allele, including the reference.
-
     - `n_called` (``int64``) -- Number of samples with a defined `GT`.
     - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
     - `call_rate` (``float32``) -- Fraction of samples with a defined `GT`.
