@@ -47,10 +47,13 @@ class PruneSuite extends SparkSuite {
     }
   }
 
-  def checkRebuild(ir: BaseIR, requestedType: BaseType, expected: BaseIR) {
+  def checkRebuild[T <: BaseIR](
+    ir: T,
+    requestedType: BaseType,
+    f: (T, T) => Boolean = (left: TableIR, right: TableIR) => left == right) {
     val irCopy = ir.deepCopy()
     val memo = Memo.empty[BaseType]
-    val rebuilt = irCopy match {
+    val rebuilt = (irCopy match {
       case mir: MatrixIR =>
         PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], memo)
         PruneDeadFields.rebuild(mir, memo)
@@ -60,9 +63,9 @@ class PruneSuite extends SparkSuite {
       case ir: IR =>
         PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], memo)
         PruneDeadFields.rebuild(ir, Env.empty[Type], memo)
-    }
-    if (rebuilt != expected)
-      fatal(s"IR did not rebuild the same:\n  Expect: $expected\n  Actual: $rebuilt")
+    }).asInstanceOf[T]
+    if (!f(ir, rebuilt))
+      fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
   }
 
   val tab = TableLiteral(Table.parallelize(
@@ -419,14 +422,23 @@ class PruneSuite extends SparkSuite {
     checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
   }
 
-  @Test def testTableAggregate() {
+  @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, GetField(Ref("global", tab.typ.globalType), "g1")),
       TInt32(),
       Array(subsetTable(tab.typ, "global.g1"), null))
   }
 
   @Test def testTableImportRebuild() {
-
+    val tt = TableType(
+      TStruct("a" -> TInt32(), "b" -> TFloat64()),
+      None,
+      TStruct())
+    val opts = TableReaderOptions(1, Array(), Array(), "", "", true, "", 'a', true, Array(0, 1), originalType = tt.rowType)
+    checkRebuild(TableImport(Array(""), tt, opts),
+      tt.copy(rowType = TStruct("a" -> TInt32())),
+      (_: TableImport, rebuilt: TableImport) =>
+        rebuilt.typ == tt.copy(rowType = TStruct("a" -> TInt32())) &&
+          rebuilt.readerOpts.useColIndices.sameElements(Array(0)))
   }
 
   @Test def testTableFilterRebuild() {
