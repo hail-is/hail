@@ -211,8 +211,10 @@ class ArrayFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("[]", a, I32(0)), 0)
     assertEvalsTo(invoke("[]", a, I32(1)), null)
     assertEvalsTo(invoke("[]", a, I32(2)), 2)
-    assertFatal(invoke("[]", a, I32(4)), "array index out of bounds")
-    assertFatal(invoke("[]", a, I32(-1)), "array index out of bounds")
+    assertEvalsTo(invoke("[]", a, I32(-1)), 2)
+    assertEvalsTo(invoke("[]", a, I32(-3)), 0)
+    assertFatal(invoke("[]", a, I32(3)), "array index out of bounds")
+    assertFatal(invoke("[]", a, I32(-4)), "array index out of bounds")
     assertEvalsTo(invoke("[]", naa, I32(2)), null)
     assertEvalsTo(invoke("[]", a, NA(TInt32())), null)
   }

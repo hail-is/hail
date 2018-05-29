@@ -230,7 +230,13 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("uniqueMaxIndex", TArray(tv("T")))(uniqueIndex(_, GT))
 
-    registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
+    registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) =>
+      ArrayRef(
+        a,
+        If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
+          ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+          i))
+    }
 
     registerIR("[:]", TArray(tv("T"))) { (a) => a }
 
