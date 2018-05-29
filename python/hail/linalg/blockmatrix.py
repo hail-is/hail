@@ -48,8 +48,6 @@ class BlockMatrix(object):
 
     .. include:: ../_templates/experimental.rst
 
-    Notes
-    -----
     A block matrix is a distributed analogue of a two-dimensional
     `NumPy ndarray
     <https://docs.scipy.org/doc/numpy/reference/arrays.ndarray.html>`__ with
@@ -177,7 +175,9 @@ class BlockMatrix(object):
 
     These following methods always result in a block-dense matrix:
 
-    - Addition and subtraction of a scalar or broadcasted vector.
+    - :meth:`fill`
+
+    - Addition or subtraction of a scalar or broadcasted vector.
 
     - Matrix multiplication, ``@``.
 
@@ -187,7 +187,7 @@ class BlockMatrix(object):
     The following methods fail if any operand is block-sparse, but can be forced
     by first applying :meth:`densify`.
 
-    - Division between two block matrices.
+    - Element-wise division between two block matrices.
 
     - Multiplication by a scalar or broadcasted vector which includes an
       infinite or ``nan`` value.
@@ -197,7 +197,7 @@ class BlockMatrix(object):
 
     - Division of a scalar or broadcasted vector by a block matrix.
 
-    - Exponentiation by a negative exponent.
+    - Element-wise exponentiation by a negative exponent.
 
     - Natural logarithm, :meth:`log`.
     """
@@ -349,6 +349,10 @@ class BlockMatrix(object):
         Do not use this method if you want to store a copy of the resulting
         block matrix. Instead, use :meth:`write_from_entry_expr` followed by
         :meth:`BlockMatrix.read`.
+
+        If a pipelined transformation significantly downsamples the rows of the
+        underlying matrix table, then repartitioning the matrix table ahead of
+        this method will greatly improve its performance.
 
         The method will fail if any values are missing. To be clear, special
         float values like ``NaN`` are not missing values.
@@ -539,8 +543,12 @@ class BlockMatrix(object):
         ...                                   'output/model.bm')
 
         Notes
-        -----        
+        -----
         The resulting file can be loaded with :meth:`BlockMatrix.read`.
+
+        If a pipelined transformation significantly downsamples the rows of the
+        underlying matrix table, then repartitioning the matrix table ahead of
+        this method will greatly improve its performance.
 
         The method will fail if any values are missing. To be clear, special
         float values like ``NaN`` are not missing values.

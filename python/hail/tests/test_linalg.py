@@ -354,20 +354,19 @@ class Tests(unittest.TestCase):
 
     def test_fill(self):
         nd = np.ones((3, 5))
-
         bm = BlockMatrix.fill(3, 5, 1.0)
-        self.assertTrue(bm.block_size == BlockMatrix.default_block_size())
-        self.assertTrue(np.array_equal(bm.to_numpy(), nd))
-
         bm2 = BlockMatrix.fill(3, 5, 1.0, block_size=2)
+
+        self.assertTrue(bm.block_size == BlockMatrix.default_block_size())
         self.assertTrue(bm2.block_size == 2)
-        self.assertTrue(np.array_equal(bm2.to_numpy(), nd))
+        self._assert_eq(bm, nd)
+        self._assert_eq(bm2, nd)
 
     def test_sum(self):
         def sums_agree(bm, nd):
             self.assertAlmostEqual(bm.sum(), np.sum(nd))
-            self.assertTrue(np.allclose(bm.sum(axis=0).to_numpy(), np.sum(nd, axis=0, keepdims=True)))
-            self.assertTrue(np.allclose(bm.sum(axis=1).to_numpy(), np.sum(nd, axis=1, keepdims=True)))
+            self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
+            self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
         nd = np.random.normal(size=(11, 13))
         bm = BlockMatrix.from_numpy(nd, block_size=3)
