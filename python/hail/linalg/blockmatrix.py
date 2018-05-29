@@ -58,6 +58,13 @@ class BlockMatrix(object):
 
     >>> from hail.linalg import BlockMatrix
 
+    Under the hood, block matrices are partitioned like a checkerboard into
+    square blocks with side length a common block size (blocks in the final row
+    or column of blocks may be truncated). Block size defaults to the value
+    given by :meth:`default_block_size`.
+
+    **Operations and broadcasting**
+
     The core operations are consistent with NumPy: ``+``, ``-``, ``*``, and
     ``/`` for element-wise addition, subtraction, multiplication, and division;
     ``@`` for matrix multiplication; ``T`` for transpose; and ``**`` for
@@ -66,7 +73,8 @@ class BlockMatrix(object):
     For element-wise binary operations, each operand may be a block matrix, an
     ndarray, or a scalar (:obj:`int` or :obj:`float`). For matrix
     multiplication, each operand may be a block matrix or an ndarray. If either
-    operand is a block matrix, the result is a block matrix.
+    operand is a block matrix, the result is a block matrix. Binary operations
+    between block matrices require that both operands have the same block size.
 
     To interoperate with block matrices, ndarray operands must be one or two
     dimensional with dtype convertible to ``float64``. One-dimensional ndarrays
@@ -80,6 +88,17 @@ class BlockMatrix(object):
     There is one exception: block matrices do not currently support element-wise
     "outer product" of a single row and a single column, although the same
     effect can be achieved for ``*`` by using ``@``.
+
+    Warning
+    -------
+
+        For binary operations, if the first operand is an ndarray and the
+        second operand is a block matrix, the result will be a ndarray of block
+        matrices. To achieve the desired behavior for ``+`` and ``*``, place the
+        block matrix operand first; for ``-``, ``/``, and ``@``, first convert
+        the ndarray to a block matrix using :meth:`.from_numpy`.
+
+    **Indexing and slicing**
 
     Block matrices also support NumPy-style 2-dimensional
     `indexing and slicing <https://docs.scipy.org/doc/numpy/user/basics.indexing.html>`__,
@@ -107,22 +126,7 @@ class BlockMatrix(object):
     Use :meth:`filter`, :meth:`filter_rows`, and :meth:`filter_cols` to
     subset to non-slice subsets of rows and columns, e.g. to rows ``[0, 2, 5]``.
 
-    Under the hood, block matrices are partitioned like a checkerboard into
-    square blocks with side length a common block size (blocks in the final row
-    or column of blocks may be truncated). Block size defaults to the value
-    given by :meth:`default_block_size`. Binary operations between block
-    matrices require that both operands have the same block size.
-
-    Warning
-    -------
-
-        For binary operations, if the first operand is an ndarray and the
-        second operand is a block matrix, the result will be a ndarray of block
-        matrices. To achieve the desired behavior for ``+`` and ``*``, place the
-        block matrix operand first; for ``-``, ``/``, and ``@``, first convert
-        the ndarray to a block matrix using :meth:`.from_numpy`.
-
-    **Block sparsity**
+    **Block-sparse representation**
 
     By default, block matrices compute and store all blocks explicitly.
     However, some applications involve block matrices in which:
