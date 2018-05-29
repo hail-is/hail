@@ -521,13 +521,15 @@ class BlockMatrix(object):
             mt.select_entries(**{field: entry_expr})._jvds.writeBlockMatrix(path, field, block_size)
 
     @staticmethod
-    def _check_indices(idx, size):
-        if len(idx) == 0:
+    def _check_indices(indices, size):
+        if len(indices) == 0:
             raise ValueError('index list must be non-empty')
-        elif not all(x < y for x, y in zip(idx, idx[1:])):
+        elif not all(x < y for x, y in zip(indices, indices[1:])):
             raise ValueError('index list must be strictly increasing')
-        elif idx[0] < 0 or idx[-1] >= size:
-            raise ValueError(f'index list values must be in range [0, {size})')
+        elif indices[0] < 0:
+            raise ValueError(f'index list values must be in range [0, {size}), found {indices[0]}')
+        elif indices[-1] >= size:
+            raise ValueError(f'index list values must be in range [0, {size}), found {indices[-1]}')
 
     @typecheck_method(rows_to_keep=sequenceof(int))
     def filter_rows(self, rows_to_keep):
