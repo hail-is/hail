@@ -1695,7 +1695,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
 }
 
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
-  // FIXME assert typ is a supertype of spec.table_type
+  assert(PruneDeadFields.isSupertype(typ, spec.table_type))
 
   override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
 
@@ -1703,7 +1703,7 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
-    TableRead(path, spec, dropRows)
+    TableRead(path, spec, typ, dropRows)
   }
 
   def execute(hc: HailContext): TableValue = {

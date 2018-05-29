@@ -19,15 +19,14 @@ class RefEquality[T <: AnyRef](val t: T) {
   override def toString: String = s"RefEquality($t)"
 }
 
-
 object Memo {
   def empty[T]: Memo[T] = new Memo[T](new mutable.HashMap[RefEquality[BaseIR], T])
 }
 
-class Memo[T] private (val m: mutable.HashMap[RefEquality[BaseIR], T]) {
+class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def bind(ir: BaseIR, t: T): Memo[T] = {
     val re = RefEquality(ir)
-    assert(!m.contains(re), s"duplicate ir: ${ir}")
+    assert(!m.contains(re))
     m += re -> t
     this
   }

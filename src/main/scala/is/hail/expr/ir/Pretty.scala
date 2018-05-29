@@ -48,6 +48,7 @@ object Pretty {
             sb.append(" " * (depth + 4))
             sb.append(StringEscapeUtils.escapeString(p))
           }(sb += '\n')
+          sb += ')'
           sb += '\n'
           sb.append(" " * (depth + 2))
           sb.append("(useCols ")

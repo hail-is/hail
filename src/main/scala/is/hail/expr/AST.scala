@@ -711,7 +711,7 @@ case class ApplyAST(posn: Position, fn: String, args: Array[AST]) extends AST(po
     fn match {
       case "select" =>
         for (structIR <- args(0).toIR(agg)) yield {
-          val identifiers = args.tail.map { case SymRef(_, id) => id }
+          val identifiers = args.tail.map { case SymRefAST(_, id) => id }
           ir.SelectFields(structIR, identifiers)
         }
       case "drop" =>
