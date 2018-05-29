@@ -2256,7 +2256,7 @@ class Table(ExprContainer):
         col_key : Sequence[str]
             Fields to be used as column key.
         row_fields : Sequence[str]
-            Fields to bestored once per row.
+            Fields to be stored once per row.
         col_fields : Sequence[str]
             Fields to be stored once per column.
         partition_key : Sequence[str] or None
