@@ -1856,8 +1856,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         val results = colValues.value
           .aggregate(zVal)(seqOp, combOp)
-        resOp(results)
         ec.set(0, localGlobals)
+        resOp(results)
 
         (f(), t)
     }
@@ -1893,6 +1893,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         val result = rvd
           .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
+        ec.set(0, globalsBc.value)
         resOp(result)
 
         (f(), t)
