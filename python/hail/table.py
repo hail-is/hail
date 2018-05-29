@@ -11,7 +11,7 @@ from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
 
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import itertools
 
 table_type = lazy()
@@ -2234,32 +2234,69 @@ class Table(ExprContainer):
             t = t.rename({f: name})
         return t
 
-    @typecheck_method(row_key=expr_any,
-                      col_key=expr_any,
-                      entry_exprs=expr_any)
-    def to_matrix_table(self, row_key, col_key, **entry_exprs):
+    @typecheck_method(row_key=sequenceof(str),
+                      col_key=sequenceof(str),
+                      row_fields=sequenceof(str),
+                      col_fields=sequenceof(str),
+                      partition_key=nullable(sequenceof(str)),
+                      n_partitions=nullable(int))
+    def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], partition_key=None, n_partitions=None):
+        """Construct a matrix table from a table in coordinate representation.
 
-        from hail.matrixtable import MatrixTable
+        Notes
+        -----
+        Any row fields in the table that do not appear in one of the arguments
+        to this method are assumed to be entry fields of the resulting matrix
+        table.
 
-        all_exprs = []
-        all_exprs.append(row_key)
-        analyze('to_matrix_table/row_key', row_key, self._row_indices)
-        all_exprs.append(col_key)
-        analyze('to_matrix_table/col_key', col_key, self._row_indices)
+        Parameters
+        ----------
+        row_key : Sequence[str]
+            Fields to be used as row key.
+        col_key : Sequence[str]
+            Fields to be used as column key.
+        row_fields : Sequence[str]
+            Fields to be stored once per row.
+        col_fields : Sequence[str]
+            Fields to be stored once per column.
+        partition_key : Sequence[str] or None
+            Fields to be used as partition key.
+        n_partitions : int or None
+            Number of partitions.
 
-        exprs = []
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        all_fields = list(itertools.chain(row_key, col_key, row_fields, col_fields))
+        c = Counter(all_fields)
+        row_field_set = set(self.row)
+        for k, v in c.items():
+            if k not in row_field_set:
+                raise ValueError(f"'to_matrix_table': field {repr(k)} is not a row field")
+            if v > 1:
+                raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
 
-        for k, e in entry_exprs.items():
-            all_exprs.append(e)
-            analyze('to_matrix_table/entry_exprs/{}'.format(k), e, self._row_indices)
-            exprs.append('`{k}` = {v}'.format(k=k, v=e._ast.to_hql()))
+        if len(row_key) == 0:
+            raise ValueError(f"'to_matrix_table': require at least one row key field")
+        if len(col_key) == 0:
+            raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        base, cleanup = self._process_joins(*all_exprs)
+        if partition_key is None:
+            partition_key = row_key
+        else:
+            if len(partition_key) == 0:
+                raise ValueError(f"to_matrix_table': require at least one partition key field")
+            if not row_key[:len(partition_key)] == partition_key:
+                raise ValueError(f"'to_matrix_table': partition key must be a prefix of row key, "
+                                 f"found row_key={row_key} and partition_key={partition_key}")
 
-        return MatrixTable(base._jt.toMatrixTable(row_key._ast.to_hql(),
-                                                  col_key._ast.to_hql(),
-                                                  ",\n".join(exprs),
-                                                  joption(None)))
+        return hl.MatrixTable(self._jt.jToMatrixTable(row_key,
+                                                      col_key,
+                                                      row_fields,
+                                                      col_fields,
+                                                      partition_key,
+                                                      n_partitions))
 
     @property
     def globals(self) -> 'StructExpression':

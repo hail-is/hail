@@ -707,6 +707,64 @@ class Tests(unittest.TestCase):
         dataset = self.get_dataset()
         dataset = hl.sample_qc(dataset)
 
+    def test_variant_qc(self):
+        data = [
+            {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
+            {'v': '1:1:A:T', 's': '2', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
+            {'v': '1:1:A:T', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 11, 'DP': 100},
+            {'v': '1:1:A:T', 's': '4', 'GT': None, 'GQ': None, 'DP': 100},
+            {'v': '1:2:A:T,C', 's': '1', 'GT': hl.Call([1, 2]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '2', 'GT': hl.Call([2, 2]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '4', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
+        ]
+
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
+        ht = ht.transmute(**hl.parse_variant(ht.v))
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = hl.variant_qc(mt, 'vqc')
+        r = mt.rows().collect()
+
+        self.assertEqual(r[0].vqc.AF, [0.5, 0.5])
+        self.assertEqual(r[0].vqc.AC, [3, 3])
+        self.assertEqual(r[0].vqc.AN, 6)
+        self.assertEqual(r[0].vqc.homozygote_count, [1, 1])
+        self.assertEqual(r[0].vqc.n_called, 3)
+        self.assertEqual(r[0].vqc.n_not_called, 1)
+        self.assertEqual(r[0].vqc.call_rate, 0.75)
+        self.assertEqual(r[0].vqc.n_het, 1)
+        self.assertEqual(r[0].vqc.n_non_ref, 2)
+        self.assertEqual(r[0].vqc.r_expected_het_freq, 0.6)
+        self.assertEqual(r[0].vqc.p_hwe, 0.7)
+        self.assertEqual(r[0].vqc.dp_stats.min, 0)
+        self.assertEqual(r[0].vqc.dp_stats.max, 100)
+        self.assertEqual(r[0].vqc.dp_stats.mean, 51.25)
+        self.assertAlmostEqual(r[0].vqc.dp_stats.stdev, 48.782040752719645)
+        self.assertEqual(r[0].vqc.gq_stats.min, 10)
+        self.assertEqual(r[0].vqc.gq_stats.max, 11)
+        self.assertAlmostEqual(r[0].vqc.gq_stats.mean, 10.333333333333334)
+        self.assertAlmostEqual(r[0].vqc.gq_stats.stdev, 0.47140452079103168)
+
+        self.assertEqual(r[1].vqc.AF, [0.125, 0.5, 0.375])
+        self.assertEqual(r[1].vqc.AC, [1, 4, 3])
+        self.assertEqual(r[1].vqc.AN, 8)
+        self.assertEqual(r[1].vqc.homozygote_count, [0, 1, 1])
+        self.assertEqual(r[1].vqc.n_called, 4)
+        self.assertEqual(r[1].vqc.n_not_called, 0)
+        self.assertEqual(r[1].vqc.call_rate, 1.0)
+        self.assertEqual(r[1].vqc.n_het, 2)
+        self.assertEqual(r[1].vqc.n_non_ref, 4)
+        self.assertEqual(r[1].vqc.p_hwe, None)
+        self.assertEqual(r[1].vqc.r_expected_het_freq, None)
+        self.assertEqual(r[1].vqc.dp_stats.min, 5)
+        self.assertEqual(r[1].vqc.dp_stats.max, 5)
+        self.assertEqual(r[1].vqc.dp_stats.mean, 5)
+        self.assertEqual(r[1].vqc.dp_stats.stdev, 0.0)
+        self.assertEqual(r[1].vqc.gq_stats.min, 10)
+        self.assertEqual(r[1].vqc.gq_stats.max, 10)
+        self.assertEqual(r[1].vqc.gq_stats.mean, 10)
+        self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
+
     def test_grm(self):
         tolerance = 0.001
 
@@ -1895,8 +1953,8 @@ class Tests(unittest.TestCase):
                               (j.a1_alleles[1] == j.a2_alleles[0]) &
                               (j.a1_vqc.n_not_called == j.a2_vqc.n_not_called) &
                               (j.a1_vqc.n_het == j.a2_vqc.n_het) &
-                              (j.a1_vqc.n_hom_ref == j.a2_vqc.n_hom_var) &
-                              (j.a1_vqc.n_hom_var == j.a2_vqc.n_hom_ref)))
+                              (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
+                              (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
 
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
