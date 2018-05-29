@@ -1234,10 +1234,9 @@ object BlockMatrixFilterRDD {
   }
 }
 
+// checked in Python: keepRows and keepCols non-empty, increasing, valid range
 private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepCols: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
-  require(keepRows.nonEmpty && keepRows.isIncreasing && keepRows.head >= 0 && keepRows.last < bm.nRows)
-  require(keepCols.nonEmpty && keepCols.isIncreasing && keepCols.head >= 0 && keepCols.last < bm.nCols)
   
   private val gp = bm.gp
   private val blockSize = gp.blockSize
@@ -1322,9 +1321,9 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
 
 case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
+// checked in Python: keep non-empty, increasing, valid range
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
-  require(keep.nonEmpty && keep.isIncreasing && keep.head >= 0 && keep.last < bm.nCols)
 
   private val gp = bm.gp
   private val blockSize = gp.blockSize

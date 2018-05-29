@@ -122,7 +122,6 @@ class BlockMatrix(object):
         block matrix operand first; for ``-``, ``/``, and ``@``, first convert
         the ndarray to a block matrix using :meth:`.from_numpy`.
 
-
     **Block sparsity**
 
     By default, block matrices compute and store all blocks explicitly.
@@ -521,6 +520,17 @@ class BlockMatrix(object):
             field = Env.get_uid()
             mt.select_entries(**{field: entry_expr})._jvds.writeBlockMatrix(path, field, block_size)
 
+    @staticmethod
+    def _check_indices(indices, size):
+        if len(indices) == 0:
+            raise ValueError('index list must be non-empty')
+        elif not all(x < y for x, y in zip(indices, indices[1:])):
+            raise ValueError('index list must be strictly increasing')
+        elif indices[0] < 0:
+            raise ValueError(f'index list values must be in range [0, {size}), found {indices[0]}')
+        elif indices[-1] >= size:
+            raise ValueError(f'index list values must be in range [0, {size}), found {indices[-1]}')
+
     @typecheck_method(rows_to_keep=sequenceof(int))
     def filter_rows(self, rows_to_keep):
         """Filters matrix rows.
@@ -534,6 +544,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
     @typecheck_method(cols_to_keep=sequenceof(int))
@@ -549,6 +560,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
     @typecheck_method(rows_to_keep=sequenceof(int),
@@ -573,6 +585,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        BlockMatrix._check_indices(rows_to_keep, self.n_rows)
+        BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                                             jarray(Env.jvm().long, cols_to_keep)))
 
