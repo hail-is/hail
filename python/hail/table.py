@@ -1461,12 +1461,13 @@ class Table(ExprContainer):
         broadcast_f = lambda left, data, jt: Table(left._jt.annotateGlobalJSON(data, jt))
         left, cleanup = process_joins(self, exprs, broadcast_f)
 
-        if left is not self and list(left.key) != original_key:
+        if left is not self and (original_key is None and left.key is not None
+                                 or original_key is not None and (left.key is None or list(left.key) != original_key)):
             if original_key is not None:
                 if original_key != list(left.key):
                     left = left.key_by(*original_key)
             else:
-                left = left.key_by(None)
+                left = left.key_by()
 
         return left, cleanup
 
