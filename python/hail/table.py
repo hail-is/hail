@@ -2241,20 +2241,32 @@ class Table(ExprContainer):
                       partition_key=nullable(sequenceof(str)),
                       n_partitions=nullable(int))
     def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], partition_key=None, n_partitions=None):
-        """
+        """Construct a matrix table from a table in coordinate representation.
+
+        Notes
+        -----
+        Any row fields in the table that do not appear in one of the arguments
+        to this method are assumed to be entry fields of the resulting matrix
+        table.
 
         Parameters
         ----------
         row_key : Sequence[str]
+            Fields to be used as row key.
         col_key : Sequence[str]
+            Fields to be used as column key.
         row_fields : Sequence[str]
+            Fields to bestored once per row.
         col_fields : Sequence[str]
+            Fields to be stored once per column.
         partition_key : Sequence[str] or None
+            Fields to be used as partition key.
         n_partitions : int or None
+            Number of partitions.
 
         Returns
         -------
-
+        :class:`.MatrixTable`
         """
         all_fields = list(itertools.chain(row_key, col_key, row_fields, col_fields))
         c = Counter(all_fields)
