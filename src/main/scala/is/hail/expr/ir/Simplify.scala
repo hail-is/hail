@@ -143,7 +143,7 @@ object Simplify {
 
       case TableCount(TableRange(n, _)) => I64(n)
 
-      case TableParallelize(TableParallelize(_, rows, _, _)) => I64(rows.length)
+      case TableCount(TableParallelize(_, rows, _)) => I64(rows.length)
 
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
