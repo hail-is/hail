@@ -66,10 +66,7 @@ object Simplify {
 
       case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-      case ArrayRef(MakeArray(args, _), I32(i)) =>
-        if (i < 0 || i >= args.length)
-          fatal(s"array index out of bounds: $i / ${args.length}")
-        args(i)
+      case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
 
       case ArrayFilter(a, _, True()) => a
 
@@ -126,8 +123,8 @@ object Simplify {
       // optimize TableIR
       case TableFilter(t, True()) => t
 
-      case TableFilter(TableRead(path, spec, _), False() | NA(_)) =>
-        TableRead(path, spec, dropRows = true)
+      case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
+        TableRead(path, spec, typ, dropRows = true)
 
       case TableFilter(TableFilter(t, p1), p2) =>
         TableFilter(t,

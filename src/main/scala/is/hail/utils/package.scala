@@ -583,6 +583,11 @@ package object utils extends Logging
   def point[T]()(implicit t: Pointed[T]): T = t.point
 
   def partition(n: Int, k: Int): Array[Int] = {
+    if (k == 0) {
+      assert(n == 0)
+      return Array.empty[Int]
+    }
+
     assert(n >= 0)
     assert(k > 0)
     val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
@@ -597,6 +602,16 @@ package object utils extends Logging
     } catch {
       case _: MatchError => None
     }
+  }
+
+  def charRegex(c: Char): String = {
+    // See: https://docs.oracle.com/javase/tutorial/essential/regex/literals.html
+    val metacharacters = "<([{\\^-=$!|]})?*+.>"
+    val s = c.toString
+    if (metacharacters.contains(c))
+      "\\" + s
+    else
+      s
   }
 }
 

@@ -39,8 +39,8 @@ object Interpret {
     apply(ir, valueEnv, args, agg, None).asInstanceOf[T]
   }
 
-  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[Any], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]]): Any = {
-    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[Any] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
+  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[(Any, Type)], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]]): Any = {
+    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
       apply(ir, env, args, agg, aggregator)
     ir match {
       case I32(x) => x
@@ -182,12 +182,12 @@ object Interpret {
         if (aValue == null || iValue == null)
           null
         else {
-          val iv = iValue.asInstanceOf[Int]
-          val av = aValue.asInstanceOf[IndexedSeq[Any]]
-          if (iv < 0 || iv >= av.length)
-            fatal(s"array index out of bounds: $iv / ${av.length}")
+          val a = aValue.asInstanceOf[IndexedSeq[Any]]
+          val i = iValue.asInstanceOf[Int]
+          if (i < 0 || i >= a.length)
+            fatal(s"array index out of bounds: $i / ${ a.length }")
           else
-            aValue.asInstanceOf[IndexedSeq[Any]].apply(iValue.asInstanceOf[Int])
+            a.apply(i)
         }
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args, agg)
@@ -199,6 +199,8 @@ object Interpret {
         val startValue = interpret(start, env, args, agg)
         val stopValue = interpret(stop, env, args, agg)
         val stepValue = interpret(step, env, args, agg)
+        if (stepValue == 0)
+          fatal("Array range cannot have step size 0.")
         if (startValue == null || stopValue == null || stepValue == null)
           null
         else
@@ -236,7 +238,7 @@ object Interpret {
         else
           cValue match {
             case s: Set[_] => s.toIndexedSeq
-            case d: Map[_, _] => d.toIndexedSeq
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
             case a => a
           }
 
@@ -413,7 +415,9 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
-      case In(i, _) => args(i)
+      case In(i, _) =>
+        val (a, _) = args(i)
+        a
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)

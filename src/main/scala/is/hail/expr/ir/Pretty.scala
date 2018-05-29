@@ -84,7 +84,7 @@ object Pretty {
 
                 ""
               }
-            case TableRead(path, _, dropRows) =>
+            case TableRead(path, _, typ, dropRows) =>
               if (dropRows)
                 s"${ StringEscapeUtils.escapeString(path) } drop_rows"
               else

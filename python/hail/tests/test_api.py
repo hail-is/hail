@@ -1091,10 +1091,11 @@ class MatrixTests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
     def test_from_rows_table(self):
-        ds = hl.import_vcf(resource('sample.vcf'))
-        rt = ds.rows()
+        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = mt.annotate_globals(foo = 'bar')
+        rt = mt.rows()
         rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
-        self.assertTrue(rm._same(ds.drop_cols().select_entries().key_cols_by().select_cols()))
+        self.assertTrue(rm._same(mt.drop_cols().select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
         ds = self.get_vds()
@@ -1420,7 +1421,6 @@ class FunctionsTests(unittest.TestCase):
             exp=hl.exp(kt.c),
             fet=hl.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
             hwe=hl.hardy_weinberg_p(1, 2, 1),
-            index=hl.index(kt.g, 'z'),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
             is_nan=hl.is_nan(hl.float64(kt.a)),

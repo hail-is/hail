@@ -508,8 +508,12 @@ class HailContext private(val sc: SparkContext,
   def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
     read(file, dropSamples, dropVariants)
 
-  def readTable(path: String): Table =
-    Table.read(this, path)
+  def readTable(path: String, rowFields: java.util.ArrayList[String] = null): Table =
+    Table.read(this, path,
+      if (rowFields != null)
+        rowFields.asScala.toSet
+      else
+        null)
 
   def readPartitions[T: ClassTag](
     path: String,
@@ -539,9 +543,10 @@ class HailContext private(val sc: SparkContext,
     path: String,
     t: TStruct,
     codecSpec: CodecSpec,
-    partFiles: Array[String]
+    partFiles: Array[String],
+    requestedType: TStruct
   ): ContextRDD[RVDContext, RegionValue] = {
-    val makeDec = codecSpec.buildDecoder(t)
+    val makeDec = codecSpec.buildDecoder(t, requestedType)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)

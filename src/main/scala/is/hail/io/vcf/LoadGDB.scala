@@ -191,7 +191,7 @@ object LoadGDB {
       }.toArray
     }
 
-    val makeDec = rvCodec.buildDecoder(localRowType)
+    val makeDec = rvCodec.buildDecoder(localRowType, localRowType)
 
     val recordCRDD = ContextRDD.parallelize[RVDContext](sc, records, nPartitions)
       .cmapPartitions { (ctx, it) =>

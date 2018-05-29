@@ -206,10 +206,10 @@ object LoadMatrix {
       val lines = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
       lines match {
         case Array(header, first) =>
-          val nCols = first.split(sep).length - nRowFields
+          val nCols = first.split(charRegex(sep), -1).length - nRowFields
           if (nCols <= 0)
             fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
-          (header.split(sep), nCols)
+          (header.split(charRegex(sep), -1), nCols)
         case _ =>
           fatal(s"file in import_matrix contains no data: $file")
       }

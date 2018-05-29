@@ -1363,7 +1363,7 @@ class Table(ExprContainer):
                         vt = (vt.group_by(*rk_uids)
                             .aggregate(values=agg.collect(
                             Struct(**{c: vt[c] for c in vt.row if c not in rk_uids}))))
-                        vt = vt.annotate(values=hl.index(vt.values, k_uid))
+                        vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
                         key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
