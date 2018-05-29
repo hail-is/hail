@@ -102,7 +102,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     Examples
     --------
 
-    >>> dataset_result = hl.variant_qc(mt)
+    >>> dataset_result = hl.variant_qc(dataset)
 
     Notes
     -----
