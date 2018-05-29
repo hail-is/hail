@@ -1116,11 +1116,7 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.write('output/table1.kt')
-
-        Note
-        ----
-        The write path must end in ".kt".
+        >>> table1.write('output/table1.ht')
 
         Warning
         -------

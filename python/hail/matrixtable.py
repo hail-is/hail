@@ -2100,11 +2100,7 @@ class MatrixTable(ExprContainer):
         Examples
         --------
 
-        >>> dataset.write('output/dataset.vds')
-
-        Note
-        ----
-        The write path must end in ".vds".
+        >>> dataset.write('output/dataset.mt')
 
         Warning
         -------
