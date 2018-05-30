@@ -69,14 +69,30 @@ trait Py4jUtils {
     JsonMethods.compact(statusToJson(stat))
   }
 
-  private def statusToJson(fs: FileStatus): JObject= {
+  private def statusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
-      "length" -> JInt(fs.getLen),
+      "size_bytes" -> JInt(fs.getLen),
+      "size" -> JString(readableBytes(fs.getLen)),
       "is_dir" -> JBool(fs.isDirectory),
       "modification_time" -> JString(new java.util.Date(fs.getModificationTime).toString),
       "owner" -> JString(fs.getOwner)
     )
+  }
+
+  private def readableBytes(bytes: Long): String = {
+    if (bytes < 1024)
+      bytes.toString
+    else if (bytes < 1024 * 1024)
+      formatDigits(bytes, 1024) + "K"
+    else if (bytes < 1024 * 1024 * 1024)
+      formatDigits(bytes, 1024 * 1024) + "M"
+    else
+      formatDigits(bytes, 1024 * 1024 * 1024) + "G"
+  }
+
+  def formatDigits(n: Long, factor: Int): String = {
+    (n / factor.toDouble).formatted("%.1f")
   }
 
   def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>

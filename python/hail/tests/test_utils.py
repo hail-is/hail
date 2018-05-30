@@ -69,22 +69,22 @@ class Tests(unittest.TestCase):
 
         path2 = resource('ls_test/f_50')
         stat2 = hl.hadoop_stat(path2)
-        self.assertEqual(stat2['length'], 50)
+        self.assertEqual(stat2['size_bytes'], 50)
         self.assertEqual(stat2['is_dir'], False)
 
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)
         self.assertEqual(len(ls1), 1)
-        self.assertEqual(ls1[0]['length'], 50)
+        self.assertEqual(ls1[0]['size_bytes'], 50)
         self.assertEqual(ls1[0]['is_dir'], False)
 
         path2 = resource('ls_test')
         ls2 = hl.hadoop_ls(path2)
         self.assertEqual(len(ls2), 3)
         ls2_dict = {x['path'].split("/")[-1]: x for x in ls2}
-        self.assertEqual(ls2_dict['f_50']['length'], 50)
-        self.assertEqual(ls2_dict['f_100']['length'], 100)
+        self.assertEqual(ls2_dict['f_50']['size_bytes'], 50)
+        self.assertEqual(ls2_dict['f_100']['size_bytes'], 100)
         self.assertEqual(ls2_dict['f_100']['is_dir'], False)
         self.assertEqual(ls2_dict['subdir']['is_dir'], True)
 

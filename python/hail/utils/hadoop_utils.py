@@ -141,7 +141,7 @@ class HadoopWriter(io.RawIOBase):
 
 
 def hadoop_exists(path: str) -> bool:
-    """Returns whether a path exists as a file or directory.
+    """Returns ``True`` if `path` exists.
 
     Parameters
     ----------
@@ -155,8 +155,7 @@ def hadoop_exists(path: str) -> bool:
 
 
 def hadoop_is_file(path: str) -> bool:
-    """Returns whether a path both exists and is a file.
-
+    """Returns ``True`` if `path` both exists and is a file.
 
     Parameters
     ----------
@@ -170,7 +169,7 @@ def hadoop_is_file(path: str) -> bool:
 
 
 def hadoop_is_dir(path) -> bool:
-    """Returns whether a path both exists and is a directory.
+    """Returns ``True`` if `path` both exists and is a directory.
 
     Parameters
     ----------
@@ -193,7 +192,8 @@ def hadoop_stat(path: str) -> Dict:
     The resulting dictionary contains the following data:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
-    - length (:obj:`int`) -- Size in bytes.
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:obj:`str`) -- Size as a readable string.
     - modification_time (:obj:`str`) -- Time of last file modification.
     - owner (:obj:`str`) -- Owner.
     - path (:obj:`str`) -- Path.
@@ -223,7 +223,8 @@ def hadoop_ls(path: str) -> List[Dict]:
     Each dict element of the result list contains the following data:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
-    - length (:obj:`int`) -- Size in bytes.
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:obj:`str`) -- Size as a readable string.
     - modification_time (:obj:`str`) -- Time of last file modification.
     - owner (:obj:`str`) -- Owner.
     - path (:obj:`str`) -- Path.
