@@ -31,8 +31,11 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
     val lTyp = typ
     val rTyp = right.typ
 
-    val newPartitioner =
-      this.rvd.partitioner.enlargeToRange(right.rvd.partitioner.range)
+    val newPartitioner = (joinType: @unchecked) match {
+      case "inner" | "left" => this.rvd.partitioner
+      case "outer" | "right" =>
+        this.rvd.partitioner.enlargeToRange(right.rvd.partitioner.range)
+    }
     val repartitionedLeft =
       this.rvd.constrainToOrderedPartitioner(this.typ, newPartitioner)
     val repartitionedRight =
