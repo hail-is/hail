@@ -2491,7 +2491,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeSparse, partFiles),
+        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeBlocks, partFiles),
         os)
     }
 
