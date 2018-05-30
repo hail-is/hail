@@ -452,6 +452,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         })
 
         val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
+        ec.set(0, globalsBc.value)
         resultOp(r)
 
         (f(), t)

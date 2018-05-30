@@ -593,6 +593,11 @@ class TableTests(unittest.TestCase):
         
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
+    def test_issue_3654(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(x = [1,2])
+        self.assertEqual(ht.aggregate(hl.agg.array_sum(ht.x) / [2, 2]), [5.0, 10.0])
+
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
