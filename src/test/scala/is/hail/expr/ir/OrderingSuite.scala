@@ -3,13 +3,11 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
-import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import org.scalatest.testng.TestNGSuite
 
 class OrderingSuite extends TestNGSuite {
 
@@ -146,7 +144,7 @@ class OrderingSuite extends TestNGSuite {
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
       val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal(asc, TBoolean())) }
       val f = getCompiledFunction(irF, TArray(t), TArray(t))
-      val ord = if(asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
+      val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
 
       Region.scoped { region =>
         val actual = f(region, Seq(a))

@@ -36,4 +36,12 @@ object TestUtils {
       ToDict(MakeArray(a.map(toIRPair), TArray(TTuple(TInt32(), TInt32()))))
 
   def IRDict(a: (Integer, Integer)*): IR = toIRDict(a)
+
+  def toIRSet(a: Seq[Integer]): IR =
+    if (a == null)
+      NA(TSet(TInt32()))
+  else
+      ToSet(toIRArray(a))
+
+  def IRSet(a: Integer*): IR = toIRSet(a)
 }

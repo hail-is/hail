@@ -789,13 +789,13 @@ class ExprSuite extends SparkSuite {
       x.get(false) should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String, IndexedSeq[Int]]]("[1].filter(k => false).groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
-    (eval[Map[Int, IndexedSeq[Int]]]("[1].filter(k => false).groupBy(k => k % 2)").get
+    (eval[Map[Int, IndexedSeq[Int]]]("[].groupBy(k => k % 2)").get
       shouldBe empty)
 
-    (eval[Map[Boolean, IndexedSeq[Int]]]("[1].filter(k => false).groupBy(k => k % 2 == 0)").get
+    (eval[Map[Boolean, IndexedSeq[Int]]]("[].groupBy(k => k % 2 == 0)").get
       shouldBe empty)
 
     {
@@ -820,7 +820,7 @@ class ExprSuite extends SparkSuite {
       x.get("odd") should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String, IndexedSeq[Int]]]("[1].filter(k => false).toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
     {

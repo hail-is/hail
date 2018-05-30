@@ -41,7 +41,7 @@ object Children {
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
     case ArraySort(a, ascending) =>
-      Array(a)
+      Array(a, ascending)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
