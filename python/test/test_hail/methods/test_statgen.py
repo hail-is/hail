@@ -1224,26 +1224,7 @@ class Tests(unittest.TestCase):
 
         model.fit()
 
-        from hail.utils.java import info
-        info(str(model.__dict__))
-
-        # check fit (still working out randomness)
-        # expected_gamma = 1.4670314820536234
-        # expected_log_gamma = 0.38324095908983125
-        # expected_beta = np.array([9.46323649, 0.95266717, 1.99121504])
-        # expected_sigma_sq = 2.2165956571916907
-        # expected_tau_sq = 1.510939393126581
-        # expected_h_sq = 0.5946545444294156
-        # 
-        # assert np.isclose(model.optimize_result.x, expected_log_gamma)
-        # assert np.isclose(model.log_gamma, expected_log_gamma)
-        # assert np.isclose(model.gamma, expected_gamma)
-        # assert np.allclose(model.beta, expected_beta)
-        # assert np.isclose(model.sigma_sq, expected_sigma_sq)
-        # assert np.isclose(model.tau_sq, expected_tau_sq)
-        # assert np.isclose(model.h_sq, expected_h_sq)
-
-        # check effect sizes tend to be near 1 for first n_marker augmentations
+        # check effect sizes tend to be near 1 for first n_marker alternative models
         BlockMatrix.from_numpy(PA).T.write(pa_t_path, force_row_major=True)
         df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas().drop(['idx'], axis=1)
 
@@ -1263,8 +1244,8 @@ class Tests(unittest.TestCase):
 
         lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
-        assert lmm_vs_numpy_p_value[10] < 1e-12
-        assert lmm_vs_numpy_p_value[-1] < 1e-8
+        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values
+        assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
 
         # compare LinearMixedModel and LinearMixedRegression
         y_bc = hl.literal(list(y.reshape(n_samples)))
@@ -1300,5 +1281,5 @@ class Tests(unittest.TestCase):
 
         lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
 
-        assert lmm_vs_lmr[10] < 1e-7
-        assert lmm_vs_lmr[-1] < 1e-3
+        assert lmm_vs_lmr[10] < 1e-7  # 10 least p-values
+        assert lmm_vs_lmr[-1] < 2e-3  # all p-values
