@@ -71,6 +71,9 @@ class Tests(unittest.TestCase):
         stat2 = hl.hadoop_stat(path2)
         self.assertEqual(stat2['size_bytes'], 50)
         self.assertEqual(stat2['is_dir'], False)
+        self.assertTrue('path' in stat2)
+        self.assertTrue('owner' in stat2)
+        self.assertTrue('modification_time' in stat2)
 
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -78,6 +81,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(ls1), 1)
         self.assertEqual(ls1[0]['size_bytes'], 50)
         self.assertEqual(ls1[0]['is_dir'], False)
+        self.assertTrue('path' in ls1[0])
+        self.assertTrue('owner' in ls1[0])
+        self.assertTrue('modification_time' in ls1[0])
 
         path2 = resource('ls_test')
         ls2 = hl.hadoop_ls(path2)
@@ -87,6 +93,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(ls2_dict['f_100']['size_bytes'], 100)
         self.assertEqual(ls2_dict['f_100']['is_dir'], False)
         self.assertEqual(ls2_dict['subdir']['is_dir'], True)
+        self.assertTrue('path' in ls2_dict)
+        self.assertTrue('owner' in ls2_dict)
+        self.assertTrue('modification_time' in ls2_dict)
 
     def test_linked_list(self):
         ll = LinkedList(int)

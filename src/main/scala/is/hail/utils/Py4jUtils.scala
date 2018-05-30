@@ -98,7 +98,7 @@ trait Py4jUtils {
       formatDigits(bytes, tera) + "T"
   }
 
-  def formatDigits(n: Long, factor: Int): String = {
+  private def formatDigits(n: Long, factor: Int): String = {
     (n / factor.toDouble).formatted("%.1f")
   }
 
