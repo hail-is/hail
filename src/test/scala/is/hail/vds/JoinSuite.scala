@@ -2,16 +2,14 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations._
-import is.hail.expr.MatrixRowsTable
 import is.hail.expr.types.{TLocus, TStruct}
 import is.hail.table.Table
-import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}
-import is.hail.utils._
 import is.hail.testUtils._
-
-import scala.language.implicitConversions
+import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+
+import scala.language.implicitConversions
 
 class JoinSuite extends SparkSuite {
   @Test def testIterator() {

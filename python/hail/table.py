@@ -1288,15 +1288,14 @@ class Table(ExprContainer):
 
         uid = Env.get_uid()
 
-        key_set = set(self.key)
-        new_schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in key_set})
+        new_schema = self.row_value.dtype
 
         if isinstance(src, Table):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
             is_key = src.key is not None and len(exprs) == len(src.key) and all(
-                expr is src._fields[list(src.key)[i]] for i, expr in enumerate(exprs))
+                expr is key_field for expr, key_field in zip(exprs, self.key.values()))
             is_interval = (len(self.key) == 1
                            and isinstance(self.key[0].dtype, hl.tinterval)
                            and exprs[0].dtype == self.key[0].dtype.point_type)
@@ -1309,14 +1308,20 @@ class Table(ExprContainer):
 
             def joiner(left):
                 if not is_key:
+                    original_key = None if left.key is None else list(left.key)
                     left = Table(left._jt.select(ApplyMethod('annotate',
                                                              left._row._ast,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)).key_by(*uids)
-                if is_interval:
-                    return Table(left._jt.intervalJoin(self._jt, uid))
+                                                             hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)
+                                 ).key_by(*uids)
+                    rekey_f = lambda t: t.key_by(None) if original_key is None else t.key_by(*original_key)
                 else:
-                    right = self.select(**{uid: self.row})
-                    return Table(left._jt.join(right.distinct()._jt, 'left'))
+                    rekey_f = identity
+
+                if is_interval:
+                    left = Table(left._jt.intervalJoin(self._jt, uid))
+                else:
+                    left = Table(left._jt.join(self.select(**{uid: self.row}).distinct()._jt, 'left'))
+                return rekey_f(left)
 
             all_uids.append(uid)
             ast = Join(Select(TopLevelReference('row', src._row_indices), uid),
@@ -1335,9 +1340,9 @@ class Table(ExprContainer):
             elif indices == src._row_indices:
 
                 is_row_key = len(exprs) == len(src.row_key) and all(
-                    exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
+                    expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
                 is_partition_key = len(exprs) == len(src.partition_key) and all(
-                    exprs[i] is src._fields[list(src.partition_key)[i]] for i in range(len(exprs)))
+                    expr is key_field for expr, key_field in zip(exprs, src.partition_key.values()))
 
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
@@ -1372,8 +1377,7 @@ class Table(ExprContainer):
                         vt = vt.key_by(None).drop(*uids)
                         # group by v and index by the key exprs
                         vt = (vt.group_by(*rk_uids)
-                            .aggregate(values=agg.collect(
-                            Struct(**{c: vt[c] for c in vt.row if c not in rk_uids}))))
+                            .aggregate(values=agg.collect(vt.row.drop(*rk_uids))))
                         vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
@@ -1456,20 +1460,9 @@ class Table(ExprContainer):
         return construct_expr(ast, self.globals.dtype)
 
     def _process_joins(self, *exprs):
-        # ordered to support nested joins
-        original_key = list(self.key) if self.key is not None else None
-        broadcast_f = lambda left, data, jt: Table(left._jt.annotateGlobalJSON(data, jt))
-        left, cleanup = process_joins(self, exprs, broadcast_f)
-
-        if left is not self and (original_key is None and left.key is not None
-                                 or original_key is not None and (left.key is None or list(left.key) != original_key)):
-            if original_key is not None:
-                if original_key != list(left.key):
-                    left = left.key_by(*original_key)
-            else:
-                left = left.key_by()
-
-        return left, cleanup
+        def broadcast_f(left, data, jt):
+            return Table(left._jt.annotateGlobalJSON(data, jt))
+        return process_joins(self, exprs, broadcast_f)
 
     def cache(self):
         """Persist this table in memory.

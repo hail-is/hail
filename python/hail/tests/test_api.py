@@ -378,7 +378,6 @@ class TableTests(unittest.TestCase):
     def test_join_with_partition_key_from_mt(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         rows = mt.rows()
-        print('before annotate')
         rows.annotate(foo = rows[rows.key]).take(1)
 
     def test_joins(self):
