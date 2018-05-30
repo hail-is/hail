@@ -1164,7 +1164,7 @@ class Tests(unittest.TestCase):
         from numpy.random import RandomState
         prng = RandomState(seed)
 
-        X = np.hstack((np.ones(shape=(n_samples, 1)),
+        x = np.hstack((np.ones(shape=(n_samples, 1)),
                        prng.normal(size=(n_samples, n_covariates - 1))))
 
         mt = hl.balding_nichols_model(n_populations=n_populations,
@@ -1178,13 +1178,13 @@ class Tests(unittest.TestCase):
 
         BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(), a_t_path)
 
-        A = BlockMatrix.read(a_t_path).T.to_numpy()
-        M = A[:,-n_orig_markers:]
-        G = standardize_cols(M)  # filters constant cols
+        a = BlockMatrix.read(a_t_path).T.to_numpy()
+        g = a[:,-n_orig_markers:]
+        g_std = standardize_cols(g)  # filters constant cols
 
-        n_markers = G.shape[1]
+        n_markers = g_std.shape[1]
 
-        K = (G @ G.T) * n_samples / n_markers
+        k = (g_std @ g_std.T) * n_samples / n_markers
 
         beta = np.arange(n_covariates)
         beta_stars = np.array([1] * n_culprits)
@@ -1192,31 +1192,31 @@ class Tests(unittest.TestCase):
         tau_sq = 1
 
         y = prng.multivariate_normal(
-            np.hstack((A[:,0:n_culprits], X)) @ np.hstack((beta_stars, beta)),
-            sigma_sq * K + tau_sq * np.eye(n_samples))
+            np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
+            sigma_sq * k + tau_sq * np.eye(n_samples))
 
         # low rank computation of S, P
-        L = G.T @ G
-        SL, V = np.linalg.eigh(L)
-        n_eigenvectors = int((SL > 1e-10).sum())
-        SL = SL[-n_eigenvectors:]
-        V = V[:, -n_eigenvectors:]
-        S = SL * (n_samples / n_markers)
-        P = (G @ (V / np.sqrt(SL))).T
+        l = g_std.T @ g_std
+        sl, v = np.linalg.eigh(l)
+        n_eigenvectors = int((sl > 1e-10).sum())
+        sl = sl[-n_eigenvectors:]
+        v = v[:, -n_eigenvectors:]
+        s = sl * (n_samples / n_markers)
+        p = (g_std @ (v / np.sqrt(sl))).T
 
         # compare with full rank S, P
-        SK0, UK = np.linalg.eigh(K)
-        SK = SK0[-n_eigenvectors:]
-        PK = UK[:, -n_eigenvectors:].T
-        assert np.allclose(SK, S)
-        assert np.allclose(np.abs(PK), np.abs(P))
+        sk0, uk = np.linalg.eigh(k)
+        sk = sk0[-n_eigenvectors:]
+        pk = uk[:, -n_eigenvectors:].T
+        assert np.allclose(sk, s)
+        assert np.allclose(np.abs(pk), np.abs(p))
 
         # build and fit model
-        Py = P @ y
-        PX = P @ X
-        PA = P @ A
+        py = p @ y
+        px = p @ x
+        pa = p @ a
 
-        model = hl.LinearMixedModel(Py, PX, S, y, X)
+        model = hl.LinearMixedModel(py, px, s, y, x)
         assert model.n == n_samples
         assert model.f == n_covariates
         assert model.r == n_eigenvectors
@@ -1225,13 +1225,13 @@ class Tests(unittest.TestCase):
         model.fit()
 
         # check effect sizes tend to be near 1 for first n_marker alternative models
-        BlockMatrix.from_numpy(PA).T.write(pa_t_path, force_row_major=True)
+        BlockMatrix.from_numpy(pa).T.write(pa_t_path, force_row_major=True)
         df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas().drop(['idx'], axis=1)
 
         assert 0.9 < np.mean(df_lmm['beta'][:n_culprits]) < 1.1
 
         # compare NumPy and Hail LMM per alternative
-        df_numpy = model.fit_alternatives_numpy(PA, A)
+        df_numpy = model.fit_alternatives_numpy(pa, a)
 
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)
@@ -1249,8 +1249,8 @@ class Tests(unittest.TestCase):
 
         # compare LinearMixedModel and LinearMixedRegression
         y_bc = hl.literal(list(y.reshape(n_samples)))
-        cov1_bc = hl.literal(list(X[:, 1]))
-        cov2_bc = hl.literal(list(X[:, 2]))
+        cov1_bc = hl.literal(list(x[:, 1]))
+        cov2_bc = hl.literal(list(x[:, 2]))
 
         mt = mt.annotate_cols(y = y_bc[mt.sample_idx],
                               cov1 = cov1_bc[mt.sample_idx],
