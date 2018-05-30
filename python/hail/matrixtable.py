@@ -18,8 +18,9 @@ from hail.utils.misc import *
 class GroupedMatrixTable(ExprContainer):
     """Matrix table grouped by row or column that can be aggregated into a new matrix table.
 
-    There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
-    and :meth:`.GroupedMatrixTable.aggregate`.
+    The main operation on a grouped matrix table is :meth:`.GroupedMatrixTable.aggregate`.
+
+    A grouped matrix table with a non-trivial grouping cannot be grouped again.
     """
 
     def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None):
@@ -333,7 +334,7 @@ class GroupedMatrixTable(ExprContainer):
             pk = {k: self._row_keys[k] for k in self._partition_key}
             rest_of_key = {k: self._row_keys[k] for k in self._row_keys.keys() if k not in self._partition_key}
             base = MatrixTable(
-                base._key_rows_by("GroupedMatrixTable.group_rows_by", pk, rest_of_key)
+                base._key_rows_by("GroupedMatrixTable.aggregate", pk, rest_of_key)
                 ._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
