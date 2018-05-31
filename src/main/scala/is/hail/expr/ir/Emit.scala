@@ -744,12 +744,12 @@ private class Emit(
           vstart := coerce[Int](cstart.v),
           vend := coerce[Int](cend.v),
           vlen := TString.loadLength(region, vs),
-          ((vstart < 0) || (vstart > vlen) ||
-            (vend < vstart) || (vend > vlen)).mux(
+          ((vstart < 0) || (vstart.ceq(vlen)) ||
+            (vstart > vend) || (vend > vlen)).mux(
             Code._fatal(
-              const("string slice out of bounds or invalid: ")
+              const("string slice out of bounds or invalid: \"")
                 .concat(TString.loadString(region, vs))
-                .concat("[")
+                .concat("\"[")
                 .concat(vstart.toS)
                 .concat(":")
                 .concat(vend.toS)

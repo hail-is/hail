@@ -293,9 +293,28 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
   }
 
+  @Test def stringSliceOutOfBoundsFatals() {
+    assertEvalThrows(StringSlice(Str("abc"), I32(4), I32(4)),
+      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
+    assertEvalThrows(StringSlice(Str("abc"), I32(3), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
+    assertEvalThrows(StringSlice(Str("abc"), I32(-1), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
+    assertEvalThrows(StringSlice(Str("abc"), I32(-1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
+    assertEvalThrows(StringSlice(Str("abc"), I32(1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
+    assertEvalThrows(StringSlice(Str("abc"), I32(3), I32(3)),
+      "string slice out of bounds or invalid: \"abc\"\\[3:3\\]")
+  }
+
+  @Test def stringSliceSimpleSlices() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(3)), "bc")
+    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(3)), "c")
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(2)), "ab")
+  }
+
   @Test def stringSliceItoIIsEmptyString() {
-    // should check for error
-    assertEvalsTo(StringSlice(Str("abc"), I32(3), I32(3)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(1)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
@@ -308,5 +327,10 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(
       StringSlice(Str("foobarbaz"), I32(3), I32(5)),
       "foobarbaz".substring(3, 5))
+  }
+
+  @Test def stringSliceIsStrict() {
+    assertEvalsTo(StringSlice(NA(TString()), I32(0), I32(2)), null)
+    assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
   }
 }

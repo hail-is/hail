@@ -242,8 +242,8 @@ final class Region(
     start: Int,
     n: Int
   ): Long = {
-    assert(fromOff + end <= fromRegion.size)
-    assert(end - start > 0)
+    assert(fromOff + start + n <= fromRegion.size)
+    assert(n >= 0)
     val off = allocate(end - start)
     copyFrom(fromRegion, fromOff + start, off, n)
     off
