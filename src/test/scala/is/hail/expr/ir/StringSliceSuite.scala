@@ -12,17 +12,17 @@ class StringSliceSuite extends TestNGSuite {
   }
 
   @Test def outOfBoundsFatals() {
-    assertThrows[HailException](StringSlice(Str("abc"), I32(4), I32(4)),
+    assertFatal(StringSlice(Str("abc"), I32(4), I32(4)),
       "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
-    assertThrows[HailException](StringSlice(Str("abc"), I32(3), I32(2)),
+    assertFatal(StringSlice(Str("abc"), I32(3), I32(2)),
       "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
-    assertThrows[HailException](StringSlice(Str("abc"), I32(-1), I32(2)),
+    assertFatal(StringSlice(Str("abc"), I32(-1), I32(2)),
       "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
-    assertThrows[HailException](StringSlice(Str("abc"), I32(-1), I32(-1)),
+    assertFatal(StringSlice(Str("abc"), I32(-1), I32(-1)),
       "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
-    assertThrows[HailException](StringSlice(Str("abc"), I32(1), I32(-1)),
+    assertFatal(StringSlice(Str("abc"), I32(1), I32(-1)),
       "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
-    assertThrows[HailException](StringSlice(Str("abc"), I32(3), I32(3)),
+    assertFatal(StringSlice(Str("abc"), I32(3), I32(3)),
       "string slice out of bounds or invalid: \"abc\"\\[3:3\\]")
   }
 

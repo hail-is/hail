@@ -219,7 +219,7 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ArrayFilter(a, "x", False()), FastIndexedSeq())
     assertEvalsTo(ArrayFilter(a, "x", True()), FastIndexedSeq(3, null, 7))
 
-p    assertEvalsTo(ArrayFilter(a, "x",
+    assertEvalsTo(ArrayFilter(a, "x",
       IsNA(Ref("x", TInt32()))), FastIndexedSeq(null))
     assertEvalsTo(ArrayFilter(a, "x",
       ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
