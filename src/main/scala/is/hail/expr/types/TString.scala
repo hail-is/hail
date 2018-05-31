@@ -49,7 +49,8 @@ object TString {
 
   def loadString(region: Code[Region], boff: Code[Long]): Code[String] = {
     val length = TBinary.loadLength(region, boff)
-    new String(region.loadBytes(TBinary.bytesOffset(boff), length))
+    Code.newInstance[String, Array[Byte]](
+      region.loadBytes(TBinary.bytesOffset(boff), length))
   }
 
   def loadLength(region: Region, boff: Long): Int =

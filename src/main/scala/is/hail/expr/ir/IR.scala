@@ -143,11 +143,11 @@ final case class GetField(o: IR, name: String) extends InferIR
 final case class MakeTuple(types: Seq[IR]) extends InferIR
 final case class GetTupleElement(o: IR, idx: Int) extends InferIR
 
-final case class StringSlice(s: IR, start: IR, n: IR) extends IR {
-  val typ = TString
+final case class StringSlice(s: IR, start: IR, end: IR) extends IR {
+  val typ = TString()
 }
 final case class StringLength(s: IR) extends IR {
-  val typ = TInt32
+  val typ = TInt32()
 }
 
 final case class In(i: Int, typ: Type) extends IR

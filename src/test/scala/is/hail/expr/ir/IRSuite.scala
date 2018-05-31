@@ -274,8 +274,15 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(StringLength(Str("")), 0)
   }
 
-  @Test def stringLengthEmojiIsSizeOne() {
-    assertEvalsTo(StringLength(Str("💩")), 1)
+  @Test def stringLengthOfPoopEmojiIsSizeTwo() {
+    // poop is wayyy out of the basic multilingual plane (BMP), so its encoded
+    // with two UTF-16 code points. Behold, poop hex:
+    //
+    // NB: hail treats strings as arrays of 8 bit characters, so the poop emoji
+    // has length 4
+    val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
+    assertEvalsTo(StringLength(Str(poopEmoji)), 4)
+    assertEvalsTo(StringLength(Str(poopEmoji + poopEmoji)), 8)
   }
 
   @Test def stringLengthNAIsNA() {
@@ -287,8 +294,10 @@ class IRSuite extends TestNGSuite {
   }
 
   @Test def stringSliceItoIIsEmptyString() {
+    // should check for error
     assertEvalsTo(StringSlice(Str("abc"), I32(3), I32(3)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
+    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(1)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
   }
 
@@ -299,9 +308,5 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(
       StringSlice(Str("foobarbaz"), I32(3), I32(5)),
       "foobarbaz".substring(3, 5))
-  }
-
-  @Test def stringSliceEmoji() {
-    assertEvalsTo(StringSlice(Str("💩"), I32(0), I32(1)), "💩")
   }
 }
