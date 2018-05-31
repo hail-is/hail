@@ -1,0 +1,54 @@
+package is.hail.expr.ir
+
+import is.hail.utils._
+import is.hail.TestUtils._
+import is.hail.expr.types._
+import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
+
+class StringSliceSuite extends TestNGSuite {
+  @Test def zeroToLengthIsIdentity() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
+  }
+
+  @Test def outOfBoundsFatals() {
+    assertThrows[HailException](StringSlice(Str("abc"), I32(4), I32(4)),
+      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
+    assertThrows[HailException](StringSlice(Str("abc"), I32(3), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
+    assertThrows[HailException](StringSlice(Str("abc"), I32(-1), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
+    assertThrows[HailException](StringSlice(Str("abc"), I32(-1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
+    assertThrows[HailException](StringSlice(Str("abc"), I32(1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
+    assertThrows[HailException](StringSlice(Str("abc"), I32(3), I32(3)),
+      "string slice out of bounds or invalid: \"abc\"\\[3:3\\]")
+  }
+
+  @Test def simpleSlicesMatchIntuition() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(3)), "bc")
+    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(3)), "c")
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(2)), "ab")
+  }
+
+  @Test def sizeZeroSliceIsEmptyString() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
+    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(1)), "")
+    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
+  }
+
+  @Test def sliceMatchesJavaStringSubstring() {
+    assertEvalsTo(
+      StringSlice(Str("abc"), I32(0), I32(2)),
+      "abc".substring(0, 2))
+    assertEvalsTo(
+      StringSlice(Str("foobarbaz"), I32(3), I32(5)),
+      "foobarbaz".substring(3, 5))
+  }
+
+  @Test def isStrict() {
+    assertEvalsTo(StringSlice(NA(TString()), I32(0), I32(2)), null)
+    assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
+  }
+}

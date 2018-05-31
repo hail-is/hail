@@ -9,7 +9,6 @@ import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
 class IRSuite extends TestNGSuite {
-
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
@@ -220,7 +219,7 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ArrayFilter(a, "x", False()), FastIndexedSeq())
     assertEvalsTo(ArrayFilter(a, "x", True()), FastIndexedSeq(3, null, 7))
 
-    assertEvalsTo(ArrayFilter(a, "x",
+p    assertEvalsTo(ArrayFilter(a, "x",
       IsNA(Ref("x", TInt32()))), FastIndexedSeq(null))
     assertEvalsTo(ArrayFilter(a, "x",
       ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32())))), FastIndexedSeq(3, 7))
@@ -268,69 +267,5 @@ class IRSuite extends TestNGSuite {
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
-=======
-  @Test def stringLengthIsLength() {
-    assertEvalsTo(StringLength(Str("abc")), 3)
-    assertEvalsTo(StringLength(Str("")), 0)
-  }
-
-  @Test def stringLengthOfPoopEmojiIsSizeTwo() {
-    // poop is wayyy out of the basic multilingual plane (BMP), so its encoded
-    // with two UTF-16 code points. Behold, poop hex:
-    //
-    // NB: hail treats strings as arrays of 8 bit characters, so the poop emoji
-    // has length 4
-    val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
-    assertEvalsTo(StringLength(Str(poopEmoji)), 4)
-    assertEvalsTo(StringLength(Str(poopEmoji + poopEmoji)), 8)
-  }
-
-  @Test def stringLengthNAIsNA() {
-    assertEvalsTo(StringLength(NA(TString())), null)
-  }
-
-  @Test def stringSliceWholeThingIsSame() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
-  }
-
-  @Test def stringSliceOutOfBoundsFatals() {
-    assertEvalThrows(StringSlice(Str("abc"), I32(4), I32(4)),
-      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
-    assertEvalThrows(StringSlice(Str("abc"), I32(3), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
-    assertEvalThrows(StringSlice(Str("abc"), I32(-1), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
-    assertEvalThrows(StringSlice(Str("abc"), I32(-1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
-    assertEvalThrows(StringSlice(Str("abc"), I32(1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
-    assertEvalThrows(StringSlice(Str("abc"), I32(3), I32(3)),
-      "string slice out of bounds or invalid: \"abc\"\\[3:3\\]")
-  }
-
-  @Test def stringSliceSimpleSlices() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(3)), "bc")
-    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(3)), "c")
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(2)), "ab")
-  }
-
-  @Test def stringSliceItoIIsEmptyString() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
-    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(1)), "")
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
-  }
-
-  @Test def stringSliceSameAsJavaSubstring() {
-    assertEvalsTo(
-      StringSlice(Str("abc"), I32(0), I32(2)),
-      "abc".substring(0, 2))
-    assertEvalsTo(
-      StringSlice(Str("foobarbaz"), I32(3), I32(5)),
-      "foobarbaz".substring(3, 5))
-  }
-
-  @Test def stringSliceIsStrict() {
-    assertEvalsTo(StringSlice(NA(TString()), I32(0), I32(2)), null)
-    assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
   }
 }
