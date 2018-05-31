@@ -786,14 +786,16 @@ def grep(regex, path, max_count=100):
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           tolerance=numeric)
+           tolerance=numeric,
+           skip_invalid_loci=bool)
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 min_partitions=None,
                 reference_genome='default',
                 contig_recoding=None,
-                tolerance=0.2) -> MatrixTable:
+                tolerance=0.2,
+                skip_invalid_loci=False) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -896,6 +898,8 @@ def import_bgen(path,
     tolerance : :obj:`float`
         If the sum of the probabilities for an entry differ from 1.0 by more
         than the tolerance, set the entry to missing. Only applicable to v1.1.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     Returns
     -------
@@ -917,7 +921,8 @@ def import_bgen(path,
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    joption(min_partitions), joption(rg), joption(contig_recoding), tolerance)
+                                    joption(min_partitions), joption(rg), joption(contig_recoding),
+                                    tolerance, skip_invalid_loci)
     return MatrixTable(jmt)
 
 
@@ -927,14 +932,16 @@ def import_bgen(path,
            min_partitions=nullable(int),
            chromosome=nullable(str),
            reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)))
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
 def import_gen(path,
                sample_file=None,
                tolerance=0.2,
                min_partitions=None,
                chromosome=None,
                reference_genome='default',
-               contig_recoding=None) -> MatrixTable:
+               contig_recoding=None,
+               skip_invalid_loci=False) -> MatrixTable:
     """
     Import GEN file(s) as a :class:`.MatrixTable`.
 
@@ -1010,6 +1017,8 @@ def import_gen(path,
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     Returns
     -------
@@ -1022,7 +1031,8 @@ def import_gen(path,
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, joption(rg), joption(contig_recoding))
+                                   tolerance, joption(rg), joption(contig_recoding),
+                                   skip_invalid_loci)
     return MatrixTable(jmt)
 
 
@@ -1417,7 +1427,8 @@ def import_matrix_table(paths,
            quant_pheno=bool,
            a2_reference=bool,
            reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)))
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
 def import_plink(bed, bim, fam,
                  min_partitions=None,
                  delimiter='\\\\s+',
@@ -1428,7 +1439,8 @@ def import_plink(bed, bim, fam,
                  contig_recoding={'23': 'X',
                                   '24': 'Y',
                                   '25': 'X',
-                                  '26': 'MT'}) -> MatrixTable:
+                                  '26': 'MT'},
+                 skip_invalid_loci=False) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -1512,10 +1524,10 @@ def import_plink(bed, bim, fam,
         FAM file field delimiter regex.
 
     quant_pheno : :obj:`bool`
-        If true, FAM phenotype is interpreted as quantitative.
+        If ``True``, FAM phenotype is interpreted as quantitative.
 
     a2_reference : :obj:`bool`
-        If True, A2 is treated as the reference allele. If False, A1 is treated
+        If ``True``, A2 is treated as the reference allele. If False, A1 is treated
         as the reference allele.
 
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
@@ -1524,6 +1536,9 @@ def import_plink(bed, bim, fam,
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by ``reference_genome``.
+
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     Returns
     -------
@@ -1539,7 +1554,8 @@ def import_plink(bed, bim, fam,
     jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
                                     delimiter, missing, quant_pheno,
                                     a2_reference, joption(rg),
-                                    joption(contig_recoding))
+                                    joption(contig_recoding),
+                                    skip_invalid_loci)
 
     return MatrixTable(jmt)
 
@@ -1629,7 +1645,8 @@ def get_vcf_metadata(path):
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           array_elements_required=bool)
+           array_elements_required=bool,
+           skip_invalid_loci=bool)
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -1639,7 +1656,8 @@ def import_vcf(path,
                call_fields=[],
                reference_genome='default',
                contig_recoding=None,
-               array_elements_required=True) -> MatrixTable:
+               array_elements_required=True,
+               skip_invalid_loci=False) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1753,6 +1771,8 @@ def import_vcf(path,
         missing. However, in the case of a single missing element ``.``, the
         entire field will be missing and **not** an array with one missing 
         element.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     Returns
     -------
@@ -1766,7 +1786,8 @@ def import_vcf(path,
 
     jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                    joption(min_partitions), drop_samples, jset_args(call_fields),
-                                   joption(rg), joption(contig_recoding), array_elements_required)
+                                   joption(rg), joption(contig_recoding), array_elements_required,
+                                   skip_invalid_loci)
 
     return MatrixTable(jmt)
 

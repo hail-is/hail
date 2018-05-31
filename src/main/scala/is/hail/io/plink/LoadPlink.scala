@@ -116,7 +116,8 @@ object LoadPlink {
     variants: Array[(String, Int, Double, String, String, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference)): MatrixTable = {
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    skipInvalidLoci: Boolean = false): MatrixTable = {
 
     val sc = hc.sc
     val nSamples = sampleAnnotations.length
@@ -153,20 +154,24 @@ object LoadPlink {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
-        val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
+      it.flatMap { case (_, record) =>
+        val (contig, pos, _, ref, alt, _) = variantsBc.value(record.getKey)
 
-        rvb.start(kType)
-        rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
-        rvb.startArray(2)
-        rvb.addString(ref)
-        rvb.addString(alt)
-        rvb.endArray()
-        rvb.endStruct()
+        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contig, pos)))
+          None
+        else {
+          rvb.start(kType)
+          rvb.startStruct()
+          rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
+          rvb.startArray(2)
+          rvb.addString(ref)
+          rvb.addString(alt)
+          rvb.endArray()
+          rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+          rv.setOffset(rvb.end())
+          Some(rv)
+        }
       }
     }
 
@@ -175,23 +180,27 @@ object LoadPlink {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
+      it.flatMap { case (_, record) =>
         val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
 
-        rvb.start(rvRowType)
-        rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
-        rvb.startArray(2)
-        rvb.addString(ref)
-        rvb.addString(alt)
-        rvb.endArray()
-        rvb.addAnnotation(rvRowType.types(2), rsid)
-        rvb.addDouble(cmPos)
-        record.getValue(rvb)
-        rvb.endStruct()
+        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contig, pos)))
+          None
+        else {
+          rvb.start(rvRowType)
+          rvb.startStruct()
+          rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
+          rvb.startArray(2)
+          rvb.addString(ref)
+          rvb.addString(alt)
+          rvb.endArray()
+          rvb.addAnnotation(rvRowType.types(2), rsid)
+          rvb.addDouble(cmPos)
+          record.getValue(rvb)
+          rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+          rv.setOffset(rvb.end())
+          Some(rv)
+        }
       }
     }
 
@@ -203,7 +212,7 @@ object LoadPlink {
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
     nPartitions: Option[Int] = None, a2Reference: Boolean = true, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
+    contigRecoding: Map[String, String] = Map.empty[String, String], skipInvalidLoci: Boolean = false): MatrixTable = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
 
     val nameMap = Map("id" -> "s")
@@ -240,8 +249,11 @@ object LoadPlink {
     if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
       fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
-    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, rg)
+    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, rg, skipInvalidLoci)
+    if (skipInvalidLoci && rg.isDefined && vds.countRows() != nVariants) {
+      val nFiltered = nVariants - vds.countRows()
+      info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ rg.get.name }'.")
+    }
     vds
   }
-
 }
