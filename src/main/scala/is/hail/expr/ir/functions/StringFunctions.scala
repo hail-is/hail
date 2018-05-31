@@ -58,15 +58,42 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerIR("[:]", TString())(_)
+    registerIR("[:]", TString())(x => x)
     registerIR("[*:]", TString(), TInt32()) { (s, start) =>
-      ir.StringSlice(s, start, ir.StringLength(s))
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.StringSlice(
+          s,
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
+            ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+            start),
+          len))
     }
     registerIR("[:*]", TString(), TInt32()) { (s, end) =>
-      ir.StringSlice(s, ir.I32(0), end)
+      ir.StringSlice(
+        s,
+        ir.I32(0),
+        ir.If(
+          ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+          ir.ApplyBinaryPrimOp(ir.Add(), ir.StringLength(s), end),
+          end))
     }
     registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
-      ir.StringSlice(s, start, end)
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.StringSlice(
+        s,
+        ir.If(
+          ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
+          ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+          start),
+        ir.If(
+          ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+          ir.ApplyBinaryPrimOp(ir.Add(), len, end),
+          end)))
     }
 
     registerIR("len", TString()) { (s) =>

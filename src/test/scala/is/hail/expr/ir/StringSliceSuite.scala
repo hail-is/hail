@@ -51,4 +51,41 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(StringSlice(NA(TString()), I32(0), I32(2)), null)
     assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
   }
+
+  @Test def sliceCopyIsID() {
+    assertEvalsTo(invoke("[:]", Str("abc")), "abc")
+  }
+
+  @Test def leftSliceMatchesIntuition() {
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(2)), "c")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(1)), "bc")
+  }
+
+  @Test def rightSliceMatchesIntuition() {
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(2)), "ab")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(1)), "a")
+  }
+
+  @Test def bothSideSliceMatchesIntuition() {
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(0), I32(2)), "ab")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(1), I32(3)), "bc")
+  }
+
+  @Test def leftSliceIsPythony() {
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(-1)), "c")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(-2)), "bc")
+  }
+
+  @Test def rightSliceIsPythony() {
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(-1)), "ab")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(-2)), "a")
+  }
+
+  @Test def sliceIsPythony() {
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-3), I32(-1)), "ab")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-3), I32(-2)), "a")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-2), I32(-1)), "b")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-2), I32(-2)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-3), I32(-3)), "")
+  }
 }

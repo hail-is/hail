@@ -25,4 +25,9 @@ class StringLengthSuite extends TestNGSuite {
   @Test def isStrict() {
     assertEvalsTo(StringLength(NA(TString())), null)
   }
+
+  @Test def funRegistryLenWorks() {
+    assertEvalsTo(invoke("len", NA(TString())), null)
+    assertEvalsTo(invoke("len", Str("abc")), 3)
+  }
 }
