@@ -10,7 +10,7 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str, maximal_independent_set
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str, maximal_independent_set
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -2893,7 +2893,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
     max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
 
     sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
-        require_biallelic(mt, 'ld_prune')._jvds, call_field, float(r2), bp_window_size, max_queue_size))
+        mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
 
     return sites_only_table
 
@@ -2920,8 +2920,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     (mean-imputed) number of alternate alleles. In particular, even if present,
     **phase information is ignored**.
 
-    The method prunes variants in linkage disequilibirum in two stages.
-    
+    The method prunes variants in linkage disequilibrium in two stages.
+
     The first (local) stage prunes correlated variants within each partition,
     using a local variant queue whose size is determined by `memory_per_core`.
     A larger queue may facilitate more local pruning in this stage.
@@ -2950,6 +2950,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     """
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
+
+    mt = require_row_key_variant(mt, 'ld_prune')
+    mt = require_partition_key_locus(mt, 'ld_prune')
+    mt = require_biallelic(mt, 'ld_prune')
 
     #  FIXME: remove once select_entries on a field is free
     if call_expr in mt._fields_inverse:
@@ -2984,20 +2988,20 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
 
     # BlockMatrix.from_entry_expr writes to disk
     block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=1024)
-    correlation_matrix = (block_matrix @ (block_matrix.T))
+    correlation_matrix = (block_matrix @ block_matrix.T)
 
     locally_pruned_rows = locally_pruned_ds.rows()
     locally_pruned_rows = locally_pruned_rows.key_by(contig=locally_pruned_rows.locus.contig)
     locally_pruned_rows = locally_pruned_rows.select(pos=locally_pruned_rows.locus.position)
     entries = correlation_matrix._filtered_entries_table(locally_pruned_rows, bp_window_size, False)
 
-    entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i != entries.j) & (entries.i < entries.j))
+    entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
 
     index_table = sites_only_table.add_index().key_by('idx').select('locus')
     entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
     entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
-                             & ((hl.abs(entries.locus_i.position - entries.locus_j.position)) <= bp_window_size))
+                             & (entries.locus_j.position - entries.locus_i.position <= bp_window_size))
 
     entries_path = new_temp_file()
     entries.write(entries_path, overwrite=True)
