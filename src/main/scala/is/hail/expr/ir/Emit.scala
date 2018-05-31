@@ -321,9 +321,11 @@ private class Emit(
             region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
             Code._fatal(
               const("array index out of bounds: ")
-                .invoke[String, String]("concat", xi.load().toS)
-                .invoke[String, String]("concat", " / ")
-                .invoke[String, String]("concat", len.load().toS)
+                .concat(xi.load().toS)
+                .concat(" / ")
+                .concat(len.load().toS)
+                .concat(". IR: ")
+                .concat(Pretty(x))
             ))))
       case ArrayLen(a) =>
         val codeA = emit(a)
