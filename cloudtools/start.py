@@ -69,6 +69,7 @@ def init_parser(parser):
                         help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
     parser.add_argument('--packages', '--pkgs', default='',
                         help='Comma-separated list of Python packages to be installed on the master node.')
+    parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
 
     # specify custom Hail jar and zip
     parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
@@ -174,7 +175,7 @@ def main(args):
 
     # command to start cluster
     cmd = [
-        'gcloud', 
+        'gcloud',
         'dataproc', 
         'clusters', 
         'create',
@@ -194,6 +195,10 @@ def main(args):
         '--properties={}'.format(",".join(properties)),
         '--initialization-actions={}'.format(','.join(init_actions))
     ]
+
+    if args.max_idle:
+        cmd.insert(1, 'beta')
+        cmd.append('--max-idle={}'.format(args.max_idle))
 
     # print underlying gcloud command
     print('gcloud command:')
