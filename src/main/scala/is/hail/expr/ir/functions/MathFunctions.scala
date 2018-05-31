@@ -46,6 +46,8 @@ object MathFunctions extends RegistryFunctions {
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
+  def isnan(f: Float): Boolean = f.isNaN
+
   def isnan(d: Double): Boolean = d.isNaN
 
   def pcoin(p: Double): Boolean = math.random < p
@@ -137,8 +139,12 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
     registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
+    registerScalaFunction("isnan", TFloat32(), TBoolean())(thisClass, "isnan")
     registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
 
+    registerScalaFunction("signum", TFloat32(), TBoolean())(jMathClass, "signum")
+    registerScalaFunction("signum", TFloat64(), TBoolean())(jMathClass, "signum")
+    
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
       EmitTriplet(
         Code(l.setup, r.setup),
