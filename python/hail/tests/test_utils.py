@@ -93,8 +93,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(ls2_dict['f_100']['size_bytes'], 100)
         self.assertEqual(ls2_dict['f_100']['is_dir'], False)
         self.assertEqual(ls2_dict['subdir']['is_dir'], True)
-        self.assertTrue('owner' in ls2_dict)
-        self.assertTrue('modification_time' in ls2_dict)
+        self.assertTrue('owner' in ls2_dict['f_50'])
+        self.assertTrue('modification_time' in ls2_dict['f_50'])
 
     def test_linked_list(self):
         ll = LinkedList(int)
