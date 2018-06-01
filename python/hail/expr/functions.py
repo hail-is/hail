@@ -2723,12 +2723,12 @@ def min(*exprs) -> NumericExpression:
 
         Take the minimum value of an array:
 
-        >>> hl.eval_expr(hl.max([2, 3, 5, 6, 7, 9]))
+        >>> hl.eval_expr(hl.min([2, 3, 5, 6, 7, 9]))
         2
 
         Take the minimum value:
 
-        >>> hl.eval_expr(hl.max(12, 50, 2))
+        >>> hl.eval_expr(hl.min(12, 50, 2))
         2
 
     Notes
