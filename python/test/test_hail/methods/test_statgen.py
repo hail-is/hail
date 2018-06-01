@@ -1226,12 +1226,12 @@ class Tests(unittest.TestCase):
 
         # check effect sizes tend to be near 1 for first n_marker alternative models
         BlockMatrix.from_numpy(pa).T.write(pa_t_path, force_row_major=True)
-        df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas().drop(['idx'], axis=1)
+        df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas()
 
         assert 0.9 < np.mean(df_lmm['beta'][:n_culprits]) < 1.1
 
         # compare NumPy and Hail LMM per alternative
-        df_numpy = model.fit_alternatives_numpy(pa, a)
+        df_numpy = model.fit_alternatives_numpy(pa, a).to_pandas()
 
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)
@@ -1264,7 +1264,7 @@ class Tests(unittest.TestCase):
                                             [mt.cov1, mt.cov2],
                                             n_eigenvectors=n_eigenvectors)
 
-        delta = mt_lmr.lmmreg_global.delta.collect()[0]
+        delta = mt_lmr.lmmreg_global.delta.value
         assert np.isclose(delta, 1 / model.gamma)
 
         ht_lmr = mt_lmr.rows()

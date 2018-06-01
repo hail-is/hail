@@ -1,7 +1,9 @@
 import numpy as np
+import pandas as pd
 from hail.utils.misc import plural
 from hail.typecheck import *
 from hail.utils.java import Env, jnone, jsome
+from hail.table import Table
 
 
 class LinearMixedModel(object):
@@ -552,7 +554,9 @@ class LinearMixedModel(object):
     def fit_alternatives_numpy(self, pa, a=None):
         r"""Fit and test alternative model for each augmented design matrix.
 
-        The resulting pandas DataFrame has the following fields.
+        Notes
+        -----
+        The resulting table has the following fields:
 
         .. list-table::
           :header-rows: 1
@@ -560,17 +564,20 @@ class LinearMixedModel(object):
           * - Field
             - Type
             - Value
+          * - `idx`
+            - int64
+            - Index of augmented design matrix.
           * - `beta`
-            - float
+            - float64
             - :math:`\beta_\star`
           * - `sigma_sq`
-            - float
+            - float64
             - :math:`\sigma^2`
           * - `chi_sq`
-            - float
+            - float64
             - :math:`\chi^2`
           * - `p_value`
-            - float
+            - float64
             - p-value
 
         Parameters
@@ -585,11 +592,9 @@ class LinearMixedModel(object):
 
         Returns
         -------
-        :class:`pandas.DataFrame`
-            Data frame of results for each augmented design matrix.
+        :class:`.Table`
+            Table of results for each augmented design matrix.
         """
-        import pandas as pd
-
         self._check_dof(self.f + 1)
 
         if not self._fitted:
@@ -600,11 +605,13 @@ class LinearMixedModel(object):
 
         if self.low_rank:
             assert a.shape[0] == self.n and a.shape[1] == n_cols
-            data = [self._fit_alternative_numpy(pa[:, i], a[:, i]) for i in range(n_cols)]
+            data = [(i,) + self._fit_alternative_numpy(pa[:, i], a[:, i]) for i in range(n_cols)]
         else:
-            data = [self._fit_alternative_numpy(pa[:, i], None) for i in range(n_cols)]
+            data = [(i,) + self._fit_alternative_numpy(pa[:, i], None) for i in range(n_cols)]
 
-        return pd.DataFrame.from_records(data, columns=['beta', 'sigma_sq', 'chi_sq', 'p_value'])
+        df = pd.DataFrame.from_records(data, columns=['idx', 'beta', 'sigma_sq', 'chi_sq', 'p_value'])
+
+        return Table.from_pandas(df, key='idx')
 
     def _fit_alternative_numpy(self, pa, a):
         from scipy.linalg import solve, LinAlgError
