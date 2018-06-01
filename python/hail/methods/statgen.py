@@ -2901,8 +2901,9 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 @typecheck(call_expr=expr_call,
            r2=numeric,
            bp_window_size=int,
-           memory_per_core=int)
-def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
+           memory_per_core=int,
+           block_size=nullable(int))
+def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, block_size=None):
     """Returns a maximal subset of nearly-uncorrelated variants.
 
     .. include:: ../_templates/req_diploid_gt.rst
@@ -2942,12 +2943,22 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
         Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
         Memory in MB per core for local pruning queue.
+    block_size: :obj:`int`, optional
+        Block size for block matrices in the global stage. Default given by
+        :meth:`.BlockMatrix.default_block_size`. When writing the block matrix
+        of locally-pruned calls, the number of tasks (parallelism) is the number
+        of block rows (``n_variants / block_size``) and the number of open files
+        (blocks written) per task is the number of block columns
+        (``n_samples / block_size``).
 
     Returns
     -------
     :class:`.Table`
         Table of a maximal independent set of variants.
     """
+    if block_size is None:
+        block_size = BlockMatrix.default_block_size()
+    
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
@@ -2986,8 +2997,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
                 * locally_pruned_ds.centered_length_sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk
-    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
-    correlation_matrix = (block_matrix @ block_matrix.T)
+    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size)
+    correlation_matrix = block_matrix @ block_matrix.T
 
     locally_pruned_rows = locally_pruned_ds.rows()
     locally_pruned_rows = locally_pruned_rows.key_by(contig=locally_pruned_rows.locus.contig)
