@@ -12,6 +12,9 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseBoolean(s: String): Boolean = s.toBoolean
 
+  def min(a: IR, b: IR): IR = If(ApplyComparisonOp(LT(a.typ), a, b), a, b)
+  def max(a: IR, b: IR): IR = If(ApplyComparisonOp(GT(a.typ), a, b), a, b)
+
   def registerAll() {
     val thisClass = getClass
 
@@ -63,7 +66,7 @@ object UtilFunctions extends RegistryFunctions {
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
-    registerIR("min", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(LT(a.typ), a, b), a, b) }
-    registerIR("max", tv("T"), tv("T")) { case (a, b) => If(ApplyComparisonOp(GT(a.typ), a, b), a, b) }
+    registerIR("min", tv("T"), tv("T"))(min)
+    registerIR("max", tv("T"), tv("T"))(max)
   }
 }

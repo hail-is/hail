@@ -83,9 +83,11 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@ArraySort(a) =>
+      case x@ArraySort(a, ascending) =>
         check(a)
+        check(ascending)
         assert(a.typ.isInstanceOf[TArray])
+        assert(ascending.typ.isOfType(TBoolean()))
       case x@ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])

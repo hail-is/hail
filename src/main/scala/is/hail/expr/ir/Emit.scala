@@ -317,7 +317,7 @@ private class Emit(
 
         EmitTriplet(setup, xmv, Code(
           len := tarray.loadLength(region, xa),
-          (xi < len).mux(
+          (xi < len && xi >= 0).mux(
             region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
             Code._fatal(
               const("array index out of bounds: ")
@@ -331,24 +331,37 @@ private class Emit(
         val codeA = emit(a)
         strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
-      case _: ArraySort | _: ToSet | _: ToDict =>
-        val a = ir.children(0).asInstanceOf[IR]
+      case x@(_: ArraySort | _: ToSet | _: ToDict) =>
+        val (a, ascending: IR, keyOnly) = x match {
+          case ArraySort(a, ascending) => (a, ascending, false)
+          case ToSet(a) => (a, True(), false)
+          case ToDict(a) => (a, True(), true)
+        }
         val atyp = coerce[TContainer](ir.typ)
+
+        val xAsc = mb.newLocal[Boolean]()
+        val codeAsc = emit(ascending)
 
         val aout = emitArrayIterator(a)
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val sorter = new ArraySorter(mb, vab, keyOnly = ir.isInstanceOf[ToDict])
+        val sorter = new ArraySorter(mb, vab, keyOnly = keyOnly)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           m.mux(vab.addMissing(), vab.add(v))
         }
 
         val processArrayElts = aout.arrayEmitter(cont)
-        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-          vab.clear,
-          aout.calcLength,
-          processArrayElts.addElements,
-          sorter.sortIntoRegion(distinct = !ir.isInstanceOf[ArraySort])))
+        EmitTriplet(
+          Code(
+            processArrayElts.setup,
+            codeAsc.setup,
+            xAsc := coerce[Boolean](codeAsc.m.mux(true, codeAsc.v))),
+          processArrayElts.m.getOrElse(const(false)),
+          Code(
+            vab.clear,
+            aout.calcLength,
+            processArrayElts.addElements,
+            sorter.sortIntoRegion(ascending = xAsc, distinct = !ir.isInstanceOf[ArraySort])))
 
       case ToArray(a) =>
         emit(a)

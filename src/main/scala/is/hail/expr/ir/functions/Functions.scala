@@ -81,6 +81,7 @@ object IRFunctionRegistry {
   }
 
   SetFunctions.registerAll()
+  DictFunctions.registerAll()
   CallFunctions.registerAll()
   GenotypeFunctions.registerAll()
   MathFunctions.registerAll()

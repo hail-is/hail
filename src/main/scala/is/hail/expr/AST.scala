@@ -933,6 +933,14 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               case (_: TArray, "forall") =>
                 val v = ir.genUID()
                 ir.ArrayFold(a, ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
+              case (_: TSet, "map") => ir.ToSet(ir.ArrayMap(ir.ToArray(a), name, b))
+              case (_: TSet, "filter") => ir.ToSet(ir.ArrayFilter(ir.ToArray(a), name, b))
+              case (_: TSet, "exists") =>
+                val v = ir.genUID()
+                ir.ArrayFold(ir.ToArray(a), ir.False(), v, name, ir.ApplySpecial("||", FastSeq(ir.Ref(v, TBoolean()), b)))
+              case (_: TSet, "forall") =>
+                val v = ir.genUID()
+                ir.ArrayFold(ir.ToArray(a), ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
             })
         } yield result
       case _ =>

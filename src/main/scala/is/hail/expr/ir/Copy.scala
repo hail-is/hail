@@ -53,9 +53,9 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
-      case ArraySort(_) =>
-        val IndexedSeq(a: IR) = newChildren
-        ArraySort(a)
+      case ArraySort(_, _) =>
+        val IndexedSeq(a: IR, ascending: IR) = newChildren
+        ArraySort(a, ascending)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)

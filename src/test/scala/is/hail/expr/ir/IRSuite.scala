@@ -107,11 +107,13 @@ class IRSuite extends TestNGSuite {
   }
 
   @Test def testArraySort() {
-    assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
+    assertEvalsTo(ArraySort(NA(TArray(TInt32())), True()), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
-    assertEvalsTo(ArraySort(a),
+    assertEvalsTo(ArraySort(a, True()),
       FastIndexedSeq(-7, 2, 2, null))
+    assertEvalsTo(ArraySort(a, False()),
+      FastIndexedSeq(2, 2, -7, null))
   }
 
   @Test def testToSet() {
