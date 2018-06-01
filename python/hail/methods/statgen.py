@@ -1992,8 +1992,8 @@ class SplitMulti(object):
            keep_star=bool,
            left_aligned=bool)
 def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
-    """Split multiallelic variants for datasets with a standard high-throughput
-    sequencing entry schema.
+    """Split multiallelic variants for datasets that contain one or more fields
+    from a standard high-throughput sequencing entry schema.
 
     .. code-block:: text
 
@@ -2002,7 +2002,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
         AD: array<int32>,
         DP: int32,
         GQ: int32,
-        PL: array<int32>
+        PL: array<int32>,
+        PGT: call,
+        PID: str,
       }
 
     For other entry fields, use :class:`.SplitMulti`.
@@ -2052,7 +2054,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     the minimum over multiallelic `PL` entries for genotypes that map to that
     genotype.
 
-    `GQ` is recomputed from `PL`.
+    `GQ` is recomputed from `PL` if `PL` is provided. If not, it is copied from the
+    original GQ.
 
     Here is a second example for a het non-ref
 
@@ -2126,32 +2129,40 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     """
 
-    if ds.entry.dtype != hl.hts_entry_schema:
-        raise FatalError("'split_multi_hts': entry schema must be the HTS entry schema:\n"
-                         "  found: {}\n"
-                         "  expected: {}\n"
-                         "  Use 'hl.SplitMulti' to split entries with non-HTS entry fields.".format(
-            ds.entry.dtype, hl.hts_entry_schema
-        ))
+    entry_fields = set(ds.entry)
 
+    update_entries_expression = {}
     sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
-    pl = hl.or_missing(
-        hl.is_defined(ds.PL),
-        (hl.range(0, 3).map(lambda i: hl.min((hl.range(0, hl.triangle(ds.alleles.length()))
-            .filter(
-            lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                  sm.a_index()) == hl.unphased_diploid_gt_index_call(
-                i))
-            .map(lambda j: ds.PL[j]))))))
+
+    if 'GT' in entry_fields:
+        update_entries_expression['GT'] = hl.downcode(ds.GT, sm.a_index())
+    if 'DP' in entry_fields:
+        update_entries_expression['DP'] = ds.DP
+    if 'AD' in entry_fields:
+        update_entries_expression['AD'] = hl.or_missing(hl.is_defined(ds.AD),
+                                                        [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]])
+    if 'PL' in entry_fields:
+        pl = hl.or_missing(
+            hl.is_defined(ds.PL),
+            (hl.range(0, 3).map(lambda i:
+                                hl.min((hl.range(0, hl.triangle(ds.alleles.length()))
+                                        .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
+                                                                      sm.a_index()) == hl.unphased_diploid_gt_index_call(i)
+                                                ).map(lambda j: ds.PL[j]))))))
+        update_entries_expression['PL'] = pl
+        if 'GQ' in entry_fields:
+            update_entries_expression['GQ'] = hl.gq_from_pl(pl)
+    else:
+        if 'GQ' in entry_fields:
+            update_entries_expression['GQ'] = ds.GQ
+
+    if 'PGT' in entry_fields:
+        update_entries_expression['PGT'] = hl.downcode(ds.PGT, sm.a_index())
+    if 'PID' in entry_fields:
+        update_entries_expression['PID'] = ds.PID
+
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
-    sm.update_entries(
-        GT=hl.downcode(ds.GT, sm.a_index()),
-        AD=hl.or_missing(hl.is_defined(ds.AD),
-                         [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
-        DP=ds.DP,
-        GQ=hl.gq_from_pl(pl),
-        PL=pl
-    )
+    sm.update_entries(**update_entries_expression)
     return sm.result()
 
 

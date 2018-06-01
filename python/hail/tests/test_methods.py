@@ -1085,11 +1085,6 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
-        ds = self.get_dataset()
-        ds = ds.annotate_entries(X=ds.GT)
-        with self.assertRaises(utils.FatalError):
-            hl.split_multi_hts(ds)
-
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
