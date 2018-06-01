@@ -18,6 +18,10 @@ class OrderedRVDPartitioner(
   val pkIntervalType = TInterval(pkType)
   val rangeBoundsType = TArray(pkIntervalType)
 
+  require(rangeBounds.forall { case Interval(l, r, _, _) =>
+    pkType.isComparableAt(l) && pkType.isComparableAt(r)
+  })
+
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
   } && rangeBounds.forall { i: Interval =>

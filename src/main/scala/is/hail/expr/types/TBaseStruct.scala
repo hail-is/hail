@@ -90,6 +90,14 @@ abstract class TBaseStruct extends Type {
         }
     }
 
+  def isComparableAt(a: Annotation): Boolean = a match {
+    case row: Row =>
+      Range(0, math.min(row.size, size)).forall { i =>
+        types(i).typeCheck(row(i))
+      }
+    case _ => false
+  }
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = {
