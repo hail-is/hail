@@ -739,13 +739,13 @@ private class Emit(
         val vstart = mb.newLocal[Int]()
         val vend = mb.newLocal[Int]()
         val vlen = mb.newLocal[Int]()
+        val vnewLen = mb.newLocal[Int]()
         val checks = Code(
           vs := coerce[Long](cs.v),
           vstart := coerce[Int](cstart.v),
           vend := coerce[Int](cend.v),
           vlen := TString.loadLength(region, vs),
-          ((vstart < 0) || (vstart.ceq(vlen)) ||
-            (vstart > vend) || (vend > vlen)).mux(
+          ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
             Code._fatal(
               const("string slice out of bounds or invalid: \"")
                 .concat(TString.loadString(region, vs))
@@ -756,9 +756,17 @@ private class Emit(
                 .concat("]")
             ),
             Code._empty)
-          )
-        val sliced = region.appendStringSlice(
-          region, vs, vstart, vend - vstart)
+        )
+        val sliced = Code(
+          vnewLen := (vend - vstart),
+          // if vstart = vlen = vend, then we want an empty string, but memcpy
+          // with a pointer one past the end of the allocated region is probably
+          // not safe, so for *all* empty slices, we just inline the code to
+          // stick the length (the contents is size zero so we needn't allocate
+          // for it or really do anything)
+          vnewLen.ceq(0).mux(
+            region.appendInt(0),
+            region.appendStringSlice(region, vs, vstart, vnewLen)))
         strict(Code(checks, sliced), cs, cstart, cend)
 
       case StringLength(s) =>

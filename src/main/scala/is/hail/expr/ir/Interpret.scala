@@ -422,7 +422,7 @@ object Interpret {
           null
         else {
           val vs = maybeString.asInstanceOf[String]
-          if (vstart < 0 || vstart == vs.length || vstart > vend || vend > vs.length)
+          if (vstart < 0 || vstart > vend || vend > vs.length)
             fatal(s"""string slice out of bounds or invalid: "$vs"[$vstart:$vend]""")
           else
             vs.substring(vstart, vend)

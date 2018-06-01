@@ -11,22 +11,8 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
   }
 
-  @Test def outOfBoundsFatals() {
-    assertFatal(StringSlice(Str("abc"), I32(4), I32(4)),
-      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
-    assertFatal(StringSlice(Str("abc"), I32(3), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
-    assertFatal(StringSlice(Str("abc"), I32(-1), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
-    assertFatal(StringSlice(Str("abc"), I32(-1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
-    assertFatal(StringSlice(Str("abc"), I32(1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
-    assertFatal(StringSlice(Str("abc"), I32(3), I32(3)),
-      "string slice out of bounds or invalid: \"abc\"\\[3:3\\]")
-  }
-
   @Test def simpleSlicesMatchIntuition() {
+    assertEvalsTo(StringSlice(Str("abc"), I32(3), I32(3)), "")
     assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(3)), "bc")
     assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(3)), "c")
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(2)), "ab")
@@ -54,9 +40,9 @@ class StringSliceSuite extends TestNGSuite {
 
   @Test def stringIndexMatchesIntuition() {
     assertFatal(invoke("[]", Str("abc"), I32(-5)),
-      "string slice out of bounds sor invalid: \"abc\"\\[-2:-1\\]")
+      "string slice out of bounds or invalid: \"abc\"\\[-2:-1\\]")
     assertFatal(invoke("[]", Str("abc"), I32(-4)),
-      "string slice out of bounds sor invalid: \"abc\"\\[-1:0\\]")
+      "string slice out of bounds or invalid: \"abc\"\\[-1:0\\]")
     assertEvalsTo(invoke("[]", Str("abc"), I32(-3)), "a")
     assertEvalsTo(invoke("[]", Str("abc"), I32(-2)), "b")
     assertEvalsTo(invoke("[]", Str("abc"), I32(-1)), "c")
@@ -64,9 +50,9 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(invoke("[]", Str("abc"), I32(1)), "b")
     assertEvalsTo(invoke("[]", Str("abc"), I32(2)), "c")
     assertFatal(invoke("[]", Str("abc"), I32(3)),
-      "string slice out of bounds sor invalid: \"abc\"\\[3:4\\]")
+      "string slice out of bounds or invalid: \"abc\"\\[3:4\\]")
     assertFatal(invoke("[]", Str("abc"), I32(4)),
-      "string slice out of bounds sor invalid: \"abc\"\\[4:5\\]")
+      "string slice out of bounds or invalid: \"abc\"\\[4:5\\]")
   }
 
   @Test def sliceCopyIsID() {
@@ -104,5 +90,48 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-2), I32(-1)), "b")
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-2), I32(-2)), "")
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-3), I32(-3)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(1), I32(-1)), "b")
+  }
+
+  @Test def rawIROutOfBoundsFatals() {
+    assertFatal(StringSlice(Str("abc"), I32(4), I32(4)),
+      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
+    assertFatal(StringSlice(Str("abc"), I32(3), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
+    assertFatal(StringSlice(Str("abc"), I32(-1), I32(2)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
+    assertFatal(StringSlice(Str("abc"), I32(-1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
+    assertFatal(StringSlice(Str("abc"), I32(1), I32(-1)),
+      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
+  }
+
+  @Test def bothSidesSliceFunctionOutOfBoundsNotFatal() {
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(4), I32(4)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(3), I32(2)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-1), I32(2)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-1), I32(-1)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(3), I32(3)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-10), I32(-5)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-5), I32(-10)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(-10), I32(-1)), "ab")
+  }
+
+  @Test def leftSliceFunctionOutOfBoundsNotFatal() {
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(15)), "")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(4)), "")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(3)), "")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(-3)), "abc")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(-4)), "abc")
+    assertEvalsTo(invoke("[*:]", Str("abc"), I32(-100)), "abc")
+  }
+
+  @Test def rightSliceFunctionOutOfBoundsNotFatal() {
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(15)), "abc")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(4)), "abc")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(3)), "abc")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(-3)), "")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(-4)), "")
+    assertEvalsTo(invoke("[:*]", Str("abc"), I32(-100)), "")
   }
 }

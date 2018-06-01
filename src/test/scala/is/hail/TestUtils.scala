@@ -416,7 +416,7 @@ object TestUtils {
     if (Compilable(x)) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected))
+      assert(t.valuesSimilar(c, expected), s"$c, $expected")
     }
   }
 

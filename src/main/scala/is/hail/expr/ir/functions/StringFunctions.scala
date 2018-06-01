@@ -81,33 +81,51 @@ object StringFunctions extends RegistryFunctions {
           s,
           ir.If(
             ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-            ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-            start),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+              ir.I32(0)),
+            UtilFunctions.min(start, len)),
           len))
     }
     registerIR("[:*]", TString(), TInt32()) { (s, end) =>
-      ir.StringSlice(
-        s,
-        ir.I32(0),
-        ir.If(
-          ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-          ir.ApplyBinaryPrimOp(ir.Add(), ir.StringLength(s), end),
-          end))
-    }
-    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
       val lenName = ir.genUID()
       val len = ir.Ref(lenName, TInt32())
       ir.Let(lenName, ir.StringLength(s),
         ir.StringSlice(
-        s,
-        ir.If(
-          ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-          ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-          start),
-        ir.If(
-          ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-          ir.ApplyBinaryPrimOp(ir.Add(), len, end),
-          end)))
+          s,
+          ir.I32(0),
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, end),
+              ir.I32(0)),
+            UtilFunctions.min(end, len))))
+    }
+    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      val startName = ir.genUID()
+      val startRef = ir.Ref(startName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.Let(
+          startName,
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+              ir.I32(0)),
+            UtilFunctions.min(start, len)),
+          ir.StringSlice(
+            s,
+            startRef,
+            ir.If(
+              ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+              UtilFunctions.max(
+                ir.ApplyBinaryPrimOp(ir.Add(), len, end),
+                startRef),
+              UtilFunctions.max(
+                UtilFunctions.min(end, len),
+                startRef)))))
     }
 
     registerIR("len", TString()) { (s) =>
