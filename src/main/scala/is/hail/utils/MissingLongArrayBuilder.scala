@@ -37,8 +37,6 @@ class MissingLongArrayBuilder {
 
   val typ = TArray(TInt64())
 
-  private val rvb = new RegionValueBuilder()
-
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)
     var i = 0

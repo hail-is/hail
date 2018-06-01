@@ -57,6 +57,8 @@ object AggOp {
 
   def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
+  def getKeyedType(aggSig: AggSignature, keyType: Type): Type = TDict(keyType, getType(aggSig))
+
   def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
     getOption(aggSig.op, aggSig.inputType, aggSig.constructorArgs, aggSig.initOpArgs)
 

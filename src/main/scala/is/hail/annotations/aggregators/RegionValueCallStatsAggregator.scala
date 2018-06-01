@@ -1,9 +1,8 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.expr.types.{TArray, TString, TStruct}
+import is.hail.expr.types.TStruct
 import is.hail.stats.{CallStats, CallStatsCombiner}
-import is.hail.utils.ArrayBuilder
 import is.hail.variant.Call
 
 object RegionValueCallStatsAggregator {
@@ -39,7 +38,11 @@ class RegionValueCallStatsAggregator extends RegionValueAggregator {
       rvb.setMissing()
   }
 
-  def copy() = new RegionValueCallStatsAggregator()
+  def copy() = {
+    val rva = new RegionValueCallStatsAggregator()
+    rva.combiner = combiner.copy()
+    rva
+  }
 
   def clear() {
     combiner = null
