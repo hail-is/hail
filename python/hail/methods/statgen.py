@@ -2929,10 +2929,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
       this stage. The parallelism is the number of partitions in the dataset.
 
     - The second, "global correlation" stage uses block matrix multiplication
-      to compute correlation between each pairs of remaining variants that
-      are within `bp_window_size` base pairs, and then forms a graph with edges
-      between correlated errors. The parallelism of writing the locally-pruned
-      matrix table as a block matrix is ``n_variants / block_size``.
+      to compute correlation between each pair of remaining variants  within
+      `bp_window_size` base pairs, and then forms a graph with edges between
+      correlated errors. The parallelism of writing the locally-pruned matrix
+      table as a block matrix is ``n_locally_pruned_variants / block_size``.
 
     - The third, "global pruning" stage applies :func:`.maximal_independent_set`
       to prune this graph until no edges remain.
@@ -3001,7 +3001,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
 
     locally_pruned_path = new_temp_file()
     locally_pruned_ds.write(locally_pruned_path, overwrite=True)
+
     locally_pruned_ds = hl.read_matrix_table(locally_pruned_path)
+
+    n_locally_pruned_variants = locally_pruned_ds.count_rows()
+    info(f'ld_prune: local pruning stage retained {n_locally_pruned_variants} variants')
 
     locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
 
@@ -3030,6 +3034,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
     entries_path = new_temp_file()
     entries.write(entries_path, overwrite=True)
     entries = hl.read_table(entries_path)
+
+    n_edges = entries.count()
+    info(f'ld_prune: correlation graph of locally-pruned variants has {n_edges} edges,'
+         f'\n    finding maximal independent set...')
 
     related_nodes_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
 
