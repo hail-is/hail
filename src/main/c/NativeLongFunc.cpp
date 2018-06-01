@@ -1,6 +1,6 @@
 // src/main/c/NativeFunc.cpp - native funcs for Scala NativeLongFunc
 #include "hail/NativePtr.h"
-#include <assert.h>
+#include <cassert>
 #include <jni.h>
 
 namespace hail {

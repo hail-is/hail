@@ -2,8 +2,8 @@
 #define HAIL_NATIVESTATUS_H 1
 
 #include "hail/NativeObj.h"
+#include <cstdarg>
 #include <string>
-#include <stdarg.h>
 
 namespace hail {
 
@@ -19,7 +19,7 @@ public:
   virtual ~NativeStatus() { }
   
   inline void clear() {
-    // When errno_ == 0, the values of err_ and location_ are ignored
+    // When errno_ == 0, the values of msg_ and location_ are ignored
     errno_ = 0;
   }
   

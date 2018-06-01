@@ -7,8 +7,8 @@
 
 namespace hail {
 
-typedef long LongFuncN(...);
-typedef NativeObjPtr PtrFuncN(...);
+using LongFuncN = long(...);
+using PtrFuncN = NativeObjPtr(...);
 
 template<typename ReturnT>
 class NativeFuncObj : public NativeObj {
@@ -31,10 +31,7 @@ public:
   
   virtual ~NativeFuncObj() { }
 
-private:
-  // disable copy-assign
-  NativeFuncObj& operator=(const NativeFuncObj& b);
-  
+  NativeFuncObj& operator=(const NativeFuncObj& b) = delete;  
 };
 
 // Simple class to manage conversion of Java/Scala String params
