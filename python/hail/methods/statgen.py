@@ -2914,23 +2914,41 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
 
     Notes
     -----
-    This method finds a maximal subset of variants such that the squared
-    Pearson correlation coefficient :math:`r^2` of any pair at most
-    `bp_window_size` base pairs apart is strictly less than `r2`. Each variant is
-    represented as a vector over samples with elements given by the
-    (mean-imputed) number of alternate alleles. In particular, even if present,
-    **phase information is ignored**.
+    This method finds a maximal subset of variants such that the squared Pearson
+    correlation coefficient :math:`r^2` of any pair at most `bp_window_size`
+    base pairs apart is strictly less than `r2`. Each variant is represented as
+    a vector over samples with elements given by the (mean-imputed) number of
+    alternate alleles. In particular, even if present, **phase information is
+    ignored**. 
 
-    The method prunes variants in linkage disequilibrium in two stages.
+    The method prunes variants in linkage disequilibrium in three stages.
 
-    The first (local) stage prunes correlated variants within each partition,
-    using a local variant queue whose size is determined by `memory_per_core`.
-    A larger queue may facilitate more local pruning in this stage.
-    The parallelism is the number of partitions in the dataset.
+    - The first, "local pruning" stage prunes correlated variants within each
+      partition, using a local variant queue whose size is determined by
+      `memory_per_core`. A larger queue may facilitate more local pruning in
+      this stage. The parallelism is the number of partitions in the dataset.
 
-    The second (global) stage computes the correlation matrix across all
-    remaining variants. Correlated variants within `bp_window_size` base pairs
-    form the edges of a graph to which :func:`.maximal_independent_set` is applied.
+    - The second, "global correlation" stage uses block matrix multiplication
+      to compute correlation between each pairs of remaining variants that
+      are within `bp_window_size` base pairs, and then forms a graph with edges
+      between correlated errors. The parallelism of writing the locally-pruned
+      matrix table as a block matrix is ``n_variants / block_size``.
+
+    - The third, "global pruning" stage applies :func:`.maximal_independent_set`
+      to prune this graph until no edges remain.
+
+    If you encounter a Hadoop write/replication error, consider:
+
+    - increasing the size of persistent disk, e.g. by increasing the number of
+      persistent workers or the disk size per persistent worker. The
+      locally-pruned matrix table and block matrix are stored as temporary files
+      on persistent disk.
+
+    - limiting the Hadoop write buffer size, e.g. by setting the property on
+      cluster startup: ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
+      This issue arises for very large sample size because, when writing the
+      locally-pruned block matrix, the number of concurrently open files per
+      task is ``n_samples / block_size``.
 
     Parameters
     ----------
@@ -2944,12 +2962,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
     memory_per_core : :obj:`int`
         Memory in MB per core for local pruning queue.
     block_size: :obj:`int`, optional
-        Block size for block matrices in the global stage. Default given by
-        :meth:`.BlockMatrix.default_block_size`. When writing the block matrix
-        of locally-pruned calls, the number of tasks (parallelism) is the number
-        of block rows (``n_variants / block_size``) and the number of open files
-        (blocks written) per task is the number of block columns
-        (``n_samples / block_size``).
+        Block size for block matrices in the second stage.
+        Default given by :meth:`.BlockMatrix.default_block_size`.
 
     Returns
     -------
@@ -2958,7 +2972,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
     """
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
-    
+
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
