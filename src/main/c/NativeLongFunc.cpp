@@ -11,7 +11,7 @@ using NativeFunc = NativeFuncObj<long>;
 
 NativeFunc* to_NativeFunc(JNIEnv* env, jobject thisJ) {
   // Should be a dynamic_cast, but RTTI causes trouble
-  return reinterpret_cast<NativeFunc*>(get_from_NativePtr(env, thisJ));
+  return static_cast<NativeFunc*>(get_from_NativePtr(env, thisJ));
 }
 
 } // end anon

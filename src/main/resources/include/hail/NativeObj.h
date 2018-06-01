@@ -38,15 +38,6 @@ class NativeObj :
 // to different off-heap objects - we treat them all as NativeObjPtr.
 typedef std::shared_ptr<NativeObj> NativeObjPtr;
 
-#define MAKE_NATIVE(ObjT, ...) \
-  (std::static_pointer_cast<NativeObj>(std::make_shared<ObjT>(__VA_ARGS__)))
-
-// Upcast conversion of pointer-to-subclass to pointer-to-base
-template<typename T>
-inline NativeObjPtr toNativeObjPtr(const std::shared_ptr<T>& a) {
-  return std::static_pointer_cast<NativeObj>(a);
-};
-
 } // end hail
 
 #endif

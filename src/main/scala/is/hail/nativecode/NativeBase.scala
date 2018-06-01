@@ -37,8 +37,6 @@ class NativeBase() extends AutoCloseable {
   final def this(b: NativeBase) {
     this()
     nativeCopyCtor(b.addrA, b.addrB)
-    addrA = b.addrA
-    addrB = b.addrB
   }
 
   final def close() {

@@ -17,10 +17,9 @@ namespace hail {
 
 namespace {
 
-class AlignedBuf {
+class alignas(sizeof(long)) AlignedBuf {
 public:
   char buf_[2*sizeof(long)];
-  long force_align_;
 
 public:
   AlignedBuf() {
@@ -37,6 +36,15 @@ public:
   void set_addrA(long v);
   void set_addrB(long v);
 };
+
+// We use non-inline methods to try to defeat over-aggressive reordering
+// of aliased type-punned accesses.  The cost is probably small relative
+// to the overhead of the Scala-to-C++ JNI call.
+
+long AlignedBuf::get_addrA() const { return *(long*)(&buf_[0]); }  
+long AlignedBuf::get_addrB() const { return *(long*)(&buf_[sizeof(long)]); }
+void AlignedBuf::set_addrA(long v) { *(long*)&buf_[0] = v; }
+void AlignedBuf::set_addrB(long v) { *(long*)&buf_[sizeof(long)] = v; }
 
 class NativePtrInfo {
 public:
@@ -59,7 +67,7 @@ public:
   }
 };
 
-// WARNING: I observe that when this gets loaded as a shred library on Linux,
+// WARNING: I observe that when this gets loaded as a shared library on Linux,
 // we see two distinct NativePtrInfo objects at different addresses.  That is
 // extremely weird, but by putting all the initialization into the constructor
 // we make sure that both get correctly initialized.  But that behavior might
@@ -69,15 +77,6 @@ static NativePtrInfo* get_info(JNIEnv* env, int line) {
   static NativePtrInfo the_info(env, line);
   return &the_info;
 }
-
-// We use non-inline methods to try to defeat over-aggressive reordering
-// of aliased type-punned accesses.  The cost is probably small relative
-// to the overhead of the Scala-to-C++ JNI call.
-
-long AlignedBuf::get_addrA() const { return *(long*)(&buf_[0]); }  
-long AlignedBuf::get_addrB() const { return *(long*)(&buf_[8]); }
-void AlignedBuf::set_addrA(long v) { *(long*)&buf_[0] = v; }
-void AlignedBuf::set_addrB(long v) { *(long*)&buf_[8] = v; }
 
 } // end anon
 
@@ -343,23 +342,23 @@ public:
 };
 
 NativeObjPtr nativePtrFuncTestObjA0() {
-  return MAKE_NATIVE(TestObjA);
+  return std::make_shared<TestObjA>();
 }
 
 NativeObjPtr nativePtrFuncTestObjA1(long a0) {
-  return MAKE_NATIVE(TestObjA, a0);
+  return std::make_shared<TestObjA>(a0);
 }
 
 NativeObjPtr nativePtrFuncTestObjA2(long a0, long a1) {
-  return MAKE_NATIVE(TestObjA, a0, a1);
+  return std::make_shared<TestObjA>(a0, a1);
 }
 
 NativeObjPtr nativePtrFuncTestObjA3(long a0, long a1, long a2) {
-  return MAKE_NATIVE(TestObjA, a0, a1, a2);
+  return std::make_shared<TestObjA>(a0, a1, a2);
 }
 
 NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, long a0, long a1, long a2, long a3) {
-  return MAKE_NATIVE(TestObjA, a0, a1, a2, a3);
+  return std::make_shared<TestObjA>(a0, a1, a2, a3);
 }
 
 } // end hail
