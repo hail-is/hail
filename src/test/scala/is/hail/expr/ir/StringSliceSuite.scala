@@ -52,6 +52,23 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
   }
 
+  @Test def stringIndexMatchesIntuition() {
+    assertFatal(invoke("[]", Str("abc"), I32(-5)),
+      "string slice out of bounds sor invalid: \"abc\"\\[-2:-1\\]")
+    assertFatal(invoke("[]", Str("abc"), I32(-4)),
+      "string slice out of bounds sor invalid: \"abc\"\\[-1:0\\]")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(-3)), "a")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(-2)), "b")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(-1)), "c")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(0)), "a")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(1)), "b")
+    assertEvalsTo(invoke("[]", Str("abc"), I32(2)), "c")
+    assertFatal(invoke("[]", Str("abc"), I32(3)),
+      "string slice out of bounds sor invalid: \"abc\"\\[3:4\\]")
+    assertFatal(invoke("[]", Str("abc"), I32(4)),
+      "string slice out of bounds sor invalid: \"abc\"\\[4:5\\]")
+  }
+
   @Test def sliceCopyIsID() {
     assertEvalsTo(invoke("[:]", Str("abc")), "abc")
   }

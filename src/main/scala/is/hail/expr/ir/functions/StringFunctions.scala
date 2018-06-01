@@ -58,6 +58,20 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
+    registerIR("[]", TString(), TInt32()) { (s, index) =>
+      val realIndexName = ir.genUID()
+      val realIndex = ir.Ref(realIndexName, TInt32())
+      ir.Let(
+        realIndexName,
+        ir.If(
+          ir.ApplyComparisonOp(ir.LT(TInt32()), index, ir.I32(0)),
+          ir.ApplyBinaryPrimOp(ir.Add(), ir.StringLength(s), index),
+          index),
+        ir.StringSlice(
+          s,
+          realIndex,
+          ir.ApplyBinaryPrimOp(ir.Add(), realIndex, ir.I32(1))))
+    }
     registerIR("[:]", TString())(x => x)
     registerIR("[*:]", TString(), TInt32()) { (s, start) =>
       val lenName = ir.genUID()
