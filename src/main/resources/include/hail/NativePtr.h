@@ -13,7 +13,7 @@ using PtrFuncN = NativeObjPtr(...);
 template<typename ReturnT>
 class NativeFuncObj : public NativeObj {
 public:
-  typedef ReturnT FuncType(...);
+  using FuncType = ReturnT(...);
 public:
   NativeObjPtr module_; // keep-alive for the loaded module
   FuncType *func_;

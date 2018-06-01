@@ -23,14 +23,17 @@ class NativePtrInfo {
 public:
   static const int kMagic = 0xa35e72bf;
   int  magic_;
+  jclass class_ref_;
   jfieldID addrA_id_;
   jfieldID addrB_id_;
   
 public:
   NativePtrInfo(JNIEnv* env, int line) {
     auto cl = env->FindClass("is/hail/nativecode/NativeBase");
-    addrA_id_ = env->GetFieldID(cl, "addrA", "J");
-    addrB_id_ = env->GetFieldID(cl, "addrB", "J");
+    class_ref_ = (jclass)env->NewGlobalRef(cl);
+    env->DeleteLocalRef(cl);
+    addrA_id_ = env->GetFieldID(class_ref_, "addrA", "J");
+    addrB_id_ = env->GetFieldID(class_ref_, "addrB", "J");
     magic_ = kMagic;
     check_assumptions();
   }
@@ -41,6 +44,9 @@ public:
 // extremely weird, but by putting all the initialization into the constructor
 // we make sure that both get correctly initialized.  But that behavior might
 // cause trouble in other code, so we need to watch out for it.
+
+// We could in theory do the initialization from a JNI_OnLoad() function, but
+// don't want to take time experimenting with that now.
 
 static NativePtrInfo* get_info(JNIEnv* env, int line) {
   static NativePtrInfo the_info(env, line);

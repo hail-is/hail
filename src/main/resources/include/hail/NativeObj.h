@@ -36,7 +36,7 @@ class NativeObj :
 
 // On the Jvm side, we don't have distinct classes/types for NativePtr
 // to different off-heap objects - we treat them all as NativeObjPtr.
-typedef std::shared_ptr<NativeObj> NativeObjPtr;
+using NativeObjPtr = std::shared_ptr<NativeObj>;
 
 } // end hail
 
