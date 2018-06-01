@@ -44,8 +44,11 @@ object Infer {
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
-      case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        AggOp.getType(aggSig)
+      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+        x.key match {
+          case Some(key) => AggOp.getKeyedType(aggSig, key.typ)
+          case None => AggOp.getType(aggSig)
+        }
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)
