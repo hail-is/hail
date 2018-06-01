@@ -2951,9 +2951,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
-    mt = require_row_key_variant(mt, 'ld_prune')
-    mt = require_partition_key_locus(mt, 'ld_prune')
-    mt = require_biallelic(mt, 'ld_prune')
+    require_row_key_variant(mt, 'ld_prune')
+    require_partition_key_locus(mt, 'ld_prune')
 
     #  FIXME: remove once select_entries on a field is free
     if call_expr in mt._fields_inverse:
@@ -2962,7 +2961,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
         field = Env.get_uid()
         mt = mt.select_entries(**{field: call_expr})
 
-    sites_only_table = _local_ld_prune(mt, field, r2, bp_window_size, memory_per_core)
+    sites_only_table = _local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
 
     sites_path = new_temp_file()
     sites_only_table.write(sites_path, overwrite=True)
@@ -2987,7 +2986,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256):
                 * locally_pruned_ds.centered_length_sd_reciprocal, 0))
 
     # BlockMatrix.from_entry_expr writes to disk
-    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size=1024)
+    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
     correlation_matrix = (block_matrix @ block_matrix.T)
 
     locally_pruned_rows = locally_pruned_ds.rows()
