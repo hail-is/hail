@@ -340,7 +340,6 @@ private class Emit(
         val xAsc = mb.newLocal[Boolean]()
         val codeAsc = emit(ascending)
 
-
         val aout = emitArrayIterator(a)
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(mb, vab, keyOnly = keyOnly)

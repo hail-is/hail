@@ -16,5 +16,4 @@ object DictFunctions extends RegistryFunctions {
       ArrayFunctions.isEmpty(ToArray(d))
     }
   }
-
 }
