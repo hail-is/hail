@@ -375,6 +375,11 @@ class TableTests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
+    def test_join_with_partition_key_from_mt(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        rows = mt.rows()
+        rows.annotate(foo = rows[rows.key]).take(1)
+
     def test_joins(self):
         kt = hl.utils.range_table(1).key_by().drop('idx')
         kt = kt.annotate(a='foo')
@@ -419,6 +424,15 @@ class TableTests(unittest.TestCase):
 
         kt2 = kt2.annotate_globals(kt_foo=kt.index_globals().foo)
         self.assertEqual(kt2.globals.kt_foo.value, 5)
+
+    def test_interval_join(self):
+        left = hl.utils.range_table(50, n_partitions=10)
+        intervals = hl.utils.range_table(4)
+        intervals = intervals.key_by(interval = hl.interval(intervals.idx * 10, intervals.idx * 10 + 5))
+        left = left.annotate(interval_matches = intervals.index(left.key))
+        self.assertTrue(left.all(hl.case()
+                                 .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
+                                 .default(hl.is_missing(left.interval_matches))))
 
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)

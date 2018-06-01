@@ -18,7 +18,9 @@ class OrderedRVDPartitioner(
   val pkIntervalType = TInterval(pkType)
   val rangeBoundsType = TArray(pkIntervalType)
 
-  assert(rangeBoundsType.typeCheck(rangeBounds))
+  require(rangeBounds.forall { case Interval(l, r, _, _) =>
+    pkType.isComparableAt(l) && pkType.isComparableAt(r)
+  })
 
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
@@ -130,8 +132,8 @@ class OrderedRVDPartitioner(
       return this
     if (range.isEmpty)
       return copy(rangeBounds = FastIndexedSeq(newRange.get))
-    val newStart = pkType.ordering.min(range.get.start, Annotation.copy(pkType, newRange.get.start))
-    val newEnd = pkType.ordering.max(range.get.end, Annotation.copy(pkType, newRange.get.end))
+    val newStart = pkType.ordering.min(range.get.start, newRange.get.start)
+    val newEnd = pkType.ordering.max(range.get.end, newRange.get.end)
     val newRangeBounds =
       rangeBounds match {
         case IndexedSeq(x) => FastIndexedSeq(Interval(newStart, newEnd, true, true))
