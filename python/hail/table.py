@@ -1084,11 +1084,9 @@ class Table(ExprContainer):
         --------
         Aggregate over rows:
 
-        .. doctest::
-
-            >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-            ...                            mean_x=agg.mean(table1.X)))
-            Struct(fraction_male=0.5, mean_x=6.5)
+        >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
+        ...                            mean_x=agg.mean(table1.X)))
+        Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
         ----
@@ -1144,19 +1142,17 @@ class Table(ExprContainer):
         --------
         Show the first lines of the table:
 
-        .. doctest::
-
-            >>> table1.show()
-            +-------+-------+-----+-------+-------+-------+-------+-------+
-            |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
-            +-------+-------+-----+-------+-------+-------+-------+-------+
-            | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
-            +-------+-------+-----+-------+-------+-------+-------+-------+
-            |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
-            |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
-            |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
-            |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
-            +-------+-------+-----+-------+-------+-------+-------+-------+
+        >>> table1.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Parameters
         ----------
@@ -1604,20 +1600,18 @@ class Table(ExprContainer):
         Examples
         --------
 
-        .. doctest::
-
-            >>> table_result = table1.add_index()
-            >>> table_result.show()
-            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-            |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
-            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-            | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int64 |
-            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-            |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |     0 |
-            |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |     1 |
-            |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |     2 |
-            |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |     3 |
-            +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        >>> table_result = table1.add_index()
+        >>> table_result.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int64 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |     0 |
+        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |     1 |
+        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |     2 |
+        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |     3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -1691,13 +1685,11 @@ class Table(ExprContainer):
         --------
         Take the first three rows:
 
-        .. doctest::
-
-            >>> first3 = table1.take(3)
-            >>> print(first3)
-            [Struct(HT=65, SEX=M, X=5, C3=5, C2=50, C1=2, Z=4, ID=1),
-             Struct(HT=72, SEX=M, X=6, C3=1, C2=61, C1=2, Z=3, ID=2),
-             Struct(HT=70, SEX=F, X=7, C3=-5, C2=81, C1=10, Z=3, ID=3)]
+        >>> first3 = table1.take(3)
+        >>> print(first3)
+        [Struct(HT=65, SEX=M, X=5, C3=5, C2=50, C1=2, Z=4, ID=1),
+         Struct(HT=72, SEX=M, X=6, C3=1, C2=61, C1=2, Z=3, ID=2),
+         Struct(HT=70, SEX=F, X=7, C3=-5, C2=81, C1=10, Z=3, ID=3)]
 
         Notes
         -----
@@ -1729,11 +1721,9 @@ class Table(ExprContainer):
         --------
         Subset to the first three rows:
 
-        .. doctest::
-
-            >>> table_result = table1.head(3)
-            >>> table_result.count()
-            3
+        >>> table_result = table1.head(3)
+        >>> table_result.count()
+        3
 
         Notes
         -----

@@ -514,10 +514,8 @@ class MatrixTable(ExprContainer):
 
         Get the column key field names:
 
-        .. doctest::
-
-            >>> list(dataset.col_key)
-            ['s']
+        >>> list(dataset.col_key)
+        ['s']
 
         Returns
         -------
@@ -534,10 +532,8 @@ class MatrixTable(ExprContainer):
 
         Get the row key field names:
 
-        .. doctest::
-
-            >>> list(dataset.row_key)
-            ['locus', 'alleles']
+        >>> list(dataset.row_key)
+        ['locus', 'alleles']
 
         Returns
         -------
@@ -554,10 +550,8 @@ class MatrixTable(ExprContainer):
 
         Get the partition key field names:
 
-        .. doctest::
-
-            >>> list(dataset.partition_key)
-            ['locus']
+        >>> list(dataset.partition_key)
+        ['locus']
 
         Returns
         -------
@@ -1642,11 +1636,9 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over rows:
 
-        .. doctest::
-
-            >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
-            ...                                  mean_qual=agg.mean(dataset.qual)))
-            Struct(n_high_quality=100150224, mean_qual=50.12515572)
+        >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
+        ...                                  mean_qual=agg.mean(dataset.qual)))
+        Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
         -----
@@ -1689,12 +1681,10 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over columns:
 
-        .. doctest::
-
-            >>> dataset.aggregate_cols(
-            ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
-            ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
-            Struct(fraction_female=0.5102222, case_ratio=0.35156)
+        >>> dataset.aggregate_cols(
+        ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
+        ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
+        Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
         -----
@@ -1738,11 +1728,9 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over entries:
 
-        .. doctest::
-
-            >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
-            ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
-            Struct(global_gq_mean=31.16200, call_rate=0.981682)
+        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
+        ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
+        Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
         -----
@@ -2088,9 +2076,8 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        .. doctest::
 
-            >>> dataset.count()
+        >>> dataset.count()
 
         Returns
         -------
@@ -3043,11 +3030,9 @@ class MatrixTable(ExprContainer):
         --------
         Subset to the first three rows of the matrix:
 
-        .. doctest::
-
-            >>> dataset_result = dataset.head(3)
-            >>> dataset_result.count_rows()
-            3
+        >>> dataset_result = dataset.head(3)
+        >>> dataset_result.count_rows()
+        3
 
         Notes
         -----
