@@ -1338,7 +1338,7 @@ class TupleExpression(Expression, Sequence):
         Examples
         --------
 
-        >>> (len(tup)).value
+        >>> len(tup)
         3
 
         Returns
