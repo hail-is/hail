@@ -96,6 +96,13 @@ def init(doctest_namespace):
     doctest_namespace['s'] = hl.literal('The quick brown fox')
     doctest_namespace['interval2'] = hl.Interval(3, 6)
 
+    # Overview
+    doctest_namespace['ht'] = hl.import_table("data/kt_example1.tsv", impute=True)
+    doctest_namespace['mt'] = ds
+
+    gnomad_data = ds.rows()
+    doctest_namespace['gnomad_data'] = gnomad_data.select(gnomad_data.info.AF)
+
     print("finished setting up doctest...")
     yield
     os.chdir(olddir)

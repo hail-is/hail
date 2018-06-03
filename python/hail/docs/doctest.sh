@@ -13,6 +13,7 @@ cd build/tmp/doctest/python/hail
 pytest \
   --dist=loadscope \
   --doctest-modules \
+  --doctest-glob='*.rst' \
   --ignore=docs/conf.py \
   --ignore=tests \
   --ignore=setup.py \

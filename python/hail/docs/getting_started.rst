@@ -116,8 +116,6 @@ can run Hail backed by the cluster can be started with the following command::
 
 When using ``ipython``, you can import hail and start interacting directly
 
-.. code-block:: python
-
     >>> import hail as hl
     >>> mt = hl.balding_nichols_model(3, 100, 100)
     >>> mt.aggregate_entries(hl.agg.mean(mt.GT.n_alt_alleles()))
@@ -138,10 +136,8 @@ Moreover, unlike in ``ipython``, ``pyspark`` provides a Spark Context via the
 global variable ``sc``. For Hail to interact properly with the Spark cluster,
 you must tell hail about this special Spark Context
 
-.. code-block:: python
-
     >>> import hail as hl
-    >>> hl.init(sc)
+    >>> hl.init(sc) # doctest: +SKIP
 
 After this initialization step, you can interact as you would in ``ipython``
 
