@@ -2,11 +2,6 @@
 
 .. py:currentmodule:: hail
 
-.. testsetup::
-
-    import hail as hl
-    ht = hl.import_table("data/kt_example1.tsv", impute=True)
-
 ========
 Overview
 ========
@@ -24,8 +19,6 @@ Types
 
 In Python, ``5`` is of type :obj:`int` while ``"hello"`` is of type :obj:`str`.
 Python is a dynamically-typed language, meaning that a function like:
-
-.. doctest::
 
     >>> def add_x_and_y(x, y):
     ...     return x + y
@@ -84,8 +77,6 @@ together such as ``x = 5; y = 6; x + y``.
 
 Throughout Hail documentation and tutorials, you will see Python code like this:
 
-.. doctest::
-
     >>> ht2 = ht.annotate(C4 = ht.C3 + 3 * ht.C2 ** 2)
 
 However, Hail is not running Python code on your data. Instead, Hail is keeping
@@ -101,15 +92,11 @@ expressions with other modules, like :mod:`numpy` or :mod:`scipy`.
 :class:`.Expression` objects keep track of their data type. This can be accessed
 with :meth:`.Expression.dtype`:
 
-.. doctest::
-
     >>> i = hl.int32(100)
     >>> i.dtype
     dtype('int32')
 
 The Hail equivalent of the Python example above would be as follows:
-
-.. doctest::
 
     >>> x = hl.int32(5)
     >>> y = hl.int32(6)
@@ -117,16 +104,12 @@ The Hail equivalent of the Python example above would be as follows:
 We can print `x` in a Python interpreter and see that `x` is an :class:`.Int32Expression`.
 This makes sense because `x`  is a Python :obj:`int`.
 
-.. doctest::
-
     >>> x
     <Int32Expression of type int32>
 
 We can add two :class:`.Int32Expression` objects together just like with Python
 :obj:`int` objects. ``x + y`` returns another :class:`.Int32Expression` representing
 the computation of ``x + y`` and not an actual value.
-
-.. doctest::
 
     >>> z = x + y
     >>> z
@@ -136,8 +119,6 @@ To peek at the value of this computation, there are two options:
 :meth:`.Expression.value`, which returns a Python value, and
 :meth:`.Expression.show`, which prints a human-readable representation of an
 expression.
-
-.. doctest::
 
     >>> z.value
     11
@@ -153,15 +134,11 @@ expression.
 Expressions like to bring Python objects into the world of expressions as well.
 For example, we can add a Python :obj:`int` to an :class:`.Int32Expression`.
 
-.. doctest::
-
     >>> x + 3
     <Int32Expression of type int32>
 
 Addition is commutative, so we can also add an :class:`.Int32Expression` to an
 :obj:`int`.
-
-.. doctest::
 
     >>> 3 + x
     <Int32Expression of type int32>
@@ -170,8 +147,6 @@ Hail has many subclasses of :class:`.Expression` -- one for each Hail type. Each
 subclass defines possible methods and operations that can be applied. For example,
 if we have a list of Python integers, we can convert this to a Hail
 :class:`.ArrayNumericExpression` with either :func:`.array` or :func:`.literal`:
-
-.. doctest::
 
     >>> a = hl.array([1, 2, -3, 0, 5])
     >>> a
@@ -182,8 +157,6 @@ if we have a list of Python integers, we can convert this to a Hail
 
 Hail arrays can be indexed and sliced like Python lists or :mod:`numpy` arrays:
 
-.. doctest::
-
     >>> a[1]
     >>> a[1:-1]
 
@@ -193,8 +166,6 @@ Boolean Logic
 
 Unlike Python, a Hail :class:`.BooleanExpression` cannot be used with ``and``,
 ``or``, and ``not``. The equivalents are ``&``, ``|``, and ``~``.
-
-.. doctest::
 
     >>> s1 = x == 3
     >>> s2 = x != 4
@@ -208,9 +179,7 @@ Unlike Python, a Hail :class:`.BooleanExpression` cannot be used with ``and``,
     The operator precedence of ``&`` and ``|`` is different from ``and`` and
     ``or``. You will need parentheses around expressions like this:
 
-    .. doctest::
-
-            >>> (x == 3) & (x != 4)
+    >>> (x == 3) & (x != 4)
 
 Conditionals
 ============
@@ -235,8 +204,6 @@ and the alternate is ``0``.
 
 Here is the Hail expression equivalent with :func:`.cond`:
 
-.. doctest::
-
     >>> hl.cond(x > 0, 1, 0)
      <Int32Expression of type int32>
 
@@ -249,8 +216,6 @@ computations:
 More complicated conditional statements can be constructed with :func:`.case`.
 For example, we might want to emit ``1`` if ``x < -1``, ``2`` if
 ``-1 <= x <= 2`` and ``3`` if ``x > 2``.
-
-.. doctest::
 
     >>> (hl.case()
     ...   .when(x < -1, 1)
@@ -266,8 +231,6 @@ mutation. If `csq` does not match one of the cases specified by
 :meth:`.SwitchBuilder.when`, it is set to missing with
 :meth:`.SwitchBuilder.or_missing`. Other switch statements are documented in the
 :class:`.SwitchBuilder` class.
-
-.. doctest::
 
     >>> csq = hl.str('nonsense')
 
@@ -288,22 +251,16 @@ An expression representing a missing value of a given type can be generated with
 the :func:`.null` function, which takes the type as its single argument. An
 example of generating a :class:`.Float64Expression` that is missing is:
 
-.. doctest::
-
     >>> hl.null('float64')
 
 These can be used with conditional statements to set values to missing if they
 don't satisfy a condition:
-
-.. doctest::
 
     >>> hl.cond(x > 2.0, x, hl.null(hl.tfloat))
 
 The result of method calls on a missing value is ``None``. For example, if
 we define ``cnull`` to be a missing value with type :class:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
-
-.. doctest::
 
     >>> cnull = hl.null('call')
     >>> cnull.is_het().value
@@ -317,13 +274,9 @@ Hail inlines function calls each time an expression appears. This can result
 in unexpected behavior when random values are used. For example, let `x` be
 a random number generated with the function :func:`.rand_unif`:
 
-.. doctest::
-
     >>> x = hl.rand_unif(0, 1)
 
 The value of `x` changes with each evaluation:
-
-.. doctest::
 
     >>> x.value
     0.4678132874101748
@@ -334,15 +287,11 @@ The value of `x` changes with each evaluation:
 If we create a list with x repeated 3 times, we'd expect to get an array with identical
 values. However, instead we see a list of 3 random numbers.
 
-.. doctest::
-
     >>> hl.array([x, x, x]).value
     [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
 
 To solve this problem, we can use the :func:`.bind` function to bind an expression to a
 value before applying it in a function.
-
-.. doctest::
 
     >>> expr = hl.bind(lambda x: [x, x, x], hl.rand_unif(0, 1))
 
@@ -374,8 +323,6 @@ Hail has functions to create tables from a variety of data sources.
 The most common use case is to load data from a TSV or CSV file, which can be
 done with the :func:`import_table` function.
 
-.. doctest::
-
     ht = hl.import_table("data/kt_example1.tsv", impute=True)
 
 Examples of genetics-specific import methods are
@@ -384,8 +331,6 @@ Many Hail methods also return tables.
 
 An example of a table is below. We recommend `ht` as a variable name for
 tables, referring to a "Hail table".
-
-.. doctest::
 
     >>> ht.show()
     +-------+-------+-----+-------+-------+-------+-------+-------+
@@ -424,8 +369,6 @@ of as
 but the value ``5`` is only stored once for the entire dataset and NOT once per
 row of the table. The output of :meth:`.Table.describe` lists what all of the row
 fields and global fields are.
-
-.. doctest::
 
     >>> ht.describe()
     ----------------------------------------
@@ -466,8 +409,6 @@ special characters in it. The Python type of each attribute is an
 :class:`.Expression` that also contains context about its type and source, in
 this case a row field of table `ht`.
 
-.. doctest::
-
     >>> ht
     <hail.table.Table at 0x110791a20>
 
@@ -482,8 +423,6 @@ The main operations on a table are :meth:`.Table.select` and :meth:`.Table.drop`
 :meth:`.Table.filter` to either keep or remove rows based on a condition, and :meth:`.Table.annotate` to add
 new row fields or update the values of existing row fields. For example:
 
-.. doctest::
-
     >>> ht_new = ht.filter(ht['C1'] >= 10)
     >>> ht_new = ht_new.annotate(id_times_2 = ht_new.ID * 2)
 
@@ -496,16 +435,12 @@ the dataset. Hail provides an :meth:`.Table.aggregate` method along with many
 aggregator functions (see :ref:`sec-aggregators`) to return the result of a
 query:
 
-.. doctest::
-
     >>> ht.aggregate(agg.fraction(ht.SEX == 'F'))
     0.5
 
 We also might want to compute the mean value of `HT` for each sex. This is
 possible with a combination of :meth:`Table.group_by` and
 :meth:`.GroupedTable.aggregate`:
-
-.. doctest::
 
     >>> ht_agg = (ht.group_by(ht.SEX)
     ...             .aggregate(mean = agg.mean(ht.HT)))
@@ -536,8 +471,6 @@ tables. However, the names of the keys do not need to be identical. Use the
 names overlap between the two tables, the second table's field names will be
 appended with a unique identifier "_N".
 
-.. doctest::
-
     >>> ht = ht.key_by('ID')
     >>> ht2 = hl.import_table("data/kt_example2.tsv", impute=True).key_by('ID')
 
@@ -559,8 +492,6 @@ join syntax using Python's bracket notation. This syntax does a left join, like
 looking up values in a dictionary. Instead of returning a :class:`.Table`, this
 syntax returns an :class:`.Expression` which can be used in expressions of the
 left table. For example, below we add the field 'B' from `ht2` to `ht`:
-
-.. doctest::
 
     >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
     >>> ht1.show()
@@ -585,8 +516,6 @@ of a table.
 :meth:`.Table.take` will collect the first `n` rows of a table into a local
 Python list:
 
-.. doctest::
-
     >>> first3 = ht.take(3)
     >>> first3
     [Struct(ID=3, HT=70, SEX=F, X=7, Z=3, C1=10, C2=81, C3=-5),
@@ -595,8 +524,6 @@ Python list:
 
 Note that each element of the list is a :class:`.Struct` whose elements can be
 accessed using Python's get attribute or get item notation:
-
-.. doctest::
 
     >>> first3[0].ID
     3
@@ -693,12 +620,6 @@ When evaluated in a Python interpreter, we can see ``mt.locus`` is a
 :class:`.LocusExpression` with type ``locus<GRCh37>`` and it is a row field of
 the MatrixTable `mt`.
 
-.. testsetup::
-
-    mt = hl.import_vcf('data/sample.vcf.bgz')
-
-.. doctest::
-
     >>> mt
     <hail.matrixtable.MatrixTable at 0x1107e54a8>
 
@@ -708,8 +629,6 @@ the MatrixTable `mt`.
 Likewise, ``mt.DP`` would be an :class:`.Int32Expression` with type ``int32``
 and is an entry field of `mt`. It is indexed by both rows and columns as denoted
 by its indices when describing the expression:
-
-.. doctest::
 
     >>> mt.DP.describe()
     --------------------------------------------------------
@@ -730,14 +649,10 @@ provides functions to import genetic datasets as matrix tables from a
 variety of file formats: :func:`.import_vcf`, :func:`.import_plink`,
 :func:`.import_bgen`, and :func:`.import_gen`.
 
-.. doctest::
-
     >>> mt = hl.import_vcf('data/sample.vcf.bgz')
 
 The :meth:`.MatrixTable.describe` method prints all fields in the table and
 their types, as well as the keys.
-
-.. doctest::
 
     >>> mt.describe()
     ----------------------------------------
@@ -793,8 +708,6 @@ matrix table.
 Filter methods take a :class:`.BooleanExpression` argument. These expressions
 are generated by applying computations to the fields of the matrix table:
 
-.. doctest::
-
     >>> filt_mt = mt.filter_rows(hl.len(mt.alleles) == 2)
 
     >>> filt_mt = mt.filter_cols(hl.agg.mean(mt.GQ) < 20)
@@ -820,8 +733,6 @@ field to add and the value is an expression specifying what should be added.
 The simplest example is adding a new global field `foo` that just contains the constant
 5.
 
-.. doctest::
-
     >>> mt_new = mt.annotate_globals(foo = 5)
     >>> print(mt.globals.dtype.pretty())
     struct {
@@ -831,14 +742,10 @@ The simplest example is adding a new global field `foo` that just contains the c
 Another example is adding a new row field `call_rate` which computes the fraction
 of non-missing entries `GT` per row:
 
-.. doctest::
-
     >>> mt_new = mt.annotate_rows(call_rate = hl.agg.fraction(hl.is_defined(mt.GT)))
 
 Annotate methods are also useful for updating values. For example, to update the
 GT entry field to be missing if `GQ` is less than 20, we can do the following:
-
-.. doctest::
 
     >>> mt_new = mt.annotate_entries(GT = hl.case()
     ...                                     .when(mt.GQ >= 20, mt.GT)
@@ -850,8 +757,6 @@ Select is used to create a new schema for a dimension of the matrix table. For
 example, following the matrix table schemas from importing a VCF file (shown above),
 to create a hard calls dataset where each entry only contains the `GT` field
 one can do the following:
-
-.. doctest::
 
     >>> mt_new = mt.select_entries('GT')
     >>> print(mt_new.entry.dtype.pretty())
@@ -878,8 +783,6 @@ The example below will keep the row keys `locus` and `alleles` as well as add
 two new fields: `AC` is making the subfield `AC` into a top level field and
 `n_filters` is a new computed field.
 
-.. doctest::
-
     >>> mt_new = mt.select_rows(AC = mt.info.AC,
     ...                         n_filters = hl.len(mt['filters']))
 
@@ -902,8 +805,6 @@ set.
 - :meth:`.MatrixTable.explode_cols`
 
 One use case of explode is to duplicate rows:
-
-.. doctest::
 
     >>> mt_new = mt.annotate_rows(replicate_num = [1, 2])
     >>> mt_new = mt_new.explode_rows(mt_new['replicate_num'])
@@ -944,16 +845,12 @@ a Python value.
 
 An example of querying entries is to compute the global mean of field `GQ`:
 
-.. doctest::
-
     >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))
     67.73196915777027
 
 It is possible to compute multiple values simultaneously (and encouraged,
 because grouping two computations together will run twice as fast!) by
 creating a tuple or struct:
-
-.. doctest::
 
     >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))
     (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
@@ -974,15 +871,11 @@ matrix table.
 First let's add a random phenotype as a new column field `case_status` and then
 compute statistics about the entry field `GQ` for each grouping of `case_status`.
 
-.. doctest::
-
     >>> mt_ann = mt.annotate_cols(case_status = hl.cond(hl.rand_bool(0.5),
     ...                                                 "CASE",
     ...                                                 "CONTROL"))
 
 Next we group the columns by `case_status` and aggregate:
-
-.. doctest::
 
     >>> mt_grouped = (mt_ann.group_cols_by(mt_ann.case_status)
     ...                 .aggregate(gq_stats = agg.stats(mt_ann.GQ)))
@@ -1029,27 +922,15 @@ For example, we can annotate rows with row fields from another matrix table or
 table. Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type
 ``locus`` and ``array<str>``, which matches the row keys of `mt`:
 
-.. testsetup::
-
-    gnomad_data = mt.rows()
-    gnomad_data = gnomad_data.select(gnomad_data.info.AF)
-
-.. doctest::
-
     >>> mt_new = mt.annotate_rows(gnomad_ann = gnomad_data[mt.locus, mt.alleles])
-
 
 If we only cared about adding one new row field such as `AF` from `gnomad_data`,
 we could do the following:
-
-.. doctest::
 
     >>> mt_new = mt.annotate_rows(gnomad_af = gnomad_data[mt.locus, mt.alleles]['AF'])
 
 To add all fields as top-level row fields, the following syntax unpacks the gnomad_data
 row as keyword arguments to :meth:`.MatrixTable.annotate_rows`:
-
-.. doctest::
 
     >>> mt_new = mt.annotate_rows(**gnomad_data[mt.locus, mt.alleles])
 

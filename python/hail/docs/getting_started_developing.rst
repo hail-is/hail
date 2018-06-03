@@ -48,7 +48,7 @@ Now you can import hail from a python interpreter::
 
     >>> import hail as hl
 
-    >>> hl.init()
+    >>> hl.init() # doctest: +SKIP
     Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
     Setting default log level to "WARN".
     To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
@@ -84,12 +84,12 @@ Activate the environment
     source activate haildoc
 
 Now the shell prompt should include the name of the environment, in this case
-"haildoc". Within the environment, run the ``createDocs`` gradle task in the
+"haildoc". Within the environment, run the ``makeDocs`` gradle task in the
 environment:
 
 .. code-block:: bash
 
-    ./gradlew createDocs
+    ./gradlew makeDocs
 
 The generated docs are located at ``./build/www/hail/index.html``.
 
