@@ -1405,12 +1405,12 @@ class BlockMatrix(object):
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
     def entries(self):
-        """Returns a table with the coordinates and numeric value of each block matrix entry.
+        """Returns a table with the indices and value of each block matrix entry.
 
         Examples
         --------
         >>> import numpy as np
-        >>> block_matrix = BlockMatrix.from_numpy(np.matrix([[5, 7], [2, 8]]), 2)
+        >>> block_matrix = BlockMatrix.from_numpy(np.array([[5, 7], [2, 8]]), 2)
         >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
         +-------+-------+-------------+
@@ -1424,10 +1424,21 @@ class BlockMatrix(object):
         |     1 |     1 | 8.00000e+00 |
         +-------+-------+-------------+
 
-        Warning
-        -------
+        Notes
+        -----
         The resulting table may be filtered, aggregated, and queried, but should only be
         directly exported to disk if the block matrix is very small.
+
+        For block-sparse matrices, only realized blocks are included. To force inclusion
+        of zeroes in dropped blocks, apply :meth:`densify` first.
+
+        The resulting table has the following fields:
+
+        - **i** (:py:data:`.tint64`, key field) -- Row index.
+
+        - **j** (:py:data:`.tint64`, key field) -- Column index.
+
+        - **entry** (:py:data:`.tfloat64`) -- Value of entry.
 
         Returns
         -------

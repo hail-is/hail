@@ -1188,7 +1188,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    new Table(hc, entriesRDD, rvRowType)
+    new Table(hc, entriesRDD, rvRowType, Some(Array("i", "j")))
   }
 
   // positions is an ordered table with one value field of type int32, which will be grouped by key field(s) if present
