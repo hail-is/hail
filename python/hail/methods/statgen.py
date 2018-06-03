@@ -2913,8 +2913,9 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
            r2=numeric,
            bp_window_size=int,
            memory_per_core=int,
+           keep_higher_maf=bool,
            block_size=nullable(int))
-def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, block_size=None):
+def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, keep_higher_maf=True, block_size=None):
     """Returns a maximal subset of nearly-uncorrelated variants.
 
     .. include:: ../_templates/req_diploid_gt.rst
@@ -2940,13 +2941,17 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
       this stage. The parallelism is the number of partitions in the dataset.
 
     - The second, "global correlation" stage uses block matrix multiplication
-      to compute correlation between each pair of remaining variants  within
-      `bp_window_size` base pairs, and then forms a graph with edges between
-      correlated errors. The parallelism of writing the locally-pruned matrix
+      to compute correlation between each pair of remaining variants within
+      `bp_window_size` base pairs, and then forms a graph of correlated
+      variants. The parallelism of writing the locally-pruned matrix
       table as a block matrix is ``n_locally_pruned_variants / block_size``.
 
     - The third, "global pruning" stage applies :func:`.maximal_independent_set`
-      to prune this graph until no edges remain.
+      to prune variants from this graph until no edges remain. This algorithm
+      iteratively removes the variant with the highest vertex degree. If
+      `keep_higher_maf` is true, then in the case of multiple variants of
+      highest degree, the algorithm will remove the variant with lowest minor
+      allele frequency.
 
     If you encounter a Hadoop write/replication error, consider:
 
@@ -2972,6 +2977,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
         Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
         Memory in MB per core for local pruning queue.
+    keep_higher_maf: :obj:`int`
+        If ``True``, break ties at each step of global pruning
+        stage by preferring to keep variants with higher minor
+        allele frequency.
     block_size: :obj:`int`, optional
         Block size for block matrices in the second stage.
         Default given by :meth:`.BlockMatrix.default_block_size`.
@@ -2997,62 +3006,72 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, blo
         field = Env.get_uid()
         mt = mt.select_entries(**{field: call_expr})
 
-    sites_only_table = _local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
+    locally_pruned_table_path = new_temp_file()
+    (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
+         .write(locally_pruned_table_path, overwrite=True))
+    locally_pruned_table = hl.read_table(locally_pruned_table_path)
 
-    sites_path = new_temp_file()
-    sites_only_table.write(sites_path, overwrite=True)
-    sites_only_table = hl.read_table(sites_path)
-
-    locally_pruned_ds = mt.annotate_rows(pruned=sites_only_table[mt.row_key])
-    locally_pruned_ds = locally_pruned_ds.filter_rows(hl.is_defined(locally_pruned_ds.pruned))
-
-    locally_pruned_ds = (locally_pruned_ds.annotate_rows(
-        mean=locally_pruned_ds.pruned.mean,
-        centered_length_sd_reciprocal=locally_pruned_ds.pruned.centered_length_sd_reciprocal))
-
-    locally_pruned_path = new_temp_file()
-    locally_pruned_ds.write(locally_pruned_path, overwrite=True)
-
-    locally_pruned_ds = hl.read_matrix_table(locally_pruned_path)
+    locally_pruned_ds_path = new_temp_file()
+    mt = mt.annotate_rows(
+        mean=locally_pruned_table[mt.row_key].mean,
+        centered_length_rec=locally_pruned_table[mt.row_key].centered_length_rec)
+    (mt.filter_rows(hl.is_defined(mt.mean))
+        .write(locally_pruned_ds_path, overwrite=True))
+    locally_pruned_ds = hl.read_matrix_table(locally_pruned_ds_path)
 
     n_locally_pruned_variants = locally_pruned_ds.count_rows()
     info(f'ld_prune: local pruning stage retained {n_locally_pruned_variants} variants')
 
-    locally_pruned_ds = locally_pruned_ds.add_row_index('row_idx')
-
-    normalized_mean_imputed_genotype_expr = (
+    standardized_mean_imputed_gt_expr = (
         hl.cond(hl.is_defined(locally_pruned_ds[field]),
                 (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.mean)
-                * locally_pruned_ds.centered_length_sd_reciprocal, 0))
+                * locally_pruned_ds.centered_length_rec, 0.0))
 
-    # BlockMatrix.from_entry_expr writes to disk
-    block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr, block_size)
-    correlation_matrix = block_matrix @ block_matrix.T
+    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
 
-    locally_pruned_rows = locally_pruned_ds.rows()
-    locally_pruned_rows = locally_pruned_rows.key_by(contig=locally_pruned_rows.locus.contig)
-    locally_pruned_rows = locally_pruned_rows.select(pos=locally_pruned_rows.locus.position)
-    entries = correlation_matrix._filtered_entries_table(locally_pruned_rows, bp_window_size, False)
+    locally_pruned_positions = locally_pruned_table.key_by(contig=locally_pruned_table.locus.contig)
+    locally_pruned_positions = locally_pruned_positions.select(pos=locally_pruned_positions.locus.position)
 
+    entries = (std_gt_bm @ std_gt_bm.T)._filtered_entries_table(locally_pruned_positions, bp_window_size, False)
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
 
-    index_table = sites_only_table.add_index().key_by('idx').select('locus')
-    entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
+    index_table = locally_pruned_table.add_index().key_by('idx').select('locus', 'mean')
+    entries = entries.annotate(locus_i=index_table[entries.i].locus,
+                               mean_i=index_table[entries.i].mean,
+                               locus_j=index_table[entries.j].locus,
+                               mean_j=index_table[entries.j].mean)
 
     entries = entries.filter((entries.locus_i.contig == entries.locus_j.contig)
                              & (entries.locus_j.position - entries.locus_i.position <= bp_window_size))
 
     entries_path = new_temp_file()
-    entries.write(entries_path, overwrite=True)
+    entries.drop('entry', 'locus_i', 'locus_j').write(entries_path, overwrite=True)
     entries = hl.read_table(entries_path)
 
     n_edges = entries.count()
     info(f'ld_prune: correlation graph of locally-pruned variants has {n_edges} edges,'
          f'\n    finding maximal independent set...')
 
-    related_nodes_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
+    if keep_higher_maf:
+        entries = entries.key_by(
+            i=hl.struct(idx=entries.i,
+                        twice_maf=hl.cond(entries.mean_i <= 1.0, entries.mean_i, 2.0 - entries.mean_i)),
+            j=hl.struct(idx=entries.j,
+                        twice_maf=hl.cond(entries.mean_j <= 1.0, entries.mean_j, 2.0 - entries.mean_j)))
 
-    pruned_ds = locally_pruned_ds.filter_rows(
-        hl.is_defined(related_nodes_to_remove[locally_pruned_ds.row_idx]), keep=False)
+        def tie_breaker(l, r):
+            return hl.cond(l.twice_maf > r.twice_maf,
+                           -1,
+                           hl.cond(l.twice_maf < r.twice_maf,
+                                   1,
+                                   0))
 
-    return pruned_ds.rows().select()
+        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
+        variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
+    else:
+        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
+
+    locally_pruned_table = locally_pruned_table.add_index()
+
+    return locally_pruned_table.filter(
+        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()

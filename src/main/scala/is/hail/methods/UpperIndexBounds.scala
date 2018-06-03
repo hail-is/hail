@@ -3,24 +3,21 @@ package is.hail.methods
 import is.hail.expr.types._
 import is.hail.linalg.GridPartitioner
 import is.hail.table.Table
-import is.hail.utils.{fatal, plural}
+import is.hail.utils.plural
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object UpperIndexBounds {
+  def groupPositionsByKey(posTable: Table): RDD[Array[Int]] = {
+    require(posTable.valueSignature.size == 1 && posTable.valueSignature.types(0) == TInt32(),
+      s"Expected table to have one value field of type int32, but found ${ posTable.valueSignature.size } value " +
+      s"${ plural(posTable.valueSignature.size, "field") } of ${ plural(posTable.valueSignature.size, "type") } " +
+      s"${ posTable.valueSignature.types.mkString(", ") }.")
 
-  def groupPositionsByKey(tbl: Table): RDD[Array[Int]] = {
+    val fieldIndex = posTable.valueFieldIdx(0)
 
-    if (tbl.valueSignature.size != 1 || tbl.valueSignature.types(0) != TInt32()) {
-      fatal(s"Expected table to have one value field of type int32, but found ${ tbl.valueSignature.size } value " +
-        s"${ plural(tbl.valueSignature.size, "field") } of ${ plural(tbl.valueSignature.size, "type") } " +
-        s"${ tbl.valueSignature.types.mkString(", ") }.")
-    }
-
-    val fieldIndex = tbl.valueFieldIdx(0)
-
-    tbl.groupByKey("positions").rdd.map(row => row.get(fieldIndex).asInstanceOf[Vector[Row]].toArray
-      .map(row => row.get(0).asInstanceOf[Int]))
+    posTable.groupByKey("positions").rdd.map(
+      _.get(fieldIndex).asInstanceOf[Vector[Row]].toArray.map(_.get(0).asInstanceOf[Int]))
   }
 
   // positions is non-decreasing, radius is non-negative
@@ -53,9 +50,10 @@ object UpperIndexBounds {
 
   /* computes the minimum set of blocks necessary to cover all pairs of indices (i, j) such that key[i] == key[j], 
   i <= j, and position[j] - position[i] <= radius.  If includeDiagonal=false, require i < j rather than i <= j. */
-  def computeCoverByUpperTriangularBlocks(tbl: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
+  def computeCoverByUpperTriangularBlocks(
+    posTable: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
 
-    val relativeUpperIndexBounds = groupPositionsByKey(tbl).map(positions => {
+    val relativeUpperIndexBounds = groupPositionsByKey(posTable).map(positions => {
       scala.util.Sorting.quickSort(positions)
       computeUpperIndexBounds(positions, radius)
     })

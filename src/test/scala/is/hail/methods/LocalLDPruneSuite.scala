@@ -109,7 +109,7 @@ object LocalLDPruneSuite {
   def toBitPackedVector(calls: Array[BoxedCall]): Option[BitPackedVector] = {
     val nSamples = calls.length
     toBitPackedVectorView(convertCallsToGs(calls), nSamples).map { bpvv =>
-      BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip)
+      BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getCenteredLengthRec)
     }
   }
 
