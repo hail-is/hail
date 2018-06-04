@@ -977,38 +977,56 @@ class Tests(unittest.TestCase):
         self.assertEqual((b_array + f1).value, [6.5, 5.5])
         self.assertEqual((b_array + f_array).value, [2.5, 2.5])
 
-
-    def test_allele_methods(self):
+    def test_is_transition(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_transition("C", "T")))
         self.assertTrue(hl.eval_expr(hl.is_transition("AA", "AG")))
         self.assertFalse(hl.eval_expr(hl.is_transition("AA", "G")))
         self.assertFalse(hl.eval_expr(hl.is_transition("ACA", "AGA")))
+        self.assertFalse(hl.eval_expr(hl.is_transition("A", "T")))
+
+    def test_is_transverion(self):
+        self.assertTrue(hl.eval_expr(hl.is_transversion("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_transversion("A", "G")))
         self.assertTrue(hl.eval_expr(hl.is_transversion("AA", "AT")))
-        self.assertFalse(hl.eval_expr(hl.is_transversion("AA","T")))
+        self.assertFalse(hl.eval_expr(hl.is_transversion("AA", "T")))
         self.assertFalse(hl.eval_expr(hl.is_transversion("ACCC", "ACCT")))
-        self.assertTrue(hl.eval_expr(hl.is_transversion("A", "T")))
-        self.assertFalse(hl.eval_expr(hl.is_transition("A", "T")))
+
+    def test_is_snp(self):
         self.assertTrue(hl.eval_expr(hl.is_snp("A", "T")))
         self.assertTrue(hl.eval_expr(hl.is_snp("A", "G")))
         self.assertTrue(hl.eval_expr(hl.is_snp("C", "G")))
         self.assertTrue(hl.eval_expr(hl.is_snp("CC", "CG")))
         self.assertTrue(hl.eval_expr(hl.is_snp("AT", "AG")))
         self.assertTrue(hl.eval_expr(hl.is_snp("ATCCC", "AGCCC")))
+
+    def test_is_mnp(self):
         self.assertTrue(hl.eval_expr(hl.is_mnp("ACTGAC", "ATTGTT")))
         self.assertTrue(hl.eval_expr(hl.is_mnp("CA", "TT")))
+
+    def test_is_insertion(self):
         self.assertTrue(hl.eval_expr(hl.is_insertion("A", "ATGC")))
         self.assertTrue(hl.eval_expr(hl.is_insertion("ATT", "ATGCTT")))
+
+    def test_is_deletion(self):
         self.assertTrue(hl.eval_expr(hl.is_deletion("ATGC", "A")))
         self.assertTrue(hl.eval_expr(hl.is_deletion("GTGTA", "GTA")))
+
+    def test_is_indel(self):
         self.assertTrue(hl.eval_expr(hl.is_indel("A", "ATGC")))
         self.assertTrue(hl.eval_expr(hl.is_indel("ATT", "ATGCTT")))
         self.assertTrue(hl.eval_expr(hl.is_indel("ATGC", "A")))
         self.assertTrue(hl.eval_expr(hl.is_indel("GTGTA", "GTA")))
+
+    def test_is_complex(self):
         self.assertTrue(hl.eval_expr(hl.is_complex("CTA", "ATTT")))
         self.assertTrue(hl.eval_expr(hl.is_complex("A", "TATGC")))
+
+    def test_is_star(self):
         self.assertTrue(hl.eval_expr(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval_expr(hl.is_star("A", "*")))
+
+    def test_is_strand_ambiguous(self):
         self.assertTrue(hl.eval_expr(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_strand_ambiguous("G", "T")))
 
