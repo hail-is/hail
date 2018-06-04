@@ -32,7 +32,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
   } else
       mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv, missingGreatest = true)
 
-  def sort(): Code[Unit] = {
+  def sort(ascending: Code[Boolean]): Code[Unit] = {
 
     type F[T] = AsmFunction4[T, Boolean, T, Boolean, Boolean]
 
@@ -48,6 +48,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
       case DoubleInfo => newSortFunction[Double]
     }
     val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
+    val asc: Code[Boolean] = sorter.addField[Boolean](ascending)
     if (keyOnly) {
       val ttype = coerce[TBaseStruct](typ)
       require(ttype.size == 2)
@@ -73,10 +74,10 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
       )
       sorter.emit(comparison < 0)
     } else {
-      val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true)
-      sorter.emit(cmp(
+      val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true)(
         sorterRegion, (sorter.getArg[Boolean](2), sorter.getArg(1)(ti)),
-        sorterRegion, (sorter.getArg[Boolean](4), sorter.getArg(3)(ti))) < 0)
+        sorterRegion, (sorter.getArg[Boolean](4), sorter.getArg(3)(ti)))
+      sorter.emit(asc.mux(cmp < 0, cmp > 0))
     }
 
     Code(
