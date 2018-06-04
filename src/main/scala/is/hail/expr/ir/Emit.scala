@@ -988,11 +988,10 @@ private class Emit(
             xvv := xmv.mux(
               defaultValue(x.typ.elementType),
               v),
-            Code(
-              codeCond.setup,
-              (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
-                Code._empty,
-                cont(xmv, xvv))))
+            codeCond.setup,
+            (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
+              Code._empty,
+              cont(xmv, xvv)))
         }
         emitArrayIterator(a).copy(length = None).wrapContinuation(filterCont)
 
