@@ -1855,7 +1855,7 @@ def is_transition(ref, alt) -> BooleanExpression:
     >>> hl.is_transition('A', 'T').value
     False
 
-    >>> hl.is_transition('A', 'G').value
+    >>> hl.is_transition('AAA', 'AGA').value
     True
 
     Parameters
@@ -1869,11 +1869,7 @@ def is_transition(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return is_snp(ref, alt) & (
-            ((ref == 'A') & (alt == 'G')) |
-            ((ref == 'G') & (alt == 'A')) |
-            ((ref == 'C') & (alt == 'T')) |
-            ((ref == 'T') & (alt == 'C')))
+    return is_snp(ref, alt) & _is_snp_transition(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1886,7 +1882,7 @@ def is_transversion(ref, alt) -> BooleanExpression:
     >>> hl.is_transition('A', 'T').value
     True
 
-    >>> hl.is_transition('A', 'G').value
+    >>> hl.is_transition('AAA', 'AGA').value
     False
 
     Parameters
@@ -1900,7 +1896,21 @@ def is_transversion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return is_snp(ref, alt) & (~(is_transition(ref, alt)))
+    return is_snp(ref, alt) & (~(_is_snp_transition(ref, alt)))
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def _is_snp_transition(ref, alt) -> BooleanExpression:
+    assert(hl.eval_expr(ref.length() == alt.length()))
+    i = 0
+    while i < hl.eval_expr(ref.length()):
+        if hl.eval_expr(ref[i] == alt[i]):
+            i += 1
+        else:
+            return (((ref[i] == 'A') & (alt[i] == 'G')) |
+                    ((ref[i] == 'G') & (alt[i] == 'A')) |
+                    ((ref[i] == 'C') & (alt[i] == 'T')) |
+                    ((ref[i] == 'T') & (alt[i] == 'C')))
 
 
 @typecheck(ref=expr_str, alt=expr_str)

@@ -980,7 +980,11 @@ class Tests(unittest.TestCase):
 
     def test_allele_methods(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_transition("AA", "AG")))
+        self.assertFalse(hl.eval_expr(hl.is_transition("ACA", "AGA")))
         self.assertFalse(hl.eval_expr(hl.is_transversion("A", "G")))
+        self.assertTrue(hl.eval_expr(hl.is_transversion("AA", "AT")))
+        self.assertFalse(hl.eval_expr(hl.is_transversion("ACCC", "ACCT")))
         self.assertTrue(hl.eval_expr(hl.is_transversion("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_transition("A", "T")))
         self.assertTrue(hl.eval_expr(hl.is_snp("A", "T")))
