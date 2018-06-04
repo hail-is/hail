@@ -1028,9 +1028,7 @@ private class Emit(
         val mapCont = { (continuation: F, m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xmv.mux(
-              xvv := defaultValue(elt),
-              xvv := v),
+            xvv := xmv.mux(defaultValue(elt), v),
             codeB.setup,
             continuation(codeB.m, codeB.v))
         }
