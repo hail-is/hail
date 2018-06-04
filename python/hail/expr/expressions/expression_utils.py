@@ -120,9 +120,9 @@ def eval_expr(expression):
 
     Evaluate a conditional:
 
-        >>> x = 6
-        >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-        'Even'
+    >>> x = 6
+    >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    'Even'
 
     Parameters
     ----------
