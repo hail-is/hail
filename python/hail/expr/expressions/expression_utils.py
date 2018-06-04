@@ -117,13 +117,12 @@ def eval_expr(expression):
 
     Examples
     --------
+
     Evaluate a conditional:
 
-    .. doctest::
-
-        >>> x = 6
-        >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-        'Even'
+    >>> x = 6
+    >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    'Even'
 
     Parameters
     ----------
@@ -152,11 +151,9 @@ def eval_expr_typed(expression):
     --------
     Evaluate a conditional:
 
-    .. doctest::
-
-        >>> x = 6
-        >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-        ('Odd', tstr)
+    >>> x = 6
+    >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    ('Odd', tstr)
 
     Parameters
     ----------
