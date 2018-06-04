@@ -21,8 +21,6 @@ void check_assumptions();
 
 class NativePtrInfo {
 public:
-  static const int kMagic = 0xa35e72bf;
-  int  magic_;
   jclass class_ref_;
   jfieldID addrA_id_;
   jfieldID addrB_id_;
@@ -34,7 +32,6 @@ public:
     env->DeleteLocalRef(cl);
     addrA_id_ = env->GetFieldID(class_ref_, "addrA", "J");
     addrB_id_ = env->GetFieldID(class_ref_, "addrB", "J");
-    magic_ = kMagic;
     check_assumptions();
   }
 };
