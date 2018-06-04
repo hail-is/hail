@@ -85,11 +85,12 @@ object IRFunctionRegistry {
     CallFunctions,
     DictFunctions,
     GenotypeFunctions,
+    LocusFunctions,
     MathFunctions,
     SetFunctions,
     StringFunctions,
     UtilFunctions
-  ).map(_.registerAll())
+  ).foreach(_.registerAll())
 }
 
 abstract class RegistryFunctions {

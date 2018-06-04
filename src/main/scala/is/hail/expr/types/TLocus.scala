@@ -101,4 +101,8 @@ case class TLocus(rg: RGBase, override val required: Boolean = false) extends Co
   override def clear(): Unit = rg.clear()
 
   override def subst() = rg.subst().locusType
+  
+  def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  
+  def position(region: Code[Region], off: Code[Long]): Code[Int] = region.loadInt(representation.loadField(region, off, 1))
 }
