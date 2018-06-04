@@ -243,8 +243,26 @@ final class Region(
     startOff
   }
 
+  def appendBinarySlice(
+    fromRegion: Region,
+    fromOff: Long,
+    start: Int,
+    n: Int
+  ): Long = {
+    assert(fromOff + start + n <= fromRegion.size)
+    assert(n >= 0)
+    align(TBinary.contentAlignment)
+    val off = allocate(4, n + 4)
+    storeInt(off, n)
+    copyFrom(fromRegion, TBinary.bytesOffset(fromOff) + start, off + 4, n)
+    off
+  }
+
   def appendString(s: String): Long =
     appendBinary(s.getBytes)
+
+  def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
+    appendBinarySlice(fromRegion, fromOff, start, n)
 
   def appendArrayInt(a: Array[Int]): Long = {
     val off = appendInt(a.length)

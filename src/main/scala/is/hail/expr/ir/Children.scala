@@ -84,6 +84,10 @@ object Children {
       types.toIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
+    case StringSlice(s, start, n) =>
+      Array(s, start, n)
+    case StringLength(s) =>
+      Array(s)
     case In(i, typ) =>
       none
     case Die(message, typ) =>

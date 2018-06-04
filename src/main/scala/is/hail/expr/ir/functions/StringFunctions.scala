@@ -31,6 +31,14 @@ object StringFunctions extends RegistryFunctions {
   def registerWrappedStringScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
     registerWrappedStringScalaFunction(mname, Array(a1, a2), rType)(cls, method)
 
+  def str(x: Int): String = x.toString
+
+  def str(x: Long): String = x.toString
+
+  def str(x: Float): String = x.formatted("%.5e")
+
+  def str(x: Double): String = x.formatted("%.5e")
+
   def upper(s: String): String = s.toUpperCase
 
   def lower(s: String): String = s.toLowerCase
@@ -50,7 +58,70 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerIR("[:]", TString())(_)
+    registerIR("[:]", TString())(x => x)
+    registerIR("[*:]", TString(), TInt32()) { (s, start) =>
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.StringSlice(
+          s,
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+              ir.I32(0)),
+            UtilFunctions.min(start, len)),
+          len))
+    }
+    registerIR("[:*]", TString(), TInt32()) { (s, end) =>
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.StringSlice(
+          s,
+          ir.I32(0),
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, end),
+              ir.I32(0)),
+            UtilFunctions.min(end, len))))
+    }
+    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
+      val lenName = ir.genUID()
+      val len = ir.Ref(lenName, TInt32())
+      val startName = ir.genUID()
+      val startRef = ir.Ref(startName, TInt32())
+      ir.Let(lenName, ir.StringLength(s),
+        ir.Let(
+          startName,
+          ir.If(
+            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
+            UtilFunctions.max(
+              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
+              ir.I32(0)),
+            UtilFunctions.min(start, len)),
+          ir.StringSlice(
+            s,
+            startRef,
+            ir.If(
+              ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
+              UtilFunctions.max(
+                ir.ApplyBinaryPrimOp(ir.Add(), len, end),
+                startRef),
+              UtilFunctions.max(
+                UtilFunctions.min(end, len),
+                startRef)))))
+    }
+
+    registerIR("len", TString()) { (s) =>
+      ir.StringLength(s)
+    }
+
+    registerWrappedStringScalaFunction("str", TInt32(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TInt64(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TFloat32(), TString())(thisClass, "str")
+    registerWrappedStringScalaFunction("str", TFloat64(), TString())(thisClass, "str")
 
     registerWrappedStringScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedStringScalaFunction("lower", TString(), TString())(thisClass, "lower")

@@ -9,7 +9,6 @@ import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
 class IRSuite extends TestNGSuite {
-
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }

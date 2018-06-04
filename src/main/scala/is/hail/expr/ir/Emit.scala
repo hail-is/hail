@@ -730,6 +730,50 @@ private class Emit(
           xmo || !t.isFieldDefined(region, xo, idx),
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
+      case StringSlice(s, start, end) =>
+        val t = coerce[TString](s.typ)
+        val cs = emit(s)
+        val cstart = emit(start)
+        val cend = emit(end)
+        val vs = mb.newLocal[Long]()
+        val vstart = mb.newLocal[Int]()
+        val vend = mb.newLocal[Int]()
+        val vlen = mb.newLocal[Int]()
+        val vnewLen = mb.newLocal[Int]()
+        val checks = Code(
+          vs := coerce[Long](cs.v),
+          vstart := coerce[Int](cstart.v),
+          vend := coerce[Int](cend.v),
+          vlen := TString.loadLength(region, vs),
+          ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
+            Code._fatal(
+              const("string slice out of bounds or invalid: \"")
+                .concat(TString.loadString(region, vs))
+                .concat("\"[")
+                .concat(vstart.toS)
+                .concat(":")
+                .concat(vend.toS)
+                .concat("]")
+            ),
+            Code._empty)
+        )
+        val sliced = Code(
+          vnewLen := (vend - vstart),
+          // if vstart = vlen = vend, then we want an empty string, but memcpy
+          // with a pointer one past the end of the allocated region is probably
+          // not safe, so for *all* empty slices, we just inline the code to
+          // stick the length (the contents is size zero so we needn't allocate
+          // for it or really do anything)
+          vnewLen.ceq(0).mux(
+            region.appendInt(0),
+            region.appendStringSlice(region, vs, vstart, vnewLen)))
+        strict(Code(checks, sliced), cs, cstart, cend)
+
+      case StringLength(s) =>
+        val t = coerce[TString](s.typ)
+        val cs = emit(s)
+        strict(TString.loadLength(region, coerce[Long](cs.v)), cs)
+
       case In(i, typ) =>
         EmitTriplet(Code._empty,
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),

@@ -415,6 +415,21 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
+      case StringSlice(s, start, end) =>
+        val Array(maybeString, vstart: Int, vend: Int) =
+          Array(s, start, end).map(interpret(_, env, args, agg))
+        if (maybeString == null)
+          null
+        else {
+          val vs = maybeString.asInstanceOf[String]
+          if (vstart < 0 || vstart > vend || vend > vs.length)
+            fatal(s"""string slice out of bounds or invalid: "$vs"[$vstart:$vend]""")
+          else
+            vs.substring(vstart, vend)
+        }
+      case StringLength(s) =>
+        val vs = interpret(s).asInstanceOf[String]
+        if (vs == null) null else vs.getBytes().length
       case In(i, _) =>
         val (a, _) = args(i)
         a

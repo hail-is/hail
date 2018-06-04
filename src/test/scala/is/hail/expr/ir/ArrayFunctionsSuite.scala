@@ -247,5 +247,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("[*:*]", naa, I32(1), I32(2)), null)
     assertEvalsTo(invoke("[*:*]", a, I32(1), NA(TInt32())), null)
     assertEvalsTo(invoke("[*:*]", a, NA(TInt32()), I32(1)), null)
+    assertEvalsTo(invoke("[*:*]", a, I32(3), I32(2)), IndexedSeq())
   }
 }
