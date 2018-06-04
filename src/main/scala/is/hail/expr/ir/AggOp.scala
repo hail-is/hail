@@ -72,7 +72,7 @@ object AggOp {
     // case (Collect(), _: TFloat32) =>
     // case (Collect(), _: TFloat64) =>
     // case (Collect(), _: TArray) =>
-    // case (Collect(), _: TStruct) =>
+     case (Collect(), in@(_: TStruct), Seq(), None) => CodeAggregator[RegionValueCollectStructAggregator](in, TArray(in), constrArgTypes = Array())
     // case (InfoScore() =>
 
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())

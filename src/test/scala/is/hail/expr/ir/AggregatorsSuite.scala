@@ -62,6 +62,13 @@ class AggregatorsSuite {
     runAggregator(Collect(), TInt32(), FastIndexedSeq(10, null, 5), FastIndexedSeq(10, null, 5))
   }
 
+  @Test def collectStruct(): Unit = {
+    runAggregator(Collect(),
+      TStruct("a" -> TInt32(), "b" -> TBoolean()),
+      FastIndexedSeq(Row(5, true), Row(3, false), Row(0, false)),
+      FastIndexedSeq(Row(5, true), Row(3, false), Row(0, false)))
+  }
+
   @Test def callStats() {
     runAggregator(CallStats(), TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 1), null, Call2(0, 2)),
