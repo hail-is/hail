@@ -3,6 +3,7 @@
 
 #include "hail/NativeObj.h"
 #include <cstdarg>
+#include <cstdio>
 #include <string>
 
 namespace hail {
