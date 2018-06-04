@@ -1618,8 +1618,8 @@ class Tests(unittest.TestCase):
         window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
         identical_filter = entries.i != entries.j
 
-        assert (entries.filter(
-            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count() == 0)
+        self.assertEqual(entries.filter(
+            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count(), 0)
 
     def test_ld_prune_inputs(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
@@ -1635,13 +1635,13 @@ class Tests(unittest.TestCase):
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
 
     def test_entries(self):
         n_rows, n_cols = 5, 3

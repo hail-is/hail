@@ -3040,7 +3040,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
                              info_j=locally_pruned_info[entries.j])
 
     entries = entries.filter((entries.info_i.locus.contig == entries.info_j.locus.contig)
-                             & (entries.info_i.locus.position - entries.info_j.locus.position <= bp_window_size))
+                             & (entries.info_j.locus.position - entries.info_i.locus.position <= bp_window_size))
 
     entries_path = new_temp_file()
     entries.write(entries_path, overwrite=True)
