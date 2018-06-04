@@ -164,7 +164,7 @@ package object asm4s {
     def newArray() = new TypeInsnNode(ANEWARRAY, iname)
   }
 
-  object HailClassLoader extends ClassLoader(this.getClass.getClassLoader) {
+  object HailClassLoader extends ClassLoader {
     def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {
       getClassLoadingLock(name).synchronized {
         try {
