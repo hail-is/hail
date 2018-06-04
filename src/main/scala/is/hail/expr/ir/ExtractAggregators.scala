@@ -77,6 +77,9 @@ object ExtractAggregators {
         Code(codeConstructorArgs.map(_.setup): _*),
         AggOp.get(aggSig)
           .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
-      Region.scoped(constfb.result()()(_))
+
+      val rvagg = Region.scoped(constfb.result()()(_))
+      rvagg.setTypes(aggSig.inputType, AggOp.getType(aggSig))
+      rvagg
   }
 }
