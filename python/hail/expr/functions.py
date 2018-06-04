@@ -1901,7 +1901,6 @@ def is_transversion(ref, alt) -> BooleanExpression:
 
 @typecheck(ref=expr_str, alt=expr_str)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
-    assert(hl.eval_expr(ref.length() == alt.length()))
     i = 0
     while i < hl.eval_expr(ref.length()):
         if hl.eval_expr(ref[i] == alt[i]):
