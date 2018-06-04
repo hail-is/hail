@@ -1869,7 +1869,11 @@ def is_transition(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transition", tbool, ref, alt)
+    return is_snp(ref, alt) & (
+            ((ref == 'A') & (alt == 'G')) |
+            ((ref == 'G') & (alt == 'A')) |
+            ((ref == 'C') & (alt == 'T')) |
+            ((ref == 'T') & (alt == 'C')))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1896,7 +1900,7 @@ def is_transversion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transversion", tbool, ref, alt)
+    return is_snp(ref, alt) & (~(is_transition(ref, alt)))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
