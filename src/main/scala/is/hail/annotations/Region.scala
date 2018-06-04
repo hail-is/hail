@@ -278,7 +278,6 @@ final class Region private (
     start: Int,
     n: Int
   ): Long = {
-    assert(fromOff + start + n <= fromRegion.size)
     assert(n >= 0)
     align(TBinary.contentAlignment)
     val off = allocate(4, n + 4)
