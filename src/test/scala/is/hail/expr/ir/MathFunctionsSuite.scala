@@ -40,4 +40,13 @@ class MathFunctionsSuite extends TestNGSuite {
 
     assertEvalsTo(ir, -3.0)
   }
+
+  @Test def unirootIsStrictInMinAndMax() {
+    assertEvalsTo(
+      Uniroot("x", Ref("x", tfloat), F64(-6), NA(tfloat)),
+      null)
+    assertEvalsTo(
+      Uniroot("x", Ref("x", tfloat), NA(tfloat), F64(0)),
+      null)
+  }
 }
