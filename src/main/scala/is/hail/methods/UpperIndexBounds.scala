@@ -23,7 +23,7 @@ object UpperIndexBounds {
   // positions is non-decreasing, radius is non-negative
   // for each index i, compute the largest j such that positions[k]-positions[i] <= radius
   // for all k in [i, j)
-  // FIXME: do in Python or add to expression language, then replace UpperIndexBounds with Python sparsify_row_intervals
+  // FIXME: do in Python or add to expression language, then do block filtering with sparsify_row_intervals
   def computeUpperIndexBounds(positions: Array[Int], radius: Int): Array[Int] = {
     val n = positions.length
     val bounds = new Array[Int](n)
