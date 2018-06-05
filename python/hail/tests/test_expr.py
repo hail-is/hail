@@ -985,7 +985,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval_expr(hl.is_transition("ACA", "AGA")))
         self.assertFalse(hl.eval_expr(hl.is_transition("A", "T")))
 
-    def test_is_transverion(self):
+    def test_is_transversion(self):
         self.assertTrue(hl.eval_expr(hl.is_transversion("A", "T")))
         self.assertFalse(hl.eval_expr(hl.is_transversion("A", "G")))
         self.assertTrue(hl.eval_expr(hl.is_transversion("AA", "AT")))
@@ -1043,6 +1043,7 @@ class Tests(unittest.TestCase):
                 hl.allele_type('C', '<SYMBOLIC>'),
                 hl.allele_type('C', 'H'),
                 hl.allele_type('C', ''),
+                hl.allele_type('A', 'A'),
                 hl.allele_type('', 'CCT'),
                 hl.allele_type('F', 'CCT'),
                 hl.allele_type('A', '[ASDASD[A'),
@@ -1061,6 +1062,7 @@ class Tests(unittest.TestCase):
                 'Star',
                 'Symbolic',
                 'Symbolic',
+                'Unknown',
                 'Unknown',
                 'Unknown',
                 'Unknown',

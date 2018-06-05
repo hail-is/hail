@@ -1781,7 +1781,7 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                            .when(a.matches(_base_regex), hl.case()
                                  .when(r.length() == a.length(),
                                        hl.cond(r.length() == 1,
-                                               _allele_ints['SNP'],
+                                               hl.cond(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
                                                hl.cond(hamming(r, a) == 1,
                                                        _allele_ints['SNP'],
                                                        _allele_ints['MNP'])))
@@ -1901,16 +1901,12 @@ def is_transversion(ref, alt) -> BooleanExpression:
 
 @typecheck(ref=expr_str, alt=expr_str)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
-    i = 0
-    while i < hl.eval_expr(ref.length()):
-        if hl.eval_expr(ref[i] == alt[i]):
-            i += 1
-        else:
-            return (((ref[i] == 'A') & (alt[i] == 'G')) |
-                    ((ref[i] == 'G') & (alt[i] == 'A')) |
-                    ((ref[i] == 'C') & (alt[i] == 'T')) |
-                    ((ref[i] == 'T') & (alt[i] == 'C')))
-
+    indices = hl.range(0, ref.length())
+    return hl.any(lambda i: hl.cond(ref[i] == alt[i], hl.literal(False),
+                                    (((ref[i] == 'A') & (alt[i] == 'G')) |
+                                     ((ref[i] == 'G') & (alt[i] == 'A')) |
+                                     ((ref[i] == 'C') & (alt[i] == 'T')) |
+                                     ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
 
 @typecheck(ref=expr_str, alt=expr_str)
 def is_insertion(ref, alt) -> BooleanExpression:
