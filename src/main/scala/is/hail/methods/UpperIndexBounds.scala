@@ -8,22 +8,23 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object UpperIndexBounds {
-  def groupPositionsByKey(posTable: Table): RDD[Array[Int]] = {
-    require(posTable.valueSignature.size == 1 && posTable.valueSignature.types(0) == TInt32(),
-      s"Expected table to have one value field of type int32, but found ${ posTable.valueSignature.size } value " +
-      s"${ plural(posTable.valueSignature.size, "field") } of ${ plural(posTable.valueSignature.size, "type") } " +
-      s"${ posTable.valueSignature.types.mkString(", ") }.")
+  def groupPositionsByKey(t: Table): RDD[Array[Int]] = {
+    require(t.valueSignature.size == 1 && t.valueSignature.types(0) == TInt32(),
+      s"Expected table to have one value field of type int32, but found ${ t.valueSignature.size } value " +
+      s"${ plural(t.valueSignature.size, "field") } of ${ plural(t.valueSignature.size, "type") } " +
+      s"${ t.valueSignature.types.mkString(", ") }.")
 
-    val fieldIndex = posTable.valueFieldIdx(0)
+    val fieldIndex = t.valueFieldIdx(0)
 
-    posTable.groupByKey("positions").rdd.map(
+    t.groupByKey("positions").rdd.map(
       _.get(fieldIndex).asInstanceOf[Vector[Row]].toArray.map(_.get(0).asInstanceOf[Int]))
   }
 
   // positions is non-decreasing, radius is non-negative
-  // for each index i, compute the largest index j such that positions[j]-positions[i] <= radius
+  // for each index i, compute the largest j such that positions[k]-positions[i] <= radius
+  // for all k in [i, j)
+  // FIXME: do in Python or add to expression language, then replace UpperIndexBounds with Python sparsify_row_intervals
   def computeUpperIndexBounds(positions: Array[Int], radius: Int): Array[Int] = {
-
     val n = positions.length
     val bounds = new Array[Int](n)
     var j = 0
@@ -33,8 +34,8 @@ object UpperIndexBounds {
       while (j < n && positions(j) <= maxPosition) {
         j += 1
       }
-      j -= 1
       bounds(i) = j
+      j -= 1
     }
 
     bounds
@@ -51,23 +52,19 @@ object UpperIndexBounds {
   /* computes the minimum set of blocks necessary to cover all pairs of indices (i, j) such that key[i] == key[j], 
   i <= j, and position[j] - position[i] <= radius.  If includeDiagonal=false, require i < j rather than i <= j. */
   def computeCoverByUpperTriangularBlocks(
-    posTable: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
+    t: Table, gp: GridPartitioner, radius: Int, includeDiagonal: Boolean): Array[Int] = {
 
-    val relativeUpperIndexBounds = groupPositionsByKey(posTable).map(positions => {
+    val relativeUpperIndexBounds = groupPositionsByKey(t).map(positions => {
       scala.util.Sorting.quickSort(positions)
       computeUpperIndexBounds(positions, radius)
     })
 
     val absoluteUpperIndexBounds = shiftUpperIndexBounds(relativeUpperIndexBounds)
-
-    if (includeDiagonal) {
-      gp.rectanglesBlocks(absoluteUpperIndexBounds.zipWithIndex.map {
-        case (j, i) => Array(i, i + 1, i, j + 1)
-      })
-    } else {
-      gp.rectanglesBlocks(absoluteUpperIndexBounds.zipWithIndex.flatMap {
-        case (j, i) => if (i == j) None else Some(Array(i, i + 1, i + 1, j + 1))
-      })
-    }
+    assert(absoluteUpperIndexBounds.length == gp.nRows)
+    
+    if (includeDiagonal)
+      gp.rowIntervalsBlocks((0L until gp.nRows).toArray, absoluteUpperIndexBounds)
+    else
+      gp.rowIntervalsBlocks((1L until (gp.nRows + 1)).toArray, absoluteUpperIndexBounds)
   }
 }
