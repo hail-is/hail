@@ -14,6 +14,8 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   val contentsAlignment: Long = elementType.alignment.max(4)
 
   override def pyString(sb: StringBuilder): Unit = {
+    if (required)
+      sb.append("+")
     sb.append("array<")
     elementType.pyString(sb)
     sb.append('>')

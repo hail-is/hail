@@ -25,6 +25,8 @@ object Emit {
   }
 
   def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int) {
+    println("emit: " + Pretty(ir))
+    log.info("emit: " + Pretty(ir))
     val triplet = emit(ir, fb, Env.empty, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -326,6 +328,8 @@ private class Emit(
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
       case x@ArrayRef(a, i) =>
+        println("arrayref: " + x.typ)
+        log.info("arrayref: " + x.typ)
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
         val tarray = coerce[TArray](a.typ)
@@ -755,6 +759,8 @@ private class Emit(
 
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
+        println("getfield: " + t)
+        log.info("getfield: " + t)
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
@@ -1084,6 +1090,8 @@ private class Emit(
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)
+        println("aemit _: " + ir.typ)
+        log.info("aemit _: " + ir.typ)
         val i = mb.newLocal[Int]("i")
         val len = mb.newLocal[Int]("len")
         val aoff = mb.newLocal[Long]("aoff")
