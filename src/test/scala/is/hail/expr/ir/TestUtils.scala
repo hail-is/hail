@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.variant.Call
 
 object TestUtils {
   def toIRInt(i: Integer): IR =
@@ -44,4 +45,6 @@ object TestUtils {
       ToSet(toIRArray(a))
 
   def IRSet(a: Integer*): IR = toIRSet(a)
+
+  def IRCall(c: Call): IR = Cast(I32(c), TCall())
 }

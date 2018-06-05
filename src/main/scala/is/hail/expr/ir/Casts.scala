@@ -22,7 +22,8 @@ object Casts {
     (TFloat64(), TInt32()) -> ((x: Code[Double]) => x.toI),
     (TFloat64(), TInt64()) -> ((x: Code[Double]) => x.toL),
     (TFloat64(), TFloat32()) -> ((x: Code[Double]) => x.toF),
-    (TFloat64(), TFloat64()) -> ((x: Code[Double]) => x))
+    (TFloat64(), TFloat64()) -> ((x: Code[Double]) => x),
+    (TInt32(), TCall()) -> ((x: Code[Int]) => x))
 
   def get(from: Type, to: Type): Code[_] => Code[_] =
     casts(from -> to).asInstanceOf[Code[_] => Code[_]]
