@@ -1879,10 +1879,10 @@ def is_transversion(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_transition('A', 'T').value
+    >>> hl.is_transversion('A', 'T').value
     True
 
-    >>> hl.is_transition('AAA', 'AGA').value
+    >>> hl.is_transversion('AAA', 'AGA').value
     False
 
     Parameters
@@ -1902,11 +1902,10 @@ def is_transversion(ref, alt) -> BooleanExpression:
 @typecheck(ref=expr_str, alt=expr_str)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
     indices = hl.range(0, ref.length())
-    return hl.any(lambda i: hl.cond(ref[i] == alt[i], hl.literal(False),
-                                    (((ref[i] == 'A') & (alt[i] == 'G')) |
-                                     ((ref[i] == 'G') & (alt[i] == 'A')) |
-                                     ((ref[i] == 'C') & (alt[i] == 'T')) |
-                                     ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
+    return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
+                                                   ((ref[i] == 'G') & (alt[i] == 'A')) |
+                                                   ((ref[i] == 'C') & (alt[i] == 'T')) |
+                                                   ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
 
 @typecheck(ref=expr_str, alt=expr_str)
 def is_insertion(ref, alt) -> BooleanExpression:
