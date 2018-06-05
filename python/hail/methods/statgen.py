@@ -297,7 +297,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 2` degrees of freedom, under the null hypothesis of nogi
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x`` and the intercept.
 
@@ -2900,12 +2900,14 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
     variant_byte_overhead = 50
     genotypes_per_pack = 32
     n_samples = mt.count_cols()
-    min_memory_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
-    if bytes_per_core < min_memory_per_core:
-        raise ValueError("memory per core must be greater than {} MB".format(min_memory_per_core * 1024 * 1024))
+    min_bytes_per_core = math.ceil((1 / fraction_memory_to_use) * 8 * n_samples + variant_byte_overhead)
+    if bytes_per_core < min_bytes_per_core:
+        raise ValueError("memory_per_core must be greater than {} MB".format(min_bytes_per_core // (1024 * 1024)))
     bytes_per_variant = math.ceil(8 * n_samples / genotypes_per_pack) + variant_byte_overhead
-    memory_available_per_core = bytes_per_core * fraction_memory_to_use
-    max_queue_size = int(max(1.0, math.ceil(memory_available_per_core / bytes_per_variant)))
+    bytes_available_per_core = bytes_per_core * fraction_memory_to_use
+    max_queue_size = int(max(1.0, math.ceil(bytes_available_per_core / bytes_per_variant)))
+
+    info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
     sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
         mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
@@ -2945,10 +2947,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
       this stage. Minor allele frequency is not taken into account. The
       parallelism is the number of matrix table partitions.
 
-    - The second, "global correlation" stage uses block matrix multiplication
-      to compute correlation between each pair of remaining variants within
-      `bp_window_size` base pairs, and then forms a graph of correlated
-      variants. The parallelism of writing the locally-pruned matrix
+    - The second, "global correlation" stage uses block-sparse matrix
+      multiplication to compute correlation between each pair of remaining
+      variants within `bp_window_size` base pairs, and then forms a graph of
+      correlated variants. The parallelism of writing the locally-pruned matrix
       table as a block matrix is ``n_locally_pruned_variants / block_size``.
 
     - The third, "global pruning" stage applies :func:`.maximal_independent_set`
