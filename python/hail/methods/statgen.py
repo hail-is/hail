@@ -297,7 +297,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of nogi
+    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x`` and the intercept.
 
@@ -3019,10 +3019,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     locally_pruned_table = hl.read_table(locally_pruned_table_path)
 
     locally_pruned_ds_path = new_temp_file()
-    mt = mt.annotate_rows(
-        mean=locally_pruned_table[mt.row_key].mean,
-        centered_length_rec=locally_pruned_table[mt.row_key].centered_length_rec)
-    (mt.filter_rows(hl.is_defined(mt.mean))
+    mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
+    (mt.filter_rows(hl.is_defined(mt.info))
         .write(locally_pruned_ds_path, overwrite=True))
     locally_pruned_ds = hl.read_matrix_table(locally_pruned_ds_path)
 
@@ -3030,7 +3028,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     info(f'ld_prune: local pruning stage retained {n_locally_pruned_variants} variants')
 
     standardized_mean_imputed_gt_expr = hl.or_else(
-        (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.mean) * locally_pruned_ds.centered_length_rec,
+        (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.info.mean) * locally_pruned_ds.info.centered_length_rec,
         0.0)
 
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
