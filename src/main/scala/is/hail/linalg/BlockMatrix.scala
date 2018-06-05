@@ -1190,9 +1190,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     new Table(hc, entriesRDD, rvRowType, Some(Array("i", "j")))
   }
-
-  // positions is an ordered table with one value field of type int32, which will be grouped by key field(s) if present
-  /* returns the entry table of the block matrix, filtered to pairs (i, j) such that i <= j, key[i] == key[j], 
+  
+  /* positions is an ordered table with one value field of type int32, which will be grouped by key field(s) if present.
+  returns the entry table of the block matrix, filtered to pairs (i, j) such that i <= j, key[i] == key[j], 
   and position[j] - position[i] <= radius. If includeDiagonal=false, require i < j rather than i <= j.*/
   def filteredEntriesTable(positions: Table, radius: Int, includeDiagonal: Boolean): Table = {
     val blocksToKeep = UpperIndexBounds.computeCoverByUpperTriangularBlocks(positions, gp, radius, includeDiagonal)

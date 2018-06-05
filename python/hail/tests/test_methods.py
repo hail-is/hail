@@ -1626,16 +1626,29 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000, memory_per_core=0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds.GT, r2=1, bp_window_size=0, keep_higher_maf=False)
-        expected_ds = ds.filter_rows(
-            agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size() > 1, keep=True)
-        self.assertEqual(pruned_table.count(), expected_ds.count_rows())
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=100)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=0)
+        expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
+        self.assertEqual(pruned_table.count(), expected_count)
 
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
+
+    def test_ld_prune_maf(self):
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
+
+        ht = ds.select_rows(p=hl.agg.sum(ds.GT.n_alt_alleles()) / (2 * 50)).rows()
+        ht = ht.select(maf=hl.cond(ht.p <= 0.5, ht.p, 1.0 - ht.p)).cache()
+
+        pruned_table = hl.ld_prune(ds.GT, 0.0)
+        positions = pruned_table.locus.position.collect()
+        self.assertEqual(len(positions), 1)
+        kept_position = hl.literal(positions[0])
+        kept_maf = ht.filter(ht.locus.position == kept_position).maf.collect()[0]
+
+        self.assertEqual(kept_maf, max(ht.maf.collect()))
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
@@ -2047,4 +2060,3 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
-
