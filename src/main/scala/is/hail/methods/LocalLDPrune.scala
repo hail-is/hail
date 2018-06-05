@@ -284,10 +284,8 @@ object LocalLDPrune {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 
-    val (nVariantsInitial, nPartitionsInitial, nSamples) = (mt.countRows(), mt.nPartitions, mt.numCols)
-
-    info(s"Running LD prune with nSamples=$nSamples, nVariants=$nVariantsInitial, nPartitions=$nPartitionsInitial, and maxQueueSize=$maxQueueSize.")
-
+    val nSamples = mt.numCols
+    
     val fullRowType = mt.rvRowType
 
     val locusIndex = mt.rowType.fieldIdx("locus")
