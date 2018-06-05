@@ -1781,7 +1781,7 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                            .when(a.matches(_base_regex), hl.case()
                                  .when(r.length() == a.length(),
                                        hl.cond(r.length() == 1,
-                                               _allele_ints['SNP'],
+                                               hl.cond(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
                                                hl.cond(hamming(r, a) == 1,
                                                        _allele_ints['SNP'],
                                                        _allele_ints['MNP'])))
@@ -1855,7 +1855,7 @@ def is_transition(ref, alt) -> BooleanExpression:
     >>> hl.is_transition('A', 'T').value
     False
 
-    >>> hl.is_transition('A', 'G').value
+    >>> hl.is_transition('AAA', 'AGA').value
     True
 
     Parameters
@@ -1869,7 +1869,7 @@ def is_transition(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transition", tbool, ref, alt)
+    return is_snp(ref, alt) & _is_snp_transition(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -1879,10 +1879,10 @@ def is_transversion(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_transition('A', 'T').value
+    >>> hl.is_transversion('A', 'T').value
     True
 
-    >>> hl.is_transition('A', 'G').value
+    >>> hl.is_transversion('AAA', 'AGA').value
     False
 
     Parameters
@@ -1896,8 +1896,16 @@ def is_transversion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("is_transversion", tbool, ref, alt)
+    return is_snp(ref, alt) & (~(_is_snp_transition(ref, alt)))
 
+
+@typecheck(ref=expr_str, alt=expr_str)
+def _is_snp_transition(ref, alt) -> BooleanExpression:
+    indices = hl.range(0, ref.length())
+    return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
+                                                   ((ref[i] == 'G') & (alt[i] == 'A')) |
+                                                   ((ref[i] == 'C') & (alt[i] == 'T')) |
+                                                   ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
 
 @typecheck(ref=expr_str, alt=expr_str)
 def is_insertion(ref, alt) -> BooleanExpression:
