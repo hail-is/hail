@@ -10,13 +10,12 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str, maximal_independent_set
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
 from hail.utils.java import *
-from hail.utils.misc import check_collisions
 
 
 @typecheck(dataset=MatrixTable,
@@ -2922,7 +2921,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
            keep_higher_maf=bool,
            block_size=nullable(int))
 def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, keep_higher_maf=True, block_size=None):
-    """Returns a maximal subset of nearly-uncorrelated variants.
+    """Returns a maximal subset of variants that are nearly uncorrelated within each window.
 
     .. include:: ../_templates/req_diploid_gt.rst
 
@@ -2937,7 +2936,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     base pairs apart is strictly less than `r2`. Each variant is represented as
     a vector over samples with elements given by the (mean-imputed) number of
     alternate alleles. In particular, even if present, **phase information is
-    ignored**.
+    ignored**. Variants that do not vary across samples are dropped.
 
     The method prunes variants in linkage disequilibrium in three stages.
 
@@ -2979,6 +2978,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         variants and column-indexed samples.
     r2 : :obj:`float`
         Squared correlation threshold (exclusive upper bound).
+        Must be in the range [0.0, 1.0].
     bp_window_size: :obj:`int`
         Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
@@ -2997,6 +2997,12 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     """
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
+
+    if not 0.0 <= r2 <= 1:
+      raise ValueError(f'r2 must be in the range [0.0, 1.0], found {r2}')
+
+    if bp_window_size < 0:
+      raise ValueError(f'bp_window_size must be non-negative, found {bp_window_size}')
 
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
@@ -3032,12 +3038,12 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         0.0)
 
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
+    r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
-    locally_pruned_positions = locally_pruned_table.key_by(contig=locally_pruned_table.locus.contig)
-    locally_pruned_positions = locally_pruned_positions.select(pos=locally_pruned_positions.locus.position)
+    _, stops = hl.locus_windows(locally_pruned_table.locus, bp_window_size)
 
-    entries = (std_gt_bm @ std_gt_bm.T)._filtered_entries_table(locally_pruned_positions, bp_window_size, False)
-    entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
+    entries = r2_bm.sparsify_row_intervals(range(0, stops.size), stops, blocks_only=True).entries()
+    entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
 
     locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
 
@@ -3069,10 +3075,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
                                    1,
                                    0))
 
-        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
+        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
         variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
     else:
-        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
+        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
 
     return locally_pruned_table.filter(
         hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()

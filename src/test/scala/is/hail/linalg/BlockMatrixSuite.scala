@@ -771,24 +771,6 @@ class BlockMatrixSuite extends SparkSuite {
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
   }
-
-  @Test def testFilteredEntriesTable() {
-    val rows = IndexedSeq[(String, Int)](("X", 5), ("X", 7), ("X", 13), ("X", 14), ("X", 17),
-      ("X", 65), ("X", 70), ("X", 73), ("Y", 74), ("Y", 75), ("Y", 200), ("Y", 300))
-      .map { case (contig, pos) => Row(contig, pos) }
-    val tbl = Table.parallelize(hc, rows, TStruct("contig" -> TString(), "pos" -> TInt32()), None, None)
-    
-    val nRows = tbl.count().toInt
-    val bm = BlockMatrix.fromBreezeMatrix(sc, BDM.zeros(nRows, nRows), blockSize = 1)
-    
-    val entriesTable = bm.filteredEntriesTable(tbl.keyBy("contig"), radius = 10, includeDiagonal = false)
-
-    val expectedRows = IndexedSeq[(Long, Long)]((0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (1, 4), (2, 4), (3, 4),
-      (5, 6), (5, 7), (6, 7), (8, 9)).map { case (i, j) => Row(i, j) }
-    val expectedTable = Table.parallelize(hc, expectedRows, TStruct("i" -> TInt64(), "j" -> TInt64()),
-      None, None)
-    assert(entriesTable.unkey().select("{i: row.i, j: row.j}", None, None).same(expectedTable))
-  }
   
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
     bm1.blocks.collect() sameElements bm2.blocks.collect()
