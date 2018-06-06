@@ -89,7 +89,6 @@ headers: $(shell /usr/bin/find ../resources/include -name "*.h")
 
 NativeCodeSuite.o: headers
 NativeLongFunc.o: headers
-NativeModule.o: headers
 NativePtr.o: headers
 NativeStatus.o: headers
 Region.o: headers
