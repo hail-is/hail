@@ -273,6 +273,7 @@ class IRSuite extends TestNGSuite {
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
+  }
 
   @Test def testGroupByKey() {
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))

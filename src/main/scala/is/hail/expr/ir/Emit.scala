@@ -448,7 +448,7 @@ private class Emit(
           nab.clear,
           aout.calcLength,
           processArrayElts.addElements,
-          sorter.sort(),
+          sorter.sort(true),
           sorter.pruneMissing(),
           eab.size.ceq(0).mux(
             Code(srvb.start(0), srvb.offset),
@@ -1077,9 +1077,6 @@ private class Emit(
         val lenCalc = xvcond.mux(aCnsq.calcLength, aAltr.calcLength)
         val optLen = aCnsq.length.flatMap(l1 => aAltr.length.map(xvcond.mux(l1, _)))
         ArrayIteratorTriplet(lenCalc, optLen, f)
-
-      case Ref(x, _) if arrayEnv.lookupOption(x).isDefined =>
-        arrayEnv.lookup(x)
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)
