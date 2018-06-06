@@ -1,3 +1,5 @@
+import numpy as np
+
 import hail as hl
 from hail.expr.expr_ast import VariableReference
 from hail.expr.expressions import *
@@ -186,6 +188,14 @@ def require_partition_key_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
 
+def require_first_key_field_locus(dataset, method):
+    if (len(dataset.key) == 0 or
+            not isinstance(dataset.key[0].dtype, tlocus)):
+        raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
+                         "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.key)))
+
+
 @typecheck(table=Table, method=str)
 def require_key(table, method):
     if table.key is None:
@@ -359,3 +369,139 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     """
     require_partition_key_locus(mt, 'window_by_locus')
     return MatrixTable(mt._jvds.windowVariants(bp_window_size))
+
+
+@typecheck(a=np.ndarray,
+           radius=oneof(int, float),
+           stops_only=bool)
+def array_windows(a, radius, stops_only=False):
+    """Returns start and stop indices for radius around each ``a[i]``.
+
+    Examples
+    --------
+    >>> a = np.array([1, 2, 4, 4, 6, 8])
+    >>> hl.array_windows(a, 2)
+    (array([0, 0, 1, 1, 2, 4]), array([2, 4, 5, 5, 6, 6]))
+
+    >>> a = np.array([-10.0, -2.5, 0.0, 0.0, 1.2, 2.3, 3.0])
+    >>> hl.array_windows(a, 2.5)
+    (array([0, 1, 1, 1, 2, 2, 4]), array([1, 4, 6, 6, 7, 7, 7]))
+
+    Notes
+    -----
+    `a` must be a non-decreasing ndarray of type int or float.
+
+    The resulting ``starts`` and ``stops`` arrays have the same length as `a`
+    and the property that, for all indices ``i``, ``[starts[i], stops[i])`` is
+    the maximal range of indices ``j`` such that
+    ``a[i] - radius <= a[j] <= a[i] + radius``.
+
+    Parameters
+    ----------
+    a: :obj:`ndarray` of :obj:`int` or :obj:`float`
+        Non-decreasing array of values.
+    radius: :obj:`float`
+        Non-negative radius of window for values.
+
+    Returns
+    -------
+    (:obj:`ndarray` of obj:`int`, :obj:`ndarray` of obj:`int`) or :obj:`ndarray` of obj:`int`
+        Array of start indices and array of stop indices if ``stops_only=False``.
+        Array of stop indices if ``stops_only=True``.
+    """
+    if radius < 0:
+        raise ValueError(f'compute_stops: radius must be non-negative, found {radius}')
+    if a.ndim != 1:
+        raise ValueError('compute_stops: a must be 1-dimensional')
+    if not (np.issubdtype(a.dtype, np.integer) or np.issubdtype(a.dtype, np.floating)):
+        raise ValueError(f'compute_stops: a must be an ndarray of integer or float values, found dtype {str(a.dtype)}')
+    if not np.all(a[:-1] <= a[1:]):
+        raise ValueError('compute_stops: a must be non-decreasing')
+    if a.size > 0 and a[-1] + radius < a[-1]:
+        raise ValueError('compute_stops: a[-1] + radius overflows')
+    if (not stops_only) and a.size > 0 and a[0] - radius > a[0]:
+        raise ValueError('compute_stops: a[0] - radius underflows')
+
+    size = a.size
+    stops = np.zeros(size, dtype=int)
+    j = 0
+    for i in range(size):
+        max_val = a[i] + radius
+        while j < size and a[j] <= max_val:
+            j += 1
+        stops[i] = j
+
+    if stops_only:
+        return stops
+    else:
+        starts = np.zeros(size, dtype=int)
+        j = 0
+        for i in range(size):
+            min_val = a[i] - radius
+            while j < size and a[j] < min_val:
+                j += 1
+            starts[i] = j
+        return starts, stops
+
+
+@typecheck(locus_table=Table,
+           radius=oneof(int, float),
+           value_expr=nullable(expr_float64),
+           stops_only=bool)
+def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
+    """Returns ...
+
+    Examples
+    --------
+
+
+    Notes
+    -----
+    The first key field of `locus_table` must be of type :py:data:`tlocus`, as
+    is true for variant-keyed datasets.
+
+    Parameters
+    ----------
+    locus_table : :class:`.Table`
+        Table with first key of type :py:data:`tlocus`.
+    radius: :obj:`int`
+        Radius of window for row values.
+    value_expr: :obj:`str`, optional
+        Row-indexed numeric expression for the row value.
+        By default, the row value is given by the the locus position.
+
+    Returns
+    -------
+    :obj:`list` of obj:`int`
+    """
+    if radius < 0:
+        raise ValueError(f'compute_row_stops: radius must be non-negative, found {radius}')
+
+    require_first_key_field_locus(locus_table, 'compute_row_stops/locus_table')
+    ht = locus_table.key_by(locus_table.locus)
+
+    if value_expr is None:
+        ht = ht.select()
+        contigs = ht.group_by(ht.locus.contig).aggregate(values=agg.collect(ht.locus.position))
+    else:
+        # FIXME: remove once select_entries on a field is free
+        if value_expr in ht._fields_inverse:
+            field = ht._fields_inverse[value_expr]
+            ht = ht.select(field)
+        else:
+            field = Env.get_uid()
+            ht = ht.select(**{field: value_expr})
+        contigs = ht.group_by(ht.locus.contig).aggregate(values=agg.collect(ht[field]))
+
+    contig_values = contigs.values.collect()
+    contig_offsets = np.concatenate((np.array([0]), np.cumsum([len(contig) for contig in contig_values])))
+    contigs = range(0, len(contig_values))
+    contig_bounds = [array_windows(np.array(values), radius, stops_only) for values in contig_values]
+
+    if stops_only:
+        stops = np.concatenate([contig_offsets[c] + contig_bounds[c] for c in contigs])
+        return stops
+    else:
+        starts = np.concatenate([contig_offsets[c] + contig_bounds[c][0] for c in contigs])
+        stops = np.concatenate([contig_offsets[c] + contig_bounds[c][1] for c in contigs])
+        return starts, stops

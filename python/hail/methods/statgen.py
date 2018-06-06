@@ -11,7 +11,8 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str, maximal_independent_set
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus,\
+    require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -3029,41 +3030,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
     corr = std_gt_bm @ std_gt_bm.T
 
-    def compute_stops(a, radius):
-        """
-        a is non-decreasing ndarray
-        stops[i] is one greater than the maximum index j in a such that a[j] <= a[i] + radius
-        """
-        assert radius >= 0
-        assert np.all(a[:-1] <= a[1:])
+    stops = hl.locus_windows(locally_pruned_table, bp_window_size, stops_only=True)
 
-        size = a.size
-        stops = np.zeros(size, dtype=int)
-        j = 0
-        for i in range(size):
-            max_val = a[i] + radius
-            while j < size and a[j] <= max_val:
-                j += 1
-            stops[i] = j
-
-        return stops
-
-    def compute_row_stops(locus_table, bp_window_size):
-        contig_positions = (locus_table.group_by(locus_table.locus.contig)
-                            .aggregate(positions=agg.collect(locus_table.locus.position))
-                            .positions
-                            .collect())
-        contig_offsets = np.concatenate((np.array([0]), np.cumsum([len(contig) for contig in contig_positions])))
-
-        row_stops = np.concatenate(
-            [contig_offsets[idx] + compute_stops(np.array(positions, dtype=int), bp_window_size)
-             for idx, positions in enumerate(contig_positions)])
-
-        return [int(s) for s in row_stops]
-
-    locus_table = locally_pruned_table.key_by(locally_pruned_table.locus).select()
-    stops = compute_row_stops(locus_table, bp_window_size)
     starts = range(0, len(stops))
+    stops = [int(s) for s in stops]
 
     entries = corr.sparsify_row_intervals(starts, stops, blocks_only=True).entries()
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
@@ -3098,10 +3068,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
                                    1,
                                    0))
 
-        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
+        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
         variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
     else:
-        variants_to_remove = maximal_independent_set(entries.i, entries.j, keep=False)
+        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
 
     return locally_pruned_table.filter(
         hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()
