@@ -1346,10 +1346,10 @@ class Tests(unittest.TestCase):
         )
 
     def test_ld_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000)
+        ds = hl.split_multi_hts(hl.import_vcf(resource('ldprune.vcf'), min_partitions=3))
+        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=5)
 
-        filtered_ds = (ds.filter_rows(hl.is_defined(pruned_table[(ds.locus, ds.alleles)])))
+        filtered_ds = ds.filter_rows(hl.is_defined(pruned_table[ds.row_key]))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
         filtered_ds = filtered_ds.annotate_rows(
             mean=filtered_ds.stats.mean, sd_reciprocal=1 / filtered_ds.stats.stdev)
@@ -1360,18 +1360,23 @@ class Tests(unittest.TestCase):
                     (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
                     * filtered_ds['sd_reciprocal'] * (1 / hl.sqrt(n_samples)), 0))
 
-        block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
-        entries = ((block_matrix @ block_matrix.T) ** 2).entries()
+        std_bm = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
+
+        self.assertEqual(std_bm.n_rows, 23)
+
+        entries = ((std_bm @ std_bm.T) ** 2).entries()
 
         index_table = filtered_ds.add_row_index().rows().key_by('row_idx').select('locus')
-        entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
+        entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus).cache()
 
-        contig_filter = entries.locus_i.contig == entries.locus_j.contig
-        window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
-        identical_filter = entries.i != entries.j
+        bad_pair = (
+            (entries.entry >= 0.1) &
+            (entries.locus_i.contig == entries.locus_j.contig) &
+            (hl.abs(entries.locus_j.position - entries.locus_i.position) <= 5) &
+            (entries.i != entries.j)
+        )
 
-        self.assertEqual(entries.filter(
-            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count(), 0)
+        self.assertEqual(entries.filter(bad_pair).count(), 0)
 
     def test_ld_prune_inputs(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))

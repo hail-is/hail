@@ -1,4 +1,5 @@
 import itertools
+import numpy as np
 import math
 from typing import *
 
@@ -16,7 +17,6 @@ from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
 from hail.utils.java import *
-from hail.utils.misc import check_collisions
 
 
 @typecheck(dataset=MatrixTable,
@@ -3027,11 +3027,45 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         0.0)
 
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
+    corr = std_gt_bm @ std_gt_bm.T
 
-    locally_pruned_positions = locally_pruned_table.key_by(contig=locally_pruned_table.locus.contig)
-    locally_pruned_positions = locally_pruned_positions.select(pos=locally_pruned_positions.locus.position)
+    def compute_stops(a, radius):
+        """
+        a is non-decreasing ndarray
+        stops[i] is one greater than the maximum index j in a such that a[j] <= a[i] + radius
+        """
+        assert radius >= 0
+        assert np.all(a[:-1] <= a[1:])
 
-    entries = (std_gt_bm @ std_gt_bm.T)._filtered_entries_table(locally_pruned_positions, bp_window_size, False)
+        size = a.size
+        stops = np.zeros(size, dtype=int)
+        j = 0
+        for i in range(size):
+            max_val = a[i] + radius
+            while j < size and a[j] <= max_val:
+                j += 1
+            stops[i] = j
+
+        return stops
+
+    def compute_row_stops(locus_table, bp_window_size):
+        contig_positions = (locus_table.group_by(locus_table.locus.contig)
+                            .aggregate(positions=agg.collect(locus_table.locus.position))
+                            .positions
+                            .collect())
+        contig_offsets = np.concatenate((np.array([0]), np.cumsum([len(contig) for contig in contig_positions])))
+
+        row_stops = np.concatenate(
+            [contig_offsets[idx] + compute_stops(np.array(positions, dtype=int), bp_window_size)
+             for idx, positions in enumerate(contig_positions)])
+
+        return [int(s) for s in row_stops]
+
+    locus_table = locally_pruned_table.key_by(locally_pruned_table.locus).select()
+    stops = compute_row_stops(locus_table, bp_window_size)
+    starts = range(0, len(stops))
+
+    entries = corr.sparsify_row_intervals(starts, stops, blocks_only=True).entries()
     entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
 
     locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
