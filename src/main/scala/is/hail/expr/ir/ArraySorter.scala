@@ -25,7 +25,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
           val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
           val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
 
-          mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+          mb.getCodeOrdering[Boolean](-kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
       }
     }
     ceq
@@ -34,18 +34,12 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
 
   def sort(ascending: Code[Boolean]): Code[Unit] = {
 
-    type F[T] = AsmFunction4[T, Boolean, T, Boolean, Boolean]
-
-    def newSortFunction[T: TypeInfo]: (DependentEmitFunction[F[T]], ClassFieldRef[F[T]]) =
-      (mb.fb.newDependentFunction[T, Boolean, T, Boolean, Boolean],
-        mb.newField[AsmFunction4[T, Boolean, T, Boolean, Boolean]])
-
     val (sorter, localF) = ti match {
-      case BooleanInfo => newSortFunction[Boolean]
-      case IntInfo => newSortFunction[Int]
-      case LongInfo => newSortFunction[Long]
-      case FloatInfo => newSortFunction[Float]
-      case DoubleInfo => newSortFunction[Double]
+      case BooleanInfo => (mb.fb.newDependentCompareFunction[Boolean](), mb.newField[BooleanOrderingFunction])
+      case IntInfo => (mb.fb.newDependentCompareFunction[Int](), mb.newField[IntOrderingFunction])
+      case LongInfo => (mb.fb.newDependentCompareFunction[Long](), mb.newField[LongOrderingFunction])
+      case FloatInfo => (mb.fb.newDependentCompareFunction[Float](), mb.newField[FloatOrderingFunction])
+      case DoubleInfo => (mb.fb.newDependentCompareFunction[Double](), mb.newField[DoubleOrderingFunction])
     }
     val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
     val asc: Code[Boolean] = sorter.addField[Boolean](ascending)
@@ -56,27 +50,21 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
 
       val mk1 = sorter.newLocal[Boolean]
       val mk2 = sorter.newLocal[Boolean]
-
-      val m1 = sorter.getArg[Boolean](2)
-      val m2 = sorter.getArg[Boolean](4)
       val v1 = sorter.getArg[Long](1)
-      val v2 = sorter.getArg[Long](3)
+      val v2 = sorter.getArg[Long](2)
 
       val k1 = mk1.mux(defaultValue(kt), sorterRegion.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
       val k2 = mk2.mux(defaultValue(kt), sorterRegion.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-      val cmp = sorter.getCodeOrdering[Int](
-        kt, CodeOrdering.compare, missingGreatest = true)(
-        sorterRegion, (mk1, k1), sorterRegion, (mk2, k2))
-      val comparison = Code(
+      val cmp = sorter.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true)
+      sorter.emit(Code(
         mk1 := ttype.isFieldMissing(sorterRegion, v1, 0),
         mk2 := ttype.isFieldMissing(sorterRegion, v2, 0),
-        (m1 || m2).mux((m1 && m2).mux(0, m1.mux(1, -1)), cmp)
-      )
-      sorter.emit(comparison < 0)
+        cmp(sorterRegion, (mk1, k1), sorterRegion, (mk2, k2)) < 0
+      ))
     } else {
-      val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true)(
-        sorterRegion, (sorter.getArg[Boolean](2), sorter.getArg(1)(ti)),
-        sorterRegion, (sorter.getArg[Boolean](4), sorter.getArg(3)(ti)))
+      val cmp = sorter.getCodeOrdering[Int](+typ, CodeOrdering.compare, missingGreatest = true)(
+        sorterRegion, (false, sorter.getArg(1)(ti)),
+        sorterRegion, (false, sorter.getArg(2)(ti)))
       sorter.emit(asc.mux(cmp < 0, cmp > 0))
     }
 

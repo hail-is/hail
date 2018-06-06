@@ -36,7 +36,6 @@ class OrderingSuite extends TestNGSuite {
       case "gt" => fb.emit(stagedOrdering.gt(cregion, (const(false), cv1), cregion, (const(false), cv2)))
       case "gteq" => fb.emit(stagedOrdering.gteq(cregion, (const(false), cv1), cregion, (const(false), cv2)))
     }
-
     fb.result()()
   }
 

@@ -128,32 +128,56 @@ class EmitFunctionBuilder[F >: Null](
     val f = compareMap.getOrElseUpdate((t, op, missingGreatest), {
       val ti = typeToTypeInfo(t)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
-      val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
-      val ord = t.codeOrdering(newMB)
-      val r1 = newMB.getArg[Region](1)
-      val r2 = newMB.getArg[Region](4)
-      val m1 = newMB.getArg[Boolean](2)
-      val v1 = newMB.getArg(3)(ti)
-      val m2 = newMB.getArg[Boolean](5)
-      val v2 = newMB.getArg(6)(ti)
-      val c: Code[_] = op match {
-        case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+
+      val newMB = if (t.required) {
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], ti, typeInfo[Region], ti), rt)
+        val ord = t.codeOrdering(newMB)
+        val r1 = newMB.getArg[Region](1)
+        val r2 = newMB.getArg[Region](3)
+        val v1 = newMB.getArg(2)(ti)
+        val v2 = newMB.getArg(4)(ti)
+        val c: Code[_] = op match {
+          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+        }
+        newMB.emit(c)
+        newMB
+      } else {
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
+        val ord = t.codeOrdering(newMB)
+        val r1 = newMB.getArg[Region](1)
+        val r2 = newMB.getArg[Region](4)
+        val m1 = newMB.getArg[Boolean](2)
+        val v1 = newMB.getArg(3)(ti)
+        val m2 = newMB.getArg[Boolean](5)
+        val v2 = newMB.getArg(6)(ti)
+        val c: Code[_] = op match {
+          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+        }
+        newMB.emit(c)
+        newMB
       }
-      newMB.emit(c)
       val f = { (rx: Code[Region], x: (Code[Boolean], Code[_]), ry: Code[Region], y: (Code[Boolean], Code[_])) =>
-        newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
+        if (t.required)
+          newMB.invoke(rx, x._2, ry, y._2)
+        else
+          newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
       }
       f
     })
     (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
   }
-
 
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -198,10 +222,24 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction4[A1, A2, A3, A4, R]] = {
-    val df = new DependentEmitFunction[AsmFunction4[A1, A2, A3, A4, R]](
-      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R])
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
+    val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
+      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
     children += df
     df
+  }
+
+  def newDependentCompareFunction[A1 : TypeInfo](): DependentEmitFunction[SpecializedOrderingFunction[A1]] = {
+
+    val argti: Array[MaybeGenericTypeInfo[_]] = Array(NotGenericTypeInfo[A1], NotGenericTypeInfo[A1])
+    val df = typeInfo[A1] match {
+      case BooleanInfo => new DependentEmitFunction[BooleanOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
+      case IntInfo => new DependentEmitFunction[IntOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
+      case LongInfo => new DependentEmitFunction[LongOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
+      case FloatInfo => new DependentEmitFunction[FloatOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
+      case DoubleInfo => new DependentEmitFunction[DoubleOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
+    }
+    children += df
+    df.asInstanceOf[DependentEmitFunction[SpecializedOrderingFunction[A1]]]
   }
 }
