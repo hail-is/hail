@@ -9,6 +9,7 @@ import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -31,7 +32,10 @@ object LoadBgen {
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    tolerance: Double,
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
 
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
@@ -47,9 +51,15 @@ object LoadBgen {
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
 
+    includedVariantsPerFile.foreach { case (f, v) =>
+      hadoop.set("__"+f, encodeInts(v.toArray))
+    }
+
     val sc = hc.sc
     val results = files.map { file =>
       val bState = readState(sc.hadoopConfiguration, file)
+
+      hadoop.setInt("nVariants", bState.nVariants)
 
       bState.version match {
         case 2 =>
@@ -319,5 +329,32 @@ object LoadBgen {
 
     val hasIds = (flags >> 31 & 1) != 0
     BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
+  }
+
+  private[bgen] def encodeInts(a: Array[Int]): String = {
+    val b = new Array[Byte](a.length*4)
+    var i = 0
+    while (i < a.length) {
+      b(4*i) = (a(i) & 0xff).asInstanceOf[Byte]
+      b(4*i+1) = ((a(i) >> 8) & 0xff).asInstanceOf[Byte]
+      b(4*i+2) = ((a(i) >> 16) & 0xff).asInstanceOf[Byte]
+      b(4*i+3) = ((a(i) >> 24) & 0xff).asInstanceOf[Byte]
+      i += 1
+    }
+    Base64.encodeBase64String(b)
+  }
+
+  private[bgen] def decodeInts(a: String): Array[Int] = {
+    val b = Base64.decodeBase64(a)
+    val c = new Array[Int](b.length/4)
+    var i = 0
+    while (i < c.length) {
+      c(i) = ((b(i*4+3).asInstanceOf[Int] & 0xff) << 24) |
+             ((b(i*4+2).asInstanceOf[Int] & 0xff) << 16) |
+             ((b(i*4+1).asInstanceOf[Int] & 0xff) << 8) |
+             (b(i*4).asInstanceOf[Int] & 0xff)
+      i += 1
+    }
+    c
   }
 }

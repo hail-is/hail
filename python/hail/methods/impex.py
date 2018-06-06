@@ -786,14 +786,18 @@ def grep(regex, path, max_count=100):
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           tolerance=numeric,
+           skip_invalid_loci=bool,
+           _variants_per_file=dictof(str, sequenceof(int)))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 min_partitions=None,
                 reference_genome='default',
                 contig_recoding=None,
-                skip_invalid_loci=False) -> MatrixTable:
+                tolerance=0.2,
+                skip_invalid_loci=False,
+                _variants_per_file={}) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -913,7 +917,8 @@ def import_bgen(path,
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    skip_invalid_loci)
+                                    tolerance, skip_invalid_loci,
+                                    tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 
 

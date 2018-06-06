@@ -116,4 +116,10 @@ trait Implicits {
   implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[RVDContext, T]): RichContextRDD[T] = new RichContextRDD(x)
 
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
+  implicit def scalaLambdaToJavaLambda[T, U](
+    f: T => U
+  ): java.util.function.Function[T, U] = new java.util.function.Function[T, U]() {
+    def apply(t: T): U = f(t)
+  }
 }

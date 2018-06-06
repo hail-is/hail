@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.io._
+import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
@@ -15,6 +16,7 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   val includeGT = job.get("includeGT").toBoolean
   val includeGP = job.get("includeGP").toBoolean
   val includeDosage = job.get("includeDosage").toBoolean
+  val nVariants = job.get("nVariants").toInt
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -33,9 +35,19 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   def next(key: LongWritable, value: T): Boolean
 }
 
-class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV12](job, split) {
+class BgenBlockReaderV12(job: Configuration, split: BgenV12InputSplit) extends BgenBlockReader[BgenRecordV12](job, split.fileSplit) {
   override def createValue(): BgenRecordV12 =
     new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage)
+
+  private[this] var i = 0
+
+  if (split.keptPositions != null) {
+    if (split.keptPositions.isEmpty)
+      pos = end
+    else
+      pos = split.keptPositions(0)
+    bfis.seek(pos)
+  }
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     if (pos >= end)
@@ -83,7 +95,16 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
       value.setExpectedDataSize(uncompressedSize)
       value.setExpectedNumAlleles(nAlleles)
 
-      pos = bfis.getPosition
+      if (split.keptPositions == null)
+        pos = bfis.getPosition
+      else {
+        i += 1
+        if (i >= split.keptPositions.length)
+          pos = end
+        else
+          pos = split.keptPositions(i)
+        bfis.seek(pos)
+      }
       true
     }
   }
