@@ -35,33 +35,44 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   def next(key: LongWritable, value: T): Boolean
 }
 
-class BgenBlockReaderV12(job: Configuration, split: BgenV12InputSplit) extends BgenBlockReader[BgenRecordV12](job, split.fileSplit) {
-  override def createValue(): BgenRecordV12 =
-    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage)
+class BgenBlockReaderV12(
+  job: Configuration,
+  split: BgenV12InputSplit
+) extends BgenBlockReader[BgenRecordV12](job, split.fileSplit) {
+  override def createValue(): BgenRecordV12 = new BgenRecordV12(
+    bState.compressed,
+    bState.nSamples,
+    includeGT,
+    includeGP,
+    includeDosage,
+    bfis)
 
   private[this] var i = 0
 
-  if (split.keptPositions != null) {
-    if (split.keptPositions.isEmpty)
-      pos = end
-    else
-      pos = split.keptPositions(0)
-    bfis.seek(pos)
-  }
-
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
-    if (pos >= end)
+    if (split.keptPositions != null) {
+      if (i >= split.keptPositions.length)
+        pos = end
+      else
+        pos = split.keptPositions(i)
+      bfis.seek(pos)
+    }
+    i += 1
+
+    if (bfis.getPosition >= end)
       false
     else {
+      val start = bfis.getPosition
       val lid = bfis.readLengthAndString(2)
       val rsid = bfis.readLengthAndString(2)
       val chr = bfis.readLengthAndString(2)
       val position = bfis.readInt()
 
       val nAlleles = bfis.readShort()
-      assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid'")
+      assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid' $i")
       val alleles = new Array[String](nAlleles)
 
+      assert(lid.length < 1000, s"very long lid ${split.fileSplit.getStart} $start ${bfis.getPosition} $i ${lid.take(10)}")
       val ref = bfis.readLengthAndString(4)
       alleles(0) = ref
 
@@ -83,28 +94,22 @@ class BgenBlockReaderV12(job: Configuration, split: BgenV12InputSplit) extends B
 
       val dataSize = bfis.readInt()
 
-      val (uncompressedSize, bytesInput) =
+      val (uncompressedSize// , bytesInput
+      ) =
         if (bState.compressed)
-          (bfis.readInt(), bfis.readBytes(dataSize - 4))
+          (bfis.readInt()// , bfis.readBytes(dataSize - 4)
+          )
         else
-          (dataSize, bfis.readBytes(dataSize))
+          (dataSize// , bfis.readBytes(dataSize)
+          )
 
       value.setKey(variantInfo)
       value.setAnnotation(Annotation(rsid, lid))
-      value.setSerializedValue(bytesInput)
+      // value.setSerializedValue(bytesInput)
+      value.dataSize = if (bState.compressed) dataSize - 4 else dataSize
       value.setExpectedDataSize(uncompressedSize)
       value.setExpectedNumAlleles(nAlleles)
 
-      if (split.keptPositions == null)
-        pos = bfis.getPosition
-      else {
-        i += 1
-        if (i >= split.keptPositions.length)
-          pos = end
-        else
-          pos = split.keptPositions(i)
-        bfis.seek(pos)
-      }
       true
     }
   }

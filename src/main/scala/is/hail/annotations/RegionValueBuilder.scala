@@ -86,6 +86,11 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + 1
   }
 
+  def unsafeAdvance(i: Int) {
+    if (indexstk.nonEmpty)
+      indexstk(0) = indexstk(0) + i
+  }
+
   def startBaseStruct(init: Boolean = true) {
     val t = currentType().asInstanceOf[TBaseStruct]
     if (typestk.isEmpty)
