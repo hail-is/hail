@@ -1409,7 +1409,6 @@ class Table(ExprContainer):
                                   .key_cols_by(*uids)
                                   .cols()
                                   .select(index_uid)
-                                  .distinct()
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
