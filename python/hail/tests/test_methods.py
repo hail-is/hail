@@ -1618,38 +1618,51 @@ class Tests(unittest.TestCase):
         window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
         identical_filter = entries.i != entries.j
 
-        assert (entries.filter(
-            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count() == 0)
+        self.assertEqual(entries.filter(
+            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count(), 0)
 
     def test_ld_prune_inputs(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000, memory_per_core=0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds.GT, r2=1, bp_window_size=0)
-        expected_ds = ds.filter_rows(
-            agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size() > 1, keep=True)
-        assert (pruned_table.count() == expected_ds.count_rows())
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=100)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=0)
+        expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
+        self.assertEqual(pruned_table.count(), expected_count)
 
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
+
+    def test_ld_prune_maf(self):
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
+
+        ht = ds.select_rows(p=hl.agg.sum(ds.GT.n_alt_alleles()) / (2 * 50)).rows()
+        ht = ht.select(maf=hl.cond(ht.p <= 0.5, ht.p, 1.0 - ht.p)).cache()
+
+        pruned_table = hl.ld_prune(ds.GT, 0.0)
+        positions = pruned_table.locus.position.collect()
+        self.assertEqual(len(positions), 1)
+        kept_position = hl.literal(positions[0])
+        kept_maf = ht.filter(ht.locus.position == kept_position).maf.collect()[0]
+
+        self.assertEqual(kept_maf, max(ht.maf.collect()))
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
 
-    def test_entries_table(self):
+    def test_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
         schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
         table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
         table = table.annotate(i=hl.int64(table.i),
-                               j=hl.int64(table.j))
+                               j=hl.int64(table.j)).key_by('i', 'j')
 
         ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
@@ -2047,4 +2060,3 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
-

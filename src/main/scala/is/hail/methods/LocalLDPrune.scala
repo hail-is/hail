@@ -14,7 +14,7 @@ object BitPackedVectorView {
   val bpvElementSize = TInt64Required.byteSize
 
   def rvRowType(locusType: Type, allelesType: Type): TStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_sd_reciprocal" -> TFloat64Required)
+    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required)
 }
 
 class BitPackedVectorView(rvRowType: TStruct) {
@@ -27,7 +27,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
   private var bpvElementOffset: Long = _
   private var nSamplesOffset: Long = _
   private var meanOffset: Long = _
-  private var sdOffset: Long = _
+  private var centeredLengthRecOffset: Long = _
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
@@ -36,7 +36,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
     bpvElementOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
     nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
     meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
-    sdOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_sd_reciprocal"))
+    centeredLengthRecOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_rec"))
 
     vView.setRegion(m, offset)
   }
@@ -60,7 +60,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
 
   def getMean: Double = m.loadDouble(meanOffset)
 
-  def getStdDevRecip: Double = m.loadDouble(sdOffset)
+  def getCenteredLengthRec: Double = m.loadDouble(centeredLengthRecOffset)
 }
 
 object LocalLDPrune {
@@ -168,14 +168,13 @@ object LocalLDPrune {
       false
     } else {
       val gtMean = gtSum.toDouble / nPresent
-      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
-      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
-      // this is 1 / (sqrt(n) * standard deviation)
-      val gtLengthCenteredStdDevRecip = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
+      val gtSumAll = gtSum + nMissing * gtMean
+      val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
+      val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
 
       rvb.addInt(nSamples)
       rvb.addDouble(gtMean)
-      rvb.addDouble(gtLengthCenteredStdDevRecip)
+      rvb.addDouble(gtCenteredLengthRec)
       true
     }
   }
@@ -186,8 +185,8 @@ object LocalLDPrune {
     val N = x.getNSamples
     val meanX = x.getMean
     val meanY = y.getMean
-    val stdDevRecX = x.getStdDevRecip
-    val stdDevRecY = y.getStdDevRecip
+    val centeredLengthRecX = x.getCenteredLengthRec
+    val centeredLengthRecY = y.getCenteredLengthRec
 
     var XbarYbarCount = 0
     var XbarCount = 0
@@ -213,7 +212,8 @@ object LocalLDPrune {
       pack += 1
     }
 
-    stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
+    centeredLengthRecX * centeredLengthRecY *
+      ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
   }
 
   def computeR2(x: BitPackedVectorView, y: BitPackedVectorView): Double = {
@@ -284,10 +284,8 @@ object LocalLDPrune {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 
-    val (nVariantsInitial, nPartitionsInitial, nSamples) = (mt.countRows(), mt.nPartitions, mt.numCols)
-
-    info(s"Running LD prune with nSamples=$nSamples, nVariants=$nVariantsInitial, nPartitions=$nPartitionsInitial, and maxQueueSize=$maxQueueSize.")
-
+    val nSamples = mt.numCols
+    
     val fullRowType = mt.rvRowType
 
     val locusIndex = mt.rowType.fieldIdx("locus")
@@ -327,7 +325,7 @@ object LocalLDPrune {
     val rvdLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val tableType = TableType(
-      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_sd_reciprocal" -> TFloat64Required),
+      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required),
       key = Some(mt.rowKey), globalType = TStruct.empty())
 
     val sitesOnly = rvdLP.mapPartitionsPreservesPartitioning(
@@ -342,7 +340,7 @@ object LocalLDPrune {
           rvb.set(region)
           rvb.start(tableType.rowType)
           rvb.startStruct()
-          rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "centered_length_sd_reciprocal")
+          rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "centered_length_rec")
             .map(field => bpvType.fieldIdx(field)))
           rvb.endStruct()
           newRV.setOffset(rvb.end())

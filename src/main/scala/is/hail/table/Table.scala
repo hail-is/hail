@@ -970,7 +970,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(rvd = rvd.sample(withReplacement = false, p, seed))
   }
 
-  def index(name: String = "index"): Table = {
+  def index(name: String): Table = {
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 

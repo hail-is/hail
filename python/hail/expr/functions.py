@@ -2743,7 +2743,7 @@ def signum(x):
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.Int32Expression` or :class:`.ArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray):
         return map(signum, x)
