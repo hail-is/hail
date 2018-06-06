@@ -228,8 +228,8 @@ private class Emit(
               Code(
                 xvcond := coerce[Boolean](codeCond.v),
                 coerce[Boolean](xvcond).mux(
-                  Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.v),
-                  Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.v)))))
+                  Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.m.mux(defaultValue(typ), codeCnsq.v)),
+                  Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.m.mux(defaultValue(typ), codeAltr.v))))))
 
           EmitTriplet(setup, mout, out)
         }

@@ -43,8 +43,6 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def offset: Code[Long] = startOffset
 
-  def endOffset: Code[Long] = region.size
-
   def arrayIdx: Code[Int] = idx
 
   def currentOffset: Code[Long] = {
@@ -61,7 +59,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
-        startOffset := endOffset
+        startOffset := -1L
       case _ =>
         startOffset := region.allocate(ftype.alignment, ftype.byteSize)
     }
@@ -130,8 +128,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val boff = mb.newLocal[Long]
     Code(
-      boff := region.appendInt(bytes.length()),
-      toUnit(region.appendBytes(bytes)),
+      boff := region.appendBinary(bytes),
       ftype match {
         case _: TBinary =>
           startOffset := boff

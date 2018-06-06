@@ -203,19 +203,19 @@ class UnsafeSuite extends SparkSuite {
   @Test def testRegion() {
     val buff = Region()
 
-    buff.appendLong(124L)
-    buff.appendByte(2)
-    buff.appendByte(1)
-    buff.appendByte(4)
-    buff.appendInt(1234567)
-    buff.appendDouble(1.1)
+    val addrA = buff.appendLong(124L)
+    val addrB = buff.appendByte(2)
+    val addrC = buff.appendByte(1)
+    val addrD = buff.appendByte(4)
+    val addrE = buff.appendInt(1234567)
+    val addrF = buff.appendDouble(1.1)
 
-    assert(buff.loadLong(0) == 124L)
-    assert(buff.loadByte(8) == 2)
-    assert(buff.loadByte(9) == 1)
-    assert(buff.loadByte(10) == 4)
-    assert(buff.loadInt(12) == 1234567)
-    assert(buff.loadDouble(16) == 1.1)
+    assert(buff.loadLong(addrA) == 124L)
+    assert(buff.loadByte(addrB) == 2)
+    assert(buff.loadByte(addrC) == 1)
+    assert(buff.loadByte(addrD) == 4)
+    assert(buff.loadInt(addrE) == 1234567)
+    assert(buff.loadDouble(addrF) == 1.1)
   }
 
   val g = (for {
@@ -325,55 +325,7 @@ class UnsafeSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testRegionSer() {
-    val region = Region()
-    val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array](arbitrary[Byte])
-    val p = Prop.forAll(g) { (a: Array[Byte]) =>
-      region.clear()
-      region.appendBytes(a)
-
-      hadoopConf.writeObjectFile(path) { out =>
-        out.writeObject(region)
-      }
-
-      val region2 = hadoopConf.readObjectFile(path) { in =>
-        in.readObject().asInstanceOf[Region]
-      }
-
-      assert(region2.size.toInt == a.length)
-      val a2 = region2.loadBytes(0, region2.size.toInt)
-      assert(a2 sameElements a)
-
-      true
-    }
-  }
-
-  @Test def testRegionKryo() {
-    val conf = sc.getConf // force sc
-    val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
-    val kryo = ser.newKryo()
-
-    val region = Region()
-    val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array](arbitrary[Byte])
-    val p = Prop.forAll(g) { (a: Array[Byte]) =>
-      region.clear()
-      region.appendBytes(a)
-
-      hadoopConf.writeKryoFile(path) { out =>
-        kryo.writeObject(out, region)
-      }
-
-      val region2 = hadoopConf.readKryoFile(path) { in =>
-        kryo.readObject[Region](in, classOf[Region])
-      }
-
-      assert(region2.size.toInt == a.length)
-      val a2 = region2.loadBytes(0, region2.size.toInt)
-      assert(a2 sameElements a)
-
-      true
-    }
-  }
+  // With the move to off-heap Region and absolute addresses, it no
+  // longer makes sense to serialize/deserialize a Region without
+  // knowing its Type, so those tests have been deleted.
 }

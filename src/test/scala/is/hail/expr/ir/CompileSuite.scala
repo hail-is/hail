@@ -192,22 +192,7 @@ class CompileSuite {
 
 
   def printRegion(region: Region, string: String) {
-    println(string)
-    val size = region.size
-    println("Region size: " + size.toString)
-    val bytes = region.loadBytes(0, size.toInt)
-    println("Array: ")
-    var j = 0
-    for (i <- bytes) {
-      j += 1
-      printf("%02X", i)
-      if (j % 32 == 0) {
-        print('\n')
-      } else {
-        print(' ')
-      }
-    }
-    print('\n')
+    println(s"printRegion(${string}) is not meaningful for off-heap Region")
   }
 
 
