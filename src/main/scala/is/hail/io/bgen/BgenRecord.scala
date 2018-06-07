@@ -45,16 +45,16 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
 }
 
 class BgenRecordV12(
-  compressed: Boolean,
+  isCompressed: Boolean,
   nSamples: Int,
   includeGT: Boolean,
   includeGP: Boolean,
   includeDosage: Boolean,
   bfis: HadoopFSDataBinaryReader
 ) extends BgenRecord {
-  var expectedDataSize: Int = _
-  var expectedNumAlleles: Int = _
-  var dataSize: Int = _
+  private[this] var expectedDataSize: Int = _
+  private[this] var expectedNumAlleles: Int = _
+  private[this] var dataSize: Int = _
   private[this] val inf = new Inflater()
 
   def setExpectedDataSize(size: Int) {
@@ -85,7 +85,7 @@ class BgenRecordV12(
       rvb.endArray()
       bfis.fis.skipBytes(dataSize)
     } else {
-      val bytes = if (compressed) {
+      val bytes = if (isCompressed) {
         val compressed = new Array[Byte](dataSize)
         bfis.fis.readFully(compressed)
         val decompressed = new Array[Byte](expectedDataSize)
