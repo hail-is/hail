@@ -54,7 +54,7 @@ class BgenRecordV12(
 ) extends BgenRecord {
   private[this] var expectedDataSize: Int = _
   private[this] var expectedNumAlleles: Int = _
-  private[this] var dataSize: Int = _
+  var dataSize: Int = _
   private[this] val inf = new Inflater()
 
   def setExpectedDataSize(size: Int) {
