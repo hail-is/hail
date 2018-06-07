@@ -64,7 +64,9 @@ object AggOp {
 
   val getOption: ((AggOp, Type, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
+
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
+
     case (Collect(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
     case (Collect(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
     // FIXME: implement these
@@ -72,7 +74,7 @@ object AggOp {
     // case (Collect(), _: TFloat32) =>
     // case (Collect(), _: TFloat64) =>
     // case (Collect(), _: TArray) =>
-    case (Collect(), in@(_: TStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectStructAggregator](in, TArray(in), constrArgTypes = Array())
+    case (Collect(), in@(_: TBaseStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBaseStructAggregator](in, TArray(in), constrArgTypes = Array())
 
     case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
 

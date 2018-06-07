@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.expr.types.Type
+import is.hail.expr.types._
 
 trait RegionValueAggregator extends Serializable {
   var inputTyp: Type = _
