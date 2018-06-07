@@ -113,7 +113,7 @@ class EmitFunctionBuilder[F >: Null](
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup))
+    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup(this)))
 
   def numTypes: Int = typMap.size
 
@@ -127,17 +127,21 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
 
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
-    val confField = newField[SerializableHadoopConfiguration]
-    val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
-    methods.append(mb)
-    mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-    _hconf = hConf
-    _hfield = confField
+    assert(hConf != null)
+    if (_hconf == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
+      val confField = newField[SerializableHadoopConfiguration]
+      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+      methods.append(mb)
+      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
+      _hconf = hConf
+      _hfield = confField
+    }
+    assert(_hconf == hConf && _hfield != null)
   }
 
   def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null)
+    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
     _hfield.load()
   }
 
@@ -179,7 +183,6 @@ class EmitFunctionBuilder[F >: Null](
     })
     (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
   }
-
 
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)

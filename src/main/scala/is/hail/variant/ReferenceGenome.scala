@@ -17,6 +17,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
@@ -350,6 +351,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
   }
 
+  def addSequenceFromReader(hConf: SerializableHadoopConfiguration, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
+    fastaReader = new FASTAReader(hConf, this, fastaFile, indexFile, blockSize, capacity)
+    this
+  }
+
   def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
     if (!hasSequence)
       fatal(s"FASTA file has not been loaded for reference genome '$name'.")
@@ -391,6 +397,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.checkChainFile(this, destRG)
 
     liftoverMaps += destRGName -> lo
+  }
+
+  def addLiftoverFromHConf(hConf: SerializableHadoopConfiguration, chainFilePath: String, destRGName: String): ReferenceGenome = {
+    val lo = new LiftOver(hConf, chainFilePath)
+    liftoverMaps += destRGName -> lo
+    this
   }
 
   def getLiftover(destRGName: String): LiftOver = {
@@ -458,7 +470,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(jrg)
   }
 
-  def codeSetup: Code[ReferenceGenome] = {
+  def codeSetup(fb: EmitFunctionBuilder[_]): Code[ReferenceGenome] = {
     val json = toJSONString
     val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1
@@ -468,7 +480,27 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val stringAssembler =
       chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
-    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
+    var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
+    if (fastaReader != null) {
+      fb.addHadoopConfiguration(fastaReader.hConf)
+      rg = rg.invoke[SerializableHadoopConfiguration, String, String, Int, Int, ReferenceGenome](
+        "addSequenceFromReader",
+        fb.getHadoopConfiguration,
+        fastaReader.fastaFile,
+        fastaReader.indexFile,
+        fastaReader.blockSize,
+        fastaReader.capacity)
+    }
+
+    for ((destRG, lo) <- liftoverMaps) {
+      fb.addHadoopConfiguration(lo.hConf)
+      rg = rg.invoke[SerializableHadoopConfiguration, String, String, ReferenceGenome](
+        "addLiftoverFromHConf",
+        fb.getHadoopConfiguration,
+        lo.chainFile,
+        destRG)
+    }
+    rg
   }
 
   private[this] var registeredFunctions: Set[String] = null
