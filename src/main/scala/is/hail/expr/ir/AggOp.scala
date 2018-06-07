@@ -67,12 +67,13 @@ object AggOp {
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
     case (Collect(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
     case (Collect(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
+
     // FIXME: implement these
     // case (Collect(), _: TInt64) =>
     // case (Collect(), _: TFloat32) =>
     // case (Collect(), _: TFloat64) =>
     // case (Collect(), _: TArray) =>
-     case (Collect(), in@(_: TStruct), Seq(), None) => CodeAggregator[RegionValueCollectStructAggregator](in, TArray(in), constrArgTypes = Array())
+     case (Collect(), in@(_: TBaseStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBaseStructAggregator](in, TArray(in), constrArgTypes = Array())
     // case (InfoScore() =>
 
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
