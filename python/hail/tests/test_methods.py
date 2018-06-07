@@ -1347,7 +1347,7 @@ class Tests(unittest.TestCase):
 
     def test_ld_prune(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('ldprune.vcf'), min_partitions=3))
-        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=5)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.001, bp_window_size=5)
 
         filtered_ds = ds.filter_rows(hl.is_defined(pruned_table[ds.row_key]))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
@@ -1362,7 +1362,7 @@ class Tests(unittest.TestCase):
 
         std_bm = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
 
-        self.assertEqual(std_bm.n_rows, 23)
+        self.assertEqual(std_bm.n_rows, 14)
 
         entries = ((std_bm @ std_bm.T) ** 2).entries()
 

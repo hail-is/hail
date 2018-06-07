@@ -3035,15 +3035,15 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         0.0)
 
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
-    corr = std_gt_bm @ std_gt_bm.T
+    r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.locus_windows(locally_pruned_table, bp_window_size)
 
     starts = range(0, len(stops))
     stops = [int(s) for s in stops]
 
-    entries = corr.sparsify_row_intervals(starts, stops, blocks_only=True).entries()
-    entries = entries.filter((entries.entry ** 2 >= r2) & (entries.i < entries.j))
+    entries = r2_bm.sparsify_row_intervals(starts, stops, blocks_only=True).entries()
+    entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
 
     locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
 
