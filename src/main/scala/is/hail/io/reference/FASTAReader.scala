@@ -68,6 +68,17 @@ object FASTAReader {
 
     new FASTAReader(hConf, rg, fastaFile, indexFile, blockSize, capacity)
   }
+
+  def apply(hConf: SerializableHadoopConfiguration, rg: ReferenceGenome, fastaFile: String, indexFile: String,
+    blockSize: Int = 4096, capacity: Int = 100): FASTAReader = {
+
+    if (blockSize <= 0)
+      fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
+    if (capacity <= 0)
+      fatal(s"'capacity' must be greater than 0. Found $capacity.")
+
+    new FASTAReader(hConf, rg, fastaFile, indexFile, blockSize, capacity)
+  }
 }
 
 class FASTAReader(hConf: SerializableHadoopConfiguration, rg: ReferenceGenome,

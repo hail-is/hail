@@ -465,23 +465,10 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     assert(nChunks > 0)
 
     val chunks = Array.tabulate(nChunks){ i => json.slice(i * chunkSize, (i + 1) * chunkSize) }
-    val fromString =
+    val stringAssembler =
       chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
-    val sequenceFiles = Option(fastaReader).map { fr => (fr.fastaFile, fr.indexFile) }
-    val liftoverFiles = liftoverMaps.toArray.map { case (destRG, lo) => (destRG, lo.chainFile) }.toFastIndexedSeq
-
-    var rg: Code[ReferenceGenome] = sequenceFiles match {
-      case None =>
-        Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", fromString)
-      case Some((fasta, index)) =>
-        Code.invokeScalaObject[String, String, String, ReferenceGenome](ReferenceGenome.getClass, "parseWithSequence", fromString, fasta, index)
-    }
-
-    for ((destRG, filename) <- liftoverFiles) {
-      rg = rg.invoke[String, String, ReferenceGenome]("withLiftover", destRG, filename)
-    }
-    rg
+    Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass(), "parse", stringAssembler)
   }
 
   private[this] var registeredFunctions: Set[String] = null
@@ -555,11 +542,6 @@ object ReferenceGenome {
   def parse(str: String): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
-  }
-
-  def parseWithSequence(str: String, fasta: String, index: String): ReferenceGenome = {
-    val rg = parse(str)
-    rg.addSequence(hc, fasta, index)
   }
 
   def fromResource(file: String): ReferenceGenome = {
