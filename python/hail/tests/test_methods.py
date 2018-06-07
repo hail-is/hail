@@ -1409,7 +1409,6 @@ class Tests(unittest.TestCase):
         kept_maf = ht.filter(ht.locus.position == kept_position).maf.collect()[0]
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
-        ht.unpersist()
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
@@ -1615,15 +1614,38 @@ class Tests(unittest.TestCase):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
 
-        mt = hl.balding_nichols_model(1, 5, 5)
-
-        starts, stops = hl.locus_windows(mt.rows(), 1)
-        assert_eq(starts, [0, 0, 1, 2, 3])
-        assert_eq(stops, [2, 3, 4, 5, 5])
-
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
-        ht = mt.rows().add_index()
-        ht = ht.annotate(cm = centimorgans[hl.int32(ht.idx)])
+
+        ht = hl.balding_nichols_model(1, 5, 5).rows().add_index()
+        ht = ht.annotate(cm = centimorgans[hl.int32(ht.idx)]).cache()
+
+        starts, stops = hl.locus_windows(ht, 2)
+        assert_eq(starts, [0, 0, 0, 1, 2])
+        assert_eq(stops, [3, 4, 5, 5, 5])
+
         starts, stops = hl.locus_windows(ht, 0.5, value_expr=ht.cm)
         assert_eq(starts, [0, 1, 1, 1, 3])
         assert_eq(stops, [1, 4, 4, 5, 5])
+
+        starts, stops = hl.locus_windows(ht, 1.0, value_expr=2 * centimorgans[hl.int32(ht.idx)])
+        assert_eq(starts, [0, 1, 1, 1, 3])
+        assert_eq(stops, [1, 4, 4, 5, 5])
+
+        rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
+                {'locus': hl.Locus('1', 2), 'cm': 3.0},
+                {'locus': hl.Locus('1', 4), 'cm': 4.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+
+        ht = hl.Table.parallelize(rows,
+             hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
+             key=['locus'])
+
+        starts, stops = hl.locus_windows(ht, 1)
+        assert_eq(starts, [0, 0, 2, 3, 3, 5])
+        assert_eq(stops, [2, 2, 3, 5, 5, 6])
+
+        starts, stops = hl.locus_windows(ht, 1.0, value_expr=ht.cm)
+        assert_eq(starts, [0, 1, 1, 3, 3, 5])
+        assert_eq(stops, [1, 3, 3, 5, 5, 6])

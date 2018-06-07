@@ -396,7 +396,9 @@ def array_windows(a, radius, stops_only=False):
     ``i``, ``[starts[i], stops[i])`` is the maximal range of indices ``j`` such
     that ``a[i] - radius <= a[j] <= a[i] + radius``.
 
-    Index ranges are start-inclusive and stop-exclusive.
+    Index ranges are start-inclusive and stop-exclusive. This function is
+    especially useful in conjunction with
+    :meth:`.BlockMatrix.sparsify_row_intervals`.
 
     Parameters
     ----------
@@ -407,8 +409,8 @@ def array_windows(a, radius, stops_only=False):
 
     Returns
     -------
-    (:obj:`ndarray` of obj:`int64`, :obj:`ndarray` of obj:`int64`) or :obj:`ndarray` of obj:`int64`
-        If ``stops_only=False``, tuple of start indices array and stop indices array
+    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`) or :class:`ndarray` of :obj:`int64`
+        If ``stops_only=False``, tuple of start indices array and stop indices array.
         If ``stops_only=True``, stop indices array.
     """
     if radius < 0:
@@ -459,15 +461,35 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
 
     Examples
     --------
-    >>> mt = hl.balding_nichols_model(n_populations=1, n_samples=5, n_variants=5)
-    >>> starts, stops = hl.locus_windows(mt.rows(), 1)
-    (array([0, 0, 1, 2, 3]), array([2, 3, 4, 5, 5]))
+    Windows with 2bp radius for one contig with positions 1, 2, 3, 4, 5:
 
-    >>> centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
-    >>> ht = mt.rows().add_index()
-    >>> ht = ht.annotate(cm = centimorgans[hl.int32(ht.idx)])
-    >>> starts, stops = hl.locus_windows(ht, 0.5, value_expr=ht.cm)
-    (array([0, 1, 1, 1, 3]), array([1, 4, 4, 5, 5]))
+    >>> mt = hl.balding_nichols_model(n_populations=1, n_samples=5, n_variants=5)
+    >>> starts, stops = hl.locus_windows(mt.rows(), 2)
+    >>> starts, stops
+    (array([0, 0, 0, 1, 2]), array([3, 4, 5, 5, 5]))
+
+    The following examples involve three contigs.
+
+    >>> loci = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
+    ...         {'locus': hl.Locus('1', 2), 'cm': 3.0},
+    ...         {'locus': hl.Locus('1', 4), 'cm': 4.0},
+    ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
+    ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
+    ...         {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+    >>> ht = hl.Table.parallelize(
+    ...         loci,
+    ...         hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
+    ...         key=['locus'])
+
+    Windows with 1bp radius:
+
+    >>> hl.locus_windows(ht, 1)
+    (array([0, 0, 2, 3, 3, 5]), array([2, 2, 3, 5, 5, 6]))
+
+    Windows with 1cm radius:
+
+    >>> hl.locus_windows(ht, 1.0, value_expr=ht.cm)
+    (array([0, 1, 1, 3, 3, 5]), array([1, 3, 3, 5, 5, 6]))
 
     Notes
     -----
@@ -482,15 +504,18 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
     ``position[i] - radius <= position[j] <= position[i] + radius``.
 
     Set `value_expr` to use a value other than position to define the windows.
-    This row value must be non-missing, as well as non-decreasing with respect
-    to locus for each contig; otherwise the function will fail.
+    This row-indexed numeric expression must be non-missing, as well as
+    non-decreasing with respect to locus for each contig; otherwise the function
+    will fail.
 
-    The second example above uses centimorgan coordinates, so
+    The last example above uses centimorgan coordinates, so
     ``[starts[i], stops[i])`` is the maximal range of row indices ``j`` such
     that ``contig[i] == contig[j]`` and
     ``cm[i] - radius <= cm[j] <= cm[i] + radius``.
 
-    Index ranges are start-inclusive and stop-exclusive.
+    Index ranges are start-inclusive and stop-exclusive. This function is
+    especially useful in conjunction with
+    :meth:`.BlockMatrix.sparsify_row_intervals`.
 
     Parameters
     ----------
@@ -504,8 +529,8 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
 
     Returns
     -------
-    (:obj:`ndarray` of obj:`int64`, :obj:`ndarray` of obj:`int64`) or :obj:`ndarray` of obj:`int64`
-        If ``stops_only=False``, tuple of start indices array and stop indices array
+    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`) or :class:`ndarray` of :obj:`int64`
+        If ``stops_only=False``, tuple of start indices array and stop indices array.
         If ``stops_only=True``, stop indices array.
     """
     if radius < 0:
@@ -516,21 +541,19 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
 
     if value_expr is None:
         ht = ht.key_by(ht.key[0]).select()
-        contigs = ht.group_by(ht.key[0].contig).aggregate(values=agg.collect(ht.key[0].position))
+        contigs_table = ht.group_by(ht.key[0].contig).aggregate(values=agg.collect(ht.key[0].position))
     else:
         # FIXME: remove once select_entries on a field is free
         if value_expr in ht._fields_inverse:
-            print('field')
             field = ht._fields_inverse[value_expr]
             ht = ht.select(field)
             ht = ht.key_by(ht.key[0])
         else:
-            print('no field')
             field = Env.get_uid()
             ht = ht.select(**{field: value_expr})
-        contigs = ht.group_by(ht.key[0].contig).aggregate(values=agg.collect(ht[field]))
+        contigs_table = ht.group_by(ht.key[0].contig).aggregate(values=agg.collect(ht[field]))
 
-    contig_values = contigs.values.collect()
+    contig_values = contigs_table.order_by(contigs_table.contig).values.collect()
     contig_offsets = np.concatenate((np.array([0]), np.cumsum([len(contig) for contig in contig_values])))
     contig_bounds = [array_windows(np.array(values), radius, stops_only) for values in contig_values]
     contigs = range(0, len(contig_values))
