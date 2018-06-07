@@ -77,6 +77,13 @@ class BgenRecordV12(
 
     if (rvb == null) {
       bfis.fis.skipBytes(dataSize)
+    } else if (!includeGT && !includeGP && !includeDosage) {
+      // in this case, we don't even need to decompress anything
+      assert(rvb.currentType().asInstanceOf[TStruct].byteSize == 0)
+      rvb.startArray(nSamples) // gs
+      rvb.unsafeAdvance(nSamples)
+      rvb.endArray()
+      bfis.fis.skipBytes(dataSize)
     } else {
       val bytes = if (compressed) {
         val compressed = new Array[Byte](dataSize)
@@ -148,15 +155,7 @@ class BgenRecordV12(
       // assert(reader.length == nExpectedBytesProbs + nSamples + 10// , s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'."
       // )
 
-      rvb.startArray(nSamples) // gs
-      if (!includeGT && !includeGP && !includeDosage) {
-        assert(rvb.currentType().asInstanceOf[TStruct].byteSize == 0)
-        rvb.unsafeAdvance(nSamples)
-        // FIXME: we should use the datasize to seek past the data rather than
-        // use the reader which will decompress all the bytes
-        // reader.skipBytes(nSamples * 2)
-        bfis.fis.seek(expectedEnd)
-      } else if (nBitsPerProb == 8 && nAlleles == 2) {
+      if (nBitsPerProb == 8 && nAlleles == 2) {
         val c0 = Call2.fromUnphasedDiploidGtIndex(0)
         val c1 = Call2.fromUnphasedDiploidGtIndex(1)
         val c2 = Call2.fromUnphasedDiploidGtIndex(2)
