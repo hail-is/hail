@@ -90,7 +90,11 @@ class RegionValueCollectStructAggregator() extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectStructAggregator = new RegionValueCollectStructAggregator()
+  def copy(): RegionValueCollectStructAggregator = {
+    val rvagg = new RegionValueCollectStructAggregator()
+    rvagg.setTypes(inputTyp, resultTyp)
+    rvagg
+  }
 
   def clear() {
     ab.clear()
