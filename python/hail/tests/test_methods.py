@@ -1646,3 +1646,8 @@ class Tests(unittest.TestCase):
         starts, stops = hl.locus_windows(ht, 1.0, value_expr=ht.cm)
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
+
+        from hail.expr.expressions import ExpressionException
+        self.assertRaises(ExpressionException,
+            lambda: hl.locus_windows(ht, 1.0,
+                value_expr=hl.locus_windows(ht, 1.0, value_expr=hl.utils.range_table(1).idx)))

@@ -398,7 +398,7 @@ def array_windows(a, radius):
 
     Parameters
     ----------
-    a: :obj:`ndarray` of integer or float values
+    a: :obj:`ndarray` of signed integer or float values
         Non-decreasing 1-dimensional array of values.
     radius: :obj:`float`
         Non-negative radius of window for values.
@@ -412,11 +412,11 @@ def array_windows(a, radius):
         raise ValueError(f'array_windows: radius must be non-negative, found {radius}')
     if a.ndim != 1:
         raise ValueError("array_windows: 'a' must be 1-dimensional")
-    if not (np.issubdtype(a.dtype, np.integer) or np.issubdtype(a.dtype, np.floating)):
+    if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
         if None in a:
             raise ValueError(f"array_windows: 'a' contains a None value")
         else:
-            raise ValueError(f"array_windows: 'a' must be an ndarray of integer or float values, "
+            raise ValueError(f"array_windows: 'a' must be an ndarray of signed integer or float values, "
                              f"found dtype {str(a.dtype)}")
     if (not np.all(a[:-1] <= a[1:])) or (a.size == 1 and np.isnan(a[0])):
         raise ValueError("array_windows: 'a' must be non-decreasing with no nan elements")
@@ -495,9 +495,9 @@ def locus_windows(locus_table, radius, value_expr=None):
     ``position[i] - radius <= position[j] <= position[i] + radius``.
 
     Set `value_expr` to use a value other than position to define the windows.
-    This row-indexed numeric expression must be non-missing, as well as
-    non-decreasing with respect to locus for each contig; otherwise the function
-    will fail.
+    This row-indexed numeric expression on `locus_table` must be non-missing,
+    as well as non-decreasing with respect to locus for each contig; otherwise
+    the function will fail.
 
     The last example above uses centimorgan coordinates, so
     ``[starts[i], stops[i])`` is the maximal range of row indices ``j`` such
@@ -515,7 +515,7 @@ def locus_windows(locus_table, radius, value_expr=None):
     radius: :obj:`int`
         Radius of window for row values.
     value_expr: :obj:`str`, optional
-        Row-indexed numeric expression for the row value.
+        Row-indexed numeric expression on `locus_table` for the row value.
         By default, the row value is given by the locus position.
 
     Returns

@@ -1,5 +1,4 @@
 import itertools
-import numpy as np
 import math
 from typing import *
 
@@ -11,8 +10,7 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus,\
-    require_col_key_str
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -2930,11 +2928,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     Notes
     -----
     This method finds a maximal subset of variants such that the squared Pearson
-    correlation coefficient :math:`r^2` of any pair at most `window_size`
+    correlation coefficient :math:`r^2` of any pair at most `bp_window_size`
     base pairs apart is strictly less than `r2`. Each variant is represented as
     a vector over samples with elements given by the (mean-imputed) number of
     alternate alleles. In particular, even if present, **phase information is
-    ignored**.
+    ignored**. Variants that do not vary across samples are dropped.
 
     The method prunes variants in linkage disequilibrium in three stages.
 
@@ -3039,10 +3037,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     _, stops = hl.locus_windows(locally_pruned_table, bp_window_size)
 
-    starts = range(0, len(stops))
-    stops = [int(s) for s in stops]
-
-    entries = r2_bm.sparsify_row_intervals(starts, stops, blocks_only=True).entries()
+    entries = r2_bm.sparsify_row_intervals(range(0, stops.size), stops, blocks_only=True).entries()
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
 
     locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')

@@ -845,8 +845,8 @@ class BlockMatrix(object):
 
         return self.sparsify_band(lower_band, upper_band, blocks_only)
 
-    @typecheck_method(starts=sequenceof(int),
-                      stops=sequenceof(int),
+    @typecheck_method(starts=oneof(sequenceof(int), np.ndarray),
+                      stops=oneof(sequenceof(int), np.ndarray),
                       blocks_only=bool)
     def sparsify_row_intervals(self, starts, stops, blocks_only=False):
         """Creates a block-sparse matrix by filtering to an interval for each row.
@@ -901,10 +901,10 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        starts: :obj:`list` of :obj:`int`
+        starts: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
             Start indices for each row (inclusive).
-        stops: :obj:`list` of :obj:`int`
-            Stop indices for each row (exclusive).
+        stops: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
+            Stop indices for each row (exclusive)
         blocks_only: :obj:`bool`
             If ``False``, set all elements outside row intervals to zero.
             If ``True``, only set all blocks outside row intervals to blocks
@@ -914,6 +914,15 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        if isinstance(starts, np.ndarray):
+            if not (starts.dtype==np.int32 or starts.dtype==np.int64):
+                raise ValueError(f"sparsify_row_intervals: starts ndarray must have dtype int32 or int64")
+            starts = [int(s) for s in starts]
+        if isinstance(stops, np.ndarray):
+            if not (stops.dtype==np.int32 or stops.dtype==np.int64):
+                raise ValueError(f"sparsify_row_intervals: stops ndarray must have dtype int32 or int64")
+            stops = [int(s) for s in stops]
+
         n_rows = self.n_rows
         n_cols = self.n_cols
         if n_rows >= (1 << 31):
