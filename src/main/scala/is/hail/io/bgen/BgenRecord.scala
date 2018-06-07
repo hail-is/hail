@@ -55,6 +55,7 @@ class BgenRecordV12(
   var expectedDataSize: Int = _
   var expectedNumAlleles: Int = _
   var dataSize: Int = _
+  private[this] val inf = new Inflater()
 
   def setExpectedDataSize(size: Int) {
     this.expectedDataSize = size
@@ -77,13 +78,22 @@ class BgenRecordV12(
     if (rvb == null) {
       bfis.fis.skipBytes(dataSize)
     } else {
-      val uncompressedInput = if (compressed)
-        new InflaterInputStream(bfis.fis, new Inflater(), dataSize)
-      else
-        bfis.fis
+      val bytes = if (compressed) {
+        val compressed = new Array[Byte](dataSize)
+        bfis.fis.readFully(compressed)
+        val decompressed = new Array[Byte](expectedDataSize)
+        inf.reset()
+        inf.setInput(compressed)
+        val decsize = inf.inflate(decompressed)
+        assert(decsize == expectedDataSize, s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
+        decompressed
+      } else {
+        val decompressed = new Array[Byte](dataSize)
+        bfis.fis.readFully(decompressed)
+        decompressed
+      }
 
-      val reader =
-        new LittleEndianDataInputStream(uncompressedInput)
+      val reader = new ByteArrayReader(bytes)
 
       // val nRow = reader.readInt()
       // assert(nRow == nSamples// , s"$nRow $nSamples"
@@ -102,8 +112,10 @@ class BgenRecordV12(
       if (minPloidy != 2 || maxPloidy != 2)
         fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
 
-      val sampleMissing = new Array[Byte](nSamples)
-      reader.readFully(sampleMissing)
+      reader.skipBytes(nSamples)
+
+      // val sampleMissing = new Array[Byte](nSamples)
+      // reader.readFully(sampleMissing)
 
       // var i = 0
       // while (i < nSamples) {
@@ -151,11 +163,11 @@ class BgenRecordV12(
 
         var i = 0
         while (i < nSamples) {
-          // val off = nSamples + 10 + 2 * i
-          val d0 = reader.read()
-          val d1 = reader.read()
+          val off = nSamples + 10 + 2 * i
+          val d0 = bytes(off)
+          val d1 = bytes(off + 1)
 
-          if ((sampleMissing(i) & 0x80) == 1)
+          if ((bytes(8 + i) & 0x80) == 1)
             rvb.setMissing()
           else {
             val d2 = 255 - d0 - d1
