@@ -1379,12 +1379,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
     def test_ld_prune_inputs(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000, memory_per_core=0))
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, bp_window_size=-1))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=100)
-        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=0)
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
@@ -1406,6 +1409,7 @@ class Tests(unittest.TestCase):
         kept_maf = ht.filter(ht.locus.position == kept_position).maf.collect()[0]
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
+        ht.unpersist()
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)

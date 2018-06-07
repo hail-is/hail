@@ -321,20 +321,6 @@ class LocalLDPruneSuite extends SparkSuite {
     Spec.check()
   }
 
-  @Test def testInputs() {
-    // r2 negative
-    intercept[HailException](LocalLDPrune(vds, r2Threshold = -0.1, windowSize = 1000, maxQueueSize = 1))
-
-    // r2 > 1
-    intercept[HailException](LocalLDPrune(vds, r2Threshold = 1.1, windowSize = 1000, maxQueueSize = 1))
-
-    // windowSize negative
-    intercept[HailException](LocalLDPrune(vds, r2Threshold = 0.5, windowSize = -2, maxQueueSize = 1))
-
-    // max queue size < 1
-    intercept[HailException](LocalLDPrune(vds, r2Threshold = 0.5, windowSize = 1000, maxQueueSize = 0))
-  }
-
   @Test def testNoPrune() {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
     val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize = maxQueueSize)

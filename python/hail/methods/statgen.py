@@ -2976,6 +2976,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         variants and column-indexed samples.
     r2 : :obj:`float`
         Squared correlation threshold (exclusive upper bound).
+        Must be in the range [0.0, 1.0].
     bp_window_size: :obj:`int`
         Window size in base pairs (inclusive upper bound).
     memory_per_core : :obj:`int`
@@ -2994,6 +2995,12 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     """
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
+
+    if not 0.0 <= r2 <= 1:
+      raise ValueError(f'r2 must be in the range [0.0, 1.0], found {r2}')
+
+    if bp_window_size < 0:
+      raise ValueError(f'bp_window_size must be non-negative, found {bp_window_size}')
 
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
