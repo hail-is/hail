@@ -421,8 +421,8 @@ def array_windows(a, radius, stops_only=False):
         else:
             raise ValueError(f"array_windows: 'a' must be an ndarray of integer or float values, "
                              f"found dtype {str(a.dtype)}")
-    if not np.all(a[:-1] <= a[1:]):
-        raise ValueError("array_windows: 'a' must be non-decreasing")
+    if (not np.all(a[:-1] <= a[1:])) or (a.size == 1 and np.isnan(a[0])):
+        raise ValueError("array_windows: 'a' must be non-decreasing with no nan elements")
     if a.size > 0 and a[-1] + radius < a[-1]:
         raise ValueError('array_windows: overflow for a[-1] + radius')
     if (not stops_only) and a.size > 0 and a[0] - radius > a[0]:

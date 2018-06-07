@@ -2914,12 +2914,12 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
 @typecheck(call_expr=expr_call,
            r2=numeric,
-           bp_window_size=int,
+           bp_window_size=float,
            memory_per_core=int,
            keep_higher_maf=bool,
            block_size=nullable(int))
 def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, keep_higher_maf=True, block_size=None):
-    """Returns a maximal subset of nearly-uncorrelated variants.
+    """Returns a maximal subset of variants that are nearly uncorrelated within each window.
 
     .. include:: ../_templates/req_diploid_gt.rst
 
@@ -2930,7 +2930,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     Notes
     -----
     This method finds a maximal subset of variants such that the squared Pearson
-    correlation coefficient :math:`r^2` of any pair at most `bp_window_size`
+    correlation coefficient :math:`r^2` of any pair at most `window_size`
     base pairs apart is strictly less than `r2`. Each variant is represented as
     a vector over samples with elements given by the (mean-imputed) number of
     alternate alleles. In particular, even if present, **phase information is

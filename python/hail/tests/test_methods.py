@@ -1575,3 +1575,55 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
+
+    def test_array_windows(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(a, np.array(b)))
+
+        starts, stops = hl.array_windows(np.array([1, 2, 4, 4, 6, 8]), 2)
+        assert_eq(starts, [0, 0, 1, 1, 2, 4])
+        assert_eq(stops, [2, 4, 5, 5, 6, 6])
+
+        starts, stops = hl.array_windows(np.array([-10.0, -2.5, 0.0, 0.0, 1.2, 2.3, 3.0]), 2.5)
+        assert_eq(starts, [0, 1, 1, 1, 2, 2, 4])
+        assert_eq(stops, [1, 4, 6, 6, 7, 7, 7])
+
+        stops = hl.array_windows(np.array([1, 2, 4]), 1, stops_only=True)
+        assert_eq(stops, [2, 2, 3])
+
+        starts, stops = hl.array_windows(np.array([0, 0, 1]), 0)
+        assert_eq(starts, [0, 0, 2])
+        assert_eq(stops, [2, 2, 3])
+
+        starts, stops = hl.array_windows(np.array([]), 1)
+        self.assertEqual(starts.size, 0)
+        self.assertEqual(stops.size, 0)
+
+        starts, stops = hl.array_windows(np.array([-float('inf'), -1, 0, 1, float("inf")]), 1)
+        assert_eq(starts, [0, 1, 1, 2, 4])
+        assert_eq(stops, [1, 3, 4, 4, 5])
+
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([1, 0]), -1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([0, float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([0.0, float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([None]), 1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array([]), -1))
+        self.assertRaises(ValueError, lambda: hl.array_windows(np.array(['str']), 1))
+
+    def test_locus_windows(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(a, np.array(b)))
+
+        mt = hl.balding_nichols_model(1, 5, 5)
+
+        starts, stops = hl.locus_windows(mt.rows(), 1)
+        assert_eq(starts, [0, 0, 1, 2, 3])
+        assert_eq(stops, [2, 3, 4, 5, 5])
+
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+        ht = mt.rows().add_index()
+        ht = ht.annotate(cm = centimorgans[hl.int32(ht.idx)])
+        starts, stops = hl.locus_windows(ht, 0.5, value_expr=ht.cm)
+        assert_eq(starts, [0, 1, 1, 1, 3])
+        assert_eq(stops, [1, 4, 4, 5, 5])
