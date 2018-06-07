@@ -1367,7 +1367,7 @@ class Tests(unittest.TestCase):
         entries = ((std_bm @ std_bm.T) ** 2).entries()
 
         index_table = filtered_ds.add_row_index().rows().key_by('row_idx').select('locus')
-        entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus).cache()
+        entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
         bad_pair = (
             (entries.entry >= 0.1) &
@@ -1586,9 +1586,6 @@ class Tests(unittest.TestCase):
         starts, stops = hl.array_windows(np.array([-10.0, -2.5, 0.0, 0.0, 1.2, 2.3, 3.0]), 2.5)
         assert_eq(starts, [0, 1, 1, 1, 2, 2, 4])
         assert_eq(stops, [1, 4, 6, 6, 7, 7, 7])
-
-        stops = hl.array_windows(np.array([1, 2, 4]), 1, stops_only=True)
-        assert_eq(stops, [2, 2, 3])
 
         starts, stops = hl.array_windows(np.array([0, 0, 1]), 0)
         assert_eq(starts, [0, 0, 2])

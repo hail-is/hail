@@ -373,9 +373,8 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
 
 
 @typecheck(a=np.ndarray,
-           radius=oneof(int, float),
-           stops_only=bool)
-def array_windows(a, radius, stops_only=False):
+           radius=oneof(int, float))
+def array_windows(a, radius):
     """Returns start and stop indices for window around each array value.
 
     Examples
@@ -385,9 +384,6 @@ def array_windows(a, radius, stops_only=False):
 
     >>> hl.array_windows(np.array([-10.0, -2.5, 0.0, 0.0, 1.2, 2.3, 3.0]), 2.5)
     (array([0, 1, 1, 1, 2, 2, 4]), array([1, 4, 6, 6, 7, 7, 7]))
-
-    >>> hl.array_windows(np.array([1, 2, 4]), 1, stops_only=True)
-    array([2, 2, 3])
 
     Notes
     -----
@@ -409,9 +405,8 @@ def array_windows(a, radius, stops_only=False):
 
     Returns
     -------
-    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`) or :class:`ndarray` of :obj:`int64`
-        If ``stops_only=False``, tuple of start indices array and stop indices array.
-        If ``stops_only=True``, stop indices array.
+    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`)
+        Tuple of start indices array and stop indices array.
     """
     if radius < 0:
         raise ValueError(f'array_windows: radius must be non-negative, found {radius}')
@@ -425,38 +420,33 @@ def array_windows(a, radius, stops_only=False):
                              f"found dtype {str(a.dtype)}")
     if (not np.all(a[:-1] <= a[1:])) or (a.size == 1 and np.isnan(a[0])):
         raise ValueError("array_windows: 'a' must be non-decreasing with no nan elements")
-    if a.size > 0 and a[-1] + radius < a[-1]:
-        raise ValueError('array_windows: overflow for a[-1] + radius')
-    if (not stops_only) and a.size > 0 and a[0] - radius > a[0]:
-        raise ValueError('array_windows: underflow for a[0] - radius')
-
     size = a.size
-    stops = np.zeros(size, dtype=np.int64)
-    j = 0
-    for i in range(size):
-        max_val = a[i] + radius
-        while j < size and a[j] <= max_val:
-            j += 1
-        stops[i] = j
+    if size > 0:
+        if a[0] - radius > a[0]:
+            raise ValueError('array_windows: underflow for a[0] - radius')
+        if a[-1] + radius < a[-1]:
+            raise ValueError('array_windows: overflow for a[-1] + radius')
 
-    if stops_only:
-        return stops
-    else:
-        starts = np.zeros(size, dtype=np.int64)
-        j = 0
-        for i in range(size):
-            min_val = a[i] - radius
-            while j < size and a[j] < min_val:
-                j += 1
-            starts[i] = j
-        return starts, stops
+    starts, stops = np.zeros(size, dtype=np.int64),  np.zeros(size, dtype=np.int64)
+    j, k = 0, 0
+    for i in range(size):
+        min_val = a[i] - radius
+        while j < size and a[j] < min_val:
+            j += 1
+        starts[i] = j
+
+        max_val = a[i] + radius
+        while k < size and a[k] <= max_val:
+            k += 1
+        stops[i] = k
+
+    return starts, stops
 
 
 @typecheck(locus_table=Table,
            radius=oneof(int, float),
-           value_expr=nullable(expr_float64),
-           stops_only=bool)
-def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
+           value_expr=nullable(expr_float64))
+def locus_windows(locus_table, radius, value_expr=None):
     """Returns start and stop indices for window around each locus.
 
     Examples
@@ -497,9 +487,10 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
     is true for variant-keyed datasets. The rows are then ordered by locus, i.e.
     by contig and then by position within contig.
 
-    By default, this function returns two 1-dimensional ndarrays of integers,
+    This function returns two 1-dimensional ndarrays of integers,
     ``starts`` and ``stops``, each of size equal to the number of rows.
-    For all indices ``i``, ``[starts[i], stops[i])`` is the maximal
+
+    By default, for all indices ``i``, ``[starts[i], stops[i])`` is the maximal
     range of row indices ``j`` such that ``contig[i] == contig[j]`` and
     ``position[i] - radius <= position[j] <= position[i] + radius``.
 
@@ -529,9 +520,8 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
 
     Returns
     -------
-    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`) or :class:`ndarray` of :obj:`int64`
-        If ``stops_only=False``, tuple of start indices array and stop indices array.
-        If ``stops_only=True``, stop indices array.
+    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`)
+        Tuple of start indices array and stop indices array.
     """
     if radius < 0:
         raise ValueError(f'locus_windows: radius must be non-negative, found {radius}')
@@ -555,13 +545,9 @@ def locus_windows(locus_table, radius, value_expr=None, stops_only=False):
 
     contig_values = contigs_table.order_by(contigs_table.contig).values.collect()
     contig_offsets = np.concatenate((np.array([0]), np.cumsum([len(contig) for contig in contig_values])))
-    contig_bounds = [array_windows(np.array(values), radius, stops_only) for values in contig_values]
+    contig_bounds = [array_windows(np.array(values), radius) for values in contig_values]
     contigs = range(0, len(contig_values))
 
-    if stops_only:
-        stops = np.concatenate([contig_offsets[c] + contig_bounds[c] for c in contigs])
-        return stops
-    else:
-        starts = np.concatenate([contig_offsets[c] + contig_bounds[c][0] for c in contigs])
-        stops = np.concatenate([contig_offsets[c] + contig_bounds[c][1] for c in contigs])
-        return starts, stops
+    starts = np.concatenate([contig_offsets[c] + contig_bounds[c][0] for c in contigs])
+    stops = np.concatenate([contig_offsets[c] + contig_bounds[c][1] for c in contigs])
+    return starts, stops

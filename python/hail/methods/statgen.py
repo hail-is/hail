@@ -2914,7 +2914,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
 @typecheck(call_expr=expr_call,
            r2=numeric,
-           bp_window_size=float,
+           bp_window_size=int,
            memory_per_core=int,
            keep_higher_maf=bool,
            block_size=nullable(int))
@@ -3037,7 +3037,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
     corr = std_gt_bm @ std_gt_bm.T
 
-    stops = hl.locus_windows(locally_pruned_table, bp_window_size, stops_only=True)
+    _, stops = hl.locus_windows(locally_pruned_table, bp_window_size)
 
     starts = range(0, len(stops))
     stops = [int(s) for s in stops]
