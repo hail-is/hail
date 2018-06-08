@@ -105,19 +105,12 @@ class BgenBlockReaderV12(
 
       val dataSize = bfis.readInt()
 
-      val (uncompressedSize// , bytesInput
-      ) =
-        if (bState.compressed)
-          (bfis.readInt()// , bfis.readBytes(dataSize - 4)
-          )
-        else
-          (dataSize// , bfis.readBytes(dataSize)
-          )
+      val uncompressedSize =
+        if (bState.compressed) bfis.readInt() else dataSize
 
       value.setKey(variantInfo)
       if (includeLid || includeRsid)
         value.setAnnotation(Annotation(rsid, lid))
-      // value.setSerializedValue(bytesInput)
       value.dataSize = if (bState.compressed) dataSize - 4 else dataSize
       value.setExpectedDataSize(uncompressedSize)
       value.setExpectedNumAlleles(nAlleles)
