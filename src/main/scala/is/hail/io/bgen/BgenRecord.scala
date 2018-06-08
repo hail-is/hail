@@ -68,12 +68,6 @@ class BgenRecordV12(
   }
 
   override def getValue(rvb: RegionValueBuilder) {
-    // require(input != null// , "called getValue before serialized value was set"
-    // )
-
-    // val a = if (compressed) decompress(input, expectedDataSize) else input
-    // val reader = new ByteArrayReader(a)
-
     val start = bfis.fis.getPos
     val expectedEnd = start + dataSize
 
@@ -97,7 +91,7 @@ class BgenRecordV12(
         inf.setInput(compressed)
         val decsize = inf.inflate(decompressed)
         if (decsize != expectedDataSize)
-          assert(false, s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
+          fatal(s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
         decompressed
       } else {
         // no compression, so compressed buffer is of correct size
@@ -107,14 +101,13 @@ class BgenRecordV12(
 
       val reader = new ByteArrayReader(bytes)
 
-      // val nRow = reader.readInt()
-      // assert(nRow == nSamples// , s"$nRow $nSamples"
-      // )
-      reader.skipBytes(4)
+      val nRow = reader.readInt()
+      if (nRow != nSamples)
+        fatal(s"$nRow $nSamples")
 
       val nAlleles = reader.readShort()
-      // assert(nAlleles == expectedNumAlleles// , s"Value for `nAlleles' in genotype probability data storage is not equal to value in variant identifying data. Expected $expectedNumAlleles but found $nAlleles."
-      // )
+      if (nAlleles != expectedNumAlleles)
+        fatal(s"Value for `nAlleles' in genotype probability data storage is not equal to value in variant identifying data. Expected $expectedNumAlleles but found $nAlleles.")
       if (nAlleles != 2)
         fatal(s"Only biallelic variants supported, found variant with $nAlleles")
 
@@ -126,39 +119,19 @@ class BgenRecordV12(
 
       reader.skipBytes(nSamples)
 
-      // val sampleMissing = new Array[Byte](nSamples)
-      // reader.readFully(sampleMissing)
-
-      // var i = 0
-      // while (i < nSamples) {
-      //   val ploidyAndMissingness = reader.read()
-      //   // assert((ploidyAndMissingness & 0x3f) == 2// , s"Ploidy value must equal to 2. Found $ploidy."
-      //   // )
-      //   sampleMissing(i) = (ploidyAndMissingness & 0x80) == 1
-      //   i += 1
-      // }
-      // assert(i == nSamples// , s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'."
-      // )
-
       val phase = reader.read()
-      assert(phase == 0 || phase == 1// , s"Value for phase must be 0 or 1. Found $phase."
-      )
+      if (!(phase == 0 || phase == 1))
+        fatal(s"Value for phase must be 0 or 1. Found $phase.")
       val isPhased = phase == 1
 
       if (isPhased)
         fatal("Hail does not support phased genotypes.")
 
       val nBitsPerProb = reader.read()
-      assert(nBitsPerProb >= 1 && nBitsPerProb <= 32// , s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb."
-      )
+      if (!(nBitsPerProb >= 1 && nBitsPerProb <= 32))
+        fatal(s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
       if (nBitsPerProb != 8)
         fatal(s"Only 8-bit probabilities supported, found $nBitsPerProb")
-
-      // val nGenotypes = triangle(nAlleles)
-
-      // val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-      // assert(reader.length == nExpectedBytesProbs + nSamples + 10// , s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'."
-      // )
 
       rvb.startArray(nSamples) // gs
       if (nBitsPerProb == 8 && nAlleles == 2) {
@@ -221,10 +194,11 @@ class BgenRecordV12(
         }
         // FIXME: does it still overshoot now that I tell it how much data to buffer?
         // the compressed reader will overshoot
-        bfis.fis.seek(expectedEnd)
+        // bfis.fis.seek(expectedEnd)
       }
-      // assert(expectedEnd == bfis.fis.getPos, s"expected $expectedEnd, but found ${bfis.fis.getPos}, record size: $dataSize")
       rvb.endArray()
     }
+    if (expectedEnd != bfis.fis.getPos)
+      fatal(s"expected $expectedEnd, but found ${bfis.fis.getPos}, record size: $dataSize")
   }
 }

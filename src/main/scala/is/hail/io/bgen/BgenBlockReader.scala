@@ -82,7 +82,7 @@ class BgenBlockReaderV12(
 
       val nAlleles = bfis.readShort()
       if (!(nAlleles >= 2))
-        assert(false, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant $chr:$pos ($lid, $rsid) $i")
+        fatal(s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant $chr:$pos ($lid, $rsid) $i")
       val alleles = new Array[String](nAlleles)
 
       val ref = bfis.readLengthAndString(4)
