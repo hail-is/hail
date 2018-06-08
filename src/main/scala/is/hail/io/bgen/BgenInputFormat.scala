@@ -19,15 +19,17 @@ class BgenInputFormatV12 extends IndexedBinaryInputFormat[BgenRecordV12] {
       { (path: String) => new IndexBTree2(path, job, nVariants) })
 
   override def getSplits(job: JobConf, numSplits: Int): Array[InputSplit] = {
-    val nVariants = job.get("nVariants").toInt
     val splits = super.getSplits(job, numSplits)
     splits.flatMap { x =>
       val split = x.asInstanceOf[FileSplit]
       val path = split.getPath
       val indexPath = path + ".idx"
+      val nVariants = job.get(LoadBgen.nVariantsHadoopPrefix + path).toInt
+      log.info(s"nVariants in $path is $nVariants")
       val index = indexFor(indexPath, job, nVariants)
-      val s = job.get("__"+path.toString.replaceAllLiterally("file:",""))
+      val s = job.get(LoadBgen.includedVariantsHadoopPrefix + path)
       if (s != null) {
+        log.info(s"variant filters found for $path")
         val keptPositions = LoadBgen.decodeInts(s)
           .sorted
           .map(index.positionOfVariant _)
@@ -38,8 +40,8 @@ class BgenInputFormatV12 extends IndexedBinaryInputFormat[BgenRecordV12] {
           None
         else
           Some(new BgenV12InputSplit(split, keptPositions))
-      }
-      else {
+      } else {
+        log.info(s"no variant filters found for $path")
         Some(new BgenV12InputSplit(split, null))
       }
     }

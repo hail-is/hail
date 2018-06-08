@@ -23,6 +23,9 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 
 object LoadBgen {
 
+  private[bgen] val includedVariantsHadoopPrefix = "__includedVariants__"
+  private[bgen] val nVariantsHadoopPrefix = "__nVariants__"
+
   def load(hc: HailContext,
     files: Array[String],
     sampleFile: Option[String] = None,
@@ -56,12 +59,14 @@ object LoadBgen {
     hadoop.setBoolean("includeRsid", includeRsid)
 
     includedVariantsPerFile.foreach { case (f, v) =>
-      hadoop.set("__"+f, encodeInts(v.toArray))
+      hadoop.set(includedVariantsHadoopPrefix + f, encodeInts(v.toArray))
     }
 
     val sc = hc.sc
     val results = files.map { file =>
       val bState = readState(sc.hadoopConfiguration, file)
+
+      hadoop.setLong(nVariantsHadoopPrefix + file, bState.nVariants)
 
       bState.version match {
         case 2 =>
