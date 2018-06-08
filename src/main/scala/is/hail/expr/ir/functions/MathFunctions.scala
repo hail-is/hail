@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -111,7 +111,23 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
 
     registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
+    
     // other rpois returns an array
+    def emitrpois(srvb: StagedRegionValueBuilder, n: Code[Int], lambda: Code[Double]): Code[Unit] = {
+      val nlocal = srvb.mb.newLocal[Int]
+      val llocal = srvb.mb.newLocal[Double]
+      val res = srvb.mb.newLocal[Array[Double]]
+      Code(
+        nlocal := n,
+        llocal := lambda,
+        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", nlocal, llocal),
+        srvb.start(),
+        srvb.addArray(res, ...),
+        srvb.advance()
+      )
+    }
+    
+    registerCode("rpois", TInt32(), TFloat64(), TInt64())...
 
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
