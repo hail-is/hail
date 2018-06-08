@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types._
-import is.hail.utils.Interval
+import is.hail.utils._
 import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
 
 class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
@@ -259,14 +259,14 @@ class LiftoverFunctions(rg: ReferenceGenome, destRG: ReferenceGenome) extends Re
     mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
+    registerLiftoverCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
       case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
     }
 
   def registerLiftoverCode[A1, A2](
     mname: String, arg1: Type, arg2: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
+  ): Unit = registerLiftoverCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
 
   override def registerAll() {
 
