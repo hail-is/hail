@@ -92,7 +92,8 @@ class BgenRecordV12(
         inf.reset()
         inf.setInput(compressed)
         val decsize = inf.inflate(decompressed)
-        assert(decsize == expectedDataSize, s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
+        if (decsize != expectedDataSize)
+          assert(false, s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
         decompressed
       } else {
         val decompressed = new Array[Byte](dataSize)
