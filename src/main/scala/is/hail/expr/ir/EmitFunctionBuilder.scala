@@ -7,7 +7,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
 import is.hail.expr.types.Type
-import is.hail.utils.SerializableHadoopConfiguration
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
@@ -137,7 +137,7 @@ class EmitFunctionBuilder[F >: Null](
       _hconf = hConf
       _hfield = confField
     }
-    assert(_hconf == hConf && _hfield != null)
+    assert(_hconf.value == hConf.value && _hfield != null)
   }
 
   def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {

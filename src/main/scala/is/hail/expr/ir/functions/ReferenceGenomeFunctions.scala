@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.utils.Interval
@@ -125,6 +125,23 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
   ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
 
+  def registerRGCode[A1, A2, A3, A4](
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type, isDeterministic: Boolean)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4), rt, isDeterministic) {
+      case (mb, Array(
+      a1: Code[A1] @unchecked,
+      a2: Code[A2] @unchecked,
+      a3: Code[A3] @unchecked,
+      a4: Code[A4] @unchecked)) => impl(mb, a1, a2, a3, a4)
+    }
+
+  def registerRGCode[A1, A2, A3, A4](
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]
+  ): Unit = registerRGCode(mname, arg1, arg2, arg3, arg4, rt, isDeterministic = true)(impl)
+
   def registerRGCode[A1, A2, A3, A4, A5](
     mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type, isDeterministic: Boolean)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
@@ -194,6 +211,75 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
           .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Interval](
           locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb))
         emitInterval(mb, interval)
+    }
+
+    registerRGCode("isValidContig", TString(), TBoolean()) {
+      (mb, contig: Code[Long]) =>
+        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
+        rgCode(mb).invoke[String, Boolean]("isValidContig", scontig)
+    }
+
+    registerRGCode("isValidLocus", TString(), TInt32(), TBoolean()) {
+      (mb, contig: Code[Long], pos: Code[Int]) =>
+        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
+          rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
+    }
+
+    registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
+      (mb, contig: Code[Long], pos: Code[Int], before: Code[Int], after: Code[Int]) =>
+        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
+        unwrapReturn(mb, TString())(rgCode(mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
+    }
+
+    registerIR(rg.wrapFunctionName("getReferenceSequence"), TString(), TInt32(), TInt32(), TInt32()) {
+      (contig, pos, before, after) =>
+        val getRef = IRFunctionRegistry.lookupConversion(
+          rg.wrapFunctionName("getReferenceSequenceFromValidLocus"),
+          Seq(TString(), TInt32(), TInt32(), TInt32())).get
+        val isValid = IRFunctionRegistry.lookupConversion(
+          rg.wrapFunctionName("isValidLocus"),
+          Seq(TString(), TInt32())).get
+        If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
+    }
+  }
+}
+
+class LiftoverFunctions(rg: ReferenceGenome, destRG: ReferenceGenome) extends ReferenceGenomeFunctions(rg) {
+
+  def registerLiftoverCode(
+    mname: String, args: Array[Type], rt: Type, isDeterministic: Boolean)(
+    impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]
+  ): Unit = {
+    val newName = destRG.wrapFunctionName(rg.wrapFunctionName(mname))
+    registered += newName
+    registerCode(newName, args, rt, isDeterministic)(impl)
+  }
+
+  def registerLiftoverCode[A1, A2](
+    mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    }
+
+  def registerLiftoverCode[A1, A2](
+    mname: String, arg1: Type, arg2: Type, rt: Type)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+  ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
+
+  override def registerAll() {
+
+    registerLiftoverCode[Long, Double]("liftoverLocus", tlocus, TFloat64(), TLocus(destRG)) {
+      (mb, locoff: Code[Long], minMatch: Code[Double]) =>
+        val locus = Code.checkcast[Locus](asm4s.coerce[AnyRef](wrapArg(mb, TLocus(rg))(locoff)))
+        emitLocus(mb, rgCode(mb).invoke[String, Locus, Double, Locus]("liftoverLocus", destRG.name, locus, minMatch))
+    }
+
+    registerLiftoverCode[Long, Double]("liftoverLocusInterval", tinterval, TFloat64(), TInterval(TLocus(destRG))) {
+      (mb, ioff: Code[Long], minMatch: Code[Double]) =>
+        val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(mb, tinterval)(ioff)))
+        emitInterval(mb, rgCode(mb).invoke[String, Interval, Double, Interval]("liftoverLocusInterval", destRG.name, interval, minMatch))
     }
   }
 }

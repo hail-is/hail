@@ -4,7 +4,8 @@ import hail
 
 
 def startTestHailContext():
-    hail.init(master='local[2]', min_block_size=0, quiet=True)
+    #hail.init(master='local[2]', min_block_size=0, quiet=True)
+    hail.init(master="spark://wm2b0-b9b:7077", min_block_size=0, quiet=True)
 
 
 def stopTestHailContext():
