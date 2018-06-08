@@ -459,7 +459,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
             .get(0)
         }
       case ir@ApplySpecial(function, functionArgs) =>
@@ -483,7 +483,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>

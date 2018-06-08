@@ -12,33 +12,55 @@ object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerCode("Interval", Array(tv("T"), tv("T"), TBoolean(), TBoolean()), TInterval(tv("T")), isDet = true) {
-      (mb, args) =>
+    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T"))) {
+      (mb, start, end, includeStart, includeEnd) =>
         val srvb = new StagedRegionValueBuilder(mb, TInterval(tv("T").t))
-        Code(
+        val missing = includeStart.m || includeEnd.m
+        val value = Code(
           srvb.start(),
-          srvb.addIRIntermediate(tv("T").t)(args(0)),
+          start.m.mux(
+            srvb.setMissing(),
+            srvb.addIRIntermediate(tv("T").t)(start.v)),
           srvb.advance(),
-          srvb.addIRIntermediate(tv("T").t)(args(1)),
+          end.m.mux(
+            srvb.setMissing(),
+            srvb.addIRIntermediate(tv("T").t)(end.v)),
           srvb.advance(),
-          srvb.addBoolean(args(2).asInstanceOf[Code[Boolean]]),
+          srvb.addBoolean(includeStart.value[Boolean]),
           srvb.advance(),
-          srvb.addBoolean(args(3).asInstanceOf[Code[Boolean]]),
+          srvb.addBoolean(includeEnd.value[Boolean]),
           srvb.advance(),
           srvb.offset
         )
+
+        EmitTriplet(
+          Code(start.setup, end.setup, includeStart.setup, includeEnd.setup),
+          missing,
+          value)
     }
 
-    registerCode("start", TInterval(tv("T")), tv("T")) {
-      case (mb, interval: Code[Long]) =>
+    registerCodeWithMissingness("start", TInterval(tv("T")), tv("T")) {
+      case (mb, interval) =>
+        val tinterval = TInterval(tv("T").t)
         val region = mb.getArg[Region](1).load()
-        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T").t).startOffset(interval))
+        val iv = mb.newLocal[Long]
+        EmitTriplet(
+          interval.setup,
+          interval.m || !Code(iv := interval.value[Long], tinterval.startDefined(region, iv)),
+          region.loadIRIntermediate(tv("T").t)(tinterval.startOffset(iv))
+        )
     }
 
-    registerCode("end", TInterval(tv("T")), tv("T")) {
-      case (mb, interval: Code[Long]) =>
+    registerCodeWithMissingness("end", TInterval(tv("T")), tv("T")) {
+      case (mb, interval) =>
+        val tinterval = TInterval(tv("T").t)
         val region = mb.getArg[Region](1).load()
-        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T").t).endOffset(interval))
+        val iv = mb.newLocal[Long]
+        EmitTriplet(
+          interval.setup,
+          interval.m || !Code(iv := interval.value[Long], tinterval.endDefined(region, iv)),
+          region.loadIRIntermediate(tv("T").t)(tinterval.endOffset(iv))
+        )
     }
 
     registerCode("includesStart", TInterval(tv("T")), TBooleanOptional) {
