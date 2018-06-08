@@ -72,7 +72,6 @@ class BgenBlockReaderV12(
       assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid' $i")
       val alleles = new Array[String](nAlleles)
 
-      assert(lid.length < 1000, s"very long lid ${split.fileSplit.getStart} $start ${bfis.getPosition} $i ${lid.take(10)}")
       val ref = bfis.readLengthAndString(4)
       alleles(0) = ref
 
