@@ -192,9 +192,6 @@ class BgenRecordV12(
           }
           i += 1
         }
-        // FIXME: does it still overshoot now that I tell it how much data to buffer?
-        // the compressed reader will overshoot
-        // bfis.fis.seek(expectedEnd)
       }
       rvb.endArray()
     }
