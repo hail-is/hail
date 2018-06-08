@@ -1328,11 +1328,6 @@ class Tests(unittest.TestCase):
         row_agg = mt.annotate_rows(call_stats=agg.call_stats(mt.GT, mt.alleles)).rows() # Tests MatrixMapRows initOp
         col_agg = mt.annotate_cols(call_stats=agg.call_stats(mt.GT, mt.alleles2)).cols() # Tests MatrixMapCols initOp
 
-        # test MatrixAggregateColsByKey initOp
-        mt2 = mt.annotate_cols(group=mt.col_idx < 3)
-        group_cols_agg = (mt2.group_cols_by(mt2['group'])
-                          .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
-
         # must test that call_stats isn't null, because equality doesn't test for that
         self.assertTrue(row_agg.all(
             hl.is_defined(row_agg.call_stats)
@@ -1340,13 +1335,31 @@ class Tests(unittest.TestCase):
         self.assertTrue(col_agg.all(
             hl.is_defined(col_agg.call_stats)
             & (col_agg.call_stats == hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20, homozygote_count=[0, 0]))))
+
+        # test MatrixAggregateColsByKey initOp
+        mt2 = mt.annotate_cols(group=mt.col_idx < 3)
+        group_cols_agg = (mt2.group_cols_by(mt2['group'])
+                          .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
+
         self.assertTrue(group_cols_agg.all(
             hl.cond(group_cols_agg.group,
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
                     hl.is_defined(group_cols_agg.call_stats)
-                    & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4,
-                                                              homozygote_count=[0, 0])))))
+                    & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
+
+        # test MatrixAggregateRowsByKey initOp
+        mt2 = mt.annotate_rows(group=mt.row_idx < 3)
+        group_rows_agg = (mt2.group_rows_by(mt2['group'])
+                          .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
+        group_rows_agg.show()
+
+        self.assertTrue(group_rows_agg.all(
+            hl.cond(group_rows_agg.group,
+                    hl.is_defined(group_rows_agg.call_stats)
+                    & (group_rows_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
+                    hl.is_defined(group_rows_agg.call_stats)
+                    & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
 
     def test_mendel_error_code(self):
         locus_auto = hl.Locus('2', 20000000)
