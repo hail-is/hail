@@ -10,7 +10,8 @@ object Subst {
       case x@Ref(name, typ) =>
         env.lookupOption(name).getOrElse(x)
       case Let(name, v, body) =>
-        Let(name, subst(v), subst(body, env.delete(name)))
+        val newv = subst(v)
+        Let(name, newv, subst(body, env.delete(name).bind(name, Ref(name, newv.typ))))
       case ArrayMap(a, name, body) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFilter(a, name, cond) =>
