@@ -17,6 +17,8 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   val includeGP = job.get("includeGP").toBoolean
   val includeDosage = job.get("includeDosage").toBoolean
   val nVariants = job.get("nVariants").toInt
+  val includeLid = job.get("includeLid").toBoolean
+  val includeRsid = job.get("includeRsid").toBoolean
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -63,8 +65,18 @@ class BgenBlockReaderV12(
       false
     else {
       val start = bfis.getPosition
-      val lid = bfis.readLengthAndString(2)
-      val rsid = bfis.readLengthAndString(2)
+      val lid = if (includeLid)
+        bfis.readLengthAndString(2)
+      else {
+        bfis.readLengthAndSkipString(2)
+        null
+      }
+      val rsid = if (includeRsid)
+        bfis.readLengthAndString(2)
+      else {
+        bfis.readLengthAndSkipString(2)
+        null
+      }
       val chr = bfis.readLengthAndString(2)
       val position = bfis.readInt()
 
@@ -104,7 +116,8 @@ class BgenBlockReaderV12(
           )
 
       value.setKey(variantInfo)
-      value.setAnnotation(Annotation(rsid, lid))
+      if (includeLid || includeRsid)
+        value.setAnnotation(Annotation(rsid, lid))
       // value.setSerializedValue(bytesInput)
       value.dataSize = if (bState.compressed) dataSize - 4 else dataSize
       value.setExpectedDataSize(uncompressedSize)

@@ -29,6 +29,8 @@ object LoadBgen {
     includeGT: Boolean,
     includeGP: Boolean,
     includeDosage: Boolean,
+    includeLid: Boolean,
+    includeRsid: Boolean,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
@@ -50,6 +52,8 @@ object LoadBgen {
     hadoop.setBoolean("includeGT", includeGT)
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
+    hadoop.setBoolean("includeLid", includeLid)
+    hadoop.setBoolean("includeRsid", includeRsid)
 
     includedVariantsPerFile.foreach { case (f, v) =>
       hadoop.set("__"+f, encodeInts(v.toArray))
@@ -87,10 +91,14 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus.schemaFromRG(rg),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(),
-      "varid" -> TString())
+    val rowFields = Array(
+      (true, "locus" -> TLocus.schemaFromRG(rg)),
+      (true, "alleles" -> TArray(TString())),
+      (includeRsid, "rsid" -> TString()),
+      (includeLid, "varid" -> TString()))
+      .withFilter(_._1).map(_._2)
+
+    val signature = TStruct(rowFields:_*)
 
     val entryFields = Array(
       (includeGT, "GT" -> TCall()),
@@ -175,8 +183,10 @@ object LoadBgen {
             i += 1
           }
           rvb.endArray()
-          rvb.addAnnotation(rowType.types(2), va.get(0))
-          rvb.addAnnotation(rowType.types(3), va.get(1))
+          if (includeRsid)
+            rvb.addAnnotation(rowType.types(2), va.get(0))
+          if (includeLid)
+            rvb.addAnnotation(rowType.types(3), va.get(1))
           // if (loadEntries)
           record.getValue(rvb) // gs
           // else {

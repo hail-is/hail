@@ -788,7 +788,9 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric,
            skip_invalid_loci=bool,
-           _variants_per_file=dictof(str, sequenceof(int)))
+           _variants_per_file=dictof(str, sequenceof(int)),
+           _include_lid=bool,
+           _include_rsid=bool)
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -797,7 +799,9 @@ def import_bgen(path,
                 contig_recoding=None,
                 tolerance=0.2,
                 skip_invalid_loci=False,
-                _variants_per_file={}) -> MatrixTable:
+                _variants_per_file={},
+                _include_lid=True,
+                _include_rsid=True) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -915,10 +919,9 @@ def import_bgen(path,
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    tolerance, skip_invalid_loci,
-                                    tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
+                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set, _include_lid, _include_rsid,
+                                    joption(min_partitions), joption(rg), joption(contig_recoding), tolerance,
+                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 
 

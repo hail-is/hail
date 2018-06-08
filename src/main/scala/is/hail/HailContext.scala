@@ -299,12 +299,14 @@ class HailContext private(val sc: SparkContext,
     includeGT: Boolean,
     includeGP: Boolean,
     includeDosage: Boolean,
+    includeLid: Boolean,
+    includeRsid: Boolean,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false): MatrixTable = {
     importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg,
-      contigRecoding, skipInvalidLoci)
+      contigRecoding, tolerance, skipInvalidLoci)
   }
 
   def importBgens(files: Seq[String],
@@ -312,6 +314,8 @@ class HailContext private(val sc: SparkContext,
     includeGT: Boolean = true,
     includeGP: Boolean = true,
     includeDosage: Boolean = false,
+    includeLid: Boolean = true,
+    includeRsid: Boolean = true,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
@@ -337,7 +341,7 @@ class HailContext private(val sc: SparkContext,
 
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
-    LoadBgen.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
+    LoadBgen.load(this, inputs, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid,
       nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), tolerance, skipInvalidLoci,
       includedVariantsPerFile)
   }
