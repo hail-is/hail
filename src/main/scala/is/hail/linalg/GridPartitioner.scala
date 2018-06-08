@@ -7,7 +7,7 @@ import is.hail.utils._
 import scala.collection.mutable
 
 
-case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse: Option[Array[Int]] = None) extends Partitioner {
+case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks: Option[Array[Int]] = None) extends Partitioner {
   if (nRows == 0)
     fatal("block matrix must have at least one row")
   if (nCols == 0)
@@ -25,7 +25,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
 
   val maxNBlocks: Long = nBlockRows.toLong * nBlockCols
   
-  require(maybeSparse.forall(bis => bis.isEmpty ||
+  require(maybeBlocks.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
 
@@ -49,7 +49,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   }
   
   def intersect(that: GridPartitioner): GridPartitioner = {
-    copy(maybeSparse = (maybeSparse, that.maybeSparse) match {
+    copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
       case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
       case (Some(bis), None) => Some(bis)
       case (None, Some(bis2)) => Some(bis2)
@@ -58,7 +58,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   }
   
   def union(that: GridPartitioner): GridPartitioner = {
-    copy(maybeSparse = (maybeSparse, that.maybeSparse) match {
+    copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
       case (Some(bis), Some(bis2)) =>
         val union = (bis ++ bis2).distinct
         if (union.length == maxNBlocks)
@@ -71,14 +71,14 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     })
   }
 
-  override val numPartitions: Int = maybeSparse match {
+  override val numPartitions: Int = maybeBlocks match {
     case Some(bis) => bis.length
     case None =>
       assert(maxNBlocks < Int.MaxValue)
       maxNBlocks.toInt
   }
   
-  val partBlock: Int => Int = maybeSparse match {
+  val partBlock: Int => Int = maybeBlocks match {
     case Some(bis) => pi =>
       assert(pi >= 0 && pi < bis.length)
       bis(pi)
@@ -87,7 +87,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
       pi
   }
   
-  val blockPart: Int => Int = maybeSparse match {
+  val blockPart: Int => Int = maybeBlocks match {
     case Some(bis) => bis.zipWithIndex.toMap.withDefaultValue(-1)
     case None => bi => bi
   }
@@ -103,7 +103,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
     def transposeBI(bi: Int): Int = coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
-    maybeSparse match {
+    maybeBlocks match {
       case Some(bis) =>
         val (biTranspose, piTranspose) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
         val inverseTransposePI = piTranspose.zipWithIndex.sortBy(_._1).map(_._2)
@@ -122,7 +122,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeSparse
     val firstCol = j * blockSize
     v(firstCol until firstCol + blockColNCols(j))
   }
-  
+
+  def maybeBlockRows(): Option[Array[Int]] = maybeBlocks.map(_.map(blockBlockRow).distinct)
+
+  def maybeBlockCols(): Option[Array[Int]] = maybeBlocks.map(_.map(blockBlockCol).distinct)
+
   // returns increasing array of all blocks intersecting the diagonal band consisting of
   //   all elements with lower <= jj - ii <= upper
   def bandBlocks(lower: Long, upper: Long): Array[Int] = {

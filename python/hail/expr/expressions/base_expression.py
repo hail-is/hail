@@ -499,17 +499,15 @@ class Expression(object):
         Examples
         --------
 
-        .. doctest::
+        >>> x = hl.literal(5)
+        >>> y = hl.literal(5)
+        >>> z = hl.literal(1)
 
-            >>> x = hl.literal(5)
-            >>> y = hl.literal(5)
-            >>> z = hl.literal(1)
+        >>> (x == y).value
+        True
 
-            >>> hl.eval_expr(x == y)
-            True
-
-            >>> hl.eval_expr(x == z)
-            False
+        >>> (x == z).value
+        False
 
         Notes
         -----
@@ -539,17 +537,15 @@ class Expression(object):
         Examples
         --------
 
-        .. doctest::
+        >>> x = hl.literal(5)
+        >>> y = hl.literal(5)
+        >>> z = hl.literal(1)
 
-            >>> x = hl.literal(5)
-            >>> y = hl.literal(5)
-            >>> z = hl.literal(1)
+        >>> (x != y).value
+        False
 
-            >>> hl.eval_expr(x != y)
-            False
-
-            >>> hl.eval_expr(x != z)
-            True
+        >>> (x != z).value
+        True
 
         Notes
         -----
@@ -639,28 +635,27 @@ class Expression(object):
 
         Examples
         --------
-        .. doctest::
 
-            >>> table1.SEX.show()
-            +-------+-----+
-            |    ID | SEX |
-            +-------+-----+
-            | int32 | str |
-            +-------+-----+
-            |     1 | M   |
-            |     2 | M   |
-            |     3 | F   |
-            |     4 | F   |
-            +-------+-----+
+        >>> table1.SEX.show()
+        +-------+-----+
+        |    ID | SEX |
+        +-------+-----+
+        | int32 | str |
+        +-------+-----+
+        |     1 | M   |
+        |     2 | M   |
+        |     3 | F   |
+        |     4 | F   |
+        +-------+-----+
 
-            >>> hl.literal(123).show()
-            +--------+
-            | <expr> |
-            +--------+
-            |  int32 |
-            +--------+
-            |    123 |
-            +--------+
+        >>> hl.literal(123).show()
+        +--------+
+        | <expr> |
+        +--------+
+        |  int32 |
+        +--------+
+        |    123 |
+        +--------+
 
         Warning
         -------
@@ -713,12 +708,11 @@ class Expression(object):
 
         Examples
         --------
+
         Take the first three rows:
 
-        .. doctest::
-
-            >>> first3 = table1.X.take(3)
-            [5, 6, 7]
+        >>> first3 = table1.X.take(3)
+        [5, 6, 7]
 
         Warning
         -------
@@ -741,12 +735,11 @@ class Expression(object):
 
         Examples
         --------
-        Take the first three rows:
 
-        .. doctest::
+        Collect all the values from `C1`:
 
-            >>> first3 = table1.C1.collect()
-            [2, 2, 10, 11]
+        >>> first3 = table1.C1.collect()
+        [2, 2, 10, 11]
 
         Warning
         -------

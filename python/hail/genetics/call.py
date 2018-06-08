@@ -183,18 +183,17 @@ class Call(object):
 
         Examples
         --------
-        .. doctest::
 
-            >>> n_alleles = 2
-            >>> hom_ref = hl.Call([0, 0])
-            >>> het = hl.Call([0, 1])
-            >>> hom_var = hl.Call([1, 1])
+        >>> n_alleles = 2
+        >>> hom_ref = hl.Call([0, 0])
+        >>> het = hl.Call([0, 1])
+        >>> hom_var = hl.Call([1, 1])
 
-            >>> het.one_hot_alleles(n_alleles)
-            [1, 1]
+        >>> het.one_hot_alleles(n_alleles)
+        [1, 1]
 
-            >>> hom_var.one_hot_alleles(n_alleles)
-            [0, 2]
+        >>> hom_var.one_hot_alleles(n_alleles)
+        [0, 2]
 
         Notes
         -----

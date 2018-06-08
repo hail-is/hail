@@ -18,8 +18,9 @@ from hail.utils.misc import *
 class GroupedMatrixTable(ExprContainer):
     """Matrix table grouped by row or column that can be aggregated into a new matrix table.
 
-    There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
-    and :meth:`.GroupedMatrixTable.aggregate`.
+    The main operation on a grouped matrix table is :meth:`.GroupedMatrixTable.aggregate`.
+
+    A grouped matrix table with a non-trivial grouping cannot be grouped again.
     """
 
     def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None):
@@ -333,7 +334,7 @@ class GroupedMatrixTable(ExprContainer):
             pk = {k: self._row_keys[k] for k in self._partition_key}
             rest_of_key = {k: self._row_keys[k] for k in self._row_keys.keys() if k not in self._partition_key}
             base = MatrixTable(
-                base._key_rows_by("GroupedMatrixTable.group_rows_by", pk, rest_of_key)
+                base._key_rows_by("GroupedMatrixTable.aggregate", pk, rest_of_key)
                 ._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
@@ -513,10 +514,8 @@ class MatrixTable(ExprContainer):
 
         Get the column key field names:
 
-        .. doctest::
-
-            >>> list(dataset.col_key)
-            ['s']
+        >>> list(dataset.col_key)
+        ['s']
 
         Returns
         -------
@@ -533,10 +532,8 @@ class MatrixTable(ExprContainer):
 
         Get the row key field names:
 
-        .. doctest::
-
-            >>> list(dataset.row_key)
-            ['locus', 'alleles']
+        >>> list(dataset.row_key)
+        ['locus', 'alleles']
 
         Returns
         -------
@@ -553,10 +550,8 @@ class MatrixTable(ExprContainer):
 
         Get the partition key field names:
 
-        .. doctest::
-
-            >>> list(dataset.partition_key)
-            ['locus']
+        >>> list(dataset.partition_key)
+        ['locus']
 
         Returns
         -------
@@ -1534,6 +1529,10 @@ class MatrixTable(ExprContainer):
 
         Note
         ----
+        :meth:`transmute_rows` will not drop key fields.
+
+        Note
+        ----
         This method supports aggregation over columns.
 
         See Also
@@ -1567,6 +1566,10 @@ class MatrixTable(ExprContainer):
         drops all column fields referenced in those expressions. See
         :meth:`.Table.transmute` for full documentation on how transmute
         methods work.
+
+        Note
+        ----
+        :meth:`transmute_cols` will not drop key fields.
 
         Note
         ----
@@ -1633,11 +1636,9 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over rows:
 
-        .. doctest::
-
-            >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
-            ...                                  mean_qual=agg.mean(dataset.qual)))
-            Struct(n_high_quality=100150224, mean_qual=50.12515572)
+        >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
+        ...                                  mean_qual=agg.mean(dataset.qual)))
+        Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
         -----
@@ -1680,12 +1681,10 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over columns:
 
-        .. doctest::
-
-            >>> dataset.aggregate_cols(
-            ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
-            ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
-            Struct(fraction_female=0.5102222, case_ratio=0.35156)
+        >>> dataset.aggregate_cols(
+        ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
+        ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
+        Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
         -----
@@ -1729,11 +1728,9 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over entries:
 
-        .. doctest::
-
-            >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
-            ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
-            Struct(global_gq_mean=31.16200, call_rate=0.981682)
+        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
+        ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
+        Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
         -----
@@ -2079,9 +2076,8 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        .. doctest::
 
-            >>> dataset.count()
+        >>> dataset.count()
 
         Returns
         -------
@@ -3034,11 +3030,9 @@ class MatrixTable(ExprContainer):
         --------
         Subset to the first three rows of the matrix:
 
-        .. doctest::
-
-            >>> dataset_result = dataset.head(3)
-            >>> dataset_result.count_rows()
-            3
+        >>> dataset_result = dataset.head(3)
+        >>> dataset_result.count_rows()
+        3
 
         Notes
         -----

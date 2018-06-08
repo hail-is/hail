@@ -83,7 +83,7 @@ final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 
-final case class ArraySort(a: IR) extends InferIR
+final case class ArraySort(a: IR, ascending: IR) extends InferIR
 final case class ToSet(a: IR) extends InferIR
 final case class ToDict(a: IR) extends InferIR
 final case class ToArray(a: IR) extends InferIR
@@ -142,6 +142,13 @@ final case class GetField(o: IR, name: String) extends InferIR
 
 final case class MakeTuple(types: Seq[IR]) extends InferIR
 final case class GetTupleElement(o: IR, idx: Int) extends InferIR
+
+final case class StringSlice(s: IR, start: IR, end: IR) extends IR {
+  val typ = TString()
+}
+final case class StringLength(s: IR) extends IR {
+  val typ = TInt32()
+}
 
 final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any

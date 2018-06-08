@@ -83,9 +83,11 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@ArraySort(a) =>
+      case x@ArraySort(a, ascending) =>
         check(a)
+        check(ascending)
         assert(a.typ.isInstanceOf[TArray])
+        assert(ascending.typ.isOfType(TBoolean()))
       case x@ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
@@ -195,6 +197,16 @@ object TypeCheck {
         val t = coerce[TTuple](o.typ)
         assert(idx >= 0 && idx < t.size)
         assert(x.typ == -t.types(idx))
+      case StringSlice(s, start, end) =>
+        check(s)
+        check(start)
+        check(end)
+        assert(s.typ isOfType TString())
+        assert(start.typ isOfType TInt32())
+        assert(end.typ isOfType TInt32())
+      case StringLength(s) =>
+        check(s)
+        assert(s.typ isOfType TString())
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>

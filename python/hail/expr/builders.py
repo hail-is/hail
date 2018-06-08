@@ -23,19 +23,18 @@ class SwitchBuilder(ConditionalBuilder):
 
     Examples
     --------
-    .. doctest::
 
-        >>> csq = hl.literal('loss of function')
-        >>> expr = (hl.switch(csq)
-        ...           .when('synonymous', 1)
-        ...           .when('SYN', 1)
-        ...           .when('missense', 2)
-        ...           .when('MIS', 2)
-        ...           .when('loss of function', 3)
-        ...           .when('LOF', 3)
-        ...           .or_missing())
-        >>> hl.eval_expr(expr)
-        3
+    >>> csq = hl.literal('loss of function')
+    >>> expr = (hl.switch(csq)
+    ...           .when('synonymous', 1)
+    ...           .when('SYN', 1)
+    ...           .when('missense', 2)
+    ...           .when('MIS', 2)
+    ...           .when('loss of function', 3)
+    ...           .when('LOF', 3)
+    ...           .or_missing())
+    >>> expr.value
+    3
 
     Notes
     -----
@@ -176,16 +175,15 @@ class CaseBuilder(ConditionalBuilder):
 
     Examples
     --------
-    .. doctest::
 
-        >>> x = hl.literal('foo bar baz')
-        >>> expr = (hl.case()
-        ...           .when(x[:3] == 'FOO', 1)
-        ...           .when(x.length() == 11, 2)
-        ...           .when(x == 'secret phrase', 3)
-        ...           .default(0))
-        >>> hl.eval_expr(expr)
-        2
+    >>> x = hl.literal('foo bar baz')
+    >>> expr = (hl.case()
+    ...           .when(x[:3] == 'FOO', 1)
+    ...           .when(x.length() == 11, 2)
+    ...           .when(x == 'secret phrase', 3)
+    ...           .default(0))
+    >>> expr.value
+    2
 
     Notes
     -----

@@ -39,8 +39,7 @@ class ExprSuite extends SparkSuite {
     assert(run[Int]("""if (false) 1 else 0""").contains(0))
 
     assert(run[IndexedSeq[String]]("""["a"]""").contains(Array("a"): IndexedSeq[String]))
-    // how do I create an empty array?
-    // assert(run[IndexedSeq[Int]]("[] : Array[Int]").contains(Array[Int]() : IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1][:0]").contains(Array[Int]() : IndexedSeq[Int]))
     assert(run[IndexedSeq[Int]]("[1]").contains(Array(1): IndexedSeq[Int]))
     assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1, 2): IndexedSeq[Int]))
     assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1, 2, 3): IndexedSeq[Int]))
@@ -789,13 +788,13 @@ class ExprSuite extends SparkSuite {
       x.get(false) should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String, IndexedSeq[Int]]]("[1].tail().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[1][:0].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
-    (eval[Map[Int, IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2)").get
+    (eval[Map[Int, IndexedSeq[Int]]]("[1][:0].groupBy(k => k % 2)").get
       shouldBe empty)
 
-    (eval[Map[Boolean, IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2 == 0)").get
+    (eval[Map[Boolean, IndexedSeq[Int]]]("[1][:0].groupBy(k => k % 2 == 0)").get
       shouldBe empty)
 
     {
@@ -820,7 +819,7 @@ class ExprSuite extends SparkSuite {
       x.get("odd") should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String, IndexedSeq[Int]]]("[1].tail().toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[1][:0].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
     {

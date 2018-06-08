@@ -9,8 +9,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class UpperIndexBoundsSuite extends SparkSuite {
-
-  val tbl = {
+  lazy val t: Table = {
     val rows = IndexedSeq[(String, Int)](("X", 5), ("X", 7), ("X", 13), ("X", 14), ("X", 17),
       ("X", 65), ("X", 70), ("X", 73), ("Y", 74), ("Y", 75), ("Y", 200), ("Y", 300))
       .map { case (contig, pos) => Row(contig, pos) }
@@ -18,7 +17,7 @@ class UpperIndexBoundsSuite extends SparkSuite {
   }
 
   @Test def testGroupPositionsByContig() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByKey(tbl.keyBy("contig"))
+    val groupedPositions = UpperIndexBounds.groupPositionsByKey(t.keyBy("contig"))
     val expected = Array(Array(5, 7, 13, 14, 17, 65, 70, 73), Array(74, 75, 200, 300))
     assert((groupedPositions.collect(), expected).zipped
       .forall { case (positions, expectedPositions) => positions.toSet == expectedPositions.toSet })
@@ -27,17 +26,17 @@ class UpperIndexBoundsSuite extends SparkSuite {
   @Test def testComputeUpperIndexBoundsOnSingleArray() {
     val positions = Array(1, 3, 4, 5, 8, 10, 13, 14, 16, 17, 18, 20)
     val bounds = UpperIndexBounds.computeUpperIndexBounds(positions, radius = 10)
-    val expected = Array(5, 6, 7, 7, 10, 11, 11, 11, 11, 11, 11, 11)
+    val expected = Array(6, 7, 8, 8, 11, 12, 12, 12, 12, 12, 12, 12)
     assert(bounds sameElements expected)
   }
 
   @Test def testShiftUpperIndexBounds() {
-    val groupedPositions = UpperIndexBounds.groupPositionsByKey(tbl.keyBy("contig"))
+    val groupedPositions = UpperIndexBounds.groupPositionsByKey(t.keyBy("contig"))
     val bounds = UpperIndexBounds.shiftUpperIndexBounds(groupedPositions.map { positions =>
       scala.util.Sorting.quickSort(positions)
       UpperIndexBounds.computeUpperIndexBounds(positions, radius = 10)
     })
-    val expected = Array(3, 4, 4, 4, 4, 7, 7, 7, 9, 9, 10, 11)
+    val expected = Array(4, 5, 5, 5, 5, 8, 8, 8, 10, 10, 11, 12)
     assert(bounds sameElements expected)
   }
 
@@ -48,15 +47,15 @@ class UpperIndexBoundsSuite extends SparkSuite {
     val blocksWithOnlyDiagonalEntriesWithinRadius = Array(Array(0, 13, 26, 39, 52, 65, 78, 91, 104, 117, 130, 143), 
       Array(14, 35))
     
-    for (i <- 0 to 1) {
-      val nRows = tbl.count().toInt
+    for (i <- Seq(0, 1)) {
+      val nRows = t.count().toInt
       val bm = BlockMatrix.fromBreezeMatrix(sc, BDM.zeros(nRows, nRows), blockSize = blockSizes(i))
-      val blocks = UpperIndexBounds.computeCoverByUpperTriangularBlocks(tbl.keyBy("contig"), 
+      val blocks = UpperIndexBounds.computeCoverByUpperTriangularBlocks(t.keyBy("contig"), 
         bm.gp, radius = 10, includeDiagonal = false)
-      val blocksWithDiagonal = UpperIndexBounds.computeCoverByUpperTriangularBlocks(tbl.keyBy("contig"), 
+      val blocksWithDiagonal = UpperIndexBounds.computeCoverByUpperTriangularBlocks(t.keyBy("contig"), 
         bm.gp, radius=10, includeDiagonal = true)
       assert(blocks sameElements expecteds(i))
-      assert(blocksWithDiagonal.sorted sameElements (expecteds(i)++blocksWithOnlyDiagonalEntriesWithinRadius(i)).sorted)
+      assert(blocksWithDiagonal.sorted sameElements (expecteds(i) ++ blocksWithOnlyDiagonalEntriesWithinRadius(i)).sorted)
     }
   }
 }

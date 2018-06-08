@@ -13,15 +13,14 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
 
     Examples
     --------
-    .. doctest::
 
-        >>> range_ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
+    >>> range_ds = hl.utils.range_matrix_table(n_rows=100, n_cols=10)
 
-        >>> range_ds.count_rows()
-        100
+    >>> range_ds.count_rows()
+    100
 
-        >>> range_ds.count_cols()
-        10
+    >>> range_ds.count_cols()
+    10
 
     Notes
     -----
@@ -60,12 +59,11 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
 
     Examples
     --------
-    .. doctest::
 
-        >>> df = hl.utils.range_table(100)
+    >>> df = hl.utils.range_table(100)
 
-        >>> df.count()
-        100
+    >>> df.count()
+    100
 
     Notes
     -----

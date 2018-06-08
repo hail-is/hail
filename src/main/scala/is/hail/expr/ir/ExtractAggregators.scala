@@ -22,7 +22,7 @@ object ExtractAggregators {
       }
     }
 
-    val (ir2, aggs) = extract(ir.unwrap)
+    val (ir2, aggs) = extract(ir)
 
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
       .zipWithIndex

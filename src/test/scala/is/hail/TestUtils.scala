@@ -23,11 +23,12 @@ object TestUtils {
   def interceptException[E <: Throwable : Manifest](regex: String)(f: => Any) {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
+    val msg =
+      s"""expected fatal exception with pattern `$regex'
+         |  Found: ${ thrown.getMessage } """
     if (!p)
-      println(
-        s"""expected fatal exception with pattern `$regex'
-           |  Found: ${ thrown.getMessage } """.stripMargin)
-    assert(p)
+      println(msg)
+    assert(p, msg)
   }
   def interceptFatal(regex: String)(f: => Any) {
     interceptException[HailException](regex)(f)
@@ -415,7 +416,7 @@ object TestUtils {
     if (Compilable(x)) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected))
+      assert(t.valuesSimilar(c, expected), s"$c, $expected")
     }
   }
 

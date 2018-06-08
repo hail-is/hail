@@ -34,8 +34,55 @@ object ArrayFunctions extends RegistryFunctions {
           Cast(GetField(Ref(result, tAccum), "n"), TFloat64()))))
   }
 
+  def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
+
+  def extend(a1: IR, a2: IR): IR = {
+    val uid = genUID()
+    val typ = a1.typ
+    If(IsNA(a1), NA(typ),
+      If(IsNA(a2), NA(typ),
+        ArrayFlatMap(
+          MakeArray(Seq(a1, a2), TArray(typ)),
+          uid,
+          Ref(uid, a1.typ)
+        )
+      ))
+  }
+
+  def sum(a: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    val sum = genUID()
+    val v = genUID()
+    val zero = Cast(I64(0), t)
+    ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
+  }
+
+  def product(a: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    val product = genUID()
+    val v = genUID()
+    val one = Cast(I64(1), t)
+    ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
+  }
+
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
+
+    registerIR("length", TArray(tv("T")))(ArrayLen)
+
+    registerIR("isEmpty", TArray(tv("T")))(isEmpty)
+
+    registerIR("sort", TArray(tv("T")), TBoolean())(ArraySort)
+
+    registerIR("sort", TArray(tv("T"))) { a =>
+      ArraySort(a, True())
+    }
+
+    registerIR("extend", TArray(tv("T")), TArray(tv("T")))(extend)
+
+    registerIR("append", TArray(tv("T")), tv("T")) { (a, c) =>
+      extend(a, MakeArray(Seq(c), TArray(c.typ)))
+    }
 
     val arrayOps: Array[(String, (IR, IR) => IR)] =
       Array(
@@ -68,25 +115,17 @@ object ArrayFunctions extends RegistryFunctions {
         val body =
           ArrayMap(ArrayRange(I32(0), ArrayLen(a1), I32(1)), iid,
             irOp(ArrayRef(a1, i), ArrayRef(a2, i)))
-        Let(a1id, array1, Let(a2id, array2, body))
+        val guarded =
+          If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(a1), ArrayLen(a2)),
+            body,
+            Die("Arrays must have same length", body.typ))
+        Let(a1id, array1, Let(a2id, array2, guarded))
       }
     }
 
-    registerIR("sum", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val sum = genUID()
-      val v = genUID()
-      val zero = Cast(I64(0), t)
-      ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
-    }
+    registerIR("sum", TArray(tnum("T")))(sum)
 
-    registerIR("product", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val product = genUID()
-      val v = genUID()
-      val one = Cast(I64(1), t)
-      ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
-    }
+    registerIR("product", TArray(tnum("T")))(product)
 
     registerIR("min", TArray(tnum("T"))) { a =>
       val t = -coerce[TArray](a.typ).elementType
@@ -191,16 +230,25 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("uniqueMaxIndex", TArray(tv("T")))(uniqueIndex(_, GT))
 
-    registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) => ArrayRef(a, i) }
+    registerIR("[]", TArray(tv("T")), TInt32()) { (a, i) =>
+      ArrayRef(
+        a,
+        If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
+          ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+          i))
+    }
 
     registerIR("[:]", TArray(tv("T"))) { (a) => a }
 
     registerIR("[*:]", TArray(tv("T")), TInt32()) { (a, i) =>
       val idx = genUID()
       ArrayMap(
-        ArrayRange(If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-          ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-          i),
+        ArrayRange(
+          If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
+            UtilFunctions.max(
+              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+              I32(0)),
+            i),
           ArrayLen(a),
           I32(1)),
         idx,
@@ -209,14 +257,16 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("[:*]", TArray(tv("T")), TInt32()) { (a, i) =>
       val idx = genUID()
-      ArrayMap(
-        ArrayRange(I32(0),
-          If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-            ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-            i),
-          I32(1)),
-        idx,
-        ArrayRef(a, Ref(idx, TInt32())))
+      If(IsNA(a), a,
+        ArrayMap(
+          ArrayRange(
+            I32(0),
+            If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
+              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+              UtilFunctions.min(i, ArrayLen(a))),
+            I32(1)),
+          idx,
+          ArrayRef(a, Ref(idx, TInt32()))))
     }
 
     registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32()) { (a, i, j) =>
@@ -224,11 +274,13 @@ object ArrayFunctions extends RegistryFunctions {
       ArrayMap(
         ArrayRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-            ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+            UtilFunctions.max(
+              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
+              I32(0)),
             i),
           If(ApplyComparisonOp(LT(TInt32()), j, I32(0)),
             ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
-            j),
+            UtilFunctions.min(j, ArrayLen(a))),
           I32(1)),
         idx,
         ArrayRef(a, Ref(idx, TInt32())))

@@ -1,7 +1,8 @@
 from hail.utils.java import Env
 from hail.typecheck import *
 import io
-
+import json
+from typing import Dict, List
 
 @typecheck(path=str,
            mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'),
@@ -12,20 +13,18 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
 
     Examples
     --------
-    .. doctest::
-        :options: +SKIP
 
-        >>> with hadoop_open('gs://my-bucket/notes.txt') as f: # doctest: +SKIP
-        ...     for line in f:
-        ...         print(line.strip())
+    >>> with hadoop_open('gs://my-bucket/notes.txt') as f: # doctest: +SKIP
+    ...     for line in f:
+    ...         print(line.strip())
 
-        >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f: # doctest: +SKIP
-        ...     f.write('result1: %s\\n' % result1)
-        ...     f.write('result2: %s\\n' % result2)
+    >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f: # doctest: +SKIP
+    ...     f.write('result1: %s\\n' % result1)
+    ...     f.write('result2: %s\\n' % result2)
 
-        >>> from struct import unpack
-        >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f: # doctest: +SKIP
-        ...     print(unpack('<f', bytearray(f.read())))
+    >>> from struct import unpack
+    >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f: # doctest: +SKIP
+    ...     print(unpack('<f', bytearray(f.read())))
 
     Notes
     -----
@@ -137,3 +136,104 @@ class HadoopWriter(io.RawIOBase):
     def write(self, b):
         self._jfile.write(bytearray(b))
         return len(b)
+
+
+def hadoop_exists(path: str) -> bool:
+    """Returns ``True`` if `path` exists.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+
+    Returns
+    -------
+    :obj:`.bool`
+    """
+    return Env.jutils().exists(path, Env.hc()._jhc)
+
+
+def hadoop_is_file(path: str) -> bool:
+    """Returns ``True`` if `path` both exists and is a file.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+
+    Returns
+    -------
+    :obj:`.bool`
+    """
+    return Env.jutils().isFile(path, Env.hc()._jhc)
+
+
+def hadoop_is_dir(path) -> bool:
+    """Returns ``True`` if `path` both exists and is a directory.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+
+    Returns
+    -------
+    :obj:`.bool`
+    """
+    return Env.jutils().isDir(path, Env.hc()._jhc)
+
+
+def hadoop_stat(path: str) -> Dict:
+    """Returns information about the file or directory at a given path.
+
+    Notes
+    -----
+    Raises an error if `path` does not exist.
+
+    The resulting dictionary contains the following data:
+
+    - is_dir (:obj:`bool`) -- Path is a directory.
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:obj:`str`) -- Size as a readable string.
+    - modification_time (:obj:`str`) -- Time of last file modification.
+    - owner (:obj:`str`) -- Owner.
+    - path (:obj:`str`) -- Path.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+
+    Returns
+    -------
+    :obj:`Dict`
+    """
+    return json.loads(Env.jutils().stat(path, Env.hc()._jhc))
+
+
+def hadoop_ls(path: str) -> List[Dict]:
+    """Returns information about files at `path`.
+
+    Notes
+    -----
+    Raises an error if `path` does not exist.
+
+    If `path` is a file, returns a list with one element. If `path` is a
+    directory, returns an element for each file contained in `path` (does not
+    search recursively).
+
+    Each dict element of the result list contains the following data:
+
+    - is_dir (:obj:`bool`) -- Path is a directory.
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:obj:`str`) -- Size as a readable string.
+    - modification_time (:obj:`str`) -- Time of last file modification.
+    - owner (:obj:`str`) -- Owner.
+    - path (:obj:`str`) -- Path.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+
+    Returns
+    -------
+    :obj:`List[Dict]`
+    """
+    r = Env.jutils().ls(path, Env.hc()._jhc)
+    return json.loads(r)

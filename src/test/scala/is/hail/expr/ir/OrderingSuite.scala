@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
-import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -140,14 +139,16 @@ class OrderingSuite extends TestNGSuite {
     val compareGen = for {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
-    } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
-      val irF = { irs: Seq[IR] => ArraySort(irs(0)) }
+      asc <- Gen.coin()
+    } yield (elt, a, asc)
+    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
+      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal(asc, TBoolean())) }
       val f = getCompiledFunction(irF, TArray(t), TArray(t))
+      val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
 
       Region.scoped { region =>
         val actual = f(region, Seq(a))
-        val expected = a.sorted(t.ordering.toOrdering)
+        val expected = a.sorted(ord)
         expected == actual
       }
     }
@@ -199,7 +200,7 @@ class OrderingSuite extends TestNGSuite {
 
   @Test def testSortOnMissingArray() {
     val tarray = TArray(TStruct("key" -> TInt32(), "value" -> TInt32()))
-    val irs: Array[IR => IR] = Array(ArraySort(_), ToSet(_), ToDict(_))
+    val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
     for (irF <- irs) {
       val ir = IsNA(irF(NA(tarray)))

@@ -20,19 +20,20 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
 
     Examples
     --------
-    Run PC-relate and compute pairs of individuals:
+    Run PC-relate and compute pairs of closely related individuals:
 
     >>> pc_rel = hl.pc_relate(dataset.GT, 0.001, k=2, statistics='kin')
     >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125)
 
     Starting from the above pairs, prune individuals from a dataset until no
-    close relationships remain with respect to a PC-Relate measure of kinship:
+    close relationships remain:
 
     >>> related_samples_to_remove = hl.maximal_independent_set(pairs.i, pairs.j, False)
-    >>> result = dataset.filter_cols(hl.is_defined(related_samples_to_remove[dataset.col_key]), keep=False)
+    >>> result = dataset.filter_cols(
+    ...     hl.is_defined(related_samples_to_remove[dataset.col_key]), keep=False)
 
-    Starting from the above pairs, prune individuals from a dataset,
-    preferring to keep cases over controls:
+    Starting from the above pairs, prune individuals from a dataset until no
+    close relationships remain, preferring to keep cases over controls:
 
     >>> samples = dataset.cols()
     >>> pairs_with_case = pairs.key_by(
@@ -163,6 +164,7 @@ def require_row_key_variant(dataset, method):
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+
 
 def require_row_key_variant_w_struct_locus(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles'] or

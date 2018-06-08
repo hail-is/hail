@@ -44,22 +44,21 @@ def dtype(type_str):
 
     Examples
     --------
-    .. doctest::
 
-        >>> hl.dtype('int')
-        dtype('int32')
+    >>> hl.dtype('int')
+    dtype('int32')
 
-        >>> hl.dtype('float')
-        dtype('float64')
+    >>> hl.dtype('float')
+    dtype('float64')
 
-        >>> hl.dtype('array<int32>')
-        dtype('array<int32>')
+    >>> hl.dtype('array<int32>')
+    dtype('array<int32>')
 
-        >>> hl.dtype('dict<str, bool>')
-        dtype('dict<str, bool>')
+    >>> hl.dtype('dict<str, bool>')
+    dtype('dict<str, bool>')
 
-        >>> hl.dtype('struct{a: int32, `field with spaces`: int64}')
-        dtype('struct{a: int32, `field with spaces`: int64}')
+    >>> hl.dtype('struct{a: int32, `field with spaces`: int64}')
+    dtype('struct{a: int32, `field with spaces`: int64}')
 
     Notes
     -----

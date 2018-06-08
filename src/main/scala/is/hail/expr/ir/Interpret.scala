@@ -73,6 +73,7 @@ object Interpret {
             case (_: TFloat64, _: TInt32) => vValue.asInstanceOf[Double].toInt
             case (_: TFloat64, _: TInt64) => vValue.asInstanceOf[Double].toLong
             case (_: TFloat64, _: TFloat32) => vValue.asInstanceOf[Double].toFloat
+            case (_: TInt32, _: TCall) => vValue
           }
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
@@ -205,12 +206,19 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
-      case ArraySort(a) =>
+      case ArraySort(a, ascending) =>
         val aValue = interpret(a, env, args, agg)
+        val ascendingValue = interpret(ascending, env, args, agg)
         if (aValue == null)
           null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].sorted(a.typ.asInstanceOf[TArray].elementType.ordering.toOrdering)
+        else {
+          val ord =
+            if (ascendingValue == null || ascendingValue.asInstanceOf[Boolean])
+              a.typ.asInstanceOf[TArray].elementType.ordering
+            else
+              a.typ.asInstanceOf[TArray].elementType.ordering.reverse
+          aValue.asInstanceOf[IndexedSeq[Any]].sorted(ord.toOrdering)
+        }
       case ToSet(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
@@ -408,6 +416,21 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
+      case StringSlice(s, start, end) =>
+        val Array(maybeString, vstart: Int, vend: Int) =
+          Array(s, start, end).map(interpret(_, env, args, agg))
+        if (maybeString == null)
+          null
+        else {
+          val vs = maybeString.asInstanceOf[String]
+          if (vstart < 0 || vstart > vend || vend > vs.length)
+            fatal(s"""string slice out of bounds or invalid: "$vs"[$vstart:$vend]""")
+          else
+            vs.substring(vstart, vend)
+        }
+      case StringLength(s) =>
+        val vs = interpret(s).asInstanceOf[String]
+        if (vs == null) null else vs.getBytes().length
       case In(i, _) =>
         val (a, _) = args(i)
         a

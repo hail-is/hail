@@ -1,5 +1,6 @@
 package is.hail.expr.types
 
+import is.hail.asm4s._
 import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.check.Arbitrary._
@@ -45,4 +46,16 @@ object TString {
     val length = TBinary.loadLength(region, boff)
     new String(region.loadBytes(TBinary.bytesOffset(boff), length))
   }
+
+  def loadString(region: Code[Region], boff: Code[Long]): Code[String] = {
+    val length = TBinary.loadLength(region, boff)
+    Code.newInstance[String, Array[Byte]](
+      region.loadBytes(TBinary.bytesOffset(boff), length))
+  }
+
+  def loadLength(region: Region, boff: Long): Int =
+    TBinary.loadLength(region, boff)
+
+  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] =
+    TBinary.loadLength(region, boff)
 }

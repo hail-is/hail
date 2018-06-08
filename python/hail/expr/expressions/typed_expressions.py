@@ -25,13 +25,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.any(lambda x: x % 2 == 0))
-            True
+        >>> a.any(lambda x: x % 2 == 0).value
+        True
 
-            >>> hl.eval_expr(s3.any(lambda x: x[0] == 'D'))
-            False
+        >>> s3.any(lambda x: x[0] == 'D').value
+        False
 
         Notes
         -----
@@ -62,13 +61,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.filter(lambda x: x % 2 == 0))
-            [2, 4]
+        >>> a.filter(lambda x: x % 2 == 0).value
+        [2, 4]
 
-            >>> hl.eval_expr(s3.filter(lambda x: ~(x[-1] == 'e')))
-            {'Bob'}
+        >>> s3.filter(lambda x: ~(x[-1] == 'e')).value
+        {'Bob'}
 
         Notes
         -----
@@ -101,13 +99,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.find(lambda x: x ** 2 > 20))
-            5
+        >>> a.find(lambda x: x ** 2 > 20).value
+        5
 
-            >>> hl.eval_expr(s3.find(lambda x: x[0] == 'D'))
-            None
+        >>> s3.find(lambda x: x[0] == 'D').value
+        None
 
         Notes
         -----
@@ -138,13 +135,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.flatmap(lambda x: hl.range(0, x)))
-            [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
+        >>> a.flatmap(lambda x: hl.range(0, x)).value
+        [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-            >>> hl.eval_expr(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))
-            {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
+        >>> s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))).value
+        {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
         ----------
@@ -172,10 +168,9 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.all(lambda x: x < 10))
-            True
+        >>> a.all(lambda x: x < 10).value
+        True
 
         Notes
         -----
@@ -206,13 +201,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.group_by(lambda x: x % 2 == 0))
-            {False: [1, 3, 5], True: [2, 4]}
+        >>> a.group_by(lambda x: x % 2 == 0).value
+        {False: [1, 3, 5], True: [2, 4]}
 
-            >>> hl.eval_expr(s3.group_by(lambda x: x.length()))
-            {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
+        >>> s3.group_by(lambda x: x.length()).value
+        {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
         ----------
@@ -233,13 +227,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.map(lambda x: x ** 3))
-            [1.0, 8.0, 27.0, 64.0, 125.0]
+        >>> a.map(lambda x: x ** 3).value
+        [1.0, 8.0, 27.0, 64.0, 125.0]
 
-            >>> hl.eval_expr(s3.map(lambda x: x.length()))
-            {3, 5, 7}
+        >>> s3.map(lambda x: x.length()).value
+        {3, 5, 7}
 
         Parameters
         ----------
@@ -258,13 +251,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a.length())
-            5
+        >>> a.length().value
+        5
 
-            >>> hl.eval_expr(s3.length())
-            3
+        >>> s3.length().value
+        3
 
         Returns
         -------
@@ -278,13 +270,12 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        .. doctest::
+        
+        >>> a.size().value
+        5
 
-            >>> hl.eval_expr(a.size())
-            5
-
-            >>> hl.eval_expr(s3.size())
-            3
+        >>> s3.size().value
+        3
 
         Returns
         -------
@@ -312,20 +303,16 @@ class ArrayExpression(CollectionExpression):
 
         Index with a single integer:
 
-        .. doctest::
+        >>> names[1].value
+        'Bob'
 
-            >>> hl.eval_expr(names[1])
-            'Bob'
-
-            >>> hl.eval_expr(names[-1])
-            'Charlie'
+        >>> names[-1].value
+        'Charlie'
 
         Slicing is also supported:
 
-        .. doctest::
-
-            >>> hl.eval_expr(names[1:])
-            ['Bob', 'Charlie']
+        >>> names[1:].value
+        ['Bob', 'Charlie']
 
         Parameters
         ----------
@@ -353,13 +340,11 @@ class ArrayExpression(CollectionExpression):
         Examples
         --------
 
-        .. doctest::
+        >>> names.contains('Charlie').value
+        True
 
-            >>> hl.eval_expr(names.contains('Charlie'))
-            True
-
-            >>> hl.eval_expr(names.contains('Helen'))
-            False
+        >>> names.contains('Helen').value
+        False
 
         Parameters
         ----------
@@ -388,10 +373,8 @@ class ArrayExpression(CollectionExpression):
         Examples
         --------
 
-        .. doctest::
-
-            >>> hl.eval_expr(names.append('Dan'))
-            ['Alice', 'Bob', 'Charlie', 'Dan']
+        >>> names.append('Dan').value
+        ['Alice', 'Bob', 'Charlie', 'Dan']
 
         Note
         ----
@@ -420,10 +403,8 @@ class ArrayExpression(CollectionExpression):
         Examples
         --------
 
-        .. doctest::
-
-            >>> hl.eval_expr(names.extend(['Dan', 'Edith']))
-            ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith']
+        >>> names.extend(['Dan', 'Edith']).value
+        ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith']
 
         Parameters
         ----------
@@ -463,10 +444,9 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(-a1)
-            [0, -1, -2, -3, -4, -5]
+        >>> (-a1).value
+        [0, -1, -2, -3, -4, -5]
 
         Returns
         -------
@@ -480,13 +460,12 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a1 + 5)
-            [5, 6, 7, 8, 9, 10]
+        >>> (a1 + 5).value
+        [5, 6, 7, 8, 9, 10]
 
-            >>> hl.eval_expr(a1 + a2)
-            [1, 0, 3, 2, 5, 4]
+        >>> (a1 + a2).value
+        [1, 0, 3, 2, 5, 4]
 
         Parameters
         ----------
@@ -508,13 +487,12 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a2 - 1)
-            [0, -2, 0, -2, 0, -2]
+        >>> (a2 - 1).value
+        [0, -2, 0, -2, 0, -2]
 
-            >>> hl.eval_expr(a1 - a2)
-            [-1, 2, 1, 4, 3, 6]
+        >>> (a1 - a2).value
+        [-1, 2, 1, 4, 3, 6]
 
         Parameters
         ----------
@@ -536,13 +514,12 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a2 * 5)
-            [5, -5, 5, -5, 5, -5]
+        >>> (a2 * 5).value
+        [5, -5, 5, -5, 5, -5]
 
-            >>> hl.eval_expr(a1 * a2)
-            [0, -1, 2, -3, 4, -5]
+        >>> (a1 * a2).value
+        [0, -1, 2, -3, 4, -5]
 
         Parameters
         ----------
@@ -564,13 +541,12 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a1 / 10)
-            [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+        >>> (a1 / 10).value
+        [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-            >>> hl.eval_expr(a2 / a1)
-            [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
+        >>> (a2 / a1).value
+        [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
 
         Parameters
         ----------
@@ -609,10 +585,9 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a1 // 2)
-            [0, 0, 1, 1, 2, 2]
+        >>> (a1 // 2).value
+        [0, 0, 1, 1, 2, 2]
 
         Parameters
         ----------
@@ -632,10 +607,9 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a1 % 2)
-            [0, 1, 0, 1, 0, 1]
+        >>> (a1 % 2).value
+        [0, 1, 0, 1, 0, 1]
 
         Parameters
         ----------
@@ -655,13 +629,12 @@ class ArrayNumericExpression(ArrayExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(a1 ** 2)
-            [0.0, 1.0, 4.0, 9.0, 16.0, 25.0]
+        >>> (a1 ** 2).value
+        [0.0, 1.0, 4.0, 9.0, 16.0, 25.0]
 
-            >>> hl.eval_expr(a1 ** a2)
-            [0.0, 1.0, 2.0, 0.3333333333333333, 4.0, 0.2]
+        >>> (a1 ** a2).value
+        [0.0, 1.0, 2.0, 0.3333333333333333, 4.0, 0.2]
 
         Parameters
         ----------
@@ -694,10 +667,9 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.add(10))
-            {1, 2, 3, 10}
+        >>> s1.add(10).value
+        {1, 2, 3, 10}
 
         Parameters
         ----------
@@ -721,10 +693,9 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.remove(1))
-            {2, 3}
+        >>> s1.remove(1).value
+        {2, 3}
 
         Parameters
         ----------
@@ -748,13 +719,12 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.contains(1))
-            True
+        >>> s1.contains(1).value
+        True
 
-            >>> hl.eval_expr(s1.contains(10))
-            False
+        >>> s1.contains(10).value
+        False
 
         Parameters
         ----------
@@ -778,13 +748,12 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.difference(s2))
-            {2}
+        >>> s1.difference(s2).value
+        {2}
 
-            >>> hl.eval_expr(s2.difference(s1))
-            {5}
+        >>> s2.difference(s1).value
+        {5}
 
         Parameters
         ----------
@@ -808,10 +777,9 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
-
-            >>> hl.eval_expr(s1.intersection(s2))
-            {1, 3}
+        
+        >>> s1.intersection(s2).value
+        {1, 3}
 
         Parameters
         ----------
@@ -835,13 +803,12 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.is_subset(s2))
-            False
+        >>> s1.is_subset(s2).value
+        False
 
-            >>> hl.eval_expr(s1.remove(2).is_subset(s2))
-            True
+        >>> s1.remove(2).is_subset(s2).value
+        True
 
         Parameters
         ----------
@@ -865,10 +832,9 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s1.union(s2))
-            {1, 2, 3, 5}
+        >>> s1.union(s2).value
+        {1, 2, 3, 5}
 
         Parameters
         ----------
@@ -899,10 +865,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d['Alice'])
-            43
+        >>> d['Alice'].value
+        43
 
         Notes
         -----
@@ -931,13 +896,12 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.contains('Alice'))
-            True
+        >>> d.contains('Alice').value
+        True
 
-            >>> hl.eval_expr(d.contains('Anne'))
-            False
+        >>> d.contains('Anne').value
+        False
 
         Parameters
         ----------
@@ -961,16 +925,15 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.get('Alice'))
-            43
+        >>> d.get('Alice').value
+        43
 
-            >>> hl.eval_expr(d.get('Anne'))
-            None
+        >>> d.get('Anne').value
+        None
 
-            >>> hl.eval_expr(d.get('Anne', 0))
-            0
+        >>> d.get('Anne', 0).value
+        0
 
         Parameters
         ----------
@@ -1002,10 +965,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.key_set())
-            {'Alice', 'Bob', 'Charles'}
+        >>> d.key_set().value
+        {'Alice', 'Bob', 'Charles'}
 
         Returns
         -------
@@ -1019,10 +981,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.keys())
-            ['Bob', 'Charles', 'Alice']
+        >>> d.keys().value
+        ['Bob', 'Charles', 'Alice']
 
         Returns
         -------
@@ -1037,10 +998,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
-
-            >>> hl.eval_expr(d.map_values(lambda x: x * 10))
-            {'Alice': 430, 'Bob': 330, 'Charles': 440}
+        
+        >>> d.map_values(lambda x: x * 10).value
+        {'Alice': 430, 'Bob': 330, 'Charles': 440}
 
         Parameters
         ----------
@@ -1059,10 +1019,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.size())
-            3
+        >>> d.size().value
+        3
 
         Returns
         -------
@@ -1076,10 +1035,9 @@ class DictExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(d.values())
-            [33, 44, 43]
+        >>> d.values().value
+        [33, 44, 43]
 
         Returns
         -------
@@ -1097,17 +1055,13 @@ class StructExpression(Mapping, Expression):
     Struct fields are accessible as attributes and keys. It is therefore
     possible to access field `a` of struct `s` with dot syntax:
 
-    .. doctest::
-
-        >>> hl.eval_expr(struct.a)
-        5
+    >>> struct.a.value
+    5
 
     However, it is recommended to use square brackets to select fields:
 
-    .. doctest::
-
-        >>> hl.eval_expr(struct['a'])
-        5
+    >>> struct['a'].value
+    5
 
     The latter syntax is safer, because fields that share their name with
     an existing attribute of :class:`.StructExpression` (`keys`, `values`,
@@ -1169,13 +1123,12 @@ class StructExpression(Mapping, Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(struct['a'])
-            5
+        >>> struct['a'].value
+        5
 
-            >>> hl.eval_expr(struct[1])
-            'Foo'
+        >>> struct[1].value
+        'Foo'
 
         Parameters
         ----------
@@ -1213,10 +1166,9 @@ class StructExpression(Mapping, Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(struct.annotate(a=10, c=2*2*2))
-            Struct(a=10, b='Foo', c=8)
+        >>> struct.annotate(a=10, c=2*2*2).value
+        Struct(a=10, b='Foo', c=8)
 
         Notes
         -----
@@ -1258,10 +1210,9 @@ class StructExpression(Mapping, Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(struct.select('a', c=['bar', 'baz']))
-            Struct(a=5, c=[u'bar', u'baz'])
+        >>> struct.select('a', c=['bar', 'baz']).value
+        Struct(a=5, c=[u'bar', u'baz'])
 
         Notes
         -----
@@ -1318,10 +1269,9 @@ class StructExpression(Mapping, Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(struct.drop('b'))
-            Struct(a=5)
+        >>> struct.drop('b').value
+        Struct(a=5)
 
         Parameters
         ----------
@@ -1365,10 +1315,9 @@ class TupleExpression(Expression, Sequence):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(tup[1])
-            1
+        >>> tup[1].value
+        1
 
         Parameters
         ----------
@@ -1388,10 +1337,9 @@ class TupleExpression(Expression, Sequence):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(len(tup))
-            3
+        >>> len(tup)
+        3
 
         Returns
         -------
@@ -1418,10 +1366,9 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x < 5)
-            True
+        >>> (x < 5).value
+        True
 
         Parameters
         ----------
@@ -1441,10 +1388,9 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x <= 3)
-            True
+        >>> (x <= 3).value
+        True
 
         Parameters
         ----------
@@ -1464,10 +1410,9 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(y > 4)
-            True
+        >>> (y > 4).value
+        True
 
         Parameters
         ----------
@@ -1487,10 +1432,9 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(y >= 4)
-            True
+        >>> (y >= 4).value
+        True
 
         Parameters
         ----------
@@ -1512,10 +1456,9 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(-x)
-            -3
+        >>> (-x).value
+        -3
 
         Returns
         -------
@@ -1530,13 +1473,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x + 2)
-            5
+        >>> (x + 2).value
+        5
 
-            >>> hl.eval_expr(x + y)
-            7.5
+        >>> (x + y).value
+        7.5
 
         Parameters
         ----------
@@ -1558,13 +1500,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x - 2)
-            1
+        >>> (x - 2).value
+        1
 
-            >>> hl.eval_expr(x - y)
-            -1.5
+        >>> (x - y).value
+        -1.5
 
         Parameters
         ----------
@@ -1586,13 +1527,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x * 2)
-            6
+        >>> (x * 2).value
+        6
 
-            >>> hl.eval_expr(x * y)
-            9.0
+        >>> (x * y).value
+        9.0
 
         Parameters
         ----------
@@ -1614,13 +1554,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x / 2)
-            1.5
+        >>> (x / 2).value
+        1.5
 
-            >>> hl.eval_expr(y / 0.1)
-            45.0
+        >>> (y / 0.1).value
+        45.0
 
         Parameters
         ----------
@@ -1659,13 +1598,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x // 2)
-            1
+        >>> (x // 2).value
+        1
 
-            >>> hl.eval_expr(y // 2)
-            2.0
+        >>> (y // 2).value
+        2.0
 
         Parameters
         ----------
@@ -1687,13 +1625,12 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(32 % x)
-            2
+        >>> (32 % x).value
+        2
 
-            >>> hl.eval_expr(7 % y)
-            2.5
+        >>> (7 % y).value
+        2.5
 
         Parameters
         ----------
@@ -1715,16 +1652,15 @@ class NumericExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(x ** 2)
-            9.0
+        >>> (x ** 2).value
+        9.0
 
-            >>> hl.eval_expr(x ** -2)
-            0.1111111111111111
+        >>> (x ** -2).value
+        0.1111111111111111
 
-            >>> hl.eval_expr(y ** 1.5)
-            9.545941546018392
+        >>> (y ** 1.5).value
+        9.545941546018392
 
         Parameters
         ----------
@@ -1750,16 +1686,14 @@ class BooleanExpression(NumericExpression):
     >>> f = hl.literal(False)
     >>> na = hl.null(hl.tbool)
 
-    .. doctest::
+    >>> t.value
+    True
 
-        >>> hl.eval_expr(t)
-        True
+    >>> f.value
+    False
 
-        >>> hl.eval_expr(f)
-        False
-
-        >>> hl.eval_expr(na)
-        None
+    >>> na.value
+    None
 
     """
 
@@ -1781,27 +1715,24 @@ class BooleanExpression(NumericExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(t & f)
-            False
+        >>> (t & f).value
+        False
 
-            >>> hl.eval_expr(t & na)
-            None
+        >>> (t & na).value
+        None
 
-            >>> hl.eval_expr(f & na)
-            False
+        >>> (f & na).value
+        False
 
         The ``&`` and ``|`` operators have higher priority than comparison
         operators like ``==``, ``<``, or ``>``. Parentheses are often
         necessary:
 
-        .. doctest::
+        >>> x = hl.literal(5)
 
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) & (x > 2))
-            True
+        >>> ((x < 10) & (x > 2)).value
+        True
 
         Parameters
         ----------
@@ -1821,27 +1752,24 @@ class BooleanExpression(NumericExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(t | f)
-            True
+        >>> (t | f).value
+        True
 
-            >>> hl.eval_expr(t | na)
-            True
+        >>> (t | na).value
+        True
 
-            >>> hl.eval_expr(f | na)
-            None
+        >>> (f | na).value
+        None
 
         The ``&`` and ``|`` operators have higher priority than comparison
         operators like ``==``, ``<``, or ``>``. Parentheses are often
         necessary:
 
-        .. doctest::
+        >>> x = hl.literal(5)
 
-            >>> x = hl.literal(5)
-
-            >>> hl.eval_expr((x < 10) | (x > 20))
-            True
+        >>> ((x < 10) | (x > 20)).value
+        True
 
         Parameters
         ----------
@@ -1860,16 +1788,15 @@ class BooleanExpression(NumericExpression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(~t)
-            False
+        >>> (~t).value
+        False
 
-            >>> hl.eval_expr(~f)
-            True
+        >>> (~f).value
+        True
 
-            >>> hl.eval_expr(~na)
-            None
+        >>> (~na).value
+        None
 
         Returns
         -------
@@ -1910,13 +1837,12 @@ class StringExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s[:15])
-            'The quick brown'
+        >>> s[:15].value
+        'The quick brown'
 
-            >>> hl.eval_expr(s[0])
-            'T'
+        >>> s[0].value
+        'T'
 
         Parameters
         ----------
@@ -1942,10 +1868,9 @@ class StringExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s + ' jumped over the lazy dog')
-            'The quick brown fox jumped over the lazy dog'
+        >>> (s + ' jumped over the lazy dog').value
+        'The quick brown fox jumped over the lazy dog'
 
         Parameters
         ----------
@@ -1973,10 +1898,9 @@ class StringExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s.length())
-            19
+        >>> s.length().value
+        19
 
         Returns
         -------
@@ -1991,10 +1915,9 @@ class StringExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s.replace(' ', '_'))
-            'The_quick_brown_fox'
+        >>> s.replace(' ', '_').value
+        'The_quick_brown_fox'
 
         Notes
         -----
@@ -2018,13 +1941,12 @@ class StringExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(s.split('\\s+'))
-            ['The', 'quick', 'brown', 'fox']
+        >>> s.split('\\s+').value
+        ['The', 'quick', 'brown', 'fox']
 
-            >>> hl.eval_expr(s.split('\\s+', 2))
-            ['The', 'quick brown fox']
+        >>> s.split('\\s+', 2).value
+        ['The', 'quick brown fox']
 
         Notes
         -----
@@ -2056,6 +1978,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.lower().value
         'the quick brown fox'
 
@@ -2071,6 +1994,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.upper().value
         'THE QUICK BROWN FOX'
 
@@ -2086,6 +2010,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s2 = hl.str('  once upon a time\n')
         >>> s2.strip().value
         'once upon a time'
@@ -2102,6 +2027,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.contains('fox').value
         True
 
@@ -2128,6 +2054,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.startswith('The').value
         True
 
@@ -2155,6 +2082,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.endswith('dog').value
         True
 
@@ -2179,6 +2107,7 @@ class StringExpression(Expression):
 
         Examples
         --------
+
         >>> s.first_match_in("The quick (\\w+) fox").value
         ["brown"]
 
@@ -2209,17 +2138,13 @@ class StringExpression(Expression):
 
         The `regex` parameter does not need to match the entire string:
 
-        .. doctest::
-
-            >>> hl.eval_expr(string.matches('12'))
-            True
+        >>> string.matches('12').value
+        True
 
         Regex motifs can be used to match sequences of characters:
 
-        .. doctest::
-
-            >>> hl.eval_expr(string.matches(r'NA\\\\d+'))
-            True
+        >>> string.matches(r'NA\\\\d+').value
+        True
 
         Notes
         -----
@@ -2256,13 +2181,11 @@ class CallExpression(Expression):
 
         Index with a single integer:
 
-        .. doctest::
+        >>> call[0].value
+        0
 
-            >>> hl.eval_expr(call[0])
-            0
-
-            >>> hl.eval_expr(call[1])
-            1
+        >>> call[1].value
+        1
 
         Parameters
         ----------
@@ -2288,10 +2211,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.ploidy)
-            2
+        >>> call.ploidy.value
+        2
 
         Returns
         -------
@@ -2305,10 +2227,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.phased)
-            False
+        >>> call.phased.value
+        False
 
         Returns
         -------
@@ -2321,10 +2242,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_haploid())
-            False
+        >>> call.is_haploid().value
+        False
 
         Returns
         -------
@@ -2337,10 +2257,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_diploid())
-            True
+        >>> call.is_diploid().value
+        True
 
         Returns
         -------
@@ -2353,10 +2272,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_non_ref())
-            True
+        >>> call.is_non_ref().value
+        True
 
         Returns
         -------
@@ -2370,10 +2288,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_het())
-            True
+        >>> call.is_het().value
+        True
 
         Returns
         -------
@@ -2387,10 +2304,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_het_nonref())
-            False
+        >>> call.is_het_nonref().value
+        False
 
         Returns
         -------
@@ -2404,10 +2320,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_het_ref())
-            True
+        >>> call.is_het_ref().value
+        True
 
         Returns
         -------
@@ -2421,10 +2336,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_hom_ref())
-            False
+        >>> call.is_hom_ref().value
+        False
 
         Returns
         -------
@@ -2438,10 +2352,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.is_hom_var())
-            False
+        >>> call.is_hom_var().value
+        False
 
         Returns
         -------
@@ -2455,10 +2368,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.n_alt_alleles())
-            1
+        >>> call.n_alt_alleles().value
+        1
 
         Returns
         -------
@@ -2474,10 +2386,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.one_hot_alleles(['A', 'T']))
-            [1, 1]
+        >>> call.one_hot_alleles(['A', 'T']).value
+        [1, 1]
 
         This one-hot representation is the positional sum of the one-hot
         encoding for each called allele. For a biallelic variant, the one-hot
@@ -2503,10 +2414,9 @@ class CallExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(call.unphased_diploid_gt_index())
-            1
+        >>> call.unphased_diploid_gt_index().value
+        1
 
         Returns
         -------
@@ -2527,10 +2437,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.contig)
-            '1'
+        >>> locus.contig.value
+        '1'
 
         Returns
         -------
@@ -2545,10 +2454,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.position)
-            1034245
+        >>> locus.position.value
+        1034245
 
         Returns
         -------
@@ -2563,10 +2471,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_x_nonpar())
-            False
+        >>> locus.in_x_nonpar().value
+        False
 
         Returns
         -------
@@ -2580,10 +2487,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_x_par())
-            False
+        >>> locus.in_x_par().value
+        False
 
         Returns
         -------
@@ -2597,10 +2503,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_y_nonpar())
-            False
+        >>> locus.in_y_nonpar().value
+        False
 
         Note
         ----
@@ -2620,10 +2525,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_y_par())
-            False
+        >>> locus.in_y_par().value
+        False
 
         Note
         ----
@@ -2647,10 +2551,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_autosome())
-            True
+        >>> locus.in_autosome().value
+        True
 
         Returns
         -------
@@ -2664,10 +2567,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_autosome_or_par())
-            True
+        >>> locus.in_autosome_or_par().value
+        True
 
         Returns
         -------
@@ -2680,10 +2582,9 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(locus.in_mito())
-            True
+        >>> locus.in_mito().value
+        True
 
         Returns
         -------
@@ -2700,19 +2601,13 @@ class LocusExpression(Expression):
 
         Get the reference allele at a locus:
 
-        .. doctest::
-            :options: +SKIP
-
-            >>> locus.sequence_context().value # doctest: +SKIP
-            "G"
+        >>> locus.sequence_context().value # doctest: +SKIP
+        "G"
 
         Get the reference sequence at a locus including the previous 5 bases:
 
-        .. doctest::
-            :options: +SKIP
-
-            >>> locus.sequence_context(before=5).value # doctest: +SKIP
-            "ACTCGG"
+        >>> locus.sequence_context(before=5).value # doctest: +SKIP
+        "ACTCGG"
 
         Notes
         -----
@@ -2753,13 +2648,12 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.contains(3))
-            True
+        >>> interval.contains(3).value
+        True
 
-            >>> hl.eval_expr(interval.contains(11))
-            False
+        >>> interval.contains(11).value
+        False
 
         Parameters
         ----------
@@ -2781,13 +2675,12 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.overlaps(hl.interval(5, 9)))
-            True
+        >>> interval.overlaps(hl.interval(5, 9)).value
+        True
 
-            >>> hl.eval_expr(interval.overlaps(hl.interval(11, 20)))
-            False
+        >>> interval.overlaps(hl.interval(11, 20)).value
+        False
 
         Parameters
         ----------
@@ -2808,10 +2701,9 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.end)
-            11
+        >>> interval.end.value
+        11
 
         Returns
         -------
@@ -2825,10 +2717,9 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.start)
-            3
+        >>> interval.start.value
+        3
 
         Returns
         -------
@@ -2842,10 +2733,9 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.includes_start)
-            True
+        >>> interval.includes_start.value
+        True
 
         Returns
         -------
@@ -2859,10 +2749,9 @@ class IntervalExpression(Expression):
 
         Examples
         --------
-        .. doctest::
 
-            >>> hl.eval_expr(interval.includes_end)
-            False
+        >>> interval.includes_end.value
+        False
 
         Returns
         -------

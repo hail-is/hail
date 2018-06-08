@@ -40,8 +40,8 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
-    case ArraySort(a) =>
-      Array(a)
+    case ArraySort(a, ascending) =>
+      Array(a, ascending)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -84,6 +84,10 @@ object Children {
       types.toIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
+    case StringSlice(s, start, n) =>
+      Array(s, start, n)
+    case StringLength(s) =>
+      Array(s)
     case In(i, typ) =>
       none
     case Die(message, typ) =>

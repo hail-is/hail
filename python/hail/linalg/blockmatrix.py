@@ -48,8 +48,6 @@ class BlockMatrix(object):
 
     .. include:: ../_templates/experimental.rst
 
-    Notes
-    -----
     A block matrix is a distributed analogue of a two-dimensional
     `NumPy ndarray
     <https://docs.scipy.org/doc/numpy/reference/arrays.ndarray.html>`__ with
@@ -172,9 +170,14 @@ class BlockMatrix(object):
 
     - :meth:`abs` and :meth:`sqrt` preserve the realized blocks.
 
+    - :meth:`sum` along an axis realizes those blocks for which at least one
+      block summand is realized.
+
     These following methods always result in a block-dense matrix:
 
-    - Addition and subtraction of a scalar or broadcasted vector.
+    - :meth:`fill`
+
+    - Addition or subtraction of a scalar or broadcasted vector.
 
     - Matrix multiplication, ``@``.
 
@@ -184,7 +187,7 @@ class BlockMatrix(object):
     The following methods fail if any operand is block-sparse, but can be forced
     by first applying :meth:`densify`.
 
-    - Division between two block matrices.
+    - Element-wise division between two block matrices.
 
     - Multiplication by a scalar or broadcasted vector which includes an
       infinite or ``nan`` value.
@@ -194,7 +197,7 @@ class BlockMatrix(object):
 
     - Division of a scalar or broadcasted vector by a block matrix.
 
-    - Exponentiation by a negative exponent.
+    - Element-wise exponentiation by a negative exponent.
 
     - Natural logarithm, :meth:`log`.
     """
@@ -343,7 +346,16 @@ class BlockMatrix(object):
 
         Notes
         -----
-        If any values are missing, an error message is returned.
+        Do not use this method if you want to store a copy of the resulting
+        block matrix. Instead, use :meth:`write_from_entry_expr` followed by
+        :meth:`BlockMatrix.read`.
+
+        If a pipelined transformation significantly downsamples the rows of the
+        underlying matrix table, then repartitioning the matrix table ahead of
+        this method will greatly improve its performance.
+
+        The method will fail if any values are missing. To be clear, special
+        float values like ``NaN`` are not missing values.
 
         Parameters
         ----------
@@ -397,6 +409,39 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
         return cls(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
+
+    @classmethod
+    @typecheck_method(n_rows=int,
+                      n_cols=int,
+                      value=float,
+                      block_size=nullable(int))
+    def fill(cls, n_rows, n_cols, value, block_size=None):
+        """Creates a block matrix with all elements the same value.
+
+        Examples
+        --------
+        Create a block matrix with 10 rows, 20 columns, and all elements equal to ``1.0``:
+
+        >>> bm = BlockMatrix.fill(10, 20, 1.0)
+
+        Parameters
+        ----------
+        n_rows: :obj:`int`
+            Number of rows.
+        n_cols: :obj:`int`
+            Number of columns.
+        value: :obj:`float`
+            Value of all elements.
+        block_size: :obj:`int`, optional
+            Block size. Default given by :meth:`default_block_size`.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        if not block_size:
+            block_size = BlockMatrix.default_block_size()
+        return cls(Env.hail().linalg.BlockMatrix.fill(Env.hc()._jhc, n_rows, n_cols, value, block_size))
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -499,9 +544,14 @@ class BlockMatrix(object):
 
         Notes
         -----
-        If any values are missing, an error message is returned.
-
         The resulting file can be loaded with :meth:`BlockMatrix.read`.
+
+        If a pipelined transformation significantly downsamples the rows of the
+        underlying matrix table, then repartitioning the matrix table ahead of
+        this method will greatly improve its performance.
+
+        The method will fail if any values are missing. To be clear, special
+        float values like ``NaN`` are not missing values.
 
         Parameters
         ----------
@@ -968,7 +1018,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return self._jbm.gp().maybeSparse().isDefined()
+        return self._jbm.gp().maybeBlocks().isDefined()
 
     @property
     def T(self):
@@ -1310,13 +1360,57 @@ class BlockMatrix(object):
         """
         return _ndarray_from_jarray(self._jbm.diagonal())
 
-    def entries(self):
-        """Returns a table with the coordinates and numeric value of each block matrix entry.
+    @typecheck_method(axis=nullable(int))
+    def sum(self, axis=None):
+        """Sums array elements over one or both axes.
 
         Examples
         --------
         >>> import numpy as np
-        >>> block_matrix = BlockMatrix.from_numpy(np.matrix([[5, 7], [2, 8]]), 2)
+        >>> nd = np.array([[ 1.0,  2.0,  3.0],
+        ...                [ 4.0,  5.0,  6.0]])
+        >>> bm = BlockMatrix.from_numpy(nd)
+        >>> bm.sum()
+        21.0
+
+        >>> bm.sum(axis=0).to_numpy()
+        array([[5., 7., 9.]])
+
+        >>> bm.sum(axis=1).to_numpy()
+        array([[ 6.],
+               [15.]])
+
+        Parameters
+        ----------
+        axis: :obj:`int`, optional
+            Axis over which to sum.
+            By default, sum all elements.
+            If ``0``, sum over rows.
+            If ``1``, sum over columns.
+
+        Returns
+        -------
+        :obj:`float` or :class:`BlockMatrix`
+            If None, returns a float.
+            If ``0``, returns a block matrix with a single row.
+            If ``1``, returns a block matrix with a single column.
+        """
+        if axis is None:
+            return self._jbm.sum()
+        elif axis == 0:
+            return BlockMatrix(self._jbm.rowSum())
+        elif axis == 1:
+            return BlockMatrix(self._jbm.colSum())
+        else:
+            raise ValueError(f'axis must be None, 0, or 1: found {axis}')
+
+    def entries(self):
+        """Returns a table with the indices and value of each block matrix entry.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> block_matrix = BlockMatrix.from_numpy(np.array([[5, 7], [2, 8]]), 2)
         >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
         +-------+-------+-------------+
@@ -1330,10 +1424,21 @@ class BlockMatrix(object):
         |     1 |     1 | 8.00000e+00 |
         +-------+-------+-------------+
 
-        Warning
-        -------
+        Notes
+        -----
         The resulting table may be filtered, aggregated, and queried, but should only be
         directly exported to disk if the block matrix is very small.
+
+        For block-sparse matrices, only realized blocks are included. To force inclusion
+        of zeroes in dropped blocks, apply :meth:`densify` first.
+
+        The resulting table has the following fields:
+
+        - **i** (:py:data:`.tint64`, key field) -- Row index.
+
+        - **j** (:py:data:`.tint64`, key field) -- Column index.
+
+        - **entry** (:py:data:`.tfloat64`) -- Value of entry.
 
         Returns
         -------

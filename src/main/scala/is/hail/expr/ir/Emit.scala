@@ -55,66 +55,101 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
     copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F => arrayEmitter(contMap(cont, _, _)) })
 }
 
-private class Emit(
-  mb: EmitMethodBuilder,
-  nSpecialArguments: Int) {
+abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
+  type MB <: MethodBuilder
 
+  def mb: MB
+
+  def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): M
+}
+
+abstract class EstimableEmitter[M <: MethodBuilderLike[M]] {
+  def emit(mb: M): Code[Unit]
+
+  def estimatedSize: Int
+}
+
+object EmitUtils {
   private val maxBytecodeSizeTarget: Int = 4096
-  private val opSize: Int = 20
 
   def getChunkBounds(sizes: Seq[Int]): Array[Int] = {
-    var total = 0
     val ab = new ArrayBuilder[Int]()
     ab += 0
-    sizes.zipWithIndex.foreach { case (size, i) =>
-      if (total == 0 || total + size <= maxBytecodeSizeTarget)
+    var total = sizes.head
+    sizes.zipWithIndex.tail.foreach { case (size, i) =>
+      if (total + size <= maxBytecodeSizeTarget)
         total += size
       else {
         ab += i
-        total = 0
+        total = size
       }
     }
     ab += sizes.size
     ab.result()
   }
 
+  def wrapToMethod[T, M <: MethodBuilderLike[M]](items: Seq[EstimableEmitter[M]], mbLike: M): Code[Unit] = {
+    if (items.isEmpty)
+      return Code._empty
+
+    val sizes = items.map(_.estimatedSize)
+    if (sizes.sum < 100)
+      return coerce[Unit](Code(items.map(_.emit(mbLike)): _*))
+
+    val chunkBounds = getChunkBounds(sizes)
+    assert(chunkBounds(0) == 0 && chunkBounds.last == sizes.length)
+
+    val chunks = chunkBounds.zip(chunkBounds.tail).map { case (start, end) =>
+      assert(start < end)
+      val newMBLike = mbLike.newMethod(mbLike.mb.parameterTypeInfo, typeInfo[Unit])
+      val c = items.slice(start, end)
+      newMBLike.mb.emit(Code(c.map(_.emit(newMBLike)): _*))
+      new EstimableEmitter[M] {
+        def emit(mbLike: M): Code[Unit] = {
+          val args = mbLike.mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mbLike.mb.getArg(i + 1)(ti).load() }
+          coerce[Unit](newMBLike.mb.invoke(args: _*))
+        }
+
+        def estimatedSize: Int = 5
+      }
+    }
+    wrapToMethod(chunks, mbLike)
+  }
+}
+
+private class Emit(
+  val mb: EmitMethodBuilder,
+  val nSpecialArguments: Int) {
+
   val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.E
   import Emit.F
 
+  class EmitMethodBuilderLike(val emit: Emit) extends MethodBuilderLike[EmitMethodBuilderLike] {
+    type MB = EmitMethodBuilder
+
+    def mb: MB = emit.mb
+
+    def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilderLike = {
+      val newMB = emit.mb.fb.newMethod(paramInfo, returnInfo)
+      val newEmitter = new Emit(newMB, emit.nSpecialArguments)
+      new EmitMethodBuilderLike(newEmitter)
+    }
+  }
+
   private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
-    def wrapCodeChunks(items: Seq[_], isIR: Boolean = false): Code[Unit] = {
-      val sizes: Seq[Int] = if (isIR) irs.map(_.size * opSize) else Array.fill(items.size)(5)
-      val chunkBounds = getChunkBounds(sizes)
-      chunkBounds match {
-        case Array(start, end) =>
-          if (isIR) {
-            val c = for (ir: IR <- items.asInstanceOf[Seq[IR]]) yield
-              useValues(mb, ir.typ, emit(ir, env))
-            coerce[Unit](Code(c: _*))
-          } else
-            coerce[Unit](Code(items.asInstanceOf[Seq[Code[Unit]]]: _*))
-        case _ =>
-          val chunks = chunkBounds.zip(chunkBounds.tail).map { case (start, end) =>
-            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
-            val c = {
-              if (isIR) {
-                val emitWrapper = new Emit(newMB, nSpecialArguments)
-                for (ir: IR <- items.asInstanceOf[Seq[IR]].slice(start, end)) yield
-                  useValues(newMB, ir.typ, emitWrapper.emit(ir, env))
-              } else
-                items.asInstanceOf[Seq[Code[Unit]]].slice(start, end)
-            }
-            newMB.emit(Code(c: _*))
-            val args = mb.parameterTypeInfo.zipWithIndex.map { case (ti, i) => mb.getArg(i + 1)(ti).load() }
-            coerce[Unit](newMB.invoke(args: _*))
-          }
-          wrapCodeChunks(chunks)
+    val opSize: Int = 20
+    val items = irs.map { ir =>
+      new EstimableEmitter[EmitMethodBuilderLike] {
+        def estimatedSize: Int = ir.size * opSize
+
+        def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
+          useValues(mbLike.mb, ir.typ, mbLike.emit.emit(ir, env))
       }
     }
 
-    wrapCodeChunks(irs, true)
+    EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this))
   }
 
   /**
@@ -317,36 +352,51 @@ private class Emit(
 
         EmitTriplet(setup, xmv, Code(
           len := tarray.loadLength(region, xa),
-          (xi < len).mux(
+          (xi < len && xi >= 0).mux(
             region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
             Code._fatal(
               const("array index out of bounds: ")
-                .invoke[String, String]("concat", xi.load().toS)
-                .invoke[String, String]("concat", " / ")
-                .invoke[String, String]("concat", len.load().toS)
+                .concat(xi.load().toS)
+                .concat(" / ")
+                .concat(len.load().toS)
+                .concat(". IR: ")
+                .concat(Pretty(x))
             ))))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
-      case _: ArraySort | _: ToSet | _: ToDict =>
-        val a = ir.children(0).asInstanceOf[IR]
+      case x@(_: ArraySort | _: ToSet | _: ToDict) =>
+        val (a, ascending: IR, keyOnly) = x match {
+          case ArraySort(a, ascending) => (a, ascending, false)
+          case ToSet(a) => (a, True(), false)
+          case ToDict(a) => (a, True(), true)
+        }
         val atyp = coerce[TContainer](ir.typ)
+
+        val xAsc = mb.newLocal[Boolean]()
+        val codeAsc = emit(ascending)
 
         val aout = emitArrayIterator(a)
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val sorter = new ArraySorter(mb, vab, keyOnly = ir.isInstanceOf[ToDict])
+        val sorter = new ArraySorter(mb, vab, keyOnly = keyOnly)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           m.mux(vab.addMissing(), vab.add(v))
         }
 
         val processArrayElts = aout.arrayEmitter(cont)
-        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-          vab.clear,
-          aout.calcLength,
-          processArrayElts.addElements,
-          sorter.sortIntoRegion(distinct = !ir.isInstanceOf[ArraySort])))
+        EmitTriplet(
+          Code(
+            processArrayElts.setup,
+            codeAsc.setup,
+            xAsc := coerce[Boolean](codeAsc.m.mux(true, codeAsc.v))),
+          processArrayElts.m.getOrElse(const(false)),
+          Code(
+            vab.clear,
+            aout.calcLength,
+            processArrayElts.addElements,
+            sorter.sortIntoRegion(ascending = xAsc, distinct = !ir.isInstanceOf[ArraySort])))
 
       case ToArray(a) =>
         emit(a)
@@ -714,6 +764,50 @@ private class Emit(
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, idx),
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
+
+      case StringSlice(s, start, end) =>
+        val t = coerce[TString](s.typ)
+        val cs = emit(s)
+        val cstart = emit(start)
+        val cend = emit(end)
+        val vs = mb.newLocal[Long]()
+        val vstart = mb.newLocal[Int]()
+        val vend = mb.newLocal[Int]()
+        val vlen = mb.newLocal[Int]()
+        val vnewLen = mb.newLocal[Int]()
+        val checks = Code(
+          vs := coerce[Long](cs.v),
+          vstart := coerce[Int](cstart.v),
+          vend := coerce[Int](cend.v),
+          vlen := TString.loadLength(region, vs),
+          ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
+            Code._fatal(
+              const("string slice out of bounds or invalid: \"")
+                .concat(TString.loadString(region, vs))
+                .concat("\"[")
+                .concat(vstart.toS)
+                .concat(":")
+                .concat(vend.toS)
+                .concat("]")
+            ),
+            Code._empty)
+        )
+        val sliced = Code(
+          vnewLen := (vend - vstart),
+          // if vstart = vlen = vend, then we want an empty string, but memcpy
+          // with a pointer one past the end of the allocated region is probably
+          // not safe, so for *all* empty slices, we just inline the code to
+          // stick the length (the contents is size zero so we needn't allocate
+          // for it or really do anything)
+          vnewLen.ceq(0).mux(
+            region.appendInt(0),
+            region.appendStringSlice(region, vs, vstart, vnewLen)))
+        strict(Code(checks, sliced), cs, cstart, cend)
+
+      case StringLength(s) =>
+        val t = coerce[TString](s.typ)
+        val cs = emit(s)
+        strict(TString.loadLength(region, coerce[Long](cs.v)), cs)
 
       case In(i, typ) =>
         EmitTriplet(Code._empty,

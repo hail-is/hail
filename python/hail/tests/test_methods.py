@@ -707,6 +707,64 @@ class Tests(unittest.TestCase):
         dataset = self.get_dataset()
         dataset = hl.sample_qc(dataset)
 
+    def test_variant_qc(self):
+        data = [
+            {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
+            {'v': '1:1:A:T', 's': '2', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
+            {'v': '1:1:A:T', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 11, 'DP': 100},
+            {'v': '1:1:A:T', 's': '4', 'GT': None, 'GQ': None, 'DP': 100},
+            {'v': '1:2:A:T,C', 's': '1', 'GT': hl.Call([1, 2]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '2', 'GT': hl.Call([2, 2]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 10, 'DP': 5},
+            {'v': '1:2:A:T,C', 's': '4', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
+        ]
+
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
+        ht = ht.transmute(**hl.parse_variant(ht.v))
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = hl.variant_qc(mt, 'vqc')
+        r = mt.rows().collect()
+
+        self.assertEqual(r[0].vqc.AF, [0.5, 0.5])
+        self.assertEqual(r[0].vqc.AC, [3, 3])
+        self.assertEqual(r[0].vqc.AN, 6)
+        self.assertEqual(r[0].vqc.homozygote_count, [1, 1])
+        self.assertEqual(r[0].vqc.n_called, 3)
+        self.assertEqual(r[0].vqc.n_not_called, 1)
+        self.assertEqual(r[0].vqc.call_rate, 0.75)
+        self.assertEqual(r[0].vqc.n_het, 1)
+        self.assertEqual(r[0].vqc.n_non_ref, 2)
+        self.assertEqual(r[0].vqc.r_expected_het_freq, 0.6)
+        self.assertEqual(r[0].vqc.p_hwe, 0.7)
+        self.assertEqual(r[0].vqc.dp_stats.min, 0)
+        self.assertEqual(r[0].vqc.dp_stats.max, 100)
+        self.assertEqual(r[0].vqc.dp_stats.mean, 51.25)
+        self.assertAlmostEqual(r[0].vqc.dp_stats.stdev, 48.782040752719645)
+        self.assertEqual(r[0].vqc.gq_stats.min, 10)
+        self.assertEqual(r[0].vqc.gq_stats.max, 11)
+        self.assertAlmostEqual(r[0].vqc.gq_stats.mean, 10.333333333333334)
+        self.assertAlmostEqual(r[0].vqc.gq_stats.stdev, 0.47140452079103168)
+
+        self.assertEqual(r[1].vqc.AF, [0.125, 0.5, 0.375])
+        self.assertEqual(r[1].vqc.AC, [1, 4, 3])
+        self.assertEqual(r[1].vqc.AN, 8)
+        self.assertEqual(r[1].vqc.homozygote_count, [0, 1, 1])
+        self.assertEqual(r[1].vqc.n_called, 4)
+        self.assertEqual(r[1].vqc.n_not_called, 0)
+        self.assertEqual(r[1].vqc.call_rate, 1.0)
+        self.assertEqual(r[1].vqc.n_het, 2)
+        self.assertEqual(r[1].vqc.n_non_ref, 4)
+        self.assertEqual(r[1].vqc.p_hwe, None)
+        self.assertEqual(r[1].vqc.r_expected_het_freq, None)
+        self.assertEqual(r[1].vqc.dp_stats.min, 5)
+        self.assertEqual(r[1].vqc.dp_stats.max, 5)
+        self.assertEqual(r[1].vqc.dp_stats.mean, 5)
+        self.assertEqual(r[1].vqc.dp_stats.stdev, 0.0)
+        self.assertEqual(r[1].vqc.gq_stats.min, 10)
+        self.assertEqual(r[1].vqc.gq_stats.max, 10)
+        self.assertEqual(r[1].vqc.gq_stats.mean, 10)
+        self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
+
     def test_grm(self):
         tolerance = 0.001
 
@@ -1026,11 +1084,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
-
-        ds = self.get_dataset()
-        ds = ds.annotate_entries(X=ds.GT)
-        with self.assertRaises(utils.FatalError):
-            hl.split_multi_hts(ds)
 
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
@@ -1565,38 +1618,51 @@ class Tests(unittest.TestCase):
         window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
         identical_filter = entries.i != entries.j
 
-        assert (entries.filter(
-            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count() == 0)
+        self.assertEqual(entries.filter(
+            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count(), 0)
 
     def test_ld_prune_inputs(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000, memory_per_core=0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds.GT, r2=1, bp_window_size=0)
-        expected_ds = ds.filter_rows(
-            agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size() > 1, keep=True)
-        assert (pruned_table.count() == expected_ds.count_rows())
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=100)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=0)
+        expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
+        self.assertEqual(pruned_table.count(), expected_count)
 
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
+
+    def test_ld_prune_maf(self):
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
+
+        ht = ds.select_rows(p=hl.agg.sum(ds.GT.n_alt_alleles()) / (2 * 50)).rows()
+        ht = ht.select(maf=hl.cond(ht.p <= 0.5, ht.p, 1.0 - ht.p)).cache()
+
+        pruned_table = hl.ld_prune(ds.GT, 0.0)
+        positions = pruned_table.locus.position.collect()
+        self.assertEqual(len(positions), 1)
+        kept_position = hl.literal(positions[0])
+        kept_maf = ht.filter(ht.locus.position == kept_position).maf.collect()[0]
+
+        self.assertEqual(kept_maf, max(ht.maf.collect()))
 
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
-        assert (pruned_table.count() == 1)
+        self.assertEqual(pruned_table.count(), 1)
 
-    def test_entries_table(self):
+    def test_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
         schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
         table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
         table = table.annotate(i=hl.int64(table.i),
-                               j=hl.int64(table.j))
+                               j=hl.int64(table.j)).key_by('i', 'j')
 
         ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
@@ -1895,8 +1961,8 @@ class Tests(unittest.TestCase):
                               (j.a1_alleles[1] == j.a2_alleles[0]) &
                               (j.a1_vqc.n_not_called == j.a2_vqc.n_not_called) &
                               (j.a1_vqc.n_het == j.a2_vqc.n_het) &
-                              (j.a1_vqc.n_hom_ref == j.a2_vqc.n_hom_var) &
-                              (j.a1_vqc.n_hom_var == j.a2_vqc.n_hom_ref)))
+                              (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
+                              (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
 
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
@@ -1994,4 +2060,3 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
-

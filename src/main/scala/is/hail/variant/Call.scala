@@ -46,9 +46,9 @@ object Call2 {
 }
 
 object CallN {
-  def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toArray, phased)
+  def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toFastIndexedSeq, phased)
 
-  def apply(alleles: Array[Int], phased: Boolean = false): Call = {
+  def apply(alleles: IndexedSeq[Int], phased: Boolean = false): Call = {
     val ploidy = alleles.length
     (ploidy: @switch) match {
       case 0 => Call0(phased)
@@ -125,14 +125,17 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 => throw new UnsupportedOperationException
       case 1 =>
-        require(i == 0)
+        if (i != 0)
+          fatal(s"Index out of bounds for call with ploidy=1: $i")
         alleleRepr(c)
       case 2 =>
-        require (i == 0 || i == 1)
+        if (i != 0 && i != 1)
+          fatal(s"Index out of bounds for call with ploidy=2: $i")
         val p = allelePair(c)
         if (i == 0) p.j else p.k
       case _ =>
-        require(i >= 0 && i < ploidy(c))
+        if (i < 0 || i >= ploidy(c))
+          fatal(s"Index out of bounds for call with ploidy=${ ploidy(c) }: $i")
         alleles(c)(i)
     }
   }
