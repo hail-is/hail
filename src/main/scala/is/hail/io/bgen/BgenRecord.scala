@@ -56,6 +56,8 @@ class BgenRecordV12(
   private[this] var expectedNumAlleles: Int = _
   var dataSize: Int = _
   private[this] val inf = new Inflater()
+  private[this] var compressed = new Array[Byte](0)
+  private[this] var decompressed = new Array[Byte](0)
 
   def setExpectedDataSize(size: Int) {
     this.expectedDataSize = size
@@ -86,9 +88,11 @@ class BgenRecordV12(
       bfis.fis.skipBytes(dataSize)
     } else {
       val bytes = if (isCompressed) {
-        val compressed = new Array[Byte](dataSize)
-        bfis.fis.readFully(compressed)
-        val decompressed = new Array[Byte](expectedDataSize)
+        if (dataSize > compressed.length)
+          compressed = new Array[Byte](dataSize)
+        if (expectedDataSize > decompressed.length)
+          decompressed = new Array[Byte](expectedDataSize)
+        bfis.fis.readFully(compressed, 0, dataSize)
         inf.reset()
         inf.setInput(compressed)
         val decsize = inf.inflate(decompressed)
@@ -96,9 +100,9 @@ class BgenRecordV12(
           assert(false, s"$decsize, $expectedDataSize, ${inf.needsInput()} ${inf.needsDictionary()}")
         decompressed
       } else {
-        val decompressed = new Array[Byte](dataSize)
-        bfis.fis.readFully(decompressed)
-        decompressed
+        // no compression, so compressed buffer is of correct size
+        bfis.fis.readFully(compressed)
+        compressed
       }
 
       val reader = new ByteArrayReader(bytes)
