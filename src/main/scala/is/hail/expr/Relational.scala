@@ -2065,6 +2065,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
         rv
       }
     }
+    println(s"TableJoin: ${leftTV.rvd} ${rightTV.rvd} ${leftTV.rvd.crdd.rdd.toDebugString} ${rightTV.rvd.crdd.rdd.toDebugString}")
     val leftORVD = leftTV.rvd match {
       case ordered: OrderedRVD => ordered
       case unordered =>

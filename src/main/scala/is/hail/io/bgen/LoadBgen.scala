@@ -63,8 +63,6 @@ object LoadBgen {
     val results = files.map { file =>
       val bState = readState(sc.hadoopConfiguration, file)
 
-      hadoop.setInt("nVariants", bState.nVariants)
-
       bState.version match {
         case 2 =>
           BgenResult(file, bState.nSamples, bState.nVariants,
@@ -129,6 +127,7 @@ object LoadBgen {
         val (contig, pos, alleles) = record.getKey
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
+        // gotta call getValue to advance the stream, use null to do no work
         record.getValue(null)
 
         if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
@@ -187,14 +186,7 @@ object LoadBgen {
             rvb.addAnnotation(rowType.types(2), va.get(0))
           if (includeLid)
             rvb.addAnnotation(rowType.types(3), va.get(1))
-          // if (loadEntries)
           record.getValue(rvb) // gs
-          // else {
-          //   rvb.startArray(nSamples)
-          //   assert(rvb.currentType().asInstanceOf[TStruct].byteSize == 0)
-          //   rvb.unsafeAdvance(nSamples)
-          //   rvb.endArray()
-          // }
           rvb.endStruct()
 
           rv.setOffset(rvb.end())

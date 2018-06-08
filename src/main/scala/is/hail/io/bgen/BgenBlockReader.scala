@@ -16,7 +16,6 @@ abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileS
   val includeGT = job.get("includeGT").toBoolean
   val includeGP = job.get("includeGP").toBoolean
   val includeDosage = job.get("includeDosage").toBoolean
-  val nVariants = job.get("nVariants").toInt
   val includeLid = job.get("includeLid").toBoolean
   val includeRsid = job.get("includeRsid").toBoolean
 
