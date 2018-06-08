@@ -13,6 +13,7 @@ import org.json4s.jackson.JsonMethods
 import java.io.{Closeable, InputStream, OutputStream, PrintWriter}
 
 import is.hail.asm4s._
+import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.spark.{ExposedMetrics, TaskContext}
 
@@ -574,7 +575,26 @@ trait Decoder extends Closeable {
   def readByte(): Byte
 }
 
+class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[MethodBuilderSelfLike] {
+  type MB = MethodBuilder
+
+  def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilderSelfLike =
+    new MethodBuilderSelfLike(mb.fb.newMethod(paramInfo, returnInfo))
+}
+
 object EmitPackDecoder {
+  self =>
+
+  type Emitter = EstimableEmitter[MethodBuilderSelfLike]
+
+  def emitTypeSize(t: Type): Int = {
+    t match {
+      case t: TArray => 120 + emitTypeSize(t.elementType)
+      case t: TStruct => 100
+      case _ => 20
+    }
+  }
+
   def emitBinary(
     t: TBinary,
     mb: MethodBuilder,
@@ -597,16 +617,14 @@ object EmitPackDecoder {
     srvb: StagedRegionValueBuilder): Code[Unit] = {
     val region = srvb.region
 
-    val off = mb.newLocal[Long]
-    val moff = mb.newLocal[Long]
+    val moff = mb.newField[Long]
 
     val initCode = Code(
       srvb.start(init = true),
-      off := srvb.offset,
       moff := region.allocate(const(1), const(t.nMissingBytes)),
       in.readBytes(region, moff, t.nMissingBytes))
 
-    val fieldCode = new Array[Code[Unit]](t.size)
+    val fieldEmitters = new Array[Emitter](t.size)
 
     assert(t.isInstanceOf[TTuple] || t.isInstanceOf[TStruct])
 
@@ -614,37 +632,52 @@ object EmitPackDecoder {
     var j = 0
     while (i < t.size) {
       val f = t.fields(i)
-      fieldCode(i) =
+      fieldEmitters(i) =
         if (t.isInstanceOf[TTuple] ||
           (j < requestedType.size && requestedType.fields(j).name == f.name)) {
           val rf = requestedType.fields(j)
           assert(f.typ.required == rf.typ.required)
           j += 1
-          val readElement = emit(f.typ, rf.typ, mb, in, srvb)
-          Code(
-            if (f.typ.required)
-              readElement
-            else {
-              region.loadBit(moff, const(t.missingIdx(i))).mux(
-                srvb.setMissing(),
-                readElement)
-            },
-            srvb.advance())
+
+          new Emitter {
+            def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
+              val readElement = self.emit(f.typ, rf.typ, mbLike.mb, in, srvb)
+              Code(
+                if (f.typ.required)
+                  readElement
+                else {
+                  region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+                    srvb.setMissing(),
+                    readElement)
+                },
+                srvb.advance())
+            }
+
+            def estimatedSize: Int = emitTypeSize(f.typ)
+          }
         } else {
-          val skipField = skip(f.typ, mb, in, region)
-          if (f.typ.required)
-            skipField
-          else {
-            region.loadBit(moff, const(t.missingIdx(i))).mux(
-              Code._empty,
-              skipField)
+          new Emitter {
+            def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
+              val skipField = skip(f.typ, mbLike.mb, in, region)
+              if (f.typ.required)
+                skipField
+              else {
+                region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+                  Code._empty,
+                  skipField)
+              }
+            }
+
+            def estimatedSize: Int = emitTypeSize(f.typ)
           }
         }
       i += 1
     }
     assert(j == requestedType.size)
 
-    Code(initCode, Code(fieldCode: _*), Code._empty)
+    Code(initCode,
+      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)),
+      Code._empty)
   }
 
   def emitArray(
@@ -683,20 +716,28 @@ object EmitPackDecoder {
   }
 
   def skipBaseStruct(t: TBaseStruct, mb: MethodBuilder, in: Code[InputBuffer], region: Code[Region]): Code[Unit] = {
-    val moff = mb.newLocal[Long]
+    val moff = mb.newField[Long]
+
+    val fieldEmitters = t.fields.map { f =>
+      new Emitter {
+        def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
+          val skipField = skip(f.typ, mbLike.mb, in, region)
+          if (f.typ.required)
+            skipField
+          else
+            region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+              Code._empty,
+              skipField)
+        }
+
+        def estimatedSize: Int = emitTypeSize(f.typ)
+      }
+    }
+
     Code(
       moff := region.allocate(const(1), const(t.nMissingBytes)),
       in.readBytes(region, moff, t.nMissingBytes),
-      Code(t.fields.map { f =>
-        val skipField = skip(f.typ, mb, in, region)
-        if (f.typ.required)
-          skipField
-        else
-          region.loadBit(moff, const(t.missingIdx(f.index))).mux(
-            Code._empty,
-            skipField)
-      }: _*),
-      Code._empty)
+      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)))
   }
 
   def skipArray(t: TArray,
@@ -717,8 +758,6 @@ object EmitPackDecoder {
     } else {
       val moff = mb.newLocal[Long]
       val nMissing = mb.newLocal[Int]
-      val m = mb.newLocal[Int]
-      val n = mb.newLocal[Int]
       Code(
         length := in.readInt(),
         nMissing := ((length + 7) >>> 3),
@@ -784,14 +823,14 @@ object EmitPackDecoder {
   def apply(t: Type, requestedType: Type): () => AsmFunction2[Region, InputBuffer, Long] = {
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
-    val region = fb.arg2
-    val srvb = new StagedRegionValueBuilder(fb, requestedType)
+    val in = mb.getArg[InputBuffer](2).load()
+    val srvb = new StagedRegionValueBuilder(mb, requestedType)
 
     var c = t.fundamentalType match {
       case t: TBaseStruct =>
-        emitBaseStruct(t, requestedType.fundamentalType.asInstanceOf[TBaseStruct], mb, region, srvb)
+        emitBaseStruct(t, requestedType.fundamentalType.asInstanceOf[TBaseStruct], mb, in, srvb)
       case t: TArray =>
-        emitArray(t, requestedType.fundamentalType.asInstanceOf[TArray], mb, region, srvb)
+        emitArray(t, requestedType.fundamentalType.asInstanceOf[TArray], mb, in, srvb)
     }
 
     mb.emit(Code(
