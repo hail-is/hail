@@ -401,6 +401,8 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
+  def zipWithIndex(name: String): RVD
+
   protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec
 
   final def write(path: String, codecSpec: CodecSpec): Array[Long] = {
