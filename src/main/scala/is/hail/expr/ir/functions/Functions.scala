@@ -87,6 +87,7 @@ object IRFunctionRegistry {
     CallFunctions,
     DictFunctions,
     GenotypeFunctions,
+    IntervalFunctions,
     LocusFunctions,
     MathFunctions,
     SetFunctions,
@@ -282,6 +283,12 @@ abstract class RegistryFunctions {
   def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
     registerCodeWithMissingness(mname, mt1, mt2, rt, isDeterministic = true)(impl)
 
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, isDeterministic: Boolean)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4), rt, isDeterministic) { case (mb, Array(a1, a2, a3, a4)) => impl(mb, a1, a2, a3, a4) }
+
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, mt1, mt2, mt3, mt4, rt, isDeterministic = true)(impl)
+
   def registerIR(mname: String)(f: () => IR): Unit =
     registerIR(mname, Array[Type]()) { case Seq() => f() }
 
@@ -339,7 +346,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
     unify(args)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType))
+    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
     methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
     methodbuilder
   }

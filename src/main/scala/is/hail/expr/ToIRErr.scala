@@ -17,6 +17,14 @@ object ToIRErr {
       case (f: ToIRFailure[_], _: ToIRSuccess[_]) => f.as[(T, U)]
       case (ToIRFailure(irs), ToIRFailure(moreIrs)) => fail(irs ++ moreIrs)
     }
+
+  def orElse[T](a: ToIRErr[T], b: ToIRErr[T]): ToIRErr[T] =
+    (a, b) match {
+      case (ToIRSuccess(t), _) => success(t)
+      case (ToIRFailure(_), ToIRSuccess(u)) => success(u)
+      case (ToIRFailure(t), ToIRFailure(u)) => fail(t ++ u)
+    }
+
   def success[T](t: T): ToIRErr[T] =
     ToIRSuccess(t)
   def fail[T](ir: AST): ToIRErr[T] =
