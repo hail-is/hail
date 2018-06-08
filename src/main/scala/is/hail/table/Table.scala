@@ -108,7 +108,7 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct
-  ): Table = apply(hc, rdd, signature, None, true)
+  ): Table = apply(hc, rdd, signature, None, sort = true)
 
   def apply(
     hc: HailContext,
@@ -122,7 +122,7 @@ object Table {
     rdd: RDD[Row],
     signature: TStruct,
     key: Option[IndexedSeq[String]]
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, true)
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, sort = true)
 
   def apply(
     hc: HailContext,
@@ -146,7 +146,7 @@ object Table {
     key,
     globalSignature,
     globals,
-    true)
+    sort = true)
 
   def apply(
     hc: HailContext,
@@ -787,48 +787,53 @@ class Table(val hc: HailContext, val tir: TableIR) {
       newRVD)
   }
 
-  def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {
-
+  def aggregateByKey(expr: String, oldAggExpr: String, nPartitions: Option[Int] = None): Table = {
     val ec = aggEvalContext()
-    val keyEC = rowEvalContext()
+    
+    log.info(expr)
+    val rowsAST = Parser.parseToAST(expr, ec)
 
-    val (keyPaths, keyTypes, keyF) = Parser.parseAnnotationExprs(keyCond, keyEC, None)
-
-    val (aggPaths, aggTypes, aggF) = Parser.parseAnnotationExprs(aggCond, ec, None)
-
-    val newKey = keyPaths.map(_.head)
-    val aggNames = aggPaths.map(_.head)
-
-    val keySignature = TStruct((newKey, keyTypes).zipped.toSeq: _*)
-    val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
-    val globalsBc = globals.broadcast
-
-    // FIXME: delete this when we understand what it's doing
-    ec.set(0, globals.safeValue)
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
-      case (ec_, r) =>
-        ec_.set(0, globalsBc.value)
-        ec_.set(1, r)
-    })
-
-    val newRDD = rdd.mapPartitions {
-      it =>
-        it.map {
-          r =>
-            keyEC.set(0, globalsBc.value)
-            keyEC.set(1, r)
-            val key = Row.fromSeq(keyF())
-            (key, r)
-        }
-    }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
-      .map {
-        case (k, agg) =>
-          ec.set(0, globalsBc.value)
-          resultOp(agg)
-          Row.fromSeq(k.toSeq ++ aggF())
-      }
-
-    copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = Some(newKey))
+    rowsAST.toIROpt(Some("AGG" -> "row")) match {
+      case Some(x) if useIR(rowsAST) =>
+        new Table(hc, TableAggregateByKey(tir, x))
+      case _ =>
+        log.warn(s"group_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
+        
+        val (aggPaths, aggTypes, aggF) = Parser.parseAnnotationExprs(oldAggExpr, ec, None)
+        
+        val aggNames = aggPaths.map(_.head)
+      
+        val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
+        val globalsBc = globals.broadcast
+      
+        // FIXME: delete this when we understand what it's doing
+        ec.set(0, globals.safeValue)
+        val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
+          case (ec_, r) =>
+            ec_.set(0, globalsBc.value)
+            ec_.set(1, r)
+        })
+      
+        assert(keyFieldIdx.isDefined)
+        val keyIndices = keyFieldIdx.get
+        
+        val newRDD = rdd.mapPartitions {
+          it =>
+            it.map {
+              r =>
+                val key = Row.fromSeq(keyIndices.map(r.get))
+                (key, r)
+            }
+        }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
+          .map {
+            case (k, agg) =>
+              ec.set(0, globalsBc.value)
+              resultOp(agg)
+              Row.fromSeq(k.toSeq ++ aggF())
+          }
+      
+        copy(rdd = newRDD, signature = keySignature.get.merge(aggSignature)._1)
+    }
   }
 
   def expandTypes(): Table = {

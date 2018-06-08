@@ -168,6 +168,9 @@ class GroupedTable(ExprContainer):
         :class:`.Table`
             Aggregated table.
         """
+        if self._groups is None:
+            raise ValueError("GroupedTable cannot be aggregated if no groupings are specified.")
+
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
@@ -177,9 +180,10 @@ class GroupedTable(ExprContainer):
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
         return cleanup(
-            Table(base._jt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
+            Table(base.key_by(**dict(self._groups))
+                      ._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
+                                          joption(self._npartitions))))
 
 
 class Table(ExprContainer):

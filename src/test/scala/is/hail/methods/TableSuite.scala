@@ -254,20 +254,20 @@ class TableSuite extends SparkSuite {
     assert(ktJoin.key.get sameElements Array("Sample"))
   }
 
-  @Test def testAggregate() {
+  @Test def testAggregateByKey() {
     val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("field1", TString()), ("field2", TInt32()), ("field3", TInt32()))
-    val keyNames = IndexedSeq("field1")
+    val signature = TStruct(("Status", TString()), ("field2", TInt32()), ("field3", TInt32()))
+    val keyNames = IndexedSeq("Status")
 
     val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
-    val kt2 = kt1.aggregate("Status = row.field1",
+    val kt2 = kt1.aggregateByKey(
       "A = AGG.map(r => r.field2).sum(), " +
-        "B = AGG.map(r => r.field2).sum(), " +
-        "C = AGG.map(r => r.field2 + r.field3).sum(), " +
-        "D = AGG.count(), " +
-        "E = AGG.filter(r => r.field2 == 3).count()"
+      "B = AGG.map(r => r.field2).sum(), " +
+      "C = AGG.map(r => r.field2 + r.field3).sum(), " +
+      "D = AGG.count(), " +
+      "E = AGG.filter(r => r.field2 == 3).count()"
     )
 
     kt2.export("test.tsv")
@@ -473,7 +473,7 @@ class TableSuite extends SparkSuite {
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
-    val gkt = kt.aggregate("idx = row.idx", "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
+    val gkt = kt.aggregateByKey("x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
     assert(kt.select("{baz: global.dict.get(row.idx)}", None, None).exists("row.baz == \"bar\""))
 
