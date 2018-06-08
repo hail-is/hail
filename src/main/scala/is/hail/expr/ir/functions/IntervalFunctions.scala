@@ -14,42 +14,43 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCode("Interval", Array(tv("T"), tv("T"), TBoolean(), TBoolean()), TInterval(tv("T")), isDet = true) {
       (mb, args) =>
-        val srvb = new StagedRegionValueBuilder(mb, TInterval(tv("T")))
+        val srvb = new StagedRegionValueBuilder(mb, TInterval(tv("T").t))
         Code(
           srvb.start(),
-          srvb.addIRIntermediate(tv("T"))(args(0)),
+          srvb.addIRIntermediate(tv("T").t)(args(0)),
           srvb.advance(),
-          srvb.addIRIntermediate(tv("T"))(args(1)),
+          srvb.addIRIntermediate(tv("T").t)(args(1)),
           srvb.advance(),
           srvb.addBoolean(args(2).asInstanceOf[Code[Boolean]]),
           srvb.advance(),
           srvb.addBoolean(args(3).asInstanceOf[Code[Boolean]]),
-          srvb.advance()
+          srvb.advance(),
+          srvb.offset
         )
     }
 
     registerCode("start", TInterval(tv("T")), tv("T")) {
       case (mb, interval: Code[Long]) =>
         val region = mb.getArg[Region](1).load()
-        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T")).startOffset(interval))
+        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T").t).startOffset(interval))
     }
 
     registerCode("end", TInterval(tv("T")), tv("T")) {
       case (mb, interval: Code[Long]) =>
         val region = mb.getArg[Region](1).load()
-        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T")).endOffset(interval))
+        region.loadIRIntermediate(tv("T").t)(TInterval(tv("T").t).endOffset(interval))
     }
 
     registerCode("includesStart", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
         val region = mb.getArg[Region](1).load()
-        TInterval(tv("T")).includeStart(region, interval)
+        TInterval(tv("T").t).includeStart(region, interval)
     }
 
     registerCode("includesEnd", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
         val region = mb.getArg[Region](1).load()
-        TInterval(tv("T")).includeEnd(region, interval)
+        TInterval(tv("T").t).includeEnd(region, interval)
     }
   }
 }

@@ -369,11 +369,20 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         }
   }
 
-  def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = for {
-    s <- lhs.toIR(agg)
-    t <- whenOfType[TStruct](lhs)
-    f <- fromOption(this, "$t must have field $rhs", t.selfField(rhs))
-  } yield ir.GetField(s, rhs)
+  def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] =
+    `type` match {
+      case _: TStruct =>
+        for {
+          s <- lhs.toIR(agg)
+          t <- whenOfType[TStruct](lhs)
+          f <- fromOption(this, s"$t must have field $rhs", t.selfField(rhs))
+        } yield ir.GetField(s, rhs)
+      case _ =>
+        for {
+          ir <- lhs.toIR(agg)
+          f <- fromOption(this, s"${ir.typ} has no method $rhs", IRFunctionRegistry.lookupConversion(rhs, Seq(ir.typ)))
+        } yield f(Seq(ir))
+    }
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
