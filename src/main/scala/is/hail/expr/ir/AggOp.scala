@@ -74,10 +74,10 @@ object AggOp {
     // case (Collect(), _: TFloat32) =>
     // case (Collect(), _: TFloat64) =>
     // case (Collect(), _: TArray) =>
-    case (Collect(), in@(_: TBaseStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBaseStructAggregator](in, TArray(in), constrArgTypes = Array())
+    case (Collect(), in@(_: TBaseStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBaseStructAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
 
     case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
-
+      
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
     case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
     case (Sum(), in@TArray(TInt64(_), _), Seq(), None, Seq()) =>
