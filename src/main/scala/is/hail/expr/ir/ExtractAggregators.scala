@@ -70,16 +70,21 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-      val constfb = EmitFunctionBuilder[Region, RegionValueAggregator]
-      val codeConstructorArgs = constructorArgs.map(Emit.toCode(_, constfb, 1))
-      constfb.emit(Code(
+    case x@ApplyAggOp(a, constructorArgs, _, aggSig) =>
+      val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
+      var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
+
+      aggSig match {
+        case AggSignature(Collect(), t: TBaseStruct, _, _) =>
+          codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+        case _ =>
+      }
+
+      fb.emit(Code(
         Code(codeConstructorArgs.map(_.setup): _*),
         AggOp.get(aggSig)
           .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
 
-      val rvagg = Region.scoped(constfb.result()()(_))
-      rvagg.setTypes(aggSig.inputType, AggOp.getType(aggSig))
-      rvagg
+      Region.scoped(fb.result()()(_))
   }
 }

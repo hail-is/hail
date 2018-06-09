@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.expr.types.TBaseStruct
+import is.hail.expr.types.{TBaseStruct, Type}
 import is.hail.utils._
 
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
@@ -64,15 +64,14 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
   }
 }
 
-class RegionValueCollectBaseStructAggregator() extends RegionValueAggregator {
+class RegionValueCollectBaseStructAggregator(t: Type) extends RegionValueAggregator {
   private val ab = new MissingBaseStructArrayBuilder()
-  private lazy val t = inputTyp.asInstanceOf[TBaseStruct]
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else
-      ab.add(SafeRow(t, region, offset))
+      ab.add(SafeRow(t.asInstanceOf[TBaseStruct], region, offset))
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -85,14 +84,10 @@ class RegionValueCollectBaseStructAggregator() extends RegionValueAggregator {
   }
 
   def result(rvb: RegionValueBuilder) {
-    ab.write(rvb, t)
+    ab.write(rvb, t.asInstanceOf[TBaseStruct])
   }
 
-  def copy(): RegionValueCollectBaseStructAggregator = {
-    val rvagg = new RegionValueCollectBaseStructAggregator()
-    rvagg.setTypes(inputTyp, resultTyp)
-    rvagg
-  }
+  def copy(): RegionValueCollectBaseStructAggregator = new RegionValueCollectBaseStructAggregator(t)
 
   def clear() {
     ab.clear()
