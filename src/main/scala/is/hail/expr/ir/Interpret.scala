@@ -165,7 +165,7 @@ object Interpret {
         val rValue = interpret(r, env, args, agg)
         if (op.strict && (lValue == null || rValue == null))
           null
-        else {
+        else
           op match {
             case EQ(_) | EQWithNA(_) => lValue == rValue
             case NEQ(_) | NEQWithNA(_) => lValue != rValue
@@ -174,7 +174,6 @@ object Interpret {
             case LTEQ(t) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t) => t.ordering.gteq(lValue, rValue)
           }
-        }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
       case ArrayRef(a, i) =>
@@ -233,13 +232,15 @@ object Interpret {
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
 
       case ToArray(c) =>
+        val ordering = coerce[TContainer](c.typ).elementType.ordering.toOrdering
         val cValue = interpret(c, env, args, agg)
         if (cValue == null)
           null
         else
           cValue match {
-            case s: Set[_] => s.toIndexedSeq
-            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
+            case s: Set[_] =>
+              s.toIndexedSeq.sorted(ordering)
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
             case a => a
           }
 

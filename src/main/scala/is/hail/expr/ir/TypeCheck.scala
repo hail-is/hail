@@ -102,7 +102,7 @@ object TypeCheck {
         check(orderedCollection)
         check(elem)
         assert(orderedCollection.typ.isInstanceOf[TContainer])
-        val elt = coerce[TContainer](orderedCollection.typ).elementType
+        val elt = -coerce[TContainer](orderedCollection.typ).elementType
         assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
       case x@ArrayMap(a, name, body) =>
         check(a)
