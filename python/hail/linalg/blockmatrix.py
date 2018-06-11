@@ -904,7 +904,7 @@ class BlockMatrix(object):
         starts: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
             Start indices for each row (inclusive).
         stops: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
-            Stop indices for each row (exclusive)
+            Stop indices for each row (exclusive).
         blocks_only: :obj:`bool`
             If ``False``, set all elements outside row intervals to zero.
             If ``True``, only set all blocks outside row intervals to blocks
@@ -915,12 +915,12 @@ class BlockMatrix(object):
             Sparse block matrix.
         """
         if isinstance(starts, np.ndarray):
-            if not (starts.dtype==np.int32 or starts.dtype==np.int64):
-                raise ValueError(f"sparsify_row_intervals: starts ndarray must have dtype int32 or int64")
+            if not (starts.dtype == np.int32 or starts.dtype == np.int64):
+                raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
             starts = [int(s) for s in starts]
         if isinstance(stops, np.ndarray):
-            if not (stops.dtype==np.int32 or stops.dtype==np.int64):
-                raise ValueError(f"sparsify_row_intervals: stops ndarray must have dtype int32 or int64")
+            if not (stops.dtype == np.int32 or stops.dtype == np.int64):
+                raise ValueError("sparsify_row_intervals: stops ndarray must have dtype 'int32' or 'int64'")
             stops = [int(s) for s in stops]
 
         n_rows = self.n_rows

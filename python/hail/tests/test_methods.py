@@ -1346,8 +1346,10 @@ class Tests(unittest.TestCase):
         )
 
     def test_ld_prune(self):
+        r2_threshold = 0.001
+        window_size = 5
         ds = hl.split_multi_hts(hl.import_vcf(resource('ldprune.vcf'), min_partitions=3))
-        pruned_table = hl.ld_prune(ds.GT, r2=0.001, bp_window_size=5)
+        pruned_table = hl.ld_prune(ds.GT, r2=r2_threshold, bp_window_size=window_size)
 
         filtered_ds = ds.filter_rows(hl.is_defined(pruned_table[ds.row_key]))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
@@ -1370,9 +1372,9 @@ class Tests(unittest.TestCase):
         entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
         bad_pair = (
-            (entries.entry >= 0.1) &
+            (entries.entry >= r2_threshold) &
             (entries.locus_i.contig == entries.locus_j.contig) &
-            (hl.abs(entries.locus_j.position - entries.locus_i.position) <= 5) &
+            (hl.abs(entries.locus_j.position - entries.locus_i.position) <= window_size) &
             (entries.i != entries.j)
         )
 

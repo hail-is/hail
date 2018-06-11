@@ -379,6 +379,7 @@ def array_windows(a, radius):
 
     Examples
     --------
+
     >>> hl.array_windows(np.array([1, 2, 4, 4, 6, 8]), 2)
     (array([0, 0, 1, 1, 2, 4]), array([2, 4, 5, 5, 6, 6]))
 
@@ -453,8 +454,9 @@ def locus_windows(locus_table, radius, value_expr=None):
     --------
     Windows with 2bp radius for one contig with positions 1, 2, 3, 4, 5:
 
-    >>> mt = hl.balding_nichols_model(n_populations=1, n_samples=5, n_variants=5)
-    >>> starts, stops = hl.locus_windows(mt.rows(), 2)
+    >>> starts, stops = hl.locus_windows(
+    ...     locus_table=hl.balding_nichols_model(1, 5, 5).rows(),
+    ...     radius=2)
     >>> starts, stops
     (array([0, 0, 0, 1, 2]), array([3, 4, 5, 5, 5]))
 
