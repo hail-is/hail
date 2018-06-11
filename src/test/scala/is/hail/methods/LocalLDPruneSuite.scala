@@ -384,4 +384,20 @@ class LocalLDPruneSuite extends SparkSuite {
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }
+  
+  @Test def testLocalLDPruneWithDifferentLocusAllelesIndexInSchema() {
+    val renameKeys = new java.util.HashMap[String, String](2)
+    renameKeys.put("locus2", "locus")
+    renameKeys.put("alleles2", "alleles")
+    
+    val emptyMap = new java.util.HashMap[String, String]()
+    
+    val vdsAlteredSchema = vds.annotateRowsExpr("locus2"->"{va.locus}", "alleles2"->"{va.alleles}")
+      .keyRowsBy(Array("locus2", "alleles2"), Array("locus2", "alleles2"))
+      .selectRows("{oldLocus: va.locus, oldAlleles: va.alleles, locus2: va.locus2, alleles2: va.alleles2}", None)
+      .renameFields(renameKeys,emptyMap, emptyMap, emptyMap)
+    
+    val locallyPrunedVariantsTable = LocalLDPrune(vdsAlteredSchema, maxQueueSize = maxQueueSize)
+    locallyPrunedVariantsTable.forceCount()
+  }
 }
