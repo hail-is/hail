@@ -1,11 +1,15 @@
 package is.hail.expr.ir
 
+import java.io.PrintWriter
+
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
 import is.hail.expr.types.Type
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
 import scala.collection.generic.Growable
@@ -36,6 +40,10 @@ object EmitFunctionBuilder {
 
   def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo]: EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
     new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
+}
+
+trait FunctionWithHadoopConfiguration {
+  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
 }
 
 class EmitMethodBuilder(
@@ -105,7 +113,7 @@ class EmitFunctionBuilder[F >: Null](
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup))
+    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup(this)))
 
   def numTypes: Int = typMap.size
 
@@ -113,6 +121,28 @@ class EmitFunctionBuilder[F >: Null](
     val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", const(rg.name))
     val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
+  }
+
+  private[this] var _hconf: SerializableHadoopConfiguration = _
+  private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+
+  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
+    assert(hConf != null)
+    if (_hconf == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
+      val confField = newField[SerializableHadoopConfiguration]
+      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+      methods.append(mb)
+      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
+      _hconf = hConf
+      _hfield = confField
+    }
+    assert(_hconf.value == hConf.value && _hfield != null)
+  }
+
+  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
+    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+    _hfield.load()
   }
 
   def getType(t: Type): Code[Type] = {
@@ -153,7 +183,6 @@ class EmitFunctionBuilder[F >: Null](
     })
     (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
   }
-
 
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -203,5 +232,44 @@ class EmitFunctionBuilder[F >: Null](
       this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
     children += df
     df
+  }
+
+  override def result(print: Option[PrintWriter] = None): () => F = {
+    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
+
+    val bytes = classAsBytes(print)
+    val n = name.replace("/",".")
+    val localHConf = _hconf
+
+    assert(TaskContext.get() == null,
+      "FunctionBuilder emission should happen on master, but happened on worker")
+
+    new (() => F) with java.io.Serializable {
+      @transient
+      @volatile private var f: F = null
+
+      def apply(): F = {
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
+                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
+                if (localHConf != null)
+                  f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+              }
+            }
+          }
+
+          f
+        } catch {
+          //  only triggers on classloader
+          case e@(_: Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
+      }
+    }
   }
 }

@@ -5,15 +5,17 @@ import java.io.FileNotFoundException
 import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.{TInterval, TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
-import is.hail.utils.{HailException, Interval}
+import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}
 import is.hail.testUtils._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+import org.apache.hadoop
 
 class ReferenceGenomeSuite extends SparkSuite {
   @Test def testGRCh37() {
@@ -302,12 +304,45 @@ class ReferenceGenomeSuite extends SparkSuite {
 
   @Test def testSerializeOnFB() {
     val grch38 = ReferenceGenome.GRCh38
-    val fb = FunctionBuilder.functionBuilder[String, Boolean]
+    val fb = EmitFunctionBuilder[String, Boolean]
 
-    val rgfield = fb.newLazyField(grch38.codeSetup)
+    val rgfield = fb.newLazyField(grch38.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
     val f = fb.result()()
     assert(f("X") == grch38.isValidContig("X"))
+  }
+
+  @Test def testSerializeWithFastaOnFB() {
+    val fastaFile = "src/test/resources/fake_reference.fasta"
+    val indexFile = "src/test/resources/fake_reference.fasta.fai"
+
+    val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    ReferenceGenome.addReference(rg)
+    rg.addSequence(hc, fastaFile, indexFile)
+
+    val fb = EmitFunctionBuilder[String, Int, Int, Int, String]
+
+    val rgfield = fb.newLazyField(rg.codeSetup(fb))
+    fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getArg[String](1), fb.getArg[Int](2), fb.getArg[Int](3), fb.getArg[Int](4)))
+
+    val f = fb.result()()
+    assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
+    ReferenceGenome.removeReference(rg.name)
+  }
+
+  @Test def testSerializeWithLiftoverOnFB() {
+    val grch37 = ReferenceGenome.GRCh37
+    val liftoverFile = "src/test/resources/grch37_to_grch38_chr20.over.chain.gz"
+
+    grch37.addLiftover(hc, liftoverFile, "GRCh38")
+
+    val fb = EmitFunctionBuilder[String, Locus, Double, Locus]
+    val rgfield = fb.newLazyField(grch37.codeSetup(fb))
+    fb.emit(rgfield.invoke[String, Locus, Double, Locus]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
+
+    val f = fb.result()()
+    assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))
+    grch37.removeLiftover("GRCh38")
   }
 }
