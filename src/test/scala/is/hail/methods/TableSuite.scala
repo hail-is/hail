@@ -118,7 +118,7 @@ class TableSuite extends SparkSuite {
     val kt2 = kt1.annotate("qPhen2" -> "row.qPhen.toFloat64 ** 2d",
       "NotStatus" -> """row.Status == "CASE"""",
       "X" -> "row.qPhen == 5")
-    val kt4 = kt2.select(kt2.fieldNames.map(n => s"row.$n")).keyBy("qPhen", "NotStatus")
+    val kt4 = kt2.select("{" + kt2.fieldNames.map(n => s"$n: row.$n").mkString(",") + "}", None, None).keyBy("qPhen", "NotStatus")
 
     val kt1columns = kt1.fieldNames.toSet
     val kt2columns = kt2.fieldNames.toSet
@@ -306,23 +306,23 @@ class TableSuite extends SparkSuite {
     val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
 
-    val select1 = kt.select(Array("row.field1")).keyBy("field1")
+    val select1 = kt.select("{field1: row.field1}", None, None).keyBy("field1")
     assert((select1.key.get sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
-    val select2 = kt.select(Array("row.Sample", "row.field2", "row.field1")).keyBy("Sample")
+    val select2 = kt.select("{Sample: row.Sample, field2: row.field2, field1: row.field1}", None, None).keyBy("Sample")
     assert((select2.key.get sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select(Array("row.field2", "row.field1", "row.Sample")).keyBy(None)
+    val select3 = kt.select("{field2: row.field2, field1: row.field1, Sample: row.Sample}", None, None)
     assert(select3.key.isEmpty && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
-    val select4 = kt.select(Array.empty[String])
+    val select4 = kt.select("{}", None, None)
     assert(select4.key.isEmpty && (select4.fieldNames sameElements Array.empty[String]))
 
     for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
     }
 
-    intercept[Throwable](kt.select(Array.empty[String]).keyBy("Sample"))
+    intercept[Throwable](kt.select("{}", None, None).keyBy("Sample"))
   }
 
   @Test def testExplode() {
@@ -360,7 +360,7 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .expandTypes()
       .flatten()
-      .select(Array("row.`info.MQRankSum`"))
+      .select("{`info.MQRankSum`: row.`info.MQRankSum`}", None, None)
       .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
     val df = kt
@@ -464,9 +464,9 @@ class TableSuite extends SparkSuite {
 
   @Test def testGlobalAnnotations() {
     val kt = Table.range(hc, 10)
-      .annotateGlobalExpr("foo = [1,2,3]")
+      .selectGlobal("annotate(global, {foo: [1,2,3]})")
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
-      .annotateGlobalExpr("another = global.foo[1]")
+      .selectGlobal("annotate(global, {another: global.foo[1]})")
 
     assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz" -> "global.foo").forall("row.baz == [1,2,3]"))
@@ -475,7 +475,7 @@ class TableSuite extends SparkSuite {
 
     val gkt = kt.aggregate("idx = row.idx", "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
-    assert(kt.select(Array("baz = global.dict.get(row.idx)")).exists("row.baz == \"bar\""))
+    assert(kt.select("{baz: global.dict.get(row.idx)}", None, None).exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)
