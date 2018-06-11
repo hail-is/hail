@@ -826,6 +826,20 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
         val rvb = new RegionValueBuilder()
         val newRV = RegionValue(consumerRegion)
 
+        val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
+
+        {
+          var i = 0
+          while (i < nCols) {
+            var j = 0
+            while (j < nAggs) {
+              colRVAggs(i * nAggs + j) = rvAggs(j).copy()
+              j += 1
+            }
+            i += 1
+          }
+        }
+
         def hasNext: Boolean = {
           if (isEnd || (current == null && !it.hasNext)) {
             isEnd = true
@@ -842,21 +856,17 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
           rvRowKey.setSelect(rvType, selectIdx, current)
 
-          val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
-
-          {
-            var i = 0
-            while (i < nCols) {
-              var j = 0
-              while (j < nAggs) {
-                colRVAggs(i * nAggs + j) = rvAggs(j).copy()
-                j += 1
-              }
-              i += 1
-            }
-          }
-
           if (colRVAggs.nonEmpty) {
+            colRVAggs.foreach(_.clear())
+
+            val region = current.region
+            rvb.set(region)
+            rvb.start(localGlobalsType)
+            rvb.addRegionValue(localGlobalsType, partRegion, partGlobalsOff)
+            val globals = rvb.end()
+
+            initialize(region, colRVAggs, globals, false)
+
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
               val region = current.region
               rvb.set(region)
@@ -868,8 +878,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
               rvb.start(localColsType)
               rvb.addRegionValue(localColsType, partRegion, partColsOff)
               val cols = rvb.end()
-
-              initialize(region, colRVAggs, globals, false)
 
               sequence(region, colRVAggs,
                 globals, false,
@@ -1045,8 +1053,6 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
 
     val nAggs = rvAggs.length
 
-    val newEntryType = coerce[TStruct](rTyp)
-
     val colRVAggs = new Array[RegionValueAggregator](nAggs * nKeys)
     var i = 0
     while (i < nKeys) {
@@ -1110,46 +1116,44 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
         initOps()(rv.region, colRVAggs, globalsOffset, false, oldRow, false, mapOffset, false)
         seqOps()(rv.region, colRVAggs, globalsOffset, false, columnsOffset, false, oldRow, false, mapOffset, false)
 
-        val aggResultRVB = new RegionValueBuilder()
-        aggResultRVB.set(rv.region)
-        aggResultRVB.start(TArray(aggResultType))
-        aggResultRVB.startArray(nKeys)
-
-        var i = 0
-        while (i < nKeys) {
+        val resultOffsets = Array.tabulate(nKeys) { i =>
           var j = 0
-          aggResultRVB.startStruct()
+          rvb.start(aggResultType)
+          rvb.startStruct()
           while (j < nAggs) {
-            colRVAggs(i * nAggs + j).result(aggResultRVB)
+            colRVAggs(i * nAggs + j).result(rvb)
             j += 1
           }
-          aggResultRVB.endStruct()
-          i += 1
+          rvb.endStruct()
+          val aggResultOffset = rvb.end()
+          f()(rv.region, aggResultOffset, false, globalsOffset, false, oldRow, false, mapOffset, false)
         }
 
-        aggResultRVB.endArray()
-
-        val aggResultsOff = aggResultRVB.end()
-
-        val resultRV = RegionValue()
-        resultRV.set(rv.region, aggResultsOff)
-
-        // add old row stuff followed by new aggregation result here
-        val newRowRVB = new RegionValueBuilder()
-        newRowRVB.set(rv.region)
-        newRowRVB.start(newRVType)
-        newRowRVB.startStruct()
+        rvb.start(newRVType)
+        rvb.startStruct()
         var k = 0
-        while (k < oldRVRowType.size) {
-          if (k != newEntriesIndex)
-            newRowRVB.addField(oldRVRowType, rv, k)
+        while (k < newEntriesIndex) {
+          rvb.addField(oldRVRowType, rv, k)
           k += 1
         }
-        newRowRVB.addRegionValue(TArray(newEntryType), resultRV)
-        newRowRVB.endStruct()
-        val testOff = newRowRVB.end()
-        newRV.set(rv.region, testOff)
-        newRV
+
+        i = 0
+        rvb.startArray(nKeys)
+        while (i < nKeys) {
+          rvb.addRegionValue(rTyp, rv.region, resultOffsets(i))
+          i += 1
+        }
+        rvb.endArray()
+        k += 1
+
+        while (k < newRVType.fields.length) {
+          rvb.addField(oldRVRowType, rv, k)
+          k += 1
+        }
+
+        rvb.endStruct()
+        rv.setOffset(rvb.end())
+        rv
       }
     }
 

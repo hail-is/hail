@@ -805,6 +805,42 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(mt.annotate_cols(x = hl.null('array<int>')).explode_cols('x').count_cols(), 0)
         self.assertEqual(mt.annotate_cols(x = hl.range(0, mt.col_idx)).explode_cols('x').count_cols(), 6)
 
+    def test_aggregate_cols_by(self):
+        mt = hl.utils.range_matrix_table(2, 4)
+        mt = (mt.annotate_cols(group=mt.col_idx < 2)
+              .annotate_globals(glob=5))
+        grouped = mt.group_cols_by(mt.group)
+        result = grouped.aggregate(sum=hl.agg.sum(mt.row_idx * 2 + mt.col_idx + mt.glob) + 3)
+
+        expected = (hl.Table.parallelize([
+            {'row_idx': 0, 'group': True, 'sum': 14},
+            {'row_idx': 0, 'group': False, 'sum': 18},
+            {'row_idx': 1, 'group': True, 'sum': 18},
+            {'row_idx': 1, 'group': False, 'sum': 22}
+        ], hl.tstruct(row_idx=hl.tint, group=hl.tbool, sum=hl.tint64))
+                    .annotate_globals(glob=5)
+                    .key_by('row_idx', 'group'))
+
+        self.assertTrue(result.entries()._same(expected))
+
+    def test_aggregate_rows_by(self):
+        mt = hl.utils.range_matrix_table(4, 2)
+        mt = (mt.annotate_rows(group=mt.row_idx < 2)
+              .annotate_globals(glob=5))
+        grouped = mt.group_rows_by(mt.group)
+        result = grouped.aggregate(sum=hl.agg.sum(mt.col_idx * 2 + mt.row_idx + mt.glob) + 3)
+
+        expected = (hl.Table.parallelize([
+            {'col_idx': 0, 'group': True, 'sum': 14},
+            {'col_idx': 1, 'group': True, 'sum': 18},
+            {'col_idx': 0, 'group': False, 'sum': 18},
+            {'col_idx': 1, 'group': False, 'sum': 22}
+        ], hl.tstruct(group=hl.tbool, col_idx=hl.tint, sum=hl.tint64))
+                    .annotate_globals(glob=5)
+                    .key_by('group', 'col_idx'))
+
+        self.assertTrue(result.entries()._same(expected))
+
     def test_collect_cols_by_key(self):
         mt = hl.utils.range_matrix_table(3, 3)
         col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
@@ -1075,7 +1111,6 @@ class MatrixTests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(10, 10)
         s = hl.literal({1, 3, 5, 7})
         self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
-
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
