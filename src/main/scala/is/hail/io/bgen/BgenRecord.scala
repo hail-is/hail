@@ -142,8 +142,8 @@ class BgenRecordV12(
         var i = 0
         while (i < nSamples) {
           val off = nSamples + 10 + 2 * i
-          val d0 = bytes(off)
-          val d1 = bytes(off + 1)
+          val d0 = bytes(off) & 0xff
+          val d1 = bytes(off + 1) & 0xff
 
           if ((bytes(8 + i) & 0x3f) != 2)
             fatal(s"Ploidy value must equal to 2. Found ${(bytes(8 + i) & 0x3f)}")
