@@ -1,7 +1,7 @@
 package is.hail.testUtils
 
-import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
-import is.hail.expr.ir.Env
+import is.hail.annotations._
+import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser, SymbolTable}
 import is.hail.methods._
@@ -81,8 +81,18 @@ class RichMatrixTable(vsm: MatrixTable) {
     val ast = Parser.parseToAST(code, ec)
     ast.toIROpt() match {
       case Some(x) =>
-        val f = (a: Annotation) => eval(x, Env.empty[(Any, Type)].bind(id, (a, t)), FastIndexedSeq(), None)
-        (x.typ, f)
+        val (resultType, f) = ir.Compile[Long, Long](id, t,
+          ir.MakeTuple(FastSeq(x)))
+        val f2 = (a: Annotation) => Region.scoped { region =>
+          val rvb = new RegionValueBuilder(region)
+          rvb.start(t)
+          rvb.addAnnotation(t, a)
+          val argsOff = rvb.end()
+
+          val resultOff = f()(region, argsOff, false)
+          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+        }
+        (x.typ, f2)
       case _ =>
         val a = ec.a
         val (t, f) = Parser.eval(ast, ec)
