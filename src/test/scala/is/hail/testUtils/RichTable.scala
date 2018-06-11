@@ -130,30 +130,4 @@ class RichTable(ht: Table) {
 
     ht.copy2(globalSignature = finalSignature, globals = ht.globals.copy(value = newGlobal, t = finalSignature))
   }
-
-  def annotateGlobalExpr(expr: String): Table = {
-    val ec = EvalContext("global" -> ht.globalSignature)
-    ec.set(0, ht.globals.value)
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
-
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-
-    val finalType = (paths, types).zipped.foldLeft(ht.globalSignature) { case (v, (ids, signature)) =>
-      val (s, i) = v.insert(signature, ids)
-      inserterBuilder += i
-      s.asInstanceOf[TStruct]
-    }
-
-    val inserters = inserterBuilder.result()
-
-    val ga = inserters
-      .zip(f())
-      .foldLeft(ht.globals.value) { case (a, (ins, res)) =>
-        ins(a, res).asInstanceOf[Row]
-      }
-
-    ht.copy2(globals = ht.globals.copy(value = ga, t = finalType),
-      globalSignature = finalType)
-  }
 }
