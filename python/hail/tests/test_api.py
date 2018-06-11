@@ -122,7 +122,7 @@ class FileFormatTests(unittest.TestCase):
             n += 1
 
         self.assertEqual(n, 8)
-        
+
 
 class TableTests(unittest.TestCase):
     def test_annotate(self):
@@ -611,7 +611,7 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
         self.assertEqual(t.row_value.dtype, hl.tstruct())
         self.assertEqual(list(t.key), ['idx'])
-        
+
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
     def test_issue_3654(self):
@@ -631,6 +631,24 @@ class TableTests(unittest.TestCase):
         ht = ht.key_by('idx', 'a')
         ht = ht.key_by('idx', 'b')
         ht._force_count()
+
+
+class GroupedTableTests(unittest.TestCase):
+    def test_aggregate_by(self):
+        mt = hl.utils.range_table(4)
+        mt = mt.annotate(foo=0, group=mt.idx < 2, bar='hello').annotate_globals(glob=5)
+        grouped = mt.group_by(mt.group)
+        result = grouped.aggregate(sum=hl.agg.sum(mt.idx + mt.glob) + mt.glob - 15, max=hl.agg.max(mt.idx))
+
+        expected = (
+            hl.Table.parallelize(
+                [{'group': True, 'sum': 1, 'max': 1},
+                 {'group': False, 'sum': 5, 'max': 3}],
+                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
+            ).annotate_globals(glob=5).key_by('group')
+        )
+
+        self.assertTrue(result._same(expected))
 
 
 class MatrixTests(unittest.TestCase):
@@ -861,22 +879,6 @@ class MatrixTests(unittest.TestCase):
                     .key_by('group', 'col_idx'))
 
         self.assertTrue(result.entries()._same(expected))
-
-    def test_aggregate_by(self):
-        mt = hl.utils.range_table(4)
-        mt = mt.annotate(foo=0, group=mt.idx < 2, bar='hello').annotate_globals(glob=5)
-        grouped = mt.group_by(mt.group)
-        result = grouped.aggregate(sum=hl.agg.sum(mt.idx + mt.glob) + mt.glob - 15, max=hl.agg.max(mt.idx))
-
-        expected = (
-            hl.Table.parallelize(
-                [{'group': True, 'sum': 1, 'max': 1},
-                 {'group': False, 'sum': 5, 'max': 3}],
-                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
-            ).annotate_globals(glob=5).key_by('group')
-        )
-
-        self.assertTrue(result._same(expected))
 
     def test_collect_cols_by_key(self):
         mt = hl.utils.range_matrix_table(3, 3)

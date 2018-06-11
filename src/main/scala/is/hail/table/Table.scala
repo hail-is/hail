@@ -789,15 +789,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def aggregateByKey(expr: String, oldAggExpr: String, nPartitions: Option[Int] = None): Table = {
     val ec = aggEvalContext()
-    
-    log.info(expr)
-    val rowsAST = Parser.parseToAST(expr, ec)
+    val ast = Parser.parseToAST(expr, ec)
 
-    rowsAST.toIROpt(Some("AGG" -> "row")) match {
-      case Some(x) if useIR(rowsAST) =>
+    ast.toIROpt(Some("AGG" -> "row")) match {
+      case Some(x) if useIR(ast) =>
         new Table(hc, TableAggregateByKey(tir, x))
       case _ =>
-        log.warn(s"group_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(rowsAST) }")
+        log.warn(s"group_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(ast) }")
         
         val (aggPaths, aggTypes, aggF) = Parser.parseAnnotationExprs(oldAggExpr, ec, None)
         
@@ -813,7 +811,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
             ec_.set(0, globalsBc.value)
             ec_.set(1, r)
         })
-      
+        
         assert(keyFieldIdx.isDefined)
         val keyIndices = keyFieldIdx.get
         
