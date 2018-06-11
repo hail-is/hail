@@ -145,7 +145,10 @@ class BgenRecordV12(
           val d0 = bytes(off)
           val d1 = bytes(off + 1)
 
-          if ((bytes(8 + i) & 0x80) == 1)
+          if ((bytes(8 + i) & 0x3f) != 2)
+            fatal(s"Ploidy value must equal to 2. Found ${(bytes(8 + i) & 0x3f)}")
+
+          if ((bytes(8 + i) & 0x80) != 0)
             rvb.setMissing()
           else {
             val d2 = 255 - d0 - d1
