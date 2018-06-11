@@ -146,7 +146,7 @@ class TableSuite extends SparkSuite {
     kt2.export(outputFile)
   }
 
-  @Test def testFilter() = {
+  @Test def testFilter() {
     val data = Array(Array(5, 9, 0), Array(2, 3, 4), Array(1, 2, 3))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("field1", TInt32()), ("field2", TInt32()), ("field3", TInt32()))
@@ -165,7 +165,7 @@ class TableSuite extends SparkSuite {
     kt5.export(outputFile)
   }
 
-  @Test def testJoin() = {
+  @Test def testJoin() {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
@@ -223,7 +223,7 @@ class TableSuite extends SparkSuite {
     assert(noNull.join(noNull.rename(Map("qPhen" -> "qPhen_"), Map()), "outer").rdd.forall { r => !r.toSeq.contains(null) })
   }
 
-  @Test def testJoinDiffKeyNames() = {
+  @Test def testJoinDiffKeyNames() {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 

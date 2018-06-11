@@ -11,7 +11,7 @@ class SelectSuite extends SparkSuite {
 
     val t1 = vds.selectRows("{locus: va.locus, alleles: va.alleles, AC: va.info.AC, AF: va.info.AF, foo2: AGG.count()}", None).rowsTable()
 
-    val t2 = vds.rowsTable().select(Array("row.locus", "row.alleles", "row.info.AC", "AF = row.info.AF", "foo2 = row.foo"))
+    val t2 = vds.rowsTable().select("{locus: row.locus, alleles: row.alleles, AC: row.info.AC, AF: row.info.AF, foo2: row.foo", None, None)
 
     assert(t1.same(t2))
   }
@@ -28,7 +28,7 @@ class SelectSuite extends SparkSuite {
 
     val t1 = vds.selectCols("{s: sa.s, baz: sa.bar.baz, foo2: AGG.count()}", None).colsTable()
 
-    val t2 = vds.colsTable().select(Array("row.s", "row.bar.baz", "foo2 = row.foo"))
+    val t2 = vds.colsTable().select("{s: row.s, baz: row.bar.baz, foo2: row.foo}", None, None)
 
     assert(t1.same(t2))
   }
