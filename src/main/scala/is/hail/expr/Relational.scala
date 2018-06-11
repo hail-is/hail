@@ -716,15 +716,16 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
   def children: IndexedSeq[BaseIR] = Array(child, expr)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = newChildren match {
-    case Seq(child: MatrixIR, aggExpr: IR) =>
-      MatrixAggregateRowsByKey(child, expr)
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = {
+    assert(newChildren.length == 2)
+    newChildren match {
+      case Seq(newChild: MatrixIR, newExpr: IR) =>
+        MatrixAggregateRowsByKey(newChild, newExpr)
+    }
   }
 
   val typ: MatrixType = child.typ.copyParts(
     rowType = child.typ.orvdType.kType,
-    // FIXME: how on earth is this supposed to work, expr doesn't know its
-    // context
     entryType = coerce[TStruct](expr.typ)
   )
 
@@ -795,26 +796,22 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val rvType = prev.typ.rvRowType
     val selectIdx = prev.typ.orvdType.kRowFieldIdx
     val keyOrd = prev.typ.orvdType.kRowOrd
-    val localRowType = prev.typ.rvRowType
-    val localEntriesType = prev.typ.entryArrayType
-    val entriesIdx = prev.typ.entriesIdx
     val localGlobalsType = prev.typ.globalType
     val localColsType = TArray(prev.typ.colType)
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
     val newRVD = prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
-      val partRVB = new RegionValueBuilder()
-
+      val rvb = new RegionValueBuilder()
       val partRegion = ctx.freshContext.region
 
-      partRVB.set(partRegion)
-      partRVB.start(localGlobalsType)
-      partRVB.addAnnotation(localGlobalsType, globalsBc.value)
-      val partGlobalsOff = partRVB.end()
+      rvb.set(partRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
 
-      partRVB.start(localColsType)
-      partRVB.addAnnotation(localColsType, colValuesBc.value)
-      val partColsOff = partRVB.end()
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val partColsOff = rvb.end()
 
       val initialize = makeInit()
       val sequence = makeSeq()
@@ -825,7 +822,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
         var current: RegionValue = _
         val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
         val consumerRegion = ctx.region
-        val rvb = new RegionValueBuilder()
         val newRV = RegionValue(consumerRegion)
 
         val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
@@ -950,9 +946,10 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
   def children: IndexedSeq[BaseIR] = Array(child, aggIR)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateColsByKey = {
+    assert(newChildren.length == 2)
     newChildren match {
-      case Seq(child: MatrixIR, aggExpr: IR) =>
-        MatrixAggregateColsByKey(child, aggExpr)
+      case Seq(newChild: MatrixIR, newExpr: IR) =>
+        MatrixAggregateColsByKey(newChild, newExpr)
     }
   }
 
