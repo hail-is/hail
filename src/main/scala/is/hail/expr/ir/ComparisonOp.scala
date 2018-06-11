@@ -42,7 +42,7 @@ sealed trait ComparisonOp {
   def op: CodeOrdering.Op
   val strict: Boolean = true
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering.F[Boolean] = {
-    mb.getCodeOrdering[Boolean](-typ, op, missingGreatest = true)
+    mb.getCodeOrdering[Boolean](typ, op, missingGreatest = true)
   }
 }
 

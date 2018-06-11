@@ -148,11 +148,10 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
   def sort(ordering: IntOrderingFunction): Unit = {
     var newend = 0
     var i = 0
-    while (i < size_) {
-      if (!missing(i)) {
+    while (i < size) {
+      if (!isMissing(i)) {
         if (newend != i) {
-          b(newend) = b(i)
-          missing(newend) = false
+          update(newend, b(i))
         }
         newend += 1
       }
@@ -160,13 +159,13 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
     }
     i = newend
     while (i < size) {
-      missing(i) = true
+      setMissing(i, true)
       i += 1
     }
     val newb = b.take(newend).sortWith(ordering(_, _))
     i = 0
     while (i < newend) {
-      b(i) = newb(i)
+      update(i, newb(i))
       i += 1
     }
   }
@@ -208,11 +207,10 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
   def sort(ordering: LongOrderingFunction): Unit = {
     var newend = 0
     var i = 0
-    while (i < size_) {
-      if (!missing(i)) {
+    while (i < size) {
+      if (!isMissing(i)) {
         if (newend != i) {
-          b(newend) = b(i)
-          missing(newend) = false
+          update(newend, b(i))
         }
         newend += 1
       }
@@ -220,13 +218,13 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
     }
     i = newend
     while (i < size) {
-      missing(i) = true
+      setMissing(i, true)
       i += 1
     }
     val newb = b.take(newend).sortWith(ordering(_, _))
     i = 0
     while (i < newend) {
-      b(i) = newb(i)
+      update(i, newb(i))
       i += 1
     }
   }
@@ -268,11 +266,10 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initia
   def sort(ordering: FloatOrderingFunction): Unit = {
     var newend = 0
     var i = 0
-    while (i < size_) {
-      if (!missing(i)) {
+    while (i < size) {
+      if (!isMissing(i)) {
         if (newend != i) {
-          b(newend) = b(i)
-          missing(newend) = false
+          update(newend, b(i))
         }
         newend += 1
       }
@@ -280,13 +277,13 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initia
     }
     i = newend
     while (i < size) {
-      missing(i) = true
+      setMissing(i, true)
       i += 1
     }
     val newb = b.take(newend).sortWith(ordering(_, _))
     i = 0
     while (i < newend) {
-      b(i) = newb(i)
+      update(i, newb(i))
       i += 1
     }
   }
@@ -328,11 +325,10 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
   def sort(ordering: DoubleOrderingFunction): Unit = {
     var newend = 0
     var i = 0
-    while (i < size_) {
-      if (!missing(i)) {
+    while (i < size) {
+      if (!isMissing(i)) {
         if (newend != i) {
-          b(newend) = b(i)
-          missing(newend) = false
+          update(newend, b(i))
         }
         newend += 1
       }
@@ -340,13 +336,13 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
     }
     i = newend
     while (i < size) {
-      missing(i) = true
+      setMissing(i, true)
       i += 1
     }
     val newb = b.take(newend).sortWith(ordering(_, _))
     i = 0
     while (i < newend) {
-      b(i) = newb(i)
+      update(i, newb(i))
       i += 1
     }
   }
@@ -388,11 +384,10 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(init
   def sort(ordering: BooleanOrderingFunction): Unit = {
     var newend = 0
     var i = 0
-    while (i < size_) {
-      if (!missing(i)) {
+    while (i < size) {
+      if (!isMissing(i)) {
         if (newend != i) {
-          b(newend) = b(i)
-          missing(newend) = false
+          update(newend, b(i))
         }
         newend += 1
       }
@@ -400,13 +395,13 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(init
     }
     i = newend
     while (i < size) {
-      missing(i) = true
+      setMissing(i, true)
       i += 1
     }
     val newb = b.take(newend).sortWith(ordering(_, _))
     i = 0
     while (i < newend) {
-      b(i) = newb(i)
+      update(i, newb(i))
       i += 1
     }
   }
