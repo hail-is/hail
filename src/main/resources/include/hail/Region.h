@@ -16,9 +16,9 @@ using RegionPtr = std::shared_ptr<Region>;
 
 class Region : public NativeObj {
 private:
-  static const long kChunkCap = 64*1024;
-  static const long kMaxSmall = 1024;
-  static const size_t kNumBigToKeep = 4;
+  static constexpr long kChunkCap = 64*1024;
+  static constexpr long kMaxSmall = 1024;
+  static constexpr size_t kNumBigToKeep = 4;
   
   struct BigAlloc {
     char* buf_;
