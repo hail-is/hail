@@ -169,7 +169,7 @@ class EmitFunctionBuilder[F >: Null](
         newMB
       }
       val f = { (rx: Code[Region], x: (Code[Boolean], Code[_]), ry: Code[Region], y: (Code[Boolean], Code[_])) =>
-        if (t.required)
+        if (ignoreMissingness)
           newMB.invoke(rx, x._2, ry, y._2)
         else
           newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
