@@ -682,40 +682,4 @@ class HailContext private(val sc: SparkContext,
     BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg, mixture)
 
   def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
-
-  def eval(expr: String): (Annotation, Type) = {
-    val ec = EvalContext()
-    val ast = Parser.parseToAST(expr, ec)
-    ast.toIROpt() match {
-      case Some(body) =>
-        Region.scoped { region =>
-          val t = ast.`type`
-          t match {
-            case _: TBoolean =>
-              val (_, f) = ir.Compile[Boolean](body)
-              (f()(region), t)
-            case _: TInt32 =>
-              val (_, f) = ir.Compile[Int](body)
-              (f()(region), t)
-            case _: TInt64 =>
-              val (_, f) = ir.Compile[Long](body)
-              (f()(region), t)
-            case _: TFloat32 =>
-              val (_, f) = ir.Compile[Float](body)
-              (f()(region), t)
-            case _: TFloat64 =>
-              val (_, f) = ir.Compile[Double](body)
-              (f()(region), t)
-            case _ =>
-              val (_, f) = ir.Compile[Long](body)
-              val off = f()(region)
-              val v2 = SafeRow.read(t, region, off)
-              (v2, t)
-          }
-        }
-      case None =>
-        val (t, f) = Parser.eval(ast, ec)
-        (f(), t)
-    }
-  }
 }
