@@ -42,22 +42,22 @@ class StagedArrayBuilder(val elt: Type, mb: MethodBuilder, len: Code[Int]) {
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
-  def sort(compare: Code[_]): Code[Unit] = {
+  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
     ti match {
       case BooleanInfo =>
-        type F = BooleanOrderingFunction
+        type F = AsmFunction2[Boolean, Boolean, Boolean]
         coerce[BooleanArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
       case IntInfo =>
-        type F = IntOrderingFunction
+        type F = AsmFunction2[Int, Int, Boolean]
         coerce[IntArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
       case LongInfo =>
-        type F = LongOrderingFunction
+        type F = AsmFunction2[Long, Long, Boolean]
         coerce[LongArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
       case FloatInfo =>
-        type F = FloatOrderingFunction
+        type F = AsmFunction2[Float, Float, Boolean]
         coerce[FloatArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
       case DoubleInfo =>
-        type F = DoubleOrderingFunction
+        type F = AsmFunction2[Double, Double, Boolean]
         coerce[DoubleArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
     }
   }
@@ -145,7 +145,7 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
   }
 
 
-  def sort(ordering: IntOrderingFunction): Unit = {
+  def sort(ordering: AsmFunction2[Int, Int, Boolean]): Unit = {
     var newend = 0
     var i = 0
     while (i < size) {
@@ -204,7 +204,7 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
     missing(i) = false
   }
 
-  def sort(ordering: LongOrderingFunction): Unit = {
+  def sort(ordering: AsmFunction2[Long, Long, Boolean]): Unit = {
     var newend = 0
     var i = 0
     while (i < size) {
@@ -263,7 +263,7 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initia
     missing(i) = false
   }
 
-  def sort(ordering: FloatOrderingFunction): Unit = {
+  def sort(ordering: AsmFunction2[Float, Float, Boolean]): Unit = {
     var newend = 0
     var i = 0
     while (i < size) {
@@ -322,7 +322,7 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
     missing(i) = false
   }
 
-  def sort(ordering: DoubleOrderingFunction): Unit = {
+  def sort(ordering: AsmFunction2[Double, Double, Boolean]): Unit = {
     var newend = 0
     var i = 0
     while (i < size) {
@@ -381,7 +381,7 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(init
     missing(i) = false
   }
 
-  def sort(ordering: BooleanOrderingFunction): Unit = {
+  def sort(ordering: AsmFunction2[Boolean, Boolean, Boolean]): Unit = {
     var newend = 0
     var i = 0
     while (i < size) {

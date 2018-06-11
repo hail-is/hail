@@ -35,11 +35,11 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
   def sort(ascending: Code[Boolean]): Code[Unit] = {
 
     val (sorter, localF) = ti match {
-      case BooleanInfo => (mb.fb.newDependentCompareFunction[Boolean](), mb.newField[BooleanOrderingFunction])
-      case IntInfo => (mb.fb.newDependentCompareFunction[Int](), mb.newField[IntOrderingFunction])
-      case LongInfo => (mb.fb.newDependentCompareFunction[Long](), mb.newField[LongOrderingFunction])
-      case FloatInfo => (mb.fb.newDependentCompareFunction[Float](), mb.newField[FloatOrderingFunction])
-      case DoubleInfo => (mb.fb.newDependentCompareFunction[Double](), mb.newField[DoubleOrderingFunction])
+      case BooleanInfo => (mb.fb.newDependentFunction[Boolean, Boolean, Boolean], mb.newField[AsmFunction2[Boolean, Boolean, Boolean]])
+      case IntInfo => (mb.fb.newDependentFunction[Int, Int, Boolean], mb.newField[AsmFunction2[Int, Int, Boolean]])
+      case LongInfo => (mb.fb.newDependentFunction[Long, Long, Boolean], mb.newField[AsmFunction2[Long, Long, Boolean]])
+      case FloatInfo => (mb.fb.newDependentFunction[Float, Float, Boolean], mb.newField[AsmFunction2[Float, Float, Boolean]])
+      case DoubleInfo => (mb.fb.newDependentFunction[Double, Double, Boolean], mb.newField[AsmFunction2[Double, Double, Boolean]])
     }
     val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
     val asc: Code[Boolean] = sorter.addField[Boolean](ascending)

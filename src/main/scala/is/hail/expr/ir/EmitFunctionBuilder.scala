@@ -222,24 +222,17 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
+    val df = new DependentEmitFunction[AsmFunction2[A1, A2, R]](
+      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
+    children += df
+    df
+  }
+
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
     val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
       this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
     children += df
     df
-  }
-
-  def newDependentCompareFunction[A1 : TypeInfo](): DependentEmitFunction[SpecializedOrderingFunction[A1]] = {
-
-    val argti: Array[MaybeGenericTypeInfo[_]] = Array(NotGenericTypeInfo[A1], NotGenericTypeInfo[A1])
-    val df = typeInfo[A1] match {
-      case BooleanInfo => new DependentEmitFunction[BooleanOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
-      case IntInfo => new DependentEmitFunction[IntOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
-      case LongInfo => new DependentEmitFunction[LongOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
-      case FloatInfo => new DependentEmitFunction[FloatOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
-      case DoubleInfo => new DependentEmitFunction[DoubleOrderingFunction](this, argti, NotGenericTypeInfo[Boolean])
-    }
-    children += df
-    df.asInstanceOf[DependentEmitFunction[SpecializedOrderingFunction[A1]]]
   }
 }
