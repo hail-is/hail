@@ -2,6 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
@@ -145,6 +146,11 @@ object SetFunctions extends RegistryFunctions {
                             ArrayRef(Ref(a, TArray(t)), Ref(midIdx, TInt32())),
                             ArrayRef(Ref(a, TArray(t)), Ref(midIdx2, TInt32()))),
                           Cast(I32(2), t)))))))))))
+    }
+
+    registerIR("flatten", TSet(tv("T"))) { s =>
+      val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
+      ToSet(ArrayFlatMap(ToArray(s), elt.name, ToArray(elt)))
     }
   }
 }

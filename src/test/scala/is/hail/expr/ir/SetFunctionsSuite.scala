@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-
+import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -99,5 +99,12 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("product", IRSet()), 1)
     assertEvalsTo(invoke("product", IRSet(null)), 1)
     assertEvalsTo(invoke("product", nas), null)
+  }
+
+  @Test def flatten() {
+    val sets1 = FastSeq(IRSet(1, 5, 2), IRSet(6, 2), IRSet(), NA(TSet(TInt32())))
+    val sets2 = FastSeq(IRSet(1, 5, 2), IRSet(6, 2), IRSet(), IRSet(null))
+    assertEvalsTo(invoke("flatten", ToSet(MakeArray(sets1, TArray(TSet(TInt32()))))), Set(1, 2, 5, 6))
+    assertEvalsTo(invoke("flatten", ToSet(MakeArray(sets2, TArray(TSet(TInt32()))))), Set(1, 2, 5, 6, null))
   }
 }

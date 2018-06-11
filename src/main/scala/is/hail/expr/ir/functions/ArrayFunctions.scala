@@ -285,5 +285,10 @@ object ArrayFunctions extends RegistryFunctions {
         idx,
         ArrayRef(a, Ref(idx, TInt32())))
     }
+
+    registerIR("flatten", TArray(tv("T"))) { a =>
+      val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
+      ArrayFlatMap(a, elt.name, elt)
+    }
   }
 }
