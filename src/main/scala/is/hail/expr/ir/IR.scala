@@ -155,7 +155,7 @@ final case class In(i: Int, typ: Type) extends IR
 final case class Die(message: String, typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
-  val explicitNode: IR = conversion(args)
+  lazy val explicitNode: IR = conversion(args)
 
   def typ: Type = explicitNode.typ
 }
