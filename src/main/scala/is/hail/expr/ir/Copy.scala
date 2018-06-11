@@ -65,15 +65,9 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
-      case SetContains(_, _) =>
-        val IndexedSeq(set: IR, elem: IR) = newChildren
-        SetContains(set, elem)
-      case DictContains(_, _) =>
-        val IndexedSeq(dict: IR, key: IR) = newChildren
-        DictContains(dict, key)
-      case DictGet(_, _) =>
-        val IndexedSeq(dict: IR, key: IR) = newChildren
-        DictGet(dict, key)
+      case SearchOrderedCollection(_, _, asKey) =>
+        val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
+        SearchOrderedCollection(orderedCollection, elem, asKey)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)

@@ -243,29 +243,25 @@ object Interpret {
             case a => a
           }
 
-      case SetContains(s, elem) =>
-        val sValue = interpret(s, env, args, agg)
+      case SearchOrderedCollection(orderedCollection, elem, onKey) =>
+        val cValue = interpret(orderedCollection, env, args, agg)
         val eValue = interpret(elem, env, args, agg)
-        if (sValue == null)
+        if (cValue == null)
           null
-        else
-          sValue.asInstanceOf[Set[Any]].contains(eValue)
-
-      case DictContains(d, key) =>
-        val dValue = interpret(d, env, args, agg)
-        val kValue = interpret(key, env, args, agg)
-        if (dValue == null)
-          null
-        else
-          dValue.asInstanceOf[Map[Any, Any]].contains(kValue)
-
-      case DictGet(d, key) =>
-        val dValue = interpret(d, env, args, agg)
-        val kValue = interpret(key, env, args, agg)
-        if (dValue == null)
-          null
-        else
-          dValue.asInstanceOf[Map[Any, Any]].getOrElse(kValue, null)
+        else {
+          val nSmaller = cValue match {
+            case s: Set[_] =>
+              assert(!onKey)
+              s.count(elem.typ.ordering.lteq(_, eValue))
+            case d: Map[_, _] =>
+              assert(onKey)
+              d.count { case (k, _) => elem.typ.ordering.lteq(k, eValue) }
+            case a: IndexedSeq[_] =>
+              assert(!onKey)
+              a.count(elem.typ.ordering.lteq(_, eValue))
+          }
+          Integer.max(0, nSmaller - 1)
+        }
 
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)

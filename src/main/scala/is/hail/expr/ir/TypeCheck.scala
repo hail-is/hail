@@ -98,21 +98,12 @@ object TypeCheck {
       case x@ToArray(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TContainer])
-      case x@SetContains(set, elem) =>
-        check(set)
+      case x@SearchOrderedCollection(orderedCollection, elem, onKey) =>
+        check(orderedCollection)
         check(elem)
-        assert(set.typ.isInstanceOf[TSet])
-        assert(-coerce[TSet](set.typ).elementType == elem.typ)
-      case x@DictContains(dict, key) =>
-        check(dict)
-        check(key)
-        assert(dict.typ.isInstanceOf[TDict])
-        assert(-coerce[TDict](dict.typ).keyType == key.typ)
-      case x@DictGet(dict, key) =>
-        check(dict)
-        check(key)
-        assert(dict.typ.isInstanceOf[TDict])
-        assert(-coerce[TDict](dict.typ).keyType == key.typ)
+        assert(orderedCollection.typ.isInstanceOf[TContainer])
+        val elt = coerce[TContainer](orderedCollection.typ).elementType
+        assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
       case x@ArrayMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)

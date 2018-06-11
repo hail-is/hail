@@ -32,8 +32,6 @@ object Infer {
         TDict(elt.types(0), elt.types(1))
       case ToArray(a) =>
         TArray(coerce[TContainer](a.typ).elementType)
-      case DictGet(dict, key) =>
-        -coerce[TDict](dict.typ).valueType
       case ArrayMap(a, name, body) =>
         TArray(-body.typ)
       case ArrayFilter(a, name, cond) =>

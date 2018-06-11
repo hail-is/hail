@@ -151,47 +151,53 @@ class IRSuite extends TestNGSuite {
 
   @Test def testSetContains() {
     val t = TSet(TInt32())
-    assertEvalsTo(SetContains(NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
-    assertEvalsTo(SetContains(In(0, t), NA(TInt32())),
+    assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(SetContains(In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", In(0, t), I32(2)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(SetContains(In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", In(0, t), I32(0)),
       FastIndexedSeq((Set(-7, 2, null), t)),
+      false)
+    assertEvalsTo(invoke("contains", In(0, t), I32(7)),
+      FastIndexedSeq((Set(-7, 2), t)),
       false)
   }
 
   @Test def testDictContains() {
     val t = TDict(TInt32(), TString())
-    assertEvalsTo(DictContains(NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
     val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(DictContains(In(0, t), NA(TInt32())),
+    assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(DictContains(In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", In(0, t), I32(2)),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(DictContains(In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", In(0, t), I32(0)),
       FastIndexedSeq((d, t)),
+      false)
+    assertEvalsTo(invoke("contains", In(0, t), I32(3)),
+      FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
       false)
   }
 
   @Test def testDictGet() {
     val t = TDict(TInt32(), TString())
-    assertEvalsTo(DictGet(NA(t), I32(2)), null)
+    assertEvalsTo(invoke("get", NA(t), I32(2)), null)
 
     val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(DictGet(In(0, t), NA(TInt32())),
+    assertEvalsTo(invoke("get", In(0, t), NA(TInt32())),
       FastIndexedSeq((d, t)),
       "c")
-    assertEvalsTo(DictGet(In(0, t), I32(2)),
+    assertEvalsTo(invoke("get", In(0, t), I32(2)),
       FastIndexedSeq((d, t)),
       null)
-    assertEvalsTo(DictGet(In(0, t), I32(0)),
+    assertEvalsTo(invoke("get", In(0, t), I32(0)),
       FastIndexedSeq((d, t)),
       null)
   }
