@@ -81,7 +81,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     val ast = Parser.parseToAST(code, ec)
     ast.toIROpt() match {
       case Some(x) =>
-        val f = (a: Annotation) => eval(x, Env.empty[(Any, Type)], FastIndexedSeq(), None)
+        val f = (a: Annotation) => eval(x, Env.empty[(Any, Type)].bind(id, (a, t)), FastIndexedSeq(), None)
         (x.typ, f)
       case _ =>
         val a = ec.a
