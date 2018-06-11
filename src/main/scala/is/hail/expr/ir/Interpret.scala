@@ -73,6 +73,7 @@ object Interpret {
             case (_: TFloat64, _: TInt32) => vValue.asInstanceOf[Double].toInt
             case (_: TFloat64, _: TInt64) => vValue.asInstanceOf[Double].toLong
             case (_: TFloat64, _: TFloat32) => vValue.asInstanceOf[Double].toFloat
+            case (_: TInt32, _: TCall) => vValue
           }
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
@@ -458,7 +459,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
             .get(0)
         }
       case ir@ApplySpecial(function, functionArgs) =>
@@ -482,7 +483,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType), region, resultOffset)
+          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>

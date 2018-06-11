@@ -46,9 +46,9 @@ object Call2 {
 }
 
 object CallN {
-  def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toArray, phased)
+  def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toFastIndexedSeq, phased)
 
-  def apply(alleles: Array[Int], phased: Boolean = false): Call = {
+  def apply(alleles: IndexedSeq[Int], phased: Boolean = false): Call = {
     val ploidy = alleles.length
     (ploidy: @switch) match {
       case 0 => Call0(phased)

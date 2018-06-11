@@ -12,25 +12,6 @@ import scala.reflect.{ClassTag, classTag}
 
 object StringFunctions extends RegistryFunctions {
 
-  private[this] def registerWrappedStringScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
-    def ct(typ: Type): ClassTag[_] = typ match {
-      case _: TString => classTag[String]
-      case t => TypeToIRIntermediateClassTag(t)
-    }
-
-    registerCode(mname, argTypes, rType, isDet = true) { (mb, args) =>
-      val cts = argTypes.map(ct(_).runtimeClass)
-      val out = Code.invokeScalaObject(cls, method, cts, argTypes.zip(args).map { case (t, a) => wrapArg(mb, t)(a) }.asInstanceOf[Array[Code[_]]] )(ct(rType))
-      unwrapReturn(mb, rType)(out)
-    }
-  }
-
-  def registerWrappedStringScalaFunction(mname: String, a1: Type, rType: Type)(cls: Class[_], method: String): Unit =
-    registerWrappedStringScalaFunction(mname, Array(a1), rType)(cls, method)
-
-  def registerWrappedStringScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
-    registerWrappedStringScalaFunction(mname, Array(a1, a2), rType)(cls, method)
-
   def str(x: Int): String = x.toString
 
   def str(x: Long): String = x.toString
@@ -118,17 +99,17 @@ object StringFunctions extends RegistryFunctions {
       ir.StringLength(s)
     }
 
-    registerWrappedStringScalaFunction("str", TInt32(), TString())(thisClass, "str")
-    registerWrappedStringScalaFunction("str", TInt64(), TString())(thisClass, "str")
-    registerWrappedStringScalaFunction("str", TFloat32(), TString())(thisClass, "str")
-    registerWrappedStringScalaFunction("str", TFloat64(), TString())(thisClass, "str")
+    registerWrappedScalaFunction("str", TInt32(), TString())(thisClass, "str")
+    registerWrappedScalaFunction("str", TInt64(), TString())(thisClass, "str")
+    registerWrappedScalaFunction("str", TFloat32(), TString())(thisClass, "str")
+    registerWrappedScalaFunction("str", TFloat64(), TString())(thisClass, "str")
 
-    registerWrappedStringScalaFunction("upper", TString(), TString())(thisClass, "upper")
-    registerWrappedStringScalaFunction("lower", TString(), TString())(thisClass, "lower")
-    registerWrappedStringScalaFunction("strip", TString(), TString())(thisClass, "strip")
-    registerWrappedStringScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
-    registerWrappedStringScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
-    registerWrappedStringScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
+    registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
+    registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")
+    registerWrappedScalaFunction("strip", TString(), TString())(thisClass, "strip")
+    registerWrappedScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
+    registerWrappedScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
+    registerWrappedScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
 
     registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) { (mb: EmitMethodBuilder, s: EmitTriplet, r: EmitTriplet) =>
       val out: LocalRef[IndexedSeq[String]] = mb.newLocal[IndexedSeq[String]]

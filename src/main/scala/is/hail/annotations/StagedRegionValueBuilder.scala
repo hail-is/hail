@@ -113,7 +113,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
   def allocateBinary(n: Code[Int]): Code[Long] = {
-    val boff = mb.newLocal[Long]
+    val boff = mb.newField[Long]
     Code(
       boff := TBinary.allocate(region, n),
       region.storeInt(boff, n),
@@ -126,7 +126,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    val boff = mb.newLocal[Long]
+    val boff = mb.newField[Long]
     Code(
       boff := region.appendBinary(bytes),
       ftype match {
@@ -143,7 +143,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
-  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
+  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
