@@ -464,9 +464,9 @@ class TableSuite extends SparkSuite {
 
   @Test def testGlobalAnnotations() {
     val kt = Table.range(hc, 10)
-      .annotateGlobalExpr("foo = [1,2,3]")
+      .selectGlobal("annotate(global, {foo: [1,2,3]})")
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
-      .annotateGlobalExpr("another = global.foo[1]")
+      .selectGlobal("annotate(global, {another: global.foo[1]})")
 
     assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz" -> "global.foo").forall("row.baz == [1,2,3]"))
