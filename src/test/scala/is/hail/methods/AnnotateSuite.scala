@@ -218,7 +218,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testPositions() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample2.vcf"))
+    val vds = hc.importVCF("src/test/resources/sample2_split.vcf")
 
     val kt = hc.importTable("src/test/resources/sample2_va_positions.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))
