@@ -419,8 +419,9 @@ class TableTests(unittest.TestCase):
         kt5 = hl.utils.range_table(1).annotate(key='C1589').key_by('key')
         m4 = m.annotate_cols(foo=m.s[:5])
         m4 = m4.annotate_cols(idx=kt5[m4.foo].idx)
-        self.assertTrue(m4.filter_cols(hl.is_defined(m4.idx)).count_cols() ==
-                        m.filter_cols(m.s[:5]=='C1589').count_cols())
+        n_C1589 = m.filter_cols(m.s[:5] == 'C1589').count_cols()
+        self.assertTrue(n_C1589 > 1)
+        self.assertEqual(m4.filter_cols(hl.is_defined(m4.idx)).count_cols(), n_C1589)
 
         kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
