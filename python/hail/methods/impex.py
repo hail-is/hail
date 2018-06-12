@@ -786,7 +786,6 @@ def grep(regex, path, max_count=100):
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           tolerance=numeric,
            skip_invalid_loci=bool)
 def import_bgen(path,
                 entry_fields,
@@ -794,7 +793,6 @@ def import_bgen(path,
                 min_partitions=None,
                 reference_genome='default',
                 contig_recoding=None,
-                tolerance=0.2,
                 skip_invalid_loci=False) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
@@ -820,11 +818,12 @@ def import_bgen(path,
     Notes
     -----
 
-    Hail supports importing data from v1.1 and v1.2 of the
-    `BGEN file format <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__.
-    For v1.2, genotypes must be **unphased** and **diploid**, and genotype
-    probability blocks must be compressed with zlib or uncompressed. If
-    `entry_fields` includes ``'dosage'``, all variants must be bi-allelic.
+    Hail supports importing data from v1.2 of the `BGEN file format
+    <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__.
+    Genotypes must be **unphased** and **diploid**, genotype
+    probabilities must be stored with 8 bits, and genotype probability
+    blocks must be compressed with zlib or uncompressed. All variants
+    must be bi-allelic.
 
     Each BGEN file must have a corresponding index file, which can be generated
     with :func:`.index_bgen`. To load multiple files at the same time,
@@ -844,10 +843,9 @@ def import_bgen(path,
       :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
       will be a :class:`.tstruct` with two fields: `contig` with type
       :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
-    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An array
-      containing the alleles of the variant. The reference allele (A allele in
-      the v1.1 spec and first allele in the v1.2 spec) is the first element in
-      the array.
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An
+      array containing the alleles of the variant. The reference
+      allele is the first element in the array.
     - `varid` (:py:data:`.tstr`) -- The variant identifier. The third field in
       each variant identifying block.
     - `rsid` (:py:data:`.tstr`) -- The rsID for the variant. The fifth field in
@@ -855,13 +853,12 @@ def import_bgen(path,
 
     **Entry Fields**
 
-    Up to three entry fields are created, as determined by `entry_fields`.
-    For best performance, include precisely those fields required for your
-    analysis. For BGEN v1.1 files, all entry fields are set to missing if
-    the sum of the genotype probabilities is a distance greater than
-    `tolerance` from 1.0. It is also possible to pass an empty tuple or list
-    for `entry_fields`, which can greatly accelerate processing speed if your
-    workflow does not use the genotype data.
+    Up to three entry fields are created, as determined by
+    `entry_fields`.  For best performance, include precisely those
+    fields required for your analysis. It is also possible to pass an
+    empty tuple or list for `entry_fields`, which can greatly
+    accelerate processing speed if your workflow does not use the
+    genotype data.
 
     - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
       the greatest probability.
@@ -869,10 +866,6 @@ def import_bgen(path,
       as defined by the BGEN file spec. For bi-allelic variants, the array has
       three elements giving the probabilities of homozygous reference,
       heterozygous, and homozygous alternate genotype, in that order.
-      For v1.2 files, no modifications are made to these genotype
-      probabilities. For v1.1 files, the probabilities are normalized to
-      sum to 1.0. For example, ``[0.98, 0.0, 0.0]`` is normalized to
-      ``[1.0, 0.0, 0.0]``.
     - `dosage` (:py:data:`.tfloat64`) -- The expected value of the number of
       alternate alleles, given by the probability of heterozygous genotype plus
       twice the probability of homozygous alternate genotype. All variants must
@@ -895,15 +888,13 @@ def import_bgen(path,
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
-    tolerance : :obj:`float`
-        If the sum of the probabilities for an entry differ from 1.0 by more
-        than the tolerance, set the entry to missing. Only applicable to v1.1.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
 
     Returns
     -------
     :class:`.MatrixTable`
+
     """
 
     rg = reference_genome._jrep if reference_genome else None
@@ -922,7 +913,7 @@ def import_bgen(path,
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    tolerance, skip_invalid_loci)
+                                    skip_invalid_loci)
     return MatrixTable(jmt)
 
 

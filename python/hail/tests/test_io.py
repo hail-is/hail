@@ -383,18 +383,28 @@ class PLINKTests(unittest.TestCase):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
             
 
+# this routine was used to generate resources random.gen, random.sample
+# random.bgen was generated with qctool v2.0rc9:
+# qctool -g random.gen -s random.sample -bgen-bits 8 -og random.bgen
+def generate_random_gen():
+    mt = hl.utils.range_matrix_table(30, 10)
+    mt = (mt.annotate_rows(locus = hl.locus('20', mt.row_idx + 1),
+                           alleles = ['A', 'G'])
+          .key_rows_by('locus', 'alleles'))
+    mt = (mt.annotate_cols(s = hl.str(mt.col_idx))
+          .key_cols_by('s'))
+    # using totally random values leads rounding differences where
+    # identical GEN values get rounded differently, leading to
+    # differences in the GT call between import_{gen, bgen}
+    mt = mt.annotate_entries(a = hl.int32(hl.rand_unif(0.0, 255.0)))
+    mt = mt.annotate_entries(b = hl.int32(hl.rand_unif(0.0, 255.0 - mt.a)))
+    mt = mt.transmute_entries(GP = hl.array([mt.a, mt.b, 255.0 - mt.a - mt.b]) / 255.0)
+    # 20% missing
+    mt = mt.filter_entries(hl.rand_bool(0.8))
+    hl.export_gen(mt, 'random', precision=4)
+
 class BGENTests(unittest.TestCase):
-    def test_import_bgen(self):
-        hl.index_bgen(resource('example.v11.bgen'))
-
-        bgen_rows = hl.import_bgen(resource('example.v11.bgen'),
-                                   entry_fields=['GT', 'GP'],
-                                   sample_file=resource('example.sample'),
-                                   contig_recoding={'01': '1'},
-                                   reference_genome='GRCh37').rows()
-        self.assertTrue(bgen_rows.all(bgen_rows.locus.contig == '1'))
-        self.assertEqual(bgen_rows.count(), 199)
-
+    def test_import_bgen_dosage_entry(self):
         hl.index_bgen(resource('example.8bits.bgen'))
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
@@ -402,6 +412,10 @@ class BGENTests(unittest.TestCase):
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
+        self.assertEqual(bgen.count_rows(), 199)
+
+    def test_import_bgen_GT_GP_entries(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
@@ -409,32 +423,24 @@ class BGENTests(unittest.TestCase):
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
-        self.assertEqual(bgen.count_rows(), 199)
 
-        hl.index_bgen(resource('example.10bits.bgen'))
-        bgen = hl.import_bgen(resource('example.10bits.bgen'),
-                              entry_fields=['GT', 'GP', 'dosage'],
-                              contig_recoding={'01': '1'},
-                              reference_genome='GRCh37')
-        self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64), dosage=hl.tfloat64))
-        self.assertEqual(bgen.locus.dtype, hl.tlocus('GRCh37'))
+    def test_import_bgen_no_entries(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
 
-    def test_import_bgen_no_entry_fields(self):
-        hl.index_bgen(resource('example.v11.bgen'))
-
-        bgen = hl.import_bgen(resource('example.v11.bgen'),
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
                               sample_file=resource('example.sample'),
                               contig_recoding={'01': '1'},
                               reference_genome='GRCh37')
+        self.assertEqual(bgen.entry.dtype, hl.tstruct())
         bgen._jvds.typecheck()
 
-    def test_import_bgen_no_reference_specified(self):
-        bgen = hl.import_bgen(resource('example.10bits.bgen'),
+    def test_import_bgen_no_reference(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
                               contig_recoding={'01': '1'},
                               reference_genome=None)
-        self.assertTrue(bgen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(bgen.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_bgen_skip_invalid_loci(self):
@@ -451,6 +457,51 @@ class BGENTests(unittest.TestCase):
             hl.import_bgen(resource('skip_invalid_loci.bgen'),
                            entry_fields=[],
                            sample_file=resource('skip_invalid_loci.sample'))
+
+    def test_import_bgen_gavin_example(self):
+        recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
+
+        sample_file = resource('example.sample')
+        genmt = hl.import_gen(resource('example.gen'), sample_file,
+                              contig_recoding=recoding)
+
+        bgen_file = resource('example.8bits.bgen')
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file,
+                            contig_recoding=recoding)
+        self.assertTrue(
+            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+
+    def test_import_bgen_random(self):
+        sample_file = resource('random.sample')
+        genmt = hl.import_gen(resource('random.gen'), sample_file)
+
+        bgen_file = resource('random.bgen')
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
+        self.assertTrue(
+            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+
+    def test_parallel_import(self):
+        mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
+                            ['GT', 'GP'],
+                            resource('parallelBgenExport.sample'))
+        self.assertEqual(mt.count(), (16, 10))
+
+    def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
+        recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
+
+        sample_file = resource('example.sample')
+        bgen_file = resource('example.8bits.bgen')
+        hl.index_bgen(bgen_file)
+
+        bgenmt = hl.import_bgen(bgen_file, ['GP', 'dosage'], sample_file,
+                                contig_recoding=recoding)
+        et = bgenmt.entries()
+        et = et.transmute(gp_dosage = hl.gp_dosage(et.GP))
+        self.assertTrue(et.all(
+            (hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) |
+            (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
 
 class GENTests(unittest.TestCase):
