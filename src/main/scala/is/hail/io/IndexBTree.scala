@@ -17,7 +17,7 @@ object IndexBTree {
   ): Array[Byte] = {
     require(arr.length > 0)
 
-    val depth = calcDepth(arr, 1024)
+    val depth = calcDepth(arr, branchingFactor)
 
     // Write layers above last layer if needed -- padding of -1 included
     val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
