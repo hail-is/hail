@@ -263,6 +263,12 @@ class TableSuite extends SparkSuite {
     val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
     val kt2 = kt1.aggregateByKey(
+      """{ A : AGG.map(r => r.field2).sum()
+        |, B : AGG.map(r => r.field2).sum()
+        |, C : AGG.map(r => r.field2 + r.field3).sum()
+        |, D : AGG.count()
+        |, E : AGG.filter(r => r.field2 == 3).count()
+        |}""".stripMargin,
       "A = AGG.map(r => r.field2).sum(), " +
       "B = AGG.map(r => r.field2).sum(), " +
       "C = AGG.map(r => r.field2 + r.field3).sum(), " +
@@ -473,7 +479,9 @@ class TableSuite extends SparkSuite {
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
-    val gkt = kt.aggregateByKey("x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
+    val gkt = kt.aggregateByKey(
+      "{ x : AGG.map(r => global.dict.get(r.idx)).collect()[0] }",
+      "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
     assert(kt.select("{baz: global.dict.get(row.idx)}", None, None).exists("row.baz == \"bar\""))
 
