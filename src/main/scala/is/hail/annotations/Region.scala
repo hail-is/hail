@@ -19,7 +19,8 @@ object Region {
     using(Region())(f)
 }
 
-// Off-heap implementation of Region refquires some interface changes
+// Off-heap implementation of Region differs from the previous
+// Scala contiguous-buffer implementation.
 //
 //  - it now has multiple memory chunks rather than one contiguous buffer
 //
