@@ -102,4 +102,18 @@ class IndexBTreeSuite extends SparkSuite {
       IndexBTree.write(index, idxFile, sc.hadoopConfiguration)
     }
   }
+
+  @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements() {
+    val in = Array[Long](10, 9, 8, 7, 6, 5, 4, 3)
+    val bigEndianBytes = Array[Byte](
+      0, 0, 0, 0, 0, 0, 0, 10,
+      0, 0, 0, 0, 0, 0, 0, 9,
+      0, 0, 0, 0, 0, 0, 0, 8,
+      0, 0, 0, 0, 0, 0, 0, 7,
+      0, 0, 0, 0, 0, 0, 0, 6,
+      0, 0, 0, 0, 0, 0, 0, 5,
+      0, 0, 0, 0, 0, 0, 0, 4,
+      0, 0, 0, 0, 0, 0, 0, 3)
+    assert(IndexBTree.btreeBytes(in, branchingFactor = 8) == bigEndianBytes)
+  }
 }
