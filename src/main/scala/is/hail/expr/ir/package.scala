@@ -58,4 +58,11 @@ package object ir {
 
   def invoke(name: String, args: IR*): IR =
     IRFunctionRegistry.lookupConversion(name, args.map(_.typ)).get(args)
+
+  implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
+
+  implicit def intToIR(i: Int): IR = I32(i)
+  implicit def longToIR(l: Long): IR = I64(l)
+  implicit def floatToIR(f: Float): IR = F32(f)
+  implicit def doubleToIR(d: Double): IR = F64(d)
 }
