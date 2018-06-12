@@ -84,12 +84,16 @@ class RichMatrixTable(vsm: MatrixTable) {
         val (resultType, f) = ir.Compile[Long, Long](id, t,
           ir.MakeTuple(FastSeq(x)))
         val f2 = (a: Annotation) => Region.scoped { region =>
-          val rvb = new RegionValueBuilder(region)
-          rvb.start(t)
-          rvb.addAnnotation(t, a)
-          val argsOff = rvb.end()
-
-          val resultOff = f()(region, argsOff, false)
+          val argsOff =
+            if (a != null) {
+              val rvb = new RegionValueBuilder(region)
+              rvb.start(t)
+              rvb.addAnnotation(t, a)
+              rvb.end()
+            } else
+              0
+          val argsMissing = a == null
+          val resultOff = f()(region, argsOff, argsMissing)
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
         (x.typ, f2)
