@@ -1406,13 +1406,27 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
 
-    var initOpNeedsSA = false
-    var initOpNeedsGlobals = false
+    val (rvAggs,
+      (preInitOp, initOpCompiler),
+      (preSeqOp, seqOpCompiler),
+      aggResultType,
+      (postAgg, postAggCompiler)
+    ) = ir.CompileWithAggregators.toIRs[
+      Long, Long, Long, Long, Long, Long
+    ]("global", localGlobalsType,
+      "sa", prev.typ.colType,
+      "global", localGlobalsType,
+      "colValues", colValuesType,
+      "va", vaType,
+      newCol)
 
-    val transformInitOp: (Int, IR) => IR = { (nAggs, initOpIR) =>
-      initOpNeedsSA = Mentions(initOpIR, "sa")
-      initOpNeedsGlobals = Mentions(initOpIR, "global")
+    val nAggs = rvAggs.length
+    val initOpNeedsSA = Mentions(preInitOp, "sa")
+    val initOpNeedsGlobals = Mentions(preInitOp, "global")
+    val seqOpNeedsSA = Mentions(preSeqOp, "sa")
+    val seqOpNeedsGlobals = Mentions(preSeqOp, "global")
 
+    val (_, initOps) = initOpCompiler({
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1432,16 +1446,10 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       ir.ArrayFor(
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
-        rewrite(initOpIR))
-    }
+        rewrite(preInitOp))
+    })
 
-    var seqOpNeedsSA = false
-    var seqOpNeedsGlobals = false
-
-    val transformSeqOp: (Int, IR) => IR = { (nAggs, seqOpIR) =>
-      seqOpNeedsSA = Mentions(seqOpIR, "sa")
-      seqOpNeedsGlobals = Mentions(seqOpIR, "global")
-
+    val (_, seqOps) = seqOpCompiler({
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1460,7 +1468,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       var oneSampleSeqOp = ir.Let("g", ir.ArrayRef(
         ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
         ir.Ref(colIdx, TInt32())),
-        rewrite(seqOpIR)
+        rewrite(preSeqOp)
       )
 
       if (seqOpNeedsSA)
@@ -1472,24 +1480,16 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
         oneSampleSeqOp)
-    }
+    })
 
-    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
-      "global", localGlobalsType,
-      "sa", prev.typ.colType,
-      "global", localGlobalsType,
-      "colValues", colValuesType,
-      "va", vaType,
-      newCol,
-      transformInitOp,
-      transformSeqOp)
+    val (rTyp, f) = postAggCompiler(postAgg)
+
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
     log.info(s"""MatrixMapCols: initOp ${initOpNeedsGlobals} ${initOpNeedsSA};
                 |seqOp ${seqOpNeedsGlobals} ${seqOpNeedsSA}""".stripMargin)
 
     val depth = treeAggDepth(hc, prev.nPartitions)
-    val nAggs = rvAggs.length
 
     val colRVAggs = new Array[RegionValueAggregator](nAggs * localNCols)
     var i = 0
