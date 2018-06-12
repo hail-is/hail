@@ -125,14 +125,14 @@ object SetFunctions extends RegistryFunctions {
 
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(Ref(size, TInt32()).ceq(0),
+          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
             NA(t),
             If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
               ArrayRef(Ref(a, TArray(t)), I32(0)),
               Let(lastIdx, ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)),
                 Let(lastIdx, If(
                   IsNA(ArrayRef(Ref(a, TArray(t)), Ref(lastIdx, TInt32()))),
-                  Ref(lastIdx, TInt32()) - 1,
+                  ApplyBinaryPrimOp(Subtract(), Ref(lastIdx, TInt32()), I32(1)),
                   Ref(lastIdx, TInt32())),
                   Let(midIdx, ApplyBinaryPrimOp(RoundToNegInfDivide(), Ref(lastIdx, TInt32()), I32(2)),
                     If(ApplyComparisonOp(EQ(TInt32()), Apply("%", FastSeq(Ref(lastIdx, TInt32()), I32(2))), I32(0)),
