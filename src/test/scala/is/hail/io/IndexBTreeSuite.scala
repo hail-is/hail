@@ -117,4 +117,14 @@ class IndexBTreeSuite extends SparkSuite {
     assert(IndexBTree.btreeBytes(in, branchingFactor = 8)
       sameElements bigEndianBytes)
   }
+
+  @Test def writeReadMultipleOfBranchingFactorDoesNotError() {
+    val idxFile = tmpDir.createTempFile(prefix = "btree")
+    IndexBTree.write(
+      Array.tabulate(1024)(i => i),
+      idxFile,
+      hadoopConf)
+    val index = new IndexBTree(idxFile, hadoopConf)
+    assert(index.queryIndex(33).contains(33L))
+  }
 }
