@@ -1852,8 +1852,8 @@ case class TableKeyBy(child: TableIR, keys: Array[String], nPartitionKeys: Optio
 
       tv.rvd match {
         case ordered: OrderedRVD =>
-          if (ordered.typ.key.startsWith(keys)
-            && nPartitionKeys.forall(n => ordered.typ.partitionKey.length == n))
+          if (ordered.typ.key.startsWith(keys) &&
+            nPartitionKeys.getOrElse(keys.length) == ordered.typ.partitionKey.length)
             ordered.copy(typ = ordered.typ.copy(key = keys))
           else resort
         case _: UnpartitionedRVD =>
