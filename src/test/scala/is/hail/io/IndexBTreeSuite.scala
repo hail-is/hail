@@ -114,6 +114,7 @@ class IndexBTreeSuite extends SparkSuite {
       0, 0, 0, 0, 0, 0, 0, 5,
       0, 0, 0, 0, 0, 0, 0, 4,
       0, 0, 0, 0, 0, 0, 0, 3)
-    assert(IndexBTree.btreeBytes(in, branchingFactor = 8) == bigEndianBytes)
+    assert(IndexBTree.btreeBytes(in, branchingFactor = 8)
+      sameElements bigEndianBytes)
   }
 }
