@@ -98,10 +98,9 @@ object TypeCheck {
       case x@ToArray(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TContainer])
-      case x@SearchOrderedCollection(orderedCollection, elem, onKey) =>
+      case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         check(orderedCollection)
         check(elem)
-        assert(orderedCollection.typ.isInstanceOf[TContainer])
         val elt = -coerce[TContainer](orderedCollection.typ).elementType
         assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
       case x@ArrayMap(a, name, body) =>

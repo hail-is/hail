@@ -10,7 +10,7 @@ object SetFunctions extends RegistryFunctions {
       NA(TBoolean()),
       ApplyComparisonOp(
         EQWithNA(elem.typ),
-        ArrayRef(ToArray(set), SearchOrderedCollection(set, elem, onKey=false)),
+        ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
         elem))
 
   def registerAll() {

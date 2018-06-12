@@ -65,9 +65,9 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
-      case SearchOrderedCollection(_, _, asKey) =>
+      case LowerBoundOnOrderedCollection(_, _, asKey) =>
         val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
-        SearchOrderedCollection(orderedCollection, elem, asKey)
+        LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)

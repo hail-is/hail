@@ -244,7 +244,7 @@ object Interpret {
             case a => a
           }
 
-      case SearchOrderedCollection(orderedCollection, elem, onKey) =>
+      case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val cValue = interpret(orderedCollection, env, args, agg)
         val eValue = interpret(elem, env, args, agg)
         if (cValue == null)

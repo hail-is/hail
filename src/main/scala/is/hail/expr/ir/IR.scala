@@ -88,7 +88,7 @@ final case class ToSet(a: IR) extends InferIR
 final case class ToDict(a: IR) extends InferIR
 final case class ToArray(a: IR) extends InferIR
 
-final case class SearchOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR { val typ: Type = TInt32() }
+final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR { val typ: Type = TInt32() }
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)

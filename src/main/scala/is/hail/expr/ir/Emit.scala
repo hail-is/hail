@@ -401,7 +401,7 @@ private class Emit(
       case ToArray(a) =>
         emit(a)
 
-      case x@SearchOrderedCollection(orderedCollection, elem, onKey) =>
+      case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ = coerce[TContainer](orderedCollection.typ)
         val a = emit(orderedCollection)
         val e = emit(elem)
