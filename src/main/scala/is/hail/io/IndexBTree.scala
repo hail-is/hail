@@ -9,7 +9,7 @@ import scala.collection.mutable
 object IndexBTree {
   private[io] def calcDepth(arr: Array[Long], branchingFactor: Int) =
     //max necessary for array of length 1 becomes depth=0
-    math.max(1,(math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
+    math.max(1, (math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
 
   private[io] def btreeBytes(
     arr: Array[Long],
@@ -39,7 +39,7 @@ object IndexBTree {
     val paddingRequired =
       if (danglingElements == 0) 0
       else branchingFactor - danglingElements
-    layers.append((0 until paddingRequired).map{_ => -1L})
+    layers.append((0 until paddingRequired).map { _ => -1L })
 
     val bytes = layers.flatten.flatMap(l => Array[Byte](
       (l >>> 56).toByte,
@@ -77,14 +77,14 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
   def calcDepth(): Int = {
     val numBtreeElements = hConf.getFileSize(indexFileName) / 8
     var depth = 1
-    while (numBtreeElements > math.pow(branchingFactor,depth).toInt) {
+    while (numBtreeElements > math.pow(branchingFactor, depth).toInt) {
       depth += 1
     }
     depth
   }
 
   private def getOffset(depth: Int): Long = {
-    (1 until depth).map(math.pow(branchingFactor,_).toLong * 8).sum
+    (1 until depth).map(math.pow(branchingFactor, _).toLong * 8).sum
   }
 
   private def getOffset(depth: Int, blockIndex: Long): Long = {
@@ -128,7 +128,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
   }
 
   def queryIndex(query: Long): Option[Long] = {
-    require( query >= 0 )
+    require(query >= 0)
 
     val result = traverseTree(query, 0L, 1)
 
