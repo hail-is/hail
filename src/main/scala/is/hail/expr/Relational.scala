@@ -1406,7 +1406,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
 
+    var initOpNeedsSA = false
+    var initOpNeedsGlobals = false
+
     val transformInitOp: (Int, IR) => IR = { (nAggs, initOpIR) =>
+      initOpNeedsSA = Mentions(initOpIR, "sa")
+      initOpNeedsGlobals = Mentions(initOpIR, "global")
+
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1429,7 +1435,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         rewrite(initOpIR))
     }
 
+    var seqOpNeedsSA = false
+    var seqOpNeedsGlobals = false
+
     val transformSeqOp: (Int, IR) => IR = { (nAggs, seqOpIR) =>
+      seqOpNeedsSA = Mentions(seqOpIR, "sa")
+      seqOpNeedsGlobals = Mentions(seqOpIR, "global")
+
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1445,15 +1457,21 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
       }
 
+      var oneSampleSeqOp = ir.Let("g", ir.ArrayRef(
+        ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+        ir.Ref(colIdx, TInt32())),
+        rewrite(seqOpIR)
+      )
+
+      if (seqOpNeedsSA)
+        oneSampleSeqOp = ir.Let(
+          "sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
+          oneSampleSeqOp)
+
       ir.ArrayFor(
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
-        ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
-          ir.Let("g", ir.ArrayRef(
-            ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
-            ir.Ref(colIdx, TInt32())),
-            rewrite(seqOpIR)
-          )))
+        oneSampleSeqOp)
     }
 
     val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
@@ -1466,6 +1484,9 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       transformInitOp,
       transformSeqOp)
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
+
+    log.info(s"""initOp ${initOpNeedsGlobals} ${initOpNeedsSA}
+                |seqOp ${seqOpNeedsGlobals} ${seqOpNeedsSA}""".stripMargin)
 
     val depth = treeAggDepth(hc, prev.nPartitions)
     val nAggs = rvAggs.length
@@ -1486,13 +1507,17 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         val rvb: RegionValueBuilder = new RegionValueBuilder()
         rvb.set(region)
 
-        rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        val globals = rvb.end()
+        val globals = if (initOpNeedsGlobals) {
+          rvb.start(localGlobalsType)
+          rvb.addAnnotation(localGlobalsType, globalsBc.value)
+          rvb.end()
+        } else 0L
 
-        rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
-        val cols = rvb.end()
+        val cols = if (initOpNeedsSA) {
+          rvb.start(localColsType)
+          rvb.addAnnotation(localColsType, colValuesBc.value)
+          rvb.end()
+        } else 0L
 
         initOps()(region, colRVAggs, globals, false, cols, false)
       }
@@ -1502,14 +1527,18 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         val region = rv.region
         val oldRow = rv.offset
 
-        rvb.set(region)
-        rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        val globals = rvb.end()
+        val globals = if (seqOpNeedsGlobals) {
+          rvb.set(region)
+          rvb.start(localGlobalsType)
+          rvb.addAnnotation(localGlobalsType, globalsBc.value)
+          rvb.end()
+        } else 0L
 
-        rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
-        val cols = rvb.end()
+        val cols = if (seqOpNeedsSA) {
+          rvb.start(localColsType)
+          rvb.addAnnotation(localColsType, colValuesBc.value)
+          rvb.end()
+        } else 0L
 
         seqOps()(region, colRVAggs, globals, false, cols, false, oldRow, false)
 
