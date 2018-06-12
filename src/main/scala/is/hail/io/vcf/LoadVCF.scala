@@ -192,7 +192,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   // return false if it should be filtered
-  def parseAddVariant(rvb: RegionValueBuilder, rg: Option[ReferenceGenome], contigRecoding: Map[String, String]): Boolean = {
+  def parseAddVariant(
+    rvb: RegionValueBuilder,
+    rg: Option[ReferenceGenome],
+    contigRecoding: Map[String, String],
+    skipInvalidLoci: Boolean): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -207,7 +211,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     val start = parseInt()
     nextField()
 
-    rg.foreach(_.checkLocus(recodedContig, start))
+    if (skipInvalidLoci) {
+      if (!rg.forall(_.isValidLocus(recodedContig, start)))
+        return false
+    } else
+      rg.foreach(_.checkLocus(recodedContig, start))
 
     skipField() // ID
     nextField()
@@ -740,7 +748,8 @@ object LoadVCF {
     t: Type,
     rg: Option[ReferenceGenome],
     contigRecoding: Map[String, String],
-    arrayElementsRequired: Boolean
+    arrayElementsRequired: Boolean,
+    skipInvalidLoci: Boolean
   ): ContextRDD[RVDContext, RegionValue] = {
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
@@ -760,7 +769,7 @@ object LoadVCF {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
               rvb.start(t)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb, rg, contigRecoding)
+              present = vcfLine.parseAddVariant(rvb, rg, contigRecoding, skipInvalidLoci)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -811,7 +820,8 @@ object LoadVCF {
     dropSamples: Boolean = false,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    arrayElementsRequired: Boolean = true): MatrixTable = {
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
@@ -895,7 +905,8 @@ object LoadVCF {
       kType,
       rg,
       contigRecoding,
-      arrayElementsRequired)
+      arrayElementsRequired,
+      skipInvalidLoci)
 
     val rdd = OrderedRVD.coerce(
       matrixType.orvdType,
@@ -929,7 +940,7 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType, rg, contigRecoding, arrayElementsRequired),
+      }(lines, rowType, rg, contigRecoding, arrayElementsRequired, skipInvalidLoci),
       justVariants)
 
     new MatrixTable(hc,
