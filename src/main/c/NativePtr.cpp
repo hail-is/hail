@@ -180,7 +180,7 @@ NATIVEMETHOD(void, NativeBase, nativeReset)(
   // The Scala object fields are cleared in the wrapper
 }
 
-NATIVEMETHOD(int64_t, NativeBase, nativeUseCount)(
+NATIVEMETHOD(jlong, NativeBase, nativeUseCount)(
   JNIEnv* env,
   jobject thisJ,
   jlong addrA,
