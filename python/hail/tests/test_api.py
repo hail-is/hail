@@ -632,6 +632,12 @@ class TableTests(unittest.TestCase):
         ht = ht.key_by('idx', 'b')
         ht._force_count()
 
+    def test_explode_on_set(self):
+        t = hl.utils.range_table(1)
+        t = t.annotate(a=hl.set(['a', 'b', 'c']))
+        t = t.explode('a')
+        self.assertEqual(t.collect(), list(
+            [hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value]))
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:

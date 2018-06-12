@@ -2180,8 +2180,8 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   private val columnIdx = child.typ.rowType.fieldIdx(column)
-  private val columnType = child.typ.rowType.types(columnIdx).asInstanceOf[TContainer]
-  private val rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.elementType)
+  private val columnType = child.typ.rowType.types(columnIdx)
+  private val rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.asInstanceOf[TContainer].elementType)
 
   val typ: TableType = child.typ.copy(rowType = rowType)
 
@@ -2195,17 +2195,26 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
 
     val childRowType = child.typ.rowType
 
+    val fieldToExplode = columnType match {
+      case TArray(_, _) =>
+        GetField(Ref("row", childRowType), column)
+      case TSet(_, _) =>
+        ToArray(GetField(Ref("row", childRowType), column))
+      case _ =>
+        fatal("expected field to explode to be an array or set")
+    }
+
     val (_, isMissingF) = ir.Compile[Long, Boolean]("row", childRowType,
-      ir.IsNA(ir.GetField(Ref("row", childRowType), column)))
+      ir.IsNA(fieldToExplode))
 
     val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType,
-      ir.ArrayLen(ir.GetField(Ref("row", childRowType), column)))
+      ir.ArrayLen(fieldToExplode))
 
     val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType,
       "i", TInt32(),
       ir.InsertFields(Ref("row", childRowType),
         Array(column -> ir.ArrayRef(
-          ir.GetField(ir.Ref("row", childRowType), column),
+          fieldToExplode,
           ir.Ref("i", TInt32())))))
     assert(resultType == typ.rowType)
 
