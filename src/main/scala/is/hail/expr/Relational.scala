@@ -1485,7 +1485,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       transformSeqOp)
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
-    log.info(s"""initOp ${initOpNeedsGlobals} ${initOpNeedsSA}
+    log.info(s"""MatrixMapCols: initOp ${initOpNeedsGlobals} ${initOpNeedsSA};
                 |seqOp ${seqOpNeedsGlobals} ${seqOpNeedsSA}""".stripMargin)
 
     val depth = treeAggDepth(hc, prev.nPartitions)
