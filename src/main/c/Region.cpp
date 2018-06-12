@@ -34,23 +34,23 @@ REGIONMETHOD(void, Region, nativeAlign)(
   r->align(a);
 }
 
-REGIONMETHOD(long, Region, nativeAlignAllocate)(
+REGIONMETHOD(jlong, Region, nativeAlignAllocate)(
   JNIEnv* env,
   jobject thisJ,
   jlong a,
   jlong n
 ) {
   auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  return reinterpret_cast<long>(r->allocate(a, n));
+  return reinterpret_cast<jlong>(r->allocate(a, n));
 }
 
-REGIONMETHOD(long, Region, nativeAllocate)(
+REGIONMETHOD(jlong, Region, nativeAllocate)(
   JNIEnv* env,
   jobject thisJ,
   jlong n
 ) {
   auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  return reinterpret_cast<long>(r->allocate(n));
+  return reinterpret_cast<jlong>(r->allocate(n));
 }
 
 } // end hail

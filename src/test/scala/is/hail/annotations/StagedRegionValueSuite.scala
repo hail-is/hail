@@ -324,7 +324,7 @@ class StagedRegionValueSuite extends SparkSuite {
   }
 
   def printRegion(region: Region, string: String) {
-    println(s"printRegion(${string}) is not meaningful for off-heap Region")
+    println(s"Region should contain ${string}")
   }
 
   @Test

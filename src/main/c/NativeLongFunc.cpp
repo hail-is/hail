@@ -16,7 +16,7 @@ NativeFunc* to_NativeFunc(JNIEnv* env, jobject thisJ) {
 
 } // end anon
 
-NATIVEMETHOD(long, NativeLongFuncL0, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL0, apply)(
   JNIEnv* env,
   jobject thisJ
 ) {
@@ -25,7 +25,7 @@ NATIVEMETHOD(long, NativeLongFuncL0, apply)(
   return f->func_();
 }
 
-NATIVEMETHOD(long, NativeLongFuncL1, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL1, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0
@@ -35,7 +35,7 @@ NATIVEMETHOD(long, NativeLongFuncL1, apply)(
   return f->func_(a0);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL2, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL2, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -46,7 +46,7 @@ NATIVEMETHOD(long, NativeLongFuncL2, apply)(
   return f->func_(a0, a1);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL3, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL3, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -59,7 +59,7 @@ NATIVEMETHOD(long, NativeLongFuncL3, apply)(
   return f->func_(a0, a1, a2);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL4, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL4, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -72,7 +72,7 @@ NATIVEMETHOD(long, NativeLongFuncL4, apply)(
   return f->func_(a0, a1, a2, a3);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL5, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL5, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -86,7 +86,7 @@ NATIVEMETHOD(long, NativeLongFuncL5, apply)(
   return f->func_(a0, a1, a2, a3, a4);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL6, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL6, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -101,7 +101,7 @@ NATIVEMETHOD(long, NativeLongFuncL6, apply)(
   return f->func_(a0, a1, a2, a3, a4, a5);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL7, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL7, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,
@@ -117,7 +117,7 @@ NATIVEMETHOD(long, NativeLongFuncL7, apply)(
   return f->func_(a0, a1, a2, a3, a4, a5, a6);
 }
 
-NATIVEMETHOD(long, NativeLongFuncL8, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL8, apply)(
   JNIEnv* env,
   jobject thisJ,
   jlong a0,

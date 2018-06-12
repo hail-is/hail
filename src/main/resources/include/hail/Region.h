@@ -16,30 +16,30 @@ using RegionPtr = std::shared_ptr<Region>;
 
 class Region : public NativeObj {
 private:
-  static constexpr long kChunkCap = 64*1024;
-  static constexpr long kMaxSmall = 1024;
+  static constexpr int64_t kChunkCap = 64*1024;
+  static constexpr int64_t kMaxSmall = 4*1024;
   static constexpr size_t kNumBigToKeep = 4;
   
   struct BigAlloc {
     char* buf_;
-    long  size_;
+    int64_t size_;
     
     inline BigAlloc() : buf_(nullptr), size_(0) { }
 
-    inline BigAlloc(char* buf, long size) : buf_(buf), size_(size) { }
+    inline BigAlloc(char* buf, int64_t size) : buf_(buf), size_(size) { }
     
     inline BigAlloc(const BigAlloc& b) : buf_(b.buf_), size_(b.size_) { }
     
     inline BigAlloc& operator=(const BigAlloc& b) {
       buf_ = b.buf_;
       size_ = b.size_;
-      return(*this);
+      return *this;
     }
   };
 
 public:
   char* chunk_;
-  long  pos_;
+  int64_t pos_;
   std::vector<char*> free_chunks_;
   std::vector<char*> full_chunks_;
   std::vector<BigAlloc> big_free_;
@@ -75,7 +75,7 @@ public:
     std::sort(
       big_free_.begin(),
       big_free_.end(),
-      [](const BigAlloc& a, const BigAlloc& b)->bool { return(a.size_ > b.size_); }
+      [](const BigAlloc& a, const BigAlloc& b)->bool { return (a.size_ > b.size_); }
     );
     if (big_free_.size() > kNumBigToKeep) {
       for (int idx = big_free_.size(); --idx >= (int)kNumBigToKeep;) {
@@ -97,16 +97,16 @@ public:
   }
   
   // Restrict the choice of block sizes to improve re-use
-  long choose_big_size(long n) {
-    for (long b = 1024;; b <<= 1) {
+  int64_t choose_big_size(int64_t n) {
+    for (int64_t b = 1024;; b <<= 1) {
       if (n <= b) return b;
       // sqrt(2) is 1.414213, 181/128 is 1.414062
-      long bmid = (((181*b) >> 7) + 0x3f) & ~0x3f;
+      int64_t bmid = (((181*b) >> 7) + 0x3f) & ~0x3f;
       if (n <= bmid) return bmid;
     }
   }
   
-  char* allocate_big(long n) {
+  char* allocate_big(int64_t n) {
     char* buf = nullptr;
     //
     n = ((n + 0x3f) & ~0x3f); // round up to multiple of 64byte cache line
@@ -118,23 +118,23 @@ public:
         big_used_.emplace_back(buf, b.size_);
         // Fast enough for small kNumBigToKeep
         big_free_.erase(big_free_.begin()+idx);
-        return(buf);
+        return buf;
       }
     }
     n = choose_big_size(n);
     buf = (char*)malloc(n);
     big_used_.emplace_back(buf, n);
-    return(buf);
+    return buf;
   }
   
-  inline void align(long a) {
+  inline void align(int64_t a) {
     pos_ = (pos_ + a-1) & ~(a-1);
   }
   
-  inline char* allocate(long a, long n) {
-    long mask = (a-1);
+  inline char* allocate(int64_t a, int64_t n) {
+    int64_t mask = (a-1);
     if (n <= kMaxSmall) {
-      long apos = ((pos_ + mask) & ~mask);
+      int64_t apos = ((pos_ + mask) & ~mask);
       if (apos+n > kChunkCap) {
         new_chunk();
         apos = 0;
@@ -147,9 +147,9 @@ public:
     }
   }
     
-  inline char* allocate(long n) {
+  inline char* allocate(int64_t n) {
     if (n <= kMaxSmall) {
-      long apos = pos_;
+      int64_t apos = pos_;
       if (apos+n > kChunkCap) {
         new_chunk();
         apos = 0;
@@ -164,10 +164,10 @@ public:
   
   virtual const char* get_class_name() { return "Region"; }
   
-  virtual long get_field_offset(int field_size, const char* s) {
-    if (strcmp(s, "chunk_") == 0) return((long)&chunk_ - (long)this);
-    if (strcmp(s, "pos_") == 0) return((long)&chunk_ - (long)this);
-    return(-1);
+  virtual int64_t get_field_offset(int field_size, const char* s) {
+    if (strcmp(s, "chunk_") == 0) return ((int64_t)&chunk_ - (int64_t)this);
+    if (strcmp(s, "pos_") == 0) return ((int64_t)&chunk_ - (int64_t)this);
+    return -1;
   }
 };
 

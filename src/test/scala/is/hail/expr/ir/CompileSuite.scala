@@ -191,11 +191,6 @@ class CompileSuite {
   }
 
 
-  def printRegion(region: Region, string: String) {
-    println(s"printRegion(${string}) is not meaningful for off-heap Region")
-  }
-
-
   def checkRegion(region: Region, offset: Long, typ: Type, a: Annotation): Boolean = {
     val v = typ match {
       case t: TStruct if a.isInstanceOf[IndexedSeq[Annotation]] =>
@@ -247,7 +242,6 @@ class CompileSuite {
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       println(s"array location $roff")
-      printRegion(mb, "hi amanda")
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i)) {
           println(s" $i")

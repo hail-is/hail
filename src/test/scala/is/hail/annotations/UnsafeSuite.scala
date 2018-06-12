@@ -324,8 +324,8 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
-
-  // With the move to off-heap Region and absolute addresses, it no
-  // longer makes sense to serialize/deserialize a Region without
-  // knowing its Type, so those tests have been deleted.
+  
+  // Tests for Region serialization have been removed since an off-heap Region
+  // contains absolute addresses and can't be serialized/deserialized without 
+  // knowing its Type.
 }
