@@ -1544,3 +1544,6 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(even_n), 5)
         self.assert_evals_to(hl.median(odd_n_w_null), 3)
         self.assert_evals_to(hl.median(even_n_w_null), 2)
+
+    def test_uniroot(self):
+        self.assert_evals_to(hl.uniroot(lambda x: x - 1, 0, 2), 1)
