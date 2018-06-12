@@ -6,6 +6,61 @@ import org.apache.hadoop.fs._
 
 import scala.collection.mutable
 
+object IndexBTree {
+  private[io] def calcDepth(arr: Array[Long], branchingFactor: Int) =
+    //max necessary for array of length 1 becomes depth=0
+    math.max(1,(math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
+
+  private[io] def btreeBytes(
+    arr: Array[Long],
+    branchingFactor: Int = 1024
+  ): Array[Byte] = {
+    require(arr.length > 0)
+
+    val depth = calcDepth(arr, 1024)
+
+    // Write layers above last layer if needed -- padding of -1 included
+    val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
+    for (i <- 0 until depth - 1) {
+      val multiplier = math.pow(branchingFactor, depth - 1 - i).toInt
+      layers.append((0 until math.pow(branchingFactor, i + 1).toInt).map { j =>
+        if (j * multiplier < arr.length)
+          arr(j * multiplier)
+        else
+          -1L
+      })
+    }
+
+    // Write last layer
+    layers.append(arr)
+
+    // Pad last layer so last block is branchingFactor elements (branchingFactor*8 bytes)
+    val paddingRequired = branchingFactor - (arr.length % branchingFactor)
+    layers.append((0 until paddingRequired).map{_ => -1L})
+
+    val bytes = layers.flatten.flatMap(l => Array[Byte](
+      (l >>> 56).toByte,
+      (l >>> 48).toByte,
+      (l >>> 40).toByte,
+      (l >>> 32).toByte,
+      (l >>> 24).toByte,
+      (l >>> 16).toByte,
+      (l >>> 8).toByte,
+      (l >>> 0).toByte)).toArray
+
+    bytes
+  }
+
+  def write(
+    arr: Array[Long],
+    fileName: String,
+    hConf: Configuration,
+    branchingFactor: Int = 1024
+  ): Unit = hConf.writeDataFile(fileName) { w =>
+    w.write(btreeBytes(arr, branchingFactor))
+  }
+}
+
 class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) {
   val maxDepth = calcDepth()
   private val fs = try {
@@ -78,46 +133,5 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
       Option(result)
     else
       None
-  }
-
-  def calcDepth(arr: Array[Long]) = math.max(1,(math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt) //max necessary for array of length 1 becomes depth=0
-
-  def write(arr: Array[Long], fileName: String, hConf: Configuration) {
-    require(arr.length > 0)
-
-    hConf.writeDataFile(fileName) { w =>
-      val depth = calcDepth(arr)
-
-      // Write layers above last layer if needed -- padding of -1 included
-      val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
-      for (i <- 0 until depth - 1) {
-        val multiplier = math.pow(branchingFactor, depth - 1 - i).toInt
-        layers.append((0 until math.pow(branchingFactor, i + 1).toInt).map { j =>
-          if (j * multiplier < arr.length)
-            arr(j * multiplier)
-          else
-            -1L
-        })
-      }
-
-      // Write last layer
-      layers.append(arr)
-
-      // Pad last layer so last block is branchingFactor elements (branchingFactor*8 bytes)
-      val paddingRequired = branchingFactor - (arr.length % branchingFactor)
-      layers.append((0 until paddingRequired).map{_ => -1L})
-
-      val bytes = layers.flatten.flatMap(l => Array[Byte](
-        (l >>> 56).toByte,
-        (l >>> 48).toByte,
-        (l >>> 40).toByte,
-        (l >>> 32).toByte,
-        (l >>> 24).toByte,
-        (l >>> 16).toByte,
-        (l >>> 8).toByte,
-        (l >>> 0).toByte)).toArray
-
-      w.write(bytes)
-    }
   }
 }
