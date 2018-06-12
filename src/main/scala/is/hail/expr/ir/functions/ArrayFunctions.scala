@@ -65,6 +65,31 @@ object ArrayFunctions extends RegistryFunctions {
     ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
   }
 
+  def median(array: IR): IR = {
+    val t = -array.typ.asInstanceOf[TArray].elementType
+    val a = Ref(genUID(), TArray(t))
+    val size = Ref(genUID(), TInt32())
+    val lastIdx = size - 1
+    val midIdx = lastIdx.floorDiv(2)
+    def ref(i: IR) = ArrayRef(a, i)
+    val len: IR = ArrayLen(a)
+    def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
+
+    Let(a.name, ToArray(array),
+      If(IsNA(a),
+        NA(t),
+        Let(size.name,
+          If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
+          If(size.ceq(0),
+            NA(t),
+            If(size.ceq(1),
+              ref(0),
+              If(invoke("%", size, 2).cne(0),
+                ref(midIdx), // odd number of non-missing elements
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t))))))))
+
+  }
+
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
@@ -153,7 +178,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("mean", TArray(tnum("T")))(mean)
 
-    // FIXME: Add median
+    registerIR("median", TArray(tnum("T")))(a => median(ArraySort(a, True())))
     
     def argF(a: IR, op: (Type) => ComparisonOp): IR = {
       val t = -coerce[TArray](a.typ).elementType

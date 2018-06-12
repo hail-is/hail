@@ -63,20 +63,27 @@ class ArrayFunctionsSuite extends TestNGSuite {
       Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
   }
 
-  @Test(dataProvider = "basic")
-  def mean(a: Seq[Integer]) {
-    assertEvalsTo(invoke("mean", toIRArray(a)),
-      Option(a).flatMap { aa =>
-        val nonnull = aa.filter(_ != null)
-        if (nonnull.isEmpty)
-          None
-        else {
-          val sum = nonnull.filter(_ != null).map(_.toInt).sum.toDouble
-          Some(sum / nonnull.length)
-        }
-      }.orNull)
+  @Test def mean() {
+    assertEvalsTo(invoke("mean", IRArray(3, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, 7, 11)), 7.0)
+    assertEvalsTo(invoke("mean", IRArray()), null)
+    assertEvalsTo(invoke("mean", IRArray(null)), null)
+    assertEvalsTo(invoke("mean", naa), null)
   }
 
+  @Test def median() {
+    assertEvalsTo(invoke("median", IRArray(5)), 5)
+    assertEvalsTo(invoke("median", IRArray(5, null)), 5)
+    assertEvalsTo(invoke("median", IRArray(3, 7)), 5)
+    assertEvalsTo(invoke("median", IRArray(3, null, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRArray(3, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRArray(3, null, 9, 6, 1)), 4)
+    assertEvalsTo(invoke("median", IRArray()), null)
+    assertEvalsTo(invoke("median", IRArray(null)), null)
+    assertEvalsTo(invoke("median", naa), null)
+  }
+  
   @Test(dataProvider = "basicPairs")
   def extend(a: Seq[Integer], b: Seq[Integer]) {
     assertEvalsTo(invoke("extend", toIRArray(a), toIRArray(b)),

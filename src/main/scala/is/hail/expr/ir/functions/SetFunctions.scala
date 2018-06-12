@@ -122,6 +122,8 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }
 
+    registerIR("median", TSet(tnum("T"))) { s => ArrayFunctions.median(ToArray(s)) }
+
     registerIR("flatten", TSet(tv("T"))) { s =>
       val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
       ToSet(ArrayFlatMap(ToArray(s), elt.name, ToArray(elt)))

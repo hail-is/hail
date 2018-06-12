@@ -1526,39 +1526,11 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
 
     def test_set_numeric_functions(self):
-        empty = hl.empty_set(tint32)
-        only_null = hl.set([hl.null(tint32)])
-        s_w_null = hl.set([1, 3, 5, hl.null(tint32)])
-        s_wout_null = hl.set([1, 3, 5])
-        s_size_1 = hl.set([1])
-
-        self.assert_evals_to(hl.min(empty), None)
-        self.assert_evals_to(hl.min(only_null), None)
-        self.assert_evals_to(hl.min(s_w_null), 1)
-        self.assert_evals_to(hl.min(s_wout_null), 1)
-
-        self.assert_evals_to(hl.max(empty), None)
-        self.assert_evals_to(hl.max(only_null), None)
-        self.assert_evals_to(hl.max(s_w_null), 5)
-        self.assert_evals_to(hl.max(s_wout_null), 5)
-
-        self.assertEqual(hl.min(s_size_1).value, hl.max(s_size_1).value)
-
-        self.assert_evals_to(hl.mean(empty), None)
-        self.assert_evals_to(hl.mean(only_null), None)
-        self.assert_evals_to(hl.mean(s_w_null), 3)
-
-        odd_n = hl.set([1, 3, 7, 8, 10])
-        even_n = hl.set([1, 3, 7, 8])
-        odd_n_w_null = hl.set([1, 3, 6, hl.null(tint32)])
-        even_n_w_null = hl.set([1, 4, hl.null(tint32)])
-
-        self.assert_evals_to(hl.median(empty), None)
-        self.assert_evals_to(hl.median(only_null), None)
-        self.assert_evals_to(hl.median(odd_n), 7)
-        self.assert_evals_to(hl.median(even_n), 5)
-        self.assert_evals_to(hl.median(odd_n_w_null), 3)
-        self.assert_evals_to(hl.median(even_n_w_null), 2)
+        s = hl.set([1, 3, 5, hl.null(tint32)])
+        self.assert_evals_to(hl.min(s), 1)
+        self.assert_evals_to(hl.max(s), 5)
+        self.assert_evals_to(hl.mean(s), 3)
+        self.assert_evals_to(hl.median(s), 3)
 
     def test_uniroot(self):
         self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)
