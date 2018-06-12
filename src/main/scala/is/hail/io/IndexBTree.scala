@@ -35,7 +35,10 @@ object IndexBTree {
     layers.append(arr)
 
     // Pad last layer so last block is branchingFactor elements (branchingFactor*8 bytes)
-    val paddingRequired = branchingFactor - (arr.length % branchingFactor)
+    val danglingElements = (arr.length % branchingFactor)
+    val paddingRequired =
+      if (danglingElements == 0) 0
+      else branchingFactor - danglingElements
     layers.append((0 until paddingRequired).map{_ => -1L})
 
     val bytes = layers.flatten.flatMap(l => Array[Byte](
