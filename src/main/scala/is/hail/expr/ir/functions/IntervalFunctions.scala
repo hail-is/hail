@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir._
@@ -73,6 +73,95 @@ object IntervalFunctions extends RegistryFunctions {
       case (mb, interval: Code[Long]) =>
         val region = mb.getArg[Region](1).load()
         TInterval(tv("T").t).includeEnd(region, interval)
+    }
+
+    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean()) {
+      case (mb, interval, point) =>
+        val pointType = tv("T").t
+        val intervalType: TInterval = TInterval(pointType)
+
+        val compare = mb.getCodeOrdering(pointType, CodeOrdering.compare, missingGreatest = true)
+        val region = getRegion(mb)
+
+        val pointMissing = mb.newLocal[Boolean]
+        val pValue = mb.newLocal()(typeToTypeInfo(pointType))
+        val iValue = mb.newLocal[Long]
+
+        val startDef = intervalType.startDefined(region, iValue)
+        val endDef = intervalType.endDefined(region, iValue)
+        val start = region.getIRIntermediate(pointType)(intervalType.startOffset(iValue))
+        val end = region.getIRIntermediate(pointType)(intervalType.endOffset(iValue))
+        val includeStart = intervalType.includeStart(region, iValue)
+        val includeEnd = intervalType.includeEnd(region, iValue)
+
+        val cmp = mb.newLocal[Int]
+
+        val contains = Code(
+          iValue := interval.value[Long],
+          pointMissing := point.m,
+          pValue.storeAny(point.v),
+          cmp := compare(region, (!startDef, start), region, (pointMissing, pValue)),
+          (cmp > 0 || (cmp.ceq(0) && includeStart)) && Code(
+            cmp := compare(region, (pointMissing, pValue), region, (!endDef, end)),
+            cmp < 0 || (cmp.ceq(0) && includeEnd)))
+
+        EmitTriplet(
+          Code(interval.setup, point.setup),
+          interval.m,
+          contains)
+    }
+
+    registerCode("isEmpty", TInterval(tv("T")), TBoolean()) {
+      case (mb, interval) =>
+        val pointType = tv("T").t
+        val intervalType: TInterval = TInterval(pointType)
+        val gt = mb.getCodeOrdering(pointType, CodeOrdering.gt, missingGreatest = true)
+        val gteq = mb.getCodeOrdering(pointType, CodeOrdering.gteq, missingGreatest = true)
+
+        val iValue = mb.newLocal[Long]
+        val region = getRegion(mb)
+
+        val startDef = intervalType.startDefined(region, iValue)
+        val endDef = intervalType.endDefined(region, iValue)
+        val start = region.getIRIntermediate(pointType)(intervalType.startOffset(iValue))
+        val end = region.getIRIntermediate(pointType)(intervalType.endOffset(iValue))
+        val includeStart = intervalType.includeStart(region, iValue)
+        val includeEnd = intervalType.includeEnd(region, iValue)
+        Code(
+          iValue := interval,
+          (includeStart && includeEnd).mux(
+            gt(region, (!startDef, start), region, (!endDef, end)),
+            gteq(region, (!startDef, start), region, (!endDef, end)))
+        )
+    }
+
+    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean()) {
+      case (mb, interval1, interval2) =>
+        val pointType = tv("T").t
+        val intervalType: TInterval = TInterval(pointType)
+
+        val compare = mb.getCodeOrdering(pointType, CodeOrdering.compare, missingGreatest = true)
+        val region = getRegion(mb)
+
+        val iValue1 = mb.newLocal[Long]
+        val iValue2 = mb.newLocal[Long]
+
+        val startDef = intervalType.startDefined(region, iValue)
+        val endDef = intervalType.endDefined(region, iValue)
+        val start = region.getIRIntermediate(pointType)(intervalType.startOffset(iValue))
+        val end = region.getIRIntermediate(pointType)(intervalType.endOffset(iValue))
+        val includeStart = intervalType.includeStart(region, iValue)
+        val includeEnd = intervalType.includeEnd(region, iValue)
+
+        val cmp = mb.newLocal[Int]
+
+        !Code(
+          iValue1 := interval1,
+          iValue2 := interval1,
+          cmp := compare(region, (!startDef, start), region, (pointMissing, pValue)),
+          (cmp > 0 || (cmp.ceq(0) && includeStart)) && Code(
+            cmp := compare(region, (pointMissing, pValue), region, (!endDef, end)),
+            cmp < 0 || (cmp.ceq(0) && includeEnd)))
     }
   }
 }
