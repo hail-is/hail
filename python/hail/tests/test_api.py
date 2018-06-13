@@ -619,6 +619,20 @@ class TableTests(unittest.TestCase):
         ht = ht.annotate(x = [1,2])
         self.assertEqual(ht.aggregate(hl.agg.array_sum(ht.x) / [2, 2]), [5.0, 10.0])
 
+    def test_rekey_correct_partition_key(self):
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a = ht.idx)
+        ht = ht.key_by('idx', 'a')
+        ht = ht.key_by('idx')
+        ht._force_count()
+        
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a = ht.idx, b = ht.idx)
+        ht = ht.key_by('idx', 'a')
+        ht = ht.key_by('idx', 'b')
+        ht._force_count()
+
+
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
