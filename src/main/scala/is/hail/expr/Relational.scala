@@ -271,18 +271,18 @@ object MatrixIR {
       val keepBc = mv.sparkContext.broadcast(keep)
       mv.copy(typ = newMatrixType,
         colValues = mv.colValues.copy(value = keep.map(mv.colValues.value)),
-        rvd = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+        rvd = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
           val f = makeF()
           val keep = keepBc.value
           var rv2 = RegionValue()
 
           it.map { rv =>
-            val region = rv.region
+            val region = ctx.region
             rv2.set(region,
               f(region, rv.offset, false, region.appendArrayInt(keep), false))
             rv2
           }
-        })
+        }))
     }
     (newMatrixType, keepF)
   }

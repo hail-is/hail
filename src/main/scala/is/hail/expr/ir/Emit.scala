@@ -539,7 +539,7 @@ private class Emit(
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xvv := v,
+            xvv := xmv.mux(defaultValue(tarray.elementType), v),
             codeB.setup,
             xmout := codeB.m,
             xvout := xmout.mux(defaultValue(typ), codeB.v))
@@ -576,7 +576,7 @@ private class Emit(
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xvv := v,
+            xvv := xmv.mux(defaultValue(tarray.elementType), v),
             codeB.setup)
         }
 
@@ -698,7 +698,7 @@ private class Emit(
               srvb.start(init = true),
               Code(
                 codeOld.setup,
-                xo := coerce[Long](codeOld.v),
+                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
                 xmo := codeOld.m,
                 Code(oldtype.fields.map { f =>
                   updateInit.get(f.name) match {
@@ -852,12 +852,14 @@ private class Emit(
         val res = mb.newLocal[java.lang.Double]
 
         val setup = Code(codeMin.setup, codeMax.setup)
-        val m = Code(
-          localF := asmfunction.newInstance(),
-          res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
-            MathFunctions.getClass,
-            "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
-          res.isNull)
+        val m = (codeMin.m || codeMax.m).mux(
+          const(true),
+          Code(
+            localF := asmfunction.newInstance(),
+            res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
+              MathFunctions.getClass,
+              "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
+            res.isNull))
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
     }

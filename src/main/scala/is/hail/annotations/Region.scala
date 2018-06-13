@@ -252,24 +252,12 @@ final class Region private (
     off
   }
 
-  def appendBytes(bytes: Array[Byte]): Long = {
-    val off = allocate(bytes.length)
-    storeBytes(off, bytes)
-    off
-  }
-
-  def appendBytes(bytes: Array[Byte], bytesOff: Long, n: Int): Long = {
-    assert(bytesOff + n <= bytes.length)
-    val off = allocate(n)
-    storeBytes(off, bytes, bytesOff, n)
-    off
-  }
-
   def appendBinary(bytes: Array[Byte]): Long = {
-    align(TBinary.contentAlignment)
-    val startOff = appendInt(bytes.length)
-    appendBytes(bytes)
-    startOff
+    val n = bytes.length
+    val off = allocate(math.max(TBinary.contentAlignment, 4), n + 4)
+    storeInt(off, n)
+    storeBytes(TBinary.bytesOffset(off), bytes)
+    off
   }
 
   def appendBinarySlice(
@@ -279,8 +267,7 @@ final class Region private (
     n: Int
   ): Long = {
     assert(n >= 0)
-    align(TBinary.contentAlignment)
-    val off = allocate(4, n + 4)
+    val off = allocate(math.max(TBinary.contentAlignment, 4), n + 4)
     storeInt(off, n)
     copyFrom(fromRegion, TBinary.bytesOffset(fromOff) + start, off + 4, n)
     off
