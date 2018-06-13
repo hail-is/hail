@@ -3772,7 +3772,7 @@ def uniroot(f: Callable, min, max):
 
     Notes
     -----
-    `f(min)` and `f(max)` must have opposite signs.
+    `f(min)` and `f(max)` must not have the same sign.
 
     If no root can be found, the result of this call will be `NA` (missing).
 
