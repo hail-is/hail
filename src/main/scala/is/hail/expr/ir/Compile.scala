@@ -148,6 +148,8 @@ object CompileWithAggregators {
     AsmFunction5[Region, T0, Boolean, T1, Boolean, R]
   type IRFun3[T0, T1, T2, R] =
     AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]
+  type IRFun4[T0, T1, T2, T3, R] =
+    AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R]
 
   def toIRs[
   F0 >: Null : TypeInfo,
@@ -312,7 +314,7 @@ object CompileWithAggregators {
     () => IRAggFun1[T0],
     () => IRAggFun3[S0, S1, S2],
     Type,
-    () => IRFun1[T0, R],
+    () => IRFun2[Long, T0, R],
     Type) = {
     val args = FastSeq(
       (name0, typ0, classTag[T0]))
@@ -322,7 +324,7 @@ object CompileWithAggregators {
       (aggName1, aggType1, classTag[S1]),
       (aggName2, aggType2, classTag[S2]))
 
-    apply[IRAggFun1[T0], IRAggFun3[S0, S1, S2], IRFun1[T0, R], R
+    apply[IRAggFun1[T0], IRAggFun3[S0, S1, S2], IRFun2[Long, T0, R], R
     ](args, aggArgs, body, transformInitOp, transformAggIR)
   }
 
@@ -349,7 +351,7 @@ object CompileWithAggregators {
     () => IRAggFun3[T0, T1, T2],
     () => IRAggFun4[S0, S1, S2, S3],
     Type,
-    () => IRFun3[T0, T1, T2, R],
+    () => IRFun4[Long, T0, T1, T2, R],
     Type) = {
     val args = FastSeq(
       (name0, typ0, classTag[T0]),
@@ -362,7 +364,7 @@ object CompileWithAggregators {
       (aggName2, aggType2, classTag[S2]),
       (aggName3, aggType3, classTag[S3]))
 
-    apply[IRAggFun3[T0, T1, T2], IRAggFun4[S0, S1, S2, S3], IRFun3[T0, T1, T2, R], R
+    apply[IRAggFun3[T0, T1, T2], IRAggFun4[S0, S1, S2, S3], IRFun4[Long, T0, T1, T2, R], R
     ](args, aggArgs, body, transformInitOp, transformSeqOp)
   }
 }
