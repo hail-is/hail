@@ -20,4 +20,6 @@
 #define NAMESPACE_HAIL_MODULE_END \
   } }
 
+inline ssize_t ssize(size_t n) { return static_cast<ssize_t>(n); }
+
 #endif
