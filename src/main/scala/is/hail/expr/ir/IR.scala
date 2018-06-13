@@ -212,3 +212,29 @@ final case class MatrixWrite(
   f: (MatrixValue) => Unit) extends IR {
   val typ: Type = TVoid
 }
+
+class PrimitiveIR(val self: IR) extends AnyVal {
+  def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
+  def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)
+  def *(other: IR): IR = ApplyBinaryPrimOp(Multiply(), self, other)
+  def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
+  def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
+
+  def &&(other: IR): IR = invoke("&&", self, other)
+  def ||(other: IR): IR = invoke("||", self, other)
+
+  def toI: IR = Cast(self, TInt32())
+  def toL: IR = Cast(self, TInt64())
+  def toF: IR = Cast(self, TFloat32())
+  def toD: IR = Cast(self, TFloat64())
+
+  def unary_-(): IR = ApplyUnaryPrimOp(Negate(), self)
+  def unary_!(): IR = ApplyUnaryPrimOp(Bang(), self)
+
+  def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ), self, other)
+  def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ), self, other)
+  def <(other: IR): IR = ApplyComparisonOp(LT(self.typ), self, other)
+  def >(other: IR): IR = ApplyComparisonOp(GT(self.typ), self, other)
+  def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ), self, other)
+  def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ), self, other)
+}
