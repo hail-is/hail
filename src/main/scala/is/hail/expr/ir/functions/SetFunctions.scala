@@ -6,6 +6,14 @@ import is.hail.expr.types
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
+  def contains(set: IR, elem: IR) =
+    If(IsNA(set),
+      NA(TBoolean()),
+      ApplyComparisonOp(
+        EQWithNA(elem.typ),
+        ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
+        elem))
+
   def registerAll() {
     registerIR("toSet", TArray(tv("T"))) { a =>
       ToSet(a)
@@ -19,9 +27,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFunctions.isEmpty(ToArray(s))
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T")) { (s, v) =>
-      SetContains(s, v)
-    }
+    registerIR("contains", TSet(tv("T")), tv("T"))(contains)
 
     registerIR("remove", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
@@ -58,7 +64,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          SetContains(s2, Ref(x, t))))
+          contains(s2, Ref(x, t))))
     }
 
     registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
@@ -66,7 +72,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          ApplyUnaryPrimOp(Bang(), SetContains(s2, Ref(x, t)))))
+          ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { (s, w) =>
@@ -76,7 +82,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), SetContains(w, Ref(x, t)))))
+          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t)))))
     }
 
     registerIR("sum", TSet(tnum("T"))) { s =>

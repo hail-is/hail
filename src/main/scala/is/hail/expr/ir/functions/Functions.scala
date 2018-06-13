@@ -102,7 +102,7 @@ abstract class RegistryFunctions {
 
   private val boxes = mutable.Map[String, Box[Type]]()
 
-  private def tvBoxes(name: String) = boxes.getOrElseUpdate(name, Box[Type]())
+  private def tvBoxes(name: String) = boxes.getOrElseUpdate(name, Box[Type](matchCond = {(t1, t2) => -t1 == -t2}))
 
   def tv(name: String): TVariable =
     TVariable(name, b = tvBoxes(name))
