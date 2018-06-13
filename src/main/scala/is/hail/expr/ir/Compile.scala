@@ -366,4 +366,3 @@ object CompileWithAggregators {
     ](args, aggArgs, body, transformInitOp, transformSeqOp)
   }
 }
-
