@@ -62,8 +62,8 @@ class EmitMethodBuilder(
 
   def getType(t: Type): Code[Type] = fb.getType(t)
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t, op, missingGreatest)
+  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean = false): CodeOrdering.F[T] =
+    fb.getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness)
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -107,8 +107,8 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
-  private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
-    mutable.Map[(Type, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
+  private[this] val compareMap: mutable.Map[(Type, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]] =
+    mutable.Map[(Type, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]]()
 
   def numReferenceGenomes: Int = rgMap.size
 
@@ -154,30 +154,55 @@ class EmitFunctionBuilder[F >: Null](
       newLazyField[Type](setup))
   }
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] = {
-    val f = compareMap.getOrElseUpdate((t, op, missingGreatest), {
+  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
+    val f = compareMap.getOrElseUpdate((t, op, missingGreatest, ignoreMissingness), {
       val ti = typeToTypeInfo(t)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
-      val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
-      val ord = t.codeOrdering(newMB)
-      val r1 = newMB.getArg[Region](1)
-      val r2 = newMB.getArg[Region](4)
-      val m1 = newMB.getArg[Boolean](2)
-      val v1 = newMB.getArg(3)(ti)
-      val m2 = newMB.getArg[Boolean](5)
-      val v2 = newMB.getArg(6)(ti)
-      val c: Code[_] = op match {
-        case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-        case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+
+      val newMB = if (ignoreMissingness) {
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], ti, typeInfo[Region], ti), rt)
+        val ord = t.codeOrdering(newMB)
+        val r1 = newMB.getArg[Region](1)
+        val r2 = newMB.getArg[Region](3)
+        val v1 = newMB.getArg(2)(ti)
+        val v2 = newMB.getArg(4)(ti)
+        val c: Code[_] = op match {
+          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+        }
+        newMB.emit(c)
+        newMB
+      } else {
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
+        val ord = t.codeOrdering(newMB)
+        val r1 = newMB.getArg[Region](1)
+        val r2 = newMB.getArg[Region](4)
+        val m1 = newMB.getArg[Boolean](2)
+        val v1 = newMB.getArg(3)(ti)
+        val m2 = newMB.getArg[Boolean](5)
+        val v2 = newMB.getArg(6)(ti)
+        val c: Code[_] = op match {
+          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+        }
+        newMB.emit(c)
+        newMB
       }
-      newMB.emit(c)
       val f = { (rx: Code[Region], x: (Code[Boolean], Code[_]), ry: Code[Region], y: (Code[Boolean], Code[_])) =>
-        newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
+        if (ignoreMissingness)
+          newMB.invoke(rx, x._2, ry, y._2)
+        else
+          newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
       }
       f
     })
@@ -226,6 +251,13 @@ class EmitFunctionBuilder[F >: Null](
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
+
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
+    val df = new DependentEmitFunction[AsmFunction2[A1, A2, R]](
+      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
+    children += df
+    df
+  }
 
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
     val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](

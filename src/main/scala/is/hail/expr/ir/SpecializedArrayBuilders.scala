@@ -42,6 +42,26 @@ class StagedArrayBuilder(val elt: Type, mb: MethodBuilder, len: Code[Int]) {
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
+  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
+    ti match {
+      case BooleanInfo =>
+        type F = AsmFunction2[Boolean, Boolean, Boolean]
+        coerce[BooleanArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+      case IntInfo =>
+        type F = AsmFunction2[Int, Int, Boolean]
+        coerce[IntArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+      case LongInfo =>
+        type F = AsmFunction2[Long, Long, Boolean]
+        coerce[LongArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+      case FloatInfo =>
+        type F = AsmFunction2[Float, Float, Boolean]
+        coerce[FloatArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+      case DoubleInfo =>
+        type F = AsmFunction2[Double, Double, Boolean]
+        coerce[DoubleArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+    }
+  }
+
   def addMissing(): Code[Unit] =
     coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
@@ -91,40 +111,6 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
   def clear() {  size_ = 0 }
 }
 
-class ByteArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
-  private var b: Array[Byte] = new Array[Byte](initialCapacity)
-
-  def apply(i: Int): Byte = {
-    require(i >= 0 && i < size)
-    b(i)
-  }
-
-  def ensureCapacity(n: Int): Unit = {
-    if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
-      val newb = new Array[Byte](newCapacity)
-      Array.copy(b, 0, newb, 0, size_)
-      b = newb
-      val newmissing = new Array[Boolean](newCapacity)
-      Array.copy(missing, 0, newmissing, 0, size_)
-      missing = newmissing
-    }
-  }
-
-  def add(x: Byte): Unit = {
-    ensureCapacity(size_ + 1)
-    b(size_) = x
-    missing(size_) = false
-    size_ += 1
-  }
-
-  def update(i: Int, x: Byte): Unit = {
-    require(i >= 0 && i < size)
-    b(i) = x
-    missing(i) = false
-  }
-}
-
 class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Int] = new Array[Int](initialCapacity)
 
@@ -156,6 +142,32 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
     require(i >= 0 && i < size)
     b(i) = x
     missing(i) = false
+  }
+
+
+  def sort(ordering: AsmFunction2[Int, Int, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size) {
+      if (!isMissing(i)) {
+        if (newend != i) {
+          update(newend, b(i))
+        }
+        newend += 1
+      }
+      i += 1
+    }
+    i = newend
+    while (i < size) {
+      setMissing(i, true)
+      i += 1
+    }
+    val newb = b.take(newend).sortWith(ordering(_, _))
+    i = 0
+    while (i < newend) {
+      update(i, newb(i))
+      i += 1
+    }
   }
 }
 
@@ -191,6 +203,31 @@ class LongArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initial
     b(i) = x
     missing(i) = false
   }
+
+  def sort(ordering: AsmFunction2[Long, Long, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size) {
+      if (!isMissing(i)) {
+        if (newend != i) {
+          update(newend, b(i))
+        }
+        newend += 1
+      }
+      i += 1
+    }
+    i = newend
+    while (i < size) {
+      setMissing(i, true)
+      i += 1
+    }
+    val newb = b.take(newend).sortWith(ordering(_, _))
+    i = 0
+    while (i < newend) {
+      update(i, newb(i))
+      i += 1
+    }
+  }
 }
 
 class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
@@ -224,6 +261,31 @@ class FloatArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initia
     require(i >= 0 && i < size)
     b(i) = x
     missing(i) = false
+  }
+
+  def sort(ordering: AsmFunction2[Float, Float, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size) {
+      if (!isMissing(i)) {
+        if (newend != i) {
+          update(newend, b(i))
+        }
+        newend += 1
+      }
+      i += 1
+    }
+    i = newend
+    while (i < size) {
+      setMissing(i, true)
+      i += 1
+    }
+    val newb = b.take(newend).sortWith(ordering(_, _))
+    i = 0
+    while (i < newend) {
+      update(i, newb(i))
+      i += 1
+    }
   }
 }
 
@@ -259,6 +321,31 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
     b(i) = x
     missing(i) = false
   }
+
+  def sort(ordering: AsmFunction2[Double, Double, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size) {
+      if (!isMissing(i)) {
+        if (newend != i) {
+          update(newend, b(i))
+        }
+        newend += 1
+      }
+      i += 1
+    }
+    i = newend
+    while (i < size) {
+      setMissing(i, true)
+      i += 1
+    }
+    val newb = b.take(newend).sortWith(ordering(_, _))
+    i = 0
+    while (i < newend) {
+      update(i, newb(i))
+      i += 1
+    }
+  }
 }
 
 class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
@@ -292,5 +379,30 @@ class BooleanArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(init
     require(i >= 0 && i < size)
     b(i) = x
     missing(i) = false
+  }
+
+  def sort(ordering: AsmFunction2[Boolean, Boolean, Boolean]): Unit = {
+    var newend = 0
+    var i = 0
+    while (i < size) {
+      if (!isMissing(i)) {
+        if (newend != i) {
+          update(newend, b(i))
+        }
+        newend += 1
+      }
+      i += 1
+    }
+    i = newend
+    while (i < size) {
+      setMissing(i, true)
+      i += 1
+    }
+    val newb = b.take(newend).sortWith(ordering(_, _))
+    i = 0
+    while (i < newend) {
+      update(i, newb(i))
+      i += 1
+    }
   }
 }
