@@ -133,4 +133,5 @@ __all__ = ['expr_ast',
            'is_valid_locus',
            'liftover',
            'min_rep',
+           'uniroot',
            ]
