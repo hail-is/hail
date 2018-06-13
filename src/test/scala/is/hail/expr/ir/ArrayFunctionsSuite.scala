@@ -74,11 +74,11 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def median() {
     assertEvalsTo(invoke("median", IRArray(5)), 5)
-    assertEvalsTo(invoke("median", IRArray(5, null)), 5)
+    assertEvalsTo(invoke("median", IRArray(5, null, null)), 5)
     assertEvalsTo(invoke("median", IRArray(3, 7)), 5)
-    assertEvalsTo(invoke("median", IRArray(3, null, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRArray(3, null, 7, 1, null)), 3)
     assertEvalsTo(invoke("median", IRArray(3, 7, 1)), 3)
-    assertEvalsTo(invoke("median", IRArray(3, null, 9, 6, 1)), 4)
+    assertEvalsTo(invoke("median", IRArray(3, null, 9, 6, 1, null)), 4)
     assertEvalsTo(invoke("median", IRArray()), null)
     assertEvalsTo(invoke("median", IRArray(null)), null)
     assertEvalsTo(invoke("median", naa), null)

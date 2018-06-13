@@ -65,31 +65,6 @@ object ArrayFunctions extends RegistryFunctions {
     ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
   }
 
-  def median(array: IR): IR = {
-    val t = -array.typ.asInstanceOf[TArray].elementType
-    val a = Ref(genUID(), TArray(t))
-    val size = Ref(genUID(), TInt32())
-    val lastIdx = size - 1
-    val midIdx = lastIdx.floorDiv(2)
-    def ref(i: IR) = ArrayRef(a, i)
-    val len: IR = ArrayLen(a)
-    def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
-
-    Let(a.name, ToArray(array),
-      If(IsNA(a),
-        NA(t),
-        Let(size.name,
-          If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
-          If(size.ceq(0),
-            NA(t),
-            If(size.ceq(1),
-              ref(0),
-              If(invoke("%", size, 2).cne(0),
-                ref(midIdx), // odd number of non-missing elements
-                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t))))))))
-
-  }
-
   def registerAll() {
     registerIR("size", TArray(tv("T")))(ArrayLen)
 
@@ -178,7 +153,27 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("mean", TArray(tnum("T")))(mean)
 
-    registerIR("median", TArray(tnum("T")))(a => median(ArraySort(a, True())))
+    registerIR("median", TArray(tnum("T"))) { array =>
+      val t = -array.typ.asInstanceOf[TArray].elementType
+      val v = Ref(genUID(), t)
+      val a = Ref(genUID(), TArray(t))
+      val size = Ref(genUID(), TInt32())
+      val lastIdx = size - 1
+      val midIdx = lastIdx.floorDiv(2)
+      def ref(i: IR) = ArrayRef(a, i)
+      def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
+
+      Let(a.name, ArraySort(ArrayFilter(array, v.name, !IsNA(v)), True()),
+        If(IsNA(a),
+          NA(t),
+          Let(size.name,
+            ArrayLen(a),
+            If(size.ceq(0),
+              NA(t),
+              If(invoke("%", size, 2).cne(0),
+                ref(midIdx), // odd number of non-missing elements
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
+    }
     
     def argF(a: IR, op: (Type) => ComparisonOp): IR = {
       val t = -coerce[TArray](a.typ).elementType

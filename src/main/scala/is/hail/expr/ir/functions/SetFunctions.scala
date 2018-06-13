@@ -122,7 +122,27 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }
 
-    registerIR("median", TSet(tnum("T"))) { s => ArrayFunctions.median(ToArray(s)) }
+    registerIR("median", TSet(tnum("T"))) { s =>
+      val t = -s.typ.asInstanceOf[TSet].elementType
+      val a = Ref(genUID(), TArray(t))
+      val size = Ref(genUID(), TInt32())
+      val lastIdx = size - 1
+      val midIdx = lastIdx.floorDiv(2)
+      def ref(i: IR) = ArrayRef(a, i)
+      val len: IR = ArrayLen(a)
+      def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
+
+      Let(a.name, ToArray(s),
+        If(IsNA(a),
+          NA(t),
+          Let(size.name,
+            If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
+            If(size.ceq(0),
+              NA(t),
+              If(invoke("%", size, 2).cne(0),
+                ref(midIdx), // odd number of non-missing elements
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
+    }
 
     registerIR("flatten", TSet(tv("T"))) { s =>
       val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
