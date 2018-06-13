@@ -1546,4 +1546,4 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(even_n_w_null), 2)
 
     def test_uniroot(self):
-        self.assert_evals_to(hl.uniroot(lambda x: x - 1, 0, 2), 1)
+        self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)

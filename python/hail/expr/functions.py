@@ -3762,7 +3762,7 @@ def liftover(x, dest_reference_genome, min_match=0.95):
            min=expr_float64,
            max=expr_float64)
 def uniroot(f: Callable, min, max):
-    """Finds a root of the function `f` within the interval from `min` to `max`.
+    """Finds a root of the function `f` within the interval `[min, max]`.
 
     Examples
     --------
@@ -3774,7 +3774,7 @@ def uniroot(f: Callable, min, max):
     -----
     `f(min)` and `f(max)` must have opposite signs.
 
-    If no root can be found, the result of this call will be `NA`.
+    If no root can be found, the result of this call will be `NA` (missing).
 
     Parameters
     ----------
@@ -3785,8 +3785,8 @@ def uniroot(f: Callable, min, max):
 
     Returns
     -------
-    :class:`.Expression`
-        Expression whose type is the element type of the collection.
+    :class:`.Float64Expression`
+        The root of the function `f`.
     """
 
     new_id = Env.get_uid()
