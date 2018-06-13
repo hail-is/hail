@@ -698,8 +698,8 @@ private class Emit(
               srvb.start(init = true),
               Code(
                 codeOld.setup,
-                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
                 xmo := codeOld.m,
+                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
                 Code(oldtype.fields.map { f =>
                   updateInit.get(f.name) match {
                     case Some((t, EmitTriplet(dov, mv, vv))) =>
