@@ -12,7 +12,6 @@ class ExportSuite extends SparkSuite {
 
   @Test def test() {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds = TestUtils.splitMultiHTS(vds)
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
@@ -80,8 +79,8 @@ class ExportSuite extends SparkSuite {
   }
 
   @Test def testExportSamples() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf")
-      .filterColsExpr("""sa.s == "C469::HG02026""""))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .filterColsExpr("""sa.s == "C469::HG02026"""")
     assert(vds.numCols == 1)
 
     // verify exports localSamples
@@ -95,7 +94,7 @@ class ExportSuite extends SparkSuite {
     val f2 = tmpDir.createTempFile("samples", ".tsv")
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
     vds.colsTable().select(Array("`S.A.M.P.L.E.ID` = row.s")).export(f)
     vds.colsTable().select(Array("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = row.s", "ANOTHERTHING = row.s")).export(f2)
     vds.colsTable().select(Array("`I have some spaces and tabs\\there` = row.s", "`more weird stuff here` = row.s")).export(f3)
@@ -121,7 +120,6 @@ class ExportSuite extends SparkSuite {
     // this should run without errors
     val f = tmpDir.createTempFile("samples", ".tsv")
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds = TestUtils.splitMultiHTS(vds)
     vds = SampleQC(vds)
     vds
       .colsTable()

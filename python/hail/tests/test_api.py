@@ -1391,6 +1391,37 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    def test_hwe(self):
+        mt = hl.import_vcf(resource('HWE_test.vcf'))
+        mt = mt.select_rows(**hl.agg.hardy_weinberg(mt.GT))
+        rt = mt.rows()
+        expected = hl.Table.parallelize([
+            hl.struct(
+                locus=hl.locus('20', pos),
+                alleles=alleles,
+                r_expected_het_freq=r,
+                p_hwe=p)
+            for (pos, alleles, r, p) in [
+                    (1, ['A', 'G'], 0.0, 0.5),
+                    (2, ['A', 'G'], 0.25, 0.5),
+                    (3, ['T', 'C'], 0.5357142857142857, 0.21428571428571427),
+                    (4, ['T', 'A'], 0.5714285714285714,0.6571428571428573),
+                    (5, ['G', 'A'], 0.3333333333333333, 0.5),
+                    (6, ['T', 'C'], hl.null(hl.tfloat64), 0.5)]],
+                                        key=['locus', 'alleles'])
+        self.assertTrue(rt._same(expected))
+
+    def test_hw_p_and_agg_agree(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = mt.annotate_rows(
+            stats = hl.agg.call_stats(mt.GT, mt.alleles),
+            hw = hl.agg.hardy_weinberg(mt.GT))
+        mt = mt.annotate_rows(
+            hw2 = hl.hardy_weinberg_p(mt.stats.homozygote_count[0],
+                                      mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
+                                      mt.stats.homozygote_count[1]))
+        rt = mt.rows()
+        self.assertTrue(rt.all(rt.hw == rt.hw2))
 
 class GroupedMatrixTests(unittest.TestCase):
 

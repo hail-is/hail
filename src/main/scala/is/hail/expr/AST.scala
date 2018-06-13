@@ -4,7 +4,6 @@ import is.hail.expr.ir.{AggOp, AggSignature, ApplyAggOp, IR, SeqOp}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ToIRErr._
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
