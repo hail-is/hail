@@ -24,7 +24,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     }
   }
 
-  def getResult[B <: MissingArrayBuilder, T >: Null <: AnyRef : ClassTag](ab: B)(f: (B, Int) => T): Array[T] = {
+  def getResult[B <: MissingArrayBuilder, T >: Null : ClassTag](ab: B)(f: (B, Int) => T): Array[T] = {
     Array.tabulate[T](ab.size) { i =>
       if (ab.isMissing(i))
         null
@@ -43,7 +43,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   @Test(dataProvider="sortInt")
   def testSortOnIntArrayBuilder(array: IndexedSeq[Integer], expected: IndexedSeq[Integer]) {
     val ab = new IntArrayBuilder(16)
-    addToArrayBuilder(ab, array) { (iab, i) => iab.add(Int.unbox(i)) }
+    addToArrayBuilder(ab, array) { (iab, i) => iab.add(i) }
 
     ab.sort(ordering[Int] { (i, j) => i < j})
     val result = getResult[IntArrayBuilder, Integer](ab) { (iab, i) => Int.box(iab(i)) }
@@ -60,7 +60,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   @Test(dataProvider="sortLong")
   def testSortOnLongArrayBuilder(array: IndexedSeq[java.lang.Long], expected: IndexedSeq[java.lang.Long]) {
     val ab = new LongArrayBuilder(16)
-    addToArrayBuilder(ab, array) { (jab, j) => jab.add(Long.unbox(j)) }
+    addToArrayBuilder(ab, array) { (jab, j) => jab.add(j) }
 
     ab.sort(ordering[Long] { (i, j) => i < j})
     val result = getResult[LongArrayBuilder, java.lang.Long](ab) { (jab, j) => Long.box(jab(j)) }
@@ -77,7 +77,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   @Test(dataProvider="sortFloat")
   def testSortOnFloatArrayBuilder(array: IndexedSeq[java.lang.Float], expected: IndexedSeq[java.lang.Float]) {
     val ab = new FloatArrayBuilder(16)
-    addToArrayBuilder(ab, array) { (fab, f) => fab.add(Float.unbox(f)) }
+    addToArrayBuilder(ab, array) { (fab, f) => fab.add(f) }
 
     ab.sort(ordering[Float] { (i, j) => i < j })
     val result = getResult[FloatArrayBuilder, java.lang.Float](ab) { (fab, f) => Float.box(fab(f)) }
@@ -94,7 +94,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   @Test(dataProvider="sortDouble")
   def testSortOnDoubleArrayBuilder(array: IndexedSeq[java.lang.Double], expected: IndexedSeq[java.lang.Double]) {
     val ab = new DoubleArrayBuilder(16)
-    addToArrayBuilder(ab, array) { (dab, d) => dab.add(Double.unbox(d)) }
+    addToArrayBuilder(ab, array) { (dab, d) => dab.add(d) }
 
     ab.sort(ordering[Double] { (i, j) => i < j })
     val result = getResult[DoubleArrayBuilder, java.lang.Double](ab) { (dab, d) => Double.box(dab(d)) }
@@ -111,7 +111,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   @Test(dataProvider="sortBoolean")
   def testSortOnBooleanArrayBuilder(array: IndexedSeq[java.lang.Boolean], expected: IndexedSeq[java.lang.Boolean]) {
     val ab = new BooleanArrayBuilder(16)
-    addToArrayBuilder(ab, array) { (bab, b) => bab.add(Boolean.unbox(b)) }
+    addToArrayBuilder(ab, array) { (bab, b) => bab.add(b) }
 
     ab.sort(ordering[Boolean] { (i, j) => i < j })
     val result = getResult[BooleanArrayBuilder, java.lang.Boolean](ab) { (bab, b) => Boolean.box(bab(b)) }
