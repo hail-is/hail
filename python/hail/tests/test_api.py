@@ -611,7 +611,7 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
         self.assertEqual(t.row_value.dtype, hl.tstruct())
         self.assertEqual(list(t.key), ['idx'])
-        
+
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
     def test_issue_3654(self):
@@ -636,8 +636,9 @@ class TableTests(unittest.TestCase):
         t = hl.utils.range_table(1)
         t = t.annotate(a=hl.set(['a', 'b', 'c']))
         t = t.explode('a')
-        self.assertEqual(t.collect(), list(
-            [hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value]))
+        self.assertEqual(set(t.collect()),
+                         {hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value})
+
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
