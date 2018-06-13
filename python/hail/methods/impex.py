@@ -782,13 +782,13 @@ def grep(regex, path, max_count=100):
 
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
-           entry_fields=enumeration('GT', 'GP', 'dosage'),
+           entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            tolerance=numeric,
            skip_invalid_loci=bool,
-           row_fields=enumeration('varid', 'rsid'),
+           row_fields=sequenceof(enumeration('varid', 'rsid')),
            _variants_per_file=dictof(str, sequenceof(int)))
 def import_bgen(path,
                 entry_fields,
