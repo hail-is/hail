@@ -161,7 +161,6 @@ object CompileWithAggregators {
     assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
     val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
-    val nAggs = rvAggs.length
     val compileInitOp = (initOp: IR) => Compile[F0, Unit](args, initOp, 2)
     val compileSeqOp = (seqOp: IR) => Compile[F1, Unit](aggScopeArgs, seqOp, 2)
 
