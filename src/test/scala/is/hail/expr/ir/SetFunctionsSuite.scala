@@ -102,6 +102,7 @@ class SetFunctionsSuite extends TestNGSuite {
   }
 
   @Test def max() {
+    assertEvalsTo(invoke("max", IRSet(7)), 7)
     assertEvalsTo(invoke("max", IRSet(3, 7)), 7)
     assertEvalsTo(invoke("max", IRSet(3, null, 7)), 7)
     assertEvalsTo(invoke("max", IRSet()), null)
@@ -110,6 +111,7 @@ class SetFunctionsSuite extends TestNGSuite {
   }
 
   @Test def min() {
+    assertEvalsTo(invoke("min", IRSet(3)), 3)
     assertEvalsTo(invoke("min", IRSet(3, 7)), 3)
     assertEvalsTo(invoke("min", IRSet(3, null, 7)), 3)
     assertEvalsTo(invoke("min", IRSet()), null)
@@ -123,6 +125,18 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("mean", IRSet()), null)
     assertEvalsTo(invoke("mean", IRSet(null)), null)
     assertEvalsTo(invoke("mean", nas), null)
+  }
+
+  @Test def median() {
+    assertEvalsTo(invoke("median", IRSet(5)), 5)
+    assertEvalsTo(invoke("median", IRSet(5, null)), 5)
+    assertEvalsTo(invoke("median", IRSet(3, 7)), 5)
+    assertEvalsTo(invoke("median", IRSet(3, null, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRSet(3, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRSet(3, null, 9, 6, 1)), 4)
+    assertEvalsTo(invoke("median", IRSet()), null)
+    assertEvalsTo(invoke("median", IRSet(null)), null)
+    assertEvalsTo(invoke("median", nas), null)
   }
 
   @Test def flatten() {

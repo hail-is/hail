@@ -153,7 +153,27 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("mean", TArray(tnum("T")))(mean)
 
-    // FIXME: Add median
+    registerIR("median", TArray(tnum("T"))) { array =>
+      val t = -array.typ.asInstanceOf[TArray].elementType
+      val v = Ref(genUID(), t)
+      val a = Ref(genUID(), TArray(t))
+      val size = Ref(genUID(), TInt32())
+      val lastIdx = size - 1
+      val midIdx = lastIdx.floorDiv(2)
+      def ref(i: IR) = ArrayRef(a, i)
+      def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
+
+      Let(a.name, ArraySort(ArrayFilter(array, v.name, !IsNA(v)), True()),
+        If(IsNA(a),
+          NA(t),
+          Let(size.name,
+            ArrayLen(a),
+            If(size.ceq(0),
+              NA(t),
+              If(invoke("%", size, 2).cne(0),
+                ref(midIdx), // odd number of non-missing elements
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
+    }
     
     def argF(a: IR, op: (Type) => ComparisonOp): IR = {
       val t = -coerce[TArray](a.typ).elementType
