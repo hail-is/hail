@@ -18,7 +18,7 @@ sealed trait AggOp { }
 final case class Fraction() extends AggOp { } // remove when prefixes work
 final case class Statistics() extends AggOp { } // remove when prefixes work
 final case class Collect() extends AggOp { }
-// final case class InfoScore() extends AggOp { }
+final case class InfoScore() extends AggOp { }
 // final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
 final case class Sum() extends AggOp { }
 final case class Product() extends AggOp { }
@@ -73,7 +73,8 @@ object AggOp {
     // case (Collect(), _: TFloat64) =>
     // case (Collect(), _: TArray) =>
     // case (Collect(), _: TStruct) =>
-    // case (InfoScore() =>
+
+    case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
 
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
     case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
@@ -134,6 +135,7 @@ object AggOp {
     case "count" => Count()
     case "take" => Take()
     case "hist" => Histogram()
+    case "infoScore" => InfoScore()
     case "callStats" => CallStats()
     case "inbreeding" => Inbreeding()
   }

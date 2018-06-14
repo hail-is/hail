@@ -366,6 +366,7 @@ object Interpret {
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
           case Statistics() => new StatAggregator()
+          case InfoScore() => new InfoScoreAggregator()
           case Histogram() =>
             val Seq(start, end, bins) = constructorArgs
             val startValue = interpret(start, Env.empty[Any], null, null).asInstanceOf[Double]
