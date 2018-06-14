@@ -178,8 +178,7 @@ class GroupedTable(ExprContainer):
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        keyed_table = self._parent._select("GroupedTable.aggregate",
-                                           key_struct=hl.struct(**dict(self._groups)))
+        keyed_table = self._parent.key_by(**dict(self._groups))
 
         base, cleanup = keyed_table._process_joins(*named_exprs.values())
 
