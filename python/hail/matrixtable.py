@@ -301,17 +301,13 @@ class GroupedMatrixTable(ExprContainer):
             *itertools.chain(named_exprs.values(), group_exprs.values()))
 
         if self._col_keys is not None:
-            keyed_mt = base._select_cols('GroupedMatrixTable.aggregate',
-                                         hl.struct(**dict(self._col_keys)),
-                                         do_process_joins=False)
+            keyed_mt = base._select_cols_processed(hl.struct(**dict(self._col_keys)))
             mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(hl.struct(**named_exprs)._ast.to_hql()))
         elif self._row_keys is not None:
             if self._partition_key is None:
                 self._partition_key = self._row_keys.keys()
-            keyed_mt = base._select_rows('GroupedMatrixTable.aggregate',
-                                         hl.struct(**dict(self._row_keys)),
-                                         pk_size=len(self._partition_key),
-                                         do_process_joins=False)
+            keyed_mt = base._select_rows_processed(hl.struct(**dict(self._row_keys)),
+                                                   pk_size=len(self._partition_key))
             mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                                                ',\n'.join(strs)))
         else:
@@ -2848,9 +2844,23 @@ class MatrixTable(ExprContainer):
     @typecheck_method(caller=str,
                       key_struct=nullable(expr_struct()),
                       value_struct=nullable(expr_struct()),
-                      pk_size=nullable(int),
-                      do_process_joins=bool)
-    def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None, do_process_joins=True):
+                      pk_size=nullable(int))
+    def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None):
+        row, new_key = self._make_row(key_struct, value_struct, pk_size)
+
+        analyze(caller, row, self._row_indices, {self._col_axis})
+        base, cleanup = self._process_joins(row)
+
+        return cleanup(MatrixTable(base._jvds.selectRows(row._ast.to_hql(), new_key)))
+
+    @typecheck_method(key_struct=nullable(expr_struct()),
+                      value_struct=nullable(expr_struct()),
+                      pk_size=nullable(int))
+    def _select_rows_processed(self, key_struct=None, value_struct=None, pk_size=None):
+        row, new_key = self._make_row(key_struct, value_struct, pk_size)
+        return MatrixTable(self._jvds.selectRows(row._ast.to_hql(), new_key))
+
+    def _make_row(self, key_struct, value_struct, pk_size):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
@@ -2864,22 +2874,26 @@ class MatrixTable(ExprContainer):
                 row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
             else:
                 row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-
-        if do_process_joins:
-            base, cleanup = self._process_joins(row)
-            analyze(caller, row, self._row_indices, {self._col_axis})
-        else:
-            # ensure analyze and process_joins were done beforehand
-            base, cleanup = self, identity
-
-        return cleanup(MatrixTable(base._jvds.selectRows(row._ast.to_hql(),
-                                                         new_key)))
+        return row, new_key
 
     @typecheck_method(caller=str,
                       key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()),
-                      do_process_joins=bool)
-    def _select_cols(self, caller, key_struct=None, value_struct=None, do_process_joins=True):
+                      value_struct=nullable(expr_struct()))
+    def _select_cols(self, caller, key_struct=None, value_struct=None):
+        col, new_key = self._make_col(key_struct, value_struct)
+
+        analyze(caller, col, self._col_indices, {self._row_axis})
+        base, cleanup = self._process_joins(col)
+
+        return cleanup(MatrixTable(base._jvds.selectCols(col._ast.to_hql(), new_key)))
+
+    @typecheck_method(key_struct=nullable(expr_struct()),
+                      value_struct=nullable(expr_struct()))
+    def _select_cols_processed(self, key_struct=None, value_struct=None):
+        col, new_key = self._make_col(key_struct, value_struct)
+        return MatrixTable(self._jvds.selectCols(col._ast.to_hql(), new_key))
+    
+    def _make_col(self, key_struct, value_struct):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
@@ -2890,15 +2904,7 @@ class MatrixTable(ExprContainer):
                 col = hl.bind(lambda k: self.col.annotate(**k), key_struct)
             else:
                 col = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-
-        if do_process_joins:
-            base, cleanup = self._process_joins(col)
-            analyze(caller, col, self._col_indices, {self._row_axis})
-        else:
-            # ensure analyze and process_joins were done beforehand
-            base, cleanup = self, identity
-
-        return cleanup(MatrixTable(base._jvds.selectCols(col._ast.to_hql(), new_key)))
+        return col, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'MatrixTable':

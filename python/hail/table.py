@@ -192,7 +192,7 @@ class GroupedTable(ExprContainer):
         base, cleanup = self._parent._process_joins(
             *itertools.chain(group_exprs.values(), named_exprs.values()))
 
-        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**group_exprs), do_process_joins=False)
+        keyed_t = base._select_processed(hl.struct(**group_exprs))
 
         t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                              ',\n'.join(strs),
@@ -398,9 +398,32 @@ class Table(ExprContainer):
 
     @typecheck_method(caller=str,
                       key_struct=oneof(nullable(expr_struct()), exactly("default")),
-                      value_struct=nullable(expr_struct()),
-                      do_process_joins=bool)
-    def _select(self, caller, key_struct="default", value_struct=None, do_process_joins=True):
+                      value_struct=nullable(expr_struct()))
+    def _select(self, caller, key_struct="default", value_struct=None):
+        row, preserved_key, preserved_key_new, new_key = self._make_row(key_struct, value_struct)
+
+        analyze(caller, row, self._row_indices)
+        base, cleanup = self._process_joins(row)
+
+        return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
+
+    @typecheck_method(key_struct=oneof(nullable(expr_struct()), exactly("default")),
+                      value_struct=nullable(expr_struct()))
+    def _select_processed(self, key_struct="default", value_struct=None):
+        return self._select_scala(*self._make_row(key_struct, value_struct))
+
+    def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
+        jt = self._jt
+        if self.key is not None and preserved_key != list(self.key):
+            jt = jt.keyBy(preserved_key)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
+        if new_key != preserved_key_new:
+            jt = jt.keyBy(new_key)
+        return Table(jt)
+
+    def _make_row(self,
+                  key_struct=oneof(nullable(expr_struct()), exactly("default")),
+                  value_struct=nullable(expr_struct())):
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
@@ -430,21 +453,7 @@ class Table(ExprContainer):
             preserved_key = preserved_key_new = new_key = None
             row = value_struct if value_struct is not None else hl.struct()
 
-        if do_process_joins:
-            base, cleanup = self._process_joins(row)
-            analyze(caller, row, self._row_indices)
-        else:
-            # ensure analyze and process_joins were done beforehand
-            base, cleanup = self, identity
-
-        jt = base._jt
-        if self.key is not None and preserved_key != list(self.key):
-            jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
-        if new_key != preserved_key_new:
-            jt = jt.keyBy(new_key)
-        t = cleanup(Table(jt))
-        return t
+        return row, preserved_key, preserved_key_new, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
