@@ -46,30 +46,6 @@ class GroupedMatrixTable(ExprContainer):
     def __getitem__(self, item):
         return self._get_field(item)
 
-    def _process_keys(self, left):
-        col_keys = []
-        renamed = {}
-        new_col_fields = {}
-
-        if self._col_keys is not None:
-            for k, v in self._col_keys.items():
-                if v in self._parent._fields_inverse:
-                    f = self._parent._fields_inverse[v]
-                else:
-                    f = Env.get_uid()
-                    new_col_fields[f] = v
-                col_keys.append(f)
-                if k != f:
-                    renamed[f] = k
-            left = left.annotate_cols(**new_col_fields)
-
-        self._new_col_keys = col_keys
-
-        def cleanup(mt):
-            return mt.rename(renamed)
-
-        return left, cleanup
-
     def describe(self):
         """Print information about grouped matrix table."""
 
@@ -276,6 +252,7 @@ class GroupedMatrixTable(ExprContainer):
         self._partitions = n
         return self
 
+    @typecheck_method(named_exprs=expr_any)
     def aggregate(self, **named_exprs) -> 'MatrixTable':
         """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
@@ -300,10 +277,6 @@ class GroupedMatrixTable(ExprContainer):
 
         assert self._row_keys is not None or self._col_keys is not None
 
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-
-        strs = []
-
         fixed_fields = list(self._parent.globals.dtype)
         if self._row_keys is not None:
             fixed_fields.extend(self._row_keys.keys())
@@ -314,7 +287,7 @@ class GroupedMatrixTable(ExprContainer):
         else:
             fixed_fields.extend(list(self._parent.col.dtype))
 
-        base, _ = self._parent._process_joins(*named_exprs.values())
+        strs = []
         for k, v in named_exprs.items():
             if k in fixed_fields:
                 raise ExpressionException("GroupedMatrixTable.aggregate cannot assign duplicate field '{}'".format(k))
@@ -322,24 +295,29 @@ class GroupedMatrixTable(ExprContainer):
                     {self._parent._row_axis, self._parent._col_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        base, rename = self._process_keys(base)
+        group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
+
+        base, cleanup = self._parent._process_joins(
+            *itertools.chain(named_exprs.values(), group_exprs.values()))
 
         if self._col_keys is not None:
-            assert self._new_col_keys is not None
-            base = MatrixTable(base.key_cols_by(*self._new_col_keys)._jvds
-                               .aggregateColsByKey(hl.struct(**named_exprs)._ast.to_hql()))
+            keyed_mt = base._select_cols('GroupedMatrixTable.aggregate',
+                                         hl.struct(**dict(self._col_keys)),
+                                         do_process_joins=False)
+            mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(hl.struct(**named_exprs)._ast.to_hql()))
         elif self._row_keys is not None:
             if self._partition_key is None:
                 self._partition_key = self._row_keys.keys()
-            pk = {k: self._row_keys[k] for k in self._partition_key}
-            rest_of_key = {k: self._row_keys[k] for k in self._row_keys.keys() if k not in self._partition_key}
-            base = MatrixTable(
-                base._key_rows_by("GroupedMatrixTable.aggregate", pk, rest_of_key)
-                ._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs)))
+            keyed_mt = base._select_rows('GroupedMatrixTable.aggregate',
+                                         hl.struct(**dict(self._row_keys)),
+                                         pk_size=len(self._partition_key),
+                                         do_process_joins=False)
+            mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(),
+                                                               ',\n'.join(strs)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
 
-        return rename(base)
+        return cleanup(mt)
 
 
 matrix_table_type = lazy()
@@ -2870,8 +2848,9 @@ class MatrixTable(ExprContainer):
     @typecheck_method(caller=str,
                       key_struct=nullable(expr_struct()),
                       value_struct=nullable(expr_struct()),
-                      pk_size=nullable(int))
-    def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None):
+                      pk_size=nullable(int),
+                      do_process_joins=bool)
+    def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None, do_process_joins=True):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
@@ -2886,16 +2865,21 @@ class MatrixTable(ExprContainer):
             else:
                 row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
 
-        base, cleanup = self._process_joins(row)
-        analyze(caller, row, self._row_indices, {self._col_axis})
+        if do_process_joins:
+            base, cleanup = self._process_joins(row)
+            analyze(caller, row, self._row_indices, {self._col_axis})
+        else:
+            # ensure analyze and process_joins were done beforehand
+            base, cleanup = self, identity
 
         return cleanup(MatrixTable(base._jvds.selectRows(row._ast.to_hql(),
                                                          new_key)))
 
     @typecheck_method(caller=str,
                       key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()))
-    def _select_cols(self, caller, key_struct=None, value_struct=None):
+                      value_struct=nullable(expr_struct()),
+                      do_process_joins=bool)
+    def _select_cols(self, caller, key_struct=None, value_struct=None, do_process_joins=True):
         if key_struct is None:
             assert value_struct is not None
             new_key = None
@@ -2907,8 +2891,12 @@ class MatrixTable(ExprContainer):
             else:
                 col = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
 
-        base, cleanup = self._process_joins(col)
-        analyze(caller, col, self._col_indices, {self._row_axis})
+        if do_process_joins:
+            base, cleanup = self._process_joins(col)
+            analyze(caller, col, self._col_indices, {self._row_axis})
+        else:
+            # ensure analyze and process_joins were done beforehand
+            base, cleanup = self, identity
 
         return cleanup(MatrixTable(base._jvds.selectCols(col._ast.to_hql(), new_key)))
 

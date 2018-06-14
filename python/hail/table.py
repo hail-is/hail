@@ -89,6 +89,7 @@ class ExprContainer(object):
         self._fields = other._fields
         self._fields_inverse = other._fields_inverse
 
+
 class GroupedTable(ExprContainer):
     """Table grouped by row that can be aggregated into a new table.
 
@@ -104,9 +105,7 @@ class GroupedTable(ExprContainer):
 
         self._copy_fields_from(parent)
 
-
-    @typecheck_method(n=int)
-    def partition_hint(self, n) -> 'GroupedTable':
+    def partition_hint(self, n: int) -> 'GroupedTable':
         """Set the target number of partitions for aggregation.
 
         Examples
@@ -143,6 +142,7 @@ class GroupedTable(ExprContainer):
         self._npartitions = n
         return self
 
+    @typecheck_method(named_exprs=expr_any)
     def aggregate(self, **named_exprs):
         """Aggregate by group, used after :meth:`.Table.group_by`.
 
@@ -178,7 +178,6 @@ class GroupedTable(ExprContainer):
             raise ValueError('GroupedTable cannot be aggregated if no groupings are specified.')
 
         group_exprs = dict(self._groups)
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         if not named_exprs.keys().isdisjoint(group_exprs.keys()):
             intersection = set(named_exprs.keys()) & set(group_exprs.keys())
