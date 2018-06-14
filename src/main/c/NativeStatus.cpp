@@ -10,7 +10,7 @@ NATIVEMETHOD(jlong, NativeStatus, nativeCtorErrnoOffset)(
 ) {
   auto status = std::make_shared<NativeStatus>();
   // C++ "offsetof" can be weird when used on subclasses
-  int64_t errnoOffset = ((int64_t)&status->errno_) - (int64_t)status.get();
+  int64_t errnoOffset = ((char*)&status->errno_) - (char*)status.get();
   // Upcast/copy into a NativeObjPtr
   NativeObjPtr ptr = status;
   init_NativePtr(env, thisJ, &ptr);

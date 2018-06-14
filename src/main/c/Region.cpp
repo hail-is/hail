@@ -5,6 +5,10 @@
 
 namespace hail {
 
+constexpr ssize_t Region::kChunkCap;
+constexpr ssize_t Region::kMaxSmall;
+constexpr ssize_t Region::kNumBigToKeep;
+
 void Region::clear_but_keep_mem() {
   buf_ = nullptr;
   pos_ = kChunkCap;
