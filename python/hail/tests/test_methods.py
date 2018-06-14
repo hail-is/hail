@@ -641,7 +641,7 @@ class Tests(unittest.TestCase):
         """
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         ht = hl.import_fam(resource('triomatrix.fam'))
-        
+
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
 

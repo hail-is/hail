@@ -650,7 +650,9 @@ class GroupedTableTests(unittest.TestCase):
         )
 
         self.assertTrue(result._same(expected))
-    
+
+        self.assertRaises(ValueError, lambda: grouped.aggregate(group=hl.agg.sum(ht.idx)))
+
     def test_aggregate_by_with_joins(self):
         ht = hl.utils.range_table(4)
         ht2 = hl.utils.range_table(4)

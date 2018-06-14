@@ -158,6 +158,12 @@ class GroupedTable(ExprContainer):
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
+        Notes
+        -----
+        The resulting table has a key field for each group and a value field for
+        each aggregation. The names of the aggregation expressions must be
+        distinct from the names of the groups.
+
         Parameters
         ----------
         named_exprs : varargs of :class:`.Expression`
@@ -169,9 +175,15 @@ class GroupedTable(ExprContainer):
             Aggregated table.
         """
         if self._groups is None:
-            raise ValueError("GroupedTable cannot be aggregated if no groupings are specified.")
+            raise ValueError('GroupedTable cannot be aggregated if no groupings are specified.')
 
+        group_exprs = dict(self._groups)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+
+        if not named_exprs.keys().isdisjoint(group_exprs.keys()):
+            intersection = set(named_exprs.keys()) & set(group_exprs.keys())
+            raise ValueError(
+                f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
 
         strs = []
         for k, v in named_exprs.items():
@@ -179,9 +191,9 @@ class GroupedTable(ExprContainer):
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
         base, cleanup = self._parent._process_joins(
-            *itertools.chain((v for _, v in self._groups), named_exprs.values()))
+            *itertools.chain(group_exprs.values(), named_exprs.values()))
 
-        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**dict(self._groups)), reprocess_joins=False)
+        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**group_exprs), reprocess_joins=False)
 
         t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                              ',\n'.join(strs),
@@ -423,7 +435,7 @@ class Table(ExprContainer):
             base, cleanup = self._process_joins(row)
             analyze(caller, row, self._row_indices)
         else:
-            # analyze and process joins should be done beforehand
+            # ensure analyze and process_joins were done beforehand
             base, cleanup = self, identity
 
         jt = base._jt
