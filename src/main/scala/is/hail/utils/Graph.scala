@@ -73,13 +73,6 @@ object Graph {
               SafeRow(t.asInstanceOf[TBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
             }
           }
-
-        case None =>
-          val tieBreakerThunk = Parser.parseTypedExpr[Long](e, tieBreakerEc)
-          (l: Any, r: Any) => {
-            tieBreakerEc.setAll(l, r)
-            tieBreakerThunk()
-          }
       }
     }
 

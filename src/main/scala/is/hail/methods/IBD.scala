@@ -367,14 +367,6 @@ object IBD {
           val result: java.lang.Double = irThunk()(rv.region, rv.offset, false, 0, true)
           result
         }
-      case ToIRFailure(_) =>
-        val computeMafFromEc = RegressionUtils.parseFloat64Expr(computeMafExpr, mafEc)
-        (rv: RegionValue) => {
-          val row = new UnsafeRow(localRowType, rv)
-          mafEc.setAll(row)
-          val result: java.lang.Double = computeMafFromEc()
-          result
-        }
     }
 
     (rv: RegionValue) => {

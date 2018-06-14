@@ -1,7 +1,5 @@
 package is.hail.expr.types
 
-import is.hail.expr.NumericConversion
-
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
     assert(types.forall(!_.required))
@@ -21,7 +19,5 @@ object TNumeric {
 }
 
 abstract class TNumeric extends Type {
-  def conv: NumericConversion[_, _]
-
   override def canCompare(other: Type): Boolean = other.isInstanceOf[TNumeric]
 }

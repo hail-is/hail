@@ -4,7 +4,6 @@ import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.expr.LongNumericConversion
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
@@ -19,7 +18,6 @@ class TInt64(override val required: Boolean) extends TIntegral {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("int64")
   }
-  val conv = LongNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
 

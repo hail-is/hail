@@ -10,7 +10,6 @@ import is.hail.io._
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
 import is.hail.methods.Aggregators
-import is.hail.methods.Aggregators.ColFunctions
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
@@ -595,39 +594,6 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
 }
 
-case class FilterCols(
-  child: MatrixIR,
-  pred: AST) extends MatrixIR {
-
-  def children: IndexedSeq[BaseIR] = Array(child)
-
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterCols = {
-    assert(newChildren.length == 1)
-    FilterCols(newChildren(0).asInstanceOf[MatrixIR], pred)
-  }
-
-  val (typ, filterF) = MatrixIR.filterCols(child.typ)
-
-  def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-
-    val localGlobals = prev.globals.value
-    val sas = typ.colType
-    val ec = typ.colEC
-
-    val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
-
-    val sampleAggregationOption = Aggregators.buildColAggregations(hc, prev, ec)
-
-    val p = (sa: Annotation, i: Int) => {
-      sampleAggregationOption.foreach(f => f.apply(i))
-      ec.setAll(localGlobals, sa)
-      f() == true
-    }
-    filterF(prev, p)
-  }
-}
-
 case class FilterColsIR(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
@@ -669,54 +635,6 @@ case class FilterColsIR(
     }
 
     filterF(prev, p)
-  }
-}
-
-case class MatrixFilterRowsAST(
-  child: MatrixIR,
-  pred: AST
-) extends MatrixIR {
-
-  def children: IndexedSeq[BaseIR] = Array(child)
-
-  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsAST = {
-    assert(newChildren.length == 1)
-    MatrixFilterRowsAST(newChildren(0).asInstanceOf[MatrixIR], pred)
-  }
-
-  def typ: MatrixType = child.typ
-
-  def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-
-    val ec = prev.typ.rowEC
-
-    val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
-
-    val aggregatorOption = Aggregators.buildRowAggregations(
-      prev.rvd.sparkContext, prev.typ, prev.globals, prev.colValues, ec)
-
-    val fullRowType = prev.typ.rvRowType
-
-    val localGlobals = prev.globals.broadcast
-
-    val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
-      val fullRow = new UnsafeRow(fullRowType)
-      it.filter { rv =>
-        fullRow.set(rv)
-        ec.set(0, localGlobals.value)
-        ec.set(1, fullRow)
-        aggregatorOption.foreach(_ (rv))
-        if (f() == true)
-          true
-        else {
-          ctx.region.clear()
-          false
-        }
-      }
-    })
-
-    prev.copy(rvd = filteredRDD)
   }
 }
 

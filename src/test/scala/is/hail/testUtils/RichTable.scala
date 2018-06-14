@@ -3,41 +3,24 @@ package is.hail.testUtils
 import is.hail.annotations.Inserter
 import is.hail.expr._
 import is.hail.expr.ir.{InsertFields, MakeStruct, Ref}
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.{TBoolean, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
 class RichTable(ht: Table) {
   def forall(code: String): Boolean = {
-    val ec = ht.rowEvalContext()
-    ec.set(0, ht.globals.value)
-
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
-
-    ht.rdd.forall { a =>
-      ec.set(1, a)
-      val b = f()
-      if (b == null)
-        false
-      else
-        b
-    }
+    val (a, t) = ht.aggregate(s"AGG.filter(row => let t = $code in !(isDefined(t) && t)).count() == i64#0")
+    assert(t.isOfType(TBoolean()))
+    assert(a != null)
+    a.isInstanceOf[Boolean]
   }
 
   def exists(code: String): Boolean = {
-    val ec = ht.rowEvalContext()
-    ec.set(0, ht.globals.value)
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
-
-    ht.rdd.exists { a =>
-      ec.set(1, a)
-      val b = f()
-      if (b == null)
-        false
-      else
-        b
-    }
+    val (a, t) = ht.aggregate(s"AGG.filter(row => let t = $code in isDefined(t) && t).count() > i64#0")
+    assert(t.isOfType(TBoolean()))
+    assert(a != null)
+    a.isInstanceOf[Boolean]
   }
 
   def rename(rowUpdateMap: Map[String, String], globalUpdateMap: Map[String, String]): Table = {

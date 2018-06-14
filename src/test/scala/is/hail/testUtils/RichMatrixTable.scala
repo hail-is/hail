@@ -82,15 +82,6 @@ class RichMatrixTable(vsm: MatrixTable) {
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
         (x.typ, f2)
-      case _ =>
-        val a = ec.a
-        val (t, f) = Parser.eval(ast, ec)
-        val f2: Annotation => Any = { (annotation: Annotation) =>
-          a(0) = annotation
-          f()
-        }
-
-        (t, f2)
     }
   }
 
