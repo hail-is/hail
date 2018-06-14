@@ -6,9 +6,9 @@
 namespace hail {
 
 void Region::clear_but_keep_mem() {
-  pos_ = (chunk_.empty() ? kChunkCap : 0);
-  for (auto& full : full_chunks_) free_chunks_.emplace_back(std::move(full));
-  full_chunks_.clear();
+  buf_ = nullptr;
+  pos_ = kChunkCap;
+  chunks_used_ = 0;
   // Move big_used_ to big_free_
   for (auto& used : big_used_) big_free_.emplace_back(std::move(used));
   big_used_.clear();
@@ -21,15 +21,14 @@ void Region::clear_but_keep_mem() {
   if (big_free_.size() > kNumBigToKeep) big_free_.resize(kNumBigToKeep);
 }
 
-void Region::new_chunk() {
-  if (!chunk_.empty()) full_chunks_.emplace_back(std::move(chunk_));
-  if (free_chunks_.empty()) {
-    chunk_.alloc(kChunkCap);
-  } else {
-    chunk_ = std::move(free_chunks_.back());
-    free_chunks_.pop_back();
+char* Region::new_chunk_alloc(ssize_t n) {
+  if (chunks_used_ >= ssize(chunks_)) {
+    chunks_.emplace_back(kChunkCap);
   }
-  pos_ = 0;
+  auto& chunk = chunks_[chunks_used_++];
+  buf_ = chunk.buf_;
+  pos_ = n;
+  return buf_;
 }
   
 // Restrict the choice of block sizes to improve re-use
@@ -42,13 +41,13 @@ ssize_t Region::choose_big_size(ssize_t n) {
   }
 }
   
-char* Region::allocate_big(ssize_t n) {
+char* Region::big_alloc(ssize_t n) {
   char* buf = nullptr;
   n = ((n + 0x3f) & ~0x3f); // round up to multiple of 64byte cache line
-  for (int idx = big_free_.size(); --idx >= 0;) {
+  for (ssize_t idx = big_free_.size(); --idx >= 0;) {
     auto& b = big_free_[idx];
     if (n <= big_free_[idx].size_) {
-      buf = b.get();
+      buf = b.buf_;
       big_used_.emplace_back(std::move(b));
       // Fast enough for small kNumBigToKeep
       big_free_.erase(big_free_.begin()+idx);
@@ -57,7 +56,7 @@ char* Region::allocate_big(ssize_t n) {
   }
   n = choose_big_size(n);
   big_used_.emplace_back(n);
-  return big_used_.back().get();
+  return big_used_.back().buf_;
 }
 
 #define REGIONMETHOD(rtype, scala_class, scala_method) \
