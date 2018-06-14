@@ -4,8 +4,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.utils.Interval
-import is.hail.utils.SetInterval
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 class IntervalSuite extends TestNGSuite {
@@ -72,12 +71,12 @@ class IntervalSuite extends TestNGSuite {
     } yield SetInterval(s, e, is, ie)
 
   def toIRInterval(i: SetInterval): IR =
-    invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd, TBoolean())
+    invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
 
   @Test def contains() {
     for (set_interval <- test_intervals; p <- points) {
       val interval = toIRInterval(set_interval)
-      assertEvalsTo(invoke("contains", interval, I32(p)), set_interval.contains(p))
+      assertEvalsTo(invoke("contains", interval, p), set_interval.contains(p))
     }
   }
 
