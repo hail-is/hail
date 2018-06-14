@@ -35,13 +35,17 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt32()))
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
-    val ktMax = Table(hc, rdd, signature)
-      .aggregate("group = row.group", (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).max()").mkString(","))
+    val ktMax = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
+      .aggregateByKey(
+        (0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).max()").mkString("{ ",", ", " }"),
+        (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).max()").mkString(", "))
 
     assert(ktMax.collect() sameElements Array(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
-    val ktMin = Table(hc, rdd, signature)
-      .aggregate("group = row.group", (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).min()").mkString(","))
+    val ktMin = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
+      .aggregateByKey(
+        (0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).min()").mkString("{ ", ", ", " }"),
+        (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).min()").mkString(","))
 
     assert(ktMin.collect() sameElements Array(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
   }
@@ -54,9 +58,13 @@ class AggregatorSuite extends SparkSuite {
 
     val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt64()))
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat64(), "s10" -> TFloat64()): _*)
-
-    val ktProduct = Table(hc, rdd, signature)
-      .aggregate("group = row.group", ((0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).product()") :+ ("empty = AGG.map(r => r.s10).filter(x => false).product()")).mkString(","))
+    
+    val ktProduct = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
+      .aggregateByKey(
+        ((0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).product()")
+          :+ "empty : AGG.map(r => r.s10).filter(x => false).product()").mkString("{ ", ", ", " }"),
+        ((0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).product()")
+          :+ "empty = AGG.map(r => r.s10).filter(x => false).product()").mkString(", "))
 
     assert(ktProduct.collect() sameElements Array(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
   }

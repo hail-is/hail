@@ -712,17 +712,18 @@ case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
 }
 
 case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR {
+  require(child.typ.rowKey.nonEmpty)
+
   def children: IndexedSeq[BaseIR] = Array(child, expr)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = newChildren match {
-    case Seq(child: MatrixIR, aggExpr: IR) =>
-      MatrixAggregateRowsByKey(child, expr)
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = {
+    assert(newChildren.length == 2)
+    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    MatrixAggregateRowsByKey(newChild, newExpr)
   }
 
   val typ: MatrixType = child.typ.copyParts(
     rowType = child.typ.orvdType.kType,
-    // FIXME: how on earth is this supposed to work, expr doesn't know its
-    // context
     entryType = coerce[TStruct](expr.typ)
   )
 
@@ -793,26 +794,22 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val rvType = prev.typ.rvRowType
     val selectIdx = prev.typ.orvdType.kRowFieldIdx
     val keyOrd = prev.typ.orvdType.kRowOrd
-    val localRowType = prev.typ.rvRowType
-    val localEntriesType = prev.typ.entryArrayType
-    val entriesIdx = prev.typ.entriesIdx
     val localGlobalsType = prev.typ.globalType
     val localColsType = TArray(prev.typ.colType)
     val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
     val newRVD = prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
-      val partRVB = new RegionValueBuilder()
-
+      val rvb = new RegionValueBuilder()
       val partRegion = ctx.freshContext.region
 
-      partRVB.set(partRegion)
-      partRVB.start(localGlobalsType)
-      partRVB.addAnnotation(localGlobalsType, globalsBc.value)
-      val partGlobalsOff = partRVB.end()
+      rvb.set(partRegion)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
 
-      partRVB.start(localColsType)
-      partRVB.addAnnotation(localColsType, colValuesBc.value)
-      val partColsOff = partRVB.end()
+      rvb.start(localColsType)
+      rvb.addAnnotation(localColsType, colValuesBc.value)
+      val partColsOff = rvb.end()
 
       val initialize = makeInit()
       val sequence = makeSeq()
@@ -820,10 +817,9 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
       new Iterator[RegionValue] {
         var isEnd = false
-        var current: RegionValue = null
+        var current: RegionValue = _
         val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
         val consumerRegion = ctx.region
-        val rvb = new RegionValueBuilder()
         val newRV = RegionValue(consumerRegion)
 
         val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
@@ -943,13 +939,14 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 }
 
 case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR {
+  require(child.typ.colKey.nonEmpty)
+  
   def children: IndexedSeq[BaseIR] = Array(child, aggIR)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateColsByKey = {
-    newChildren match {
-      case Seq(child: MatrixIR, aggExpr: IR) =>
-        MatrixAggregateColsByKey(child, aggExpr)
-    }
+    assert(newChildren.length == 2)
+    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    MatrixAggregateColsByKey(newChild, newExpr)
   }
 
   val typ = {
@@ -2424,5 +2421,148 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType)(mapPartitionF)
     mv.copy(rvd = newRVD)
+  }
+}
+
+// follows key_by non-empty key
+case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
+  require(child.typ.keyOrEmpty.nonEmpty)
+
+  def children: IndexedSeq[BaseIR] = Array(child, expr)
+  
+  def copy(newChildren: IndexedSeq[BaseIR]): TableAggregateByKey = {
+    assert(newChildren.length == 2)
+    val IndexedSeq(newChild: TableIR, newExpr: IR) = newChildren
+    TableAggregateByKey(newChild, newExpr)
+  }
+  
+  val typ: TableType = child.typ.copy(rowType = child.typ.keyType.get.merge(coerce[TStruct](expr.typ))._1)
+  
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+    val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
+
+    val (rvAggs, makeInit, makeSeq, aggResultType, makeAnnotate, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long](
+      "global", child.typ.globalType,
+      "global", child.typ.globalType,
+      "row", child.typ.rowType,
+      expr,
+      (nAggs, initializeIR) => initializeIR,
+      (nAggs, sequenceIR) => sequenceIR)
+
+    val nAggs = rvAggs.length
+    
+    assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
+
+    val rowType = prev.typ.rowType
+    val keyType = prev.typ.keyType.get
+    val keyIndices = prev.typ.keyFieldIdx.get
+    val keyOrd = prevRVD.typ.kRowOrd
+    val globalsType = prev.typ.globalType
+    val globalsBc = prev.globals.broadcast
+    
+    val newValueType = typ.valueType
+    val newRowType = typ.rowType
+    val newOrvdType = prevRVD.typ.copy(rowType = newRowType)
+    
+    val newRVD = prevRVD.boundary.mapPartitionsPreservesPartitioning(newOrvdType, { (ctx, it) =>
+      val rvb = new RegionValueBuilder()
+      val partRegion = ctx.freshContext.region
+
+      rvb.set(partRegion)
+      rvb.start(globalsType)
+      rvb.addAnnotation(globalsType, globalsBc.value)
+      val partGlobalsOff = rvb.end()
+
+      val initialize = makeInit()
+      val sequence = makeSeq()
+      val annotate = makeAnnotate()
+
+      new Iterator[RegionValue] {
+        var isEnd = false
+        var current: RegionValue = _
+        val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion)
+        val consumerRegion: Region = ctx.region
+        val newRV = RegionValue(consumerRegion)
+
+        def hasNext: Boolean = {
+          if (isEnd || (current == null && !it.hasNext)) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+          true
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          
+          rowKey.setSelect(rowType, keyIndices, current)
+
+          if (rvAggs.nonEmpty) {
+            rvAggs.foreach(_.clear())
+
+            val region = current.region
+            rvb.set(region)
+            rvb.start(globalsType)
+            rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
+            val globals = rvb.end()
+
+            initialize(region, rvAggs, globals, false)
+
+            while (hasNext && keyOrd.equiv(rowKey.value, current)) {
+              val region = current.region
+              rvb.set(region)
+              rvb.start(globalsType)
+              rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
+              val globals = rvb.end()
+
+              sequence(region, rvAggs,
+                globals, false,
+                current.offset, false)
+              current = null
+            }
+          }
+
+          rvb.set(consumerRegion)
+
+          rvb.start(globalsType)
+          rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
+          val globalOff = rvb.end()
+
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          var j = 0
+          while (j < nAggs) {
+            rvAggs(j).result(rvb)
+            j += 1
+          }
+          rvb.endStruct()
+          val aggResultOff = rvb.end()
+
+          rvb.start(newRowType)
+          rvb.startStruct()
+          var i = 0
+          while (i < keyType.size) {
+            rvb.addField(keyType, rowKey.value, i)
+            i += 1
+          }
+          
+          val newValueOff = annotate(consumerRegion,
+            aggResultOff, false,
+            globalOff, false)
+
+          rvb.addAllFields(newValueType, consumerRegion, newValueOff)
+
+          rvb.endStruct()
+          newRV.setOffset(rvb.end())
+          newRV
+        }
+      }
+    })
+
+    prev.copy(rvd = newRVD, typ = typ)
   }
 }

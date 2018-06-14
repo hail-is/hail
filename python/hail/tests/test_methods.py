@@ -643,7 +643,7 @@ class Tests(unittest.TestCase):
         ht = hl.import_fam(resource('triomatrix.fam'))
 
         mt = hl.import_vcf(resource('triomatrix.vcf'))
-        mt = mt.annotate_cols(fam=ht[mt.s])
+        mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
 
         dads = ht.filter(hl.is_defined(ht.pat_id))
         dads = dads.select(dads.pat_id, is_dad=True).key_by('pat_id')
@@ -659,7 +659,7 @@ class Tests(unittest.TestCase):
                          is_mom=hl.is_defined(et.is_mom))
 
         et = (et
-            .group_by(et.locus, et.alleles, fam=et.fam.fam_id)
+            .group_by(et.locus, et.alleles, fam=et.fam)
             .aggregate(data=hl.agg.collect(hl.struct(
             role=hl.case().when(et.is_dad, 1).when(et.is_mom, 2).default(0),
             g=hl.struct(GT=et.GT, AD=et.AD, DP=et.DP, GQ=et.GQ, PL=et.PL)))))
@@ -668,7 +668,7 @@ class Tests(unittest.TestCase):
         et = et.select('data').explode('data')
 
         tt = hl.trio_matrix(mt, ped, complete_trios=True).entries().key_by('locus', 'alleles')
-        tt = tt.annotate(fam=tt.proband.fam.fam_id,
+        tt = tt.annotate(fam=tt.proband.fam,
                          data=[hl.struct(role=0, g=tt.proband_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
                                hl.struct(role=1, g=tt.father_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
                                hl.struct(role=2, g=tt.mother_entry.select('GT', 'AD', 'DP', 'GQ', 'PL'))])
@@ -685,14 +685,14 @@ class Tests(unittest.TestCase):
             .join(moms, how='left'))
         e_cols = e_cols.annotate(is_dad=hl.is_defined(e_cols.is_dad),
                                  is_mom=hl.is_defined(e_cols.is_mom))
-        e_cols = (e_cols.group_by(fam=e_cols.fam.fam_id)
+        e_cols = (e_cols.group_by(fam=e_cols.fam)
             .aggregate(data=hl.agg.collect(hl.struct(role=hl.case()
                                                      .when(e_cols.is_dad, 1).when(e_cols.is_mom, 2).default(0),
                                                      sa=hl.struct(**e_cols.row.select(*mt.col))))))
         e_cols = e_cols.filter(hl.len(e_cols.data) == 3).select('data').explode('data')
 
         t_cols = hl.trio_matrix(mt, ped, complete_trios=True).cols()
-        t_cols = t_cols.annotate(fam=t_cols.proband.fam.fam_id,
+        t_cols = t_cols.annotate(fam=t_cols.proband.fam,
                                  data=[
                                      hl.struct(role=0, sa=t_cols.proband),
                                      hl.struct(role=1, sa=t_cols.father),

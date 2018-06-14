@@ -1342,7 +1342,7 @@ class Tests(unittest.TestCase):
 
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
-             .annotate(GT = hl.call(0, 1))
+             .annotate(GT=hl.call(0, 1))
              .annotate_globals(alleles=["A", "T"]))
 
         self.assertTrue(t.aggregate(agg.call_stats(t.GT, t.alleles)) ==
@@ -1364,6 +1364,17 @@ class Tests(unittest.TestCase):
             hl.is_defined(col_agg.call_stats)
             & (col_agg.call_stats == hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20, homozygote_count=[0, 0]))))
 
+        # test TableAggregateByKey initOp
+        t2 = t.annotate(group=t.idx < 3)
+        group_agg = t2.group_by(t2['group']).aggregate(call_stats=agg.call_stats(t2.GT, t2.alleles))
+
+        self.assertTrue(group_agg.all(
+            hl.cond(group_agg.group,
+                    hl.is_defined(group_agg.call_stats)
+                    & (group_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
+                    hl.is_defined(group_agg.call_stats)
+                    & (group_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
+
         # test MatrixAggregateColsByKey initOp
         mt2 = mt.annotate_cols(group=mt.col_idx < 3)
         group_cols_agg = (mt2.group_cols_by(mt2['group'])
@@ -1380,7 +1391,6 @@ class Tests(unittest.TestCase):
         mt2 = mt.annotate_rows(group=mt.row_idx < 3)
         group_rows_agg = (mt2.group_rows_by(mt2['group'])
                           .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
-        group_rows_agg.show()
 
         self.assertTrue(group_rows_agg.all(
             hl.cond(group_rows_agg.group,
