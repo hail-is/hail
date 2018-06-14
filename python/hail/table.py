@@ -181,12 +181,13 @@ class GroupedTable(ExprContainer):
         base, cleanup = self._parent._process_joins(
             *itertools.chain((v for _, v in self._groups), named_exprs.values()))
 
-        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**dict(self._groups)), process_joins=False)
+        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**dict(self._groups)), reprocess_joins=False)
 
         t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                              ',\n'.join(strs),
                                              joption(self._npartitions)))
         return cleanup(t)
+
 
 class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
@@ -387,8 +388,8 @@ class Table(ExprContainer):
     @typecheck_method(caller=str,
                       key_struct=oneof(nullable(expr_struct()), exactly("default")),
                       value_struct=nullable(expr_struct()),
-                      process_joins=bool)
-    def _select(self, caller, key_struct="default", value_struct=None, process_joins=True):
+                      reprocess_joins=bool)
+    def _select(self, caller, key_struct="default", value_struct=None, reprocess_joins=True):
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
@@ -418,7 +419,7 @@ class Table(ExprContainer):
             preserved_key = preserved_key_new = new_key = None
             row = value_struct if value_struct is not None else hl.struct()
 
-        if process_joins:
+        if reprocess_joins:
             base, cleanup = self._process_joins(row)
             analyze(caller, row, base._row_indices)
         else:
