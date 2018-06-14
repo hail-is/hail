@@ -181,37 +181,12 @@ class GroupedTable(ExprContainer):
         base, cleanup = self._parent._process_joins(
             *itertools.chain((v for _, v in self._groups), named_exprs.values()))
 
-        key_struct = hl.struct(**dict(self._groups))
+        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**dict(self._groups)), process_joins=False)
 
-        def is_copy(ast, name):
-            return (isinstance(ast, Select) and
-                ast.name == name and
-                isinstance(ast.parent, TopLevelReference) and
-                ast.parent.name == 'row' and
-                ast.parent.indices.source is self
-                )
-
-        if base.key is None:
-            preserved_key_pairs = []
-        else:
-            preserved_key_pairs = list(map(lambda pair: (pair[1]._ast.name, pair[0]),
-                itertools.takewhile(
-                    lambda pair: is_copy(pair[1]._ast, pair[2]),
-                    zip(key_struct.keys(), key_struct.values(), base.key.keys()))))
-        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
-        new_key = list(key_struct.keys())
-        
-        row = hl.bind(lambda k: base.row.annotate(**k), key_struct)
-
-        jt = base._jt
-        if base.key is not None and preserved_key != list(base.key):
-            jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
-        if new_key != preserved_key_new:
-            jt = jt.keyBy(new_key)
-
-        return cleanup(Table(jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
-                     joption(self._npartitions))))
+        t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
+                                             ',\n'.join(strs),
+                                             joption(self._npartitions)))
+        return cleanup(t)
 
 class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
@@ -409,8 +384,11 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
-    @typecheck_method(caller=str, key_struct=oneof(nullable(expr_struct()), exactly("default")), value_struct=nullable(expr_struct()))
-    def _select(self, caller, key_struct="default", value_struct=None):
+    @typecheck_method(caller=str,
+                      key_struct=oneof(nullable(expr_struct()), exactly("default")),
+                      value_struct=nullable(expr_struct()),
+                      process_joins=bool)
+    def _select(self, caller, key_struct="default", value_struct=None, process_joins=True):
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
@@ -440,8 +418,12 @@ class Table(ExprContainer):
             preserved_key = preserved_key_new = new_key = None
             row = value_struct if value_struct is not None else hl.struct()
 
-        base, cleanup = self._process_joins(row)
-        analyze(caller, row, self._row_indices)
+        if process_joins:
+            base, cleanup = self._process_joins(row)
+            analyze(caller, row, base._row_indices)
+        else:
+            # analyze and process joins should be done beforehand
+            base, cleanup = self, identity
 
         jt = base._jt
         if self.key is not None and preserved_key != list(self.key):
