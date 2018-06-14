@@ -19,7 +19,8 @@ final case class Fraction() extends AggOp { } // remove when prefixes work
 final case class Statistics() extends AggOp { } // remove when prefixes work
 final case class Collect() extends AggOp { }
 final case class InfoScore() extends AggOp { }
-// final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
+final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
+
 final case class Sum() extends AggOp { }
 final case class Product() extends AggOp { }
 final case class Max() extends AggOp { }
@@ -33,9 +34,8 @@ final case class Take() extends AggOp { }
 // ternary
 final case class Histogram() extends AggOp { }
 
-
-// what to do about CallStats
 final case class CallStats() extends AggOp { }
+
 // what to do about InbreedingAggregator
 final case class Inbreeding() extends AggOp { }
 
@@ -88,7 +88,7 @@ object AggOp {
     case (Product(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductLongAggregator](in, TInt64())
     case (Product(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductDoubleAggregator](in, TFloat64())
 
-    // case (HardyWeinberg(), _: T) =>
+    case (HardyWeinberg(), in: TCall, Seq(), None, Seq()) => CodeAggregator[RegionValueHardyWeinbergAggregator](in, RegionValueHardyWeinbergAggregator.typ)
 
     case (Max(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxBooleanAggregator](in, TBoolean())
     case (Max(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxIntAggregator](in, TInt32())
@@ -140,5 +140,6 @@ object AggOp {
     case "infoScore" => InfoScore()
     case "callStats" => CallStats()
     case "inbreeding" => Inbreeding()
+    case "hardyWeinberg" => HardyWeinberg()
   }
 }
