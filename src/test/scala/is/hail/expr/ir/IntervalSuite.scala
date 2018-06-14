@@ -5,6 +5,7 @@ import org.testng.annotations.Test
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.utils.Interval
+import is.hail.utils.SetInterval
 import org.apache.spark.sql.Row
 
 class IntervalSuite extends TestNGSuite {
@@ -60,4 +61,38 @@ class IntervalSuite extends TestNGSuite {
     assertEvalsTo(invoke("includesEnd", na), null)
   }
 
+  val points: IndexedSeq[Int] = 1 to 5
+
+  val test_intervals: IndexedSeq[SetInterval] =
+    for {
+      s <- points
+      e <- points
+      is <- Array(true, false)
+      ie <- Array(true, false)
+    } yield SetInterval(s, e, is, ie)
+
+  def toIRInterval(i: SetInterval): IR =
+    invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd, TBoolean())
+
+  @Test def contains() {
+    for (set_interval <- test_intervals; p <- points) {
+      val interval = toIRInterval(set_interval)
+      assertEvalsTo(invoke("contains", interval, I32(p)), set_interval.contains(p))
+    }
+  }
+
+  @Test def isEmpty() {
+    for (set_interval <- test_intervals) {
+      val interval = toIRInterval(set_interval)
+      assertEvalsTo(invoke("isEmpty", interval), set_interval.definitelyEmpty())
+    }
+  }
+
+  @Test def overlaps() {
+    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+      val interval1 = toIRInterval(set_interval1)
+      val interval2 = toIRInterval(set_interval2)
+      assertEvalsTo(invoke("overlaps", interval1, interval2), set_interval1.probablyOverlaps(set_interval2))
+    }
+  }
 }

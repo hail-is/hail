@@ -89,7 +89,7 @@ object IntervalFunctions extends RegistryFunctions {
           interval.storeToLocal,
           mPoint := pointTriplet.m,
           vPoint.storeAny(pointTriplet.v),
-          cmp := compare(interval.start, (mPoint, vPoint)),
+          cmp := compare((mPoint, vPoint), interval.start),
           (cmp > 0 || (cmp.ceq(0) && interval.includeStart)) && Code(
             cmp := compare((mPoint, vPoint), interval.end),
             cmp < 0 || (cmp.ceq(0) && interval.includeEnd)))
@@ -170,7 +170,7 @@ class IRInterval(mb: EmitMethodBuilder, typ: TInterval, value: Code[Long]) {
     val cmp = mb.newLocal[Int]
     val compare = ordering(CodeOrdering.compare)
     val below = Code(
-      cmp := compare(start, other.end),
+      cmp := compare(end, other.start),
       cmp < 0 || (cmp.ceq(0) && (!includeStart || !other.includeEnd)))
 
     if (checkEmpty)
