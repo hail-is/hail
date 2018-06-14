@@ -2394,7 +2394,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   
   def copy(newChildren: IndexedSeq[BaseIR]): TableAggregateByKey = {
     assert(newChildren.length == 2)
-    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    val IndexedSeq(newChild: TableIR, newExpr: IR) = newChildren
     TableAggregateByKey(newChild, newExpr)
   }
   
