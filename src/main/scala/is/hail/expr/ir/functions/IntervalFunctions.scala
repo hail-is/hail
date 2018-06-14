@@ -41,7 +41,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T")) {
       case (mb, interval) =>
         val tinterval = TInterval(tv("T").t)
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
           interval.setup,
@@ -53,7 +53,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("end", TInterval(tv("T")), tv("T")) {
       case (mb, interval) =>
         val tinterval = TInterval(tv("T").t)
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
           interval.setup,
@@ -64,13 +64,13 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCode("includesStart", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         TInterval(tv("T").t).includeStart(region, interval)
     }
 
     registerCode("includesEnd", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         TInterval(tv("T").t).includeEnd(region, interval)
     }
 
@@ -121,7 +121,8 @@ object IntervalFunctions extends RegistryFunctions {
           interval1.storeToLocal,
           interval2.storeToLocal,
           !(interval1.isEmpty || interval2.isEmpty ||
-            interval1.isBelow(interval2) || interval1.isAbove(interval2))
+            interval1.isBelow(interval2, checkEmpty = false) ||
+            interval1.isAbove(interval2, checkEmpty = false))
         )
     }
   }
@@ -152,6 +153,29 @@ class IRInterval(mb: EmitMethodBuilder, typ: TInterval, value: Code[Long]) {
       gteq(start, end))
   }
 
-  def isAbove(other: IRInterval): Code[Boolean]
-  def isBelow(other: IRInterval): Code[Boolean]
+  def isAbove(other: IRInterval, checkEmpty: Boolean = true): Code[Boolean] = {
+    val cmp = mb.newLocal[Int]
+    val compare = ordering(CodeOrdering.compare)
+    val above = Code(
+      cmp := compare(start, other.end),
+      cmp > 0 || (cmp.ceq(0) && (!includeStart || !other.includeEnd)))
+
+    if (checkEmpty)
+      this.isEmpty || other.isEmpty || above
+    else
+      above
+  }
+
+  def isBelow(other: IRInterval, checkEmpty: Boolean = true): Code[Boolean] = {
+    val cmp = mb.newLocal[Int]
+    val compare = ordering(CodeOrdering.compare)
+    val below = Code(
+      cmp := compare(start, other.end),
+      cmp < 0 || (cmp.ceq(0) && (!includeStart || !other.includeEnd)))
+
+    if (checkEmpty)
+      this.isEmpty || other.isEmpty || below
+    else
+      below
+  }
 }
