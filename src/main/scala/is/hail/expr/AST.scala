@@ -953,9 +953,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 val v = ir.genUID()
                 ir.ArrayFold(ir.ToArray(a), ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
               case (_: TArray, "groupBy") =>
-                ir.GroupByKey(ir.ArrayMap(a, name, ir.MakeTuple(FastSeq(b, a))))
+                ir.GroupByKey(ir.ArrayMap(a, name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
               case (_: TSet, "groupBy") =>
-                ir.GroupByKey(ir.ArrayMap(ir.ToArray(a), name, ir.MakeTuple(FastSeq(b, a))))
+                ir.GroupByKey(ir.ArrayMap(ir.ToArray(a), name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
             })
         } yield result
       case _ =>
