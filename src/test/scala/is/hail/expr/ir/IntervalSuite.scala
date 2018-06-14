@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.utils._
@@ -60,15 +60,16 @@ class IntervalSuite extends TestNGSuite {
     assertEvalsTo(invoke("includesEnd", na), null)
   }
 
-  val points: IndexedSeq[Int] = 1 to 5
+  val points: IndexedSeq[Int] = 1 to 4
 
   val test_intervals: IndexedSeq[SetInterval] =
-    for {
-      s <- points
-      e <- points
-      is <- Array(true, false)
-      ie <- Array(true, false)
-    } yield SetInterval(s, e, is, ie)
+    FastIndexedSeq(
+      SetInterval(1, 1, true, true),
+      SetInterval(1, 1, true, false),
+      SetInterval(1, 3, false, true),
+      SetInterval(2, 3, false, false),
+      SetInterval(1, 2, true, true),
+      SetInterval(3, 1, true, false))
 
   def toIRInterval(i: SetInterval): IR =
     invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
@@ -76,14 +77,14 @@ class IntervalSuite extends TestNGSuite {
   @Test def contains() {
     for (set_interval <- test_intervals; p <- points) {
       val interval = toIRInterval(set_interval)
-      assertEvalsTo(invoke("contains", interval, p), set_interval.contains(p))
+      assert(eval(invoke("contains", interval, p)) == set_interval.contains(p))
     }
   }
 
   @Test def isEmpty() {
     for (set_interval <- test_intervals) {
       val interval = toIRInterval(set_interval)
-      assertEvalsTo(invoke("isEmpty", interval), set_interval.definitelyEmpty())
+      assert(eval(invoke("isEmpty", interval)) == set_interval.definitelyEmpty())
     }
   }
 
@@ -91,7 +92,7 @@ class IntervalSuite extends TestNGSuite {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = toIRInterval(set_interval1)
       val interval2 = toIRInterval(set_interval2)
-      assertEvalsTo(invoke("overlaps", interval1, interval2), set_interval1.probablyOverlaps(set_interval2))
+      assert(eval(invoke("overlaps", interval1, interval2)) == set_interval1.probablyOverlaps(set_interval2))
     }
   }
 }

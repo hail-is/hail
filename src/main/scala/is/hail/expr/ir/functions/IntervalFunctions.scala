@@ -171,7 +171,7 @@ class IRInterval(mb: EmitMethodBuilder, typ: TInterval, value: Code[Long]) {
     val compare = ordering(CodeOrdering.compare)
     val below = Code(
       cmp := compare(end, other.start),
-      cmp < 0 || (cmp.ceq(0) && (!includeStart || !other.includeEnd)))
+      cmp < 0 || (cmp.ceq(0) && (!includeEnd || !other.includeStart)))
 
     if (checkEmpty)
       this.isEmpty || other.isEmpty || below
