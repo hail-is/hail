@@ -64,18 +64,18 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
   }
 }
 
-class RegionValueCollectBaseStructAggregator(t: Type) extends RegionValueAggregator {
-  private val ab = new MissingBaseStructArrayBuilder()
+class RegionValueCollectLongAggregator extends RegionValueAggregator {
+  private val ab = new MissingLongArrayBuilder()
 
-  def seqOp(region: Region, offset: Long, missing: Boolean) {
+  def seqOp(region: Region, x: Long, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else
-      ab.add(SafeRow(t.asInstanceOf[TBaseStruct], region, offset))
+      ab.add(x)
   }
 
   def combOp(agg2: RegionValueAggregator) {
-    val other = agg2.asInstanceOf[RegionValueCollectBaseStructAggregator]
+    val other = agg2.asInstanceOf[RegionValueCollectLongAggregator]
     other.ab.foreach { _ =>
       ab.addMissing()
     } { (_, x) =>
@@ -84,10 +84,100 @@ class RegionValueCollectBaseStructAggregator(t: Type) extends RegionValueAggrega
   }
 
   def result(rvb: RegionValueBuilder) {
-    ab.write(rvb, t.asInstanceOf[TBaseStruct])
+    ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectBaseStructAggregator = new RegionValueCollectBaseStructAggregator(t)
+  def copy(): RegionValueCollectLongAggregator = new RegionValueCollectLongAggregator()
+
+  def clear() {
+    ab.clear()
+  }
+}
+
+class RegionValueCollectFloatAggregator extends RegionValueAggregator {
+  private val ab = new MissingFloatArrayBuilder()
+
+  def seqOp(region: Region, x: Float, missing: Boolean) {
+    if (missing)
+      ab.addMissing()
+    else
+      ab.add(x)
+  }
+
+  def combOp(agg2: RegionValueAggregator) {
+    val other = agg2.asInstanceOf[RegionValueCollectFloatAggregator]
+    other.ab.foreach { _ =>
+      ab.addMissing()
+    } { (_, x) =>
+      ab.add(x)
+    }
+  }
+
+  def result(rvb: RegionValueBuilder) {
+    ab.write(rvb)
+  }
+
+  def copy(): RegionValueCollectFloatAggregator = new RegionValueCollectFloatAggregator()
+
+  def clear() {
+    ab.clear()
+  }
+}
+
+class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
+  private val ab = new MissingDoubleArrayBuilder()
+
+  def seqOp(region: Region, x: Double, missing: Boolean) {
+    if (missing)
+      ab.addMissing()
+    else
+      ab.add(x)
+  }
+
+  def combOp(agg2: RegionValueAggregator) {
+    val other = agg2.asInstanceOf[RegionValueCollectDoubleAggregator]
+    other.ab.foreach { _ =>
+      ab.addMissing()
+    } { (_, x) =>
+      ab.add(x)
+    }
+  }
+
+  def result(rvb: RegionValueBuilder) {
+    ab.write(rvb)
+  }
+
+  def copy(): RegionValueCollectDoubleAggregator = new RegionValueCollectDoubleAggregator()
+
+  def clear() {
+    ab.clear()
+  }
+}
+
+class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggregator {
+  private val ab = new MissingAnnotationArrayBuilder()
+
+  def seqOp(region: Region, offset: Long, missing: Boolean) {
+    if (missing)
+      ab.addMissing()
+    else
+      ab.add(SafeRow.read(t, region, offset))
+  }
+
+  def combOp(agg2: RegionValueAggregator) {
+    val other = agg2.asInstanceOf[RegionValueCollectAnnotationAggregator]
+    other.ab.foreach { _ =>
+      ab.addMissing()
+    } { (_, x) =>
+      ab.add(x)
+    }
+  }
+
+  def result(rvb: RegionValueBuilder) {
+    ab.write(rvb, t)
+  }
+
+  def copy(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
 
   def clear() {
     ab.clear()
