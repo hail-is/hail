@@ -718,10 +718,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = {
     assert(newChildren.length == 2)
-    newChildren match {
-      case Seq(newChild: MatrixIR, newExpr: IR) =>
-        MatrixAggregateRowsByKey(newChild, newExpr)
-    }
+    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    MatrixAggregateRowsByKey(newChild, newExpr)
   }
 
   val typ: MatrixType = child.typ.copyParts(
@@ -947,10 +945,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateColsByKey = {
     assert(newChildren.length == 2)
-    newChildren match {
-      case Seq(newChild: MatrixIR, newExpr: IR) =>
-        MatrixAggregateColsByKey(newChild, newExpr)
-    }
+    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    MatrixAggregateColsByKey(newChild, newExpr)
   }
 
   val typ = {
@@ -2398,10 +2394,8 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   
   def copy(newChildren: IndexedSeq[BaseIR]): TableAggregateByKey = {
     assert(newChildren.length == 2)
-    newChildren match {
-      case Seq(newChild: TableIR, newExpr: IR) =>
-        TableAggregateByKey(newChild, newExpr)
-    }
+    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
+    TableAggregateByKey(newChild, newExpr)
   }
   
   val typ: TableType = child.typ.copy(rowType = child.typ.keyType.get.merge(coerce[TStruct](expr.typ))._1)

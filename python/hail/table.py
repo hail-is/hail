@@ -193,7 +193,7 @@ class GroupedTable(ExprContainer):
         base, cleanup = self._parent._process_joins(
             *itertools.chain(group_exprs.values(), named_exprs.values()))
 
-        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**group_exprs), reprocess_joins=False)
+        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**group_exprs), do_process_joins=False)
 
         t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                              ',\n'.join(strs),
@@ -400,8 +400,8 @@ class Table(ExprContainer):
     @typecheck_method(caller=str,
                       key_struct=oneof(nullable(expr_struct()), exactly("default")),
                       value_struct=nullable(expr_struct()),
-                      reprocess_joins=bool)
-    def _select(self, caller, key_struct="default", value_struct=None, reprocess_joins=True):
+                      do_process_joins=bool)
+    def _select(self, caller, key_struct="default", value_struct=None, do_process_joins=True):
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
@@ -431,7 +431,7 @@ class Table(ExprContainer):
             preserved_key = preserved_key_new = new_key = None
             row = value_struct if value_struct is not None else hl.struct()
 
-        if reprocess_joins:
+        if do_process_joins:
             base, cleanup = self._process_joins(row)
             analyze(caller, row, self._row_indices)
         else:
