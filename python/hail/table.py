@@ -421,7 +421,7 @@ class Table(ExprContainer):
 
         if reprocess_joins:
             base, cleanup = self._process_joins(row)
-            analyze(caller, row, base._row_indices)
+            analyze(caller, row, self._row_indices)
         else:
             # analyze and process joins should be done beforehand
             base, cleanup = self, identity
