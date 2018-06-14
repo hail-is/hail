@@ -2176,18 +2176,18 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
 }
 
 
-case class TableExplode(child: TableIR, column: String) extends TableIR {
+case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  private val columnIdx = child.typ.rowType.fieldIdx(column)
-  private val columnType = child.typ.rowType.types(columnIdx).asInstanceOf[TContainer]
-  private val rowType = child.typ.rowType.updateKey(column, columnIdx, columnType.elementType)
+  private val fieldIdx = child.typ.rowType.fieldIdx(fieldName)
+  private val fieldType = child.typ.rowType.types(fieldIdx)
+  private val rowType = child.typ.rowType.updateKey(fieldName, fieldIdx, fieldType.asInstanceOf[TContainer].elementType)
 
   val typ: TableType = child.typ.copy(rowType = rowType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
-    TableExplode(newChildren(0).asInstanceOf[TableIR], column)
+    TableExplode(newChildren(0).asInstanceOf[TableIR], fieldName)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -2195,17 +2195,26 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
 
     val childRowType = child.typ.rowType
 
+    val field = fieldType match {
+      case TArray(_, _) =>
+        GetField(Ref("row", childRowType), fieldName)
+      case TSet(_, _) =>
+        ToArray(GetField(Ref("row", childRowType), fieldName))
+      case _ =>
+        fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
+    }
+
     val (_, isMissingF) = ir.Compile[Long, Boolean]("row", childRowType,
-      ir.IsNA(ir.GetField(Ref("row", childRowType), column)))
+      ir.IsNA(field))
 
     val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType,
-      ir.ArrayLen(ir.GetField(Ref("row", childRowType), column)))
+      ir.ArrayLen(field))
 
     val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType,
       "i", TInt32(),
       ir.InsertFields(Ref("row", childRowType),
-        Array(column -> ir.ArrayRef(
-          ir.GetField(ir.Ref("row", childRowType), column),
+        Array(fieldName -> ir.ArrayRef(
+          field,
           ir.Ref("i", TInt32())))))
     assert(resultType == typ.rowType)
 
@@ -2234,7 +2243,7 @@ case class TableExplode(child: TableIR, column: String) extends TableIR {
       case rvd: UnpartitionedRVD =>
         rvd.mapPartitions(typ.rowType, itF)
       case orvd: OrderedRVD =>
-        if (orvd.typ.key.contains(column))
+        if (orvd.typ.key.contains(fieldName))
           orvd.mapPartitions(typ.rowType, itF)
         else
           orvd.mapPartitionsPreservesPartitioning(
