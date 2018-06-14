@@ -656,8 +656,8 @@ class GroupedTableTests(unittest.TestCase):
         ht2 = hl.utils.range_table(4)
         ht2 = ht2.annotate(idx2=ht2.idx)
 
-        ht = ht.annotate(group=ht2[ht.idx].idx2).annotate_globals(glob=5)
-        grouped = ht.group_by(k = ht.group < 2)
+        ht = ht.annotate_globals(glob=5)
+        grouped = ht.group_by(group = ht2[ht.idx].idx2 < 2)
         result = grouped.aggregate(sum=hl.agg.sum(ht2[ht.idx].idx2 + ht.glob) + ht.glob - 15,
                                    max=hl.agg.max(ht2[ht.idx].idx2))
 

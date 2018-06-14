@@ -178,11 +178,39 @@ class GroupedTable(ExprContainer):
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        keyed_table = self._parent.key_by(**dict(self._groups))
+        base, cleanup = self._parent._process_joins(
+            *itertools.chain((v for _, v in self._groups), named_exprs.values()))
 
-        base, cleanup = keyed_table._process_joins(*named_exprs.values())
+        key_struct = hl.struct(**dict(self._groups))
 
-        return cleanup(Table(base._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
+        def is_copy(ast, name):
+            return (isinstance(ast, Select) and
+                ast.name == name and
+                isinstance(ast.parent, TopLevelReference) and
+                ast.parent.name == 'row' and
+                ast.parent.indices.source is self
+                )
+
+        if base.key is None:
+            preserved_key_pairs = []
+        else:
+            preserved_key_pairs = list(map(lambda pair: (pair[1]._ast.name, pair[0]),
+                itertools.takewhile(
+                    lambda pair: is_copy(pair[1]._ast, pair[2]),
+                    zip(key_struct.keys(), key_struct.values(), base.key.keys()))))
+        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
+        new_key = list(key_struct.keys())
+        
+        row = hl.bind(lambda k: base.row.annotate(**k), key_struct)
+
+        jt = base._jt
+        if base.key is not None and preserved_key != list(base.key):
+            jt = jt.keyBy(preserved_key)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
+        if new_key != preserved_key_new:
+            jt = jt.keyBy(new_key)
+
+        return cleanup(Table(jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
                      joption(self._npartitions))))
 
 class Table(ExprContainer):
