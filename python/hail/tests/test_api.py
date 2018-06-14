@@ -246,23 +246,23 @@ class TableTests(unittest.TestCase):
         result = convert_struct_to_dict(
             kt.group_by(status=kt.status)
                 .aggregate(
-                           # x1=agg.collect(kt.qPheno * 2),
-                           # x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
-                           # x3=agg.min(kt.qPheno),
-                           # x4=agg.max(kt.qPheno),
-                           # x5=agg.sum(kt.qPheno),
-                           # x6=agg.product(hl.int64(kt.qPheno)),
-                           # x7=agg.count(),
-                           # x8=agg.count_where(kt.qPheno == 3),
-                           # x9=agg.fraction(kt.qPheno == 1),
-                           # x10=agg.stats(hl.float64(kt.qPheno)),
-                           # x11=agg.hardy_weinberg(kt.GT),
-                           # x13=agg.inbreeding(kt.GT, 0.1),
+                           x1=agg.collect(kt.qPheno * 2),
+                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
+                           x3=agg.min(kt.qPheno),
+                           x4=agg.max(kt.qPheno),
+                           x5=agg.sum(kt.qPheno),
+                           x6=agg.product(hl.int64(kt.qPheno)),
+                           x7=agg.count(),
+                           x8=agg.count_where(kt.qPheno == 3),
+                           x9=agg.fraction(kt.qPheno == 1),
+                           x10=agg.stats(hl.float64(kt.qPheno)),
+                           x11=agg.hardy_weinberg(kt.GT),
+                           x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
-                           # x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
-                           # x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
-                           # x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
-                           # x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
+                           x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
+                           x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
+                           x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
                            ).take(1)[0])
 
         expected = {u'status': 0,

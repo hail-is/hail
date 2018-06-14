@@ -174,30 +174,17 @@ class GroupedTable(ExprContainer):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(
-            *itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        return cleanup(
-            Table(base.key_by(**dict(self._groups))
-                      ._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
-                                          joption(self._npartitions))))
+        keyed_table = self._parent._select("GroupedTable.aggregate",
+                                           key_struct=hl.struct(**dict(self._groups)))
 
-        # named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        # 
-        # strs = []
-        # base, cleanup = self._parent._process_joins(
-        #     *itertools.chain((v for _, v in self._groups), named_exprs.values()))
-        # for k, v in named_exprs.items():
-        #     analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
-        #     strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
-        # 
-        # return cleanup(
-        #     Table(base.key_by(**dict(self._groups))
-        #               ._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
-        #                                   joption(self._npartitions))))
+        base, cleanup = keyed_table._process_joins(*named_exprs.values())
+
+        return cleanup(Table(base._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(), ',\n'.join(strs),
+                     joption(self._npartitions))))
 
 class Table(ExprContainer):
     """Hail's distributed implementation of a dataframe or SQL table.
