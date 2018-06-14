@@ -304,7 +304,7 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false): MatrixTable = {
     importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg,
-      contigRecoding, tolerance, skipInvalidLoci)
+      contigRecoding, skipInvalidLoci)
   }
 
   def importBgens(files: Seq[String],
