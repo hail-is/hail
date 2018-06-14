@@ -67,14 +67,14 @@ object AggOp {
 
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
 
-    case (Collect(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
-    case (Collect(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
-    // FIXME: implement these
-    // case (Collect(), _: TInt64) =>
-    // case (Collect(), _: TFloat32) =>
-    // case (Collect(), _: TFloat64) =>
-    // case (Collect(), _: TArray) =>
-    case (Collect(), in@(_: TBaseStruct), Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBaseStructAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
+    case (Collect(), in, Seq(), None, Seq()) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
+      case _: TInt32 => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
+      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(TInt64()))
+      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(TFloat32()))
+      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(TFloat64()))
+      case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
+    }
 
     case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
       

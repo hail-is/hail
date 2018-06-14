@@ -1,11 +1,11 @@
 package is.hail.utils
 
-import is.hail.annotations.{Annotation, RegionValueBuilder, UnsafeRow}
-import is.hail.expr.types.TBaseStruct
+import is.hail.annotations.{Annotation, RegionValueBuilder}
+import is.hail.expr.types.Type
 
 import scala.collection.mutable
 
-class MissingBaseStructArrayBuilder extends Serializable{
+class MissingAnnotationArrayBuilder extends Serializable{
   private var len = 0
   private val elements = new ArrayBuilder[Annotation]()
   private val isMissing = new mutable.BitSet()
@@ -36,7 +36,7 @@ class MissingBaseStructArrayBuilder extends Serializable{
     }
   }
 
-  def write(rvb: RegionValueBuilder, t: TBaseStruct) {
+  def write(rvb: RegionValueBuilder, t: Type) {
     rvb.startArray(len)
     var i = 0
     var j = 0
