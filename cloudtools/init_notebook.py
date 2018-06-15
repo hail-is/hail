@@ -26,9 +26,13 @@ role = get_metadata('dataproc-role')
 
 if role == 'Master':
     # additional packages to install
-    pkgs = [
+    conda_pkgs = [
+        'mkl',
         'numpy',
-        'pandas',
+        'scipy',
+        'pandas'
+    ]
+    pip_pkgs = [
         'matplotlib',
         'seaborn',
         'decorator==4.2.1',
@@ -48,10 +52,12 @@ if role == 'Master':
     except:
         pass
     else:
-        pkgs.extend(user_pkgs.split(','))
+        pip_pkgs.extend(user_pkgs.split(','))
 
     call('/opt/conda/bin/conda update setuptools', shell=True)
-    for pkg in pkgs:
+    for pkg in conda_pkgs:
+        call('/opt/conda/bin/conda install {}'.format(pkg), shell=True)
+    for pkg in pip_pkgs:
         call('/opt/conda/bin/pip install {}'.format(pkg), shell=True)
 
     py4j = decode_f(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
