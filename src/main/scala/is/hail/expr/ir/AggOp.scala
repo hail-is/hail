@@ -51,6 +51,7 @@ final case class Inbreeding() extends AggOp { }
 // CollectSet needs Set
 
 // TakeBy needs lambdas
+final case class TakeBy() extends AggOp { }
 
 object AggOp {
 
@@ -110,6 +111,8 @@ object AggOp {
     case (Take(), in: TFloat32, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeFloatAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
     case (Take(), in: TFloat64, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeDoubleAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
 
+    case (TakeBy(), in, constArgs@Seq(_: TInt32), None, Seq(_: TInt32)) => CodeAggregator[RegionValueTakeByIntIntAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type], classOf[Type]), seqOpArgTypes = Array(classOf[Int]))
+
     case (Histogram(), in: TFloat64, constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None, Seq()) =>
       CodeAggregator[RegionValueHistogramAggregator](in, RegionValueHistogramAggregator.typ, constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]))
 
@@ -136,6 +139,7 @@ object AggOp {
     case "min" => Min()
     case "count" => Count()
     case "take" => Take()
+    case "takeBy" => TakeBy()
     case "hist" => Histogram()
     case "callStats" => CallStats()
     case "inbreeding" => Inbreeding()

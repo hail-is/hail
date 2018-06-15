@@ -4,7 +4,7 @@ import is.hail.expr.types._
 import is.hail.annotations._
 import scala.collection.mutable
 
-class MissingFloatArrayBuilder {
+class MissingFloatArrayBuilder extends Serializable {
   private var len = 0
   private val elements = new ArrayBuilder[Float]()
   private val isMissing = new mutable.BitSet()

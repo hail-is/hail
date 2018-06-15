@@ -150,6 +150,17 @@ class AggregatorsSuite {
       args = FastIndexedSeq(I32(2)))
   }
 
+  @Test def takeBy() {
+    runAggregator(TakeBy(), TStruct("x" -> TInt32(), "y" -> TInt32()),
+      FastIndexedSeq(Row(3, 4), Row(null, null),
+      Row(null, 3), Row(21, 2), Row(11, 0), Row(45, 1)),
+      FastIndexedSeq(11, 45),
+      Ref("x", TInt32()),
+      args = FastIndexedSeq(I32(2)),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("y", TInt32())))
+  }
+
   @Test def testHist() {
     runAggregator(Histogram(), TFloat64(),
       FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
