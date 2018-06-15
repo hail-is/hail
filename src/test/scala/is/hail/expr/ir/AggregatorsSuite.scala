@@ -88,6 +88,77 @@ class AggregatorsSuite {
       TStruct("a" -> TInt32(), "b" -> TBoolean()),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null))
+
+  @Test def counterAnnotation() {
+    runAggregator(Counter(),
+      TString(),
+      FastIndexedSeq("rabbit", "rabbit", null, "cat", "dog", null),
+      Map("rabbit" -> 2L, "cat" -> 1L, "dog" -> 1L, (null, 2L)))
+
+    runAggregator(Counter(),
+      TArray(TInt32()),
+      FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq(1, 2, 3), null, FastIndexedSeq(), FastIndexedSeq(1), null),
+      Map(FastIndexedSeq() -> 2L, FastIndexedSeq(1, 2, 3) -> 1L, FastIndexedSeq(1) -> 1L, (null, 2L)))
+  }
+
+  @Test def counterBoolean() {
+    runAggregator(Counter(),
+      TBoolean(),
+      FastIndexedSeq(true, true, null, false, false, false, null),
+      Map(true -> 2L, false -> 3L, (null, 2L)))
+
+    runAggregator(Counter(),
+      TBoolean(),
+      FastIndexedSeq(true, true, false, false, false),
+      Map(true -> 2L, false -> 3L))
+  }
+
+  @Test def counterInt() {
+    runAggregator(Counter(),
+      TInt32(),
+      FastIndexedSeq(1, 3, null, 1, 4, 3, null),
+      Map(1 -> 2L, 3 -> 2L, 4 -> 1L, (null, 2L)))
+    
+    runAggregator(Counter(),
+      TInt32(),
+      FastIndexedSeq(1, 3, 1, 4, 3),
+      Map(1 -> 2L, 3 -> 2L, 4 -> 1L))
+  }
+  
+  @Test def counterLong() {
+    runAggregator(Counter(),
+      TInt64(),
+      FastIndexedSeq(1L, 3L, null, 1L, 4L, 3L, null),
+      Map(1L -> 2L, 3L -> 2L, 4L -> 1L, (null, 2L)))
+
+    runAggregator(Counter(),
+      TInt64(),
+      FastIndexedSeq(1L, 3L, 1L, 4L, 3L),
+      Map(1L -> 2L, 3L -> 2L, 4L -> 1L))
+  }
+
+  @Test def counterFloat() {
+    runAggregator(Counter(),
+      TFloat32(),
+      FastIndexedSeq(1f, 3f, null, 1f, 4f, 3f, null),
+      Map(1f -> 2L, 3f -> 2L, 4f -> 1L, (null, 2L)))
+
+    runAggregator(Counter(),
+      TFloat32(),
+      FastIndexedSeq(1f, 3f, 1f, 4f, 3f),
+      Map(1f -> 2L, 3f -> 2L, 4f -> 1L))
+  }
+  
+  @Test def counterDouble() {
+    runAggregator(Counter(),
+      TFloat64(),
+      FastIndexedSeq(1D, 3D, null, 1D, 4D, 3D, null),
+      Map(1D -> 2L, 3D -> 2L, 4D -> 1L, (null, 2L)))
+
+    runAggregator(Counter(),
+      TFloat64(),
+      FastIndexedSeq(1D, 3D, 1D, 4D, 3D),
+      Map(1D -> 2L, 3D -> 2L, 4D -> 1L))
   }
 
   @Test def callStats() {
