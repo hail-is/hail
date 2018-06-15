@@ -50,6 +50,8 @@ object Children {
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
+    case GroupByKey(collection) =>
+      Array(collection)
     case ArrayMap(a, name, body) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>

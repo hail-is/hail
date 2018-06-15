@@ -103,6 +103,12 @@ object TypeCheck {
         check(elem)
         val elt = -coerce[TContainer](orderedCollection.typ).elementType
         assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
+      case x@GroupByKey(collection) =>
+        check(collection)
+        val telt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
+        val td = coerce[TDict](x.typ)
+        assert(td.keyType == telt.types(0))
+        assert(td.valueType == TArray(telt.types(1)))
       case x@ArrayMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)

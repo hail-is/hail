@@ -86,6 +86,14 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
       srvb.end())
   }
 
+  def pruneMissing(): Code[Unit] = {
+    val i = mb.newLocal[Int]
+    Code(i := array.size - 1,
+      Code.whileLoop(i >= 0 && array.isMissing(i), i += -1),
+      array.size.ceq(i + 1).mux(Code._empty, array.setSize(i + 1)))
+  }
+
+
   def distinctFromSorted(): Code[Unit] = {
     def ceq(m1: Code[Boolean], v1: Code[_], m2: Code[Boolean], v2: Code[_]): Code[Boolean] = {
       equiv(mb.getArg[Region](1), (m1, v1), mb.getArg[Region](1), (m2, v2))
@@ -94,12 +102,8 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     val i = mb.newLocal[Int]
     val n = mb.newLocal[Int]
 
-    val removeMissing = Code(i := array.size - 1,
-      Code.whileLoop(i >= 0 && array.isMissing(i), i += -1),
-      array.size.ceq(i + 1).mux(Code._empty, array.setSize(i + 1)))
-
     Code(
-      if (keyOnly) removeMissing else Code._empty,
+      if (keyOnly) pruneMissing() else Code._empty,
       n := 0,
       i := 0,
       Code.whileLoop(i < array.size,
