@@ -333,6 +333,10 @@ object Interpret {
             assert(aggType == TCall())
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
+          case Inbreeding() =>
+            assert(aggType == TCall())
+            val af = interpret(initOpArgs.get(0))
+            new InbreedingAggregator(_ => af)
           case Collect() => new CollectAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())

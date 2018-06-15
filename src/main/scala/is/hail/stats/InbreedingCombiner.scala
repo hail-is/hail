@@ -1,9 +1,9 @@
 package is.hail.stats
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{Call, Genotype}
+import is.hail.variant.Call
 
 object InbreedingCombiner {
   def signature = TStruct(
@@ -13,12 +13,12 @@ object InbreedingCombiner {
     "observed_homs" -> TInt64())
 }
 
-class InbreedingCombiner extends Serializable {
+class InbreedingCombiner(val af: Double) extends Serializable {
   var nCalled = 0L
   var expectedHoms = 0d
   var observedHoms = 0L
 
-  def merge(c: Call, af: Double): InbreedingCombiner = {
+  def merge(c: Call): InbreedingCombiner = {
     nCalled += 1
     expectedHoms += 1 - (2 * af * (1 - af))
 
@@ -38,4 +38,21 @@ class InbreedingCombiner extends Serializable {
   def Fstat: Option[Double] = divOption(observedHoms - expectedHoms, nCalled - expectedHoms)
 
   def asAnnotation: Annotation = Annotation(Fstat.orNull, nCalled, expectedHoms, observedHoms)
+
+  def result(rvb: RegionValueBuilder) {
+    rvb.startStruct()
+
+    // Fstat
+    val f = divNull(observedHoms - expectedHoms, nCalled - expectedHoms)
+    if (f == null)
+      rvb.setMissing()
+    else
+      rvb.addDouble(f)
+
+    rvb.addLong(nCalled)
+    rvb.addDouble(expectedHoms)
+    rvb.addLong(observedHoms)
+
+    rvb.endStruct()
+  }
 }
