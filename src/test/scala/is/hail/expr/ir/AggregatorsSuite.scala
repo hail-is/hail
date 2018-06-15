@@ -85,7 +85,7 @@ class AggregatorsSuite {
 
   @Test def infoScore() {
     runAggregator(InfoScore(), TArray(TFloat64()),
-      FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3)),
+      FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
       Row(-0.6654567, 2))
   }
 
