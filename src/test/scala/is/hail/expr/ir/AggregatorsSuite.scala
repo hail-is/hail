@@ -10,10 +10,11 @@ import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 
 class AggregatorsSuite {
-  def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
-    val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)))
+  def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(),
+    initOpArgs: Option[IndexedSeq[IR]] = None, seqOpArgs: IndexedSeq[IR] = FastIndexedSeq()) {
+    val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
     assertEvalsTo(ApplyAggOp(
-      SeqOp(Ref("x", t), I32(0), aggSig),
+      SeqOp(Ref("x", t), I32(0), aggSig, seqOpArgs),
       args, initOpArgs, aggSig),
       (a.map(i => Row(i)), TStruct("x" -> t)),
       expected)
@@ -49,6 +50,13 @@ class AggregatorsSuite {
       FastIndexedSeq(Call2(0, 0), Call2(0, 1), null, Call2(0, 2)),
       Row(FastIndexedSeq(4, 1, 1), FastIndexedSeq(4.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0), 6, FastIndexedSeq(1, 0, 0)),
       initOpArgs = Some(FastIndexedSeq(I32(3))))
+  }
+
+  @Test def inbreeding() {
+    runAggregator(Inbreeding(), TCall(),
+      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), null, Call2(1, 1)),
+      Row(-1.7777777, 4L, 3.28, 2L),
+      seqOpArgs = FastIndexedSeq(F64(0.1)))
   }
 
   // FIXME Max Boolean not supported by old-style MaxAggregator
@@ -100,7 +108,7 @@ class AggregatorsSuite {
 
   @Test
   def ifInApplyAggOp() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None, FastSeq())
     assertEvalsTo(
       ApplyAggOp(
         If(
@@ -115,7 +123,7 @@ class AggregatorsSuite {
 
   @Test
   def sumMultivar() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None)
+    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None, FastSeq())
     assertEvalsTo(ApplyAggOp(
       SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())), I32(0), aggSig),
       FastSeq(), None, aggSig),
@@ -127,7 +135,7 @@ class AggregatorsSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None)
+    val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None, FastSeq())
     val aggregable = a.map(Row(_))
     assertEvalsTo(
       ApplyAggOp(SeqOp(Ref("a", TArray(hailType[T])), I32(0), aggSig), FastSeq(), None, aggSig),

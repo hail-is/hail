@@ -70,8 +70,8 @@ object Children {
       (old +: fields.map(_._2)).toIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
-    case SeqOp(a, i, _) =>
-      Array(a, i)
+    case SeqOp(a, i, _, args) =>
+      Array(a, i) ++ args
     case Begin(xs) =>
       xs
     case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>

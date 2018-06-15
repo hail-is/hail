@@ -647,15 +647,37 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case x@SeqOp(a, i, aggSig) =>
-        val codeA = emit(a)
+      case x@SeqOp(a, i, aggSig, args) =>
         val codeI = emit(i)
         val agg = AggOp.get(aggSig)
+        val fullArgs = Array(a) ++ args.toFastSeq
+        val nArgs = fullArgs.length
+        val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
+        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(fullArgs(i).typ))).toArray
+        val codeArgs = fullArgs.map(ir => emit(ir))
+
+        val argsSetup = Code((0 until nArgs).map { i =>
+          val a = codeArgs(i)
+          Code(
+            argsm(i) := a.m,
+            argsv(i).storeAny(argsm(i).mux(
+              defaultValue(fullArgs(i).typ),
+              a.v
+            ))
+          )
+        }.toArray: _*)
+
         EmitTriplet(
-          Code(codeI.setup, codeA.setup,
+          Code(codeI.setup,
+            Code(codeArgs.map(_.setup): _*),
+            argsSetup,
             codeI.m.mux(
               Code._empty,
-              agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
+              agg.seqOp(
+                region,
+                aggregator(coerce[Int](codeI.v)),
+                argsv.map(Code(_)),
+                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
           const(false),
           Code._empty)
 
