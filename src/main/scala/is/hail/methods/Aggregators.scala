@@ -765,9 +765,6 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
 
   var ord: Ordering[(Any, Any)] = makeOrd()
 
-  // PriorityQueue is not serializable
-  // https://issues.scala-lang.org/browse/SI-7568
-  // fixed in Scala 2.11.0-M7
   var _state = if (ord != null)
     new mutable.PriorityQueue[(Any, Any)]()(ord)
   else
@@ -780,7 +777,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
     seqOp(cx, f(cx))
   }
 
-  private def seqOp(x: Any, sortKey: Any) = {
+  def seqOp(x: Any, sortKey: Any) = {
     val p = (x, sortKey)
     if (_state.length < n)
       _state += p
@@ -797,23 +794,4 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   }
 
   def copy() = new TakeByAggregator(t, f, n)
-
-  private def writeObject(oos: ObjectOutputStream) {
-    oos.writeObject(t)
-    oos.writeObject(f)
-    oos.writeInt(n)
-    oos.writeObject(tord)
-    oos.writeObject(_state.toArray[(Any, Any)])
-  }
-
-  private def readObject(ois: ObjectInputStream) {
-    t = ois.readObject().asInstanceOf[Type]
-    f = ois.readObject().asInstanceOf[(Any) => Any]
-    n = ois.readInt()
-    tord = ois.readObject().asInstanceOf[Ordering[T]]
-    ord = makeOrd()
-
-    val elems = ois.readObject().asInstanceOf[Array[(Any, Any)]]
-    _state = mutable.PriorityQueue[(Any, Any)](elems: _*)(ord)
-  }
 }
