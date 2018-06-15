@@ -346,6 +346,7 @@ object Interpret {
             new HWEAggregator()
           case Collect() => new CollectAggregator(aggType)
           case Counter() => new CounterAggregator(aggType)
+          case CollectAsSet() => new CollectSetAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())
             new FractionAggregator(a => a)
