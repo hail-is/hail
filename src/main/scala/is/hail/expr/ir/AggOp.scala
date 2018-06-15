@@ -92,7 +92,7 @@ object AggOp {
         case _: TInt64 => CodeAggregator[RegionValueCollectAsSetLongAggregator](in, TSet(TInt64()))
         case _: TFloat32 => CodeAggregator[RegionValueCollectAsSetFloatAggregator](in, TSet(TFloat32()))
         case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(TFloat64()))
-        case _ => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(in), constrArgTypes = Array(classOf[Type]))
+        case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](in, TSet(in), constrArgTypes = Array(classOf[Type]))
       }
     case (Sum(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) =>
       CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))

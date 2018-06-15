@@ -202,7 +202,7 @@ class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionV
   }
 
   def result(rvb: RegionValueBuilder) {
-    rvb.addAnnotation(TSet(typ), values)
+    rvb.addAnnotation(TSet(typ), values.toSet)
   }
 
   def copy(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)

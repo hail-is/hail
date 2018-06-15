@@ -149,6 +149,33 @@ class AggregatorsSuite {
       TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 0), null, Call2(0, 1), Call2(1, 1), Call2(0, 0), null),
       Map(Call2(0, 0) -> 3L, Call2(0, 1) -> 1L, Call2(1, 1) -> 1L, (null, 2L)))
+
+  @Test def collectAsSetBoolean() {
+    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, false, null, true, false), Set(true, false, null))
+  }
+
+  @Test def collectAsSetNumeric() {
+    runAggregator(CollectAsSet(), TInt32(), FastIndexedSeq(10, null, 5, 5, null), Set(10, null, 5))
+    runAggregator(CollectAsSet(), TInt64(), FastIndexedSeq(10L, null, 5L, 5L, null), Set(10L, null, 5L))
+    runAggregator(CollectAsSet(), TFloat32(), FastIndexedSeq(10f, null, 5f, 5f, null), Set(10f, null, 5f))
+    runAggregator(CollectAsSet(), TFloat64(), FastIndexedSeq(10d, null, 5d, 5d, null), Set(10d, null, 5d))
+  }
+
+  @Test def collectAsSetString() {
+    runAggregator(CollectAsSet(), TString(), FastIndexedSeq("hello", null, "foo", null, "foo"), Set("hello", null, "foo"))
+  }
+
+  @Test def collectAsSetArray() {
+    val inputCollection = FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq(), null, FastIndexedSeq(1, 2, 3))
+    val expected = Set(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq())
+    runAggregator(CollectAsSet(), TArray(TInt32()), inputCollection, expected)
+  }
+
+  @Test def collectAsSetStruct(): Unit = {
+    runAggregator(CollectAsSet(),
+      TStruct("a" -> TInt32(), "b" -> TBoolean()),
+      FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null, Row(5, true)),
+      Set(Row(5, true), Row(3, false), null, Row(0, false)))
   }
 
   @Test def callStats() {
