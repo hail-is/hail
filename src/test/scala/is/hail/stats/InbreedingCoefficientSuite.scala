@@ -110,7 +110,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
   }
 
   @Test def signatureIsCorrect() {
-    assert(InbreedingCombiner.signature.typeCheck((new InbreedingCombiner()).asAnnotation))
+    assert(InbreedingCombiner.signature.typeCheck(new InbreedingCombiner(0.4).asAnnotation))
   }
 }
 

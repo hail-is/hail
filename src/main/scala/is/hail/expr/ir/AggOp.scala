@@ -36,6 +36,7 @@ final case class Histogram() extends AggOp { }
 // what to do about CallStats
 final case class CallStats() extends AggOp { }
 // what to do about InbreedingAggregator
+final case class Inbreeding() extends AggOp { }
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -110,6 +111,9 @@ object AggOp {
 
     case (CallStats(), in: TCall, Seq(), initOpArgs@Some(Seq(_: TInt32))) =>
       CodeAggregator[RegionValueCallStatsAggregator](in, RegionValueCallStatsAggregator.typ, initOpArgTypes = Some(Array(classOf[Int])))
+
+    case (Inbreeding(), in: TCall, Seq(), initOpArgs@Some(Seq(_: TFloat64))) =>
+      CodeAggregator[RegionValueInbreedingAggregator](in, RegionValueInbreedingAggregator.typ, initOpArgTypes = Some(Array(classOf[Double])))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
@@ -130,5 +134,6 @@ object AggOp {
     case "take" => Take()
     case "hist" => Histogram()
     case "callStats" => CallStats()
+    case "inbreeding" => Inbreeding()
   }
 }

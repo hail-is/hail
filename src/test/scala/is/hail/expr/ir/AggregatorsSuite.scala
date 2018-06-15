@@ -51,6 +51,13 @@ class AggregatorsSuite {
       initOpArgs = Some(FastIndexedSeq(I32(3))))
   }
 
+  @Test def inbreeding() {
+    runAggregator(Inbreeding(), TCall(),
+      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), null, Call2(1, 1)),
+      Row(-1.7777777, 4L, 3.28, 2L),
+      initOpArgs = Some(FastIndexedSeq(F64(0.1))))
+  }
+
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
   @Test def maxInt32() {
