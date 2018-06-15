@@ -344,24 +344,29 @@ private class Emit(
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
-          xa := coerce[Long](xma.mux(defaultValue(tarray), codeA.v)),
+          xa := coerce[Long](defaultValue(tarray)),
           codeI.setup,
           xmi := codeI.m,
-          xi := coerce[Int](xmi.mux(defaultValue(TInt32()), codeI.v)),
-          xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
+          xi := coerce[Int](defaultValue(TInt32())),
+          len := coerce[Int](defaultValue(TInt32())),
+          (xmi || xma).mux(
+            xmv := const(true),
+            Code(
+              xa := coerce[Long](codeA.v),
+              xi := coerce[Int](codeI.v),
+              len := tarray.loadLength(region, xa),
+              (xi < len && xi >= 0).mux(
+                xmv := !tarray.isElementDefined(region, xa, xi),
+                Code._fatal(
+                  const("array index out of bounds: ")
+                    .concat(xi.load().toS)
+                    .concat(" / ")
+                    .concat(len.load().toS)
+                    .concat(". IR: ")
+                    .concat(Pretty(x)))))))
 
         EmitTriplet(setup, xmv, Code(
-          len := tarray.loadLength(region, xa),
-          (xi < len && xi >= 0).mux(
-            region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi)),
-            Code._fatal(
-              const("array index out of bounds: ")
-                .concat(xi.load().toS)
-                .concat(" / ")
-                .concat(len.load().toS)
-                .concat(". IR: ")
-                .concat(Pretty(x))
-            ))))
+          region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
