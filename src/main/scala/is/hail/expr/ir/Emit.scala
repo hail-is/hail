@@ -614,7 +614,7 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case InitOp(i, args, aggSig) =>
+      case x@InitOp(i, args, aggSig, k) =>
         val nArgs = args.length
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
         val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
@@ -634,30 +634,56 @@ private class Emit(
         }.toArray: _*)
 
         val agg = AggOp.get(aggSig)
+
+        val initOp = k match {
+          case Some(key) =>
+            val keyedAgg = agg.toKeyedAggregator(key.typ)
+            keyedAgg.initOp(
+              aggregator(coerce[Int](codeI.v)),
+              argsv.map(Code(_)),
+              argsm.map(Code(_).asInstanceOf[Code[Boolean]]))
+          case None =>
+            agg.initOp(
+              aggregator(coerce[Int](codeI.v)),
+              argsv.map(Code(_)),
+              argsm.map(Code(_).asInstanceOf[Code[Boolean]]))
+        }
+
         EmitTriplet(
           Code(codeI.setup,
             Code(codeA.map(_.setup): _*),
             argsSetup,
             codeI.m.mux(
               Code._empty,
-              agg.initOp(
-                aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+              initOp)),
           const(false),
           Code._empty)
 
-      case x@SeqOp(a, i, aggSig) =>
+      case x@SeqOp(a, i, aggSig, k) =>
         val codeA = emit(a)
         val codeI = emit(i)
         val agg = AggOp.get(aggSig)
-        EmitTriplet(
-          Code(codeI.setup, codeA.setup,
-            codeI.m.mux(
-              Code._empty,
-              agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
-          const(false),
-          Code._empty)
+
+        k match {
+          case Some(key) =>
+            val codeK = emit(key)
+            val keyedAgg = agg.toKeyedAggregator(key.typ)
+            EmitTriplet(
+              Code(codeI.setup, codeA.setup, codeK.setup,
+                codeI.m.mux(
+                  Code._empty,
+                  keyedAgg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeK.v, codeK.m, codeA.v, codeA.m))),
+              const(false),
+              Code._empty)
+          case None =>
+            EmitTriplet(
+              Code(codeI.setup, codeA.setup,
+                codeI.m.mux(
+                  Code._empty,
+                  agg.seqOp(region, aggregator(coerce[Int](codeI.v)), codeA.v, codeA.m))),
+              const(false),
+              Code._empty)
+        }
 
       case Begin(xs) =>
         EmitTriplet(

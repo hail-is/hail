@@ -58,7 +58,7 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
     CallStats(alleleCount, alleleFrequency, alleleNumber, homozygoteCount)
   }
 
-  def result(rvb: RegionValueBuilder): Unit = {
+  def result(rvb: RegionValueBuilder) {
     val cstats = result()
     rvb.startStruct()
 
@@ -86,4 +86,6 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
     rvb.endArray()
     rvb.endStruct()
   }
+
+  def copy(): CallStatsCombiner = new CallStatsCombiner(nAlleles)
 }

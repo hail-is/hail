@@ -45,7 +45,12 @@ object Infer {
         assert(body.typ == zero.typ)
         zero.typ
       case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        AggOp.getType(aggSig)
+        a match {
+          case SeqOp(_, _, _, k) => k match {
+            case Some(key) => TDict(key.typ, AggOp.getType(aggSig))
+            case None => AggOp.getType(aggSig)
+          }
+        }
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

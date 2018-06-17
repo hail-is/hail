@@ -121,11 +121,15 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
   def inputType: Type = aggSig.inputType
 }
 
-final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
+final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature, k: Option[IR] = None) extends IR {
   val typ = TVoid
+
+  def isKeyed: Boolean = k.isDefined
 }
-final case class SeqOp(a: IR, i: IR, aggSig: AggSignature) extends IR {
+final case class SeqOp(a: IR, i: IR, aggSig: AggSignature, k: Option[IR] = None) extends IR {
   val typ = TVoid
+
+  def isKeyed: Boolean = k.isDefined
 }
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR {

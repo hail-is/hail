@@ -743,13 +743,13 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
         def rewrite(x: IR): IR = {
           x match {
-            case InitOp(i, args, aggSig) =>
+            case InitOp(i, args, aggSig, k) =>
               InitOp(
                 ir.ApplyBinaryPrimOp(ir.Add(),
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                   i),
                 args,
-                aggSig)
+                aggSig, k)
             case _ =>
               ir.Recur(rewrite)(x)
           }
@@ -765,12 +765,12 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
         def rewrite(x: IR): IR = {
           x match {
-            case SeqOp(a, i, agg) =>
+            case SeqOp(a, i, agg, k) =>
               SeqOp(a,
                 ir.ApplyBinaryPrimOp(ir.Add(),
                   ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                   i),
-                agg)
+                agg, k)
             case _ =>
               ir.Recur(rewrite)(x)
           }
@@ -985,7 +985,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
 
       def rewrite(x: IR): IR = {
         x match {
-          case InitOp(i, args, aggSig) =>
+          case InitOp(i, args, aggSig, k) =>
             InitOp(ir.ApplyBinaryPrimOp(ir.Add(),
               ir.ApplyBinaryPrimOp(
                 ir.Multiply(),
@@ -993,7 +993,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
                 ir.I32(nAggs)),
               i),
               args,
-              aggSig)
+              aggSig, k)
           case _ =>
             ir.Recur(rewrite)(x)
         }
@@ -1010,7 +1010,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
 
       def rewrite(x: IR): IR = {
         x match {
-          case SeqOp(a, i, aggSig) =>
+          case SeqOp(a, i, aggSig, k) =>
             SeqOp(a,
               ir.ApplyBinaryPrimOp(ir.Add(),
                 ir.ApplyBinaryPrimOp(
@@ -1018,7 +1018,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
                   ir.ArrayRef(ir.Ref("newColumnIndices", newColumnIndicesType), ir.Ref(colIdx, TInt32())),
                   ir.I32(nAggs)),
                 i),
-              aggSig)
+              aggSig, k)
           case _ =>
             ir.Recur(rewrite)(x)
         }
@@ -1428,13 +1428,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
       def rewrite(x: IR): IR = {
         x match {
-          case InitOp(i, args, aggSig) =>
+          case InitOp(i, args, aggSig, k) =>
             InitOp(
               ir.ApplyBinaryPrimOp(ir.Add(),
                 ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                 i),
               args,
-              aggSig)
+              aggSig, k)
           case _ =>
             ir.Recur(rewrite)(x)
         }
@@ -1451,12 +1451,12 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
       def rewrite(x: IR): IR = {
         x match {
-          case SeqOp(a, i, aggSig) =>
+          case SeqOp(a, i, aggSig, k) =>
             SeqOp(a,
               ir.ApplyBinaryPrimOp(ir.Add(),
                 ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
                 i),
-              aggSig)
+              aggSig, k)
           case _ =>
             ir.Recur(rewrite)(x)
         }

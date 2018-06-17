@@ -10,14 +10,14 @@ import scala.language.{existentials, postfixOps}
 
 object ExtractAggregators {
 
-  private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
+  private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp)
 
   def apply(ir: IR): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     def rewriteSeqOps(x: IR, i: Int): IR = {
       def rewrite(x: IR): IR = rewriteSeqOps(x, i)
       x match {
-        case SeqOp(a, _, aggSig) =>
-          SeqOp(a, I32(i), aggSig)
+        case SeqOp(a, _, aggSig, k) =>
+          SeqOp(a, I32(i), aggSig, k)
         case _ => Recur(rewrite)(x)
       }
     }
@@ -27,7 +27,10 @@ object ExtractAggregators {
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
       .zipWithIndex
       .map { case (x, i) =>
-        (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
+        x match {
+          case ApplyAggOp(seqOp@SeqOp(_, _, _, k), _, initOpArgs, aggSig) =>
+            (initOpArgs.map(args => InitOp(I32(i), args, aggSig, k)), rewriteSeqOps(seqOp, i))
+        }
       }.unzip
 
     val seqOpIR = Begin(seqOps)
@@ -70,13 +73,28 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-      val constfb = EmitFunctionBuilder[Region, RegionValueAggregator]
-      val codeConstructorArgs = constructorArgs.map(Emit.toCode(_, constfb, 1))
-      constfb.emit(Code(
+    case x@ApplyAggOp(seqOp, constructorArgs, _, aggSig) =>
+      val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
+      var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
+
+      aggSig match {
+        case AggSignature(Collect(), t: TBaseStruct, _, _) =>
+          codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+        case _ =>
+      }
+
+      fb.emit(Code(
         Code(codeConstructorArgs.map(_.setup): _*),
         AggOp.get(aggSig)
           .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
-      Region.scoped(constfb.result()()(_))
+
+      val rvagg = Region.scoped(fb.result()()(_))
+
+      seqOp match {
+        case SeqOp(_, _, _, k) => k match {
+          case Some(key) => KeyedRegionValueAggregator(rvagg, key.typ, aggSig.inputType, AggOp.getType(aggSig))
+          case None => rvagg
+        }
+      }
   }
 }
