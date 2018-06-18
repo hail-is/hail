@@ -782,7 +782,7 @@ def grep(regex, path, max_count=100):
 
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
-           entry_fields=sequenceof(str),
+           entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
@@ -900,12 +900,6 @@ def import_bgen(path,
     rg = reference_genome._jrep if reference_genome else None
 
     entry_set = set(entry_fields)
-    bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
-
-    if bad_entry_fields:
-        word = plural('value', len(bad_entry_fields))
-        raise FatalError("import_bgen: found invalid {} {} in entry_fields."
-                         "\n    Options: 'GT', 'GP', 'dosage'.".format(word, bad_entry_fields))
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
