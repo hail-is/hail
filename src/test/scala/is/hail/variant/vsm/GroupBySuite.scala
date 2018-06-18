@@ -41,27 +41,6 @@ class GroupBySuite extends SparkSuite {
     assert(result.entriesTable().same(expectedEntriesTable))
   }
 
-  @Test def testAggregateColumnsByKeyOnSmallExampleGoingThroughAST() {
-    val aggExpression = "{sum: AGG.map(g=>g.x).sum()}"
-
-    val mt = MatrixTable.range(hc, nRows = 3, nCols = 4, None).annotateColsExpr("group" -> "sa.col_idx%2==0")
-      .annotateEntriesExpr("x" -> "sa.col_idx+va.row_idx")
-
-    // confirm aggregation goes through AST (delete this test when AST is gone) 
-    assert(!Parser.parseToAST(aggExpression, mt.matrixType.rowEC).toIROpt(Some("AGG" -> "g")).isDefined)
-
-    val result = mt.keyColsBy("group").aggregateColsByKey(aggExpression)
-
-    val expectedEntriesTableRows = IndexedSeq[(Int, Boolean, Int)]((0, true, 2), (0, false, 4),
-      (1, true, 4), (1, false, 6), (2, true, 6), (2, false, 8))
-      .map { case (rowIdx, group, sum) => Row(rowIdx, group, sum) }
-    val expectedEntriesTable = Table.parallelize(hc, expectedEntriesTableRows,
-      TStruct("row_idx" -> TInt32(), "group" -> TBoolean(), "sum" -> TInt32()),
-      Some(IndexedSeq("row_idx", "group")), None)
-
-    assert(result.entriesTable().same(expectedEntriesTable))
-  }
-
   @Test def testResultSchemaFromAggregateColsByKey() {
     val mt = sampleVDS.annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
 
@@ -185,8 +164,7 @@ class GroupBySuite extends SparkSuite {
       .annotateColsExpr("pheno" -> "sa.pheno.Pheno")
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
-    val linregMap = resultsVSM.rowsTable().select(Array("row.genes", "row.linreg.beta",
-      "row.linreg.standard_error", "row.linreg.t_stat", "row.linreg.p_value"))
+    val linregMap = resultsVSM.rowsTable().select("{genes: row.genes, beta: row.linreg.beta, standard_error: row.linreg.standard_error, t_stat: row.linreg.t_stat, p_value: row.linreg.p_value}", None, None)
       .rdd.map { r => (r.getAs[String](0), (1 to 4).map { i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
       .collect()
       .toMap

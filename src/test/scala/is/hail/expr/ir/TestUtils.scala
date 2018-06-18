@@ -10,6 +10,12 @@ object TestUtils {
     else
       I32(i)
 
+  def toIRDouble(d: java.lang.Double): IR =
+    if (d == null)
+      NA(TFloat64())
+    else
+      F64(d)
+
   def toIRPair(p: (Integer, Integer)): IR =
     if (p == null)
       NA(TTuple(TInt32(), TInt32()))
@@ -23,6 +29,14 @@ object TestUtils {
       MakeArray(a.map(toIRInt), TArray(TInt32()))
 
   def IRArray(a: Integer*): IR = toIRArray(a)
+
+  def toIRDoubleArray(a: Seq[java.lang.Double]): IR =
+    if (a == null)
+      NA(TArray(TFloat64()))
+    else
+      MakeArray(a.map(toIRDouble), TArray(TFloat64()))
+
+  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a)
 
   def toIRPairArray(a: Seq[(Integer, Integer)]): IR =
     if (a == null)

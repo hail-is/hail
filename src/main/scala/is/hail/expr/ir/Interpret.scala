@@ -165,7 +165,7 @@ object Interpret {
         val rValue = interpret(r, env, args, agg)
         if (op.strict && (lValue == null || rValue == null))
           null
-        else {
+        else
           op match {
             case EQ(_) | EQWithNA(_) => lValue == rValue
             case NEQ(_) | NEQWithNA(_) => lValue != rValue
@@ -174,7 +174,6 @@ object Interpret {
             case LTEQ(t) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t) => t.ordering.gteq(lValue, rValue)
           }
-        }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
       case ArrayRef(a, i) =>
@@ -233,39 +232,42 @@ object Interpret {
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
 
       case ToArray(c) =>
+        val ordering = coerce[TContainer](c.typ).elementType.ordering.toOrdering
         val cValue = interpret(c, env, args, agg)
         if (cValue == null)
           null
         else
           cValue match {
-            case s: Set[_] => s.toIndexedSeq
-            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
+            case s: Set[_] =>
+              s.toIndexedSeq.sorted(ordering)
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
             case a => a
           }
 
-      case SetContains(s, elem) =>
-        val sValue = interpret(s, env, args, agg)
+      case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
+        val cValue = interpret(orderedCollection, env, args, agg)
         val eValue = interpret(elem, env, args, agg)
-        if (sValue == null)
+        if (cValue == null)
           null
-        else
-          sValue.asInstanceOf[Set[Any]].contains(eValue)
+        else {
+          val nSmaller = cValue match {
+            case s: Set[_] =>
+              assert(!onKey)
+              s.count(elem.typ.ordering.lteq(_, eValue))
+            case d: Map[_, _] =>
+              assert(onKey)
+              d.count { case (k, _) => elem.typ.ordering.lteq(k, eValue) }
+            case a: IndexedSeq[_] =>
+              assert(!onKey)
+              a.count(elem.typ.ordering.lteq(_, eValue))
+          }
+          Integer.max(0, nSmaller - 1)
+        }
 
-      case DictContains(d, key) =>
-        val dValue = interpret(d, env, args, agg)
-        val kValue = interpret(key, env, args, agg)
-        if (dValue == null)
-          null
-        else
-          dValue.asInstanceOf[Map[Any, Any]].contains(kValue)
-
-      case DictGet(d, key) =>
-        val dValue = interpret(d, env, args, agg)
-        val kValue = interpret(key, env, args, agg)
-        if (dValue == null)
-          null
-        else
-          dValue.asInstanceOf[Map[Any, Any]].getOrElse(kValue, null)
+      case GroupByKey(collection) =>
+        interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
+          .groupBy { case Row(k, _) => k }
+          .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
 
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
@@ -320,9 +322,14 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(a, i, aggSig) =>
+      case x@SeqOp(a, i, aggSig, seqOpArgs) =>
         assert(i == I32(0))
-        aggregator.get.seqOp(interpret(a))
+        if (seqOpArgs.isEmpty)
+          aggregator.get.seqOp(interpret(a))
+        else if (aggSig.op == Inbreeding()) {
+          val IndexedSeq(af) = seqOpArgs
+          aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
+        }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val aggType = aggSig.inputType
         assert(AggOp.getType(aggSig) == x.typ)
@@ -331,6 +338,9 @@ object Interpret {
             assert(aggType == TCall())
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
+          case Inbreeding() =>
+            assert(aggType == TCall())
+            new InbreedingAggregator(null)
           case Collect() => new CollectAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())

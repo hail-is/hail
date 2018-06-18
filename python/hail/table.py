@@ -158,6 +158,12 @@ class GroupedTable(ExprContainer):
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
         ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
+        Notes
+        -----
+        The resulting table has a key field for each group and a value field for
+        each aggregation. The names of the aggregation expressions must be
+        distinct from the names of the groups.
+
         Parameters
         ----------
         named_exprs : varargs of :class:`.Expression`
@@ -168,18 +174,31 @@ class GroupedTable(ExprContainer):
         :class:`.Table`
             Aggregated table.
         """
+        if self._groups is None:
+            raise ValueError('GroupedTable cannot be aggregated if no groupings are specified.')
+
+        group_exprs = dict(self._groups)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
+        if not named_exprs.keys().isdisjoint(group_exprs.keys()):
+            intersection = set(named_exprs.keys()) & set(group_exprs.keys())
+            raise ValueError(
+                f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
+
         strs = []
-        base, cleanup = self._parent._process_joins(
-            *itertools.chain((v for _, v in self._groups), named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
-        return cleanup(
-            Table(base._jt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
+        base, cleanup = self._parent._process_joins(
+            *itertools.chain(group_exprs.values(), named_exprs.values()))
+
+        keyed_t = base._select('GroupedTable.aggregate', hl.struct(**group_exprs), do_process_joins=False)
+
+        t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
+                                             ',\n'.join(strs),
+                                             joption(self._npartitions)))
+        return cleanup(t)
 
 
 class Table(ExprContainer):
@@ -378,8 +397,11 @@ class Table(ExprContainer):
     def _force_count(self):
         return self._jt.forceCount()
 
-    @typecheck_method(caller=str, key_struct=oneof(nullable(expr_struct()), exactly("default")), value_struct=nullable(expr_struct()))
-    def _select(self, caller, key_struct="default", value_struct=None):
+    @typecheck_method(caller=str,
+                      key_struct=oneof(nullable(expr_struct()), exactly("default")),
+                      value_struct=nullable(expr_struct()),
+                      do_process_joins=bool)
+    def _select(self, caller, key_struct="default", value_struct=None, do_process_joins=True):
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
@@ -409,8 +431,12 @@ class Table(ExprContainer):
             preserved_key = preserved_key_new = new_key = None
             row = value_struct if value_struct is not None else hl.struct()
 
-        base, cleanup = self._process_joins(row)
-        analyze(caller, row, self._row_indices)
+        if do_process_joins:
+            base, cleanup = self._process_joins(row)
+            analyze(caller, row, self._row_indices)
+        else:
+            # ensure analyze and process_joins were done beforehand
+            base, cleanup = self, identity
 
         jt = base._jt
         if self.key is not None and preserved_key != list(self.key):
@@ -1409,7 +1435,6 @@ class Table(ExprContainer):
                                   .key_cols_by(*uids)
                                   .cols()
                                   .select(index_uid)
-                                  .distinct()
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
@@ -2220,8 +2245,8 @@ class Table(ExprContainer):
             # global field
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
-        if not is_container(field.dtype):
-            raise ValueError(f"method 'explode' expects array, set or dict field, found: {field.dtype}")
+        if not (isinstance(field.dtype, tarray) or isinstance(field.dtype, tset)):
+            raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
 
         f = self._fields_inverse[field]
         t = Table(self._jt.explode(f))

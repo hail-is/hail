@@ -131,24 +131,6 @@ object TestUtils {
 
   def fileHaveSameBytes(file1: String, file2: String): Boolean =
     Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
-
-  def splitMultiHTS(mt: MatrixTable): MatrixTable = {
-    if (!mt.entryType.isOfType(Genotype.htsGenotypeType))
-      fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ mt.entryType }")
-    val pl = """if (isDefined(g.PL))
-    range(3).map(i => range(g.PL.size()).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
-    else
-    NA: Array[Int]"""
-    SplitMulti(mt, "va.aIndex = aIndex, va.wasSplit = wasSplit",
-      s"""g.GT = downcode(g.GT, aIndex),
-      g.AD = if (isDefined(g.AD))
-          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
-        else
-          NA: Array[Int],
-          g.DP = g.DP,
-      g.PL = $pl,
-      g.GQ = gqFromPL($pl)""")
-  }
   
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
@@ -238,14 +220,6 @@ object TestUtils {
         "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
         "cm_position" -> "0.0")
       .exportPlink(path)
-  }
-
-  def exportGen(mt: MatrixTable, path: String, precision: Int): Unit = {
-    mt.selectCols(""" {id1: sa.s, id2: sa.s, missing: 0.toFloat64} """, Some(FastIndexedSeq()))
-      .annotateRowsExpr(
-        "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
-        "rsid" -> "\".\"")
-      .exportGen(path, precision)
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -407,11 +381,11 @@ object TestUtils {
 
     val i = Interpret[Any](x, env, args, agg)
     assert(t.typeCheck(i))
-    assert(t.valuesSimilar(i, expected))
+    assert(t.valuesSimilar(i, expected), s"$i, $expected")
 
     val i2 = Interpret[Any](x, env, args, agg, optimize = false)
     assert(t.typeCheck(i2))
-    assert(t.valuesSimilar(i2, expected))
+    assert(t.valuesSimilar(i2, expected), s"$i2 $expected")
 
     if (Compilable(x)) {
       val c = eval(x, env, args, agg)

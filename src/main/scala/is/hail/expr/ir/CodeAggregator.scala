@@ -17,7 +17,8 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   in: Type,
   out: Type,
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
-  initOpArgTypes: Option[Array[Class[_]]] = None) {
+  initOpArgTypes: Option[Array[Class[_]]] = None,
+  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) {
 
   def initOp(rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
@@ -26,31 +27,13 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
     Code.checkcast[Agg](rva).invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
-  def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] = {
-    TypeToIRIntermediateClassTag(in) match {
-      case ct: ClassTag[t] =>
-        mv.mux(
-          Code.checkcast[Agg](rva).invoke(
-            "seqOp",
-            region,
-            coerce[t](defaultValue(in)),
-            true
-          )(classTag[Region],
-            ct,
-            classTag[Boolean],
-            classTag[Unit]
-          ),
-          Code.checkcast[Agg](rva).invoke(
-            "seqOp",
-            region,
-            coerce[t](v),
-            false
-          )(classTag[Region],
-            ct,
-            classTag[Boolean],
-            classTag[Unit]
-          ))
-    }
+  def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
+    assert(vs.length == ms.length)
+    val argTypes = seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
+    Code.checkcast[Agg](rva).invoke("seqOp", Array(classOf[Region],
+      TypeToIRIntermediateClassTag(in).runtimeClass, classOf[Boolean]) ++ argTypes,
+      Array(region) ++ args)(classTag[Unit])
   }
 
   def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[Agg] = {

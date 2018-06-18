@@ -65,15 +65,12 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
-      case SetContains(_, _) =>
-        val IndexedSeq(set: IR, elem: IR) = newChildren
-        SetContains(set, elem)
-      case DictContains(_, _) =>
-        val IndexedSeq(dict: IR, key: IR) = newChildren
-        DictContains(dict, key)
-      case DictGet(_, _) =>
-        val IndexedSeq(dict: IR, key: IR) = newChildren
-        DictGet(dict, key)
+      case LowerBoundOnOrderedCollection(_, _, asKey) =>
+        val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
+        LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)
+      case GroupByKey(_) =>
+        val IndexedSeq(collection: IR) = newChildren
+        GroupByKey(collection)
       case ArrayMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayMap(a, name, body)
@@ -103,9 +100,8 @@ object Copy {
         GetField(o, name)
       case InitOp(_, _, aggSig) =>
         InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
-      case SeqOp(_, _, aggSig) =>
-        val IndexedSeq(a: IR, i: IR) = newChildren
-        SeqOp(a, i, aggSig)
+      case SeqOp(_, _, aggSig, args) =>
+        SeqOp(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], aggSig, newChildren.drop(2).map(_.asInstanceOf[IR]))
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>

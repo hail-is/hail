@@ -156,7 +156,7 @@ class VSMSuite extends SparkSuite {
         .writeBlockMatrix(dirname, "x", blockSize)
 
       val data = mt.entriesTable()
-          .select(Array("x = row.GT.nNonRefAlleles().toFloat64 + row.rowIdx.toFloat64 + row.colIdx.toFloat64 + 1.0"))
+          .select("{x: row.GT.nNonRefAlleles().toFloat64 + row.rowIdx.toFloat64 + row.colIdx.toFloat64 + 1.0}", None, None)
           .collect()
           .map(_.getAs[Double](0))
 

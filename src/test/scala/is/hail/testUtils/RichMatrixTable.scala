@@ -1,8 +1,9 @@
 package is.hail.testUtils
 
-import is.hail.annotations.{Annotation, Querier, SafeRow, UnsafeRow}
+import is.hail.annotations._
+import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, SymbolTable}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.methods._
 import is.hail.table.Table
 import is.hail.utils._
@@ -14,20 +15,6 @@ import scala.reflect.ClassTag
 class RichMatrixTable(vsm: MatrixTable) {
   def expand(): RDD[(Annotation, Annotation, Annotation)] =
     mapWithKeys[(Annotation, Annotation, Annotation)]((v, s, g) => (v, s, g))
-
-  def expandWithAll(): RDD[(Annotation, Annotation, Annotation, Annotation, Annotation)] =
-    mapWithAll[(Annotation, Annotation, Annotation, Annotation, Annotation)]((v, va, s, sa, g) => (v, va, s, sa, g))
-
-  def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
-    val localColValuesBc = vsm.colValues.broadcast
-
-    rdd
-      .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localColValuesBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
-        })
-      }
-  }
 
   def mapWithKeys[U](f: (Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
@@ -60,32 +47,51 @@ class RichMatrixTable(vsm: MatrixTable) {
     vsm.selectEntries(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
 
   def querySA(code: String): (Type, Querier) =
-    vsm.query(code, Map(Annotation.COL_HEAD -> (0, vsm.colType)))
+    vsm.query(code, Annotation.COL_HEAD, vsm.colType)
 
   def queryGA(code: String): (Type, Querier) =
-    vsm.query(code, Map(Annotation.ENTRY_HEAD -> (0, vsm.entryType)))
+    vsm.query(code, Annotation.ENTRY_HEAD, vsm.entryType)
 
 
   def queryVA(code: String): (Type, Querier) =
-    query(code, Map(Annotation.ROW_HEAD -> (0, vsm.rowType)))
+    query(code, Annotation.ROW_HEAD, vsm.rowType)
 
   def queryGlobal(path: String): (Type, Annotation) = {
-    val (t, q) = query(path, Map(Annotation.GLOBAL_HEAD -> (0, vsm.globalType)))
+    val (t, q) = query(path, Annotation.GLOBAL_HEAD, vsm.globalType)
     (t, q(vsm.globals.value))
   }
 
-  def query(code: String, st: SymbolTable): (Type, Querier) = {
-    val ec = EvalContext(st)
-    val a = ec.a
+  def query(code: String, id: String, t: Type): (Type, Querier) = {
+    val ec = EvalContext(Map(id -> (0, t)))
+    val ast = Parser.parseToAST(code, ec)
+    ast.toIROpt() match {
+      case Some(x) =>
+        val (resultType, f) = ir.Compile[Long, Long](id, t,
+          ir.MakeTuple(FastSeq(x)))
+        val f2 = (a: Annotation) => Region.scoped { region =>
+          val argsOff =
+            if (a != null) {
+              val rvb = new RegionValueBuilder(region)
+              rvb.start(t)
+              rvb.addAnnotation(t, a)
+              rvb.end()
+            } else
+              0
+          val argsMissing = a == null
+          val resultOff = f()(region, argsOff, argsMissing)
+          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+        }
+        (x.typ, f2)
+      case _ =>
+        val a = ec.a
+        val (t, f) = Parser.eval(ast, ec)
+        val f2: Annotation => Any = { (annotation: Annotation) =>
+          a(0) = annotation
+          f()
+        }
 
-    val (t, f) = Parser.parseExpr(code, ec)
-
-    val f2: Annotation => Any = { annotation =>
-      a(0) = annotation
-      f()
+        (t, f2)
     }
-
-    (t, f2)
   }
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.colValues.value)
@@ -148,7 +154,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     rowBlockSize: Int = 16): MatrixTable = {
     val vsmAnnot = vsm.annotateColsExpr(
       yExpr.zipWithIndex.map { case (e, i) => s"__y$i" -> e } ++
-      covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
+        covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
     )
     LinearRegression(vsmAnnot,
       yExpr.indices.map(i => s"__y$i").toArray,
@@ -156,17 +162,6 @@ class RichMatrixTable(vsm: MatrixTable) {
       covExpr.indices.map(i => s"__cov$i").toArray,
       root,
       rowBlockSize)
-  }
-
-  def logreg(test: String,
-    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
-    root: String = "logreg"): MatrixTable = {
-    val vsmAnnot = vsm.annotateColsExpr(
-      Array("__y" -> yExpr) ++
-        covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
-    )
-
-    LogisticRegression(vsm, test, "__y", xField, covExpr.indices.map(i => s"__cov$i").toArray, root)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,

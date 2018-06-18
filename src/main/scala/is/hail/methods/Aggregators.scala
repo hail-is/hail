@@ -714,6 +714,14 @@ class InbreedingAggregator(getAF: (Call) => Any) extends TypedAggregator[Annotat
 
   def result = _state.asAnnotation
 
+  def seqOp(x: Any, af: Any) = {
+    if (x != null) {
+      val gt = x.asInstanceOf[Call]
+      if (af != null)
+        _state.merge(gt, af.asInstanceOf[Double])
+    }
+  }
+
   def seqOp(x: Any) = {
     if (x != null) {
       val gt = x.asInstanceOf[Call]

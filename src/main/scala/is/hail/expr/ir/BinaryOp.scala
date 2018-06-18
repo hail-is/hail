@@ -16,6 +16,11 @@ object BinaryOp {
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat64, _: TFloat64) => TFloat64()
   }
 
+  def defaultDivideOp(t: Type): BinaryOp = t match {
+    case _: TInt32 | _: TInt64 => RoundToNegInfDivide()
+    case _: TFloat32 | _: TFloat64 => FloatingPointDivide()
+  }
+
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
     returnType(op, l, r)
 

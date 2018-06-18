@@ -2,9 +2,18 @@ package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
+  def contains(set: IR, elem: IR) =
+    If(IsNA(set),
+      NA(TBoolean()),
+      ApplyComparisonOp(
+        EQWithNA(elem.typ),
+        ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
+        elem))
+
   def registerAll() {
     registerIR("toSet", TArray(tv("T"))) { a =>
       ToSet(a)
@@ -18,9 +27,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFunctions.isEmpty(ToArray(s))
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T")) { (s, v) =>
-      SetContains(s, v)
-    }
+    registerIR("contains", TSet(tv("T")), tv("T"))(contains)
 
     registerIR("remove", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
@@ -57,7 +64,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          SetContains(s2, Ref(x, t))))
+          contains(s2, Ref(x, t))))
     }
 
     registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
@@ -65,7 +72,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         ArrayFilter(ToArray(s1), x,
-          ApplyUnaryPrimOp(Bang(), SetContains(s2, Ref(x, t)))))
+          ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { (s, w) =>
@@ -75,7 +82,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), SetContains(w, Ref(x, t)))))
+          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t)))))
     }
 
     registerIR("sum", TSet(tnum("T"))) { s =>
@@ -116,35 +123,30 @@ object SetFunctions extends RegistryFunctions {
     registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }
 
     registerIR("median", TSet(tnum("T"))) { s =>
-      val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val size = genUID()
-      val lastIdx = genUID()
-      val midIdx = genUID()
-      val midIdx2 = genUID()
+      val t = -s.typ.asInstanceOf[TSet].elementType
+      val a = Ref(genUID(), TArray(t))
+      val size = Ref(genUID(), TInt32())
+      val lastIdx = size - 1
+      val midIdx = lastIdx.floorDiv(2)
+      def ref(i: IR) = ArrayRef(a, i)
+      val len: IR = ArrayLen(a)
+      def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a, ToArray(s),
-        Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
-            NA(t),
-            If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
-              ArrayRef(Ref(a, TArray(t)), I32(0)),
-              Let(lastIdx, ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)),
-                Let(lastIdx, If(
-                  IsNA(ArrayRef(Ref(a, TArray(t)), Ref(lastIdx, TInt32()))),
-                  ApplyBinaryPrimOp(Subtract(), Ref(lastIdx, TInt32()), I32(1)),
-                  Ref(lastIdx, TInt32())),
-                  Let(midIdx, ApplyBinaryPrimOp(RoundToNegInfDivide(), Ref(lastIdx, TInt32()), I32(2)),
-                    If(ApplyComparisonOp(EQ(TInt32()), Apply("%", FastSeq(Ref(lastIdx, TInt32()), I32(2))), I32(0)),
-                      ArrayRef(Ref(a, TArray(t)), Ref(midIdx, TInt32())), // odd number of non-missing elements
-                      Let(midIdx2, ApplyBinaryPrimOp(Add(), Ref(midIdx, TInt32()), I32(1)), // even number of non-missing elements
-                        ApplyBinaryPrimOp(
-                          RoundToNegInfDivide(),
-                          ApplyBinaryPrimOp(
-                            Add(),
-                            ArrayRef(Ref(a, TArray(t)), Ref(midIdx, TInt32())),
-                            ArrayRef(Ref(a, TArray(t)), Ref(midIdx2, TInt32()))),
-                          Cast(I32(2), t)))))))))))
+      Let(a.name, ToArray(s),
+        If(IsNA(a),
+          NA(t),
+          Let(size.name,
+            If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
+            If(size.ceq(0),
+              NA(t),
+              If(invoke("%", size, 2).cne(0),
+                ref(midIdx), // odd number of non-missing elements
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
+    }
+
+    registerIR("flatten", TSet(tv("T"))) { s =>
+      val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
+      ToSet(ArrayFlatMap(ToArray(s), elt.name, ToArray(elt)))
     }
   }
 }

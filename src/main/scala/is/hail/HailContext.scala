@@ -302,8 +302,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    tolerance: Double = 0.2): MatrixTable = {
-    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg, contigRecoding, tolerance)
+    skipInvalidLoci: Boolean = false): MatrixTable = {
+    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg,
+      contigRecoding, skipInvalidLoci)
   }
 
   def importBgens(files: Seq[String],
@@ -314,7 +315,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    tolerance: Double = 0.2): MatrixTable = {
+    skipInvalidLoci: Boolean = false): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -334,7 +335,7 @@ class HailContext private(val sc: SparkContext,
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean,
-      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), tolerance)
+      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
   }
 
   def importGen(file: String,
@@ -343,8 +344,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, rg, contigRecoding)
+    contigRecoding: Option[Map[String, String]] = None,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
+    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, rg, contigRecoding, skipInvalidLoci)
   }
 
   def importGens(files: Seq[String],
@@ -353,7 +355,8 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -371,7 +374,7 @@ class HailContext private(val sc: SparkContext,
 
     //FIXME: can't specify multiple chromosomes
     val results = inputs.map(f => LoadGen(f, sampleFile, sc, rg, nPartitions,
-      tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
+      tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
@@ -476,14 +479,15 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
 
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     LoadPlink(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, rg, contigRecoding.getOrElse(Map.empty[String, String]))
+      ffConfig, nPartitions, a2Reference, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -493,9 +497,10 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding, skipInvalidLoci)
   }
 
   def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
@@ -584,9 +589,10 @@ class HailContext private(val sc: SparkContext,
     callFields: Set[String] = Set.empty[String],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    arrayElementsRequired: Boolean = true): MatrixTable = {
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
     importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, rg, contigRecoding,
-      arrayElementsRequired)
+      arrayElementsRequired, skipInvalidLoci)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
@@ -597,7 +603,8 @@ class HailContext private(val sc: SparkContext,
     callFields: Set[String] = Set.empty[String],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    arrayElementsRequired: Boolean = true): MatrixTable = {
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
 
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
@@ -606,7 +613,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZip(forceBGZ) {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, rg,
-        contigRecoding.getOrElse(Map.empty[String, String]), arrayElementsRequired)
+        contigRecoding.getOrElse(Map.empty[String, String]), arrayElementsRequired, skipInvalidLoci)
     }
   }
 
@@ -682,40 +689,4 @@ class HailContext private(val sc: SparkContext,
     BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg, mixture)
 
   def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
-
-  def eval(expr: String): (Annotation, Type) = {
-    val ec = EvalContext()
-    val ast = Parser.parseToAST(expr, ec)
-    ast.toIROpt() match {
-      case Some(body) =>
-        Region.scoped { region =>
-          val t = ast.`type`
-          t match {
-            case _: TBoolean =>
-              val (_, f) = ir.Compile[Boolean](body)
-              (f()(region), t)
-            case _: TInt32 =>
-              val (_, f) = ir.Compile[Int](body)
-              (f()(region), t)
-            case _: TInt64 =>
-              val (_, f) = ir.Compile[Long](body)
-              (f()(region), t)
-            case _: TFloat32 =>
-              val (_, f) = ir.Compile[Float](body)
-              (f()(region), t)
-            case _: TFloat64 =>
-              val (_, f) = ir.Compile[Double](body)
-              (f()(region), t)
-            case _ =>
-              val (_, f) = ir.Compile[Long](body)
-              val off = f()(region)
-              val v2 = SafeRow.read(t, region, off)
-              (v2, t)
-          }
-        }
-      case None =>
-        val (t, f) = Parser.eval(ast, ec)
-        (f(), t)
-    }
-  }
 }

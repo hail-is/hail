@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
@@ -62,20 +63,27 @@ class ArrayFunctionsSuite extends TestNGSuite {
       Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
   }
 
-  @Test(dataProvider = "basic")
-  def mean(a: Seq[Integer]) {
-    assertEvalsTo(invoke("mean", toIRArray(a)),
-      Option(a).flatMap { aa =>
-        val nonnull = aa.filter(_ != null)
-        if (nonnull.isEmpty)
-          None
-        else {
-          val sum = nonnull.filter(_ != null).map(_.toInt).sum.toDouble
-          Some(sum / nonnull.length)
-        }
-      }.orNull)
+  @Test def mean() {
+    assertEvalsTo(invoke("mean", IRArray(3, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, 7, 11)), 7.0)
+    assertEvalsTo(invoke("mean", IRArray()), null)
+    assertEvalsTo(invoke("mean", IRArray(null)), null)
+    assertEvalsTo(invoke("mean", naa), null)
   }
 
+  @Test def median() {
+    assertEvalsTo(invoke("median", IRArray(5)), 5)
+    assertEvalsTo(invoke("median", IRArray(5, null, null)), 5)
+    assertEvalsTo(invoke("median", IRArray(3, 7)), 5)
+    assertEvalsTo(invoke("median", IRArray(3, null, 7, 1, null)), 3)
+    assertEvalsTo(invoke("median", IRArray(3, 7, 1)), 3)
+    assertEvalsTo(invoke("median", IRArray(3, null, 9, 6, 1, null)), 4)
+    assertEvalsTo(invoke("median", IRArray()), null)
+    assertEvalsTo(invoke("median", IRArray(null)), null)
+    assertEvalsTo(invoke("median", naa), null)
+  }
+  
   @Test(dataProvider = "basicPairs")
   def extend(a: Seq[Integer], b: Seq[Integer]) {
     assertEvalsTo(invoke("extend", toIRArray(a), toIRArray(b)),
@@ -248,5 +256,20 @@ class ArrayFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("[*:*]", a, I32(1), NA(TInt32())), null)
     assertEvalsTo(invoke("[*:*]", a, NA(TInt32()), I32(1)), null)
     assertEvalsTo(invoke("[*:*]", a, I32(3), I32(2)), IndexedSeq())
+  }
+
+  @DataProvider(name = "flatten")
+  def flattenData(): Array[Array[Any]] = Array(
+    Array(FastIndexedSeq(FastIndexedSeq(3, 9, 7), FastIndexedSeq(3, 7, 9)), FastIndexedSeq(3, 9, 7, 3, 7, 9)),
+    Array(FastIndexedSeq(null, FastIndexedSeq(1)), FastIndexedSeq(1)),
+    Array(FastIndexedSeq(null, null), FastIndexedSeq()),
+    Array(FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(), FastIndexedSeq(7)), FastIndexedSeq(null, 7)),
+    Array(FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq()), FastIndexedSeq())
+  )
+
+  @Test(dataProvider = "flatten")
+  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]) {
+    assertEvalsTo(invoke("flatten", MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32())))), expected)
+
   }
 }

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
-import is.hail.utils.ExportType
+import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
 
@@ -88,9 +88,9 @@ final case class ToSet(a: IR) extends InferIR
 final case class ToDict(a: IR) extends InferIR
 final case class ToArray(a: IR) extends InferIR
 
-final case class SetContains(set: IR, elem: IR) extends IR { val typ: Type = TBoolean() }
-final case class DictContains(set: IR, elem: IR) extends IR { val typ: Type = TBoolean() }
-final case class DictGet(dict: IR, key: IR) extends InferIR
+final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR { val typ: Type = TInt32() }
+
+final case class GroupByKey(collection: IR) extends InferIR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends InferIR {
   override def typ: TArray = coerce[TArray](super.typ)
@@ -124,7 +124,7 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
-final case class SeqOp(a: IR, i: IR, aggSig: AggSignature) extends IR {
+final case class SeqOp(a: IR, i: IR, aggSig: AggSignature, args: IndexedSeq[IR] = FastIndexedSeq()) extends IR {
   val typ = TVoid
 }
 
@@ -211,4 +211,30 @@ final case class MatrixWrite(
   child: MatrixIR,
   f: (MatrixValue) => Unit) extends IR {
   val typ: Type = TVoid
+}
+
+class PrimitiveIR(val self: IR) extends AnyVal {
+  def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
+  def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)
+  def *(other: IR): IR = ApplyBinaryPrimOp(Multiply(), self, other)
+  def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
+  def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
+
+  def &&(other: IR): IR = invoke("&&", self, other)
+  def ||(other: IR): IR = invoke("||", self, other)
+
+  def toI: IR = Cast(self, TInt32())
+  def toL: IR = Cast(self, TInt64())
+  def toF: IR = Cast(self, TFloat32())
+  def toD: IR = Cast(self, TFloat64())
+
+  def unary_-(): IR = ApplyUnaryPrimOp(Negate(), self)
+  def unary_!(): IR = ApplyUnaryPrimOp(Bang(), self)
+
+  def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ), self, other)
+  def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ), self, other)
+  def <(other: IR): IR = ApplyComparisonOp(LT(self.typ), self, other)
+  def >(other: IR): IR = ApplyComparisonOp(GT(self.typ), self, other)
+  def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ), self, other)
+  def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ), self, other)
 }

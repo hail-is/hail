@@ -122,7 +122,7 @@ class FileFormatTests(unittest.TestCase):
             n += 1
 
         self.assertEqual(n, 8)
-        
+
 
 class TableTests(unittest.TestCase):
     def test_annotate(self):
@@ -245,7 +245,8 @@ class TableTests(unittest.TestCase):
 
         result = convert_struct_to_dict(
             kt.group_by(status=kt.status)
-                .aggregate(x1=agg.collect(kt.qPheno * 2),
+                .aggregate(
+                           x1=agg.collect(kt.qPheno * 2),
                            x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
                            x3=agg.min(kt.qPheno),
                            x4=agg.max(kt.qPheno),
@@ -415,6 +416,13 @@ class TableTests(unittest.TestCase):
 
         m3 = m.annotate_rows(qual2=m.index_rows(m.row_key).qual)
         self.assertTrue(m3.filter_rows(m3.qual != m3.qual2).count_rows() == 0)
+
+        kt5 = hl.utils.range_table(1).annotate(key='C1589').key_by('key')
+        m4 = m.annotate_cols(foo=m.s[:5])
+        m4 = m4.annotate_cols(idx=kt5[m4.foo].idx)
+        n_C1589 = m.filter_cols(m.s[:5] == 'C1589').count_cols()
+        self.assertTrue(n_C1589 > 1)
+        self.assertEqual(m4.filter_cols(hl.is_defined(m4.idx)).count_cols(), n_C1589)
 
         kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
@@ -604,13 +612,75 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
         self.assertEqual(t.row_value.dtype, hl.tstruct())
         self.assertEqual(list(t.key), ['idx'])
-        
+
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
     def test_issue_3654(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(x = [1,2])
         self.assertEqual(ht.aggregate(hl.agg.array_sum(ht.x) / [2, 2]), [5.0, 10.0])
+
+    def test_rekey_correct_partition_key(self):
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a = ht.idx)
+        ht = ht.key_by('idx', 'a')
+        ht = ht.key_by('idx')
+        ht._force_count()
+        
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a = ht.idx, b = ht.idx)
+        ht = ht.key_by('idx', 'a')
+        ht = ht.key_by('idx', 'b')
+        ht._force_count()
+
+    def test_explode_on_set(self):
+        t = hl.utils.range_table(1)
+        t = t.annotate(a=hl.set(['a', 'b', 'c']))
+        t = t.explode('a')
+        self.assertEqual(set(t.collect()),
+                         {hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value})
+
+
+class GroupedTableTests(unittest.TestCase):
+    def test_aggregate_by(self):
+        ht = hl.utils.range_table(4)
+        ht = ht.annotate(foo=0, group=ht.idx < 2, bar='hello').annotate_globals(glob=5)
+        grouped = ht.group_by(ht.group)
+        result = grouped.aggregate(sum=hl.agg.sum(ht.idx + ht.glob) + ht.glob - 15, max=hl.agg.max(ht.idx))
+
+        expected = (
+            hl.Table.parallelize(
+                [{'group': True, 'sum': 1, 'max': 1},
+                 {'group': False, 'sum': 5, 'max': 3}],
+                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
+            ).annotate_globals(glob=5).key_by('group')
+        )
+
+        self.assertTrue(result._same(expected))
+
+        with self.assertRaises(ValueError):
+            grouped.aggregate(group=hl.agg.sum(ht.idx))
+
+    def test_aggregate_by_with_joins(self):
+        ht = hl.utils.range_table(4)
+        ht2 = hl.utils.range_table(4)
+        ht2 = ht2.annotate(idx2=ht2.idx)
+
+        ht = ht.annotate_globals(glob=5)
+        grouped = ht.group_by(group = ht2[ht.idx].idx2 < 2)
+        result = grouped.aggregate(sum=hl.agg.sum(ht2[ht.idx].idx2 + ht.glob) + ht.glob - 15,
+                                   max=hl.agg.max(ht2[ht.idx].idx2))
+
+        expected = (
+            hl.Table.parallelize(
+                [{'group': True, 'sum': 1, 'max': 1},
+                 {'group': False, 'sum': 5, 'max': 3}],
+                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
+            ).annotate_globals(glob=5).key_by('group')
+        )
+
+        self.assertTrue(result._same(expected))
+
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None) -> hl.MatrixTable:
@@ -1370,6 +1440,37 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    def test_hwe(self):
+        mt = hl.import_vcf(resource('HWE_test.vcf'))
+        mt = mt.select_rows(**hl.agg.hardy_weinberg(mt.GT))
+        rt = mt.rows()
+        expected = hl.Table.parallelize([
+            hl.struct(
+                locus=hl.locus('20', pos),
+                alleles=alleles,
+                r_expected_het_freq=r,
+                p_hwe=p)
+            for (pos, alleles, r, p) in [
+                    (1, ['A', 'G'], 0.0, 0.5),
+                    (2, ['A', 'G'], 0.25, 0.5),
+                    (3, ['T', 'C'], 0.5357142857142857, 0.21428571428571427),
+                    (4, ['T', 'A'], 0.5714285714285714,0.6571428571428573),
+                    (5, ['G', 'A'], 0.3333333333333333, 0.5),
+                    (6, ['T', 'C'], hl.null(hl.tfloat64), 0.5)]],
+                                        key=['locus', 'alleles'])
+        self.assertTrue(rt._same(expected))
+
+    def test_hw_p_and_agg_agree(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = mt.annotate_rows(
+            stats = hl.agg.call_stats(mt.GT, mt.alleles),
+            hw = hl.agg.hardy_weinberg(mt.GT))
+        mt = mt.annotate_rows(
+            hw2 = hl.hardy_weinberg_p(mt.stats.homozygote_count[0],
+                                      mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
+                                      mt.stats.homozygote_count[1]))
+        rt = mt.rows()
+        self.assertTrue(rt.all(rt.hw == rt.hw2))
 
 class GroupedMatrixTests(unittest.TestCase):
 

@@ -148,6 +148,23 @@ class LambdaClassMethod(AST):
             return '{}.{}({} => {})'.format(self.callee.to_hql(), self.method, self.lambda_var, self.rhs.to_hql())
 
 
+class LambdaFunction(AST):
+    @typecheck_method(method=str, lambda_var=str, rhs=AST, args=AST)
+    def __init__(self, method, lambda_var, rhs, *args):
+        self.method = method
+        self.lambda_var = lambda_var
+        self.rhs = rhs
+        self.args = args
+        super(LambdaFunction, self).__init__(rhs, *args)
+
+    def to_hql(self):
+        if self.args:
+            return '{}({} => {}, {})'.format(self.method, self.lambda_var, self.rhs.to_hql(),
+                                             ', '.join(a.to_hql() for a in self.args))
+        else:
+            return '{}({} => {})'.format(self.method, self.lambda_var, self.rhs.to_hql())
+
+
 class Index(AST):
     @typecheck_method(parent=AST, key=AST)
     def __init__(self, parent, key):

@@ -74,12 +74,4 @@ class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
     val region = mb.getArg[Region](1).load()
     findElt.invoke(region, array, m, v)
   }
-
-  def isIndexEqual(array: Code[Long], i: Code[Int], m: Code[Boolean], v: Code[_]): Code[Boolean] = {
-    val region = mb.getArg[Region](1).load()
-    val len = typ.loadLength(region, array)
-    !len.ceq(0) && equiv(region, (m, v), region,
-      (typ.isElementMissing(region, array, i),
-        region.loadIRIntermediate(elt)(typ.elementOffset(array, len, i))))
-  }
 }

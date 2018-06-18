@@ -288,10 +288,10 @@ object LocalLDPrune {
     
     val fullRowType = mt.rvRowType
 
-    val locusIndex = mt.rowType.fieldIdx("locus")
-    val allelesIndex = mt.rowType.fieldIdx("alleles")
+    val locusIndex = mt.rvRowType.fieldIdx("locus")
+    val allelesIndex = mt.rvRowType.fieldIdx("alleles")
 
-    val bpvType = BitPackedVectorView.rvRowType(mt.rowKeyTypes(locusIndex), mt.rowKeyTypes(allelesIndex))
+    val bpvType = BitPackedVectorView.rvRowType(mt.rvRowType.types(locusIndex), mt.rvRowType.types(allelesIndex))
 
     val typ = mt.rvd.typ
 

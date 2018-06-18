@@ -46,6 +46,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(TString.loadString(rv.region, rv.offset) ==
+      TString.loadString(rv2.region, rv2.offset))
   }
 
   @Test
@@ -82,6 +84,7 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(rv.region.loadInt(rv.offset) == rv2.region.loadInt(rv2.offset))
   }
 
   @Test
@@ -118,7 +121,10 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv2.pretty(rt))
     }
 
+    assert(rt.loadLength(rv.region, rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
   }
 
   @Test
@@ -157,6 +163,10 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(TString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
+      TString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }
 
   @Test
@@ -218,6 +228,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   @Test
@@ -281,6 +293,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
+      new UnsafeRow(rt, rv2.region, rv2.offset))
   }
 
   @Test
@@ -321,10 +335,12 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   def printRegion(region: Region, string: String) {
-    println(s"Region should contain ${string}")
+    println(region.prettyBits())
   }
 
   @Test

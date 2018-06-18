@@ -31,7 +31,7 @@ object LoadBgen {
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    tolerance: Double): MatrixTable = {
+    skipInvalidLoci: Boolean = false): MatrixTable = {
 
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
@@ -43,7 +43,6 @@ object LoadBgen {
 
     val nSamples = sampleIds.length
 
-    hadoop.setDouble("tolerance", tolerance)
     hadoop.setBoolean("includeGT", includeGT)
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
@@ -53,9 +52,6 @@ object LoadBgen {
       val bState = readState(sc.hadoopConfiguration, file)
 
       bState.version match {
-        case 1 =>
-          BgenResult(file, bState.nSamples, bState.nVariants,
-            sc.hadoopFile(file, classOf[BgenInputFormatV11], classOf[LongWritable], classOf[BgenRecordV11], nPartitions.getOrElse(sc.defaultMinPartitions)))
         case 2 =>
           BgenResult(file, bState.nSamples, bState.nVariants,
             sc.hadoopFile(file, classOf[BgenInputFormatV12], classOf[LongWritable], classOf[BgenRecordV12], nPartitions.getOrElse(sc.defaultMinPartitions)))
@@ -111,26 +107,30 @@ object LoadBgen {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
+      it.flatMap { case (_, record) =>
         val (contig, pos, alleles) = record.getKey
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
-        rvb.start(kType)
-        rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
+        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
+          None
+        else {
+          rvb.start(kType)
+          rvb.startStruct()
+          rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
 
-        val nAlleles = alleles.length
-        rvb.startArray(nAlleles)
-        var i = 0
-        while (i < nAlleles) {
-          rvb.addString(alleles(i))
-          i += 1
+          val nAlleles = alleles.length
+          rvb.startArray(nAlleles)
+          var i = 0
+          while (i < nAlleles) {
+            rvb.addString(alleles(i))
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+
+          rv.setOffset(rvb.end())
+          Some(rv)
         }
-        rvb.endArray()
-        rvb.endStruct()
-
-        rv.setOffset(rvb.end())
-        rv
       }
     }))
 
@@ -141,42 +141,46 @@ object LoadBgen {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
+      it.flatMap { case (_, record) =>
         val (contig, pos, alleles) = record.getKey
         val va = record.getAnnotation.asInstanceOf[Row]
 
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
-        rvb.start(rowType)
-        rvb.startStruct()
-        rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
-
-        val nAlleles = alleles.length
-        rvb.startArray(nAlleles)
-        var i = 0
-        while (i < nAlleles) {
-          rvb.addString(alleles(i))
-          i += 1
-        }
-        rvb.endArray()
-        rvb.addAnnotation(rowType.types(2), va.get(0))
-        rvb.addAnnotation(rowType.types(3), va.get(1))
-        if (loadEntries)
-          record.getValue(rvb) // gs
+        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
+          None
         else {
-          rvb.startArray(nSamples)
-          var j = 0
-          while (j < nSamples) {
-            rvb.startStruct()
-            rvb.endStruct()
-            j += 1
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
+
+          val nAlleles = alleles.length
+          rvb.startArray(nAlleles)
+          var i = 0
+          while (i < nAlleles) {
+            rvb.addString(alleles(i))
+            i += 1
           }
           rvb.endArray()
-        }
-        rvb.endStruct()
+          rvb.addAnnotation(rowType.types(2), va.get(0))
+          rvb.addAnnotation(rowType.types(3), va.get(1))
+          if (loadEntries)
+            record.getValue(rvb) // gs
+          else {
+            rvb.startArray(nSamples)
+            var j = 0
+            while (j < nSamples) {
+              rvb.startStruct()
+              rvb.endStruct()
+              j += 1
+            }
+            rvb.endArray()
+          }
+          rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+          rv.setOffset(rvb.end())
+          Some(rv)
+        }
       }
     }))
 

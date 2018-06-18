@@ -12,32 +12,31 @@ class ExportSuite extends SparkSuite {
 
   @Test def test() {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds = TestUtils.splitMultiHTS(vds)
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.colsTable().select(Array("Sample = row.s",
-    "row.qc.call_rate",
-    "row.qc.n_called",
-    "row.qc.n_not_called",
-    "row.qc.n_hom_ref",
-    "row.qc.n_het",
-    "row.qc.n_hom_var",
-    "row.qc.n_snp",
-    "row.qc.n_insertion",
-    "row.qc.n_deletion",
-    "row.qc.n_singleton",
-    "row.qc.n_transition",
-    "row.qc.n_transversion",
-    "row.qc.n_star",
-    "row.qc.dp_mean",
-    "row.qc.dp_stdev",
-    "row.qc.gq_mean",
-    "row.qc.gq_stdev",
-    "row.qc.n_non_ref",
-    "row.qc.r_ti_tv",
-    "row.qc.r_het_hom_var",
-    "row.qc.r_insertion_deletion")).export(out)
+    vds.colsTable().select(Array("{Sample: row.s",
+    "call_rate: row.qc.call_rate",
+    "n_called: row.qc.n_called",
+    "n_not_called: row.qc.n_not_called",
+    "n_hom_ref: row.qc.n_hom_ref",
+    "n_het: row.qc.n_het",
+    "n_hom_var: row.qc.n_hom_var",
+    "n_snp: row.qc.n_snp",
+    "n_insertion: row.qc.n_insertion",
+    "n_deletion: row.qc.n_deletion",
+    "n_singleton: row.qc.n_singleton",
+    "n_transition: row.qc.n_transition",
+    "n_transversion: row.qc.n_transversion",
+    "n_star: row.qc.n_star",
+    "dp_mean: row.qc.dp_mean",
+    "dp_stdev: row.qc.dp_stdev",
+    "gq_mean: row.qc.gq_mean",
+    "gq_stdev: row.qc.gq_stdev",
+    "n_non_ref: row.qc.n_non_ref",
+    "r_ti_tv: row.qc.r_ti_tv",
+    "r_het_hom_var: row.qc.r_het_hom_var",
+    "r_insertion_deletion: row.qc.r_insertion_deletion}").mkString(","), None, None).export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -80,13 +79,13 @@ class ExportSuite extends SparkSuite {
   }
 
   @Test def testExportSamples() {
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf")
-      .filterColsExpr("""sa.s == "C469::HG02026""""))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .filterColsExpr("""sa.s == "C469::HG02026"""")
     assert(vds.numCols == 1)
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.colsTable().select(Array("row.s")).export(f, header = false)
+    vds.colsTable().select("{s: row.s}", None, None).export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -95,10 +94,10 @@ class ExportSuite extends SparkSuite {
     val f2 = tmpDir.createTempFile("samples", ".tsv")
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
-    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
-    vds.colsTable().select(Array("`S.A.M.P.L.E.ID` = row.s")).export(f)
-    vds.colsTable().select(Array("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = row.s", "ANOTHERTHING = row.s")).export(f2)
-    vds.colsTable().select(Array("`I have some spaces and tabs\\there` = row.s", "`more weird stuff here` = row.s")).export(f3)
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    vds.colsTable().select("{`S.A.M.P.L.E.ID`: row.s}", None, None).export(f)
+    vds.colsTable().select("{`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****`: row.s, ANOTHERTHING: row.s}", None, None).export(f2)
+    vds.colsTable().select("{`I have some spaces and tabs\\there`: row.s, `more weird stuff here`: row.s}", None, None).export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -121,11 +120,10 @@ class ExportSuite extends SparkSuite {
     // this should run without errors
     val f = tmpDir.createTempFile("samples", ".tsv")
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds = TestUtils.splitMultiHTS(vds)
     vds = SampleQC(vds)
     vds
       .colsTable()
-      .select(Array("computation = 5 * (if (row.qc.call_rate < .95) 0 else 1)"))
+      .select("{computation: 5 * (if (row.qc.call_rate < .95) 0 else 1)}", None, None)
       .export(f)
   }
 }

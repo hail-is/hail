@@ -36,7 +36,6 @@ class OrderingSuite extends TestNGSuite {
       case "gt" => fb.emit(stagedOrdering.gt(cregion, (const(false), cv1), cregion, (const(false), cv2)))
       case "gteq" => fb.emit(stagedOrdering.gteq(cregion, (const(false), cv1), cregion, (const(false), cv2)))
     }
-
     fb.result()()
   }
 
@@ -220,7 +219,7 @@ class OrderingSuite extends TestNGSuite {
     val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
       val telt = tset.elementType
 
-      val ir = { irs: Seq[IR] => SetContains(irs(0), irs(1)) }
+      val ir = { irs: Seq[IR] => invoke("contains", irs(0), irs(1)) }
       val setcontainsF = getCompiledFunction(ir, tset, telt, TBoolean())
 
       Region.scoped { region =>
@@ -248,7 +247,7 @@ class OrderingSuite extends TestNGSuite {
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
       val telt = coerce[TBaseStruct](tdict.elementType)
 
-      val ir = { irs: Seq[IR] => DictGet(irs(0), irs(1)) }
+      val ir = { irs: Seq[IR] => invoke("get", irs(0), irs(1)) }
       val dictgetF = getCompiledFunction(ir, tdict, tdict.keyType, -tdict.valueType)
 
       Region.scoped { region =>
@@ -360,7 +359,7 @@ class OrderingSuite extends TestNGSuite {
       ApplySpecial("&&",
         FastSeq(
           Ref("accumulator", TBoolean()),
-          SetContains(set2, Ref("setelt", TInt32())))))
+          invoke("contains", set2, Ref("setelt", TInt32())))))
 
     val fb = EmitFunctionBuilder[Region, Boolean]
     Emit(ir, fb)

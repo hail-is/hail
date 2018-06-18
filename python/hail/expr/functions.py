@@ -3756,3 +3756,42 @@ def liftover(x, dest_reference_genome, min_match=0.95):
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
     return _func(method_name, rtype, to_expr(dest_reference_genome.name, tstr), x, to_expr(min_match, tfloat))
+
+
+@typecheck(f=func_spec(1, expr_float64),
+           min=expr_float64,
+           max=expr_float64)
+def uniroot(f: Callable, min, max):
+    """Finds a root of the function `f` within the interval `[min, max]`.
+
+    Examples
+    --------
+
+    >>> hl.uniroot(lambda x: x - 1, -5, 5).value
+    1.0
+
+    Notes
+    -----
+    `f(min)` and `f(max)` must not have the same sign.
+
+    If no root can be found, the result of this call will be `NA` (missing).
+
+    Parameters
+    ----------
+    f : function ( (arg) -> :class:`.Float64Expression`)
+        Must return a :class:`.Float64Expression`.
+    min : :class:`.Float64Expression`
+    max : :class:`.Float64Expression`
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+        The root of the function `f`.
+    """
+
+    new_id = Env.get_uid()
+    lambda_result = to_expr(f(construct_expr(VariableReference(new_id), hl.tfloat64)))
+
+    indices, aggregations = unify_all(lambda_result, min, max)
+    ast = LambdaFunction("uniroot", new_id, lambda_result._ast, min._ast, max._ast)
+    return hl.expr.expressions.construct_expr(ast, lambda_result._type, indices, aggregations)

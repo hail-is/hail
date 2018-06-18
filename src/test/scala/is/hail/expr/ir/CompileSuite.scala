@@ -191,6 +191,10 @@ class CompileSuite {
   }
 
 
+  def printRegion(region: Region, string: String) {
+    println(region.prettyBits())
+  }
+
   def checkRegion(region: Region, offset: Long, typ: Type, a: Annotation): Boolean = {
     val v = typ match {
       case t: TStruct if a.isInstanceOf[IndexedSeq[Annotation]] =>

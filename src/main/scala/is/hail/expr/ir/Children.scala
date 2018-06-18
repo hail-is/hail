@@ -48,12 +48,10 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
-    case SetContains(set, elem) =>
-      Array(set, elem)
-    case DictContains(dict, key) =>
-      Array(dict, key)
-    case DictGet(dict, key) =>
-      Array(dict, key)
+    case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
+      Array(orderedCollection, elem)
+    case GroupByKey(collection) =>
+      Array(collection)
     case ArrayMap(a, name, body) =>
       Array(a, body)
     case ArrayFilter(a, name, cond) =>
@@ -72,8 +70,8 @@ object Children {
       (old +: fields.map(_._2)).toIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
-    case SeqOp(a, i, _) =>
-      Array(a, i)
+    case SeqOp(a, i, _, args) =>
+      Array(a, i) ++ args
     case Begin(xs) =>
       xs
     case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>

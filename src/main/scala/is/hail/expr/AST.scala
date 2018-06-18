@@ -4,7 +4,6 @@ import is.hail.expr.ir.{AggOp, AggSignature, ApplyAggOp, IR, SeqOp}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ToIRErr._
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -546,12 +545,17 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
   }
 
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = {
-    val frName = rg.wrapFunctionName(fName)
+    val (frName, actualArgs) = fName match {
+      case "liftoverLocus" | "liftoverLocusInterval" =>
+        val destRG = ReferenceGenome.getReference(args(0).asInstanceOf[Const].value.asInstanceOf[String])
+        (destRG.wrapFunctionName(rg.wrapFunctionName(fName)), args.tail)
+      case _ => (rg.wrapFunctionName(fName), args)
+    }
     for {
-      irArgs <- all(args.map(_.toIR(agg)))
+      irArgs <- all(actualArgs.map(_.toIR(agg)))
       ir <- fromOption(
         this,
-        s"no RG dependent function found for $frName",
+        s"no RG dependent function found for $frName(${irArgs.map(_.typ).mkString(", ")})",
         IRFunctionRegistry.lookupConversion(frName, irArgs.map(_.typ))
           .map { irf => irf(irArgs) })
     } yield ir
@@ -867,7 +871,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           aggSig = AggSignature(op,
             -t.elementType,
             FastIndexedSeq(),
-            initOpArgs.map(_.map(_.typ)))
+            initOpArgs.map(_.map(_.typ)),
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -875,6 +880,26 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), initOpArgs, aggSig): IR
+      case (t: TAggregable, "inbreeding", IndexedSeq(Lambda(_, name, body))) =>
+        for {
+          op <- fromOption(
+            this,
+            s"no AggOp for method $method",
+            AggOp.fromString.lift(method))
+          bodyx <- body.toIR()
+          seqOpArgs = FastIndexedSeq(bodyx)
+          aggSig = AggSignature(op,
+            -t.elementType,
+            FastIndexedSeq(),
+            None,
+            seqOpArgs.map(_.typ))
+          ca <- fromOption(
+            this,
+            "no CodeAggregator",
+            AggOp.getOption(aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, seqOpArgs))
+        } yield
+          ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, "fraction", IndexedSeq(Lambda(_, name, body))) =>
         for {
           op <- fromOption(
@@ -885,7 +910,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           aggSig = AggSignature(op,
             bodyx.typ,
             FastIndexedSeq(),
-            None)
+            None,
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -906,7 +932,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             else
               -t.elementType,
             constructorArgs.map(_.typ),
-            None)
+            None,
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -948,6 +975,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               case (_: TSet, "forall") =>
                 val v = ir.genUID()
                 ir.ArrayFold(ir.ToArray(a), ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
+              case (_: TArray, "groupBy") =>
+                ir.GroupByKey(ir.ArrayMap(a, name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
+              case (_: TSet, "groupBy") =>
+                ir.GroupByKey(ir.ArrayMap(ir.ToArray(a), name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
             })
         } yield result
       case _ =>
