@@ -69,25 +69,12 @@ class OrderedRVD(
 
   def zipWithIndex(name: String): OrderedRVD = {
     assert(!typ.key.contains(name))
-    val (newRowType, ins) = typ.rowType.unsafeStructInsert(TInt64(), List(name))
-
-    val a = sparkContext.broadcast(countPerPartition().scanLeft(0L)(_ + _))
+    val (newRowType, newCRDD) = zipWithIndexCRDD(name)
 
     OrderedRVD(
       typ.copy(rowType = newRowType.asInstanceOf[TStruct]),
       partitioner,
-      crdd = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
-        val rv2 = RegionValue()
-        val rvb = ctx.rvb
-        var index = a.value(i)
-        it.zipWithIndex.map { case (rv, i) =>
-          rvb.start(newRowType)
-          ins(rv.region, rv.offset, rvb, () => rvb.addLong(index))
-          index += 1
-          rv2.set(rvb.region, rvb.end())
-          rv2
-        }
-      }, preservesPartitioning=true)
+      crdd = crdd
     )
   }
 
