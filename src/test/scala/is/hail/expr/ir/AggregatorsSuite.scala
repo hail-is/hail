@@ -20,6 +20,23 @@ class AggregatorsSuite {
       expected)
   }
 
+  def runAggregator(
+    op: AggOp,
+    t: TStruct,
+    a: IndexedSeq[Row],
+    expected: Any,
+    aggIR: IR,
+    args: IndexedSeq[IR],
+    initOpArgs: Option[IndexedSeq[IR]],
+    seqOpArgs: IndexedSeq[IR]) {
+    val aggSig = AggSignature(op, aggIR.typ, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
+    assertEvalsTo(ApplyAggOp(
+      SeqOp(aggIR, I32(0), aggSig, seqOpArgs),
+      args, initOpArgs, aggSig),
+      (a, t),
+      expected)
+  }
+
   @Test def sumFloat64() {
     runAggregator(Sum(), TFloat64(), (0 to 100).map(_.toDouble), 5050.0)
     runAggregator(Sum(), TFloat64(), FastIndexedSeq(), 0.0)
@@ -53,10 +70,17 @@ class AggregatorsSuite {
   }
 
   @Test def inbreeding() {
-    runAggregator(Inbreeding(), TCall(),
-      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), null, Call2(1, 1)),
-      Row(-1.7777777, 4L, 3.28, 2L),
-      seqOpArgs = FastIndexedSeq(F64(0.1)))
+    runAggregator(
+      Inbreeding(),
+      TStruct("x" -> TCall(), "y" -> TFloat64()),
+      FastIndexedSeq(Row(Call2(0, 0), 0d), Row(Call2(0, 1), 0.1),
+        Row(Call2(0, 1), 0.2), Row(null, 0.3),
+        Row(Call2(1, 1), 0.4), Row(Call2(0, 0), null)),
+      Row(-1.040816, 4L, 3.02, 2L),
+      Ref("x", TCall()),
+      FastIndexedSeq(),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64())))
   }
 
   // FIXME Max Boolean not supported by old-style MaxAggregator
