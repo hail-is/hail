@@ -279,7 +279,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  def classAsBytes(print: Option[PrintWriter] = Some(new PrintWriter(System.out))): Array[Byte] = {
+  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 
