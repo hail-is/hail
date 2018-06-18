@@ -33,7 +33,7 @@ class RegionValueInbreedingAggregator extends RegionValueAggregator {
       rvb.setMissing()
   }
 
-  override def copy(): RegionValueAggregator = {
+  override def copy(): RegionValueInbreedingAggregator = {
     val rva = new RegionValueInbreedingAggregator()
     rva.combiner = combiner.copy()
     rva
