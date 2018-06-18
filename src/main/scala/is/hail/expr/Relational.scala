@@ -257,14 +257,12 @@ object MatrixIR {
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
     val rowType = typ.rvRowType
     val keepType = TArray(+TInt32())
-    val x = InsertFields(ir.Ref("row", rowType), Seq((MatrixType.entriesIdentifier,
-      ir.ArrayMap(ir.Ref("keep", keepType), "i",
-        ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
-          ir.Ref("i", TInt32()))))))
-    println(ir.Pretty(x))
     val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType,
       "keep", keepType,
-      body = x)
+      body = InsertFields(ir.Ref("row", rowType), Seq((MatrixType.entriesIdentifier,
+        ir.ArrayMap(ir.Ref("keep", keepType), "i",
+          ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
+            ir.Ref("i", TInt32())))))))
     assert(rTyp.isOfType(rowType))
 
     val newMatrixType = typ.copy(rvRowType = coerce[TStruct](rTyp))
