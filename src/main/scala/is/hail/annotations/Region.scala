@@ -259,5 +259,9 @@ final class Region() extends NativeBase() {
     visit(t, off, v)
     v.result()
   }
+  
+  def prettyBits(): String = {
+    "FIXME: implement prettyBits on Region"
+  }
 
 }
