@@ -305,8 +305,8 @@ class HailContext private(val sc: SparkContext,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false): MatrixTable = {
-    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, nPartitions, rg,
-      contigRecoding, skipInvalidLoci)
+    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid,
+      nPartitions, rg, contigRecoding, skipInvalidLoci)
   }
 
   def importBgens(files: Seq[String],
