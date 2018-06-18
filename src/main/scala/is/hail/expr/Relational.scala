@@ -847,10 +847,10 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           if (colRVAggs.nonEmpty) {
             colRVAggs.foreach(_.clear())
 
-            initialize(region, colRVAggs, globals, false)
+            initialize(current.region, colRVAggs, globals, false)
 
             while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-              sequence(region, colRVAggs,
+              sequence(current.region, colRVAggs,
                 globals, false,
                 cols, false,
                 current.offset, false)
