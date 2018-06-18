@@ -859,9 +859,9 @@ private class Emit(
         val setup = Code(codeMin.setup, codeMax.setup)
         val m = (codeMin.m || codeMax.m).mux(
           Code(
-            const(true),
             localF := Code._null,
-            res := Code._null),
+            res := Code._null,
+            const(true)),
           Code(
             localF := asmfunction.newInstance(),
             res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
