@@ -865,9 +865,6 @@ class ExprSuite extends SparkSuite {
       eval("str(1) == 1")
     }
 
-    assert(eval("Dict([1,2,3], [1,2,3])").contains(Map(1 -> 1, 2 -> 2, 3 -> 3)))
-    assert(eval("""Dict(["foo", "bar"], [1,2])""").contains(Map("foo" -> 1, "bar" -> 2)))
-
     assert(eval("isnan(0/0)").contains(true))
     assert(eval("isnan(0d)").contains(false))
     assert(eval("isnan(NA: Float32)").isEmpty)

@@ -66,14 +66,6 @@ class DictFunctionsSuite extends TestNGSuite {
     Array(null, null, null))
 
   @Test(dataProvider = "keysAndValues")
-  def dictFromTwoArrays(
-    a: Seq[(Integer, Integer)],
-    keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("Dict", toIRArray(keys), toIRArray(values)), tuplesToMap(a))
-  }
-
-  @Test(dataProvider = "keysAndValues")
   def keySet(a: Seq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {

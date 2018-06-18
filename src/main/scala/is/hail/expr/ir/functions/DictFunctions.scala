@@ -62,24 +62,6 @@ object DictFunctions extends RegistryFunctions {
 
     registerIR("dict", TArray(TTuple(tv("key"), tv("value"))))(ToDict)
 
-    registerIR("Dict", TArray(tv("key")), TArray(tv("value"))) { (k, v) =>
-      val keys = Ref(genUID(), k.typ)
-      val values = Ref(genUID(), v.typ)
-      val i = Ref(genUID(), TInt32())
-      val typ = TDict(
-        types.coerce[TArray](k.typ).elementType,
-        types.coerce[TArray](v.typ).elementType)
-
-      Let(keys.name, k,
-        Let(values.name, v,
-          If(ArrayLen(keys).cne(ArrayLen(values)),
-            Die("Keys and values arrays must have same length in Dict(keys, values).", typ),
-            ToDict(ArrayMap(
-              ArrayRange(0, ArrayLen(keys), 1),
-              i.name,
-              MakeTuple(Seq(ArrayRef(keys, i), ArrayRef(values, i))))))))
-    }
-
     registerIR("keys", tdict) { d =>
       val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(ToArray(d), elt.name, GetField(elt, "key"))

@@ -827,13 +827,6 @@ object FunctionRegistry {
   register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
   register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)
 
-  register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
-    if (keys.length != values.length)
-      fatal(s"mismatch between length of keys (${ keys.length }) and values (${ values.length })")
-    keys.zip(values).toMap
-  })(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
-
-
   val tuple2Hr = new HailRep[Annotation] {
     override def typ: Type = TTuple(TTHr.typ, TUHr.typ)
   }
