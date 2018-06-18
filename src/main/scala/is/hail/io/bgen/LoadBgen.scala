@@ -37,7 +37,6 @@ object LoadBgen {
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    tolerance: Double,
     skipInvalidLoci: Boolean = false,
     includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
