@@ -322,9 +322,14 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(a, i, aggSig) =>
+      case x@SeqOp(a, i, aggSig, seqOpArgs) =>
         assert(i == I32(0))
-        aggregator.get.seqOp(interpret(a))
+        if (seqOpArgs.isEmpty)
+          aggregator.get.seqOp(interpret(a))
+        else if (aggSig.op == Inbreeding()) {
+          val IndexedSeq(af) = seqOpArgs
+          aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
+        }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val aggType = aggSig.inputType
         assert(AggOp.getType(aggSig) == x.typ)
@@ -333,6 +338,9 @@ object Interpret {
             assert(aggType == TCall())
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
+          case Inbreeding() =>
+            assert(aggType == TCall())
+            new InbreedingAggregator(null)
           case Collect() => new CollectAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())

@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype}
@@ -38,4 +38,35 @@ class InbreedingCombiner extends Serializable {
   def Fstat: Option[Double] = divOption(observedHoms - expectedHoms, nCalled - expectedHoms)
 
   def asAnnotation: Annotation = Annotation(Fstat.orNull, nCalled, expectedHoms, observedHoms)
+
+  def result(rvb: RegionValueBuilder) {
+    rvb.startStruct()
+
+    // Fstat
+    val f = divNull(observedHoms - expectedHoms, nCalled - expectedHoms)
+    if (f == null)
+      rvb.setMissing()
+    else
+      rvb.addDouble(f)
+
+    rvb.addLong(nCalled)
+    rvb.addDouble(expectedHoms)
+    rvb.addLong(observedHoms)
+
+    rvb.endStruct()
+  }
+
+  def clear() {
+    nCalled = 0L
+    expectedHoms = 0d
+    observedHoms = 0L
+  }
+
+  def copy(): InbreedingCombiner = {
+    val c = new InbreedingCombiner()
+    c.observedHoms = observedHoms
+    c.expectedHoms = expectedHoms
+    c.nCalled = nCalled
+    c
+  }
 }

@@ -140,9 +140,10 @@ object TypeCheck {
         args.foreach(check(_))
         check(i)
         assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(a, i, aggSig) =>
+      case x@SeqOp(a, i, aggSig, args) =>
         check(a)
         check(i)
+        args.foreach(check(_))
         assert(a.typ == aggSig.inputType)
         assert(i.typ.isInstanceOf[TInt32])
       case x@Begin(xs) =>

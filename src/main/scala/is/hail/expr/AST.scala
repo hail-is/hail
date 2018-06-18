@@ -871,7 +871,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           aggSig = AggSignature(op,
             -t.elementType,
             FastIndexedSeq(),
-            initOpArgs.map(_.map(_.typ)))
+            initOpArgs.map(_.map(_.typ)),
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -879,6 +880,26 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), initOpArgs, aggSig): IR
+      case (t: TAggregable, "inbreeding", IndexedSeq(Lambda(_, name, body))) =>
+        for {
+          op <- fromOption(
+            this,
+            s"no AggOp for method $method",
+            AggOp.fromString.lift(method))
+          bodyx <- body.toIR()
+          seqOpArgs = FastIndexedSeq(bodyx)
+          aggSig = AggSignature(op,
+            -t.elementType,
+            FastIndexedSeq(),
+            None,
+            seqOpArgs.map(_.typ))
+          ca <- fromOption(
+            this,
+            "no CodeAggregator",
+            AggOp.getOption(aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, seqOpArgs))
+        } yield
+          ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, "fraction", IndexedSeq(Lambda(_, name, body))) =>
         for {
           op <- fromOption(
@@ -889,7 +910,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           aggSig = AggSignature(op,
             bodyx.typ,
             FastIndexedSeq(),
-            None)
+            None,
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -910,7 +932,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             else
               -t.elementType,
             constructorArgs.map(_.typ),
-            None)
+            None,
+            FastIndexedSeq())
           ca <- fromOption(
             this,
             "no CodeAggregator",

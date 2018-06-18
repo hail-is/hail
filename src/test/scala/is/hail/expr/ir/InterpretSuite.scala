@@ -282,7 +282,7 @@ class InterpretSuite {
   @Test def testAggregator() {
     val agg = (FastIndexedSeq(Row(5), Row(10), Row(15)),
       TStruct("a" -> TInt32()))
-    val aggSig = AggSignature(Sum(), TInt64(), FastSeq(), None)
+    val aggSig = AggSignature(Sum(), TInt64(), FastSeq(), None, FastSeq())
     assertEvalsTo(ApplyAggOp(
       If(ApplyComparisonOp(LT(TInt32()), Ref("a", TInt32()), I32(11)),
         SeqOp(Cast(Ref("a", TInt32()), TInt64()), I32(0), aggSig),

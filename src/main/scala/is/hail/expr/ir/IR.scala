@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
-import is.hail.utils.ExportType
+import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
 
@@ -124,7 +124,7 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
-final case class SeqOp(a: IR, i: IR, aggSig: AggSignature) extends IR {
+final case class SeqOp(a: IR, i: IR, aggSig: AggSignature, args: IndexedSeq[IR] = FastIndexedSeq()) extends IR {
   val typ = TVoid
 }
 
