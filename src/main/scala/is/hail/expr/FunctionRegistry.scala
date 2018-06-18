@@ -977,7 +977,7 @@ object FunctionRegistry {
   register("qnorm", { (p: Double) => qnorm(p) })
 
   register("rpois", { (lambda: Double) => rpois(lambda) })
-  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda) })(int32Hr, float64Hr, arrayHr(float64Hr))
+  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda).toFastIndexedSeq })(int32Hr, float64Hr, arrayHr(float64Hr))
   register("dpois", { (x: Double, lambda: Double) => dpois(x, lambda) })
   register("dpois", { (x: Double, lambda: Double, logP: Boolean) => dpois(x, lambda, logP) })
   register("ppois", { (x: Double, lambda: Double) => ppois(x, lambda) })

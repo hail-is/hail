@@ -46,10 +46,6 @@ object MathFunctions extends RegistryFunctions {
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
-  def isnan(f: Float): Boolean = f.isNaN
-
-  def isnan(d: Double): Boolean = d.isNaN
-
   def pcoin(p: Double): Boolean = math.random < p
 
   def runif(min: Double, max: Double): Double = min + (max - min) * math.random
@@ -77,6 +73,10 @@ object MathFunctions extends RegistryFunctions {
     val mathPackageClass = Class.forName("scala.math.package$")
     val statsPackageClass = Class.forName("is.hail.stats.package$")
     val jMathClass = classOf[java.lang.Math]
+    val jIntegerClass = classOf[java.lang.Integer]
+    val jLongClass = classOf[java.lang.Long]
+    val jFloatClass = classOf[java.lang.Float]
+    val jDoubleClass = classOf[java.lang.Double]    
 
     // numeric conversions
     registerIR("toInt32", tnum("T"))(x => Cast(x, TInt32()))
@@ -111,23 +111,19 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
 
     registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
-    
-    // other rpois returns an array
-    def emitrpois(srvb: StagedRegionValueBuilder, n: Code[Int], lambda: Code[Double]): Code[Unit] = {
-      val nlocal = srvb.mb.newLocal[Int]
-      val llocal = srvb.mb.newLocal[Double]
+    registerCode("rpois", TInt32(), TFloat64(), TArray(TFloat64()), isDeterministic = false){ (mb, n, lambda) => 
+      val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
       val res = srvb.mb.newLocal[Array[Double]]
       Code(
-        nlocal := n,
-        llocal := lambda,
-        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", nlocal, llocal),
-        srvb.start(),
-        srvb.addArray(res, ...),
-        srvb.advance()
+        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
+        srvb.start(res.length()),
+        Code.whileLoop(srvb.arrayIdx < res.length(),
+          srvb.addDouble(res(srvb.arrayIdx)),
+          srvb.advance()
+        ),
+        srvb.offset
       )
     }
-    
-    registerCode("rpois", TInt32(), TFloat64(), TInt64())...
 
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
@@ -155,12 +151,14 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
     registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
-    registerScalaFunction("isnan", TFloat32(), TBoolean())(thisClass, "isnan")
-    registerScalaFunction("isnan", TFloat64(), TBoolean())(thisClass, "isnan")
+    registerJavaStaticFunction("isnan", TFloat32(), TBoolean())(jFloatClass, "isNaN")
+    registerJavaStaticFunction("isnan", TFloat64(), TBoolean())(jDoubleClass, "isNaN")
+  
+    registerJavaStaticFunction("sign", TInt32(), TInt32())(jIntegerClass, "signum")
+    registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
+    registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
+    registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
 
-    registerScalaFunction("signum", TFloat32(), TBoolean())(jMathClass, "signum")
-    registerScalaFunction("signum", TFloat64(), TBoolean())(jMathClass, "signum")
-    
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
       EmitTriplet(
         Code(l.setup, r.setup),
