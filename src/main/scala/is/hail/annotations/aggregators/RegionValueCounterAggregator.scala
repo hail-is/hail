@@ -7,12 +7,11 @@ import is.hail.utils._
 import scala.collection.mutable
 
 class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
-  private var a = Array(0L, 0L)
-  private var nMissing = 0L
+  private val a = Array(0L, 0L, 0L)
 
   def seqOp(region: Region, x: Boolean, missing: Boolean) {
     if (missing)
-      nMissing += 1
+      a(2) += 1
     else if (x)
       a(1) += 1
     else
@@ -21,28 +20,32 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
 
   override def combOp(agg2: RegionValueAggregator) {
     val other = agg2.asInstanceOf[RegionValueCounterBooleanAggregator]
-    nMissing += other.nMissing
     a(0) += other.a(0)
     a(1) += other.a(1)
+    a(2) += other.a(2)
   }
 
   override def result(rvb: RegionValueBuilder) {
-    rvb.startArray(if (nMissing > 0) 3 else 2)
+    rvb.startArray(a.count(_ != 0))
 
-    rvb.startStruct()
-    rvb.addBoolean(false)
-    rvb.addLong(a(0))
-    rvb.endStruct()
+    if (a(0) > 0) {
+      rvb.startStruct()
+      rvb.addBoolean(false)
+      rvb.addLong(a(0))
+      rvb.endStruct()
+    }
 
-    rvb.startStruct()
-    rvb.addBoolean(true)
-    rvb.addLong(a(1))
-    rvb.endStruct()
+    if (a(1) > 0) {
+      rvb.startStruct()
+      rvb.addBoolean(true)
+      rvb.addLong(a(1))
+      rvb.endStruct()
+    }
 
-    if (nMissing > 0) {
+    if (a(2) > 0) {
       rvb.startStruct()
       rvb.setMissing()
-      rvb.addLong(nMissing)
+      rvb.addLong(a(2))
       rvb.endStruct()
     }
 
@@ -52,14 +55,14 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
   override def copy(): RegionValueCounterBooleanAggregator = new RegionValueCounterBooleanAggregator()
 
   override def clear() {
-    nMissing = 0L
     a(0) = 0L
     a(1) = 0L
+    a(2) = 0L
   }
 }
 
 class RegionValueCounterIntAggregator extends RegionValueAggregator {
-  private var m = mutable.Map[Int, Long]()
+  private val m = mutable.Map[Int, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
@@ -105,7 +108,7 @@ class RegionValueCounterIntAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterLongAggregator extends RegionValueAggregator {
-  private var m = mutable.Map[Long, Long]()
+  private val m = mutable.Map[Long, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
@@ -151,7 +154,7 @@ class RegionValueCounterLongAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterFloatAggregator extends RegionValueAggregator {
-  private var m = mutable.Map[Float, Long]()
+  private val m = mutable.Map[Float, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
@@ -197,7 +200,7 @@ class RegionValueCounterFloatAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
-  private var m = mutable.Map[Double, Long]()
+  private val m = mutable.Map[Double, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
@@ -243,7 +246,7 @@ class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueAggregator {
-  private var m = mutable.Map[Annotation, Long]()
+  private val m = mutable.Map[Annotation, Long]()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     val a = if (missing) null else SafeRow.read(t, region, offset)
