@@ -27,6 +27,6 @@ class RegionValueInfoScoreAggregator extends RegionValueAggregator {
   override def copy(): RegionValueAggregator = new RegionValueInfoScoreAggregator()
 
   override def clear() {
-    combiner = new InfoScoreCombiner()
+    combiner.clear()
   }
 }

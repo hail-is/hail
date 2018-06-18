@@ -104,4 +104,11 @@ class InfoScoreCombiner extends Serializable {
 
     rvb.endStruct()
   }
+
+  def clear() {
+    result = 0d
+    expectedAlleleCount = 0d
+    totalDosage = 0d
+    nIncluded = 0
+  }
 }
