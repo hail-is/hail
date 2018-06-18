@@ -782,18 +782,22 @@ def grep(regex, path, max_count=100):
 
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
-           entry_fields=sequenceof(str),
+           entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           row_fields=sequenceof(enumeration('varid', 'rsid')),
+           _variants_per_file=dictof(str, sequenceof(int)))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 min_partitions=None,
                 reference_genome='default',
                 contig_recoding=None,
-                skip_invalid_loci=False) -> MatrixTable:
+                skip_invalid_loci=False,
+                row_fields=['varid', 'rsid'],
+                _variants_per_file={}) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -837,6 +841,11 @@ def import_bgen(path,
       exists; else IDs are assigned from `_0`, `_1`, to `_N`.
 
     **Row Fields**
+
+    Between two and four row fields are created. The `locus` and `alleles` are
+    always included. `row_fields` determines if `varid` and `rsid` are alos
+    included. For best performance, only include fields necessary for your
+    analysis.
 
     - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The chromosome
       and position. If `reference_genome` is defined, the type will be
@@ -890,6 +899,9 @@ def import_bgen(path,
         in the reference genome given by `reference_genome`.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
+    row_fields : :obj:`list` of :obj:`str`
+        List of non-key row fields to create.
+        Options: ``'varid'``, ``'rsid'``
 
     Returns
     -------
@@ -900,20 +912,16 @@ def import_bgen(path,
     rg = reference_genome._jrep if reference_genome else None
 
     entry_set = set(entry_fields)
-    bad_entry_fields = list(entry_set - {'GT', 'GP', 'dosage'})
-
-    if bad_entry_fields:
-        word = plural('value', len(bad_entry_fields))
-        raise FatalError("import_bgen: found invalid {} {} in entry_fields."
-                         "\n    Options: 'GT', 'GP', 'dosage'.".format(word, bad_entry_fields))
+    row_set = set(row_fields)
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
+                                    'varid' in row_set, 'rsid' in row_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    skip_invalid_loci)
+                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 
 

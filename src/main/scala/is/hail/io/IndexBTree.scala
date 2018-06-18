@@ -138,3 +138,40 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
       None
   }
 }
+
+class IndexBTree2(indexFileName: String, hConf: Configuration, nVariants: Int) {
+  private[this] def numLayers(size: Long): Int = {
+    if (size <= 1024)
+      1
+    else
+      (math.log(size) / math.log(1024)).ceil.toInt
+  }
+
+  private[this] def leadingElements(layer: Int): Long = {
+    var i = 0
+    var leadingElements = 0L
+    while (i < layer - 1) {
+      leadingElements = leadingElements * 1024L + 1024L
+      i += 1
+    }
+    leadingElements
+  }
+
+  // the last layer is literally all the data inline
+  private[this] val layers = numLayers(hConf.getFileSize(indexFileName) / 8)
+  private[this] val junk = leadingElements(layers)
+  private[this] val variantPosition = try {
+    using(hConf.fileSystem(indexFileName).open(new Path(indexFileName))) { fs =>
+      fs.seek(junk * 8) // we have junk Longs
+      Array.tabulate(nVariants) { _ =>
+        fs.readLong()
+      }
+    }
+  } catch {
+    case e: Exception =>
+      fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
+  }
+
+  def positionOfVariant(index: Int): Long =
+    variantPosition(index)
+}

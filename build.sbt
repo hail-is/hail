@@ -50,6 +50,7 @@ lazy val root = (project in file(".")).
         , "net.sourceforge.jdistlib" % "jdistlib" % "0.4.5"
         , "org.apache.commons" % "commons-math3" % "3.6.1"
         , "org.testng" % "testng" % "6.8.21" % Test
+        , "commons-codec" % "commons-codec" % "1.11"
     ),
     assemblyShadeRules in assembly := Seq(
       ShadeRule
