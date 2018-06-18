@@ -150,15 +150,33 @@ class AggregatorsSuite {
       args = FastIndexedSeq(I32(2)))
   }
 
-  @Test def takeBy() {
+  private[this] def assertTakeByEvalsTo(n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {
     runAggregator(TakeBy(), TStruct("x" -> TInt32(), "y" -> TInt32()),
-      FastIndexedSeq(Row(3, 4), Row(null, null),
-      Row(null, 3), Row(21, 2), Row(11, 0), Row(45, 1)),
-      FastIndexedSeq(11, 45),
+      a,
+      expected,
       Ref("x", TInt32()),
-      args = FastIndexedSeq(I32(2)),
+      args = FastIndexedSeq(I32(n)),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq(Ref("y", TInt32())))
+  }
+
+  @Test def takeByIntInt() {
+    assertTakeByEvalsTo(
+      2,
+      FastIndexedSeq(Row(3, 4), Row(null, null),
+      Row(null, 3), Row(21, 2), Row(11, 0), Row(45, 1), Row(3, null)),
+      FastIndexedSeq(11, 45))
+
+    assertTakeByEvalsTo(
+      5,
+      FastIndexedSeq(Row(3, 4)),
+      FastIndexedSeq(3))
+
+    assertTakeByEvalsTo(
+      4,
+      FastIndexedSeq(Row(3, 4), Row(null, null),
+        Row(null, 3), Row(21, 2), Row(11, 0), Row(45, 1), Row(3, null)),
+      FastIndexedSeq(11, 45, 21, null))
   }
 
   @Test def testHist() {
