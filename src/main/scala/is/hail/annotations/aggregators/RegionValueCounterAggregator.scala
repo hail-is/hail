@@ -7,7 +7,7 @@ import is.hail.utils._
 import scala.collection.mutable
 
 class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
-  private val a = Array.fill[Long](2)(0L)
+  private var a = Array(0L, 0L)
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Boolean, missing: Boolean) {
@@ -49,7 +49,12 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterBooleanAggregator()
+  override def copy(): RegionValueCounterBooleanAggregator = {
+    val rva = new RegionValueCounterBooleanAggregator()
+    rva.a = a.clone()
+    rva.nMissing = nMissing
+    rva
+  }
 
   override def clear() {
     nMissing = 0L
@@ -59,7 +64,7 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterIntAggregator extends RegionValueAggregator {
-  private val m = mutable.Map[Int, Long]()
+  private var m = mutable.Map[Int, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
@@ -97,7 +102,11 @@ class RegionValueCounterIntAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterIntAggregator()
+  override def copy(): RegionValueCounterIntAggregator = {
+    val rva = new RegionValueCounterIntAggregator()
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
@@ -105,7 +114,7 @@ class RegionValueCounterIntAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterLongAggregator extends RegionValueAggregator {
-  private val m = mutable.Map[Long, Long]()
+  private var m = mutable.Map[Long, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
@@ -143,7 +152,11 @@ class RegionValueCounterLongAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterLongAggregator()
+  override def copy(): RegionValueCounterLongAggregator = {
+    val rva = new RegionValueCounterLongAggregator()
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
@@ -151,7 +164,7 @@ class RegionValueCounterLongAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterFloatAggregator extends RegionValueAggregator {
-  private val m = mutable.Map[Float, Long]()
+  private var m = mutable.Map[Float, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
@@ -189,7 +202,11 @@ class RegionValueCounterFloatAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterFloatAggregator()
+  override def copy(): RegionValueCounterFloatAggregator = {
+    val rva = new RegionValueCounterFloatAggregator()
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
@@ -197,7 +214,7 @@ class RegionValueCounterFloatAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
-  private val m = mutable.Map[Double, Long]()
+  private var m = mutable.Map[Double, Long]()
   private var nMissing = 0L
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
@@ -235,7 +252,11 @@ class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterDoubleAggregator()
+  override def copy(): RegionValueCounterDoubleAggregator = {
+    val rva = new RegionValueCounterDoubleAggregator()
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
@@ -243,7 +264,7 @@ class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueAggregator {
-  private val m = mutable.Map[Annotation, Long]()
+  private var m = mutable.Map[Annotation, Long]()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     val a = if (missing) null else SafeRow.read(t, region, offset)
@@ -271,7 +292,11 @@ class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueAggrega
     rvb.endArray()
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueCounterAnnotationAggregator(t)
+  override def copy(): RegionValueCounterAnnotationAggregator = {
+    val rva = new RegionValueCounterAnnotationAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
