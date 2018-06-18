@@ -31,7 +31,6 @@ object LoadBgen {
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    tolerance: Double,
     skipInvalidLoci: Boolean = false): MatrixTable = {
 
     require(files.nonEmpty)
@@ -44,7 +43,6 @@ object LoadBgen {
 
     val nSamples = sampleIds.length
 
-    hadoop.setDouble("tolerance", tolerance)
     hadoop.setBoolean("includeGT", includeGT)
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
@@ -54,9 +52,6 @@ object LoadBgen {
       val bState = readState(sc.hadoopConfiguration, file)
 
       bState.version match {
-        case 1 =>
-          BgenResult(file, bState.nSamples, bState.nVariants,
-            sc.hadoopFile(file, classOf[BgenInputFormatV11], classOf[LongWritable], classOf[BgenRecordV11], nPartitions.getOrElse(sc.defaultMinPartitions)))
         case 2 =>
           BgenResult(file, bState.nSamples, bState.nVariants,
             sc.hadoopFile(file, classOf[BgenInputFormatV12], classOf[LongWritable], classOf[BgenRecordV12], nPartitions.getOrElse(sc.defaultMinPartitions)))

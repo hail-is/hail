@@ -222,14 +222,6 @@ object TestUtils {
       .exportPlink(path)
   }
 
-  def exportGen(mt: MatrixTable, path: String, precision: Int): Unit = {
-    mt.selectCols(""" {id1: sa.s, id2: sa.s, missing: 0.toFloat64} """, Some(FastIndexedSeq()))
-      .annotateRowsExpr(
-        "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
-        "rsid" -> "\".\"")
-      .exportGen(path, precision)
-  }
-
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))

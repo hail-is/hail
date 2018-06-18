@@ -3,11 +3,10 @@ package is.hail.testUtils
 import is.hail.annotations._
 import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, SymbolTable}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.methods._
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.TestUtils._
 import is.hail.variant.{Locus, MatrixTable}
 import org.apache.spark.rdd.RDD
 
@@ -16,20 +15,6 @@ import scala.reflect.ClassTag
 class RichMatrixTable(vsm: MatrixTable) {
   def expand(): RDD[(Annotation, Annotation, Annotation)] =
     mapWithKeys[(Annotation, Annotation, Annotation)]((v, s, g) => (v, s, g))
-
-  def expandWithAll(): RDD[(Annotation, Annotation, Annotation, Annotation, Annotation)] =
-    mapWithAll[(Annotation, Annotation, Annotation, Annotation, Annotation)]((v, va, s, sa, g) => (v, va, s, sa, g))
-
-  def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
-    val localColValuesBc = vsm.colValues.broadcast
-
-    rdd
-      .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](localColValuesBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g)
-        })
-      }
-  }
 
   def mapWithKeys[U](f: (Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
@@ -177,17 +162,6 @@ class RichMatrixTable(vsm: MatrixTable) {
       covExpr.indices.map(i => s"__cov$i").toArray,
       root,
       rowBlockSize)
-  }
-
-  def logreg(test: String,
-    yExpr: String, xField: String, covExpr: Array[String] = Array.empty[String],
-    root: String = "logreg"): MatrixTable = {
-    val vsmAnnot = vsm.annotateColsExpr(
-      Array("__y" -> yExpr) ++
-        covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
-    )
-
-    LogisticRegression(vsm, test, "__y", xField, covExpr.indices.map(i => s"__cov$i").toArray, root)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
