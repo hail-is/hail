@@ -86,6 +86,17 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + 1
   }
 
+  /**
+    * Unsafe unless the bytesize of every type being "advanced past" is size
+    * 0. The primary use-case is when adding an array of hl.tstruct()
+    * (i.e. empty structs).
+    *
+    **/
+  def unsafeAdvance(i: Int) {
+    if (indexstk.nonEmpty)
+      indexstk(0) = indexstk(0) + i
+  }
+
   def startBaseStruct(init: Boolean = true) {
     val t = currentType().asInstanceOf[TBaseStruct]
     if (typestk.isEmpty)
