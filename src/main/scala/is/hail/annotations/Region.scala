@@ -292,7 +292,6 @@ final class Region private (
   }
 
   def clear() {
-    log.info(s"Clearing the region. $end ${blocks.length} ${bigBlocks.length}")
     end = 0
     activeBlock = 0
     bigBlocks.result().foreach(Memory.free)
