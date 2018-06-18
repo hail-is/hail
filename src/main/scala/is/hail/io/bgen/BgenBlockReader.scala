@@ -16,6 +16,8 @@ abstract class BgenBlockReader(job: Configuration, split: FileSplit) extends Ind
   val includeGT = job.get("includeGT").toBoolean
   val includeGP = job.get("includeGP").toBoolean
   val includeDosage = job.get("includeDosage").toBoolean
+  val includeLid = job.get("includeLid").toBoolean
+  val includeRsid = job.get("includeRsid").toBoolean
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -36,7 +38,7 @@ abstract class BgenBlockReader(job: Configuration, split: FileSplit) extends Ind
 
 class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader(job, split) {
   override def createValue(): BgenRecordV12 =
-    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, bfis, end)
+    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, includeLid, includeRsid, bfis, end)
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     value.advance()

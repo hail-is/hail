@@ -11,6 +11,8 @@ class BgenRecordV12 (
   includeGT: Boolean,
   includeGP: Boolean,
   includeDosage: Boolean,
+  includeLid: Boolean,
+  includeRsid: Boolean,
   bfis: HadoopFSDataBinaryReader,
   end: Long
 ) {
@@ -28,6 +30,10 @@ class BgenRecordV12 (
 
   def getAlleles: Array[String] = alleles
 
+  def getRsid: String = rsid
+
+  def getLid: String = lid
+
   private[this] def includeAnyEntryFields =
     includeGT || includeGP || includeDosage
 
@@ -35,8 +41,14 @@ class BgenRecordV12 (
     if (bfis.getPosition >= end)
       return false
 
-    lid = bfis.readLengthAndString(2)
-    rsid = bfis.readLengthAndString(2)
+    if (includeLid)
+      lid = bfis.readLengthAndString(2)
+    else
+      bfis.readLengthAndSkipString(2)
+    if (includeRsid)
+      rsid = bfis.readLengthAndString(2)
+    else
+      bfis.readLengthAndSkipString(2)
     contig = bfis.readLengthAndString(2)
     position = bfis.readInt()
 

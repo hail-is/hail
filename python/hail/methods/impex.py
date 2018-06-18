@@ -786,14 +786,16 @@ def grep(regex, path, max_count=100):
            min_partitions=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           row_fields=sequenceof(enumeration('varid', 'rsid')))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 min_partitions=None,
                 reference_genome='default',
                 contig_recoding=None,
-                skip_invalid_loci=False) -> MatrixTable:
+                skip_invalid_loci=False,
+                row_fields=['varid', 'rsid']) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -837,6 +839,11 @@ def import_bgen(path,
       exists; else IDs are assigned from `_0`, `_1`, to `_N`.
 
     **Row Fields**
+
+    Between two and four row fields are created. The `locus` and `alleles` are
+    always included. `row_fields` determines if `varid` and `rsid` are alos
+    included. For best performance, only include fields necessary for your
+    analysis.
 
     - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The chromosome
       and position. If `reference_genome` is defined, the type will be
@@ -890,6 +897,9 @@ def import_bgen(path,
         in the reference genome given by `reference_genome`.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
+    row_fields : :obj:`list` of :obj:`str`
+        List of non-key row fields to create.
+        Options: ``'varid'``, ``'rsid'``
 
     Returns
     -------
@@ -906,6 +916,7 @@ def import_bgen(path,
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
+                                    'varid' in row_set, 'rsid' in row_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
                                     skip_invalid_loci)
     return MatrixTable(jmt)
