@@ -74,7 +74,7 @@ class OrderedRVD(
     OrderedRVD(
       typ.copy(rowType = newRowType.asInstanceOf[TStruct]),
       partitioner,
-      crdd = crdd
+      crdd = newCRDD
     )
   }
 

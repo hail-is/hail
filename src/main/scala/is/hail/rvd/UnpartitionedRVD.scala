@@ -54,7 +54,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
     new UnpartitionedRVD(
       rowType = newRowType,
-      crdd = crdd
+      crdd = newCRDD
     )
   }
 
