@@ -414,7 +414,7 @@ trait RVD {
       val rv2 = RegionValue()
       val rvb = ctx.rvb
       var index = a.value(i)
-      it.zipWithIndex.map { case (rv, i) =>
+      it.map { rv =>
         rvb.start(newRowType)
         ins(rv.region, rv.offset, rvb, () => rvb.addLong(index))
         index += 1
