@@ -472,8 +472,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def pyString(sb: StringBuilder): Unit = {
-    if (required)
-      sb.append("+")
     sb.append("struct{")
     fields.foreachBetween({ field =>
       sb.append(prettyIdentifier(field.name))

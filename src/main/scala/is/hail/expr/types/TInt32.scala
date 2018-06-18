@@ -17,8 +17,6 @@ class TInt32(override val required: Boolean) extends TIntegral {
   def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit = {
-    if (required)
-      sb.append("+")
     sb.append("int32")
   }
   val conv = IntNumericConversion
