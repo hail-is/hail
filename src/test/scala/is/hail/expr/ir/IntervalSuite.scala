@@ -62,7 +62,7 @@ class IntervalSuite extends TestNGSuite {
 
   val points: IndexedSeq[Int] = 1 to 4
 
-  val test_intervals: IndexedSeq[SetInterval] =
+  val testIntervals: IndexedSeq[SetInterval] =
     FastIndexedSeq(
       SetInterval(1, 1, true, true),
       SetInterval(1, 1, true, false),
@@ -75,24 +75,24 @@ class IntervalSuite extends TestNGSuite {
     invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
 
   @Test def contains() {
-    for (set_interval <- test_intervals; p <- points) {
-      val interval = toIRInterval(set_interval)
-      assert(eval(invoke("contains", interval, p)) == set_interval.contains(p))
+    for (setInterval <- testIntervals; p <- points) {
+      val interval = toIRInterval(setInterval)
+      assert(eval(invoke("contains", interval, p)) == setInterval.contains(p))
     }
   }
 
   @Test def isEmpty() {
-    for (set_interval <- test_intervals) {
-      val interval = toIRInterval(set_interval)
-      assert(eval(invoke("isEmpty", interval)) == set_interval.definitelyEmpty())
+    for (setInterval <- testIntervals) {
+      val interval = toIRInterval(setInterval)
+      assert(eval(invoke("isEmpty", interval)) == setInterval.definitelyEmpty())
     }
   }
 
   @Test def overlaps() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
-      val interval1 = toIRInterval(set_interval1)
-      val interval2 = toIRInterval(set_interval2)
-      assert(eval(invoke("overlaps", interval1, interval2)) == set_interval1.probablyOverlaps(set_interval2))
+    for (setInterval1 <- testIntervals; setInterval2 <- testIntervals) {
+      val interval1 = toIRInterval(setInterval1)
+      val interval2 = toIRInterval(setInterval2)
+      assert(eval(invoke("overlaps", interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
     }
   }
 }
