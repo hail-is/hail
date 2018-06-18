@@ -203,19 +203,24 @@ class UnsafeSuite extends SparkSuite {
   @Test def testRegion() {
     val buff = Region()
 
-    buff.appendLong(124L)
-    buff.appendByte(2)
-    buff.appendByte(1)
-    buff.appendByte(4)
-    buff.appendInt(1234567)
-    buff.appendDouble(1.1)
+    val o1 = buff.appendLong(124L)
+    val o2 = buff.appendByte(2)
+    val o3 = buff.appendByte(1)
+    val o4 = buff.appendByte(4)
+    val o5 = buff.appendInt(1234567)
+    val o6 = buff.appendDouble(1.1)
 
-    assert(buff.loadLong(0) == 124L)
-    assert(buff.loadByte(8) == 2)
-    assert(buff.loadByte(9) == 1)
-    assert(buff.loadByte(10) == 4)
-    assert(buff.loadInt(12) == 1234567)
-    assert(buff.loadDouble(16) == 1.1)
+    assert(buff.loadLong(o1) == 124L)
+    assert(buff.loadByte(o2) == 2)
+    assert(buff.loadByte(o3) == 1)
+    assert(buff.loadByte(o4) == 4)
+    assert(buff.loadInt(o5) == 1234567)
+    assert(buff.loadDouble(o6) == 1.1)
+    assert(o2 - o1 == 8)
+    assert(o3 - o2 == 1)
+    assert(o4 - o3 == 1)
+    assert(o5 - o4 == 2) // nb: alignment
+    assert(o6 - o5 == 4)
   }
 
   val g = (for {
@@ -323,57 +328,5 @@ class UnsafeSuite extends SparkSuite {
       p
     }
     p.check()
-  }
-
-  @Test def testRegionSer() {
-    val region = Region()
-    val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array](arbitrary[Byte])
-    val p = Prop.forAll(g) { (a: Array[Byte]) =>
-      region.clear()
-      region.appendBytes(a)
-
-      hadoopConf.writeObjectFile(path) { out =>
-        out.writeObject(region)
-      }
-
-      val region2 = hadoopConf.readObjectFile(path) { in =>
-        in.readObject().asInstanceOf[Region]
-      }
-
-      assert(region2.size.toInt == a.length)
-      val a2 = region2.loadBytes(0, region2.size.toInt)
-      assert(a2 sameElements a)
-
-      true
-    }
-  }
-
-  @Test def testRegionKryo() {
-    val conf = sc.getConf // force sc
-    val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
-    val kryo = ser.newKryo()
-
-    val region = Region()
-    val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array](arbitrary[Byte])
-    val p = Prop.forAll(g) { (a: Array[Byte]) =>
-      region.clear()
-      region.appendBytes(a)
-
-      hadoopConf.writeKryoFile(path) { out =>
-        kryo.writeObject(out, region)
-      }
-
-      val region2 = hadoopConf.readKryoFile(path) { in =>
-        kryo.readObject[Region](in, classOf[Region])
-      }
-
-      assert(region2.size.toInt == a.length)
-      val a2 = region2.loadBytes(0, region2.size.toInt)
-      assert(a2 sameElements a)
-
-      true
-    }
   }
 }
