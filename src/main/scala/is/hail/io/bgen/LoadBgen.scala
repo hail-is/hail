@@ -18,7 +18,12 @@ import scala.io.Source
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
   headerLength: Int, dataStart: Int, hasIds: Boolean, version: Int)
 
-case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, T)])
+case class BgenResult(
+  file: String,
+  nSamples: Int,
+  nVariants: Int,
+  rdd: RDD[(LongWritable, BgenRecordV12)]
+)
 
 object LoadBgen {
 
@@ -108,7 +113,9 @@ object LoadBgen {
       val rv = RegionValue(region)
 
       it.flatMap { case (_, record) =>
-        val (contig, pos, alleles) = record.getKey
+        val contig = record.getContig
+        val pos = record.getPosition
+        val alleles = record.getAlleles
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
         if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
@@ -134,15 +141,15 @@ object LoadBgen {
       }
     }))
 
-    val loadEntries = entryFields.length > 0
-
     val rdd2 = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
       it.flatMap { case (_, record) =>
-        val (contig, pos, alleles) = record.getKey
+        val contig = record.getContig
+        val pos = record.getPosition
+        val alleles = record.getAlleles
         val va = record.getAnnotation.asInstanceOf[Row]
 
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
@@ -164,18 +171,7 @@ object LoadBgen {
           rvb.endArray()
           rvb.addAnnotation(rowType.types(2), va.get(0))
           rvb.addAnnotation(rowType.types(3), va.get(1))
-          if (loadEntries)
-            record.getValue(rvb) // gs
-          else {
-            rvb.startArray(nSamples)
-            var j = 0
-            while (j < nSamples) {
-              rvb.startStruct()
-              rvb.endStruct()
-              j += 1
-            }
-            rvb.endArray()
-          }
+          record.getValue(rvb) // gs
           rvb.endStruct()
 
           rv.setOffset(rvb.end())
