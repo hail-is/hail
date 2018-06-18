@@ -55,4 +55,18 @@ class InbreedingCombiner extends Serializable {
 
     rvb.endStruct()
   }
+
+  def clear() {
+    nCalled = 0L
+    expectedHoms = 0d
+    observedHoms = 0L
+  }
+
+  def copy(): InbreedingCombiner = {
+    val c = new InbreedingCombiner()
+    c.observedHoms = observedHoms
+    c.expectedHoms = expectedHoms
+    c.nCalled = nCalled
+    c
+  }
 }
