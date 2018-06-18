@@ -49,12 +49,7 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterBooleanAggregator = {
-    val rva = new RegionValueCounterBooleanAggregator()
-    rva.a = a.clone()
-    rva.nMissing = nMissing
-    rva
-  }
+  override def copy(): RegionValueCounterBooleanAggregator = new RegionValueCounterBooleanAggregator()
 
   override def clear() {
     nMissing = 0L
@@ -102,11 +97,7 @@ class RegionValueCounterIntAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterIntAggregator = {
-    val rva = new RegionValueCounterIntAggregator()
-    rva.m = m.clone()
-    rva
-  }
+  override def copy(): RegionValueCounterIntAggregator = new RegionValueCounterIntAggregator()
 
   override def clear() {
     m.clear()
@@ -152,11 +143,7 @@ class RegionValueCounterLongAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterLongAggregator = {
-    val rva = new RegionValueCounterLongAggregator()
-    rva.m = m.clone()
-    rva
-  }
+  override def copy(): RegionValueCounterLongAggregator = new RegionValueCounterLongAggregator()
 
   override def clear() {
     m.clear()
@@ -202,11 +189,7 @@ class RegionValueCounterFloatAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterFloatAggregator = {
-    val rva = new RegionValueCounterFloatAggregator()
-    rva.m = m.clone()
-    rva
-  }
+  override def copy(): RegionValueCounterFloatAggregator = new RegionValueCounterFloatAggregator()
 
   override def clear() {
     m.clear()
@@ -252,11 +235,7 @@ class RegionValueCounterDoubleAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterDoubleAggregator = {
-    val rva = new RegionValueCounterDoubleAggregator()
-    rva.m = m.clone()
-    rva
-  }
+  override def copy(): RegionValueCounterDoubleAggregator = new RegionValueCounterDoubleAggregator()
 
   override def clear() {
     m.clear()
@@ -292,11 +271,7 @@ class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueAggrega
     rvb.endArray()
   }
 
-  override def copy(): RegionValueCounterAnnotationAggregator = {
-    val rva = new RegionValueCounterAnnotationAggregator(t)
-    rva.m = m.clone()
-    rva
-  }
+  override def copy(): RegionValueCounterAnnotationAggregator = new RegionValueCounterAnnotationAggregator(t)
 
   override def clear() {
     m.clear()
