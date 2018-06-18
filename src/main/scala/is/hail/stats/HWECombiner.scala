@@ -60,4 +60,18 @@ class HWECombiner extends Serializable {
 
     rvb.endStruct()
   }
+
+  def clear() {
+    nHomRef = 0
+    nHet = 0
+    nHomVar = 0
+  }
+
+  def copy(): HWECombiner = {
+    val c = new HWECombiner()
+    c.nHomRef = nHomRef
+    c.nHet = nHet
+    c.nHomVar = nHomVar
+    c
+  }
 }
