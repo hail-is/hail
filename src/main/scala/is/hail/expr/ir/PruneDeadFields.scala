@@ -231,6 +231,10 @@ object PruneDeadFields {
         val globalDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
         // fixme push down into value
         memoizeTableIR(child, unify(child.typ, requestedType.copy(globalType = globalDep.globalType), globalDep), memo)
+      case TableAggregateByKey(child, newRow) =>
+        val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
+        memoizeTableIR(child, child.typ.copy(rowType = unify(child.typ.rowType, aggDep.rowType),
+          globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)
       case MatrixColsTable(child) =>
         val minChild = minimal(child.typ)
         val mtDep = minChild.copy(
@@ -472,7 +476,6 @@ object PruneDeadFields {
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        assert(requestedType == zero.typ)
         val aType = a.typ.asInstanceOf[TArray]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
         val bodyEnv = memoizeValueIR(body, body.typ, memo)
@@ -580,6 +583,9 @@ object PruneDeadFields {
         // fixme push down into value
         val child2 = rebuild(child, memo)
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
+      case TableAggregateByKey(child, expr) =>
+        val child2 = rebuild(child, memo)
+        TableAggregateByKey(child, rebuild(expr, child2.typ, memo))
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -633,15 +639,15 @@ object PruneDeadFields {
   }
 
   def rebuild(ir: IR, in: Env[Type], memo: Memo[BaseType]): IR = {
-    val dep = memo.lookup(ir).asInstanceOf[Type]
+    val requestedType = memo.lookup(ir).asInstanceOf[Type]
     ir match {
-      case NA(typ) => NA(dep)
+      case NA(typ) => NA(requestedType)
       case If(cond, cnsq, alt) =>
         val cond2 = rebuild(cond, in, memo)
         val cnsq2 = rebuild(cnsq, in, memo)
         val alt2 = rebuild(alt, in, memo)
         if (cnsq2.typ != alt2.typ)
-          If(cond2, upcast(cnsq2, dep), upcast(alt2, dep))
+          If(cond2, upcast(cnsq2, requestedType), upcast(alt2, requestedType))
         else
           If(cond2, cnsq2, alt2)
       case Let(name, value, body) =>
@@ -652,10 +658,10 @@ object PruneDeadFields {
           rebuild(body, in.bind(name, value2.typ), memo)
         )
       case Ref(name, t) =>
-        Ref(name, in.lookup(name))
+        Ref(name, in.lookupOption(name).getOrElse(t))
       case MakeArray(args, t) =>
-        val depArray = dep.asInstanceOf[TArray]
-        MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), dep.asInstanceOf[TArray])
+        val depArray = requestedType.asInstanceOf[TArray]
+        MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), requestedType.asInstanceOf[TArray])
       case ArrayMap(a, name, body) =>
         val a2 = rebuild(a, in, memo)
         ArrayMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
@@ -680,7 +686,7 @@ object PruneDeadFields {
         val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         ArrayFor(a2, valueName, body2)
       case MakeStruct(fields) =>
-        val depStruct = dep.asInstanceOf[TStruct]
+        val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs
         val depFields = depStruct.fieldNames.toSet
         MakeStruct(fields.flatMap { case (f, fir) =>
@@ -690,7 +696,7 @@ object PruneDeadFields {
             None
         })
       case InsertFields(old, fields) =>
-        val depStruct = dep.asInstanceOf[TStruct]
+        val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
         InsertFields(rebuild(old, in, memo),
           fields.flatMap { case (f, fir) =>
@@ -700,9 +706,15 @@ object PruneDeadFields {
               None
           })
       case SelectFields(old, fields) =>
-        val depStruct = dep.asInstanceOf[TStruct]
+        val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuild(old, in, memo)
         SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
+      case Uniroot(argname, function, min, max) =>
+        assert(requestedType == TFloat64Optional)
+        Uniroot(argname,
+          rebuild(function, in.bind(argname -> TFloat64Optional), memo),
+          rebuild(min, in, memo),
+          rebuild(max, in, memo))
       case TableAggregate(child, query) =>
         val child2 = rebuild(child, memo)
         val query2 = rebuild(query, child2.typ, memo)
