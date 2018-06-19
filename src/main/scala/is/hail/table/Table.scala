@@ -228,13 +228,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         new UnpartitionedRVD(signature, crdd))))
 
   def typ: TableType = tir.typ
-
-  private def useIR(ast: AST): Boolean = {
-    if (hc.forceIR)
-      return true
-    !ast.`type`.isInstanceOf[TStruct] || ast.`type`.asInstanceOf[TStruct].size < 500
-  }
-
+  
   lazy val value: TableValue = {
     val opt = ir.Optimize(tir)
 
@@ -442,7 +436,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val queryAST = Parser.parseToAST(expr, ec)
     queryAST.toIROpt(Some("AGG" -> "row")) match {
-      case Some(ir) if useIR(queryAST) =>
+      case Some(ir) =>
         aggregate(ir)
       case _ =>
         val globalsBc = globals.broadcast
@@ -488,7 +482,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
-      case Some(ir) if useIR(ast) =>
+      case Some(ir) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
         ec.set(0, globals.value)
@@ -570,7 +564,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
-      case Some(ir) if useIR(ast) =>
+      case Some(ir) =>
         new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -792,7 +786,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
 
     ast.toIROpt(Some("AGG" -> "row")) match {
-      case Some(x) if useIR(ast) =>
+      case Some(x) =>
         new Table(hc, TableAggregateByKey(tir, x))
       case _ =>
         log.warn(s"group_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(ast) }")
