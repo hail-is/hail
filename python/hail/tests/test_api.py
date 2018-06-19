@@ -470,6 +470,10 @@ class TableTests(unittest.TestCase):
         j = t1.annotate(f = t2[t1.a].x)
         self.assertEqual(j.count(), t1.count())
 
+    def test_aggregation_with_no_aggregators(self):
+        ht = hl.utils.range_table(3)
+        self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
+
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
@@ -1079,6 +1083,11 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(mt.distinct_by_col().count_cols() == 5)
 
         self.assertTrue(orig_mt.union_cols(orig_mt).distinct_by_col()._same(orig_mt))
+
+    def test_aggregation_with_no_aggregators(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        self.assertEqual(mt.group_rows_by(mt.row_idx).aggregate().count_rows(), 3)
+        self.assertEqual(mt.group_cols_by(mt.col_idx).aggregate().count_cols(), 3)
 
     def test_computed_key_join_1(self):
         ds = self.get_vds()
