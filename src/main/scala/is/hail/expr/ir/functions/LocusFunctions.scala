@@ -32,14 +32,14 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     registerCode("contig", tv("T", _.isInstanceOf[TLocus]), TString()) {
       case (mb, locus: Code[Long]) =>
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         val tlocus = types.coerce[TLocus](tv("T").t)
         tlocus.contig(region, locus)
     }
 
     registerCode("position", tv("T", _.isInstanceOf[TLocus]), TInt32()) {
       case (mb, locus: Code[Long]) =>
-        val region = mb.getArg[Region](1).load()
+        val region = getRegion(mb)
         val tlocus = types.coerce[TLocus](tv("T").t)
         tlocus.position(region, locus)
     }

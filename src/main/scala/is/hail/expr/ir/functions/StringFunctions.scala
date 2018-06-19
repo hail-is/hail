@@ -148,7 +148,7 @@ object StringFunctions extends RegistryFunctions {
       val len = mb.newLocal[Int]
       val i = mb.newLocal[Int]
       val n = mb.newLocal[Int]
-      val region: Code[Region] = mb.getArg[Region](1)
+      val region: Code[Region] = getRegion(mb)
 
       val v1 = mb.newLocal[Long]
       val v2 = mb.newLocal[Long]

@@ -11,7 +11,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerCode("gqFromPL", TArray(tv("N", _.isInstanceOf[TInt32])), TInt32()) { (mb, pl: Code[Long]) =>
-      val region = mb.getArg[Region](1).load()
+      val region = getRegion(mb)
       val tPL = TArray(tv("N").t)
       val m = mb.newLocal[Int]("m")
       val m2 = mb.newLocal[Int]("m2")
