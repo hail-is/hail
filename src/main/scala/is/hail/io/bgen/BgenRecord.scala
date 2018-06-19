@@ -37,10 +37,14 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
     val reader = new ByteArrayReader(a)
 
     val nRow = reader.readInt()
-    assert(nRow == nSamples, "row nSamples is not equal to header nSamples")
+    if (nRow != nSamples)
+      fatal("row nSamples is not equal to header nSamples $nRow, $nSamples")
 
     val nAlleles = reader.readShort()
-    assert(nAlleles == expectedNumAlleles, s"Value for `nAlleles' in genotype probability data storage is not equal to value in variant identifying data. Expected $expectedNumAlleles but found $nAlleles.")
+    if (nAlleles != expectedNumAlleles)
+      fatal(s"""Value for `nAlleles' in genotype probability data storage is
+               |not equal to value in variant identifying data. Expected
+               |$expectedNumAlleles but found $nAlleles.""".stripMargin)
     if (nAlleles != 2)
       fatal(s"Only biallelic variants supported, found variant with $nAlleles")
 
@@ -53,27 +57,33 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int,
     var i = 0
     while (i < nSamples) {
       val ploidy = reader.read()
-      assert((ploidy & 0x3f) == 2, s"Ploidy value must equal to 2. Found $ploidy.")
+      if ((ploidy & 0x3f) != 2)
+        fatal(s"Ploidy value must equal to 2. Found $ploidy.")
       i += 1
     }
-    assert(i == nSamples, s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'.")
+    if (i != nSamples)
+      fatal(s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'.")
 
     val phase = reader.read()
-    assert(phase == 0 || phase == 1, s"Value for phase must be 0 or 1. Found $phase.")
+    if (phase != 0 && phase != 1)
+      fatal(s"Value for phase must be 0 or 1. Found $phase.")
     val isPhased = phase == 1
 
     if (isPhased)
       fatal("Hail does not support phased genotypes.")
 
     val nBitsPerProb = reader.read()
-    assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
+    if (nBitsPerProb < 1 || nBitsPerProb > 32)
+      fatal(s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
     if (nBitsPerProb != 8)
       fatal(s"Only 8-bit probabilities supported, found $nBitsPerProb")
 
     val nGenotypes = triangle(nAlleles)
 
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-    assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
+    if (reader.length != nExpectedBytesProbs + nSamples + 10)
+      fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
+               |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
 
     rvb.startArray(nSamples) // gs
     val c0 = Call2.fromUnphasedDiploidGtIndex(0)

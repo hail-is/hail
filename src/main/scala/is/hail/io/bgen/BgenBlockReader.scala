@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.io._
+import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
@@ -47,7 +48,8 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
       val position = bfis.readInt()
 
       val nAlleles = bfis.readShort()
-      assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid'")
+      if (nAlleles < 2)
+        fatal(s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid'")
       val alleles = new Array[String](nAlleles)
 
       val ref = bfis.readLengthAndString(4)
