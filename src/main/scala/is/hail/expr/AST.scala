@@ -975,6 +975,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               case (_: TSet, "forall") =>
                 val v = ir.genUID()
                 ir.ArrayFold(ir.ToArray(a), ir.True(), v, name, ir.ApplySpecial("&&", FastSeq(ir.Ref(v, TBoolean()), b)))
+              case (_: TDict, "mapValues") =>
+                val newName = ir.Ref(name, -types.coerce[TContainer](a.typ).elementType)
+                val value = ir.Subst(b, ir.Env.empty.bind(name -> ir.GetField(newName, "value")))
+                ir.ToDict(
+                  ir.ArrayMap(
+                    ir.ToArray(a),
+                    name,
+                    ir.MakeStruct(Seq(
+                      "key" -> ir.GetField(newName, "key"),
+                      "value" -> value))))
+
               case (_: TArray, "groupBy") =>
                 ir.GroupByKey(ir.ArrayMap(a, name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
               case (_: TSet, "groupBy") =>
