@@ -1,12 +1,13 @@
 package is.hail.utils
 
-import is.hail.expr.types._
-import is.hail.annotations._
+import is.hail.annotations.{Annotation, RegionValueBuilder}
+import is.hail.expr.types.Type
+
 import scala.collection.mutable
 
-class MissingDoubleArrayBuilder extends Serializable {
+class MissingAnnotationArrayBuilder extends Serializable{
   private var len = 0
-  private val elements = new ArrayBuilder[Double]()
+  private val elements = new ArrayBuilder[Annotation]()
   private val isMissing = new mutable.BitSet()
 
   def addMissing() {
@@ -14,14 +15,14 @@ class MissingDoubleArrayBuilder extends Serializable {
     len += 1
   }
 
-  def add(x: Double) {
+  def add(x: Annotation) {
     elements += x
     len += 1
   }
 
   def length(): Int = len
 
-  def foreach(whenMissing: (Int) => Unit)(whenPresent: (Int, Double) => Unit) {
+  def foreach(whenMissing: (Int) => Unit)(whenPresent: (Int, Annotation) => Unit) {
     var i = 0
     var j = 0
     while (i < len) {
@@ -35,9 +36,7 @@ class MissingDoubleArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TFloat64())
-
-  def write(rvb: RegionValueBuilder) {
+  def write(rvb: RegionValueBuilder, t: Type) {
     rvb.startArray(len)
     var i = 0
     var j = 0
@@ -45,7 +44,7 @@ class MissingDoubleArrayBuilder extends Serializable {
       if (isMissing(i))
         rvb.setMissing()
       else {
-        rvb.addDouble(elements(j))
+        rvb.addAnnotation(t, elements(j))
         j += 1
       }
       i += 1

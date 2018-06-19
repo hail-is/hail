@@ -324,11 +324,15 @@ object Interpret {
         xs.foreach(x => Interpret(x))
       case x@SeqOp(a, i, aggSig, seqOpArgs) =>
         assert(i == I32(0))
-        if (seqOpArgs.isEmpty)
-          aggregator.get.seqOp(interpret(a))
-        else if (aggSig.op == Inbreeding()) {
-          val IndexedSeq(af) = seqOpArgs
-          aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
+        aggSig.op match {
+          case Inbreeding() =>
+            val IndexedSeq(af) = seqOpArgs
+            aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
+          case TakeBy() =>
+            val IndexedSeq(key) = seqOpArgs
+            aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(key))
+          case _ =>
+            aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val aggType = aggSig.inputType
@@ -365,6 +369,12 @@ object Interpret {
             val Seq(n) = constructorArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
+          case TakeBy() =>
+            val IndexedSeq(n) = constructorArgs
+            val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
+            val IndexedSeq(key) = a.asInstanceOf[SeqOp].args
+            val ord = key.typ.ordering.toOrdering
+            new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
           case Histogram() =>
             val Seq(start, end, bins) = constructorArgs

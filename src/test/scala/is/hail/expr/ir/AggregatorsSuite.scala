@@ -62,6 +62,33 @@ class AggregatorsSuite {
     runAggregator(Collect(), TInt32(), FastIndexedSeq(10, null, 5), FastIndexedSeq(10, null, 5))
   }
 
+  @Test def collectLong() {
+    runAggregator(Collect(), TInt64(), FastIndexedSeq(10L, null, 5L), FastIndexedSeq(10L, null, 5L))
+  }
+
+  @Test def collectFloat() {
+    runAggregator(Collect(), TFloat32(), FastIndexedSeq(10f, null, 5f), FastIndexedSeq(10f, null, 5f))
+  }
+
+  @Test def collectDouble() {
+    runAggregator(Collect(), TFloat64(), FastIndexedSeq(10d, null, 5d), FastIndexedSeq(10d, null, 5d))
+  }
+
+  @Test def collectString() {
+    runAggregator(Collect(), TString(), FastIndexedSeq("hello", null, "foo"), FastIndexedSeq("hello", null, "foo"))
+  }
+
+  @Test def collectArray() {
+    runAggregator(Collect(), TArray(TInt32()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()))
+  }
+
+  @Test def collectStruct(): Unit = {
+    runAggregator(Collect(),
+      TStruct("a" -> TInt32(), "b" -> TBoolean()),
+      FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null),
+      FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null))
+  }
+
   @Test def callStats() {
     runAggregator(CallStats(), TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 1), null, Call2(0, 2)),
@@ -238,4 +265,50 @@ class AggregatorsSuite {
         FastSeq(42L, 3L)),
       FastSeq(43L, 36L)
     )
+
+  private[this] def assertTakeByEvalsTo(aggType: Type, keyType: Type, n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {
+    runAggregator(TakeBy(), TStruct("x" -> aggType, "y" -> keyType),
+      a,
+      expected,
+      Ref("x", aggType),
+      args = FastIndexedSeq(I32(n)),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("y", keyType)))
+  }
+
+  @Test def takeByNGreater() {
+    assertTakeByEvalsTo(TInt32(), TInt32(), 5,
+      FastIndexedSeq(Row(3, 4)),
+      FastIndexedSeq(3))
+  }
+
+  @Test def takeByIntBoolean() {
+    assertTakeByEvalsTo(TInt32(), TBoolean(), 2,
+      FastIndexedSeq(Row(3, true), Row(null, null), Row(null, false)),
+      FastIndexedSeq(null, 3))
+  }
+
+  @Test def takeByIntLong() {
+    assertTakeByEvalsTo(TInt32(), TInt64(), 3,
+      FastIndexedSeq(Row(3, 4L), Row(null, null), Row(null, 2L), Row(11, 0L), Row(45, 1L), Row(3, null)),
+      FastIndexedSeq(11, 45, null))
+  }
+
+  @Test def takeByIntFloat() {
+    assertTakeByEvalsTo(TInt32(), TFloat32(), 3,
+      FastIndexedSeq(Row(3, 4F), Row(null, null), Row(null, 2F), Row(11, 0F), Row(45, 1F), Row(3, null)),
+      FastIndexedSeq(11, 45, null))
+  }
+
+  @Test def takeByIntDouble() {
+    assertTakeByEvalsTo(TInt32(), TFloat64(), 3,
+      FastIndexedSeq(Row(3, 4D), Row(null, null), Row(null, 2D), Row(11, 0D), Row(45, 1D), Row(3, null)),
+      FastIndexedSeq(11, 45, null))
+  }
+
+  @Test def takeByIntAnnotation() {
+    assertTakeByEvalsTo(TInt32(), TString(), 3,
+      FastIndexedSeq(Row(3, "hello"), Row(null, null), Row(null, "foo"), Row(11, "a"), Row(45, "b"), Row(3, null)),
+      FastIndexedSeq(11, 45, null))
+  }
 }

@@ -51,6 +51,7 @@ final case class Inbreeding() extends AggOp { }
 // CollectSet needs Set
 
 // TakeBy needs lambdas
+final case class TakeBy() extends AggOp { }
 
 object AggOp {
 
@@ -64,15 +65,18 @@ object AggOp {
 
   val getOption: ((AggOp, Type, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
+
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
-    case (Collect(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
-    case (Collect(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
-    // FIXME: implement these
-    // case (Collect(), _: TInt64) =>
-    // case (Collect(), _: TFloat32) =>
-    // case (Collect(), _: TFloat64) =>
-    // case (Collect(), _: TArray) =>
-    // case (Collect(), _: TStruct) =>
+
+    case (Collect(), in, Seq(), None, Seq()) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
+      case _: TInt32 => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
+      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(TInt64()))
+      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(TFloat32()))
+      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(TFloat64()))
+      case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
+    }
+
     // case (InfoScore() =>
 
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
@@ -107,6 +111,15 @@ object AggOp {
     case (Take(), in: TFloat32, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeFloatAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
     case (Take(), in: TFloat64, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeDoubleAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
 
+    case (TakeBy(), in, constArgs@Seq(_: TInt32), None, Seq(key)) => (in, key) match {
+      case (_: TInt32, _: TBoolean) => CodeAggregator[RegionValueTakeByIntBooleanAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Boolean]))
+      case (_: TInt32, _: TInt32) => CodeAggregator[RegionValueTakeByIntIntAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Int]))
+      case (_: TInt32, _: TInt64) => CodeAggregator[RegionValueTakeByIntLongAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Long]))
+      case (_: TInt32, _: TFloat32) => CodeAggregator[RegionValueTakeByIntFloatAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Float]))
+      case (_: TInt32, _: TFloat64) => CodeAggregator[RegionValueTakeByIntDoubleAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Double]))
+      case (_: TInt32, _) => CodeAggregator[RegionValueTakeByIntAnnotationAggregator] (in, TArray (in), constrArgTypes = Array (classOf[Int], classOf[Type], classOf[Type] ), seqOpArgTypes = Array (classOf[Long]))
+    }
+
     case (Histogram(), in: TFloat64, constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None, Seq()) =>
       CodeAggregator[RegionValueHistogramAggregator](in, RegionValueHistogramAggregator.typ, constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]))
 
@@ -133,6 +146,7 @@ object AggOp {
     case "min" => Min()
     case "count" => Count()
     case "take" => Take()
+    case "takeBy" => TakeBy()
     case "hist" => Histogram()
     case "callStats" => CallStats()
     case "inbreeding" => Inbreeding()
