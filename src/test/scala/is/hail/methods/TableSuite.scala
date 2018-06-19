@@ -494,8 +494,4 @@ class TableSuite extends SparkSuite {
     val table = Table.range(hc, 1).annotate("x" -> "5").keyBy("x")
     table.flatten()
   }
-
-  @Test def testFoo() {
-    hc.importVCF("src/test/resources/sample.vcf").aggregateEntries("{x: AGG.map(x => g.GT).collect() }")
-  }
 }
