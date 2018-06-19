@@ -68,11 +68,11 @@ object AggOp {
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
 
     case (Collect(), in, Seq(), None, Seq()) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
-      case _: TInt32 => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
-      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(TInt64()))
-      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(TFloat32()))
-      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(TFloat64()))
+      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(in))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(in))
+      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(in))
+      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(in))
+      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(in))
       case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
     }
 
