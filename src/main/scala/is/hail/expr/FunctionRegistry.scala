@@ -970,7 +970,7 @@ object FunctionRegistry {
   register("qnorm", { (p: Double) => qnorm(p) })
 
   register("rpois", { (lambda: Double) => rpois(lambda) })
-  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda) })(int32Hr, float64Hr, arrayHr(float64Hr))
+  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda).toFastIndexedSeq })(int32Hr, float64Hr, arrayHr(float64Hr))
   register("dpois", { (x: Double, lambda: Double) => dpois(x, lambda) })
   register("dpois", { (x: Double, lambda: Double, logP: Boolean) => dpois(x, lambda, logP) })
   register("ppois", { (x: Double, lambda: Double) => ppois(x, lambda) })
@@ -1541,6 +1541,11 @@ object FunctionRegistry {
   registerMethod("toFloat32", (b: Boolean) => b.toFloat)
   registerMethod("toFloat64", (b: Boolean) => b.toDouble)
 
+  registerMethod("sign", (x: Int) => math.signum(x))
+  registerMethod("sign", (x: Long) => math.signum(x))
+  registerMethod("sign", (x: Float) => math.signum(x))
+  registerMethod("sign", (x: Double) => math.signum(x))
+  
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
     // registerNumeric("+", ev.plus)
     registerNumeric("-", ev.minus)
@@ -1548,7 +1553,6 @@ object FunctionRegistry {
     // registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
 
     registerMethod("abs", ev.abs _)
-    registerMethod("signum", ev.signum _)
 
     register("-", ev.negate _)
 

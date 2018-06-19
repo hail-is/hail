@@ -1257,11 +1257,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.abs(5.5)), 5.5)
         self.assertEqual(hl.eval_expr(hl.abs([5.5, -5.5])), [5.5, 5.5])
 
-    def test_signum(self):
-        self.assertEqual(hl.eval_expr(hl.signum(-5)), -1)
-        self.assertEqual(hl.eval_expr(hl.signum(0.0)), 0)
-        self.assertEqual(hl.eval_expr(hl.signum(10.0)), 1)
-        self.assertEqual(hl.eval_expr(hl.signum([-5, 0, 10])), [-1, 0, 1])
+    def test_sign(self):
+        self.assertEqual(hl.eval_expr(hl.sign(-5)), -1)
+        self.assertEqual(hl.eval_expr(hl.sign(0.0)), 0.0)
+        self.assertEqual(hl.eval_expr(hl.sign(10.0)), 1.0)
+        self.assertTrue(hl.eval_expr(hl.is_nan(hl.sign(float('nan')))))
+        self.assertEqual(hl.eval_expr(hl.sign(float('inf'))), 1.0)
+        self.assertEqual(hl.eval_expr(hl.sign(float('-inf'))), -1.0)
+        self.assertEqual(hl.eval_expr(hl.sign([-2, 0, 2])), [-1, 0, 1])
+        self.assertEqual(hl.eval_expr(hl.sign([-2.0, 0.0, 2.0])), [-1.0, 0.0, 1.0])
 
     def test_argmin_and_argmax(self):
         a = hl.array([2, 1, 1, 4, 4, 3])
