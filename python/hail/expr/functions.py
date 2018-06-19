@@ -1,7 +1,7 @@
 import builtins
 import math
+import numpy as np
 
-import hail
 import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import *
@@ -9,7 +9,6 @@ from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import *
-from hail.utils import LinkedList
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
