@@ -841,7 +841,7 @@ def import_bgen(path,
     **Row Fields**
 
     Between two and four row fields are created. The `locus` and `alleles` are
-    always included. `row_fields` determines if `varid` and `rsid` are alos
+    always included. `row_fields` determines if `varid` and `rsid` are also
     included. For best performance, only include fields necessary for your
     analysis.
 
