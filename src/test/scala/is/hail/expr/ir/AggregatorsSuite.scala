@@ -79,7 +79,8 @@ class AggregatorsSuite {
   }
 
   @Test def collectArray() {
-    runAggregator(Collect(), TArray(TInt32()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()))
+    runAggregator(Collect(),
+      TArray(TInt32()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()))
   }
 
   @Test def collectStruct(): Unit = {
