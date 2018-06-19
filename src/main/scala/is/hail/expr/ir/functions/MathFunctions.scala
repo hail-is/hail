@@ -74,7 +74,6 @@ object MathFunctions extends RegistryFunctions {
     val statsPackageClass = Class.forName("is.hail.stats.package$")
     val jMathClass = classOf[java.lang.Math]
     val jIntegerClass = classOf[java.lang.Integer]
-    val jLongClass = classOf[java.lang.Long]
     val jFloatClass = classOf[java.lang.Float]
     val jDoubleClass = classOf[java.lang.Double]    
 
