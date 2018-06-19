@@ -979,6 +979,10 @@ class Tests(unittest.TestCase):
         self.assertEqual((b_array + f1).value, [6.5, 5.5])
         self.assertEqual((b_array + f_array).value, [2.5, 2.5])
 
+    def test_int_typecheck(self):
+        self.assertIsNone(hl.literal(None, dtype='int32').value)
+        self.assertIsNone(hl.literal(None, dtype='int64').value)
+
     def test_is_transition(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
         self.assertTrue(hl.eval_expr(hl.is_transition("C", "T")))
