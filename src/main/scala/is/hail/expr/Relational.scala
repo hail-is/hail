@@ -842,19 +842,17 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
           rvRowKey.setSelect(rvType, selectIdx, current)
 
-          if (colRVAggs.nonEmpty) {
-            colRVAggs.foreach(_.clear())
+          colRVAggs.foreach(_.clear())
 
-            initialize(current.region, colRVAggs, globals, false)
+          initialize(current.region, colRVAggs, globals, false)
 
-            while (hasNext && keyOrd.equiv(rvRowKey.value, current)) {
-              sequence(current.region, colRVAggs,
-                globals, false,
-                cols, false,
-                current.offset, false)
-              current = null
-            }
-          }
+          do {
+            sequence(current.region, colRVAggs,
+              globals, false,
+              cols, false,
+              current.offset, false)
+            current = null
+          } while (hasNext && keyOrd.equiv(rvRowKey.value, current))
 
           rvb.set(consumerRegion)
 
@@ -2441,30 +2439,28 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
           
           rowKey.setSelect(rowType, keyIndices, current)
 
-          if (rvAggs.nonEmpty) {
-            rvAggs.foreach(_.clear())
+          rvAggs.foreach(_.clear())
 
+          val region = current.region
+          rvb.set(region)
+          rvb.start(globalsType)
+          rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
+          val globals = rvb.end()
+
+          initialize(region, rvAggs, globals, false)
+
+          do {
             val region = current.region
             rvb.set(region)
             rvb.start(globalsType)
             rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
             val globals = rvb.end()
 
-            initialize(region, rvAggs, globals, false)
-
-            while (hasNext && keyOrd.equiv(rowKey.value, current)) {
-              val region = current.region
-              rvb.set(region)
-              rvb.start(globalsType)
-              rvb.addRegionValue(globalsType, partRegion, partGlobalsOff)
-              val globals = rvb.end()
-
-              sequence(region, rvAggs,
-                globals, false,
-                current.offset, false)
-              current = null
-            }
-          }
+            sequence(region, rvAggs,
+              globals, false,
+              current.offset, false)
+            current = null
+          } while (hasNext && keyOrd.equiv(rowKey.value, current))
 
           rvb.set(consumerRegion)
 

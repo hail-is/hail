@@ -57,7 +57,7 @@ class GroupedMatrixTable(ExprContainer):
                     f = self._parent._fields_inverse[v]
                 else:
                     f = Env.get_uid()
-                new_col_fields[f] = v
+                    new_col_fields[f] = v
                 col_keys.append(f)
                 if k != f:
                     renamed[f] = k
