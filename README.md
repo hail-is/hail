@@ -1,6 +1,6 @@
 # Hail
 
-[![](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
+[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
 
 [Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
 
@@ -84,9 +84,9 @@ If you use Hail for published work, please cite the software:
 
 ##### Acknowledgements
 
-Hail team uses IntelliJ and <a
-href="https://www.yourkit.com/java/profiler/">YourKit Java
-Profiler</a>.  We would like to thank
-YourKit, LLC for generously supporting open-source
-projects with free licenses.  <img
-src="https://www.yourkit.com/images/yklogo.png" align="right" />
+We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
+open-source by providing free hosting, and YourKit, LLC for generously providing
+free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
+Profiler</a> for open-source development.
+
+<img src="https://www.yourkit.com/images/yklogo.png" align="right" />
