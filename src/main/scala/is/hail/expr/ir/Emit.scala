@@ -251,7 +251,6 @@ private class Emit(
         } else {
           val typ = ir.typ
           val codeCond = emit(cond)
-          val xvcond = mb.newLocal[Boolean]()
           val out = coerce[Any](mb.newLocal()(typeToTypeInfo(typ)))
           val mout = mb.newLocal[Boolean]()
           val codeCnsq = emit(cnsq)
@@ -260,11 +259,9 @@ private class Emit(
             codeCond.setup,
             codeCond.m.mux(
               Code(mout := true, out := defaultValue(typ)),
-              Code(
-                xvcond := coerce[Boolean](codeCond.v),
-                coerce[Boolean](xvcond).mux(
-                  Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.m.mux(defaultValue(typ), codeCnsq.v)),
-                  Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.m.mux(defaultValue(typ), codeAltr.v))))))
+              coerce[Boolean](codeCond.v).mux(
+                Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.m.mux(defaultValue(typ), codeCnsq.v)),
+                Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.m.mux(defaultValue(typ), codeAltr.v)))))
 
           EmitTriplet(setup, mout, out)
         }
@@ -1013,11 +1010,10 @@ private class Emit(
             xvv := xmv.mux(
               defaultValue(x.typ.elementType),
               v),
-            Code(
-              codeCond.setup,
-              (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
-                Code._empty,
-                cont(xmv, xvv))))
+            codeCond.setup,
+            (codeCond.m || !coerce[Boolean](codeCond.v)).mux(
+              Code._empty,
+              cont(xmv, xvv)))
         }
         emitArrayIterator(a).copy(length = None).wrapContinuation(filterCont)
 
@@ -1054,9 +1050,7 @@ private class Emit(
         val mapCont = { (continuation: F, m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
-            xmv.mux(
-              xvv := defaultValue(elt),
-              xvv := v),
+            xvv := xmv.mux(defaultValue(elt), v),
             codeB.setup,
             continuation(codeB.m, codeB.v))
         }
