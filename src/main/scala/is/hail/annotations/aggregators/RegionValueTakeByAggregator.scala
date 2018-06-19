@@ -1,6 +1,6 @@
 package is.hail.annotations.aggregators
 
-import is.hail.annotations.RegionValueBuilder
+import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.types.Type
 
 import scala.collection.mutable
@@ -39,5 +39,40 @@ class RegionValueTakeByAggregator(n: Int, aggType: Type, keyType: Type) extends 
   override def clear() {
     _state.clear()
   }
+}
 
+class RegionValueTakeByIntBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Boolean, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else k)
+  }
+}
+
+class RegionValueTakeByIntIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Int, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else k)
+  }
+}
+
+class RegionValueTakeByIntLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Long, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else k)
+  }
+}
+
+class RegionValueTakeByIntFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Float, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else k)
+  }
+}
+
+class RegionValueTakeByIntDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Double, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else k)
+  }
+}
+
+class RegionValueTakeByIntAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
+  def seqOp(region: Region, x: Int, xm: Boolean, k: Long, km: Boolean) {
+    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
+  }
 }
