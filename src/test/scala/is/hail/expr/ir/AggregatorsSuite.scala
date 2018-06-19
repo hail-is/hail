@@ -62,6 +62,34 @@ class AggregatorsSuite {
     runAggregator(Collect(), TInt32(), FastIndexedSeq(10, null, 5), FastIndexedSeq(10, null, 5))
   }
 
+  @Test def collectLong() {
+    runAggregator(Collect(), TInt64(), FastIndexedSeq(10L, null, 5L), FastIndexedSeq(10L, null, 5L))
+  }
+
+  @Test def collectFloat() {
+    runAggregator(Collect(), TFloat32(), FastIndexedSeq(10f, null, 5f), FastIndexedSeq(10f, null, 5f))
+  }
+
+  @Test def collectDouble() {
+    runAggregator(Collect(), TFloat64(), FastIndexedSeq(10d, null, 5d), FastIndexedSeq(10d, null, 5d))
+  }
+
+  @Test def collectString() {
+    runAggregator(Collect(), TString(), FastIndexedSeq("hello", null, "foo"), FastIndexedSeq("hello", null, "foo"))
+  }
+
+  @Test def collectArray() {
+    runAggregator(Collect(),
+      TArray(TInt32()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()))
+  }
+
+  @Test def collectStruct(): Unit = {
+    runAggregator(Collect(),
+      TStruct("a" -> TInt32(), "b" -> TBoolean()),
+      FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null),
+      FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null))
+  }
+
   @Test def callStats() {
     runAggregator(CallStats(), TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 1), null, Call2(0, 2)),

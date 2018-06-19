@@ -64,18 +64,20 @@ object AggOp {
 
   val getOption: ((AggOp, Type, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
+
     case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
-    case (Collect(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(TBoolean()))
-    case (Collect(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(TInt32()))
-    // FIXME: implement these
-    // case (Collect(), _: TInt64) =>
-    // case (Collect(), _: TFloat32) =>
-    // case (Collect(), _: TFloat64) =>
-    // case (Collect(), _: TArray) =>
-    // case (Collect(), _: TStruct) =>
+
+    case (Collect(), in, Seq(), None, Seq()) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(in))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(in))
+      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(in))
+      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(in))
+      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(in))
+      case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
+    }
 
     case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
-
+      
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
     case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
     case (Sum(), in@TArray(TInt64(_), _), Seq(), None, Seq()) =>
