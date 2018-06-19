@@ -608,31 +608,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         matrixType,
         MatrixValue(matrixType, globals, colValues, rvd)))
 
-  private[this] type Axis = Int
-  private[this] val globalAxis: Axis = 0
-  private[this] val rowAxis: Axis = 1
-  private[this] val colAxis: Axis = 2
-  private[this] val entryAxis: Axis = 3
-
-  private[this] def useIR(axis: Axis, ast: AST): Boolean = {
-    if (hc.forceIR)
-      return true
-    axis match {
-      case this.globalAxis | this.colAxis =>
-        !ast.`type`.isInstanceOf[TStruct] ||
-          ast.`type`.asInstanceOf[TStruct].size < 500
-
-      case this.rowAxis | this.entryAxis =>
-        !ast.`type`.isInstanceOf[TStruct] ||
-          ast.`type`.asInstanceOf[TStruct].size < 500 &&
-            globalType.size < 3 &&
-            (colType.size < 1 ||
-              colType.size == 1 &&
-                Set(TInt32(), +TInt32(), TString(), +TString())
-                  .contains(colType.types(0)))
-    }
-  }
-
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
       case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
@@ -776,7 +751,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(aggAST.`type`.isInstanceOf[TStruct])
     
     aggAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(ir) if useIR(this.colAxis, aggAST) =>
+      case Some(ir) =>
         new MatrixTable(hc, MatrixAggregateColsByKey(ast, ir))
       case _ =>
         log.warn(s"group_cols_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(aggAST) }")
@@ -838,7 +813,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rowsAST = Parser.parseToAST(expr, ec)
 
     rowsAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(x) if useIR(this.rowAxis, rowsAST) =>
+      case Some(x) =>
         new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
 
       case _ =>
@@ -1155,7 +1130,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(globalAST.`type`.isInstanceOf[TStruct])
 
     globalAST.toIROpt() match {
-      case Some(ir) if useIR(this.globalAxis, globalAST) =>
+      case Some(ir) =>
         new MatrixTable(hc, MatrixMapGlobals(ast, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -1177,7 +1152,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newColKey = newKey.getOrElse(colKey)
 
     colsAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(x) if useIR(this.colAxis, colsAST) =>
+      case Some(x) =>
         new MatrixTable(hc, MatrixMapCols(ast, x, newKey))
 
       case _ =>
@@ -1211,7 +1186,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rowsAST = Parser.parseToAST(expr, ec)
 
     rowsAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(x) if useIR(this.rowAxis, rowsAST) =>
+      case Some(x) =>
         new MatrixTable(hc, MatrixMapRows(ast, x, newKey))
 
       case _ =>
@@ -1276,7 +1251,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(entryAST.`type`.isInstanceOf[TStruct])
 
     entryAST.toIROpt() match {
-      case Some(ir) if useIR(this.entryAxis, entryAST) =>
+      case Some(ir) =>
         new MatrixTable(hc, MatrixMapEntries(ast, ir))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -1493,7 +1468,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.rowEC)
     filterAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(irPred) if useIR(this.rowAxis, filterAST) =>
+      case Some(irPred) =>
         new MatrixTable(hc,
           MatrixFilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
       case _ =>
@@ -1773,7 +1748,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val queryAST = Parser.parseToAST(expr, ec)
 
     queryAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(qir) if useIR(entryAxis, queryAST) =>
+      case Some(qir) =>
         val et = entriesTable()
 
         val entriesRowType = et.typ.rowType
@@ -1839,7 +1814,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val queryAST = Parser.parseToAST(expr, ec)
 
     queryAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(qir) if useIR(colAxis, queryAST) =>
+      case Some(qir) =>
         val ct = colsTable()
         val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
         val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
@@ -1872,7 +1847,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val qAST = Parser.parseToAST(expr, ec)
 
     qAST.toIROpt(Some("AGG" -> "g")) match {
-      case Some(qir) if useIR(rowAxis, qAST) =>
+      case Some(qir) =>
         val rt = rowsTable()
         val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
         val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
@@ -2245,7 +2220,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val ec = EvalContext(symTab)
     val filterAST = Parser.parseToAST(filterExpr, ec)
     filterAST.toIROpt() match {
-      case Some(x) if useIR(entryAxis, filterAST) =>
+      case Some(x) =>
         copyAST(MatrixFilterEntries(ast, ir.filterPredicateWithKeep(x, keep)))
 
       case _ =>

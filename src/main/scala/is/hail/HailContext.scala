@@ -147,8 +147,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp",
-    forceIR: Boolean = false): HailContext = {
+    tmpDir: String = "/tmp"): HailContext = {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -193,7 +192,7 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor, forceIR)
+    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
@@ -269,8 +268,7 @@ object HailContext {
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
   val tmpDir: String,
-  val branchingFactor: Int,
-  val forceIR: Boolean) {
+  val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
