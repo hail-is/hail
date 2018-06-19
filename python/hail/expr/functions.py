@@ -2734,7 +2734,7 @@ def sign(x):
     >>> hl.sign([0.0, 3.14]).value
     [0.0, 1.0]
 
-    >>> hl.sign(float('nan')).value
+    >>> hl.sign(float('nan')).value  # doctest: +SKIP
     nan
 
     Notes
