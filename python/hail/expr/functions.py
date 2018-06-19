@@ -2719,23 +2719,27 @@ def abs(x):
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
-def signum(x):
-    """Returns the sign (1, 0, or -1) of a numeric value or array.
+def sign(x):
+    """Returns the sign of a numeric value or array.
 
     Examples
     --------
 
-    >>> hl.signum(-1.23).value
-    -1
+    >>> hl.sign(-1.23).value
+    -1.0
 
-    >>> hl.signum(555).value
-    1
+    >>> hl.sign([-4, 0, 5]).value
+    [-1, 0, 1]
 
-    >>> hl.signum(0.0).value
-    0
+    >>> hl.sign([0.0, 3.14).value
+    [0.0, 1.0]
 
-    >>> hl.signum([1, -5, 0, -125]).value
-    [1, -1, 0, -1]
+    >>> hl.sign(float('nan')).value
+    nan
+
+    Notes
+    -----
+    The sign function preserves type and maps ``nan`` to ``nan``.
 
     Parameters
     ----------
@@ -2743,12 +2747,12 @@ def signum(x):
 
     Returns
     -------
-    :class:`.Int32Expression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray):
-        return map(signum, x)
+        return map(sign, x)
     else:
-        return x._method('signum', tint32)
+        return x._method('sign', x.dtype)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))

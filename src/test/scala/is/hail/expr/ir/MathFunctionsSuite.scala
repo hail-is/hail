@@ -56,7 +56,7 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("isnan", F64(Double.NaN)), true)
   }
   
-  @Test def signum() {
+  @Test def sign() {
     assertEvalsTo(invoke("sign", I32(2)), 1)
     assertEvalsTo(invoke("sign", I32(0)), 0)
     assertEvalsTo(invoke("sign", I32(-2)), -1)
@@ -72,5 +72,9 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("sign", F64(2)), 1.0)
     assertEvalsTo(invoke("sign", F64(0)), 0.0)
     assertEvalsTo(invoke("sign", F64(-2)), -1.0)
+
+    assert(eval(invoke("sign", F64(Double.NaN))).asInstanceOf[Double].isNaN)
+    assertEvalsTo(invoke("sign", F64(Double.PositiveInfinity)), 1.0)
+    assertEvalsTo(invoke("sign", F64(Double.NegativeInfinity)), -1.0)    
   }
 }
