@@ -157,21 +157,5 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
-
-    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
-      EmitTriplet(
-        Code(l.setup, r.setup),
-        l.m || (coerce[Boolean](l.v) && r.m),
-        coerce[Boolean](l.v) && coerce[Boolean](r.v)
-      )
-    }
-
-    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (_, l, r) =>
-      EmitTriplet(
-        Code(l.setup, r.setup),
-        l.m || (!coerce[Boolean](l.v) && r.m),
-        coerce[Boolean](l.v) || coerce[Boolean](r.v)
-      )
-    }
   }
 }
