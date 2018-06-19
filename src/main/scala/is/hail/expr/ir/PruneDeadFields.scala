@@ -585,7 +585,7 @@ object PruneDeadFields {
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
-        TableAggregateByKey(child, rebuild(expr, child2.typ, memo))
+        TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
