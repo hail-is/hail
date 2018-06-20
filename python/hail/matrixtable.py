@@ -297,16 +297,15 @@ class GroupedMatrixTable(ExprContainer):
 
         group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
 
-        base, cleanup = self._parent._process_joins(
-            *itertools.chain(named_exprs.values(), group_exprs.values()))
+        base, cleanup = self._parent._process_joins(*named_exprs.values(), *group_exprs.values())
 
         if self._col_keys is not None:
-            keyed_mt = base._select_cols_processed(hl.struct(**dict(self._col_keys)))
+            keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(hl.struct(**named_exprs)._ast.to_hql()))
         elif self._row_keys is not None:
             if self._partition_key is None:
                 self._partition_key = self._row_keys.keys()
-            keyed_mt = base._select_rows_processed(hl.struct(**dict(self._row_keys)),
+            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs),
                                                    pk_size=len(self._partition_key))
             mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(hl.struct(**named_exprs)._ast.to_hql(),
                                                                ',\n'.join(strs)))
@@ -2860,7 +2859,7 @@ class MatrixTable(ExprContainer):
         row, new_key = self._make_row(key_struct, value_struct, pk_size)
         return MatrixTable(self._jvds.selectRows(row._ast.to_hql(), new_key))
 
-    def _make_row(self, key_struct, value_struct, pk_size):
+    def _make_row(self, key_struct, value_struct, pk_size) -> Tuple[StructExpression, Optional[Tuple[List[str], List[str]]]]:
         if key_struct is None:
             assert value_struct is not None
             new_key = None
@@ -2892,8 +2891,8 @@ class MatrixTable(ExprContainer):
     def _select_cols_processed(self, key_struct=None, value_struct=None):
         col, new_key = self._make_col(key_struct, value_struct)
         return MatrixTable(self._jvds.selectCols(col._ast.to_hql(), new_key))
-    
-    def _make_col(self, key_struct, value_struct):
+
+    def _make_col(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]]]:
         if key_struct is None:
             assert value_struct is not None
             new_key = None

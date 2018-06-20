@@ -189,8 +189,7 @@ class GroupedTable(ExprContainer):
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        base, cleanup = self._parent._process_joins(
-            *itertools.chain(group_exprs.values(), named_exprs.values()))
+        base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
         keyed_t = base._select_processed(hl.struct(**group_exprs))
 
@@ -421,9 +420,7 @@ class Table(ExprContainer):
             jt = jt.keyBy(new_key)
         return Table(jt)
 
-    def _make_row(self,
-                  key_struct=oneof(nullable(expr_struct()), exactly("default")),
-                  value_struct=nullable(expr_struct())):
+    def _make_row(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]], Optional[List[str]], Optional[List[str]]]:
         def is_copy(ast, name):
             return (isinstance(ast, Select) and
                 ast.name == name and
