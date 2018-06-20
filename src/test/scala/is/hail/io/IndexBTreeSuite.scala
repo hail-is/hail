@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.check.Gen._
+import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.utils._
@@ -206,5 +207,53 @@ class IndexBTreeSuite extends SparkSuite {
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024)-1) == Some(1024*1024, sqr(1024*1024)))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024)+1) == None)
+  }
+
+  @Test def onDiskBTreeIndexToValueSmallCorrect() {
+    val f = tmpDir.createTempFile()
+    val v = Array[Long](1,2,3,4,5,6,7)
+    val branchingFactor = 3
+    try {
+      IndexBTree.write(v, f, hadoopConf, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
+      assert(bt.positionOfVariants(Array()) sameElements Array[Long]())
+      assert(bt.positionOfVariants(Array(5)) sameElements Array(6L))
+
+      val indices = Seq(0, 5, 1, 6)
+      val actual = bt.positionOfVariants(indices.toArray)
+      val expected = indices.sorted.map(v)
+      assert(actual sameElements expected,
+        s"${actual.toSeq} not same elements as expected ${expected.toSeq}")
+    } catch {
+      case t: Throwable =>
+        throw new RuntimeException(
+          "exception while checking BTree: " + IndexBTree.toString(v, branchingFactor),
+          t)
+    }
+  }
+
+  @Test def onDiskBTreeIndexToValueRandomized() {
+    val g = for {
+      longs <- buildableOf[Array](arbitrary[Long])
+      indices <- buildableOf[Array](choose(0, longs.length - 1))
+      branchingFactor <- choose(2, 1024)
+    } yield (indices, longs, branchingFactor)
+    forAll(g) { case (indices, longs, branchingFactor) =>
+      val f = tmpDir.createTempFile()
+      try {
+        IndexBTree.write(longs, f, hadoopConf, branchingFactor)
+        val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
+        val actual = bt.positionOfVariants(indices.toArray)
+        val expected = indices.sorted.map(longs)
+        assert(actual sameElements expected,
+          s"${actual.toSeq} not same elements as expected ${expected.toSeq}")
+      } catch {
+        case t: Throwable =>
+          throw new RuntimeException(
+            "exception while checking BTree: " + IndexBTree.toString(longs, branchingFactor),
+            t)
+      }
+      true
+    }.check()
   }
 }
