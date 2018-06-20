@@ -110,13 +110,14 @@ object AggOp {
     case (Take(), in: TInt64, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeLongAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
     case (Take(), in: TFloat32, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeFloatAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
     case (Take(), in: TFloat64, constArgs@Seq(_: TInt32), None, Seq()) => CodeAggregator[RegionValueTakeDoubleAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
+    // FIXME: Need to support Any type
 
     case (Counter(), in, Seq(), None, Seq()) => in match {
       case _: TBoolean => CodeAggregator[RegionValueCounterBooleanAggregator](in, TDict(in, TInt64()))
-      case _: TInt32 => CodeAggregator[RegionValueCounterIntAggregator](in, TDict(in, TInt64()))
-      case _: TInt64 => CodeAggregator[RegionValueCounterLongAggregator](in, TDict(in, TInt64()))
-      case _: TFloat32 => CodeAggregator[RegionValueCounterFloatAggregator](in, TDict(in, TInt64()))
-      case _: TFloat64 => CodeAggregator[RegionValueCounterDoubleAggregator](in, TDict(in, TInt64()))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCounterIntAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
+      case _: TInt64 => CodeAggregator[RegionValueCounterLongAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
+      case _: TFloat32 => CodeAggregator[RegionValueCounterFloatAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
+      case _: TFloat64 => CodeAggregator[RegionValueCounterDoubleAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
       case _ => CodeAggregator[RegionValueCounterAnnotationAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
     }
 
