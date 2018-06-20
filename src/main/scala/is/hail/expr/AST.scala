@@ -472,6 +472,8 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
         case _ => fatal(s"invalid arguments to '$fName'.")
       }
       if (fName == "liftoverLocus") destRG.locusType else destRG.intervalType
+    case "globalPosToLocus" => rg.locusType
+    case "locusToGlobalPos" => TInt64()
     case _ => throw new UnsupportedOperationException
   }
 
@@ -496,6 +498,14 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       case "liftoverLocusInterval" =>
         (args.map(_.`type`): @unchecked) match {
           case Array(TString(_), TInterval(TLocus(rg, _), _), TFloat64(_)) =>
+        }
+      case "globalPosToLocus" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TInt64(_)) =>
+        }
+      case "locusToGlobalPos" =>
+        (args.map(_.`type`): @unchecked) match {
+          case Array(TLocus(rg, _)) =>
         }
       case _ =>
     }
@@ -540,7 +550,17 @@ case class ReferenceGenomeDependentFunction(posn: Position, fName: String, grNam
       val destRGName = args(0).asInstanceOf[Const].value.asInstanceOf[String]
       val f: (Interval, Double) => Interval = { (li, minMatch) => localRG.liftoverLocusInterval(destRGName, li, minMatch) }
       AST.evalComposeCodeM(args(1), args(2))(CM.invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+      
+    case "globalPosToLocus" =>
+      val localRG = rg
+      val f: (Long) => Locus = { (globalPosition) => localRG.globalPosToLocus(globalPosition)}
+      AST.evalComposeCodeM(args(0))(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
 
+    case "locusToGlobalPos" =>
+      val localRG = rg
+      val f: (Locus) => Long = { (locus) => localRG.locusToGlobalPos(locus)}
+      AST.evalComposeCodeM(args(0))(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+      
     case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
   }
 

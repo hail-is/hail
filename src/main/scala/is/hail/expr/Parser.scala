@@ -631,9 +631,10 @@ object Parser extends JavaTokenParsers {
       "-" ^^ { _ => Call0(phased = false) } |
       "|-" ^^ { _ => Call0(phased = true) }
   }
-  
+
   def referenceGenomeDependentFunction: Parser[String] = "LocusInterval" | "LocusAlleles" | "Locus" |
-    "getReferenceSequence" | "isValidContig" | "isValidLocus" | "liftoverLocusInterval" | "liftoverLocus"
+    "getReferenceSequence" | "isValidContig" | "isValidLocus" | "liftoverLocusInterval" | "liftoverLocus" |
+    "locusToGlobalPos" | "globalPosToLocus"
 
   def intervalWithEndpoints[T](bounds: Parser[(T, T, Boolean, Boolean)]): Parser[Interval] = {
     val start = ("[" ^^^ true) | ("(" ^^^ false)

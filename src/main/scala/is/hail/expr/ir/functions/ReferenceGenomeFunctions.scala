@@ -222,7 +222,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registerRGCode("isValidLocus", TString(), TInt32(), TBoolean()) {
       (mb, contig: Code[Long], pos: Code[Int]) =>
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
-          rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
+        rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
@@ -240,6 +240,18 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
           rg.wrapFunctionName("isValidLocus"),
           Seq(TString(), TInt32())).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
+    }
+
+    registerRGCode("globalPosToLocus", TInt64(), TLocus(rg)) {
+      case (mb, globalPosition: Code[Long]) =>
+        val locus = rgCode(mb).invoke[Long, Locus]("globalPosToLocus", globalPosition)
+        emitLocus(mb, locus)
+    }
+
+    registerRGCode("locusToGlobalPos", TLocus(rg), TInt64()) {
+      case (mb, locus: Code[Long]) =>
+        val locusObject = Code.checkcast[Locus](wrapArg(mb, tlocus)(locus).asInstanceOf[Code[AnyRef]])
+        unwrapReturn(mb, TInt64())(rgCode(mb).invoke[Locus, Long]("locusToGlobalPos", locusObject))
     }
   }
 }
