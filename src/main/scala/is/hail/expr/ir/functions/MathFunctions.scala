@@ -5,7 +5,6 @@ import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
-import is.hail.expr.ir.coerce
 import is.hail.stats.{uniroot, entropy}
 
 import is.hail.utils.fatal
