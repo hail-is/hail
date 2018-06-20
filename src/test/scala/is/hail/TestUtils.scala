@@ -415,4 +415,16 @@ object TestUtils {
   def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
     assertThrows[HailException](x, env, args, agg, regex)
   }
+
+  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
+    interceptException[E](regex)(eval(x, env, args, agg))
+  }
+
+  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, regex: String) {
+    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+  }
+
+  def assertCompiledFatal(x: IR, regex: String) {
+    assertCompiledThrows[HailException](x, regex)
+  }
 }

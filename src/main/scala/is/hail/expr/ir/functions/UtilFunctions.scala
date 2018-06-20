@@ -68,5 +68,37 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("min", tv("T"), tv("T"))(min)
     registerIR("max", tv("T"), tv("T"))(max)
+
+    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (mb, l, r) =>
+      val lm = Code(l.setup, l.m)
+      val rm = Code(r.setup, r.m)
+
+      val lv = l.value[Boolean]
+      val rv = r.value[Boolean]
+
+      val m = mb.newLocal[Boolean]
+      val v = mb.newLocal[Boolean]
+      val setup = Code(m := lm, v := !m && lv)
+      val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
+      val value = v
+
+      EmitTriplet(setup, missing, value)
+    }
+
+    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (mb, l, r) =>
+      val lm = Code(l.setup, l.m)
+      val rm = Code(r.setup, r.m)
+
+      val lv = l.value[Boolean]
+      val rv = r.value[Boolean]
+
+      val m = mb.newLocal[Boolean]
+      val v = mb.newLocal[Boolean]
+      val setup = Code(m := lm, v := m || lv)
+      val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
+      val value = v
+
+      EmitTriplet(setup, missing, value)
+    }
   }
 }
