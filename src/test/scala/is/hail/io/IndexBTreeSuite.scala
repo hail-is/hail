@@ -127,4 +127,24 @@ class IndexBTreeSuite extends SparkSuite {
     val index = new IndexBTree(idxFile, hadoopConf)
     assert(index.queryIndex(33).contains(33L))
   }
+
+  @Test def queryArrayPositionAndFileOffsetIsCorrect() {
+    val f = tmpDir.createTempFile(prefix = "btree")
+    val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
+    val branchingFactor = 1024
+    println(IndexBTree.toString(v, branchingFactor))
+    IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
+    assert(bt.queryIndex(1) == Some(1))
+    assert(bt.queryArrayPositionAndFileOffset(1) == Some(0, 1))
+    assert(bt.queryArrayPositionAndFileOffset(2) == Some(1, 2))
+    assert(bt.queryArrayPositionAndFileOffset(3) == Some(2, 3))
+    for (i <- 4 to 40)
+      assert(bt.queryArrayPositionAndFileOffset(i) == Some(3, 40), s"$i")
+    for (i <- 41 to 50)
+      assert(bt.queryArrayPositionAndFileOffset(i) == Some(4, 50), s"$i")
+    assert(bt.queryArrayPositionAndFileOffset(65) == Some(6, 70))
+    assert(bt.queryArrayPositionAndFileOffset(70) == Some(6, 70))
+    assert(bt.queryArrayPositionAndFileOffset(71) == None)
+  }
 }
