@@ -503,6 +503,48 @@ class BGENTests(unittest.TestCase):
             (hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) |
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
+    def test_import_bgen_row_fields(self):
+        default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
+                                            entry_fields=['dosage'],
+                                            contig_recoding={'01': '1'},
+                                            reference_genome='GRCh37')
+        self.assertEqual(default_row_fields.row.dtype,
+                         hl.tstruct(locus=hl.tlocus('GRCh37'),
+                                    alleles=hl.tarray(hl.tstring),
+                                    varid=hl.tstring,
+                                    rsid=hl.tstring))
+        no_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
+                                       entry_fields=['dosage'],
+                                       contig_recoding={'01': '1'},
+                                       reference_genome='GRCh37',
+                                       row_fields=[])
+        self.assertEqual(no_row_fields.row.dtype,
+                         hl.tstruct(locus=hl.tlocus('GRCh37'),
+                                    alleles=hl.tarray(hl.tstring)))
+        varid_only = hl.import_bgen(resource('example.8bits.bgen'),
+                                    entry_fields=['dosage'],
+                                    contig_recoding={'01': '1'},
+                                    reference_genome='GRCh37',
+                                    row_fields=['varid'])
+        self.assertEqual(varid_only.row.dtype,
+                         hl.tstruct(locus=hl.tlocus('GRCh37'),
+                                    alleles=hl.tarray(hl.tstring),
+                                    varid=hl.tstring))
+        rsid_only = hl.import_bgen(resource('example.8bits.bgen'),
+                                   entry_fields=['dosage'],
+                                   contig_recoding={'01': '1'},
+                                   reference_genome='GRCh37',
+                                   row_fields=['rsid'])
+        self.assertEqual(rsid_only.row.dtype,
+                         hl.tstruct(locus=hl.tlocus('GRCh37'),
+                                    alleles=hl.tarray(hl.tstring),
+                                    varid=hl.tstring))
+
+        self.assertTrue(default_row_fields.drop('varid')._same(rsid_only))
+        self.assertTrue(default_row_fields.drop('rsid')._same(varid_only))
+        self.assertTrue(
+            default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
