@@ -1,8 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.TestUtils.assertEvalsTo
+import is.hail.expr.types.{TArray, TString}
 import is.hail.utils.FastSeq
 import is.hail.variant.{Locus, ReferenceGenome}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -51,5 +53,10 @@ class LocusFunctionsSuite extends TestNGSuite {
 
   @Test def inYPar() {
     assertEvalsTo(invoke("inYPar", locusIR), locus.inYPar(grch38))
+  }
+
+  @Test def minRep() {
+    val alleles = MakeArray(Seq(Str("A"), Str("T")), TArray(TString()))
+    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 1), IndexedSeq("A", "T")))
   }
 }
