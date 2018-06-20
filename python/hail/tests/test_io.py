@@ -511,8 +511,8 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(default_row_fields.row.dtype,
                          hl.tstruct(locus=hl.tlocus('GRCh37'),
                                     alleles=hl.tarray(hl.tstr),
-                                    varid=hl.tstr,
-                                    rsid=hl.tstr))
+                                    rsid=hl.tstr,
+                                    varid=hl.tstr))
         no_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                        entry_fields=['dosage'],
                                        contig_recoding={'01': '1'},
@@ -538,7 +538,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(rsid_only.row.dtype,
                          hl.tstruct(locus=hl.tlocus('GRCh37'),
                                     alleles=hl.tarray(hl.tstr),
-                                    varid=hl.tstr))
+                                    rsid=hl.tstr))
 
         self.assertTrue(default_row_fields.drop('varid')._same(rsid_only))
         self.assertTrue(default_row_fields.drop('rsid')._same(varid_only))
