@@ -910,6 +910,7 @@ def import_bgen(path,
     rg = reference_genome._jrep if reference_genome else None
 
     entry_set = set(entry_fields)
+    row_set = set(row_fields)
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
