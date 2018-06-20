@@ -787,7 +787,7 @@ def grep(regex, path, max_count=100):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
-           row_fields=sequenceof(enumeration('varid', 'rsid')))
+           _row_fields=sequenceof(enumeration('varid', 'rsid')))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -795,7 +795,7 @@ def import_bgen(path,
                 reference_genome='default',
                 contig_recoding=None,
                 skip_invalid_loci=False,
-                row_fields=['varid', 'rsid']) -> MatrixTable:
+                _row_fields=['varid', 'rsid']) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -841,9 +841,10 @@ def import_bgen(path,
     **Row Fields**
 
     Between two and four row fields are created. The `locus` and `alleles` are
-    always included. `row_fields` determines if `varid` and `rsid` are also
+    always included. `_row_fields` determines if `varid` and `rsid` are also
     included. For best performance, only include fields necessary for your
-    analysis.
+    analysis. NOTE: the `_row_fields` parameter is considered an experimental
+    feature and may be removed without warning.
 
     - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The chromosome
       and position. If `reference_genome` is defined, the type will be
@@ -897,20 +898,19 @@ def import_bgen(path,
         in the reference genome given by `reference_genome`.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
-    row_fields : :obj:`list` of :obj:`str`
+    _row_fields : :obj:`list` of :obj:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
 
     Returns
     -------
     :class:`.MatrixTable`
-
     """
 
     rg = reference_genome._jrep if reference_genome else None
 
     entry_set = set(entry_fields)
-    row_set = set(row_fields)
+    row_set = set(_row_fields)
 
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
