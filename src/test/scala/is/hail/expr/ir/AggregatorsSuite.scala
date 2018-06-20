@@ -153,6 +153,7 @@ class AggregatorsSuite {
 
   @Test def collectAsSetBoolean() {
     runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, false, null, true, false), Set(true, false, null))
+    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, null, true), Set(true, null))
   }
 
   @Test def collectAsSetNumeric() {
