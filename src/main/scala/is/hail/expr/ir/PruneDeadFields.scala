@@ -214,8 +214,10 @@ object PruneDeadFields {
             minChild.rowType,
             TStruct(field -> requestedType.rowType
               .fieldOption(field)
-              .map(f => TArray(f.typ))
-              .getOrElse(minimal(child.typ.rowType.field(field).typ))))))
+              .map(f => child.typ.rowType.field(field).typ match {
+                case _: TArray => TArray(f.typ)
+                case _: TSet => TSet(f.typ)
+              }).getOrElse(minimal(child.typ.rowType.field(field).typ))))))
         memoizeTableIR(child, dep2, memo)
       case TableFilter(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
