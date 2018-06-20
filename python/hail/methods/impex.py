@@ -787,7 +787,7 @@ def grep(regex, path, max_count=100):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
-           _row_fields=sequenceof(enumeration('varid', 'rsid')))
+           _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -917,7 +917,7 @@ def import_bgen(path,
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set,
+                                    'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
                                     skip_invalid_loci)
     return MatrixTable(jmt)

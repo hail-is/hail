@@ -35,6 +35,7 @@ object LoadBgen {
     includeDosage: Boolean,
     includeLid: Boolean,
     includeRsid: Boolean,
+    includeFileRowIdx: Boolean,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
@@ -55,6 +56,7 @@ object LoadBgen {
     hadoop.setBoolean("includeDosage", includeDosage)
     hadoop.setBoolean("includeLid", includeLid)
     hadoop.setBoolean("includeRsid", includeRsid)
+    hadoop.setBoolean("includeFileRowIdx", includeFileRowIdx)
 
     val sc = hc.sc
     val results = files.map { file =>
@@ -88,11 +90,13 @@ object LoadBgen {
 
     val lidType = TString()
     val rsidType = TString()
+    val fileRowIdxType = TInt64()
     val rowFields = Array(
       (true, "locus" -> TLocus.schemaFromRG(rg)),
       (true, "alleles" -> TArray(TString())),
       (includeRsid, "rsid" -> rsidType),
-      (includeLid, "varid" -> lidType))
+      (includeLid, "varid" -> lidType),
+      (includeFileRowIdx, "file_row_idx" -> fileRowIdxType))
       .withFilter(_._1).map(_._2)
 
     val signature = TStruct(rowFields:_*)
@@ -183,6 +187,8 @@ object LoadBgen {
             rvb.addAnnotation(rsidType, record.getRsid)
           if (includeLid)
             rvb.addAnnotation(lidType, record.getLid)
+          if (includeFileRowIdx)
+            rvb.addAnnotation(fileRowIdxType, record.getFileRowIdx)
           record.getValue(rvb) // gs
 
           rvb.endStruct()
