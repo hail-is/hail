@@ -28,7 +28,6 @@ case class BgenResult(
 object LoadBgen {
   private[bgen] val includedVariantsPositionsHadoopPrefix = "__includedVariantsPositions__"
   private[bgen] val includedVariantsIndicesHadoopPrefix = "__includedVariantsIndices__"
-  private[bgen] val nVariantsHadoopPrefix = "__nVariants__"
 
   def load(hc: HailContext,
     files: Array[String],
@@ -66,12 +65,10 @@ object LoadBgen {
     val results = files.map { file =>
       val bState = readState(sc.hadoopConfiguration, file)
 
-      hadoop.setLong(nVariantsHadoopPrefix + file, bState.nVariants)
-
       includedVariantsPerFile.get(file) match {
         case Some(indices) =>
           val variantPositions =
-            using(new IndexBTree2(file + ".idx", hadoop, bState.nVariants)) { index =>
+            using(new OnDiskBTreeIndexToValue(file + ".idx", hadoop)) { index =>
               index.positionOfVariants(indices.toArray)
             }
           hadoop.set(includedVariantsPositionsHadoopPrefix + file, encodeLongs(variantPositions))
