@@ -1,149 +1,199 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
-import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
+import is.hail.io._
 import is.hail.utils._
 import is.hail.variant.{Call2, Genotype}
 
-abstract class BgenRecord extends KeySerializedValueRecord[(String, Int, Array[String])] {
-  var ann: Annotation = _
+class BgenRecordV12 (
+  compressed: Boolean,
+  nSamples: Int,
+  includeGT: Boolean,
+  includeGP: Boolean,
+  includeDosage: Boolean,
+  bfis: HadoopFSDataBinaryReader,
+  end: Long
+) {
+  private[this] var rsid: String = _
+  private[this] var lid: String = _
+  private[this] var contig: String = _
+  private[this] var position: Int = _
+  private[this] var alleles: Array[String] = _
+  private[this] var data: Array[Byte] = _
+  private[this] var dataSize: Int = 0
 
-  def setAnnotation(ann: Annotation) {
-    this.ann = ann
-  }
+  def getContig: String = contig
 
-  def getAnnotation: Annotation = ann
+  def getPosition: Int = position
 
-  override def getValue(rvb: RegionValueBuilder): Unit
-}
+  def getAlleles: Array[String] = alleles
 
-class BgenRecordV12(compressed: Boolean, nSamples: Int,
-  includeGT: Boolean, includeGP: Boolean, includeDosage: Boolean) extends BgenRecord {
-  var expectedDataSize: Int = _
-  var expectedNumAlleles: Int = _
+  private[this] def includeAnyEntryFields =
+    includeGT || includeGP || includeDosage
 
-  def setExpectedDataSize(size: Int) {
-    this.expectedDataSize = size
-  }
+  def advance(): Boolean = {
+    if (bfis.getPosition >= end)
+      return false
 
-  def setExpectedNumAlleles(n: Int) {
-    this.expectedNumAlleles = n
-  }
+    lid = bfis.readLengthAndString(2)
+    rsid = bfis.readLengthAndString(2)
+    contig = bfis.readLengthAndString(2)
+    position = bfis.readInt()
 
-  override def getValue(rvb: RegionValueBuilder) {
-    require(input != null, "called getValue before serialized value was set")
-
-    val a = if (compressed) decompress(input, expectedDataSize) else input
-    val reader = new ByteArrayReader(a)
-
-    val nRow = reader.readInt()
-    if (nRow != nSamples)
-      fatal("row nSamples is not equal to header nSamples $nRow, $nSamples")
-
-    val nAlleles = reader.readShort()
-    if (nAlleles != expectedNumAlleles)
-      fatal(s"""Value for `nAlleles' in genotype probability data storage is
-               |not equal to value in variant identifying data. Expected
-               |$expectedNumAlleles but found $nAlleles.""".stripMargin)
+    val nAlleles = bfis.readShort()
     if (nAlleles != 2)
       fatal(s"Only biallelic variants supported, found variant with $nAlleles")
 
-    val minPloidy = reader.read()
-    val maxPloidy = reader.read()
+    alleles = new Array[String](nAlleles)
 
-    if (minPloidy != 2 || maxPloidy != 2)
-      fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
+    val ref = bfis.readLengthAndString(4)
+    alleles(0) = ref
 
-    var i = 0
-    while (i < nSamples) {
-      val ploidy = reader.read()
-      if ((ploidy & 0x3f) != 2)
-        fatal(s"Ploidy value must equal to 2. Found $ploidy.")
-      i += 1
+    var aIdx = 1
+    while (aIdx < nAlleles) {
+      alleles(aIdx) = bfis.readLengthAndString(4)
+      aIdx += 1
     }
-    if (i != nSamples)
-      fatal(s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'.")
 
-    val phase = reader.read()
-    if (phase != 0 && phase != 1)
-      fatal(s"Value for phase must be 0 or 1. Found $phase.")
-    val isPhased = phase == 1
+    val recodedContig = contig match {
+      case "23" => "X"
+      case "24" => "Y"
+      case "25" => "X"
+      case "26" => "MT"
+      case x => x
+    }
 
-    if (isPhased)
-      fatal("Hail does not support phased genotypes.")
+    dataSize = bfis.readInt()
 
-    val nBitsPerProb = reader.read()
-    if (nBitsPerProb < 1 || nBitsPerProb > 32)
-      fatal(s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
-    if (nBitsPerProb != 8)
-      fatal(s"Only 8-bit probabilities supported, found $nBitsPerProb")
+    if (includeAnyEntryFields) {
+      data = if (compressed) {
+        val expectedDataSize = bfis.readInt()
+        val input = bfis.readBytes(dataSize - 4)
+        decompress(input, expectedDataSize)
+      } else {
+        bfis.readBytes(dataSize)
+      }
+      val reader = new ByteArrayReader(data)
 
-    val nGenotypes = triangle(nAlleles)
+      val nRow = reader.readInt()
+      if (nRow != nSamples)
+        fatal("row nSamples is not equal to header nSamples $nRow, $nSamples")
 
-    val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-    if (reader.length != nExpectedBytesProbs + nSamples + 10)
-      fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
-               |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
+      val nAlleles2 = reader.readShort()
+      if (nAlleles != nAlleles2)
+        fatal(s"""Value for `nAlleles' in genotype probability data storage is
+                 |not equal to value in variant identifying data. Expected
+                 |$nAlleles but found $nAlleles2 at $lid.""".stripMargin)
 
+      val minPloidy = reader.read()
+      val maxPloidy = reader.read()
+
+      if (minPloidy != 2 || maxPloidy != 2)
+        fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
+
+      var i = 0
+      while (i < nSamples) {
+        val ploidy = reader.read()
+        if ((ploidy & 0x3f) != 2)
+          fatal(s"Ploidy value must equal to 2. Found $ploidy.")
+        i += 1
+      }
+
+      val phase = reader.read()
+      if (phase != 0 && phase != 1)
+        fatal(s"Value for phase must be 0 or 1. Found $phase.")
+      val isPhased = phase == 1
+
+      if (isPhased)
+        fatal("Hail does not support phased genotypes.")
+
+      val nBitsPerProb = reader.read()
+      if (nBitsPerProb < 1 || nBitsPerProb > 32)
+        fatal(s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
+      if (nBitsPerProb != 8)
+        fatal(s"Only 8-bit probabilities supported, found $nBitsPerProb")
+
+      val nGenotypes = triangle(nAlleles)
+
+      val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
+      if (reader.length != nExpectedBytesProbs + nSamples + 10)
+        fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
+                 |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
+    } else {
+      bfis.skipBytes(dataSize)
+    }
+
+    return true
+  }
+
+  def getValue(rvb: RegionValueBuilder) {
     rvb.startArray(nSamples) // gs
-    val c0 = Call2.fromUnphasedDiploidGtIndex(0)
-    val c1 = Call2.fromUnphasedDiploidGtIndex(1)
-    val c2 = Call2.fromUnphasedDiploidGtIndex(2)
+    if (includeAnyEntryFields) {
+      val c0 = Call2.fromUnphasedDiploidGtIndex(0)
+      val c1 = Call2.fromUnphasedDiploidGtIndex(1)
+      val c2 = Call2.fromUnphasedDiploidGtIndex(2)
 
-    i = 0
-    while (i < nSamples) {
-      val sampleMissing = (a(8 + i) & 0x80) != 0
-      if (sampleMissing)
-        rvb.setMissing()
-      else {
-        rvb.startStruct() // g
+      var i = 0
+      while (i < nSamples) {
+        val sampleMissing = (data(8 + i) & 0x80) != 0
+        if (sampleMissing)
+          rvb.setMissing()
+        else {
+          rvb.startStruct() // g
 
-        val off = nSamples + 10 + 2 * i
-        val d0 = a(off) & 0xff
-        val d1 = a(off + 1) & 0xff
-        val d2 = 255 - d0 - d1
+          val off = nSamples + 10 + 2 * i
+          val d0 = data(off) & 0xff
+          val d1 = data(off + 1) & 0xff
+          val d2 = 255 - d0 - d1
 
-        if (includeGT) {
-          if (d0 > d1) {
-            if (d0 > d2)
-              rvb.addInt(c0)
-            else if (d2 > d0)
-              rvb.addInt(c2)
-            else {
-              // d0 == d2
-              rvb.setMissing()
-            }
-          } else {
-            // d0 <= d1
-            if (d2 > d1)
-              rvb.addInt(c2)
-            else {
-              // d2 <= d1
-              if (d1 == d0 || d1 == d2)
+          if (includeGT) {
+            if (d0 > d1) {
+              if (d0 > d2)
+                rvb.addInt(c0)
+              else if (d2 > d0)
+                rvb.addInt(c2)
+              else {
+                // d0 == d2
                 rvb.setMissing()
-              else
-                rvb.addInt(c1)
+              }
+            } else {
+              // d0 <= d1
+              if (d2 > d1)
+                rvb.addInt(c2)
+              else {
+                // d2 <= d1
+                if (d1 == d0 || d1 == d2)
+                  rvb.setMissing()
+                else
+                  rvb.addInt(c1)
+              }
             }
           }
-        }
 
-        if (includeGP) {
-          rvb.startArray(3) // GP
-          rvb.addDouble(d0 / 255.0)
-          rvb.addDouble(d1 / 255.0)
-          rvb.addDouble(d2 / 255.0)
-          rvb.endArray()
-        }
+          if (includeGP) {
+            rvb.startArray(3) // GP
+            rvb.addDouble(d0 / 255.0)
+            rvb.addDouble(d1 / 255.0)
+            rvb.addDouble(d2 / 255.0)
+            rvb.endArray()
+          }
 
-        if (includeDosage) {
-          val dosage = (d1 + (d2 << 1)) / 255.0
-          rvb.addDouble(dosage)
-        }
+          if (includeDosage) {
+            val dosage = (d1 + (d2 << 1)) / 255.0
+            rvb.addDouble(dosage)
+          }
 
-        rvb.endStruct() // g
+          rvb.endStruct() // g
+        }
+        i += 1
       }
-      i += 1
+    } else {
+      assert(rvb.currentType().byteSize == 0)
+      rvb.unsafeAdvance(nSamples)
     }
     rvb.endArray()
   }
+
+  def getAnnotation(): Annotation =
+    Annotation(rsid, lid)
 }
