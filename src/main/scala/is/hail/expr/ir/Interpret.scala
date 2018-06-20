@@ -341,6 +341,9 @@ object Interpret {
           case Inbreeding() =>
             assert(aggType == TCall())
             new InbreedingAggregator(null)
+          case HardyWeinberg() =>
+            assert(aggType == TCall())
+            new HWEAggregator()
           case Collect() => new CollectAggregator(aggType)
           case Counter() => new CounterAggregator(aggType)
           case Fraction() =>

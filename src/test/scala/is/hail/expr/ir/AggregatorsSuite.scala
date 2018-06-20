@@ -158,6 +158,7 @@ class AggregatorsSuite {
       initOpArgs = Some(FastIndexedSeq(I32(3))))
   }
 
+
   @Test def inbreeding() {
     runAggregator(
       Inbreeding(),
@@ -176,6 +177,12 @@ class AggregatorsSuite {
     runAggregator(InfoScore(), TArray(TFloat64()),
       FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
       Row(-0.6654567, 2))
+  }
+
+  @Test def hardyWeinberg() {
+    runAggregator(HardyWeinberg(), TCall(),
+      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), Call2(1, 1), null),
+      Row(0.571429, 0.657143))
   }
 
   // FIXME Max Boolean not supported by old-style MaxAggregator

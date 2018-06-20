@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.Call
@@ -45,4 +45,33 @@ class HWECombiner extends Serializable {
   def lh = LeveneHaldane(n, nA)
 
   def asAnnotation: Annotation = Annotation(divOption(lh.getNumericalMean, n).orNull, lh.exactMidP(nHet))
+
+  def result(rvb: RegionValueBuilder) {
+    rvb.startStruct()
+
+    val rExpHetFreq = divNull(lh.getNumericalMean, n)
+    if (rExpHetFreq == null)
+      rvb.setMissing()
+    else
+      rvb.addDouble(rExpHetFreq)
+
+    val p = lh.exactMidP(nHet)
+    rvb.addDouble(p)
+
+    rvb.endStruct()
+  }
+
+  def clear() {
+    nHomRef = 0
+    nHet = 0
+    nHomVar = 0
+  }
+
+  def copy(): HWECombiner = {
+    val c = new HWECombiner()
+    c.nHomRef = nHomRef
+    c.nHet = nHet
+    c.nHomVar = nHomVar
+    c
+  }
 }
