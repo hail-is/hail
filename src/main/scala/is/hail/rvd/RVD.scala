@@ -5,7 +5,7 @@ import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, Outpu
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.{TArray, TInterval, TStruct, TStructSerializer}
+import is.hail.expr.types._
 import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
@@ -400,6 +400,30 @@ trait RVD {
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
+
+  def zipWithIndex(name: String): RVD
+
+  private[rvd] def zipWithIndexCRDD(
+    name: String
+  ): (TStruct, ContextRDD[RVDContext, RegionValue]) = {
+    val (newRowType, ins) = rowType.unsafeStructInsert(TInt64(), List(name))
+
+    val a = sparkContext.broadcast(countPerPartition().scanLeft(0L)(_ + _))
+
+    val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
+      val rv2 = RegionValue()
+      val rvb = ctx.rvb
+      var index = a.value(i)
+      it.map { rv =>
+        rvb.start(newRowType)
+        ins(rv.region, rv.offset, rvb, () => rvb.addLong(index))
+        index += 1
+        rv2.set(rvb.region, rvb.end())
+        rv2
+      }
+    }, preservesPartitioning=true)
+    (newRowType, newCRDD)
+  }
 
   protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec
 

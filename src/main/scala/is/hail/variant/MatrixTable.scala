@@ -2475,29 +2475,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def indexRows(name: String): MatrixTable = {
-    val (newRVType, inserter) = rvRowType.unsafeStructInsert(TInt64(), List(name))
-
-    val partStarts = partitionStarts()
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val indexedRVD = rvd.boundary.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType, { (i, ctx, it) =>
-      val region2 = ctx.region
-      val rv2 = RegionValue(region2)
-      val rv2b = ctx.rvb
-
-      var idx = partStarts(i)
-
-      it.map { rv =>
-        rv2b.start(newRVType)
-
-        inserter(rv.region, rv.offset, rv2b,
-          () => rv2b.addLong(idx))
-
-        idx += 1
-        rv2.setOffset(rv2b.end())
-        rv2
-      }
-    })
-    copyMT(matrixType = newMatrixType, rvd = indexedRVD)
+    val indexedRVD = rvd.zipWithIndex(name)
+    copyMT(
+      matrixType = matrixType.copy(rvRowType = indexedRVD.typ.rowType),
+      rvd = indexedRVD)
   }
 
   def indexCols(name: String): MatrixTable = {

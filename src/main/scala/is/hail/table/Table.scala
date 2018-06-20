@@ -970,13 +970,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def index(name: String): Table = {
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
-
-    val (newSignature, ins) = signature.insert(TInt64(), name)
-
-    // FIXME: should use RVD, need zipWithIndex
-    val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
-
-    copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
+    val newRvd = rvd.zipWithIndex(name)
+    copy2(signature = newRvd.rowType, rvd = newRvd)
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
