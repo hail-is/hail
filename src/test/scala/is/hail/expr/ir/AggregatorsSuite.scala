@@ -218,6 +218,16 @@ class AggregatorsSuite {
       args = FastIndexedSeq(I32(2)))
   }
 
+  @Test def takeCall() {
+    runAggregator(Take(), TCall(), FastIndexedSeq(Call2(0, 0), null, Call2(1, 0)), FastIndexedSeq(Call2(0, 0), null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
+  @Test def takeString() {
+    runAggregator(Take(), TString(), FastIndexedSeq("a", null, "b"), FastIndexedSeq("a", null),
+      args = FastIndexedSeq(I32(2)))
+  }
+
   @Test def testHist() {
     runAggregator(Histogram(), TFloat64(),
       FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
