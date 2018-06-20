@@ -188,12 +188,8 @@ class BgenRecordV12 (
         i += 1
       }
     } else {
-      var i = 0
-      while (i < nSamples) {
-        rvb.startStruct() // g
-        rvb.endStruct()
-        i += 1
-      }
+      assert(rvb.currentType().byteSize == 0)
+      rvb.unsafeAdvance(nSamples)
     }
     rvb.endArray()
   }
