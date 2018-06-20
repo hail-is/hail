@@ -80,7 +80,7 @@ class BgenRecordV12 (
         fatal("row nSamples is not equal to header nSamples $nRow, $nSamples")
 
       val nAlleles2 = reader.readShort()
-      if (nAlleles == nAlleles2)
+      if (nAlleles != nAlleles2)
         fatal(s"""Value for `nAlleles' in genotype probability data storage is
                  |not equal to value in variant identifying data. Expected
                  |$nAlleles but found $nAlleles2 at $lid.""".stripMargin)
