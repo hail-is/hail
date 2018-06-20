@@ -342,6 +342,7 @@ object Interpret {
             assert(aggType == TCall())
             new InbreedingAggregator(null)
           case Collect() => new CollectAggregator(aggType)
+          case Counter() => new CounterAggregator(aggType)
           case Fraction() =>
             assert(aggType == TBoolean())
             new FractionAggregator(a => a)
