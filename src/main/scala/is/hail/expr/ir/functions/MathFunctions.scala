@@ -5,8 +5,8 @@ import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
-import is.hail.expr.ir.coerce
-import is.hail.stats.uniroot
+import is.hail.stats.{uniroot, entropy}
+
 import is.hail.utils.fatal
 
 object MathFunctions extends RegistryFunctions {
@@ -67,6 +67,8 @@ object MathFunctions extends RegistryFunctions {
     else
       r.get
   }
+  
+  def irentropy(s: String): Double = entropy(s)
 
   def registerAll() {
     val thisClass = getClass
@@ -157,5 +159,7 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
+
+    registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
   }
 }

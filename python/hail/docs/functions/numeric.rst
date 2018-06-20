@@ -11,6 +11,7 @@ Numeric functions
     is_nan
     log
     log10
+    sign
     sqrt
     int
     int32
@@ -43,6 +44,7 @@ Numeric functions
 .. autofunction:: floor
 .. autofunction:: ceil
 .. autofunction:: sqrt
+.. autofunction:: sign
 .. autofunction:: min
 .. autofunction:: max
 .. autofunction:: mean
