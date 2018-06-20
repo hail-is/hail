@@ -75,9 +75,9 @@ object ExtractAggregators {
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
       aggSig match {
-        case AggSignature(Collect(), t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall), _, _, _) =>
-        case AggSignature(Collect(), t, _, _, _) =>
-          codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+        case AggSignature(Collect() | Take(), t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall), _, _, _) =>
+        case AggSignature(Collect() | Take(), t, _, _, _) =>
+          codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
         case AggSignature(Counter(), t@(_: TBoolean), _, _, _) =>
         case AggSignature(Counter(), t, _, _, _) =>
           codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))

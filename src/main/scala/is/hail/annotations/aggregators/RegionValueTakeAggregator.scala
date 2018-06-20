@@ -3,6 +3,7 @@ package is.hail.annotations.aggregators
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr._
+import is.hail.expr.types.Type
 import is.hail.utils._
 
 class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
@@ -164,6 +165,39 @@ class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
   }
 
   def copy(): RegionValueTakeDoubleAggregator = new RegionValueTakeDoubleAggregator(n)
+
+  def clear() {
+    ab.clear()
+  }
+}
+
+class RegionValueTakeAnnotationAggregator(n: Int, t: Type) extends RegionValueAggregator {
+  private val ab = new MissingAnnotationArrayBuilder()
+
+  def seqOp(region: Region, offset: Long, missing: Boolean) {
+    if (ab.length() < n)
+      if (missing)
+        ab.addMissing()
+      else
+        ab.add(SafeRow.read(t, region, offset))
+  }
+
+  def combOp(agg2: RegionValueAggregator) {
+    val that = agg2.asInstanceOf[RegionValueTakeAnnotationAggregator]
+    that.ab.foreach { _ =>
+      if (ab.length() < n)
+        ab.addMissing()
+    } { (_, v) =>
+      if (ab.length() < n)
+        ab.add(v)
+    }
+  }
+
+  def result(rvb: RegionValueBuilder) {
+    ab.write(rvb, t)
+  }
+
+  def copy(): RegionValueTakeAnnotationAggregator = new RegionValueTakeAnnotationAggregator(n, t)
 
   def clear() {
     ab.clear()
