@@ -262,7 +262,8 @@ class TableTests(unittest.TestCase):
                            x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
                            x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
                            x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
-                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32))))
+                           x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32)))),
+                           x19=agg.take(kt.GT, 1, ordering=-kt.qPheno)
                            ).take(1)[0])
 
         expected = {u'status': 0,
@@ -275,7 +276,8 @@ class TableTests(unittest.TestCase):
                     u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
                     u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
                     u'x17': [],
-                    u'x18': []}
+                    u'x18': [],
+                    u'x19': [hl.Call([0, 1])]}
 
         self.maxDiff = None
 
@@ -684,6 +686,11 @@ class GroupedTableTests(unittest.TestCase):
         )
 
         self.assertTrue(result._same(expected))
+
+    def test_issue_2446_takeby(self):
+        t = hl.utils.range_table(10)
+        result = t.group_by(foo=5).aggregate(x=hl.agg.take(t.idx, 3, ordering=t.idx))
+        self.assertTrue(result.collect()[0].x == [0, 1, 2])
 
 
 class MatrixTests(unittest.TestCase):
