@@ -303,9 +303,11 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
     importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding, skipInvalidLoci)
+      nPartitions, rg, contigRecoding, skipInvalidLoci, includedVariantsPerFile)
   }
 
   def importBgens(files: Seq[String],
@@ -319,7 +321,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -339,7 +343,7 @@ class HailContext private(val sc: SparkContext,
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
+      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
   }
 
   def importGen(file: String,

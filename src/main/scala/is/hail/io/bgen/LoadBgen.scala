@@ -26,6 +26,9 @@ case class BgenResult(
 )
 
 object LoadBgen {
+  private[bgen] val includedVariantsPositionsHadoopPrefix = "__includedVariantsPositions__"
+  private[bgen] val includedVariantsIndicesHadoopPrefix = "__includedVariantsIndices__"
+  private[bgen] val nVariantsHadoopPrefix = "__nVariants__"
 
   def load(hc: HailContext,
     files: Array[String],
@@ -39,7 +42,9 @@ object LoadBgen {
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
 
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
@@ -60,6 +65,23 @@ object LoadBgen {
     val sc = hc.sc
     val results = files.map { file =>
       val bState = readState(sc.hadoopConfiguration, file)
+
+      hadoop.setLong(nVariantsHadoopPrefix + file, bState.nVariants)
+
+      includedVariantsPerFile.get(file) match {
+        case Some(indices) =>
+          val variantPositions =
+            using(new IndexBTree2(file + ".idx", hadoop, bState.nVariants)) { index =>
+              index.positionOfVariants(indices.toArray)
+            }
+          hadoop.set(includedVariantsPositionsHadoopPrefix + file, encodeLongs(variantPositions))
+          hadoop.set(includedVariantsIndicesHadoopPrefix + file, encodeInts(indices.toArray))
+        case None =>
+          // if import_bgen was previously called, we must clear the old
+          // configuration
+          hadoop.unset(includedVariantsPositionsHadoopPrefix + file)
+          hadoop.unset(includedVariantsIndicesHadoopPrefix + file)
+      }
 
       bState.version match {
         case 2 =>

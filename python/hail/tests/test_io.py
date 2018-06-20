@@ -561,6 +561,42 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(mt.file_row_idx.collect(),
                          [int(rsid[5:]) - 2 for rsid in rsids])
 
+    def test_import_bgen_variant_filtering(self):
+        desired_variant_indexes = [1,2,3,5,7,9,11,13,17,198]
+        actual = hl.import_bgen(resource('example.8bits.bgen'),
+                                ['GT'],
+                                contig_recoding={'01': '1'},
+                                reference_genome=None,
+                                row_fields=['file_row_idx'],
+                                # FIXME use: os.path.abspath
+                                _variants_per_file={ 'file:' + '/Users/dking/projects/hail/src/test/resources/' + ('example.8bits.bgen') : desired_variant_indexes})
+        print({ 'file:' + resource('example.8bits.bgen') : desired_variant_indexes})
+        # doing the expected import_bgen second catches the case where the
+        # hadoop configuraiton is polluted with old data from the
+        # _variants_per_file
+        everything = hl.import_bgen(resource('example.8bits.bgen'),
+                                    ['GT'],
+                                    contig_recoding={'01': '1'},
+                                    reference_genome=None,
+                                    row_fields=['file_row_idx'])
+        self.assertEqual(everything.count(), (199, 500))
+
+        everything.rows().show()
+
+        expected = everything.filter_rows(
+            hl.set(desired_variant_indexes).contains(hl.int32(everything.file_row_idx)))
+
+        actual.rows().show()
+        expected.rows().show(20)
+
+        print("actual size " + str(actual.count()))
+        print("expected size " + str(expected.count()))
+
+        self.assertTrue(expected._same(actual))
+        self.assertEqual((hl.str(actual.locus.contig) + ":" + hl.str(actual.locus.position)).collect(),
+                         ['1:3000', '1:4000', '1:5000', '1:7000', '1:9000',
+                          '1:11000', '1:13000', '1:15000', '1:19000', '1:100001'])
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
