@@ -228,7 +228,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
         sources = defaultdict(lambda: [])
         for e in exprs:
             from .expression_utils import get_refs
-            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a._exprs]).items():
+            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
                                   "\n    Found fields from {n} objects:{fields}".format(
