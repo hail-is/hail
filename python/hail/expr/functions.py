@@ -337,7 +337,8 @@ def bind(f: Callable, *exprs):
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chisq(c1, c2, c3, c4) -> StructExpression:
-    """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
+    """Calculates p-value (chi-square approximation) and odds ratio for a 2x2
+    table of counts.
 
     Examples
     --------
@@ -347,6 +348,9 @@ def chisq(c1, c2, c3, c4) -> StructExpression:
 
     >>> hl.chisq(30, 30, 50, 10).value
     Struct(odds_ratio=0.2, p_value=0.000107511176729)
+
+    Notes
+    -----
 
     Parameters
     ----------

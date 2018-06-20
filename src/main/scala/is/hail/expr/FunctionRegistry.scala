@@ -888,16 +888,18 @@ object FunctionRegistry {
   })
 
   def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (Option[Double], Option[Double]) = {
+    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+      fatal(s"chisq: all arguments must be non-negative, got $c1, $c2, $c3, $c4")
 
     var or: Option[Double] = None
     var chisqp: Option[Double] = None
 
-    if (Array(c1, c2, c3, c4).sum > 0) {
+    if (c1 + c2 + c3 + c4 > 0) {
       if (c1 > 0 && c3 == 0)
         or = Option(Double.PositiveInfinity)
       else if (c3 > 0 && c1 == 0)
         or = Option(Double.NegativeInfinity)
-      else if ((c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0))
+      else if (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)
         or = Option((c1 * c4) / (c2 * c3).toDouble)
       chisqp = Option(chisq.chiSquareTest(Array(Array(c1, c2), Array(c3, c4))))
     }
@@ -905,12 +907,8 @@ object FunctionRegistry {
     (chisqp, or)
   }
 
-
   val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
-    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
-
     val res = chisqTest(c1, c2, c3, c4)
     Annotation(res._1.orNull, res._2.orNull)
   })
@@ -926,7 +924,6 @@ object FunctionRegistry {
       val res = chisqTest(c1, c2, c3, c4)
       Annotation(res._1.orNull, res._2.orNull)
     }
-
   })
 
   val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),

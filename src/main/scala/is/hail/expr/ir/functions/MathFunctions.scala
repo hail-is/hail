@@ -126,6 +126,20 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
+    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())){ case (mb, c1, c2, c3, c4) =>
+      val srvb = new StagedRegionValueBuilder(mb, TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64()))
+      val res = srvb.mb.newLocal[Array[Double]]
+      Code(
+        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
+        srvb.start(res.length()),
+        Code.whileLoop(srvb.arrayIdx < res.length(),
+          srvb.addDouble(res(srvb.arrayIdx)),
+          srvb.advance()
+        ),
+        srvb.offset
+      )
+    }
+    
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
 

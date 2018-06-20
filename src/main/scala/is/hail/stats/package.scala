@@ -10,8 +10,6 @@ import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 import org.apache.spark.sql.Row
 
-import scala.collection.mutable
-
 package object stats {
 
   def uniroot(fn: Double => Double, min: Double, max: Double, tolerance: Double = 1.220703e-4): Option[Double] = {
@@ -121,7 +119,7 @@ package object stats {
       fatal("Confidence level must be between 0 and 1")
 
     if (oddsRatio < 0d)
-      fatal("Odds ratio must be between 0 and Inf")
+      fatal("Odds ratio must be positive")
 
     if (alternative != "greater" && alternative != "less" && alternative != "two.sided")
       fatal("Did not recognize test type string. Use one of greater, less, two.sided")
