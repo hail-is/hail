@@ -167,12 +167,12 @@ object Interpret {
           null
         else
           op match {
-            case EQ(_) | EQWithNA(_) => lValue == rValue
-            case NEQ(_) | NEQWithNA(_) => lValue != rValue
-            case LT(t) => t.ordering.lt(lValue, rValue)
-            case GT(t) => t.ordering.gt(lValue, rValue)
-            case LTEQ(t) => t.ordering.lteq(lValue, rValue)
-            case GTEQ(t) => t.ordering.gteq(lValue, rValue)
+            case EQ(_, _) | EQWithNA(_, _) => lValue == rValue
+            case NEQ(_, _) | NEQWithNA(_, _) => lValue != rValue
+            case LT(t, _) => t.ordering.lt(lValue, rValue)
+            case GT(t, _) => t.ordering.gt(lValue, rValue)
+            case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
+            case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq

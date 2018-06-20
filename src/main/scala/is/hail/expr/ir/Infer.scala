@@ -17,7 +17,7 @@ object Infer {
       case ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
       case ApplyComparisonOp(op, l, r) =>
-        assert(l.typ == r.typ)
+        assert(l.typ isOfType r.typ, s"${l.typ.parsableString()} vs ${r.typ.parsableString()}")
         TBoolean()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))

@@ -36,5 +36,5 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
 
   val ordering: ExtendedOrdering = null
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }

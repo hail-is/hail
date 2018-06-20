@@ -57,9 +57,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering)
-  
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
-    CodeOrdering.iterableOrdering(this, mb)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(this isOfType other)
+    CodeOrdering.iterableOrdering(this, other.asInstanceOf[TArray], mb)
+  }
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }

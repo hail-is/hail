@@ -56,8 +56,8 @@ object TypeCheck {
       case x@ApplyComparisonOp(op, l, r) =>
         check(l)
         check(r)
-        assert(l.typ.fundamentalType == r.typ.fundamentalType)
-        assert(op.typ.fundamentalType == l.typ.fundamentalType)
+        assert(op.t1.fundamentalType == l.typ.fundamentalType)
+        assert(op.t2.fundamentalType == r.typ.fundamentalType)
         assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         if (args.length == 0)

@@ -34,7 +34,7 @@ class TString(override val required: Boolean) extends Type {
 
   override def fundamentalType: Type = TBinary(required)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = TBinary(required).codeOrdering(mb)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = TBinary(required).codeOrdering(mb, TBinary(other.required))
 }
 
 object TString {

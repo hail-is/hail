@@ -49,5 +49,5 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   val ordering: ExtendedOrdering = null
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }

@@ -250,7 +250,9 @@ abstract class Type extends BaseType with Serializable {
 
   val ordering: ExtendedOrdering
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
@@ -311,8 +313,8 @@ abstract class Type extends BaseType with Serializable {
       case TFloat64(_) => t == TFloat64Optional || t == TFloat64Required
       case TString(_) => t == TStringOptional || t == TStringRequired
       case TCall(_) => t == TCallOptional || t == TCallRequired
-      case t2: TLocus => t == t2 || t == +t2
-      case t2: TInterval => t == t2 || t == +t2
+      case t2: TLocus => t.isInstanceOf[TLocus] && t.asInstanceOf[TLocus].rg == t2.rg
+      case t2: TInterval => t.isInstanceOf[TInterval] && t.asInstanceOf[TInterval].pointType.isOfType(t2.pointType)
       case t2: TStruct =>
         t.isInstanceOf[TStruct] &&
           t.asInstanceOf[TStruct].size == t2.size &&

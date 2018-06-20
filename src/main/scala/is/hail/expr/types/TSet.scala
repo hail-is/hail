@@ -47,8 +47,11 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   val ordering: ExtendedOrdering =
     ExtendedOrdering.setOrdering(elementType.ordering)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
-    CodeOrdering.setOrdering(this, mb)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.setOrdering(this, other.asInstanceOf[TSet], mb)
+  }
+
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
