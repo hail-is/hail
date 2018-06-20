@@ -7,7 +7,9 @@ String functions
     json
     hamming
     delimit
+    entropy
 
 .. autofunction:: json
 .. autofunction:: hamming
 .. autofunction:: delimit
+.. autofunction:: entropy

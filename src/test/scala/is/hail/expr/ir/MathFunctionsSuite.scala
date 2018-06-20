@@ -77,4 +77,12 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("sign", F64(Double.PositiveInfinity)), 1.0)
     assertEvalsTo(invoke("sign", F64(Double.NegativeInfinity)), -1.0)    
   }
+
+  @Test def entropy() {
+    assertEvalsTo(invoke("entropy", Str("")), 0.0)
+    assertEvalsTo(invoke("entropy", Str("a")), 0.0)
+    assertEvalsTo(invoke("entropy", Str("aa")), 0.0)
+    assertEvalsTo(invoke("entropy", Str("ac")), 1.0)
+    assertEvalsTo(invoke("entropy", Str("accctg")), 1.7924812503605778)
+  }
 }

@@ -1138,7 +1138,7 @@ def is_missing(expression) -> BooleanExpression:
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
 def is_nan(x) -> BooleanExpression:
-    """Returns ``True`` if the argument is ``NaN`` (not a number).
+    """Returns ``True`` if the argument is ``nan`` (not a number).
 
     Examples
     --------
@@ -1154,7 +1154,7 @@ def is_nan(x) -> BooleanExpression:
 
     Notes
     -----
-    Note that :meth:`.is_missing` will return ``False`` on ``NaN`` since ``NaN``
+    Note that :meth:`.is_missing` will return ``False`` on ``nan`` since ``nan``
     is a defined value. Additionally, this method will return missing if `x` is
     missing.
 
@@ -1166,7 +1166,7 @@ def is_nan(x) -> BooleanExpression:
     Returns
     -------
     :class:`.BooleanExpression`
-        ``True`` if `x` is ``NaN``, ``False`` otherwise.
+        ``True`` if `x` is ``nan``, ``False`` otherwise.
     """
     return _func("isnan", tbool, x)
 
@@ -2126,6 +2126,43 @@ def hamming(s1, s2) -> Int32Expression:
     :class:`.Expression` of type :py:data:`.tint32`
     """
     return _func("hamming", tint32, s1, s2)
+
+
+@typecheck(s=expr_str)
+def entropy(s) -> Float64Expression:
+    r"""Returns the `Shannon entropy <https://en.wikipedia.org/wiki/Entropy_(information_theory)>`__
+    of the character distribution defined by the string.
+
+    Examples
+    --------
+
+    >>> hl.entropy('ac').value
+    1.0
+
+    >>> hl.entropy('accctg').value
+    1.79248
+
+    Notes
+    -----
+    For a string of length :math:`n` with :math:`k` unique characters
+    :math:`\{ c_1, \dots, c_k \}`, let :math:`p_i` be the probability that
+    a randomly chosen character is :math:`c_i`, e.g. the number of instances
+    of :math:`c_i` divided by :math:`n`. Then the base-2 Shannon entropy is
+    given by
+
+    .. math::
+
+        H = \sum_{i=1}^k p_i \log_2(p_i).
+
+    Parameters
+    ----------
+    s : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("entropy", tfloat64, s)
 
 
 @typecheck(x=expr_any)
