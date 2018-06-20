@@ -132,7 +132,6 @@ class IndexBTreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
-    println(IndexBTree.toString(v, branchingFactor))
     IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
     val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
     assert(bt.queryIndex(1) == Some(1))
