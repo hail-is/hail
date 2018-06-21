@@ -357,7 +357,9 @@ object Interpret {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat32(_) => new SumAggregator[Float]()
               case TFloat64(_) => new SumAggregator[Double]()
+              case TArray(TInt32(_), _) => new SumArrayAggregator[Int]()
               case TArray(TInt64(_), _) => new SumArrayAggregator[Long]()
+              case TArray(TFloat32(_), _) => new SumArrayAggregator[Float]()
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>

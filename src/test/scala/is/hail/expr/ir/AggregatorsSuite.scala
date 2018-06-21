@@ -312,43 +312,73 @@ class AggregatorsSuite {
   def arraySumFloat64OnEmpty(): Unit =
     assertArraySumEvalsTo[Double](
       FastIndexedSeq(),
-      null
-    )
+      null)
 
   @Test
   def arraySumFloat64OnSingletonMissing(): Unit =
     assertArraySumEvalsTo[Double](
       FastIndexedSeq(null),
-      null
-    )
+      null)
 
   @Test
   def arraySumFloat64OnAllMissing(): Unit =
     assertArraySumEvalsTo[Double](
       FastIndexedSeq(null, null, null),
-      null
-    )
+      null)
+
+  @Test
+  def arraySumFloat32OnEmpty(): Unit =
+    assertArraySumEvalsTo[Float](
+      FastIndexedSeq(),
+      null)
+
+  @Test
+  def arraySumFloat32OnSingletonMissing(): Unit =
+    assertArraySumEvalsTo[Float](
+      FastIndexedSeq(null),
+      null)
+
+  @Test
+  def arraySumFloat32OnAllMissing(): Unit =
+    assertArraySumEvalsTo[Float](
+      FastIndexedSeq(null, null, null),
+      null)
 
   @Test
   def arraySumInt64OnEmpty(): Unit =
     assertArraySumEvalsTo[Long](
       FastIndexedSeq(),
-      null
-    )
+      null)
 
   @Test
   def arraySumInt64OnSingletonMissing(): Unit =
     assertArraySumEvalsTo[Long](
       FastIndexedSeq(null),
-      null
-    )
+      null)
 
   @Test
   def arraySumInt64OnAllMissing(): Unit =
     assertArraySumEvalsTo[Long](
       FastIndexedSeq(null, null, null),
-      null
-    )
+      null)
+
+  @Test
+  def arraySumInt32OnEmpty(): Unit =
+    assertArraySumEvalsTo[Int](
+      FastIndexedSeq(),
+      null)
+
+  @Test
+  def arraySumInt32OnSingletonMissing(): Unit =
+    assertArraySumEvalsTo[Int](
+      FastIndexedSeq(null),
+      null)
+
+  @Test
+  def arraySumInt32OnAllMissing(): Unit =
+    assertArraySumEvalsTo[Int](
+      FastIndexedSeq(null, null, null),
+      null)
 
   @Test
   def arraySumFloat64OnSmallArray(): Unit =
@@ -357,8 +387,16 @@ class AggregatorsSuite {
         FastSeq(1.0, 2.0),
         FastSeq(10.0, 20.0),
         null),
-      FastSeq(11.0, 22.0)
-    )
+      FastSeq(11.0, 22.0))
+
+  @Test
+  def arraySumFloat32OnSmallArray(): Unit =
+    assertArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1.0f, 2.0f),
+        FastSeq(10.0f, 20.0f),
+        null),
+      FastSeq(11.0f, 22.0f))
 
   @Test
   def arraySumInt64OnSmallArray(): Unit =
@@ -367,8 +405,16 @@ class AggregatorsSuite {
         FastSeq(1L, 2L),
         FastSeq(10L, 20L),
         null),
-      FastSeq(11L, 22L)
-    )
+      FastSeq(11L, 22L))
+
+  @Test
+  def arraySumInt32OnSmallArray(): Unit =
+    assertArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1, 2),
+        FastSeq(10, 20),
+        null),
+      FastSeq(11, 22))
 
   @Test
   def arraySumInt64FirstElementMissing(): Unit =
@@ -377,6 +423,5 @@ class AggregatorsSuite {
         null,
         FastSeq(1L, 33L),
         FastSeq(42L, 3L)),
-      FastSeq(43L, 36L)
-    )
+      FastSeq(43L, 36L))
 }
