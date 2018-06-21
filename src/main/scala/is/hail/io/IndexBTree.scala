@@ -139,10 +139,8 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 
     if (currentDepth == maxDepth) {
       val (bytePosition, value) = searchLastBlock()
-      val leadingElements =
-        if (currentDepth == 1) 0L
-        else math.pow(branchingFactor, currentDepth - 1).toLong
-      (bytePosition / 8 - leadingElements, value)
+      val leadingBytes = getOffset(currentDepth)
+      ((bytePosition - leadingBytes) / 8, value)
     } else {
       val matchPosition = searchBlock()
       val blockIndex = (matchPosition - getOffset(currentDepth)) / 8
