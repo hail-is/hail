@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
-import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
+import is.hail.io._
 import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
