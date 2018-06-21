@@ -18,6 +18,7 @@ sealed trait AggOp { }
 final case class Fraction() extends AggOp { } // remove when prefixes work
 final case class Statistics() extends AggOp { } // remove when prefixes work
 final case class Collect() extends AggOp { }
+final case class CollectAsSet() extends AggOp { }
 final case class InfoScore() extends AggOp { }
 final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
 
@@ -83,6 +84,16 @@ object AggOp {
     case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
     case (Sum(), in@TArray(TInt64(_), _), Seq(), None, Seq()) =>
       CodeAggregator[RegionValueArraySumLongAggregator](in, TArray(TInt64()))
+
+    case (CollectAsSet(), in, Seq(), None, Seq()) =>
+      in match {
+        case _: TBoolean => CodeAggregator[RegionValueCollectAsSetBooleanAggregator](in, TSet(TBoolean()))
+        case _: TInt32 => CodeAggregator[RegionValueCollectAsSetIntAggregator](in, TSet(TInt32()))
+        case _: TInt64 => CodeAggregator[RegionValueCollectAsSetLongAggregator](in, TSet(TInt64()))
+        case _: TFloat32 => CodeAggregator[RegionValueCollectAsSetFloatAggregator](in, TSet(TFloat32()))
+        case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(TFloat64()))
+        case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](in, TSet(in), constrArgTypes = Array(classOf[Type]))
+      }
     case (Sum(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) =>
       CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))
 
