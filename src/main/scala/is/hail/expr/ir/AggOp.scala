@@ -154,6 +154,7 @@ object AggOp {
     case "fraction" => Fraction()
     case "stats" => Statistics()
     case "collect" => Collect()
+    case "collectAsSet" => CollectAsSet()
     case "sum" => Sum()
     case "product" => Product()
     case "max" => Max()
