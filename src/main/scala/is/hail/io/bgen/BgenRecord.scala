@@ -152,8 +152,10 @@ class BgenRecordV12 (
     }
 
     if (split.hasFilter) {
-      // skip to next variant
-      bfis.seek(split.keptPositions(filterIndex))
+      if (filterIndex < split.keptIndices.length) {
+        // skip to next variant
+        bfis.seek(split.keptPositions(filterIndex))
+      }
     }
 
     return true
