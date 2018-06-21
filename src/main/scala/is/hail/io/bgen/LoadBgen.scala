@@ -88,15 +88,12 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val lidType = TString()
-    val rsidType = TString()
-    val fileRowIdxType = TInt64()
     val rowFields = Array(
       (true, "locus" -> TLocus.schemaFromRG(rg)),
       (true, "alleles" -> TArray(TString())),
-      (includeRsid, "rsid" -> rsidType),
-      (includeLid, "varid" -> lidType),
-      (includeFileRowIdx, "file_row_idx" -> fileRowIdxType))
+      (includeRsid, "rsid" -> TString()),
+      (includeLid, "varid" -> TString()),
+      (includeFileRowIdx, "file_row_idx" -> TInt64()))
       .withFilter(_._1).map(_._2)
 
     val signature = TStruct(rowFields:_*)
@@ -184,11 +181,11 @@ object LoadBgen {
           rvb.endArray()
 
           if (includeRsid)
-            rvb.addAnnotation(rsidType, record.getRsid)
+            rvb.addString(record.getRsid)
           if (includeLid)
-            rvb.addAnnotation(lidType, record.getLid)
+            rvb.addString(record.getLid)
           if (includeFileRowIdx)
-            rvb.addAnnotation(fileRowIdxType, record.getFileRowIdx)
+            rvb.addLong(record.getFileRowIdx)
           record.getValue(rvb) // gs
 
           rvb.endStruct()
