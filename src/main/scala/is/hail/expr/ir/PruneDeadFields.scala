@@ -68,7 +68,7 @@ object PruneDeadFields {
   def minimal(tt: TableType): TableType = {
     val keySet = tt.key.iterator.flatten.toSet
     tt.copy(
-      rowType = tt.rowType.filter(keySet)._1,
+      rowType = tt.rowType.filterSet(keySet)._1,
       globalType = TStruct(tt.globalType.required)
     )
   }
@@ -85,7 +85,7 @@ object PruneDeadFields {
         else
           None
       }: _*),
-      colType = mt.colType.filter(colKeySet)._1,
+      colType = mt.colType.filterSet(colKeySet)._1,
       globalType = TStruct(mt.globalType.required)
     )
   }
@@ -322,7 +322,7 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
         // FIXME push down into value
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
-      case MatrixRead(_, _, _, _, _) =>
+      case MatrixRead(_, _, _, _, _, _) =>
       case MatrixLiteral(typ, value) =>
       case FilterCols(child, cond) =>
         memoizeMatrixIR(child, child.typ, memo)
@@ -599,6 +599,8 @@ object PruneDeadFields {
   def rebuild(mir: MatrixIR, memo: Memo[BaseType]): MatrixIR = {
     val dep = memo.lookup(mir).asInstanceOf[MatrixType]
     mir match {
+      case x@MatrixRead(typ, partitionCounts, dropCols, dropRows, _, f) =>
+        MatrixRead(typ, partitionCounts, dropCols, dropRows, dep, f)
       case FilterColsIR(child, pred) =>
         val child2 = rebuild(child, memo)
         FilterColsIR(child2, rebuild(pred, child2.typ, memo))
@@ -694,8 +696,10 @@ object PruneDeadFields {
         MakeStruct(fields.flatMap { case (f, fir) =>
           if (depFields.contains(f))
             Some(f -> rebuild(fir, in, memo))
-          else
+          else {
+            log.info(s"Prune: MakeStruct: eliminating field '$f'")
             None
+          }
         })
       case InsertFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
@@ -704,8 +708,10 @@ object PruneDeadFields {
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
               Some(f -> rebuild(fir, in, memo))
-            else
+            else {
+              log.info(s"Prune: InsertFields: eliminating field '$f'")
               None
+            }
           })
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]

@@ -73,7 +73,7 @@ object Table {
     var typ = spec.table_type
     if (rowFields != null)
       typ = typ.copy(
-        rowType = typ.rowType.filter(rowFields)._1)
+        rowType = typ.rowType.filterSet(rowFields)._1)
 
     new Table(hc, TableRead(path, spec, typ, dropRows = false))
   }
@@ -312,7 +312,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def valueSignature: TStruct = {
-    val (t, _) = signature.filter(keyOrEmpty.toSet, include = false)
+    val (t, _) = signature.filterSet(keyOrEmpty.toSet, include = false)
     t
   }
 

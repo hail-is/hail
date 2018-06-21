@@ -228,7 +228,7 @@ object MatrixTable {
     }
 
     new MatrixTable(hc,
-      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, f))
+      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, typ, f))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -348,7 +348,8 @@ object MatrixTable {
         rvd)
     }
 
-    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)), dropRows = false, dropCols = false, f = f))
+    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)),
+      dropRows = false, dropCols = false, requestedType = typ, f = f))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =

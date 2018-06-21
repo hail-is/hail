@@ -623,7 +623,7 @@ case class ApplyAST(posn: Position, fn: String, args: Array[AST]) extends AST(po
           case badAST => needsSymRef(badAST)
         }
         assert(identifiers.duplicates().isEmpty)
-        `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include = false)._1
+        `type` = struct.`type`.asInstanceOf[TStruct].filterSet(identifiers.toSet, include = false)._1
 
       case "uniroot" =>
         if (args.length != 3)
@@ -662,7 +662,7 @@ case class ApplyAST(posn: Position, fn: String, args: Array[AST]) extends AST(po
 
       val f = fn match {
         case "select" => struct.select(identifiers.toArray)._2
-        case "drop" => struct.filter(identifiers.toSet, include = false)._2
+        case "drop" => struct.filterSet(identifiers.toSet, include = false)._2
       }
 
       AST.evalComposeCodeM[AnyRef](head)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))

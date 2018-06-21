@@ -415,13 +415,14 @@ case class MatrixRead(
   override val partitionCounts: Option[Array[Long]],
   dropCols: Boolean,
   dropRows: Boolean,
+  requestedType: MatrixType,
   f: (MatrixRead) => MatrixValue) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    MatrixRead(typ, partitionCounts, dropCols, dropRows, f)
+    MatrixRead(typ, partitionCounts, dropCols, dropRows, requestedType, f)
   }
 
   def execute(hc: HailContext): MatrixValue = f(this)

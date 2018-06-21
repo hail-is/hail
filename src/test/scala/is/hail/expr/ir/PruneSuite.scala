@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.SparkSuite
+import is.hail.annotations.BroadcastRow
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.table.Table
+import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -77,15 +78,18 @@ class PruneSuite extends SparkSuite {
       "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString())))),
     None, None).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
 
+  val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
 
   val mat = MatrixLiteral(MatrixType.fromParts(
-    TStruct("glob1" -> TInt32(), "glob2" -> TFloat64()),
+    TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
     FastIndexedSeq("rk"),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TInt32())),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
+
+  val mr = MatrixRead(mat.typ, None, false, false, mat.typ, _ => null)
 
   val emptyTableDep = TableType(TStruct(), None, TStruct())
 
@@ -230,22 +234,22 @@ class PruneSuite extends SparkSuite {
   @Test def testMatrixColsTableMemo() {
     val mct = MatrixColsTable(mat)
     checkMemo(mct,
-      subsetTable(mct.typ, "global.glob1", "row.c2"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2")))
+      subsetTable(mct.typ, "global.g1", "row.c2"),
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2")))
   }
 
   @Test def testMatrixRowsTableMemo() {
     val mrt = MatrixRowsTable(mat)
     checkMemo(mrt,
-      subsetTable(mrt.typ, "global.glob1", "row.r2"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2")))
+      subsetTable(mrt.typ, "global.g1", "row.r2"),
+      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2")))
   }
 
   @Test def testMatrixEntriesTableMemo() {
     val met = MatrixEntriesTable(mat)
     checkMemo(met,
-      subsetTable(met.typ, "global.glob1", "row.r2", "row.c2", "row.e2"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c2", "g.e2")))
+      subsetTable(met.typ, "global.g1", "row.r2", "row.c2", "row.e2"),
+      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2")))
   }
 
   @Test def testTableUnionMemo() {
@@ -265,43 +269,43 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixFilterColsMemo() {
-    val mfc = FilterColsIR(mat, matrixRefBoolean(mat.typ, "global.glob1", "sa.c2"))
+    val mfc = FilterColsIR(mat, matrixRefBoolean(mat.typ, "global.g1", "sa.c2"))
     checkMemo(mfc,
       subsetMatrixTable(mfc.typ, "sa.c3"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "sa.c3"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "sa.c3"), null))
   }
 
   @Test def testMatrixFilterRowsMemo() {
-    val mfr = MatrixFilterRowsIR(mat, matrixRefBoolean(mat.typ, "global.glob1", "va.r2"))
+    val mfr = MatrixFilterRowsIR(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2"))
     checkMemo(mfr,
       subsetMatrixTable(mfr.typ, "sa.c3", "va.r3"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c3", "va.r3"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "va.r3"), null))
   }
 
   @Test def testMatrixFilterEntriesMemo() {
-    val mfe = MatrixFilterEntries(mat, matrixRefBoolean(mat.typ, "global.glob1", "va.r2", "sa.c2", "g.e2"))
+    val mfe = MatrixFilterEntries(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2"))
     checkMemo(mfe,
       subsetMatrixTable(mfe.typ, "sa.c3", "va.r3"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r2", "sa.c3", "sa.c2", "va.r3", "g.e2"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "sa.c2", "va.r3", "g.e2"), null))
   }
 
   @Test def testMatrixMapColsMemo() {
-    val mmc = MatrixMapCols(mat, matrixRefStruct(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2"), Some(FastIndexedSeq()))
+    val mmc = MatrixMapCols(mat, matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"), Some(FastIndexedSeq()))
     checkMemo(mmc, subsetMatrixTable(mmc.typ, "va.r3", "sa.foo"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
   }
 
   @Test def testMatrixMapRowsMemo() {
-    val mmr = MatrixMapRows(mat, matrixRefStruct(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2"),
+    val mmr = MatrixMapRows(mat, matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"),
       Some(IndexedSeq(), IndexedSeq()))
     checkMemo(mmr, subsetMatrixTable(mmr.typ, "sa.c3", "va.foo"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "sa.c2", "va.r2", "g.e2", "sa.c3"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "sa.c3"), null))
   }
 
   @Test def testMatrixMapGlobalsMemo() {
-    val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.glob1"), null)
+    val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.g1"), null)
     checkMemo(mmg, subsetMatrixTable(mmg.typ, "global.foo", "va.r3", "sa.c3"),
-      Array(subsetMatrixTable(mat.typ, "global.glob1", "va.r3", "sa.c3"), null))
+      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r3", "sa.c3"), null))
   }
 
   @Test def testCollectColsByKeyMemo() {
@@ -442,99 +446,216 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableFilterRebuild() {
-
+    checkRebuild(TableFilter(tr, tableRefBoolean(tr.typ, "row.2")), subsetTable(tr.typ, "row.3"),
+      (_: BaseIR, r: BaseIR) => {
+        val tf = r.asInstanceOf[TableFilter]
+        TypeCheck(tf.pred, PruneDeadFields.relationalTypeToEnv(tf.typ), None)
+        tf.child.typ == subsetTable(tr.typ, "row.3", "row.2")
+      })
   }
 
   @Test def testTableMapRowsRebuild() {
-
+    val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"), None, None)
+    checkRebuild(tmr, subsetTable(tmr.typ, "row.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val tmr = r.asInstanceOf[TableMapRows]
+        TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ), None)
+        tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1")
+      })
   }
 
   @Test def testTableMapGlobalsRebuild() {
-
+    val tmg = TableMapGlobals(tr, tableRefStruct(tr.typ, "global.g1"), BroadcastRow(Row(), TStruct(), sc))
+    checkRebuild(tmg, subsetTable(tmg.typ, "global.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val tmg = r.asInstanceOf[TableMapGlobals]
+        TypeCheck(tmg.newRow, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
+        tmg.child.typ == subsetTable(tr.typ, "global.g1")
+      })
   }
 
   @Test def testMatrixFilterColsRebuild() {
-
+    val mfc = FilterColsIR(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2"))
+    checkRebuild(mfc, subsetMatrixTable(mfc.typ, "global.g1"),
+      (_: BaseIR, r: BaseIR) => {
+        val mfc = r.asInstanceOf[FilterColsIR]
+        TypeCheck(mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ), None)
+        mfc.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
+      }
+    )
   }
 
   @Test def testMatrixFilterEntriesRebuild() {
-
+    val mfe = MatrixFilterEntries(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2", "g.e1"))
+    checkRebuild(mfe, subsetMatrixTable(mfe.typ, "global.g1"),
+      (_: BaseIR, r: BaseIR) => {
+        val mfe = r.asInstanceOf[MatrixFilterEntries]
+        TypeCheck(mfe.pred, PruneDeadFields.relationalTypeToEnv(mfe.child.typ), None)
+        mfe.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+      }
+    )
   }
 
   @Test def testMatrixMapRowsRebuild() {
-
+    val mmr = MatrixMapRows(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2"),
+      Some(FastIndexedSeq("foo"), FastIndexedSeq()))
+    checkRebuild(mmr, subsetMatrixTable(mmr.typ, "global.g1", "g.e1", "va.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val mmr = r.asInstanceOf[MatrixMapRows]
+        TypeCheck(mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ), None)
+        mmr.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+      }
+    )
   }
 
   @Test def testMatrixMapColsRebuild() {
-
+    val mmc = MatrixMapCols(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2"),
+      Some(FastIndexedSeq("foo")))
+    checkRebuild(mmc, subsetMatrixTable(mmc.typ, "global.g1", "g.e1", "sa.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val mmc = r.asInstanceOf[MatrixMapCols]
+        TypeCheck(mmc.newCol, PruneDeadFields.relationalTypeToEnv(mmc.child.typ), None)
+        mmc.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+      }
+    )
   }
 
   @Test def testMatrixMapEntriesRebuild() {
-
+    val mme = MatrixMapEntries(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2"))
+    checkRebuild(mme, subsetMatrixTable(mme.typ, "global.g1", "g.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val mme = r.asInstanceOf[MatrixMapEntries]
+        TypeCheck(mme.newEntries, PruneDeadFields.relationalTypeToEnv(mme.child.typ), None)
+        mme.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
+      }
+    )
   }
 
   @Test def testMatrixMapGlobalsRebuild() {
-
+    val mmg = MatrixMapGlobals(mr, matrixRefStruct(mr.typ, "global.g1"),
+      BroadcastRow(Row(), TStruct(), sc))
+    checkRebuild(mmg, subsetMatrixTable(mmg.typ, "global.foo", "g.e1", "va.r2"),
+      (_: BaseIR, r: BaseIR) => {
+        val mmg = r.asInstanceOf[MatrixMapGlobals]
+        TypeCheck(mmg.newRow, PruneDeadFields.relationalTypeToEnv(mmg.child.typ), None)
+        mmg.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
+      }
+    )
   }
 
   @Test def testMatrixAggregateRowsByKeyRebuild() {
-
+    val ma = MatrixAggregateRowsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"))
+    checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val ma = r.asInstanceOf[MatrixAggregateRowsByKey]
+        TypeCheck(ma.expr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        ma.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
+      }
+    )
   }
 
-  @Test def testNARebuild() {
+  @Test def testMatrixAggregateColsByKeyRebuild() {
+    val ma = MatrixAggregateColsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"))
+    checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
+      (_: BaseIR, r: BaseIR) => {
+        val ma = r.asInstanceOf[MatrixAggregateColsByKey]
+        TypeCheck(ma.aggIR, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        ma.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
+      }
+    )
+  }
 
+  val ts = TStruct(
+    "a" -> TInt32(),
+    "b" -> TInt64(),
+    "c" -> TString()
+  )
+
+  def subsetTS(fields: String*): TStruct = ts.filterSet(fields.toSet)._1
+
+  @Test def testNARebuild() {
+  checkRebuild(NA(ts), subsetTS("b"),
+    (_: BaseIR, r: BaseIR) => {
+      val na = r.asInstanceOf[NA]
+      na.typ == subsetTS("b")
+    })
   }
 
   @Test def testIfRebuild() {
-
+    checkRebuild(If(True(), NA(ts), NA(ts)), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[If]
+        ir.cnsq.typ == subsetTS("b") && ir.altr.typ == subsetTS("b")
+      })
   }
 
   @Test def testLetRebuild() {
-
-  }
-
-  @Test def testRefRebuild() {
-
+    checkRebuild(Let("x", NA(ts), Ref("x", ts)), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[Let]
+        ir.value.typ == subsetTS("b")
+      })
   }
 
   @Test def testMakeArrayRebuild() {
-
+    checkRebuild(MakeArray(Seq(NA(ts)), TArray(ts)), TArray(subsetTS("b")),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[MakeArray]
+        ir.args.head.typ == subsetTS("b")
+      })
   }
 
   @Test def testArrayMapRebuild() {
-
-  }
-
-  @Test def testArrayFilterRebuild() {
-
+    checkRebuild(ArrayMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", Ref("x", ts)), TArray(subsetTS("b")),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[ArrayMap]
+        ir.a.typ == TArray(subsetTS("b"))
+      })
   }
 
   @Test def testArrayFlatmapRebuild() {
-
-  }
-
-  @Test def testArrayFoldRebuild() {
-
-  }
-
-  @Test def testArrayForRebuild() {
-
+    checkRebuild(ArrayFlatMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", MakeArray(Seq(Ref("x", ts)), TArray(ts))),
+      TArray(subsetTS("b")),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[ArrayFlatMap]
+        ir.a.typ == TArray(subsetTS("b"))
+      })
   }
 
   @Test def testMakeStructRebuild() {
-
+    checkRebuild(MakeStruct(Seq("a" -> NA(TInt32()), "b" -> NA(TInt64()), "c" -> NA(TString()))), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        r == MakeStruct(Seq("b" -> NA(TInt64())))
+      })
   }
 
   @Test def testInsertFieldsRebuild() {
-
+    checkRebuild(InsertFields(NA(TStruct("a" -> TInt32())), Seq("b" -> NA(TInt64()), "c" -> NA(TString()))),
+      subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[InsertFields]
+        ir.fields == Seq(
+          "b" -> NA(TInt64())
+        )
+      })
   }
 
   @Test def testSelectFieldsRebuild() {
-
+    checkRebuild(SelectFields(NA(ts), Seq("a", "b")),
+      subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[SelectFields]
+        ir.fields == Seq("b")
+      })
   }
 
   @Test def testTableAggregateRebuild() {
-
+    val ta = TableAggregate(tr, tableRefBoolean(tr.typ, "row.2"))
+    checkRebuild(ta, TBoolean(),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[TableAggregate]
+        ir.child.typ == subsetTable(tr.typ, "row.2")
+      })
   }
 }
 

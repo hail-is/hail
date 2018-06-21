@@ -32,7 +32,7 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
 
   def keyType: Option[TStruct] = key.map(key => rowType.select(key.toArray)._1)
   val keyFieldIdx: Option[Array[Int]] = key.map(_.toArray.map(rowType.fieldIdx))
-  def valueType: TStruct = rowType.filter(keyOrEmpty.toSet, include = false)._1
+  def valueType: TStruct = rowType.filterSet(keyOrEmpty.toSet, include = false)._1
   val valueFieldIdx: Array[Int] =
     rowType.fields.filter(f => !keyOrEmpty.contains(f.name)).map(_.index).toArray
 

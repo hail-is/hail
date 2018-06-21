@@ -58,15 +58,15 @@ case class MatrixType(
   val (rowKeyStruct, _) = rowType.select(rowKey.toArray)
   def extractRowKey: Row => Row = rowType.select(rowKey.toArray)._2
   val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
-  val (rowValueStruct, _) = rowType.filter(rowKey.toSet, include = false)
-  def extractRowValue: Annotation => Annotation = rowType.filter(rowKey.toSet, include = false)._2
+  val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
+  def extractRowValue: Annotation => Annotation = rowType.filterSet(rowKey.toSet, include = false)._2
   val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
 
   val (colKeyStruct, _) = colType.select(colKey.toArray)
   def extractColKey: Row => Row = colType.select(colKey.toArray)._2
   val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
-  val (colValueStruct, _) = colType.filter(colKey.toSet, include = false)
-  def extractColValue: Annotation => Annotation = colType.filter(colKey.toSet, include = false)._2
+  val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
+  def extractColValue: Annotation => Annotation = colType.filterSet(colKey.toSet, include = false)._2
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =

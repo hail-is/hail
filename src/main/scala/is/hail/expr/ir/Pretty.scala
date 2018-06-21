@@ -82,7 +82,7 @@ object Pretty {
             case Apply(function, _) => function
             case ApplySpecial(function, _) => function
             case In(i, _) => i.toString
-            case MatrixRead(typ, partitionCounts, dropCols, dropRows, _) =>
+            case MatrixRead(typ, partitionCounts, dropCols, dropRows, requestedType, _) =>
               s"$typ partition_counts=${ partitionCounts.map(_.mkString(",")).getOrElse("None") } ${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
             case TableImport(paths, _, _) =>
               if (paths.length == 1)

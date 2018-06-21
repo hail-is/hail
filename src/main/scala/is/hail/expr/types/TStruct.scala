@@ -411,7 +411,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(newFieldsBuilder.result(): _*)
   }
 
-  def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
+  def filterSet(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
     val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
     if (notFound.nonEmpty)
       fatal(
