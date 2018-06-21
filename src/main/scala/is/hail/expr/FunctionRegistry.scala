@@ -1228,12 +1228,22 @@ object FunctionRegistry {
     () => new CollectSetAggregator(t)
   })(aggregableHr(TTHr), setHr(TTHr))
 
+  registerAggregator[Int, Int]("sum", () => new SumAggregator[Int]())(aggregableHr(int32Hr), int32Hr)
+
   registerAggregator[Long, Long]("sum", () => new SumAggregator[Long]())(aggregableHr(int64Hr), int64Hr)
+
+  registerAggregator[Float, Float]("sum", () => new SumAggregator[Float]())(aggregableHr(float32Hr), float32Hr)
 
   registerAggregator[Double, Double]("sum", () => new SumAggregator[Double]())(aggregableHr(float64Hr), float64Hr)
 
+  registerAggregator[IndexedSeq[Int], IndexedSeq[Int]]("sum", () => new SumArrayAggregator[Int]()
+  )(aggregableHr(arrayHr(int32Hr)), arrayHr(int32Hr))
+
   registerAggregator[IndexedSeq[Long], IndexedSeq[Long]]("sum", () => new SumArrayAggregator[Long]()
   )(aggregableHr(arrayHr(int64Hr)), arrayHr(int64Hr))
+
+  registerAggregator[IndexedSeq[Float], IndexedSeq[Float]]("sum", () => new SumArrayAggregator[Float]()
+  )(aggregableHr(arrayHr(float32Hr)), arrayHr(float32Hr))
 
   registerAggregator[IndexedSeq[Double], IndexedSeq[Double]]("sum", () => new SumArrayAggregator[Double]()
   )(aggregableHr(arrayHr(float64Hr)), arrayHr(float64Hr))
