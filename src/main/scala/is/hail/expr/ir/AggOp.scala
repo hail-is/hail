@@ -88,7 +88,7 @@ object AggOp {
     case (CollectAsSet(), in, Seq(), None, Seq()) =>
       in match {
         case _: TBoolean => CodeAggregator[RegionValueCollectAsSetBooleanAggregator](in, TSet(TBoolean()))
-        case _: TInt32 => CodeAggregator[RegionValueCollectAsSetIntAggregator](in, TSet(TInt32()))
+        case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectAsSetIntAggregator](in, TSet(in))
         case _: TInt64 => CodeAggregator[RegionValueCollectAsSetLongAggregator](in, TSet(TInt64()))
         case _: TFloat32 => CodeAggregator[RegionValueCollectAsSetFloatAggregator](in, TSet(TFloat32()))
         case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(TFloat64()))
