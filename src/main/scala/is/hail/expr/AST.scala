@@ -908,17 +908,16 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             AggOp.fromString.lift(method))
           nx <- n.toIR()
           bodyx <- body.toIR()
-          seqOpArgs = FastIndexedSeq(bodyx)
           aggSig = AggSignature(op,
             -t.elementType,
             FastIndexedSeq(nx.typ),
             None,
-            seqOpArgs.map(_.typ))
+            FastIndexedSeq(bodyx.typ))
           ca <- fromOption(
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, seqOpArgs))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, FastIndexedSeq(ir.Let(name, x, bodyx))))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(nx), None, aggSig): IR
       case (t: TAggregable, "fraction", IndexedSeq(Lambda(_, name, body))) =>
