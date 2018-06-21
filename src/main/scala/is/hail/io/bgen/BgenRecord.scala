@@ -44,13 +44,17 @@ class BgenRecordV12 (
     includeGT || includeGP || includeDosage
 
   def advance(): Boolean = {
-    if (bfis.getPosition >= end)
-      return false
-
     if (split.hasFilter) {
-      fileRowIdx = split.keptIndices(filterIndex)
+      if (filterIndex < split.keptIndices.length) {
+        fileRowIdx = split.keptIndices(filterIndex)
+        filterIndex += 1
+      } else
+        return false
     } else {
-      fileRowIdx += 1
+      if (bfis.getPosition < end)
+        fileRowIdx += 1
+      else
+        return false
     }
 
     if (includeLid)
@@ -148,7 +152,7 @@ class BgenRecordV12 (
     }
 
     if (split.hasFilter) {
-      filterIndex += 1
+      // skip to next variant
       bfis.seek(split.keptPositions(filterIndex))
     }
 
