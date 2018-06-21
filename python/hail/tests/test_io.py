@@ -2,6 +2,7 @@ import hail as hl
 from .utils import resource, doctest_resource, startTestHailContext, stopTestHailContext
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
 import unittest
+import os
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -568,8 +569,7 @@ class BGENTests(unittest.TestCase):
                                 contig_recoding={'01': '1'},
                                 reference_genome=None,
                                 _row_fields=['file_row_idx'],
-                                # FIXME use: os.path.abspath
-                                _variants_per_file={ 'file:' + '/Users/dking/projects/hail/src/test/resources/' + ('example.8bits.bgen') : desired_variant_indexes})
+                                _variants_per_file={ 'file:' + os.path.abspath(resources('example.8bits.bgen')) : desired_variant_indexes})
         print({ 'file:' + resource('example.8bits.bgen') : desired_variant_indexes})
         # doing the expected import_bgen second catches the case where the
         # hadoop configuraiton is polluted with old data from the
