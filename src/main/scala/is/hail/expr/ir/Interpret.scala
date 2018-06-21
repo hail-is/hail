@@ -521,7 +521,10 @@ object Interpret {
         val f = { x: Double => interpret(fn, env.bind(functionid, x), args, agg).asInstanceOf[Double] }
         val min = interpret(minIR, env, args, agg)
         val max = interpret(maxIR, env, args, agg)
-        stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
+        if (min == null || max == null)
+          null
+        else
+          stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
 
       case TableCount(child) =>
         child.partitionCounts

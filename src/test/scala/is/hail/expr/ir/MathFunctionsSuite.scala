@@ -38,7 +38,7 @@ class MathFunctionsSuite extends TestNGSuite {
 
     assertEvalsTo(ir, -3.0)
   }
-  
+
   @Test def rpois() {
     val res0 = eval(invoke("rpois", I32(5), F64(1)))
     assert(TArray(TFloat64()).typeCheck(res0))
@@ -47,20 +47,20 @@ class MathFunctionsSuite extends TestNGSuite {
     assert(res.forall(_ >= 0))
     assert(res.forall(x => x == x.floor))
   }
-  
+
   @Test def isnan() {
     assertEvalsTo(invoke("isnan", F32(0)), false)
     assertEvalsTo(invoke("isnan", F32(Float.NaN)), true)
-    
+
     assertEvalsTo(invoke("isnan", F64(0)), false)
     assertEvalsTo(invoke("isnan", F64(Double.NaN)), true)
   }
-  
+
   @Test def sign() {
     assertEvalsTo(invoke("sign", I32(2)), 1)
     assertEvalsTo(invoke("sign", I32(0)), 0)
     assertEvalsTo(invoke("sign", I32(-2)), -1)
-    
+
     assertEvalsTo(invoke("sign", I64(2)), 1l)
     assertEvalsTo(invoke("sign", I64(0)), 0l)
     assertEvalsTo(invoke("sign", I64(-2)), -1l)
@@ -68,14 +68,14 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("sign", F32(2)), 1.0f)
     assertEvalsTo(invoke("sign", F32(0)), 0.0f)
     assertEvalsTo(invoke("sign", F32(-2)), -1.0f)
-    
+
     assertEvalsTo(invoke("sign", F64(2)), 1.0)
     assertEvalsTo(invoke("sign", F64(0)), 0.0)
     assertEvalsTo(invoke("sign", F64(-2)), -1.0)
 
     assert(eval(invoke("sign", F64(Double.NaN))).asInstanceOf[Double].isNaN)
     assertEvalsTo(invoke("sign", F64(Double.PositiveInfinity)), 1.0)
-    assertEvalsTo(invoke("sign", F64(Double.NegativeInfinity)), -1.0)    
+    assertEvalsTo(invoke("sign", F64(Double.NegativeInfinity)), -1.0)
   }
 
   @Test def entropy() {
@@ -84,5 +84,14 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("entropy", Str("aa")), 0.0)
     assertEvalsTo(invoke("entropy", Str("ac")), 1.0)
     assertEvalsTo(invoke("entropy", Str("accctg")), 1.7924812503605778)
+  }
+
+  @Test def unirootIsStrictInMinAndMax() {
+    assertEvalsTo(
+      Uniroot("x", Ref("x", tfloat), F64(-6), NA(tfloat)),
+      null)
+    assertEvalsTo(
+      Uniroot("x", Ref("x", tfloat), NA(tfloat), F64(0)),
+      null)
   }
 }
