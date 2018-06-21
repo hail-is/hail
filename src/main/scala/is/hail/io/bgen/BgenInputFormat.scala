@@ -52,7 +52,7 @@ class BgenV12InputSplit(
   require(keptIndices == null && keptPositions == null ||
     keptIndices.length == keptPositions.length)
   def this() = this(null, null, null)
-  def hasFilter: Boolean = keptIndices == null
+  def hasFilter: Boolean = keptIndices != null
   def getPath(): Path = fileSplit.getPath()
   def getStart(): Long = fileSplit.getStart()
   def getLength(): Long = fileSplit.getLength()
