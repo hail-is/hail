@@ -47,7 +47,11 @@ class BgenRecordV12 (
     if (bfis.getPosition >= end)
       return false
 
-    fileRowIdx += 1
+    if (split.hasFilter) {
+      fileRowIdx = split.keptIndices(filterIndex)
+    } else {
+      fileRowIdx += 1
+    }
 
     if (includeLid)
       lid = bfis.readLengthAndString(2)
