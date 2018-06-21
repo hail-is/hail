@@ -163,7 +163,7 @@ class IndexBTreeSuite extends SparkSuite {
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024)-1) == Some(1024, sqr(1024)))
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024)) == Some(1024, sqr(1024)))
 
-    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)+1) == Some(1025, sqr(1025)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)+1) == None)
 
     assert(bt.queryArrayPositionAndFileOffset(0) == Some(0, sqr(0)))
     assert(bt.queryArrayPositionAndFileOffset(1) == Some(1, sqr(1)))
