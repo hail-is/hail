@@ -517,7 +517,7 @@ class BGENTests(unittest.TestCase):
                                        entry_fields=['dosage'],
                                        contig_recoding={'01': '1'},
                                        reference_genome='GRCh37',
-                                       row_fields=[])
+                                       _row_fields=[])
         self.assertEqual(no_row_fields.row.dtype,
                          hl.tstruct(locus=hl.tlocus('GRCh37'),
                                     alleles=hl.tarray(hl.tstr)))
@@ -525,7 +525,7 @@ class BGENTests(unittest.TestCase):
                                     entry_fields=['dosage'],
                                     contig_recoding={'01': '1'},
                                     reference_genome='GRCh37',
-                                    row_fields=['varid'])
+                                    _row_fields=['varid'])
         self.assertEqual(varid_only.row.dtype,
                          hl.tstruct(locus=hl.tlocus('GRCh37'),
                                     alleles=hl.tarray(hl.tstr),
@@ -534,7 +534,7 @@ class BGENTests(unittest.TestCase):
                                    entry_fields=['dosage'],
                                    contig_recoding={'01': '1'},
                                    reference_genome='GRCh37',
-                                   row_fields=['rsid'])
+                                   _row_fields=['rsid'])
         self.assertEqual(rsid_only.row.dtype,
                          hl.tstruct(locus=hl.tlocus('GRCh37'),
                                     alleles=hl.tarray(hl.tstr),
