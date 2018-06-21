@@ -14,10 +14,12 @@ class BgenRecordV12 (
   includeLid: Boolean,
   includeRsid: Boolean,
   bfis: HadoopFSDataBinaryReader,
-  end: Long
+  end: Long,
+  partitionsFirstFileRowIndex: Long
 ) {
   private[this] var rsid: String = _
   private[this] var lid: String = _
+  private[this] var fileRowIdx: Long = partitionsFirstFileRowIndex - 1
   private[this] var contig: String = _
   private[this] var position: Int = _
   private[this] var alleles: Array[String] = _
@@ -34,12 +36,16 @@ class BgenRecordV12 (
 
   def getLid: String = lid
 
+  def getFileRowIdx: Long = fileRowIdx
+
   private[this] def includeAnyEntryFields =
     includeGT || includeGP || includeDosage
 
   def advance(): Boolean = {
     if (bfis.getPosition >= end)
       return false
+
+    fileRowIdx += 1
 
     if (includeLid)
       lid = bfis.readLengthAndString(2)

@@ -7,7 +7,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-abstract class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[BgenRecordV12](job, split) {
+class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[BgenRecordV12](job, split) {
   val file = split.getPath
   val bState = LoadBgen.readState(bfis)
   val indexPath = file + ".idx"
@@ -19,26 +19,25 @@ abstract class BgenBlockReader(job: Configuration, split: FileSplit) extends Ind
   val includeLid = job.get("includeLid").toBoolean
   val includeRsid = job.get("includeRsid").toBoolean
 
+  private[bgen] var partitionFirstFileRowIdx: Long = _
+
   seekToFirstBlockInSplit(split.getStart)
 
-  override def createValue(): BgenRecordV12
-
   def seekToFirstBlockInSplit(start: Long) {
-    pos = btree.queryIndex(start) match {
-      case Some(x) => x
-      case None => end
+    btree.queryArrayPositionAndFileOffset(start) match {
+      case Some((arrayPosition, byteOffset)) =>
+        partitionFirstFileRowIdx = arrayPosition
+        pos = byteOffset
+      case None =>
+        pos = end
     }
 
     btree.close()
     bfis.seek(pos)
   }
 
-  def next(key: LongWritable, value: BgenRecordV12): Boolean
-}
-
-class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader(job, split) {
   override def createValue(): BgenRecordV12 =
-    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, includeLid, includeRsid, bfis, end)
+    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, includeLid, includeRsid, bfis, end, partitionFirstFileRowIdx)
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     value.advance()
