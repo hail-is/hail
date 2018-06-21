@@ -398,7 +398,7 @@ class AggregatorsSuite {
 
   @Test def takeByBooleanBoolean() {
     assertTakeByEvalsTo(TBoolean(), TBoolean(), 3,
-      FastIndexedSeq(Row(false, true), Row(null, null), Row(true, false), Row(false, null)),
+      FastIndexedSeq(Row(false, true), Row(null, null), Row(true, false)),
       FastIndexedSeq(true, false, null))
   }
 
