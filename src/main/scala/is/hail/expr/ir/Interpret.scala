@@ -353,18 +353,14 @@ object Interpret {
             new FractionAggregator(a => a)
           case Sum() =>
             aggType match {
-              case TInt32(_) => new SumAggregator[Int]()
               case TInt64(_) => new SumAggregator[Long]()
-              case TFloat32(_) => new SumAggregator[Float]()
               case TFloat64(_) => new SumAggregator[Double]()
               case TArray(TInt64(_), _) => new SumArrayAggregator[Long]()
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
             aggType match {
-              case TInt32(_) => new ProductAggregator[Int]()
               case TInt64(_) => new ProductAggregator[Long]()
-              case TFloat32(_) => new ProductAggregator[Float]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
