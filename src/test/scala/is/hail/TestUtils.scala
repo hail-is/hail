@@ -287,10 +287,10 @@ object TestUtils {
           val argsOff = rvb.end()
 
           // aggregate
+          i = 0
           rvAggs.foreach(_.clear())
           initOps()(region, rvAggs, argsOff, false)
-          i = 0
-          while (i < aggElements.length) {
+          while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
@@ -300,6 +300,22 @@ object TestUtils {
 
             i += 1
           }
+
+          val rvAggs2 = rvAggs.map(_.copy())
+          rvAggs2.foreach(_.clear())
+          initOps()(region, rvAggs2, argsOff, false)
+          while (i < aggElements.length) {
+            // FIXME use second region for elements
+            rvb.start(aggType)
+            rvb.addAnnotation(aggType, aggElements(i))
+            val aggElementOff = rvb.end()
+
+            seqOps()(region, rvAggs2, argsOff, false, aggElementOff, false)
+
+            i += 1
+          }
+
+          rvAggs.zip(rvAggs2).foreach{ case(agg1, agg2) => agg1.combOp(agg2) }
 
           // build aggregation result
           rvb.start(aggResultType)

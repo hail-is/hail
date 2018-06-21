@@ -344,6 +344,7 @@ object Interpret {
           case HardyWeinberg() =>
             assert(aggType == TCall())
             new HWEAggregator()
+          case Count() => new CountAggregator()
           case Collect() => new CollectAggregator(aggType)
           case Counter() => new CounterAggregator(aggType)
           case CollectAsSet() => new CollectSetAggregator(aggType)
@@ -358,6 +359,20 @@ object Interpret {
               case TFloat64(_) => new SumAggregator[Double]()
               case TArray(TInt64(_), _) => new SumArrayAggregator[Long]()
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
+            }
+          case Product() =>
+            aggType match {
+              case TInt32(_) => new ProductAggregator[Int]()
+              case TInt64(_) => new ProductAggregator[Long]()
+              case TFloat32(_) => new ProductAggregator[Float]()
+              case TFloat64(_) => new ProductAggregator[Double]()
+            }
+          case Min() =>
+            aggType match {
+              case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
+              case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
+              case TFloat32(_) => new MinAggregator[Float, java.lang.Float]()
+              case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
             aggType match {

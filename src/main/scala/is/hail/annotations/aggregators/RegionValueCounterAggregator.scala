@@ -102,28 +102,38 @@ class RegionValueCounterIntAggregator(t: Type) extends RegionValueCounterAggrega
   def seqOp(region: Region, x: Int, missing: Boolean) {
     seqOp(if (missing) null else x)
   }
+
+  override def copy(): RegionValueCounterIntAggregator = new RegionValueCounterIntAggregator(t)
 }
 
 class RegionValueCounterLongAggregator(t: Type) extends RegionValueCounterAggregator(t) {
   def seqOp(region: Region, x: Long, missing: Boolean) {
     seqOp(if (missing) null else x)
   }
+
+  override def copy(): RegionValueCounterLongAggregator = new RegionValueCounterLongAggregator(t)
 }
 
 class RegionValueCounterFloatAggregator(t: Type) extends RegionValueCounterAggregator(t) {
   def seqOp(region: Region, x: Float, missing: Boolean) {
     seqOp(if (missing) null else x)
   }
+
+  override def copy(): RegionValueCounterFloatAggregator = new RegionValueCounterFloatAggregator(t)
 }
 
 class RegionValueCounterDoubleAggregator(t: Type) extends RegionValueCounterAggregator(t) {
   def seqOp(region: Region, x: Double, missing: Boolean) {
     seqOp(if (missing) null else x)
   }
+
+  override def copy(): RegionValueCounterDoubleAggregator = new RegionValueCounterDoubleAggregator(t)
 }
 
 class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueCounterAggregator(t) {
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     seqOp(if (missing) null else SafeRow.read(t, region, offset))
   }
+
+  override def copy(): RegionValueCounterAnnotationAggregator = new RegionValueCounterAnnotationAggregator(t)
 }
