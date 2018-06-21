@@ -482,7 +482,7 @@ def sum(expr):
     """
     return _agg_func('sum', expr, expr.dtype)
 
-@typecheck(expr=agg_expr(expr_array(expr_numeric)))
+@typecheck(expr=agg_expr(expr_array(expr_oneof(expr_int64, expr_float64))))
 def array_sum(expr) -> ArrayExpression:
     """Compute the coordinate-wise sum of all records of `expr`.
 
@@ -504,7 +504,7 @@ def array_sum(expr) -> ArrayExpression:
 
     Returns
     -------
-    :class:`.ArrayNumericExpression`
+    :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
     return _agg_func('sum', expr, expr.dtype)
 
