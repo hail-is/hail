@@ -113,8 +113,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
     registerCode("rpois", TInt32(), TFloat64(), TArray(TFloat64()), isDeterministic = false){ (mb, n, lambda) => 
+      val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
-      val res = srvb.mb.newLocal[Array[Double]]
       Code(
         res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
         srvb.start(res.length()),
@@ -125,17 +125,23 @@ object MathFunctions extends RegistryFunctions {
         srvb.offset
       )
     }
-
-    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())){ case (mb, c1, c2, c3, c4) =>
-      val srvb = new StagedRegionValueBuilder(mb, TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64()))
-      val res = srvb.mb.newLocal[Array[Double]]
+    
+    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), is.hail.stats.chisqStruct){ case (mb, c1, c2, c3, c4) =>
+      val res = mb.newLocal[(java.lang.Double, java.lang.Double)]
+      val pValue = Code.checkcast[java.lang.Double](res.load().get[java.lang.Object]("_1"))
+      val oddsRatio = Code.checkcast[java.lang.Double](res.load().get[java.lang.Object]("_2"))
+      val srvb = new StagedRegionValueBuilder(mb, is.hail.stats.chisqStruct)
       Code(
-        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
-        srvb.start(res.length()),
-        Code.whileLoop(srvb.arrayIdx < res.length(),
-          srvb.addDouble(res(srvb.arrayIdx)),
-          srvb.advance()
-        ),
+        res := Code.invokeScalaObject[Int, Int, Int, Int, (java.lang.Double, java.lang.Double)](statsPackageClass, "chisq", c1, c2, c3, c4),
+        srvb.start(),
+        pValue.isNull.mux(
+            srvb.setMissing(),
+            srvb.addDouble(Code.doubleValue(pValue))),
+        srvb.advance(),
+        oddsRatio.isNull.mux(
+          srvb.setMissing(),
+          srvb.addDouble(Code.doubleValue(oddsRatio))),
+        srvb.advance(),
         srvb.offset
       )
     }

@@ -46,8 +46,6 @@ object FunctionRegistry {
 
   private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
 
-  private val chisq = new ChiSquareTest()
-
   private def lookup(name: String, typ: TypeTag, rtTypConcrete: Option[Type] = None): Err[Fun] = {
 
     val matches = registry(name).flatMap { case (tt, f) =>
@@ -874,65 +872,28 @@ object FunctionRegistry {
     (x: Annotation, y: Annotation, includesStart: Boolean, includesEnd: Boolean) => Interval(x, y, includesStart, includesEnd)
   })(TTHr, TTHr, boolHr, boolHr, intervalHr(TTHr))
 
-  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
-
   registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
-    if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-      fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
-    val n = nHomRef + nHet + nHomVar
-    val nAB = nHet
-    val nA = nAB + 2 * nHomRef.min(nHomVar)
-
-    val LH = LeveneHaldane(n, nA)
-    Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+    val res = hwe(nHomRef, nHet, nHomVar)
+    Annotation(res._1.orNull, res._2)
   })
 
-  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (Option[Double], Option[Double]) = {
-    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"chisq: all arguments must be non-negative, got $c1, $c2, $c3, $c4")
-
-    var or: Option[Double] = None
-    var chisqp: Option[Double] = None
-
-    if (c1 + c2 + c3 + c4 > 0) {
-      if (c1 > 0 && c3 == 0)
-        or = Option(Double.PositiveInfinity)
-      else if (c3 > 0 && c1 == 0)
-        or = Option(Double.NegativeInfinity)
-      else if (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)
-        or = Option((c1 * c4) / (c2 * c3).toDouble)
-      chisqp = Option(chisq.chiSquareTest(Array(Array(c1, c2), Array(c3, c4))))
-    }
-
-    (chisqp, or)
-  }
-
-  val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     val res = chisqTest(c1, c2, c3, c4)
-    Annotation(res._1.orNull, res._2.orNull)
+    Annotation(res._1, res._2)
   })
 
   registerAnn("ctt", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
-    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"got invalid argument to function `ctTest': ctTest($c1, $c2, $c3, $c4)")
-
     if (Array(c1, c2, c3, c4).exists(_ < minCellCount)) {
-      val fet = FisherExactTest(c1, c2, c3, c4)
+      val fet = fisherExactTest(c1, c2, c3, c4)
       Annotation(fet(0).orNull, fet(1).orNull)
     } else {
       val res = chisqTest(c1, c2, c3, c4)
-      Annotation(res._1.orNull, res._2.orNull)
+      Annotation(res._1, res._2)
     }
   })
 
-  val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),
-    "ci_95_lower" -> TFloat64(), "ci_95_upper" -> TFloat64())
-
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
-    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
-    val fet = FisherExactTest(c1, c2, c3, c4)
+    val fet = fisherExactTest(c1, c2, c3, c4)
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
 

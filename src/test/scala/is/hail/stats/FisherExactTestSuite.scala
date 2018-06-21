@@ -25,7 +25,7 @@ class FisherExactTestSuite extends SparkSuite {
     val c = 95
     val d = 90
 
-    val result = FisherExactTest(a, b, c, d).map(_.getOrElse(Double.NaN))
+    val result = fisherExactTest(a, b, c, d).map(_.getOrElse(Double.NaN))
 
     assert(math.abs(result(0) - 0.2828) < 1e-4)
     assert(math.abs(result(1) - 0.4754059) < 1e-4)
@@ -53,9 +53,9 @@ class FisherExactTestSuite extends SparkSuite {
         val rGreater = rResultGreater.split(" ").take(4)
           .map { s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
 
-        val hailTwoSided = FisherExactTest(a, b, c, d, alternative = "two.sided")
-        val hailLess = FisherExactTest(a, b, c, d, alternative = "less")
-        val hailGreater = FisherExactTest(a, b, c, d, alternative = "greater")
+        val hailTwoSided = fisherExactTest(a, b, c, d, alternative = "two.sided")
+        val hailLess = fisherExactTest(a, b, c, d, alternative = "less")
+        val hailGreater = fisherExactTest(a, b, c, d, alternative = "greater")
 
         val hailResults = Array(hailTwoSided, hailLess, hailGreater).map {
           _.map {
@@ -125,7 +125,7 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q8) = vds2.queryVA("va.fet.ci_95_upper")
 
         vds2.variantsAndAnnotations.forall { case (v, va) =>
-          val result = FisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,
+          val result = fisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,
             q3(va).asInstanceOf[Long].toInt, q4(va).asInstanceOf[Long].toInt)
           val annotationResult = Array(Option(q5(va)).asInstanceOf[Option[Double]],
             Option(q6(va)).asInstanceOf[Option[Double]],

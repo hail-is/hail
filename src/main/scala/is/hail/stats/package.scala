@@ -8,6 +8,7 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
+import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.spark.sql.Row
 
 package object stats {
@@ -108,12 +109,51 @@ package object stats {
     }
   }
 
-  def FisherExactTest(a: Int, b: Int, c: Int, d: Int,
+  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
+  
+  def hwe(nHomRef: Int, nHet: Int, nHomVar: Int): (Option[Double], Double) = {
+    if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+      fatal(s"hwe: all arguments must be non-negative, got $nHomRef, $nHet, $nHomVar")
+  
+    val n = nHomRef + nHet + nHomVar
+    val nAB = nHet
+    val nA = nAB + 2 * nHomRef.min(nHomVar)
+
+    val LH = LeveneHaldane(n, nA)
+    (divOption(LH.getNumericalMean, n), LH.exactMidP(nAB))
+  }
+  
+  val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
+  
+  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (java.lang.Double, java.lang.Double) = {
+    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+      fatal(s"chisq: all arguments must be non-negative, got $c1, $c2, $c3, $c4")
+
+    var or: java.lang.Double = null
+    var chisqp: java.lang.Double = null
+
+    if (c1 + c2 + c3 + c4 > 0) {
+      if (c1 > 0 && c3 == 0)
+        or = Double.PositiveInfinity
+      else if (c3 > 0 && c1 == 0)
+        or = Double.NegativeInfinity
+      else if (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)
+        or = (c1 * c4) / (c2 * c3).toDouble
+      chisqp = new ChiSquareTest().chiSquareTest(Array(Array(c1, c2), Array(c3, c4)))
+    }
+
+    (chisqp, or)
+  }
+  
+  val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),
+    "ci_95_lower" -> TFloat64(), "ci_95_upper" -> TFloat64())
+
+  def fisherExactTest(a: Int, b: Int, c: Int, d: Int,
     oddsRatio: Double = 1d, confidence_level: Double = 0.95,
     alternative: String = "two.sided"): Array[Option[Double]] = {
-
+    
     if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
-      fatal(s"All inputs must be >= 0. Found [$a, $b, $c, $d]")
+      fatal(s"fet: all arguments must be non-negative, got $a, $b, $c, $d")
 
     if (confidence_level < 0d || confidence_level > 1d)
       fatal("Confidence level must be between 0 and 1")
