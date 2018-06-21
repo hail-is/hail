@@ -1,5 +1,6 @@
 package is.hail.io
 
+import java.util.Arrays
 import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
@@ -11,10 +12,10 @@ object IndexBTree {
     //max necessary for array of length 1 becomes depth=0
     math.max(1, (math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
 
-  private[io] def btreeBytes(
+  private[io] def btreeLayers(
     arr: Array[Long],
     branchingFactor: Int = 1024
-  ): Array[Byte] = {
+  ): Array[Array[Long]] = {
     require(arr.length > 0)
 
     val depth = calcDepth(arr, branchingFactor)
@@ -31,17 +32,24 @@ object IndexBTree {
       })
     }
 
-    // Write last layer
-    layers.append(arr)
-
     // Pad last layer so last block is branchingFactor elements (branchingFactor*8 bytes)
     val danglingElements = (arr.length % branchingFactor)
     val paddingRequired =
       if (danglingElements == 0) 0
       else branchingFactor - danglingElements
-    layers.append((0 until paddingRequired).map { _ => -1L })
+    val padding = (0 until paddingRequired).map { _ => -1L }
+    // Write last layer
+    layers.append(arr ++ padding)
 
-    val bytes = layers.flatten.flatMap(l => Array[Byte](
+    layers.map(_.toArray).toArray
+  }
+
+  private[io] def btreeBytes(
+    arr: Array[Long],
+    branchingFactor: Int = 1024
+  ): Array[Byte] = btreeLayers(arr, branchingFactor)
+    .flatten
+    .flatMap(l => Array[Byte](
       (l >>> 56).toByte,
       (l >>> 48).toByte,
       (l >>> 40).toByte,
@@ -49,10 +57,8 @@ object IndexBTree {
       (l >>> 24).toByte,
       (l >>> 16).toByte,
       (l >>> 8).toByte,
-      (l >>> 0).toByte)).toArray
-
-    bytes
-  }
+      (l >>> 0).toByte))
+    .toArray
 
   def write(
     arr: Array[Long],
@@ -62,6 +68,12 @@ object IndexBTree {
   ): Unit = hConf.writeDataFile(fileName) { w =>
     w.write(btreeBytes(arr, branchingFactor))
   }
+
+  def toString(
+    arr: Array[Long],
+    branchingFactor: Int = 1024
+  ): String =
+    btreeLayers(arr, branchingFactor).map(_.mkString("[", " ", "]")).mkString("(BTREE\n", "\n", "\n)")
 }
 
 class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) {
@@ -169,5 +181,81 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
       Option((index, result))
     else
       None
+  }
+}
+
+/**
+  * A BTree file of N elements is a sequence of layers containing 8-byte values.
+  *
+  * The size of layer i is {@code math.pow(branchingFactor, i + 1).toInt}. The
+  * last layer is the first layer whose size is large enough to contain N
+  * elements. The final layer contains all N elements, in their given order,
+  * followed by {@code branchingFactor - N} {@code -1}'s.
+  *
+  **/
+// IndexBTree maps from a value to the next largest value, this treats the BTree
+// like an on-disk array and looks up values by index
+class OnDiskBTreeIndexToValue(
+  path: String,
+  hConf: Configuration,
+  branchingFactor: Int = 1024
+) extends AutoCloseable {
+  private[this] def numLayers(size: Long): Int = {
+    if (size <= branchingFactor)
+      1
+    else
+      (math.log(size) / math.log(branchingFactor)).floor.toInt
+  }
+
+  private[this] def leadingElements(layer: Int): Long = {
+    var i = 0
+    var leadingElements = 0L
+    while (i < layer) {
+      leadingElements = leadingElements * branchingFactor + branchingFactor
+      i += 1
+    }
+    leadingElements
+  }
+
+  private[this] val layers = numLayers(hConf.getFileSize(path) / 8)
+  private[this] val junk = leadingElements(layers - 1)
+  private[this] var fs = try {
+    log.info("reading index file: " + path)
+    hConf.fileSystem(path).open(new Path(path))
+  } catch {
+    case e: Exception =>
+      fatal(s"Could not find a BGEN .idx file at $path. Try running HailContext.index_bgen().", e)
+  }
+
+  // WARNING: mutatively sorts the provided array
+  def positionOfVariants(indices: Array[Int]): Array[Long] = {
+    val a = new Array[Long](indices.length)
+    if (indices.length == 0) {
+      a
+    } else {
+      Arrays.sort(indices)
+      fs.seek((junk + indices(0)) * 8)
+      a(0) = fs.readLong()
+      var i = 1
+      while (i < indices.length) {
+        if (indices(i) == indices(i - 1)) {
+          a(i) = a(i - 1)
+        } else {
+          val jump = (indices(i) - indices(i - 1) - 1) * 8
+          assert(jump >= 0)
+          fs.skipBytes(jump)
+          a(i) = fs.readLong()
+        }
+        i += 1
+      }
+      a
+    }
+  }
+
+  override def close(): Unit = synchronized {
+    if (fs != null) {
+      fs.close()
+      fs = null
+    }
   }
 }
