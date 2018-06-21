@@ -20,7 +20,7 @@ class BgenBlockReaderV12(
   private[this] val includeDosage = job.get("includeDosage").toBoolean
   private[this] val includeLid = job.get("includeLid").toBoolean
   private[this] val includeRsid = job.get("includeRsid").toBoolean
-  private[bgen] var partitionFirstFileRowIdx: Long = _
+  private[this] var partitionFirstFileRowIdx: Long = _
 
   using(new IndexBTree(indexPath, job)) { btree =>
     if (split.hasFilter) {
