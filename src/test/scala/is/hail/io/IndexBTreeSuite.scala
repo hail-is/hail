@@ -153,7 +153,58 @@ class IndexBTreeSuite extends SparkSuite {
     val branchingFactor = 1024
     IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
     val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
-    // assert(bt.queryArrayPositionAndFileOffset(sqr(1024)+1) == Some(1024, sqr(1025)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1022)) == Some(1022, sqr(1022)))
 
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1022)+1) == Some(1023, sqr(1023)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)-1) == Some(1023, sqr(1023)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)) == Some(1023, sqr(1023)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)+1) == Some(1024, sqr(1024)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)-1) == Some(1024, sqr(1024)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)) == Some(1024, sqr(1024)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)+1) == Some(1025, sqr(1025)))
+
+    assert(bt.queryArrayPositionAndFileOffset(0) == Some(0, sqr(0)))
+    assert(bt.queryArrayPositionAndFileOffset(1) == Some(1, sqr(1)))
+    assert(bt.queryArrayPositionAndFileOffset(2) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(3) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(4) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(5) == Some(3, sqr(3)))
+  }
+
+  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray() {
+    def sqr(x: Long) = x * x
+    val f = tmpDir.createTempFile(prefix = "btree")
+    val v = Array.tabulate(1024*1024+1)(x => sqr(x))
+    val branchingFactor = 1024
+    IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1022)) == Some(1022, sqr(1022)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1022)+1) == Some(1023, sqr(1023)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)-1) == Some(1023, sqr(1023)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)) == Some(1023, sqr(1023)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1023)+1) == Some(1024, sqr(1024)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)-1) == Some(1024, sqr(1024)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)) == Some(1024, sqr(1024)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024)+1) == Some(1025, sqr(1025)))
+
+    assert(bt.queryArrayPositionAndFileOffset(0) == Some(0, sqr(0)))
+    assert(bt.queryArrayPositionAndFileOffset(1) == Some(1, sqr(1)))
+    assert(bt.queryArrayPositionAndFileOffset(2) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(3) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(4) == Some(2, sqr(2)))
+    assert(bt.queryArrayPositionAndFileOffset(5) == Some(3, sqr(3)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024-1)) == Some(1024*1024-1, sqr(1024*1024-1)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024-1)+1) == Some(1024*1024, sqr(1024*1024)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024)) == Some(1024*1024, sqr(1024*1024)))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024)-1) == Some(1024*1024, sqr(1024*1024)))
+
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024*1024)+1) == None)
   }
 }
