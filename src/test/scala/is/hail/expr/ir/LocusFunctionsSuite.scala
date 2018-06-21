@@ -56,7 +56,8 @@ class LocusFunctionsSuite extends TestNGSuite {
   }
 
   @Test def minRep() {
-    val alleles = MakeArray(Seq(Str("A"), Str("T")), TArray(TString()))
-    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 1), IndexedSeq("A", "T")))
+    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString()))
+    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), IndexedSeq("A", "T")))
+    assertEvalsTo(invoke("min_rep", locusIR, NA(TArray(TString()))), null)
   }
 }
