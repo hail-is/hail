@@ -545,6 +545,22 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
+    def test_import_bgen_row_fields(self):
+        mt = hl.import_bgen(resource('example.8bits.bgen'),
+                            entry_fields=['dosage'],
+                            contig_recoding={'01': '1'},
+                            reference_genome='GRCh37',
+                            _row_fields=['rsid', 'file_row_idx'])
+        self.assertEqual(mt.file_row_idx.take(10), [99, 0, 100, 1, 101, 2, 102, 3, 103, 4])
+
+        # the rsids are numbered 2 to 200 and corresond to the order of the
+        # variants in the file (the loci are out of order in this file)
+        #
+        # the rsids look like: "RSID_99"
+        rsids = mt.rsid.collect()
+        self.assertEqual(mt.file_row_idx.collect(),
+                         [int(rsid[5:]) - 2 for rsid in rsids])
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
