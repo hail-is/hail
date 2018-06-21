@@ -1,5 +1,6 @@
 package is.hail.io
 
+import java.io.Closeable
 import java.util.Arrays
 import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
@@ -76,7 +77,7 @@ object IndexBTree {
     btreeLayers(arr, branchingFactor).map(_.mkString("[", " ", "]")).mkString("(BTREE\n", "\n", "\n)")
 }
 
-class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) {
+class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) extends Closeable {
   val maxDepth = calcDepth()
   private val fs = try {
     hConf.fileSystem(indexFileName).open(new Path(indexFileName))

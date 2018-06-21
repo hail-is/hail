@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.utils._
 import is.hail.io._
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
 
@@ -51,6 +52,9 @@ class BgenV12InputSplit(
   require(keptIndices == null && keptPositions == null ||
     keptIndices.length == keptPositions.length)
   def this() = this(null, null, null)
+  def hasFilter: Boolean = keptIndices == null
+  def getPath(): Path = fileSplit.getPath()
+  def getStart(): Long = fileSplit.getStart()
   def getLength(): Long = fileSplit.getLength()
   def getLocations(): Array[String] = fileSplit.getLocations()
   def readFields(in: java.io.DataInput): Unit = {
