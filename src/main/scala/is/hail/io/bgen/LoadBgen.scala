@@ -56,7 +56,6 @@ object LoadBgen {
     hadoop.setBoolean("includeDosage", includeDosage)
     hadoop.setBoolean("includeLid", includeLid)
     hadoop.setBoolean("includeRsid", includeRsid)
-    hadoop.setBoolean("includeFileRowIdx", includeFileRowIdx)
 
     val sc = hc.sc
     val results = files.map { file =>
