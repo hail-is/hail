@@ -567,7 +567,7 @@ class BGENTests(unittest.TestCase):
                                 ['GT'],
                                 contig_recoding={'01': '1'},
                                 reference_genome=None,
-                                row_fields=['file_row_idx'],
+                                _row_fields=['file_row_idx'],
                                 # FIXME use: os.path.abspath
                                 _variants_per_file={ 'file:' + '/Users/dking/projects/hail/src/test/resources/' + ('example.8bits.bgen') : desired_variant_indexes})
         print({ 'file:' + resource('example.8bits.bgen') : desired_variant_indexes})
@@ -578,7 +578,7 @@ class BGENTests(unittest.TestCase):
                                     ['GT'],
                                     contig_recoding={'01': '1'},
                                     reference_genome=None,
-                                    row_fields=['file_row_idx'])
+                                    _row_fields=['file_row_idx'])
         self.assertEqual(everything.count(), (199, 500))
 
         everything.rows().show()
