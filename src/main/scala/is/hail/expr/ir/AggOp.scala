@@ -5,6 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils._
 
+import scala.reflect.ClassTag
+
 case class AggSignature(
   op: AggOp,
   inputType: Type,
@@ -136,7 +138,7 @@ object AggOp {
     }
 
     case (TakeBy(), in, constArgs@Seq(_: TInt32), None, Seq(key)) =>
-      def tbCodeAgg[T](seqOpArg: Class[_]) = 
+      def tbCodeAgg[T <: RegionValueTakeByAggregator](seqOpArg: Class[_])(implicit ct: ClassTag[T]) =
         new CodeAggregator[T](in, TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type], classOf[Type]), seqOpArgTypes = Array(seqOpArg))
       
       (in, key) match {
