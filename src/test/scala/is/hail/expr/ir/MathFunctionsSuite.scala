@@ -84,6 +84,7 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("entropy", Str("aa")), 0.0)
     assertEvalsTo(invoke("entropy", Str("ac")), 1.0)
     assertEvalsTo(invoke("entropy", Str("accctg")), 1.7924812503605778)
+  }
 
   @Test def unirootIsStrictInMinAndMax() {
     assertEvalsTo(
