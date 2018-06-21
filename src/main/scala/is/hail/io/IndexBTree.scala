@@ -219,7 +219,7 @@ class OnDiskBTreeIndexToValue(
   }
 
   private[this] val layers = numLayers(hConf.getFileSize(path) / 8)
-  private[this] val junk = leadingElements(layers - 1)
+  private[this] val junk = leadingElements(layers)
   private[this] var fs = try {
     log.info("reading index file: " + path)
     hConf.fileSystem(path).open(new Path(path))
@@ -237,6 +237,7 @@ class OnDiskBTreeIndexToValue(
       Arrays.sort(indices)
       fs.seek((junk + indices(0)) * 8)
       a(0) = fs.readLong()
+      assert(a(0) != -1, "0")
       var i = 1
       while (i < indices.length) {
         if (indices(i) == indices(i - 1)) {
@@ -246,6 +247,7 @@ class OnDiskBTreeIndexToValue(
           assert(jump >= 0)
           fs.skipBytes(jump)
           a(i) = fs.readLong()
+          assert(a(i) != -1, s"$i")
         }
         i += 1
       }
