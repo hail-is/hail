@@ -39,8 +39,6 @@ abstract class IndexedBinaryBlockReader[T](job: Configuration, split: FileSplit)
     new HadoopFSDataBinaryReader(fs.open(file))
   }
 
-  def seekToFirstBlockInSplit(start: Long): Unit
-
   def createKey(): LongWritable = new LongWritable()
 
   def createValue(): T

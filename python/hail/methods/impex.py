@@ -921,7 +921,7 @@ def import_bgen(path,
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file)))
+                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 
 
