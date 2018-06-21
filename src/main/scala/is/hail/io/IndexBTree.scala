@@ -91,7 +91,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
     getOffset(depth) + blockIndex * 8 * branchingFactor
   }
 
-  private def traverseTree(query: Long, startIndex: Long, currentDepth: Int): Long = {
+  private def traverseTree(query: Long, startIndex: Long, currentDepth: Int): (Long, Long) = {
 
     def searchBlock(): Long = {
       def read(prevValue: Long, prevPos: Long): Long = {
@@ -117,9 +117,33 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
         read(firstValue, startIndex)
     }
 
-    if (currentDepth == maxDepth)
-      searchBlock()
-    else {
+    def searchLastBlock(): (Long, Long) = {
+      def read(prevValue: Long, prevPos: Long): (Long, Long) = {
+        val currValue = fs.readLong()
+
+        if (query <= currValue || currValue == -1L)
+          (prevPos + 8, currValue)
+        else if (prevPos >= (startIndex + branchingFactor * 8))
+          fatal("did not find query in block")
+        else
+          read(currValue, prevPos + 8)
+      }
+
+      fs.seek(startIndex)
+      val firstValue = fs.readLong()
+      if (query >= 0L && query <= firstValue)
+        (startIndex, firstValue)
+      else
+        read(firstValue, startIndex)
+    }
+
+    if (currentDepth == maxDepth) {
+      val (bytePosition, value) = searchLastBlock()
+      val leadingElements =
+        if (currentDepth == 1) 0L
+        else math.pow(branchingFactor, currentDepth - 1).toLong
+      (bytePosition / 8 - leadingElements, value)
+    } else {
       val matchPosition = searchBlock()
       val blockIndex = (matchPosition - getOffset(currentDepth)) / 8
       val newStart = getOffset(currentDepth + 1, blockIndex)
@@ -130,10 +154,21 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
   def queryIndex(query: Long): Option[Long] = {
     require(query >= 0)
 
-    val result = traverseTree(query, 0L, 1)
+    val (index, result) = traverseTree(query, 0L, 1)
 
     if (result != -1L)
       Option(result)
+    else
+      None
+  }
+
+  def queryArrayPositionAndFileOffset(query: Long): Option[(Long, Long)] = {
+    require(query >= 0)
+
+    val (index, result) = traverseTree(query, 0L, 1)
+
+    if (result != -1L)
+      Option((index, result))
     else
       None
   }
