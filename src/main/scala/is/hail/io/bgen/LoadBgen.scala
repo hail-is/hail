@@ -349,4 +349,66 @@ object LoadBgen {
     val hasIds = (flags >> 31 & 1) != 0
     BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
   }
+
+  private[bgen] def encodeInts(a: Array[Int]): String = {
+    val b = new Array[Byte](a.length*4)
+    var i = 0
+    while (i < a.length) {
+      b(4*i) = (a(i) & 0xff).asInstanceOf[Byte]
+      b(4*i+1) = ((a(i) >>> 8) & 0xff).asInstanceOf[Byte]
+      b(4*i+2) = ((a(i) >>> 16) & 0xff).asInstanceOf[Byte]
+      b(4*i+3) = ((a(i) >>> 24) & 0xff).asInstanceOf[Byte]
+      i += 1
+    }
+    Base64.encodeBase64String(b)
+  }
+
+  private[bgen] def decodeInts(a: String): Array[Int] = {
+    val b = Base64.decodeBase64(a)
+    val c = new Array[Int](b.length/4)
+    var i = 0
+    while (i < c.length) {
+      c(i) = ((b(i*4+3) & 0xff).asInstanceOf[Int] << 24) |
+             ((b(i*4+2) & 0xff).asInstanceOf[Int] << 16) |
+             ((b(i*4+1) & 0xff).asInstanceOf[Int] << 8) |
+             (b(i*4).asInstanceOf[Int] & 0xff)
+      i += 1
+    }
+    c
+  }
+
+  private[bgen] def encodeLongs(a: Array[Long]): String = {
+    val b = new Array[Byte](a.length*8)
+    var i = 0
+    while (i < a.length) {
+      b(8*i) = (a(i) & 0xff).asInstanceOf[Byte]
+      b(8*i+1) = ((a(i) >>> 8) & 0xff).asInstanceOf[Byte]
+      b(8*i+2) = ((a(i) >>> 16) & 0xff).asInstanceOf[Byte]
+      b(8*i+3) = ((a(i) >>> 24) & 0xff).asInstanceOf[Byte]
+      b(8*i+4) = ((a(i) >>> 32) & 0xff).asInstanceOf[Byte]
+      b(8*i+5) = ((a(i) >>> 40) & 0xff).asInstanceOf[Byte]
+      b(8*i+6) = ((a(i) >>> 48) & 0xff).asInstanceOf[Byte]
+      b(8*i+7) = ((a(i) >>> 56) & 0xff).asInstanceOf[Byte]
+      i += 1
+    }
+    Base64.encodeBase64String(b)
+  }
+
+  private[bgen] def decodeLongs(a: String): Array[Long] = {
+    val b = Base64.decodeBase64(a)
+    val c = new Array[Long](b.length/8)
+    var i = 0
+    while (i < c.length) {
+      c(i) = ((b(i*8+7) & 0xff).asInstanceOf[Long] << 56) |
+             ((b(i*8+6) & 0xff).asInstanceOf[Long] << 48) |
+             ((b(i*8+5) & 0xff).asInstanceOf[Long] << 40) |
+             ((b(i*8+4) & 0xff).asInstanceOf[Long] << 32) |
+             ((b(i*8+3) & 0xff).asInstanceOf[Long] << 24) |
+             ((b(i*8+2) & 0xff).asInstanceOf[Long] << 16) |
+             ((b(i*8+1) & 0xff).asInstanceOf[Long] << 8) |
+             (b(i*8).asInstanceOf[Long] & 0xff)
+      i += 1
+    }
+    c
+  }
 }
