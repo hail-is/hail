@@ -256,4 +256,24 @@ class IndexBTreeSuite extends SparkSuite {
       true
     }.check()
   }
+
+
+  @Test def onDiskBTreeIndexToValueThreeLayers() {
+    val longs = Array.tabulate(1024*1024*1024)(x => x.toLong)
+    val indices = Array.tabulate(1024*1024)(x => x * 1024)
+    val f = tmpDir.createTempFile()
+    try {
+      IndexBTree.write(longs, f, hadoopConf)
+      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf)
+      val actual = bt.positionOfVariants(indices.toArray)
+      val expected = indices.sorted.map(longs)
+      assert(actual sameElements expected,
+        s"${actual.toSeq} not same elements as expected ${expected.toSeq}")
+    } catch {
+      case t: Throwable =>
+        throw new RuntimeException(
+          "exception while checking BTree: " + IndexBTree.toString(longs),
+          t)
+    }
+  }
 }
