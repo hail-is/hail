@@ -82,8 +82,14 @@ object AggOp {
       
     case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
     case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
+    case (Sum(), in@TArray(TInt32(_), _), Seq(), None, Seq()) =>
+      CodeAggregator[RegionValueArraySumIntAggregator](in, TArray(TInt32()))
     case (Sum(), in@TArray(TInt64(_), _), Seq(), None, Seq()) =>
       CodeAggregator[RegionValueArraySumLongAggregator](in, TArray(TInt64()))
+    case (Sum(), in@TArray(TFloat32(_), _), Seq(), None, Seq()) =>
+      CodeAggregator[RegionValueArraySumFloatAggregator](in, TArray(TFloat32()))
+    case (Sum(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) =>
+      CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))
 
     case (CollectAsSet(), in, Seq(), None, Seq()) =>
       in match {
@@ -94,8 +100,6 @@ object AggOp {
         case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(TFloat64()))
         case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](in, TSet(in), constrArgTypes = Array(classOf[Type]))
       }
-    case (Sum(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) =>
-      CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))
 
     case (Product(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductLongAggregator](in, TInt64())
     case (Product(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductDoubleAggregator](in, TFloat64())
