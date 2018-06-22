@@ -37,6 +37,7 @@ Genetics functions
     min_rep
 
 .. autofunction:: locus
+.. autofunction:: locus_from_global_position
 .. autofunction:: locus_interval
 .. autofunction:: parse_locus
 .. autofunction:: parse_variant
