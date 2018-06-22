@@ -10,14 +10,6 @@ import is.hail.utils._
 
 object StringFunctions extends RegistryFunctions {
 
-  def str(x: Int): String = x.toString
-
-  def str(x: Long): String = x.toString
-
-  def str(x: Float): String = x.formatted("%.5e")
-
-  def str(x: Double): String = x.formatted("%.5e")
-
   def upper(s: String): String = s.toUpperCase
 
   def lower(s: String): String = s.toLowerCase
@@ -112,10 +104,14 @@ object StringFunctions extends RegistryFunctions {
       ir.StringLength(s)
     }
 
-    registerWrappedScalaFunction("str", TInt32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TInt64(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat64(), TString())(thisClass, "str")
+    for(fn <- Array("str", "json")) {
+      registerCodeWithMissingness(fn, tv("T"), TString()) { (mb, a) =>
+        val typ = tv("T").subst()
+        val annotation = Code(a.setup, a.m).mux(Code._null, wrapArg(mb, typ)(a.v))
+        val json = mb.getType(typ).invoke[Any, String](fn, annotation)
+        EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(json))
+      }
+    }
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")
