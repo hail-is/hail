@@ -218,6 +218,9 @@ abstract class RegistryFunctions {
   def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
     registerWrappedScalaFunction(mname, Array(a1, a2), rType)(cls, method)
 
+  def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, a3: Type, rType: Type)(cls: Class[_], method: String): Unit =
+    registerWrappedScalaFunction(mname, Array(a1, a2, a3), rType)(cls, method)
+
   def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String, isDeterministic: Boolean) {
     registerCode(mname, argTypes, rType, isDeterministic) { (mb, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)

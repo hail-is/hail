@@ -4,11 +4,9 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, TypeToIRIntermediateClassTag}
+import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
 import is.hail.utils._
-
-import scala.reflect.{ClassTag, classTag}
 
 object StringFunctions extends RegistryFunctions {
 
@@ -35,6 +33,19 @@ object StringFunctions extends RegistryFunctions {
   def firstMatchIn(s: String, regex: String): IndexedSeq[String] = {
     regex.r.findFirstMatchIn(s).map(_.subgroups.toArray.toFastIndexedSeq).orNull
   }
+
+  def regexMatch(regex: String, s: String): Boolean = regex.r.findFirstIn(s).isDefined
+
+  def concat(s: String, t: String): String = s + t
+
+  def replace(str: String, pattern1: String, pattern2: String): String =
+    str.replaceAll(pattern1, pattern2)
+
+  def split(s: String, p: String): IndexedSeq[String] = s.split(p)
+
+  def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
+
+  def mkString(a: Seq[String], sep: String): String = a.mkString(sep)
 
   def registerAll(): Unit = {
     val thisClass = getClass
@@ -110,6 +121,24 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
     registerWrappedScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
     registerWrappedScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
+
+    registerWrappedScalaFunction("~", TString(), TString(), TBoolean())(thisClass, "regexMatch")
+
+    registerWrappedScalaFunction("+", TString(), TString(), TString())(thisClass, "concat")
+
+    registerIR("length", TString())(StringLength)
+
+    registerIR("size", TString())(StringLength)
+
+    registerWrappedScalaFunction("split", TString(), TString(), TArray(TString()))(thisClass, "split")
+
+    registerWrappedScalaFunction("split", TString(), TString(), TInt32(), TArray(TString()))(thisClass, "splitLimited")
+
+    registerWrappedScalaFunction("replace", TString(), TString(), TString(), TString())(thisClass, "replace")
+
+    registerWrappedScalaFunction("mkString", TSet(TString()), TString(), TString())(thisClass, "mkString")
+
+    registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString())(thisClass, "mkString")
 
     registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) { (mb: EmitMethodBuilder, s: EmitTriplet, r: EmitTriplet) =>
       val out: LocalRef[IndexedSeq[String]] = mb.newLocal[IndexedSeq[String]]
