@@ -15,17 +15,17 @@ def histogram(data, legend=None, title=None, xlabel=None, ylabel='Frequency'):
     show(p)
 
 
-def scatter(x, y, xlabel=None, ylabel=None, alpha=0.5, legend=None, color=None, indicate_outlier_cuts=False, threshold_x=None, threshold_y=None):
+def scatter(x, y, xlabel=None, ylabel=None, alpha=0.5, legend=None, color='blue', indicate_outlier_cuts=False, threshold_x=None, threshold_y=None):
     p = figure(x_axis_label=xlabel, y_axis_label=ylabel)
     p.scatter(x, y, alpha=alpha, color=color, legend=legend)
-    if indicate_outlier_cuts:  # see QC tutorials for section about adding lines to indicate outlier cuts
+    if indicate_outlier_cuts:
         p.renderers.extend([
             Span(location=threshold_y, dimension='width', line_color='black', line_width=1),
             Span(location=threshold_x, dimension='height', line_color='black', line_width=1)])
     show(p)
 
 
-# right now, plots is a 2D array of plot functions that the user organizes, e.g. [[p1, p2], [p3, p4]]
+# plots is a 2D array of plots that the user organizes, e.g. [[p1, p2], [p3, p4]]
 def grid(plots, total_width=400, total_height=400):
     g = gridplot(plots, plot_width=total_width, plot_height=total_height)
     show(g)
@@ -43,6 +43,3 @@ def qq(pvals):
     bound = max(max(exp), max(obs)) * 1.1
     p.line([0, bound], [0, bound], color='red')
     show(p)
-
-
-
