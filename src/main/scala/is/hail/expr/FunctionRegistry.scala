@@ -2120,7 +2120,7 @@ object FunctionRegistry {
     a: IndexedSeq[java.lang.Double]
   })(arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
 
-  register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
+  register("+", (x: String, y: String) => x + y)(stringHr, stringHr, stringHr)
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
 

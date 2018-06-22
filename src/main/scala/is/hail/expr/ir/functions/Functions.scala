@@ -155,7 +155,23 @@ abstract class RegistryFunctions {
           srvb.start(len),
           Code.whileLoop(srvb.arrayIdx < len,
             v := Code.checkcast[java.lang.Integer](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
-            v.isNull.mux(srvb.setMissing, srvb.addInt(v.invoke[Int]("intValue"))),
+            v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
+            srvb.advance())),
+        srvb.offset)
+    case TArray(_: TString, _) => c =>
+      val srvb = new StagedRegionValueBuilder(mb, t)
+      val alocal = mb.newLocal[IndexedSeq[String]]
+      val len = mb.newLocal[Int]
+      val v = mb.newLocal[java.lang.String]
+
+      Code(
+        alocal := coerce[IndexedSeq[String]](c),
+        len := alocal.invoke[Int]("size"),
+        Code(
+          srvb.start(len),
+          Code.whileLoop(srvb.arrayIdx < len,
+            v := Code.checkcast[java.lang.String](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
+            v.isNull.mux(srvb.setMissing(), srvb.addString(v)),
             srvb.advance())),
         srvb.offset)
   }
@@ -202,6 +218,8 @@ abstract class RegistryFunctions {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
+      case TArray(_: TString, _) => classTag[IndexedSeq[String]]
+      case TSet(_: TString, _) => classTag[Set[String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 
@@ -217,6 +235,9 @@ abstract class RegistryFunctions {
 
   def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
     registerWrappedScalaFunction(mname, Array(a1, a2), rType)(cls, method)
+
+  def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, a3: Type, rType: Type)(cls: Class[_], method: String): Unit =
+    registerWrappedScalaFunction(mname, Array(a1, a2, a3), rType)(cls, method)
 
   def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String, isDeterministic: Boolean) {
     registerCode(mname, argTypes, rType, isDeterministic) { (mb, args) =>
