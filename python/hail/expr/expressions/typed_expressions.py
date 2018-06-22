@@ -2482,7 +2482,7 @@ class LocusExpression(Expression):
         Returns
         -------
         :class:`.Expression` of type :py:data:`.tint64`
-            Global position of locus.
+            Global base position of locus along the reference genome.
         """
         reference_genome = self.dtype.reference_genome
         return construct_expr(ApplyMethod('locusToGlobalPos({})'.format(reference_genome), self._ast), 

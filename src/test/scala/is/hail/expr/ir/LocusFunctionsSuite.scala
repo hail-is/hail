@@ -62,25 +62,11 @@ class LocusFunctionsSuite extends TestNGSuite {
   }
   
   @Test def globalPosition() {
-    val fb = EmitFunctionBuilder[Locus, Long]
-    val rgField = fb.newLazyField(grch38.codeSetup(fb))
-    fb.emit(rgField.invoke[Locus, Long]("locusToGlobalPos", fb.getArg[Locus](1)))
-    val f = fb.result()()
-    
-    assert(f(locus) == grch38.locusToGlobalPos(locus))
-    
     assertEvalsTo(invoke("locusToGlobalPos(GRCh38)", locusIR), grch38.locusToGlobalPos(locus))
   }
   
   @Test def reverseGlobalPosition() {
     val globalPosition = 2824183054L
-    val fb = EmitFunctionBuilder[Long, Locus]
-    val rgField = fb.newLazyField(grch38.codeSetup(fb))
-    fb.emit(rgField.invoke[Long, Locus]("globalPosToLocus", fb.getArg[Long](1)))
-    val f = fb.result()()
-    
-    assert(f(globalPosition) == grch38.globalPosToLocus(globalPosition))
-    
     assertEvalsTo(invoke("globalPosToLocus(GRCh38)", I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
   }
 }
