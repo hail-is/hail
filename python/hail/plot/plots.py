@@ -6,23 +6,22 @@ from bokeh.layouts import gridplot
 from bokeh.models import Span
 
 
-def histogram(hist, legend=None, title=None, xlabel=None, ylabel=None):
+def histogram(data, legend=None, title=None, xlabel=None, ylabel='Frequency'):
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE', )
     p.quad(
-        bottom=0, top=hist.bin_freq,
-        left=hist.bin_edges[:-1], right=hist.bin_edges[1:],
+        bottom=0, top=data.bin_freq,
+        left=data.bin_edges[:-1], right=data.bin_edges[1:],
         legend=legend, line_color='black')
     show(p)
 
 
-def scatter(x, y, xlabel=None, ylabel=None, indicate_outlier_cuts=False):
+def scatter(x, y, xlabel=None, ylabel=None, alpha=0.5, legend=None, color=None, indicate_outlier_cuts=False, threshold_x=None, threshold_y=None):
     p = figure(x_axis_label=xlabel, y_axis_label=ylabel)
-    p.scatter(x, y, alpha=0.5)
+    p.scatter(x, y, alpha=alpha, color=color, legend=legend)
     if indicate_outlier_cuts:  # see QC tutorials for section about adding lines to indicate outlier cuts
         p.renderers.extend([
-            # FIXME: should these x and y locations be passed in as parameters or is there a general value for outliers?
-            Span(location=0.97, dimension='width', line_color='black', line_width=1),
-            Span(location=4, dimension='height', line_color='black', line_width=1)])
+            Span(location=threshold_y, dimension='width', line_color='black', line_width=1),
+            Span(location=threshold_x, dimension='height', line_color='black', line_width=1)])
     show(p)
 
 
