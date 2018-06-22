@@ -202,6 +202,8 @@ abstract class RegistryFunctions {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
+      case TArray(_: TString, _) => classTag[IndexedSeq[String]]
+      case TSet(_: TString, _) => classTag[Set[String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 

@@ -45,7 +45,9 @@ object StringFunctions extends RegistryFunctions {
 
   def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
 
-  def mkString(a: Seq[String], sep: String): String = a.mkString(sep)
+  def arrayMkString(a: IndexedSeq[String], sep: String): String = a.mkString(sep)
+
+  def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
   def registerAll(): Unit = {
     val thisClass = getClass
@@ -136,9 +138,9 @@ object StringFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction("replace", TString(), TString(), TString(), TString())(thisClass, "replace")
 
-    registerWrappedScalaFunction("mkString", TSet(TString()), TString(), TString())(thisClass, "mkString")
+    registerWrappedScalaFunction("mkString", TSet(TString()), TString(), TString())(thisClass, "setMkString")
 
-    registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString())(thisClass, "mkString")
+    registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString())(thisClass, "arrayMkString")
 
     registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) { (mb: EmitMethodBuilder, s: EmitTriplet, r: EmitTriplet) =>
       val out: LocalRef[IndexedSeq[String]] = mb.newLocal[IndexedSeq[String]]
