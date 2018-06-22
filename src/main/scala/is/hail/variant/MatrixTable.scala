@@ -228,7 +228,7 @@ object MatrixTable {
     }
 
     new MatrixTable(hc,
-      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, f))
+      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, typ, f))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -348,7 +348,8 @@ object MatrixTable {
         rvd)
     }
 
-    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)), dropRows = false, dropCols = false, f = f))
+    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)),
+      dropRows = false, dropCols = false, requestedType = typ, f = f))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
@@ -1451,7 +1452,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case None =>
         log.info(s"filterCols: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
-          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+          filterAST = ApplyAST(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = FilterCols(ast, filterAST))
     }
   }
@@ -1474,7 +1475,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       case _ =>
         log.info(s"filterRows: No AST to IR conversion. Fallback for predicate ${ PrettyAST(filterAST) }")
         if (!keep)
-          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+          filterAST = ApplyAST(filterAST.getPos, "!", Array(filterAST))
         copyAST(ast = MatrixFilterRowsAST(ast, filterAST))
     }
   }

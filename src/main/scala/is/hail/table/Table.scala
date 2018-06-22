@@ -73,7 +73,7 @@ object Table {
     var typ = spec.table_type
     if (rowFields != null)
       typ = typ.copy(
-        rowType = typ.rowType.filter(rowFields)._1)
+        rowType = typ.rowType.filterSet(rowFields)._1)
 
     new Table(hc, TableRead(path, spec, typ, dropRows = false))
   }
@@ -230,9 +230,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
+    log.info("in Table.value: pre-opt:\n" + ir.Pretty(tir))
     val opt = ir.Optimize(tir)
-
-    log.info("in Table.value: execute:\n" + ir.Pretty(opt))
+    log.info("in Table.value: post-opt:\n" + ir.Pretty(opt))
 
     opt.execute(hc)
   }
@@ -312,7 +312,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def valueSignature: TStruct = {
-    val (t, _) = signature.filter(keyOrEmpty.toSet, include = false)
+    val (t, _) = signature.filterSet(keyOrEmpty.toSet, include = false)
     t
   }
 
@@ -506,7 +506,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         )
       case None =>
         if (!keep)
-          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+          filterAST = ApplyAST(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
         val localSignature = signature
 

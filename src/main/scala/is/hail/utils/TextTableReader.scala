@@ -22,7 +22,7 @@ case class TableReaderOptions(
   quote: java.lang.Character,
   skipBlankLines: Boolean,
   useColIndices: Array[Int],
-  originalRowTypeSize: Int) {
+  originalType: TStruct) {
   assert(useColIndices.isSorted)
 
   def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
@@ -30,7 +30,17 @@ case class TableReaderOptions(
 
 object TextTableReader {
 
-  def splitLine(s: String, separator: String, quote: java.lang.Character): Array[String] = {
+  def splitLine(s: String, separator: String, quote: java.lang.Character): Array[String] =
+    splitLine(s, separator, quote, new ArrayBuilder[String], new StringBuilder)
+
+  def splitLine(
+    s: String,
+    separator: String,
+    quote: java.lang.Character,
+    ab: ArrayBuilder[String],
+    sb: StringBuilder): Array[String] = {
+    ab.clear()
+    sb.clear()
 
     val matchSep: Int => Int = separator.length match {
       case 0 => fatal("Hail does not currently support 0-character separators")
@@ -49,9 +59,6 @@ object TextTableReader {
           -1
       }
     }
-
-    val ab = new ArrayBuilder[String]
-    val sb = new StringBuilder
 
     var i = 0
     while (i < s.length) {
@@ -90,7 +97,6 @@ object TextTableReader {
         i += 1
       }
     }
-
     ab += sb.result()
 
     ab.result()
@@ -112,9 +118,12 @@ object TextTableReader {
     val regexTypes: Array[Type] = Array(TBoolean(), TInt32(), TFloat64())
     val nRegex = regexes.length
 
-    val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
-      line.foreach { l =>
-        val split = splitLine(l, delimiter, quote)
+    val imputation = values.mapPartitions { it =>
+      val ma = MultiArray2.fill[Boolean](nFields, nRegex + 1)(true)
+      val ab = new ArrayBuilder[String]
+      val sb = new StringBuilder
+      it.foreach { line => line.foreach { l =>
+        val split = splitLine(l, delimiter, quote, ab, sb)
         if (split.length != nFields)
           fatal(s"expected $nFields fields, but found ${ split.length }")
 
@@ -131,9 +140,10 @@ object TextTableReader {
           }
           i += 1
         }
-      }
-      ma
-    }, { case (ma1, ma2) =>
+      }}
+      Iterator.single(ma)
+    }
+      .reduce({ case (ma1, ma2) =>
       var i = 0
       while (i < nFields) {
         var j = 0
@@ -251,7 +261,7 @@ object TextTableReader {
     val ttyp = TableType(TStruct(namesAndTypes: _*), None, TStruct())
     val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
       separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
-      ttyp.rowType.size)
+      ttyp.rowType)
     new Table(hc, TableImport(files, ttyp, readerOpts))
   }
 }

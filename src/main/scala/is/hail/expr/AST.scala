@@ -323,7 +323,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
   }
 }
 
-case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
+case class SelectAST(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
 
@@ -572,7 +572,7 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def toIR(agg: Option[(String, String)] = None): ToIRErr[IR] = fail(this)
 }
 
-case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+case class ApplyAST(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
   assert(fn != "LocusInterval")
 
   override def typecheckThis(): Type = {
@@ -609,7 +609,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val struct = args(0)
         struct.typecheck(ec)
         val identifiers = args.tail.map {
-          case SymRef(_, id) => id
+          case SymRefAST(_, id) => id
           case badAST => needsSymRef(badAST)
         }
         assert(identifiers.duplicates().isEmpty)
@@ -619,11 +619,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val struct = args(0)
         struct.typecheck(ec)
         val identifiers = args.tail.map {
-          case SymRef(_, id) => id
+          case SymRefAST(_, id) => id
           case badAST => needsSymRef(badAST)
         }
         assert(identifiers.duplicates().isEmpty)
-        `type` = struct.`type`.asInstanceOf[TStruct].filter(identifiers.toSet, include = false)._1
+        `type` = struct.`type`.asInstanceOf[TStruct].filterSet(identifiers.toSet, include = false)._1
 
       case "uniroot" =>
         if (args.length != 3)
@@ -656,13 +656,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val struct = head.`type`.asInstanceOf[TStruct]
       val identifiers = tail.map { ast =>
         (ast: @unchecked) match {
-          case SymRef(_, id) => id
+          case SymRefAST(_, id) => id
         }
       }
 
       val f = fn match {
         case "select" => struct.select(identifiers.toArray)._2
-        case "drop" => struct.filter(identifiers.toSet, include = false)._2
+        case "drop" => struct.filterSet(identifiers.toSet, include = false)._2
       }
 
       AST.evalComposeCodeM[AnyRef](head)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
@@ -711,13 +711,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     fn match {
       case "select" =>
         for (structIR <- args(0).toIR(agg)) yield {
-          val identifiers = args.tail.map { case SymRef(_, id) => id }
+          val identifiers = args.tail.map { case SymRefAST(_, id) => id }
           ir.SelectFields(structIR, identifiers)
         }
       case "drop" =>
         for (structIR <- args(0).toIR(agg)) yield {
           val t = types.coerce[TStruct](structIR.typ)
-          val identifiers = args.tail.map { case SymRef(_, id) => id }.toSet
+          val identifiers = args.tail.map { case SymRefAST(_, id) => id }.toSet
           val keep = t.fieldNames.filter(!identifiers.contains(_))
           ir.SelectFields(structIR, keep)
         }
@@ -734,10 +734,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   }
 }
 
-case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
+case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
   def getSymRefId(ast: AST): String = {
     ast match {
-      case SymRef(_, id) => id
+      case SymRefAST(_, id) => id
       case _ => ???
     }
   }
@@ -1026,7 +1026,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 }
 
-case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
+case class LetAST(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
 
   override def typecheck(ec: EvalContext) {
     var symTab2 = ec.st
@@ -1049,7 +1049,7 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
   } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x) }
 }
 
-case class SymRef(posn: Position, symbol: String) extends AST(posn) {
+case class SymRefAST(posn: Position, symbol: String) extends AST(posn) {
   override def typecheckThis(ec: EvalContext): Type = {
     ec.st.get(symbol) match {
       case Some((_, t)) =>
@@ -1080,7 +1080,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     success(ir.Ref(symbol, `type`))
 }
 
-case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
+case class IfAST(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): Type = {
     if (!cond.`type`.isInstanceOf[TBoolean]) {
@@ -1154,16 +1154,16 @@ object PrettyAST {
 
   private def astToName(ast: AST): String = {
     ast match {
-      case Apply(_, fn, _) => s"Apply[${fn}]"
-      case ApplyMethod(_, _, method, _) => s"ApplyMethod[${method}]"
+      case ApplyAST(_, fn, _) => s"Apply[${fn}]"
+      case ApplyMethodAST(_, _, method, _) => s"ApplyMethod[${method}]"
       case ArrayConstructor(_, _) => "ArrayConstructor"
       case Const(_, value, _) => s"Const[${Option(value).getOrElse("NA")}]"
-      case If(_, _, _, _) => "If"
+      case IfAST(_, _, _, _) => "If"
       case Lambda(_, param, _) => s"Lambda[${param}]"
-      case Let(_, _, _) => "Let"
-      case Select(_, _, rhs) => s"Select[${rhs}]"
+      case LetAST(_, _, _) => "Let"
+      case SelectAST(_, _, rhs) => s"Select[${rhs}]"
       case StructConstructor(_, _, _) => "StructConstructor"
-      case SymRef(_, symbol) => s"SymRef[${symbol}]"
+      case SymRefAST(_, symbol) => s"SymRef[${symbol}]"
       case TupleConstructor(_, _) => "TupleConstructor"
       case _ => "UnknownAST"
     }

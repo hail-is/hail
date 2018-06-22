@@ -30,6 +30,8 @@ abstract class BaseIR {
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
 
+  def deepCopy(): this.type = copy(newChildren = children.map(_.deepCopy())).asInstanceOf[this.type]
+
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
     copy(children.map(f))
   }
@@ -402,7 +404,7 @@ case class MatrixLiteral(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
-    this
+    MatrixLiteral(typ, value)
   }
 
   override def toString: String = "MatrixLiteral(...)"
@@ -413,13 +415,14 @@ case class MatrixRead(
   override val partitionCounts: Option[Array[Long]],
   dropCols: Boolean,
   dropRows: Boolean,
+  requestedType: MatrixType,
   f: (MatrixRead) => MatrixValue) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    this
+    MatrixRead(typ, partitionCounts, dropCols, dropRows, requestedType, f)
   }
 
   def execute(hc: HailContext): MatrixValue = f(this)
@@ -1686,14 +1689,14 @@ case class TableLiteral(value: TableValue) extends TableIR {
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
     assert(newChildren.isEmpty)
-    this
+    TableLiteral(value)
   }
 
   def execute(hc: HailContext): TableValue = value
 }
 
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
-  // FIXME assert typ is a supertype of spec.table_type
+  assert(PruneDeadFields.isSupertype(typ, spec.table_type))
 
   override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
 
@@ -1701,7 +1704,7 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
-    this
+    TableRead(path, spec, typ, dropRows)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1721,7 +1724,7 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
     assert(newChildren.isEmpty)
-    this
+    TableParallelize(typ, rows, nPartitions)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -1740,12 +1743,12 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
     assert(newChildren.isEmpty)
-    this
+    TableImport(paths, typ, readerOpts)
   }
 
   def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
-    val nFieldOrig = readerOpts.originalRowTypeSize
+    val nFieldOrig = readerOpts.originalType.size
     val rowFields = rowTyp.fields
 
     val useColIndices = readerOpts.useColIndices
@@ -1761,13 +1764,13 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       val rvb = ctx.rvb
       val rv = RegionValue(region)
 
+      val ab = new ArrayBuilder[String]
+      val sb = new StringBuilder
       it.map {
         _.map { line =>
-          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote)
+          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote, ab, sb)
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
-
-          val kept = useColIndices.map(sp)
 
           rvb.set(region)
           rvb.start(rowTyp)
@@ -1778,7 +1781,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
             val f = rowFields(i)
             val name = f.name
             val typ = f.typ
-            val field = kept(i)
+            val field = sp(useColIndices(i))
             try {
               if (field == readerOpts.missing)
                 rvb.setMissing()
@@ -1868,8 +1871,8 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {
-    assert(newChildren.length == 0)
-    this
+    assert(newChildren.isEmpty)
+    TableRange(n, nPartitions)
   }
 
   private val partCounts = partition(n, nPartitionsAdj)
@@ -1949,6 +1952,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
     right.typ.valueType.fields
   private val preNames = joinedFields.map(_.name).toArray
   private val (finalColumnNames, remapped) = mangle(preNames)
+
+  val rightFieldMapping: Map[String, String] = {
+   val remapMap = remapped.toMap
+    (right.typ.key.get.iterator.zip(left.typ.key.get.iterator) ++
+      right.typ.valueType.fieldNames.iterator.map(f => f -> remapMap.getOrElse(f, f))).toMap
+  }
 
   val newRowType = TStruct(joinedFields.zipWithIndex.map {
     case (fd, i) => (finalColumnNames(i), fd.typ)

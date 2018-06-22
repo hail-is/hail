@@ -292,47 +292,47 @@ object Parser extends JavaTokenParsers {
 
   def if_expr: Parser[AST] =
     withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
-      If(ifx.pos, cond, thenTree, elseTree)
+      IfAST(ifx.pos, cond, thenTree, elseTree)
     }
 
   def let_expr: Parser[AST] =
     withPos("let") ~ rep1sep((identifier <~ "=") ~ expr, "and") ~ ("in" ~> expr) ^^ { case let ~ bindings ~ body =>
-      Let(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
+      LetAST(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
     }
 
   def or_expr: Parser[AST] =
     and_expr ~ rep(withPos("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def and_expr: Parser[AST] =
     lt_expr ~ rep(withPos("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def lt_expr: Parser[AST] =
     eq_expr ~ rep(withPos("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def eq_expr: Parser[AST] =
     add_expr ~ rep(withPos("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def add_expr: Parser[AST] =
     mul_expr ~ rep(withPos("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def mul_expr: Parser[AST] =
     tilde_expr ~ rep(withPos("*" | "//" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def tilde_expr: Parser[AST] =
     unary_expr ~ rep(withPos("~") ~ unary_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def comma_delimited_doubles: Parser[Array[Double]] =
@@ -373,13 +373,13 @@ object Parser extends JavaTokenParsers {
   def unary_expr: Parser[AST] =
     rep(withPos("-" | "+" | "!")) ~ exponent_expr ^^ { case lst ~ rhs =>
       lst.foldRight(rhs) { case (op, acc) =>
-        Apply(op.pos, op.x, Array(acc))
+        ApplyAST(op.pos, op.x, Array(acc))
       }
     }
 
   def exponent_expr: Parser[AST] =
     dot_expr ~ rep(withPos("**") ~ dot_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def dot_expr: Parser[AST] =
@@ -389,18 +389,18 @@ object Parser extends JavaTokenParsers {
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) =>
         (t: @unchecked) match {
-          case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
+          case (dot: Positioned[_]) ~ sym => SelectAST(dot.pos, acc, sym)
           case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
-            ApplyMethod(dot.pos, acc, sym, args)
-          case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => ApplyMethod(lbracket.pos, acc, "[]", Array(idx))
+            ApplyMethodAST(dot.pos, acc, sym, args)
+          case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => ApplyMethodAST(lbracket.pos, acc, "[]", Array(idx))
           case (lbracket: Positioned[_]) ~ None ~ ":" ~ None ~ "]" =>
-            ApplyMethod(lbracket.pos, acc, "[:]", Array())
+            ApplyMethodAST(lbracket.pos, acc, "[:]", Array())
           case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ None ~ "]" =>
-            ApplyMethod(lbracket.pos, acc, "[*:]", Array(idx1))
+            ApplyMethodAST(lbracket.pos, acc, "[*:]", Array(idx1))
           case (lbracket: Positioned[_]) ~ None ~ ":" ~ Some(idx2: AST) ~ "]" =>
-            ApplyMethod(lbracket.pos, acc, "[:*]", Array(idx2))
+            ApplyMethodAST(lbracket.pos, acc, "[:*]", Array(idx2))
           case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ Some(idx2: AST) ~ "]" =>
-            ApplyMethod(lbracket.pos, acc, "[*:*]", Array(idx1, idx2))
+            ApplyMethodAST(lbracket.pos, acc, "[*:*]", Array(idx1, idx2))
         }
       }
     }
@@ -441,9 +441,9 @@ object Parser extends JavaTokenParsers {
       } |
       (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
-          Apply(lparen.pos, id, args)
+          ApplyAST(lparen.pos, id, args)
       } |
-      guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRef(r.pos, r.x)) |
+      guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRefAST(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
       "(" ~> expr <~ ")"
 

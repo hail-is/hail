@@ -26,15 +26,15 @@ object Interpret {
     }
 
     var ir = ir0.unwrap
-    if (optimize)
+    if (optimize) {
+      log.info("interpret: PRE-OPT\n" + Pretty(ir))
       ir = Optimize(ir)
-    TypeCheck(ir, typeEnv, agg.map { agg =>
-      agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
+      TypeCheck(ir, typeEnv, agg.map { agg =>
+        agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
-      }
-    })
-
-    log.info("interpret:\n" + Pretty(ir))
+        }
+      })
+    }
 
     apply(ir, valueEnv, args, agg, None).asInstanceOf[T]
   }
