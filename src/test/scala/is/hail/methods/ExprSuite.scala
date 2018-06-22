@@ -413,7 +413,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
 
-    assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
+    assert(eval[String](""" "HELLO=" + str(j) + ", asdasd" + str(9)""")
       .contains("HELLO=-7, asdasd9"))
 
     assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4)   """)
@@ -445,7 +445,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""a.sum()""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String]("""let l = Locus("1", 1000) in json(l)""").contains("""{"contig":"1","position":1000}"""))
-    assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[String](""" "" + str(5) + "5" """) == eval[String](""" "5" + str(5) """))
     assert(eval[Int]("""iset.min()""").contains(0))
     assert(eval[Int]("""iset.max()""").contains(2))
     assert(eval[Int]("""iset.sum()""").contains(3))
