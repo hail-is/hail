@@ -234,7 +234,7 @@ class IndexBTreeSuite extends SparkSuite {
 
   @Test def onDiskBTreeIndexToValueRandomized() {
     val g = for {
-      longs <- buildableOf[Array](arbitrary[Long])
+      longs <- buildableOf[Array](choose(0L, Long.MaxValue))
       indices <- buildableOf[Array](choose(0, longs.length - 1))
       branchingFactor <- choose(2, 1024)
     } yield (indices, longs, branchingFactor)
@@ -257,23 +257,46 @@ class IndexBTreeSuite extends SparkSuite {
     }.check()
   }
 
-
-  @Test def onDiskBTreeIndexToValueThreeLayers() {
-    val longs = Array.tabulate(1024*1024*1024)(x => x.toLong)
-    val indices = Array.tabulate(1024*1024)(x => x * 1024)
+  @Test def onDiskBTreeIndexToValueFourLayers() {
+    val longs = Array.tabulate(3*3*3*3)(x => x.toLong)
+    val indices = Array(0, 3, 10, 20, 26, 27, 34, 55, 79, 80)
     val f = tmpDir.createTempFile()
+    val branchingFactor = 3
     try {
-      IndexBTree.write(longs, f, hadoopConf)
-      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf)
-      val actual = bt.positionOfVariants(indices.toArray)
+      IndexBTree.write(longs, f, hadoopConf, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
       val expected = indices.sorted.map(longs)
+      val actual = bt.positionOfVariants(indices.toArray)
       assert(actual sameElements expected,
         s"${actual.toSeq} not same elements as expected ${expected.toSeq}")
     } catch {
       case t: Throwable =>
         throw new RuntimeException(
-          "exception while checking BTree: " + IndexBTree.toString(longs),
+          "exception while checking BTree: " + IndexBTree.toString(longs, branchingFactor),
           t)
     }
+  }
+
+  @Test def calcDepthIsCorrect() {
+    def sqr(x: Long) = x * x
+    def cube(x: Long) = x * x * x
+
+    def f(x: Long) = IndexBTree.calcDepth(x, 1024)
+
+    assert(f(1) == 1)
+    assert(f(1023) == 1)
+    assert(f(1024) == 1)
+    assert(f(1025) == 2)
+
+    assert(f(sqr(1024) - 1) == 2)
+    assert(f(sqr(1024)) == 2)
+    assert(f(sqr(1024) + 1024) == 2)
+    assert(f(sqr(1024) + 1024 + 1) == 3)
+
+    assert(f(cube(1024) - 1) == 3)
+    assert(f(cube(1024)) == 3)
+    assert(f(cube(1024) + sqr(1024)) == 3)
+    assert(f(cube(1024) + sqr(1024) + 1024) == 3)
+    assert(f(cube(1024) + sqr(1024) + 1024 + 1) == 4)
   }
 }

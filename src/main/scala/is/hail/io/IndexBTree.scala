@@ -9,6 +9,17 @@ import org.apache.hadoop.fs._
 import scala.collection.mutable
 
 object IndexBTree {
+  private[io] def calcDepth(numBtreeElements: Long, branchingFactor: Int): Int = {
+    var depth = 1
+    var maximumTreeSize = branchingFactor.toLong
+    while (numBtreeElements > maximumTreeSize) {
+      assert(depth <= 6) // 1024^7 > Long.MaxValue
+      maximumTreeSize = maximumTreeSize * branchingFactor + branchingFactor
+      depth += 1
+    }
+    depth
+  }
+
   private[io] def calcDepth(arr: Array[Long], branchingFactor: Int) =
     //max necessary for array of length 1 becomes depth=0
     math.max(1, (math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
@@ -87,14 +98,8 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 
   def close() = fs.close()
 
-  def calcDepth(): Int = {
-    val numBtreeElements = hConf.getFileSize(indexFileName) / 8
-    var depth = 1
-    while (numBtreeElements > math.pow(branchingFactor, depth).toInt) {
-      depth += 1
-    }
-    depth
-  }
+  def calcDepth(): Int =
+    IndexBTree.calcDepth(hConf.getFileSize(indexFileName) / 8, branchingFactor)
 
   private def getOffset(depth: Int): Long = {
     (1 until depth).map(math.pow(branchingFactor, _).toLong * 8).sum
@@ -201,12 +206,8 @@ class OnDiskBTreeIndexToValue(
   hConf: Configuration,
   branchingFactor: Int = 1024
 ) extends AutoCloseable {
-  private[this] def numLayers(size: Long): Int = {
-    if (size <= branchingFactor)
-      1
-    else
-      (math.log(size) / math.log(branchingFactor)).floor.toInt
-  }
+  private[this] def numLayers(size: Long): Int =
+    IndexBTree.calcDepth(size, branchingFactor)
 
   private[this] def leadingElements(layer: Int): Long = {
     var i = 0
@@ -219,7 +220,7 @@ class OnDiskBTreeIndexToValue(
   }
 
   private[this] val layers = numLayers(hConf.getFileSize(path) / 8)
-  private[this] val junk = leadingElements(layers)
+  private[this] val junk = leadingElements(layers - 1)
   private[this] var fs = try {
     log.info("reading index file: " + path)
     hConf.fileSystem(path).open(new Path(path))
@@ -237,7 +238,7 @@ class OnDiskBTreeIndexToValue(
       Arrays.sort(indices)
       fs.seek((junk + indices(0)) * 8)
       a(0) = fs.readLong()
-      assert(a(0) != -1, "0")
+      assert(a(0) != -1)
       var i = 1
       while (i < indices.length) {
         if (indices(i) == indices(i - 1)) {
@@ -247,7 +248,7 @@ class OnDiskBTreeIndexToValue(
           assert(jump >= 0)
           fs.skipBytes(jump)
           a(i) = fs.readLong()
-          assert(a(i) != -1, s"$i")
+          assert(a(i) != -1)
         }
         i += 1
       }
