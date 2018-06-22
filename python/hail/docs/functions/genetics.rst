@@ -6,6 +6,7 @@ Genetics functions
 .. autosummary::
 
     locus
+    locus_from_global_position
     locus_interval
     parse_locus
     parse_variant
