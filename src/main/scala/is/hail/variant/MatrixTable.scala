@@ -125,110 +125,14 @@ object FileFormat {
 }
 
 object MatrixTable {
-  def read(hc: HailContext, path: String,
-    dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
+  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
     val spec = (RelationalSpec.read(hc, path): @unchecked) match {
       case mts: MatrixTableSpec => mts
       case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     }
-
     val typ = spec.matrix_type
-
-    val f: (MatrixRead) => MatrixValue = { mr =>
-      val hc = HailContext.get
-      val globals = Annotation.copy(typ.globalType, spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)).asInstanceOf[Row]
-
-      val colAnnotations =
-        if (mr.dropCols)
-          IndexedSeq.empty[Annotation]
-        else
-          Annotation.copy(TArray(typ.colType), spec.colsComponent.readLocal(hc, path, typ.colType)).asInstanceOf[IndexedSeq[Annotation]]
-
-      val rvd =
-        if (mr.dropRows)
-          OrderedRVD.empty(hc.sc, typ.orvdType)
-        else {
-          val fullRowType = typ.rvRowType
-          val rowType = typ.rowType
-          val localEntriesIndex = typ.entriesIdx
-
-          val rowsRVD = spec.rowsComponent.read(hc, path, typ.rowType).asInstanceOf[OrderedRVD]
-          if (mr.dropCols) {
-            rowsRVD.mapPartitionsPreservesPartitioning(typ.orvdType) { it =>
-              val rv2b = new RegionValueBuilder()
-              val rv2 = RegionValue()
-
-              it.map { rv =>
-                rv2b.set(rv.region)
-                rv2b.start(fullRowType)
-                rv2b.startStruct()
-                var i = 0
-                while (i < localEntriesIndex) {
-                  rv2b.addField(rowType, rv, i)
-                  i += 1
-                }
-                rv2b.startArray(0)
-                rv2b.endArray()
-                i += 1
-                while (i < fullRowType.size) {
-                  rv2b.addField(rowType, rv, i - 1)
-                  i += 1
-                }
-                rv2b.endStruct()
-                rv2.set(rv.region, rv2b.end())
-                rv2
-              }
-            }
-          } else {
-            val entriesRVD = spec.entriesComponent.read(hc, path, typ.entriesRVType)
-            val entriesRowType = entriesRVD.rowType
-            rowsRVD.zipPartitions(typ.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (ctx, it1, it2) =>
-              val rvb = ctx.rvb
-              val region = ctx.region
-              val rv3 = RegionValue(region)
-              new Iterator[RegionValue] {
-                def hasNext = {
-                  val hn1 = it1.hasNext
-                  val hn2 = it2.hasNext
-                  assert(hn1 == hn2)
-                  hn1
-                }
-
-                def next(): RegionValue = {
-                  val rv1 = it1.next()
-                  val rv2 = it2.next()
-
-                  rvb.start(fullRowType)
-                  rvb.startStruct()
-                  var i = 0
-                  while (i < localEntriesIndex) {
-                    rvb.addField(rowType, rv1, i)
-                    i += 1
-                  }
-                  rvb.addField(entriesRowType, rv2, 0)
-                  i += 1
-                  while (i < fullRowType.size) {
-                    rvb.addField(rowType, rv1, i - 1)
-                    i += 1
-                  }
-                  rvb.endStruct()
-                  rv3.setOffset(rvb.end())
-                  rv3
-                }
-              }
-            }
-          }
-        }
-
-      MatrixValue(
-        typ,
-        BroadcastRow(globals, typ.globalType, hc.sc),
-        BroadcastIndexedSeq(colAnnotations, TArray(typ.colType), hc.sc),
-        rvd)
-    }
-
     new MatrixTable(hc,
-      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, typ, f))
+      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, MatrixNativeReader(path, spec)))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -288,68 +192,8 @@ object MatrixTable {
       rowType = TStruct("row_idx" -> TInt32()),
       entryType = TStruct.empty())
 
-    val f: (MatrixRead) => MatrixValue = { mr =>
-      val hc = HailContext.get
-      val localRVType = typ.rvRowType
-      val localPartCounts = partCounts
-      val partStarts = partCounts.scanLeft(0)(_ + _)
-      val localNCols = if (mr.dropCols) 0 else nCols
-
-      val rvd = if (mr.dropRows)
-        OrderedRVD.empty(hc.sc, typ.orvdType)
-      else {
-        OrderedRVD(typ.orvdType,
-          new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
-            typ.rowKeyStruct,
-            Array.tabulate(nPartitionsAdj) { i =>
-              val start = partStarts(i)
-              Interval(Row(start), Row(start + localPartCounts(i)), includesStart = true, includesEnd = false)
-            }),
-          ContextRDD.parallelize[RVDContext](hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
-            .cmapPartitionsWithIndex { (i, ctx, _) =>
-              val region = ctx.region
-              val rvb = ctx.rvb
-              val rv = RegionValue(region)
-
-              val start = partStarts(i)
-              Iterator.range(start, start + localPartCounts(i))
-                .map { j =>
-                  rvb.start(localRVType)
-                  rvb.startStruct()
-
-                  // row idx field
-                  rvb.addInt(j)
-
-                  // entries field
-                  rvb.startArray(localNCols)
-                  var i = 0
-                  while (i < localNCols) {
-                    rvb.startStruct()
-                    rvb.endStruct()
-                    i += 1
-                  }
-                  rvb.endArray()
-
-                  rvb.endStruct()
-                  rv.setOffset(rvb.end())
-                  rv
-                }
-            })
-      }
-
-      MatrixValue(typ,
-        BroadcastRow(Row(), typ.globalType, hc.sc),
-        BroadcastIndexedSeq(
-          Iterator.range(0, localNCols)
-            .map(Row(_))
-            .toFastIndexedSeq,
-          TArray(typ.colType),
-          hc.sc),
-        rvd)
-    }
-
     new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)),
-      dropRows = false, dropCols = false, requestedType = typ, f = f))
+      dropRows = false, dropCols = false, reader = MatrixRangeReader(typ, nRows, nCols, nPartitions)))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
