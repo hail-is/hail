@@ -2465,6 +2465,28 @@ class LocusExpression(Expression):
         """
         return self._field("position", tint32)
 
+    def global_position(self):
+        """Returns a global position, computed as the sum of the local position
+        and the chromosome's starting position on this locus's reference genome.
+        See also :meth:`.locus_from_global_position`.
+
+        Examples
+        --------
+        >>> hl.locus('3', 100).global_position().value
+        492450093
+
+        >>> hl.locus('chr3', 100, 'GRCh38').global_position().value
+        491150050
+
+        Returns
+        -------
+        :class:`.Expression` of type :py:data:`.tint64`
+            Global base position of locus along the reference genome.
+        """
+        reference_genome = self.dtype.reference_genome
+        return construct_expr(ApplyMethod('locusToGlobalPos({})'.format(reference_genome), self._ast), 
+                              tint64, self._indices, self._aggregations)
+
     def in_x_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal
         region of chromosome X.

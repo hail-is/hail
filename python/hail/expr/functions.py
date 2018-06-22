@@ -700,6 +700,32 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
                           tlocus(reference_genome), indices, aggregations)
 
 
+@typecheck(global_pos=expr_int64,
+           reference_genome=reference_genome_type)
+def locus_from_global_position(global_pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+    """Construct a locus expression from a global position and a reference genome.
+    The inverse of :meth:`.LocusExpression.global_position`.
+
+    Examples
+    --------
+    >>> hl.locus_from_global_position(2824183054, 'GRCh38').value
+    Locus(contig=22, position=1, reference_genome=GRCh38)
+
+    Parameters
+    ----------
+    global_pos : int or :class:`.Expression` of type :py:data:`.tint64`
+        Global base position along the reference genome.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use for converting the global position to a contig and local position.
+
+    Returns
+    -------
+    :class:`.LocusExpression`
+    """
+    return construct_expr(ApplyMethod('globalPosToLocus({})'.format(reference_genome.name), global_pos._ast), 
+                          tlocus(reference_genome), global_pos._indices, global_pos._aggregations)
+
+
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
 def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:

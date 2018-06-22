@@ -1170,6 +1170,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.parse_variant('1:1:A:T').value,
                          hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
+    def test_locus_to_global_position(self):
+        self.assertEqual(hl.locus('chr22', 1, 'GRCh38').global_position().value, 2824183054)
+
+    def test_locus_from_global_position(self):
+        self.assertEqual(hl.locus_from_global_position(2824183054, 'GRCh38').value, hl.locus('chr22', 1, 'GRCh38').value)
+
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
         self.assertEqual(hl.eval_expr(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
