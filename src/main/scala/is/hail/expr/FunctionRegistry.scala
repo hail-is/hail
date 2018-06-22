@@ -1113,20 +1113,6 @@ object FunctionRegistry {
   }
   )(unaryHr(float64Hr, float64Hr), float64Hr, float64Hr, boxedFloat64Hr)
 
-  registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.find { elt =>
-      val r = f(elt)
-      r != null && r.asInstanceOf[Boolean]
-    }.orNull
-  )(arrayHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
-
-  registerLambdaMethod("find", (s: Set[Any], f: (Any) => Any) =>
-    s.find { elt =>
-      val r = f(elt)
-      r != null && r.asInstanceOf[Boolean]
-    }.orNull
-  )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
-
   registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) => {
     val l = a.length
     val r = new Array[Any](a.length)
