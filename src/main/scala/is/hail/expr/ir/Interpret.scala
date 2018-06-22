@@ -211,11 +211,14 @@ object Interpret {
         if (aValue == null)
           null
         else {
+          var sortType = a.typ.asInstanceOf[TArray].elementType
+          if (onKey)
+            sortType = sortType.asInstanceOf[TBaseStruct].types(0)
           val ord =
             if (ascendingValue == null || ascendingValue.asInstanceOf[Boolean])
-              a.typ.asInstanceOf[TArray].elementType.asInstanceOf[TBaseStruct].types(0).ordering
+              sortType.ordering
             else
-              a.typ.asInstanceOf[TArray].elementType.asInstanceOf[TBaseStruct].types(0).ordering.reverse
+              sortType.ordering.reverse
           aValue.asInstanceOf[IndexedSeq[Row]].sortBy(_.get(0))(ord.toOrdering)
         }
       case ToSet(a) =>
