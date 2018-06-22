@@ -155,7 +155,23 @@ abstract class RegistryFunctions {
           srvb.start(len),
           Code.whileLoop(srvb.arrayIdx < len,
             v := Code.checkcast[java.lang.Integer](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
-            v.isNull.mux(srvb.setMissing, srvb.addInt(v.invoke[Int]("intValue"))),
+            v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
+            srvb.advance())),
+        srvb.offset)
+    case TArray(_: TString, _) => c =>
+      val srvb = new StagedRegionValueBuilder(mb, t)
+      val alocal = mb.newLocal[IndexedSeq[String]]
+      val len = mb.newLocal[Int]
+      val v = mb.newLocal[java.lang.String]
+
+      Code(
+        alocal := coerce[IndexedSeq[String]](c),
+        len := alocal.invoke[Int]("size"),
+        Code(
+          srvb.start(len),
+          Code.whileLoop(srvb.arrayIdx < len,
+            v := Code.checkcast[java.lang.String](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
+            v.isNull.mux(srvb.setMissing(), srvb.addString(v)),
             srvb.advance())),
         srvb.offset)
   }
