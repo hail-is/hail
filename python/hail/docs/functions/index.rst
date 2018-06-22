@@ -152,6 +152,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     locus
+    locus_from_global_position
     locus_interval
     parse_locus
     parse_variant

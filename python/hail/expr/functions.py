@@ -702,13 +702,12 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
 
 @typecheck(global_pos=expr_int64,
            reference_genome=reference_genome_type)
-def locus_from_global_position(global_pos, reference_genome: Union[str, ReferenceGenome]) -> LocusExpression:
+def locus_from_global_position(global_pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
     """Construct a locus expression from a global position and a reference genome.
     The inverse of :meth:`.LocusExpression.global_position`.
 
     Examples
     --------
-
     >>> hl.locus_from_global_position(2824183054, 'GRCh38').value
     Locus(contig=22, position=1, reference_genome=GRCh38)
 

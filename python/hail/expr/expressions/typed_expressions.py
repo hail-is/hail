@@ -2472,7 +2472,6 @@ class LocusExpression(Expression):
 
         Examples
         --------
-
         >>> hl.locus('3', 100).global_position().value
         492450093
 
@@ -2486,7 +2485,7 @@ class LocusExpression(Expression):
         """
         reference_genome = self.dtype.reference_genome
         return construct_expr(ApplyMethod('locusToGlobalPos({})'.format(reference_genome), self._ast), 
-                              tlocus(reference_genome), self._indices, self._aggregations)
+                              tint64, self._indices, self._aggregations)
 
     def in_x_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal
