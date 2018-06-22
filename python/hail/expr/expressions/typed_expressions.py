@@ -127,7 +127,9 @@ class CollectionExpression(Expression):
                 raise TypeError("'find' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
             return self._type.element_type
 
-        return self._bin_lambda_method("find", f, self._type.element_type, unify_ret)
+        # FIXME make more efficient when we can call ArrayFold
+        return hl.bind(lambda fa: hl.cond(hl.len(fa) > 0, fa[0], hl.null(self._type.element_type)),
+                       hl.array(self.filter(f)))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def flatmap(self, f):

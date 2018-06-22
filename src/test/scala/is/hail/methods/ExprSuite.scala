@@ -313,8 +313,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[String]]("""s.split(",")""").contains(IndexedSeq("12", "34", "56", "78")))
     assert(eval[Int]("s2.length()").contains(62))
 
-    assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
-
     assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x])""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)))
     assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x, x + 1])""").contains(IndexedSeq(1, 2, 2, 3, null, null, 6, 7, 3, 4, 3, 4, -1, 0, 8, 9)))
 

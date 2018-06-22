@@ -2440,9 +2440,7 @@ def find(f: Callable, collection):
         Expression whose type is the element type of the collection.
     """
 
-    return collection._bin_lambda_method("find", f,
-                                         collection.dtype.element_type,
-                                         lambda _: collection.dtype.element_type)
+    return collection.find(f)
 
 
 @typecheck(f=func_spec(1, expr_any),
