@@ -1218,13 +1218,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
 
     def test_array_find(self):
-        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32))), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: hl.null(hl.tbool), [1, 0, -4, 6])), None)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, [1, 0, -4, 6])), -4)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, [1, 0, 4, 6])), None)
 
     def test_set_find(self):
-        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tset(hl.tint32))), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tset(hl.tint32)))), None)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: hl.null(hl.tbool), hl.set([1, 0, -4, 6]))), None)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
