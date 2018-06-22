@@ -83,7 +83,7 @@ final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
 
-final case class ArraySort(a: IR, ascending: IR) extends InferIR
+final case class ArraySort(a: IR, ascending: IR, onKey: Boolean = false) extends InferIR
 final case class ToSet(a: IR) extends InferIR
 final case class ToDict(a: IR) extends InferIR
 final case class ToArray(a: IR) extends InferIR

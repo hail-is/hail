@@ -205,7 +205,7 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
-      case ArraySort(a, ascending) =>
+      case ArraySort(a, ascending, onKey) =>
         val aValue = interpret(a, env, args, agg)
         val ascendingValue = interpret(ascending, env, args, agg)
         if (aValue == null)
@@ -213,10 +213,10 @@ object Interpret {
         else {
           val ord =
             if (ascendingValue == null || ascendingValue.asInstanceOf[Boolean])
-              a.typ.asInstanceOf[TArray].elementType.ordering
+              a.typ.asInstanceOf[TArray].elementType.asInstanceOf[TBaseStruct].types(0).ordering
             else
-              a.typ.asInstanceOf[TArray].elementType.ordering.reverse
-          aValue.asInstanceOf[IndexedSeq[Any]].sorted(ord.toOrdering)
+              a.typ.asInstanceOf[TArray].elementType.asInstanceOf[TBaseStruct].types(0).ordering.reverse
+          aValue.asInstanceOf[IndexedSeq[Row]].sortBy(_.get(0))(ord.toOrdering)
         }
       case ToSet(a) =>
         val aValue = interpret(a, env, args, agg)

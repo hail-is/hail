@@ -1030,7 +1030,37 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
                 ir.GroupByKey(ir.ArrayMap(a, name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
               case (_: TSet, "groupBy") =>
                 ir.GroupByKey(ir.ArrayMap(ir.ToArray(a), name, ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))))
+              case (_: TArray, "sortBy") =>
+                val ref = ir.Ref(ir.genUID(), TTuple(b.typ, types.coerce[TContainer](a.typ).elementType))
+                ir.ArrayMap(
+                  ir.ArraySort(
+                    ir.ArrayMap(a, name,
+                      ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))),
+                    true, onKey = true),
+                  ref.name,
+                  ir.GetTupleElement(ref, 1))
             })
+        } yield result
+      case (t, m, IndexedSeq(Lambda(_, name, body), arg1)) =>
+        for {
+          a <- lhs.toIR(agg)
+          b <- body.toIR(agg)
+          irArg1 <- arg1.toIR(agg)
+          result <- fromOption(
+            this,
+            s"no method $m on type $t",
+            optMatch((t, m)) {
+              case (_: TArray, "sortBy") =>
+                val ref = ir.Ref(ir.genUID(), TTuple(b.typ, types.coerce[TContainer](a.typ).elementType))
+                ir.ArrayMap(
+                  ir.ArraySort(
+                    ir.ArrayMap(a, name,
+                      ir.MakeTuple(FastSeq(b, ir.Ref(name, types.coerce[TContainer](a.typ).elementType)))),
+                    irArg1, onKey = true),
+                  ref.name,
+                  ir.GetTupleElement(ref, 1))
+            }
+          )
         } yield result
       case _ =>
         for {

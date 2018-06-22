@@ -72,10 +72,10 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("isEmpty", TArray(tv("T")))(isEmpty)
 
-    registerIR("sort", TArray(tv("T")), TBoolean())(ArraySort)
+    registerIR("sort", TArray(tv("T")), TBoolean())(ArraySort(_, _, false))
 
     registerIR("sort", TArray(tv("T"))) { a =>
-      ArraySort(a, True())
+      ArraySort(a, True(), false)
     }
 
     registerIR("extend", TArray(tv("T")), TArray(tv("T")))(extend)
