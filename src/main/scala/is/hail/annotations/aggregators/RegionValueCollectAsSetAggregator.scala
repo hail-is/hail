@@ -43,7 +43,9 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
 
   override def deepCopy(): RegionValueCollectAsSetBooleanAggregator = {
     val rva = new RegionValueCollectAsSetBooleanAggregator()
-    rva.values = values.clone()
+    rva.hasTrue = hasTrue
+    rva.hasFalse = hasFalse
+    rva.hasMissing = hasMissing
     rva
   }
 
