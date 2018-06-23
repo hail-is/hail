@@ -7,8 +7,8 @@ object ArrayBuilder {
 }
 
 final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
-  private var b: Array[T] = new Array[T](initialCapacity)
-  private var size_ : Int = 0
+  private[utils] var b: Array[T] = new Array[T](initialCapacity)
+  private[utils] var size_ : Int = 0
 
   def this()(implicit tct: ClassTag[T]) = this(ArrayBuilder.defaultInitialCapacity)
 
@@ -69,5 +69,12 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
   def last: T = {
     assert(size_ > 0)
     b(size_ - 1)
+  }
+
+  override def clone(): ArrayBuilder[T] = {
+    val ab = new ArrayBuilder[T]()
+    ab.b = b.clone()
+    ab.size_ = size_
+    ab
   }
 }

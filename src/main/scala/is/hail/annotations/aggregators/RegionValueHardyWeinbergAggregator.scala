@@ -27,6 +27,12 @@ class RegionValueHardyWeinbergAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueHardyWeinbergAggregator = new RegionValueHardyWeinbergAggregator()
 
+  override def deepCopy(): RegionValueHardyWeinbergAggregator = {
+    val rva = new RegionValueHardyWeinbergAggregator()
+    rva.combiner = combiner.copy()
+    rva
+  }
+
   override def clear() {
     combiner.clear()
   }

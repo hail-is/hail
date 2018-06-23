@@ -7,7 +7,7 @@ import is.hail.utils._
 import scala.collection.mutable
 
 class RegionValueCounterAggregator(t: Type) extends RegionValueAggregator {
-  val m = mutable.Map[Any, Long]()
+  var m = mutable.Map[Any, Long]()
 
   def seqOp(a: Any) {
     m.updateValue(a, 0L, _ + 1L)
@@ -35,6 +35,12 @@ class RegionValueCounterAggregator(t: Type) extends RegionValueAggregator {
   }
 
   override def copy(): RegionValueCounterAggregator = new RegionValueCounterAggregator(t)
+
+  override def deepCopy(): RegionValueCounterAggregator = {
+    val rva = new RegionValueCounterAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 
   override def clear() {
     m.clear()
@@ -91,6 +97,14 @@ class RegionValueCounterBooleanAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueCounterBooleanAggregator = new RegionValueCounterBooleanAggregator()
 
+  override def deepCopy(): RegionValueCounterBooleanAggregator = {
+    val rva = new RegionValueCounterBooleanAggregator()
+    rva.nTrue = nTrue
+    rva.nFalse = nFalse
+    rva.nMissing = nMissing
+    rva
+  }
+
   override def clear() {
     nTrue = 0L
     nFalse = 0L
@@ -104,6 +118,12 @@ class RegionValueCounterIntAggregator(t: Type) extends RegionValueCounterAggrega
   }
 
   override def copy(): RegionValueCounterIntAggregator = new RegionValueCounterIntAggregator(t)
+
+  override def deepCopy(): RegionValueCounterIntAggregator = {
+    val rva = new RegionValueCounterIntAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 }
 
 class RegionValueCounterLongAggregator(t: Type) extends RegionValueCounterAggregator(t) {
@@ -112,6 +132,12 @@ class RegionValueCounterLongAggregator(t: Type) extends RegionValueCounterAggreg
   }
 
   override def copy(): RegionValueCounterLongAggregator = new RegionValueCounterLongAggregator(t)
+
+  override def deepCopy(): RegionValueCounterLongAggregator = {
+    val rva = new RegionValueCounterLongAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 }
 
 class RegionValueCounterFloatAggregator(t: Type) extends RegionValueCounterAggregator(t) {
@@ -120,6 +146,12 @@ class RegionValueCounterFloatAggregator(t: Type) extends RegionValueCounterAggre
   }
 
   override def copy(): RegionValueCounterFloatAggregator = new RegionValueCounterFloatAggregator(t)
+
+  override def deepCopy(): RegionValueCounterFloatAggregator = {
+    val rva = new RegionValueCounterFloatAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 }
 
 class RegionValueCounterDoubleAggregator(t: Type) extends RegionValueCounterAggregator(t) {
@@ -128,6 +160,12 @@ class RegionValueCounterDoubleAggregator(t: Type) extends RegionValueCounterAggr
   }
 
   override def copy(): RegionValueCounterDoubleAggregator = new RegionValueCounterDoubleAggregator(t)
+
+  override def deepCopy(): RegionValueCounterDoubleAggregator = {
+    val rva = new RegionValueCounterDoubleAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 }
 
 class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueCounterAggregator(t) {
@@ -136,4 +174,10 @@ class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueCounter
   }
 
   override def copy(): RegionValueCounterAnnotationAggregator = new RegionValueCounterAnnotationAggregator(t)
+
+  override def deepCopy(): RegionValueCounterAnnotationAggregator = {
+    val rva = new RegionValueCounterAnnotationAggregator(t)
+    rva.m = m.clone()
+    rva
+  }
 }

@@ -7,7 +7,7 @@ import is.hail.expr.types.Type
 import is.hail.utils._
 
 class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
-  private val ab = new MissingBooleanArrayBuilder()
+  private var ab = new MissingBooleanArrayBuilder()
 
   def seqOp(region: Region, x: Boolean, missing: Boolean) {
     if (ab.length() < n)
@@ -34,13 +34,19 @@ class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
 
   def copy(): RegionValueTakeBooleanAggregator = new RegionValueTakeBooleanAggregator(n)
 
+  def deepCopy(): RegionValueTakeBooleanAggregator = {
+    val rva = new RegionValueTakeBooleanAggregator(n)
+    rva.ab = ab.clone()
+    rva
+  }
+
   def clear() {
     ab.clear()
   }
 }
 
 class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
-  private val ab = new MissingIntArrayBuilder()
+  private var ab = new MissingIntArrayBuilder()
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
     if (ab.length() < n)
@@ -67,13 +73,19 @@ class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
 
   def copy(): RegionValueTakeIntAggregator = new RegionValueTakeIntAggregator(n)
 
+  def deepCopy(): RegionValueTakeIntAggregator = {
+    val rva = new RegionValueTakeIntAggregator(n)
+    rva.ab = ab.clone()
+    rva
+  }
+
   def clear() {
     ab.clear()
   }
 }
 
 class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
-  private val ab = new MissingLongArrayBuilder()
+  private var ab = new MissingLongArrayBuilder()
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (ab.length() < n)
@@ -100,13 +112,19 @@ class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
 
   def copy(): RegionValueTakeLongAggregator = new RegionValueTakeLongAggregator(n)
 
+  def deepCopy(): RegionValueTakeLongAggregator = {
+    val rva = new RegionValueTakeLongAggregator(n)
+    rva.ab = ab.clone()
+    rva
+  }
+
   def clear() {
     ab.clear()
   }
 }
 
 class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
-  private val ab = new MissingFloatArrayBuilder()
+  private var ab = new MissingFloatArrayBuilder()
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
     if (ab.length() < n)
@@ -133,13 +151,19 @@ class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
 
   def copy(): RegionValueTakeFloatAggregator = new RegionValueTakeFloatAggregator(n)
 
+  def deepCopy(): RegionValueTakeFloatAggregator = {
+    val rva = new RegionValueTakeFloatAggregator(n)
+    rva.ab = ab.clone()
+    rva
+  }
+
   def clear() {
     ab.clear()
   }
 }
 
 class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
-  private val ab = new MissingDoubleArrayBuilder()
+  private var ab = new MissingDoubleArrayBuilder()
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (ab.length() < n)
@@ -166,13 +190,19 @@ class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
 
   def copy(): RegionValueTakeDoubleAggregator = new RegionValueTakeDoubleAggregator(n)
 
+  def deepCopy(): RegionValueTakeDoubleAggregator = {
+    val rva = new RegionValueTakeDoubleAggregator(n)
+    rva.ab = ab.clone()
+    rva
+  }
+
   def clear() {
     ab.clear()
   }
 }
 
 class RegionValueTakeAnnotationAggregator(n: Int, t: Type) extends RegionValueAggregator {
-  private val ab = new MissingAnnotationArrayBuilder()
+  private var ab = new MissingAnnotationArrayBuilder()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (ab.length() < n)
@@ -198,6 +228,12 @@ class RegionValueTakeAnnotationAggregator(n: Int, t: Type) extends RegionValueAg
   }
 
   def copy(): RegionValueTakeAnnotationAggregator = new RegionValueTakeAnnotationAggregator(n, t)
+
+  def deepCopy(): RegionValueTakeAnnotationAggregator = {
+    val rva = new RegionValueTakeAnnotationAggregator(n, t)
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()

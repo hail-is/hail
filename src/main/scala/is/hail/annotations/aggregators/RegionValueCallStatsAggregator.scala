@@ -38,7 +38,13 @@ class RegionValueCallStatsAggregator extends RegionValueAggregator {
       rvb.setMissing()
   }
 
-  def copy() = new RegionValueCallStatsAggregator()
+  def copy(): RegionValueCallStatsAggregator = new RegionValueCallStatsAggregator()
+
+  def deepCopy() = {
+    val rva = new RegionValueCallStatsAggregator()
+    rva.combiner = combiner.copy()
+    rva
+  }
 
   def clear() {
     combiner = null

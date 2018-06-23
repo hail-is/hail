@@ -29,6 +29,13 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMaxBooleanAggregator = new RegionValueMaxBooleanAggregator()
+  
+  def deepCopy(): RegionValueMaxBooleanAggregator = {
+    val rva = new RegionValueMaxBooleanAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
 
   def clear() {
     max = false
@@ -64,6 +71,13 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMaxIntAggregator = new RegionValueMaxIntAggregator()
 
+  def deepCopy(): RegionValueMaxIntAggregator = {
+    val rva = new RegionValueMaxIntAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0
     empty = true
@@ -98,6 +112,13 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMaxLongAggregator = new RegionValueMaxLongAggregator()
 
+  def deepCopy(): RegionValueMaxLongAggregator = {
+    val rva = new RegionValueMaxLongAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0L
     empty = true
@@ -132,6 +153,13 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMaxFloatAggregator = new RegionValueMaxFloatAggregator()
 
+  def deepCopy(): RegionValueMaxFloatAggregator = {
+    val rva = new RegionValueMaxFloatAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0.0f
     empty = true
@@ -166,6 +194,13 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMaxDoubleAggregator = new RegionValueMaxDoubleAggregator()
 
+  def deepCopy(): RegionValueMaxDoubleAggregator = {
+    val rva = new RegionValueMaxDoubleAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0.0
     empty = true

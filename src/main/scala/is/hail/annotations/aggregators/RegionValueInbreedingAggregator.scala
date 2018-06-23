@@ -35,6 +35,12 @@ class RegionValueInbreedingAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueInbreedingAggregator = new RegionValueInbreedingAggregator()
 
+  override def deepCopy(): RegionValueInbreedingAggregator = {
+    val rva = new RegionValueInbreedingAggregator()
+    rva.combiner = combiner.copy()
+    rva
+  }
+
   override def clear() {
     combiner.clear()
   }

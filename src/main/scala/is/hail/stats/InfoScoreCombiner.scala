@@ -111,4 +111,13 @@ class InfoScoreCombiner extends Serializable {
     totalDosage = 0d
     nIncluded = 0
   }
+
+  def copy(): InfoScoreCombiner = {
+    val c = new InfoScoreCombiner()
+    c.result = result
+    c.expectedAlleleCount = expectedAlleleCount
+    c.totalDosage = totalDosage
+    c.nIncluded = nIncluded
+    c
+  }
 }

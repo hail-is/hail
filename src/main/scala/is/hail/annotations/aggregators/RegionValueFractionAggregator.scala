@@ -27,6 +27,13 @@ class RegionValueFractionAggregator extends RegionValueAggregator {
 
   def copy() = new RegionValueFractionAggregator()
 
+  override def deepCopy(): RegionValueFractionAggregator = {
+    val rva = new RegionValueFractionAggregator()
+    rva.trues = trues
+    rva.total = total
+    rva
+  }
+
   def clear() {
     trues = 0L
     total = 0L

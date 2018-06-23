@@ -6,8 +6,8 @@ import scala.collection.mutable
 
 class MissingFloatArrayBuilder extends Serializable {
   private var len = 0
-  private val elements = new ArrayBuilder[Float]()
-  private val isMissing = new mutable.BitSet()
+  private var elements = new ArrayBuilder[Float]()
+  private var isMissing = new mutable.BitSet()
 
   def addMissing() {
     isMissing.add(len)
@@ -59,5 +59,13 @@ class MissingFloatArrayBuilder extends Serializable {
     len = 0
     elements.clear()
     isMissing.clear()
+  }
+
+  override def clone(): MissingFloatArrayBuilder = {
+    val ab = new MissingFloatArrayBuilder()
+    ab.len = len
+    ab.elements = elements.clone()
+    ab.isMissing = isMissing.clone()
+    ab
   }
 }

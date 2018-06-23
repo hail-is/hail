@@ -30,6 +30,13 @@ class RegionValueMinBooleanAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMinBooleanAggregator = new RegionValueMinBooleanAggregator()
 
+  def deepCopy(): RegionValueMinBooleanAggregator = {
+    val rva = new RegionValueMinBooleanAggregator()
+    rva.min = min
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     min = false
     empty = true
@@ -64,6 +71,13 @@ class RegionValueMinIntAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMinIntAggregator = new RegionValueMinIntAggregator()
 
+  def deepCopy(): RegionValueMinIntAggregator = {
+    val rva = new RegionValueMinIntAggregator()
+    rva.min = min
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     min = 0
     empty = true
@@ -98,6 +112,13 @@ class RegionValueMinLongAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMinLongAggregator = new RegionValueMinLongAggregator()
 
+  def deepCopy(): RegionValueMinLongAggregator = {
+    val rva = new RegionValueMinLongAggregator()
+    rva.min = min
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     min = 0L
     empty = true
@@ -131,7 +152,14 @@ class RegionValueMinFloatAggregator extends RegionValueAggregator {
   }
 
   def copy(): RegionValueMinFloatAggregator = new RegionValueMinFloatAggregator()
-
+  
+  def deepCopy(): RegionValueMinFloatAggregator = {
+    val rva = new RegionValueMinFloatAggregator()
+    rva.min = min
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     min = 0.0f
     empty = true
@@ -166,6 +194,13 @@ class RegionValueMinDoubleAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueMinDoubleAggregator = new RegionValueMinDoubleAggregator()
 
+  def deepCopy(): RegionValueMinDoubleAggregator = {
+    val rva = new RegionValueMinDoubleAggregator()
+    rva.min = min
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     min = 0.0
     empty = true
