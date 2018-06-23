@@ -2470,7 +2470,7 @@ class LocusExpression(Expression):
     def global_position(self):
         """Returns a global position, computed as the sum of the local position
         and the chromosome's starting position on this locus's reference genome.
-        See also :meth:`.locus_from_global_position`.
+        See also :func:`.locus_from_global_position`.
 
         Examples
         --------
