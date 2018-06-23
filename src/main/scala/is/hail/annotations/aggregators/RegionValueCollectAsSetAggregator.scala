@@ -6,33 +6,35 @@ import is.hail.expr.types.{TSet, Type}
 import scala.collection.mutable
 
 class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
-  private var values = Array[Boolean](false, false, false)
+  private var hasTrue = false
+  private var hasFalse = false
+  private var hasMissing = false
 
   def seqOp(region: Region, b: Boolean, missing: Boolean) {
     if (missing)
-      values(2) = true
+      hasMissing = true
     else {
       if (b)
-        values(0) = true
+        hasTrue = true
       else
-        values(1) = true
+        hasFalse = true
     }
   }
 
   def combOp(agg2: RegionValueAggregator) {
     val other = agg2.asInstanceOf[RegionValueCollectAsSetBooleanAggregator]
-    values(0) |= other.values(0)
-    values(1) |= other.values(1)
-    values(2) |= other.values(2)
+    hasTrue |= other.hasTrue
+    hasFalse |= other.hasFalse
+    hasMissing |= other.hasMissing
   }
 
   def result(rvb: RegionValueBuilder) {
-    rvb.startArray(values.count(b => b))
-    if (values(0))
+    rvb.startArray((if (hasTrue) 1 else 0) + (if (hasFalse) 1 else 0) + (if (hasMissing) 1 else 0))
+    if (hasTrue)
       rvb.addBoolean(true)
-    if (values(1))
+    if (hasFalse)
       rvb.addBoolean(false)
-    if (values(2))
+    if (hasMissing)
       rvb.setMissing()
     rvb.endArray()
   }
@@ -40,9 +42,9 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
   def copy(): RegionValueCollectAsSetBooleanAggregator = new RegionValueCollectAsSetBooleanAggregator()
 
   def clear() {
-    values(0) = false
-    values(1) = false
-    values(2) = false
+    hasTrue = false
+    hasFalse = false
+    hasMissing = false
   }
 }
 
