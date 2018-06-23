@@ -1631,8 +1631,8 @@ class FunctionsTests(unittest.TestCase):
         kt = hl.Table.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
-            chisq=hl.chisq(kt.a, kt.b, kt.c, kt.d),
-            ctt=hl.ctt(kt.a, kt.b, kt.c, kt.d, 5),
+            chisq=hl.chi_sq_test(kt.a, kt.b, kt.c, kt.d),
+            ctt=hl.contingency_table_test(kt.a, kt.b, kt.c, kt.d, 5),
             dict=hl.dict(hl.zip([kt.a, kt.b], [kt.c, kt.d])),
             dpois=hl.dpois(4, kt.a),
             drop=kt.h.drop('b', 'c'),

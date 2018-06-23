@@ -8,7 +8,6 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.spark.sql.Row
 
 package object stats {
@@ -125,37 +124,45 @@ package object stats {
   
   val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   
-  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (java.lang.Double, java.lang.Double) = {
-    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"chisq: all arguments must be non-negative, got $c1, $c2, $c3, $c4")
+  def chisqTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = {
+    if (a < 0 || b < 0 || c < 0 || d < 0)
+      fatal(s"chi_sq_test: all arguments must be non-negative, got $a, $b, $c, $d")
 
-    var or: java.lang.Double = null
-    var chisqp: java.lang.Double = null
-
-    if (c1 + c2 + c3 + c4 > 0) {
-      if (c1 > 0 && c3 == 0)
-        or = Double.PositiveInfinity
-      else if (c3 > 0 && c1 == 0)
-        or = Double.NegativeInfinity
-      else if (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)
-        or = (c1 * c4) / (c2 * c3).toDouble
-      chisqp = new ChiSquareTest().chiSquareTest(Array(Array(c1, c2), Array(c3, c4)))
-    }
-
-    (chisqp, or)
+    val ad = a * d
+    val bc = (b * c).toDouble
+    val det = ad - bc
+    val chiSquare = (det * det * (a + b + c + d)) / ((a + b) * (c + d) * (b + d) * (a + c))
+    
+    Array(chiSquaredTail(chiSquare, 1), ad / bc)
   }
   
-  val fetStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64(),
-    "ci_95_lower" -> TFloat64(), "ci_95_upper" -> TFloat64())
+  def contingencyTableTest(a: Int, b: Int, c: Int, d: Int, minCellCount: Int): Array[Double] = {
+    if (minCellCount < 0)
+      fatal(s"contingency_table_test: 'min_cell_count' must be non-negative, found $minCellCount")
+    
+    if (a >= minCellCount && b >= minCellCount && c >= minCellCount && d >= minCellCount)
+      chisqTest(a, b, c, d)
+    else
+      fisherExactTest(a, b, c, d)
+  }
+  
+  val fetStruct = TStruct(
+    "p_value" -> TFloat64(),
+    "odds_ratio" -> TFloat64(),
+    "ci_95_lower" -> TFloat64(),
+    "ci_95_upper" -> TFloat64())
 
+  def fisherExactTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = fisherExactTest(a, b, c, d, 1.0, 0.95, "two.sided")
+  
   def fisherExactTest(a: Int, b: Int, c: Int, d: Int,
-    oddsRatio: Double = 1d, confidence_level: Double = 0.95,
-    alternative: String = "two.sided"): Array[Option[Double]] = {
+    oddsRatio: Double = 1d,
+    confidenceLevel: Double = 0.95,
+    alternative: String = "two.sided"): Array[Double] = {
     
     if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
-      fatal(s"fet: all arguments must be non-negative, got $a, $b, $c, $d")
+      fatal(s"fisher_exact_test: all arguments must be non-negative, got $a, $b, $c, $d")
 
-    if (confidence_level < 0d || confidence_level > 1d)
+    if (confidenceLevel < 0d || confidenceLevel > 1d)
       fatal("Confidence level must be between 0 and 1")
 
     if (oddsRatio < 0d)
@@ -170,7 +177,7 @@ package object stats {
     val numSuccessSample = a
 
     if (!(popSize > 0 && sampleSize > 0 && sampleSize < popSize && numSuccessPopulation > 0 && numSuccessPopulation < popSize))
-      return Array(None, None, None, None)
+      return Array(Double.NaN, Double.NaN, Double.NaN, Double.NaN)
 
     val low = math.max(0, (a + b) - (b + d))
     val high = math.min(a + b, a + c)
@@ -232,56 +239,55 @@ package object stats {
 
     def unirootMnHyper(fn: Double => Double, x: Double)(t: Double) = mnhyper(fn(t)) - x
 
-    def unirootPnHyper(fn: Double => Double, x: Int, upper_tail: Boolean, alpha: Double)(t: Double) = pnhyper(x, fn(t), upper_tail) - alpha
+    def unirootPnHyper(fn: Double => Double, x: Int, upper_tail: Boolean, alpha: Double)(t: Double) =
+      pnhyper(x, fn(t), upper_tail) - alpha
 
-    def inverse(x: Double) = divOption(1d, x)
-
-    def mle(x: Double): Option[Double] = {
+    def mle(x: Double): Double = {
       if (x == low)
-        Option(0d)
+        0.0
       else if (x == high)
-        Option(Double.PositiveInfinity) // Should be infinity
+        Double.PositiveInfinity
       else {
         val mu = mnhyper(1.0)
         if (mu > x)
-          uniroot(unirootMnHyper(d => d, x), 0.0, 1.0)
+          uniroot(unirootMnHyper(d => d, x), 0.0, 1.0).getOrElse(Double.NaN)
         else if (mu < x)
-          uniroot(unirootMnHyper(d => 1 / d, x), epsilon, 1d).flatMap(inverse)
+          1.0 / uniroot(unirootMnHyper(d => 1 / d, x), epsilon, 1d).getOrElse(Double.NaN)
         else
-          Option(1d)
+          1.0
       }
     }
 
-    def ncpLower(x: Int, alpha: Double): Option[Double] = {
+    def ncpLower(x: Int, alpha: Double): Double = {
       if (x == low)
-        Option(0d)
+        0.0
       else {
-        val p = pnhyper(x, 1, upper_tail = true)
+        val p = pnhyper(x, upper_tail = true)
         if (p > alpha)
-          uniroot(unirootPnHyper(d => d, x, upper_tail = true, alpha), 0d, 1d)
+          uniroot(unirootPnHyper(d => d, x, upper_tail = true, alpha), 0d, 1d).getOrElse(Double.NaN)
         else if (p < alpha)
-          uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = true, alpha), epsilon, 1d).flatMap(inverse)
+          1.0 / uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = true, alpha), epsilon, 1d).getOrElse(Double.NaN)
         else
-          Option(1d)
+          1.0
       }
     }
 
-    def ncpUpper(x: Int, alpha: Double): Option[Double] = {
+    def ncpUpper(x: Int, alpha: Double): Double = {
       if (x == high) {
-        Option(Double.PositiveInfinity)
+        Double.PositiveInfinity
       }
       else {
-        val p = pnhyper(x, 1)
+        val p = pnhyper(x)
         if (p < alpha)
-          uniroot(unirootPnHyper(d => d, x, upper_tail = false, alpha), 0d, 1d)
+          uniroot(unirootPnHyper(d => d, x, upper_tail = false, alpha), 0d, 1d).getOrElse(Double.NaN)
         else if (p > alpha)
-          uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = false, alpha), epsilon, 1d).flatMap(inverse)
+          1.0 / uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = false, alpha), epsilon, 1d).getOrElse(Double.NaN)
         else
-          Option(1d)
+          1.0
       }
     }
 
-    val pvalue = alternative match {
+    val pvalue: Double = (alternative: @unchecked) match {
       case "less" => pnhyper(numSuccessSample, oddsRatio)
       case "greater" => pnhyper(numSuccessSample, oddsRatio, upper_tail = true)
       case "two.sided" =>
@@ -294,22 +300,21 @@ package object stats {
           val d = dnhyper(oddsRatio)
           d.filter(_ <= d(numSuccessSample - low) * relErr).sum
         }
-      case _ => fatal("didn't recognize option for alternative. Use one of [less, greater, two.sided]")
     }
 
     assert(pvalue >= 0d && pvalue <= 1.000000000002)
 
     val oddsRatioEstimate = mle(numSuccessSample)
-
+    
     val confInterval = alternative match {
-      case "less" => (Option(0d), ncpUpper(numSuccessSample, 1 - confidence_level))
-      case "greater" => (ncpLower(numSuccessSample, 1 - confidence_level), Option(Double.PositiveInfinity))
+      case "less" => (0d, ncpUpper(numSuccessSample, 1 - confidenceLevel))
+      case "greater" => (ncpLower(numSuccessSample, 1 - confidenceLevel), Double.PositiveInfinity)
       case "two.sided" =>
-        val alpha = (1 - confidence_level) / 2d
+        val alpha = (1 - confidenceLevel) / 2d
         (ncpLower(numSuccessSample, alpha), ncpUpper(numSuccessSample, alpha))
     }
-
-    Array(Option(pvalue), oddsRatioEstimate, confInterval._1, confInterval._2)
+    
+    Array(pvalue, oddsRatioEstimate, confInterval._1, confInterval._2)
   }
 
   // Returns the p for which p = Prob(Z < x) with Z a standard normal RV

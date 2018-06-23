@@ -335,32 +335,34 @@ def bind(f: Callable, *exprs):
     return construct_expr(ast, lambda_result.dtype, indices, aggregations)
 
 
-@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1, c2, c3, c4) -> StructExpression:
-    """Calculates p-value (chi-square approximation) and odds ratio for a 2x2
-    table of counts.
+@typecheck(a=expr_int32, b=expr_int32, c=expr_int32, d=expr_int32)
+def chi_sq_test(a, b, c, d) -> StructExpression:
+    """Performs chi-squared test of independence on a 2x2 contingency table.
 
     Examples
     --------
 
-    >>> hl.chisq(10, 10, 10, 10).value
+    >>> hl.chi_sq_test(10, 10, 10, 10).value
     Struct(odds_ratio=1.0, p_value=1.0)
 
-    >>> hl.chisq(30, 30, 50, 10).value
-    Struct(odds_ratio=0.2, p_value=0.000107511176729)
+    >>> hl.chi_sq_test(51, 43, 22, 92).value
+    Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
     Notes
     -----
+    The odds ratio is given by ``(a / b) / (c / d)``.
+
+    Returned fields may be ``nan`` or ``inf``.
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    a : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    b : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    d : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
 
     Returns
@@ -370,39 +372,42 @@ def chisq(c1, c2, c3, c4) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("chisq", ret_type, c1, c2, c3, c4)
+    return _func("chi_sq_test", ret_type, a, b, c, d)
 
 
-@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
-def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
-    """Calculates p-value and odds ratio for 2x2 table.
+@typecheck(a=expr_int32, b=expr_int32, c=expr_int32, d=expr_int32, min_cell_count=expr_int32)
+def contingency_table_test(a, b, c, d, min_cell_count) -> StructExpression:
+    """Performs chi-squared or Fisher's exact test of independence on a 2x2
+    contingency table.
 
     Examples
     --------
 
-    >>> hl.ctt(10, 10, 10, 10, min_cell_count=15).value
-    Struct(odds_ratio=1.0, p_value=1.0)
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=22).value
+    Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
-    >>> hl.ctt(30, 30, 50, 10, min_cell_count=15).value
-    Struct(odds_ratio=0.202874620964, p_value=0.000190499944324)
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23).value
+    Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967)
 
     Notes
     -----
-     If any cell is lower than `min_cell_count`, Fisher's exact test is used. Otherwise, faster
-     chi-squared approximation is used.
+    If all cell counts are at least `min_cell_count`, the chi-squared test is
+    used. Otherwise, Fisher's exact test is used.
+
+    Returned fields may be ``nan`` or ``inf``.
 
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    a : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    b : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    d : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
     min_cell_count : int or :class:`.Expression` of type :py:data:`.tint32`
-        Minimum cell count for chi-squared approximation.
+        Minimum count in every cell to use the chi-squared test.
 
     Returns
     -------
@@ -411,7 +416,7 @@ def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
+    return _func("contingency_table_test", ret_type, a, b, c, d, min_cell_count)
 
 
 @typecheck(collection=expr_oneof(expr_dict(),
@@ -528,9 +533,9 @@ def exp(x) -> Float64Expression:
     return _func("exp", tfloat64, x)
 
 
-@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
-    """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
+@typecheck(a=expr_int32, b=expr_int32, c=expr_int32, d=expr_int32)
+def fisher_exact_test(a, b, c, d) -> StructExpression:
+    """Calculates the p-value, odds ratio, and 95% confidence interval using Fisher's exact test for a 2x2 table.
 
     Examples
     --------
@@ -539,9 +544,9 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     Struct(p_value=1.0000000000000002, odds_ratio=1.0,
            ci_95_lower=0.24385796914260355, ci_95_upper=4.100747675033819)
 
-    >>> hl.fisher_exact_test(30, 30, 50, 10).value
-    Struct(p_value=0.00019049994432397886, odds_ratio=0.20287462096407916,
-           ci_95_lower=0.07687933053900567, ci_95_upper=0.4987032678214519)
+    >>> hl.fisher_exact_test(51, 43, 22, 92).value
+    Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967,
+           ci_95_lower=2.5659373368248444, ci_95_upper=9.677929632035475)
 
     Notes
     -----
@@ -549,15 +554,17 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default
     parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
 
+    Returned fields may be ``nan`` or ``inf``.
+
     Parameters
     ----------
-    c1 : int or :class:`.Expression` of type :py:data:`.tint32`
+    a : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 1.
-    c2 : int or :class:`.Expression` of type :py:data:`.tint32`
+    b : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 2.
-    c3 : int or :class:`.Expression` of type :py:data:`.tint32`
+    c : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 3.
-    c4 : int or :class:`.Expression` of type :py:data:`.tint32`
+    d : int or :class:`.Expression` of type :py:data:`.tint32`
         Value for cell 4.
 
     Returns
@@ -572,7 +579,7 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
                        odds_ratio=tfloat64,
                        ci_95_lower=tfloat64,
                        ci_95_upper=tfloat64)
-    return _func("fet", ret_type, c1, c2, c3, c4)
+    return _func("fisher_exact_test", ret_type, a, b, c, d)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))

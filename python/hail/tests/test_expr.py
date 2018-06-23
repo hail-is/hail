@@ -1567,3 +1567,37 @@ class Tests(unittest.TestCase):
 
     def test_uniroot(self):
         self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)
+
+    def test_chi_sq_test(self):
+        import math
+        res = hl.chi_sq_test(0, 0, 0, 0).value
+        self.assertTrue(math.isnan(res['p_value']))
+        self.assertTrue(math.isnan(res['odds_ratio']))
+
+        res = hl.chi_sq_test(51, 43, 22, 92).value
+        self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
+
+    def test_fisher_exact_test(self):
+        import math
+        res = hl.fisher_exact_test(0, 0, 0, 0).value
+        self.assertTrue(math.isnan(res['p_value']))
+        self.assertTrue(math.isnan(res['odds_ratio']))
+        self.assertTrue(math.isnan(res['ci_95_lower']))
+        self.assertTrue(math.isnan(res['ci_95_upper']))
+
+        res = hl.fisher_exact_test(51, 43, 22, 92).value
+        self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
+        self.assertAlmostEqual(res['ci_95_lower'], 2.56593733)
+        self.assertAlmostEqual(res['ci_95_upper'], 9.67792963)
+
+    def test_contingency_table_test(self):
+        res = hl.contingency_table_test(51, 43, 22, 92, 22).value
+        self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
+
+        res = hl.contingency_table_test(51, 43, 22, 92, 23).value
+        self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
+

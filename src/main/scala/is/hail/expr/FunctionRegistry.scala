@@ -877,24 +877,19 @@ object FunctionRegistry {
     Annotation(res._1.orNull, res._2)
   })
 
-  registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
-    val res = chisqTest(c1, c2, c3, c4)
-    Annotation(res._1, res._2)
+  registerAnn("chi_sq_test", chisqStruct, { (a: Int, b: Int, c: Int, d: Int) =>
+    val res = chisqTest(a, b, c, d)
+    Annotation(res(0), res(1))
   })
 
-  registerAnn("ctt", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
-    if (Array(c1, c2, c3, c4).exists(_ < minCellCount)) {
-      val fet = fisherExactTest(c1, c2, c3, c4)
-      Annotation(fet(0).orNull, fet(1).orNull)
-    } else {
-      val res = chisqTest(c1, c2, c3, c4)
-      Annotation(res._1, res._2)
-    }
+  registerAnn("contingency_table_test", chisqStruct, { (a: Int, b: Int, c: Int, d: Int, minCellCount: Int) =>
+    val ctt = contingencyTableTest(a, b, c, d, minCellCount)
+    Annotation(ctt(0), ctt(1))
   })
 
-  registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
-    val fet = fisherExactTest(c1, c2, c3, c4)
-    Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
+  registerAnn("fisher_exact_test", fetStruct, { (a: Int, b: Int, c: Int, d: Int) =>
+    val fet = fisherExactTest(a, b, c, d)
+    Annotation(fet(0), fet(1), fet(2), fet(3))
   })
 
   register("binomTest", { (x: Int, n: Int, p: Double, alternative: Int) => binomTest(x, n, p, alternative)

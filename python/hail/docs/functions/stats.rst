@@ -4,9 +4,9 @@ Statistical functions
 
 .. autosummary::
 
-    chisq
+    chi_sq_test
     fisher_exact_test
-    ctt
+    contingency_table_test
     dbeta
     dpois
     hardy_weinberg_p
@@ -18,9 +18,9 @@ Statistical functions
     qnorm
     qpois
 
-.. autofunction:: chisq
+.. autofunction:: chi_sq_test
 .. autofunction:: fisher_exact_test
-.. autofunction:: ctt
+.. autofunction:: contingency_table_test
 .. autofunction:: dbeta
 .. autofunction:: dpois
 .. autofunction:: hardy_weinberg_p
