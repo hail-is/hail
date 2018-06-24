@@ -631,11 +631,11 @@ def hwe_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     Examples
     --------
 
-    >>> hl.hwe_test(20, 50, 26).value
-    Struct(p_value=, r_expected_het_freq=)
+    >>> hl.hwe_test(250, 500, 250).value
+    Struct(p_value_hwe=0.9747844394217698, r_obs_exp_het=0.9995)
 
     >>> hl.hwe_test(37, 200, 85).value
-    Struct(p_value=, r_expected_het_freq=)
+    Struct(p_value_hwe=1.1337210383168987e-06, r_obs_exp_het=1.2684947721444073)
 
     Notes
     -----
@@ -645,9 +645,9 @@ def hwe_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
-    The mean of this distribution is ``(n_hom_ref * n_hom_var / (2n - 1)`` where
+    The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
     ``n = n_hom_ref + n_het + n_hom_var``. So under equilibrium, the ratio
-    `r_expected_het_freq` of observed to expected heterozygous genotypes is
+    `r_obs_exp_het` of observed to expected heterozygous genotypes is
     ``n_het`` divided by this mean.
 
     Parameters
@@ -662,11 +662,11 @@ def hwe_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `p_value` (:py:data:`.tfloat64`)
-        and `r_expected_het_freq` (:py:data:`.tfloat64`).
+        A struct expression with two fields, `p_value_hwe` (:py:data:`.tfloat64`)
+        and `r_obs_exp_het` (:py:data:`.tfloat64`).
     """
-    ret_type = tstruct(p_value=tfloat64,
-                       r_expected_het_freq=tfloat64)
+    ret_type = tstruct(p_value_hwe=tfloat64,
+                       r_obs_exp_het=tfloat64)
     return _func("hweTest", ret_type, n_hom_ref, n_het, n_hom_var)
 
 

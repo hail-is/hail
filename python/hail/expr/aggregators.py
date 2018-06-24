@@ -663,28 +663,22 @@ def hwe_test(expr) -> StructExpression:
 
     Notes
     -----
-    This method performs a two-sided exact test with mid-p-value correction of
-    `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
-    via an efficient implementation of the
-    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
-    which models the number of heterozygous individuals under equilibrium.
-
-    The mean of this distribution is ``(n_hom_ref * n_hom_var / (2n - 1)`` where
-    ``n = n_hom_ref + n_het + n_hom_var``. So under equilibrium, the ratio
-    of observed to expected heterozygous calls is ``n_het`` divided by this mean.
+    This method performs the test described in :func:`.hwe_test` based solely on
+    the three counts: ``n_hom_ref``, ``n_het``, and ``n_hom_var``.
 
     The resulting struct expression has two fields:
 
-    - `p_value` (:py:data:`.tfloat64`) - p-value.
+    - `p_value_hwe` (:py:data:`.tfloat64`) - p-value.
 
-    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Ratio of observed to
+    - `r_obs_exp_het` (:py:data:`.tfloat64`) - Ratio of observed to
       expected number of heterozygous calls.
 
     Warning
     -------
-    Non-diploid calls (``ploidy != 2``) are ignored.
-    This test should typically only be applied to bi-allelic calls;
-    use :func:`~hail.methods.split_multi` to split multi-allelic variants beforehand.
+    Non-diploid calls (``ploidy != 2``) are ignored in the counts. While the
+    counts are defined for non-bi-allelic variants, this test is only statistically
+    rigorous in the bi-allelic setting; use :func:`~hail.methods.split_multi`
+    to split multi-allelic variants beforehand.
 
     Parameters
     ----------
@@ -694,9 +688,9 @@ def hwe_test(expr) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `p_value` and `r_expected_het_freq`.
+        Struct expression with fields `p_value_hwe` and `r_obs_exp_het`.
     """
-    t = tstruct(p_value=tfloat64, r_expected_het_freq=tfloat64)
+    t = tstruct(p_value_hwe=tfloat64, r_obs_exp_het=tfloat64)
     return _agg_func('hardyWeinberg', expr, t)
 
 

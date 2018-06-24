@@ -273,7 +273,7 @@ class TableTests(unittest.TestCase):
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
                     u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
-                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
+                    u'x11': {u'p_value_hwe': 0.5, u'r_obs_exp_het': 1.0},
                     u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
                     u'x17': [],
                     u'x18': [],
@@ -1456,7 +1456,7 @@ class MatrixTableTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
-    # FIXME need to recompute r values
+    # FIXME, NaN parsing issue
     def _test_hwe(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
         mt = mt.select_rows(**hl.agg.hwe_test(mt.GT))
@@ -1465,29 +1465,30 @@ class MatrixTableTests(unittest.TestCase):
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
-                p_value=p,
-                r_expected_het_freq=r)
-            for (pos, alleles, r, p) in [
-                    (1, ['A', 'G'], 0.0, 0.5),
-                    (2, ['A', 'G'], 0.25, 0.5),
-                    (3, ['T', 'C'], 0.21428571428571427, 0.5357142857142857),
-                    (4, ['T', 'A'], 0.6571428571428573, 0.5714285714285714),
-                    (5, ['G', 'A'], 0.5, 0.3333333333333333),
-                    (6, ['T', 'C'], hl.null(hl.tfloat64), 0.5)]],
+                p_value_hwe=p,
+                r_obs_exp_het=r)
+            for (pos, alleles, p, r) in [
+                    (1, ['A', 'G'], 0.5, float('nan')),
+                    (2, ['A', 'G'], 0.5, 1.0),
+                    (3, ['T', 'C'], 0.21428571428571427, 0.4666666666666667),
+                    (4, ['T', 'A'], 0.6571428571428573, 0.875),
+                    (5, ['G', 'A'], 0.5, 1.0),
+                    (6, ['T', 'C'], 0.5, float('nan'))]],
                                         key=['locus', 'alleles'])
-        self.assertTrue(rt._same(expected))
+        self.assertTrue(rt.filter(rt.locus.position != 1 & rt.locus.position != 6)._same(
+            expected.locus.position != 1 & expected.locus.position != 6))
 
-    def test_hw_p_and_agg_agree(self):
+    def test_hwe_p_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_rows(
             stats = hl.agg.call_stats(mt.GT, mt.alleles),
             hw = hl.agg.hwe_test(mt.GT))
         mt = mt.annotate_rows(
             hw2 = hl.hwe_test(mt.stats.homozygote_count[0],
-                                      mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
-                                      mt.stats.homozygote_count[1]))
+                              mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
+                              mt.stats.homozygote_count[1]))
         rt = mt.rows()
-        self.assertTrue(rt.all(rt.hw == rt.hw2))
+        self.assertTrue(rt.all((rt.hw == rt.hw2) | (hl.is_nan(rt.hw.r_obs_exp_het) & hl.is_nan(rt.hw.r_obs_exp_het))))
 
 
 class GroupedMatrixTableTests(unittest.TestCase):

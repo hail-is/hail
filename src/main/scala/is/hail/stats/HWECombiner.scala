@@ -8,7 +8,7 @@ import is.hail.variant.Call
 import scala.annotation.switch
 
 object HWECombiner {
-  def signature = TStruct("p_value" -> TFloat64(), "r_expected_het_freq" -> TFloat64())
+  def signature = TStruct("p_value_hwe" -> TFloat64(), "r_obs_exp_het" -> TFloat64())
 }
 
 class HWECombiner extends Serializable {

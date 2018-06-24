@@ -1603,5 +1603,5 @@ class Tests(unittest.TestCase):
 
     def test_hwe_test(self):
         res = hl.hwe_test(1, 2, 1).value
-        self.assertAlmostEqual(res['p_value'], 0.65714285)
-        self.assertAlmostEqual(res['r_expected_het_freq'], 0.875)
+        self.assertAlmostEqual(res['p_value_hwe'], 0.65714285)
+        self.assertAlmostEqual(res['r_obs_exp_het'], 0.875)

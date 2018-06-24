@@ -108,7 +108,7 @@ package object stats {
     }
   }
 
-  val hweStruct = TStruct("p_value" -> TFloat64(), "r_expected_het_freq" -> TFloat64())
+  val hweStruct = TStruct("p_value_hwe" -> TFloat64(), "r_obs_exp_het" -> TFloat64())
   
   def hweTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
