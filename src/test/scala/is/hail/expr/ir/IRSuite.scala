@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.expr.TableRange
+import is.hail.expr.{Parser, TableRange}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -288,5 +288,86 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ApplyComparisonOp(NEQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
     assertEvalsTo(ApplyComparisonOp(EQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
+
+  @DataProvider(name = "irs")
+  def irs(): Array[Array[IR]] = {
+    val b = True()
+    val c = Ref("c", TBoolean())
+    val i = I32(5)
+    val j = I32(7)
+    val str = Str("Hail")
+    val a = Ref("a", TArray(TInt32()))
+    val aa = Ref("aa", TArray(TArray(TInt32())))
+    val da = Ref("da", TArray(TTuple(TInt32(), TString())))
+    val v = Ref("v", TInt32())
+    val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
+    val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
+
+    val call = Ref("call", TCall())
+
+    val collectSig = AggSignature(Collect(), TInt32(), Seq(), None, Seq())
+
+    val callStatsSig = AggSignature(CallStats(), TCall(), Seq(), Some(Seq(TInt32())), Seq())
+
+    val histSig = AggSignature(Histogram(), TFloat64(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq())
+
+    val takeBySig = AggSignature(TakeBy(), TFloat64(), Seq(TInt32()), None, Seq(TInt32()))
+
+    val irs = Array(
+      i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
+      Cast(i, TFloat64()),
+      NA(TInt32()), IsNA(i),
+      If(b, i, j),
+      Let("v", i, v),
+      Ref("x", TInt32()),
+      ApplyBinaryPrimOp(Add(), i, j),
+      ApplyUnaryPrimOp(Negate(), i),
+      ApplyComparisonOp(EQ(TInt32()), i, j),
+      ApplyBinaryPrimOp(Add(), i, j),
+      MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())),
+      ArrayRef(a, i),
+      ArrayLen(a),
+      ArrayRange(I32(0), I32(5), I32(1)),
+      ArraySort(a, b),
+      ToSet(a),
+      ToDict(da),
+      ToArray(a),
+      LowerBoundOnOrderedCollection(a, i, onKey = true),
+      GroupByKey(da),
+      ArrayMap(a, "v", v),
+      ArrayFilter(a, "v", b),
+      ArrayFlatMap(aa, "v", v),
+      ArrayFold(a, I32(0), "x", "v", v),
+      ArrayFor(a, "v", Void()),
+      ApplyAggOp(I32(0), FastIndexedSeq.empty, None, collectSig),
+      ApplyAggOp(F64(-2.11), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),
+      ApplyAggOp(call, FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), callStatsSig),
+      ApplyAggOp(F64(-2.11), FastIndexedSeq(I32(10)), None, takeBySig),
+      InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
+      SeqOp(i, I32(0), collectSig, FastIndexedSeq.empty),
+      SeqOp(F64(-2.11), I32(0), takeBySig, FastIndexedSeq(I32(17))),
+      Begin(IndexedSeq(Void())),
+      MakeStruct(Seq("x" -> i)),
+      SelectFields(s, Seq("x", "z")),
+      InsertFields(s, Seq("x" -> i)),
+      GetField(s, "x"),
+      MakeTuple(Seq(i, b)),
+      GetTupleElement(t, 1),
+      StringSlice(str, I32(1), I32(2)),
+      StringLength(str),
+      In(2, TFloat64()),
+      Die("mumblefoo", TFloat64()),
+      invoke("&&", b, c), // ApplySpecial
+      invoke("toFloat64", i), // Apply
+      invoke("isDefined", s), // ApplyIR
+      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)))
+    irs.map(x => Array(x))
+  }
+
+  @Test(dataProvider = "irs")
+  def testParser(x: IR) {
+    val s = Pretty(x)
+    val x2 = Parser.parse(Parser.ir_value_expr, s)
+    assert(x2 == x)
   }
 }

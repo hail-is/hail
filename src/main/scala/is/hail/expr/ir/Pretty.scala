@@ -4,14 +4,48 @@ import is.hail.expr.{BaseIR, MatrixRead, TableImport, TableRead}
 import is.hail.utils._
 
 object Pretty {
+  def prettyStringLiteral(s: String): String =
+    "\"" + StringEscapeUtils.escapeString(s) + "\""
+
+  def prettyBooleanLiteral(b: Boolean): String =
+    if (b) "True" else "False"
+
+  def prettyClass(x: AnyRef): String =
+    x.getClass.getName.split("\\.").last
+
+  def prettyAggSignature(aggSig: AggSignature): String = {
+    val sb = new StringBuilder
+    sb += '('
+    sb.append(prettyClass(aggSig.op))
+    sb += ' '
+    sb.append(aggSig.inputType.parsableString())
+    sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
+    sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
+    sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
+    sb += ')'
+    sb.result()
+  }
 
   def apply(ir: BaseIR): String = {
     val sb = new StringBuilder
 
+    def prettySeq(xs: Seq[BaseIR], depth: Int) {
+      sb.append(" " * depth)
+      sb += '('
+      xs.foreachBetween(x => pretty(x, depth + 2))(sb += '\n')
+      sb += ')'
+    }
+
     def pretty(ir: BaseIR, depth: Int) {
       sb.append(" " * depth)
       sb += '('
-      sb.append(ir.getClass.getName.split("\\.").last)
+
+      ir match {
+        case _: Apply | _: ApplyIR | _: ApplySpecial =>
+          sb.append("Apply")
+        case _ =>
+          sb.append(prettyClass(ir))
+      }
 
       ir match {
         case MakeStruct(fields) =>
@@ -26,6 +60,36 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
+        case ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) =>
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          prettySeq(ctorArgs, depth + 2)
+          sb += '\n'
+          initOpArgs match {
+            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
+            case None =>
+              sb.append(" " * (depth + 2))
+              sb.append("None")
+          }
+        case InitOp(i, args, aggSig) =>
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          pretty(i, depth + 2)
+          sb += '\n'
+          prettySeq(args, depth + 2)
+        case SeqOp(a, i, aggSig, args) =>
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          pretty(i, depth + 2)
+          sb += '\n'
+          prettySeq(args, depth + 2)
         case InsertFields(old, fields) =>
           sb += '\n'
           pretty(old, depth + 2)
@@ -46,7 +110,7 @@ object Pretty {
           sb.append("(paths\n")
           paths.foreachBetween { p =>
             sb.append(" " * (depth + 4))
-            sb.append(StringEscapeUtils.escapeString(p))
+            sb.append(prettyStringLiteral(p))
           }(sb += '\n')
           sb += ')'
           sb += '\n'
@@ -61,28 +125,31 @@ object Pretty {
             case I64(x) => x.toString
             case F32(x) => x.toString
             case F64(x) => x.toString
-            case Str(x) => s""""$x""""
-            case Cast(_, typ) => typ.toString
-            case NA(typ) => typ.toString
-            case Let(name, _, _) => name
-            case Ref(name, _) => name
-            case ApplyBinaryPrimOp(op, _, _) => op.getClass.getName.split("\\.").last
-            case ApplyUnaryPrimOp(op, _) => op.getClass.getName.split("\\.").last
-            case ApplyComparisonOp(op, _, _) => s"${ op.getClass.getSimpleName }(${ op.t1 })"
-            case GetField(_, name) => name
+            case Str(x) => prettyStringLiteral(x)
+            case Cast(_, typ) => typ.parsableString()
+            case NA(typ) => typ.parsableString()
+            case Let(name, _, _) => prettyIdentifier(name)
+            case Ref(name, typ) => s"${ typ.parsableString() } $name"
+            case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
+            case ApplyUnaryPrimOp(op, _) => prettyClass(op)
+            case ApplyComparisonOp(op, _, _) => s"(${ prettyClass(op) } ${ op.typ.parsableString() })"
+            case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
-            case ArrayMap(_, name, _) => name
-            case ArrayFilter(_, name, _) => name
-            case ArrayFlatMap(_, name, _) => name
-            case ArrayFold(_, _, accumName, valueName, _) => s"$accumName $valueName"
-            case ApplyAggOp(_, _, _, aggSig) => aggSig.op.getClass.getName.split("\\.").last
-            case SeqOp(_, _, aggSig, _) => aggSig.op.getClass.getName.split("\\.").last
-            case ArrayFor(_, valueName, _) => s"$valueName"
-            case ApplyIR(function, _, _) => function
-            case Apply(function, _) => function
-            case ApplySpecial(function, _) => function
-            case In(i, _) => i.toString
-            case MatrixRead(typ, partitionCounts, dropCols, dropRows, _) =>
+            case MakeArray(_, typ) => typ.parsableString()
+            case ArrayMap(_, name, _) => prettyIdentifier(name)
+            case ArrayFilter(_, name, _) => prettyIdentifier(name)
+            case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
+            case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
+            case ApplyIR(function, _, _) => prettyIdentifier(function)
+            case Apply(function, _) => prettyIdentifier(function)
+            case ApplySpecial(function, _) => prettyIdentifier(function)
+            case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
+            case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
+            case In(i, typ) => s"${ typ.parsableString() } $i"
+            case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
+            case Uniroot(name, _, _, _) => prettyIdentifier(name)
+            case MatrixRead(typ, partitionCounts, dropCols, dropRows, requestedType, _) =>
               s"$typ partition_counts=${ partitionCounts.map(_.mkString(",")).getOrElse("None") } ${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
@@ -93,7 +160,7 @@ object Pretty {
                 sb.append("(paths\n")
                 paths.foreachBetween { p =>
                   sb.append(" " * (depth + 4))
-                  StringEscapeUtils.escapeString(p, sb, backticked = false)
+                  sb.append(prettyStringLiteral(p))
                 }(sb += '\n')
                 sb += ')'
 

@@ -610,20 +610,21 @@ object Parser extends JavaTokenParsers {
     ir_identifier ^^ { x => ir.UnaryOp.fromString(x) }
 
   def ir_comparison_op: Parser[ir.ComparisonOp] =
-    ir_identifier ~ type_expr ^^ { case x ~ t => ir.ComparisonOp.fromStringAndTypes(x, t, t) }
+    "(" ~> ir_identifier ~ type_expr <~ ")" ^^ { case x ~ t => ir.ComparisonOp.fromStringAndTypes(x, t, t) }
 
   def ir_agg_op: Parser[ir.AggOp] =
     ir_identifier ^^ { x => ir.AggOp.fromString(x) }
 
-  def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
+  def ir_children: Parser[IndexedSeq[ir.IR]] = rep(ir_value_expr) ^^ {
+    _.toFastIndexedSeq
+  }
 
-  // FIXME parens?  children vs ?
-  def ir_value_exprs: Parser[IndexedSeq[ir.IR]] = rep(ir_value_expr) ^^ {
+  def ir_value_exprs: Parser[IndexedSeq[ir.IR]] = "(" ~> rep(ir_value_expr) <~ ")" ^^ {
     _.toFastIndexedSeq
   }
 
   def ir_value_exprs_opt: Parser[Option[IndexedSeq[ir.IR]]] =
-    "(" ~> ir_value_exprs <~ ")" ^^ { xs => Some(xs) } |
+    ir_value_exprs ^^ { xs => Some(xs) } |
       "None" ^^ { _ => None }
 
   def type_exprs: Parser[Seq[Type]] = "(" ~> rep(type_expr) <~ ")"
@@ -631,63 +632,64 @@ object Parser extends JavaTokenParsers {
   def type_exprs_opt: Parser[Option[Seq[Type]]] = type_exprs ^^ { ts => Some(ts) } | "None" ^^ { _ => None }
 
   def agg_signature: Parser[AggSignature] =
-    ir_agg_op ~ type_expr ~ type_exprs ~ type_exprs_opt ~ type_exprs ^^ { case op ~ inputType ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
+    "(" ~> ir_agg_op ~ type_expr ~ type_exprs ~ type_exprs_opt ~ type_exprs <~ ")" ^^ { case op ~ inputType ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
       AggSignature(op, inputType, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
     }
 
   def ir_named_value_exprs: Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr)
 
   def ir_named_value_expr: Parser[(String, ir.IR)] =
-    ir_identifier ~ ir_value_expr ^^ { case n ~ x => (n, x) }
+    "(" ~> ir_identifier ~ ir_value_expr <~ ")" ^^ { case n ~ x => (n, x) }
+
+  def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
 
   def ir_value_expr_1: Parser[ir.IR] =
     "I32" ~> int32_literal ^^ { x => ir.I32(x) } |
       "I64" ~> int64_literal ^^ { x => ir.I64(x) } |
       "F32" ~> float32_literal ^^ { x => ir.F32(x) } |
-      "I32" ~> float64_literal ^^ { x => ir.F64(x) } |
+      "F64" ~> float64_literal ^^ { x => ir.F64(x) } |
       "Str" ~> string_literal ^^ { x => ir.Str(x) } |
       "True" ^^ { x => ir.True() } |
       "False" ^^ { x => ir.False() } |
       "Void" ^^ { x => ir.Void() } |
-      "Cast" ~> ir_value_expr ~ type_expr ^^ { case (v, t) => ir.Cast(v, t) } |
+      "Cast" ~> type_expr ~ ir_value_expr ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |
       "IsNA" ~> ir_value_expr ^^ { value => ir.IsNA(value) } |
       "If" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
-      "Let" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ value ~ body => ir.Let(name, body, value) } |
-      "Ref" ~> ir_identifier ~ type_expr ^^ { case name ~ t => ir.Ref(name, t) } |
+      "Let" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ value ~ body => ir.Let(name, value, body) } |
+      "Ref" ~> type_expr ~ ir_identifier ^^ { case t ~ name => ir.Ref(name, t) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
       "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
-      // FIXME parse error on array
-      "MakeArray" ~> ir_value_exprs ~ type_expr ^^ { case args ~ t => ir.MakeArray(args, t.asInstanceOf[TArray]) } |
+      "MakeArray" ~> type_expr ~ ir_children ^^ { case t ~ args => ir.MakeArray(args, t.asInstanceOf[TArray]) } |
       "ArrayRef" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ i => ir.ArrayRef(a, i) } |
       "ArrayLen" ~> ir_value_expr ^^ { a => ir.ArrayLen(a) } |
       "ArrayRange" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |
-      "ArraySort" ~> ir_value_expr ~ ir_value_expr ^^ { case (a, ascending) => ir.ArraySort(a, ascending) } |
+      "ArraySort" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ ascending => ir.ArraySort(a, ascending) } |
       "ToSet" ~> ir_value_expr ^^ { a => ir.ToSet(a) } |
       "ToDict" ~> ir_value_expr ^^ { a => ir.ToDict(a) } |
       "ToArray" ~> ir_value_expr ^^ { a => ir.ToArray(a) } |
-      "LowerBoundOnOrderedCollection" ~> ir_value_expr ~ ir_value_expr ~ boolean_literal ^^ { case col ~ elem ~ onKey => ir.LowerBoundOnOrderedCollection(col, elem, onKey) } |
+      "LowerBoundOnOrderedCollection" ~> boolean_literal ~ ir_value_expr ~ ir_value_expr ^^ { case onKey ~ col ~ elem => ir.LowerBoundOnOrderedCollection(col, elem, onKey) } |
       "GroupByKey" ~> ir_value_expr ^^ { a => ir.GroupByKey(a) } |
-      "ArrayMap" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayMap(a, name, body) } |
-      "ArrayFilter" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFilter(a, name, body) } |
-      "ArrayFlatMap" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFlatMap(a, name, body) } |
-      "ArrayFold" ~> ir_value_expr ~ ir_value_expr ~ ir_identifier ~ ir_identifier ~ ir_value_expr ^^ { case a ~ zero ~ accumName ~ valueName ~ body => ir.ArrayFold(a, zero, accumName, valueName, body) } |
-      "ArrayFor" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFor(a, name, body) } |
-      "ApplyAggOp" ~> ir_value_expr ~ ir_value_exprs ~ ir_value_exprs_opt ~ agg_signature ^^ { case a ~ ctorArgs ~ initOpArgs ~ aggSig => ir.ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) } |
-      "InitOp" ~> ir_value_expr ~ ir_value_exprs ~ agg_signature ^^ { case i ~ args ~ aggSig => ir.InitOp(i, args, aggSig) } |
-      "SeqOp" ~> ir_value_expr ~ ir_value_expr ~ agg_signature ~ ir_value_exprs ^^ { case a ~ i ~ aggSig ~ args => ir.SeqOp(a, i, aggSig, args) } |
-      "Begin" ~> ir_value_exprs ^^ { xs => ir.Begin(xs) } |
+      "ArrayMap" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayMap(a, name, body) } |
+      "ArrayFilter" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFilter(a, name, body) } |
+      "ArrayFlatMap" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFlatMap(a, name, body) } |
+      "ArrayFold" ~> ir_identifier ~ ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case accumName ~ valueName ~ a ~ zero ~ body => ir.ArrayFold(a, zero, accumName, valueName, body) } |
+      "ArrayFor" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFor(a, name, body) } |
+      "ApplyAggOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ a ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) } |
+      "InitOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
+      "SeqOp" ~> agg_signature ~ ir_value_expr ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ a ~ i ~ args => ir.SeqOp(a, i, aggSig, args) } |
+      "Begin" ~> ir_children ^^ { xs => ir.Begin(xs) } |
       "MakeStruct" ~> ir_named_value_exprs ^^ { fields => ir.MakeStruct(fields) } |
-      "SelectFields" ~> ir_value_expr ~ ir_identifiers ^^ { case old ~ fields => ir.SelectFields(old, fields) } |
+      "SelectFields" ~> ir_identifiers ~ ir_value_expr ^^ { case fields ~ old => ir.SelectFields(old, fields) } |
       "InsertFields" ~> ir_value_expr ~ ir_named_value_exprs ^^ { case old ~ fields => ir.InsertFields(old, fields) } |
-      "GetField" ~> ir_value_expr ~ ir_identifier ^^ { case o ~ name => ir.GetField(o, name) } |
-      "MakeTuple" ~> ir_value_exprs ^^ { xs => ir.MakeTuple(xs) } |
-      "GetTupleElement" ~> ir_value_expr ~ int32_literal ^^ { case o ~ idx => ir.GetTupleElement(o, idx) } |
+      "GetField" ~> ir_identifier ~ ir_value_expr ^^ { case name ~ o => ir.GetField(o, name) } |
+      "MakeTuple" ~> ir_children ^^ { xs => ir.MakeTuple(xs) } |
+      "GetTupleElement" ~> int32_literal ~ ir_value_expr ^^ { case idx ~ o => ir.GetTupleElement(o, idx) } |
       "StringSlice" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case s ~ start ~ end => ir.StringSlice(s, start, end) } |
       "StringLength" ~> ir_value_expr ^^ { s => ir.StringLength(s) } |
-      "In" ~> int32_literal ~ type_expr ^^ { case i ~ t => ir.In(i, t) } |
-      "Die" ~> string_literal ~ type_expr ^^ { case message ~ t => ir.Die(message, t) } |
-
-
+      "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
+      "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
+      "Apply" ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
+      "Uniroot" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
 }
