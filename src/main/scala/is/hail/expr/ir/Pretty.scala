@@ -40,12 +40,7 @@ object Pretty {
       sb.append(" " * depth)
       sb += '('
 
-      ir match {
-        case _: Apply | _: ApplyIR | _: ApplySpecial =>
-          sb.append("Apply")
-        case _ =>
-          sb.append(prettyClass(ir))
-      }
+      sb.append(prettyClass(ir))
 
       ir match {
         case MakeStruct(fields) =>

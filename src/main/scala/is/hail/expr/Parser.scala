@@ -690,6 +690,6 @@ object Parser extends JavaTokenParsers {
       "StringLength" ~> ir_value_expr ^^ { s => ir.StringLength(s) } |
       "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
-      "Apply" ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
+      ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
 }
