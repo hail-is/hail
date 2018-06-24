@@ -1,5 +1,6 @@
 package is.hail.expr
 
+import is.hail.expr.ir.{AggSignature, IR}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils.StringEscapeUtils._
@@ -303,11 +304,11 @@ object Parser extends JavaTokenParsers {
       withPos("f32#" ~> "inf") ^^ (r => Const(r.pos, Float.PositiveInfinity, TFloat32())) |
       withPos("f32#" ~> "neginf") ^^ (r => Const(r.pos, Float.NegativeInfinity, TFloat32())) |
       withPos("f32#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
+      withPos("f32#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
       withPos("f64#" ~> "nan") ^^ (r => Const(r.pos, Double.NaN, TFloat64())) |
       withPos("f64#" ~> "inf") ^^ (r => Const(r.pos, Double.PositiveInfinity, TFloat64())) |
       withPos("f64#" ~> "neginf") ^^ (r => Const(r.pos, Double.NegativeInfinity, TFloat64())) |
       withPos("f64#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("f32#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
       withPos("f64#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
       withPos("""-?\d*\.\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
@@ -445,9 +446,13 @@ object Parser extends JavaTokenParsers {
 
   def _struct_expr: Parser[TStruct] = ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields => TStruct(fields) }
 
-  def key: Parser[Array[String]] = "[" ~> (repsep(identifier, ",") ^^ { _.toArray }) <~ "]"
+  def key: Parser[Array[String]] = "[" ~> (repsep(identifier, ",") ^^ {
+    _.toArray
+  }) <~ "]"
 
-  def trailing_keys: Parser[Array[String]] = rep("," ~> identifier) ^^ { _.toArray }
+  def trailing_keys: Parser[Array[String]] = rep("," ~> identifier) ^^ {
+    _.toArray
+  }
 
   def ordered_rvd_type_expr: Parser[OrderedRVDType] =
     (("OrderedRVDType" ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
@@ -484,9 +489,11 @@ object Parser extends JavaTokenParsers {
 
   def call: Parser[Call] = {
     wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
-      CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false) } |
+      CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false)
+    } |
       wholeNumber ~ "|" ~ rep1sep(wholeNumber, "|") ^^ { case a0 ~ _ ~ arest =>
-        CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = true) } |
+        CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = true)
+      } |
       wholeNumber ^^ { a => Call1(coerceInt(a), phased = false) } |
       "|" ~ wholeNumber ^^ { case _ ~ a => Call1(coerceInt(a), phased = true) } |
       "-" ^^ { _ => Call0(phased = false) } |
@@ -561,4 +568,126 @@ object Parser extends JavaTokenParsers {
       "\\d+".r ~ "." ~ "\\d{1,6}".r ~ "[Mm]".r ^^ { case lft ~ _ ~ rt ~ _ => Some(coerceInt(lft + rt) * exp10(6 - rt.length)) } |
       "\\d+".r ^^ { i => Some(coerceInt(i)) }
   }
+
+  def int32_literal: Parser[Int] = wholeNumber.map(_.toInt)
+
+  def int64_literal: Parser[Long] = wholeNumber.map(_.toLong)
+
+  def float32_literal: Parser[Float] =
+    "nan" ^^ { _ => Float.NaN } |
+      "inf" ^^ { _ => Float.PositiveInfinity } |
+      "neginf" ^^ { _ => Float.NegativeInfinity } |
+      """-?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ {
+        _.toFloat
+      } |
+      """-?\d*(\.\d+)?""".r ^^ {
+        _.toFloat
+      }
+
+  def float64_literal: Parser[Double] =
+    "nan" ^^ { _ => Double.NaN } |
+      "inf" ^^ { _ => Double.PositiveInfinity } |
+      "neginf" ^^ { _ => Double.NegativeInfinity } |
+      """-?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ {
+        _.toDouble
+      } |
+      """-?\d*(\.\d+)?""".r ^^ {
+        _.toDouble
+      }
+
+  def string_literal: Parser[String] = stringLiteral
+
+  def boolean_literal: Parser[Boolean] = "True" ^^ { _ => true } | "False" ^^ { _ => false }
+
+  def ir_identifier: Parser[String] = identifier
+
+  def ir_identifiers: Parser[Seq[String]] = "(" ~> rep(ir_identifier) <~ ")"
+
+  def ir_binary_op: Parser[ir.BinaryOp] =
+    ir_identifier ^^ { x => ir.BinaryOp.fromString(x) }
+
+  def ir_unary_op: Parser[ir.UnaryOp] =
+    ir_identifier ^^ { x => ir.UnaryOp.fromString(x) }
+
+  def ir_comparison_op: Parser[ir.ComparisonOp] =
+    ir_identifier ~ type_expr ^^ { case x ~ t => ir.ComparisonOp.fromStringAndTypes(x, t, t) }
+
+  def ir_agg_op: Parser[ir.AggOp] =
+    ir_identifier ^^ { x => ir.AggOp.fromString(x) }
+
+  def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
+
+  // FIXME parens?  children vs ?
+  def ir_value_exprs: Parser[IndexedSeq[ir.IR]] = rep(ir_value_expr) ^^ {
+    _.toFastIndexedSeq
+  }
+
+  def ir_value_exprs_opt: Parser[Option[IndexedSeq[ir.IR]]] =
+    "(" ~> ir_value_exprs <~ ")" ^^ { xs => Some(xs) } |
+      "None" ^^ { _ => None }
+
+  def type_exprs: Parser[Seq[Type]] = "(" ~> rep(type_expr) <~ ")"
+
+  def type_exprs_opt: Parser[Option[Seq[Type]]] = type_exprs ^^ { ts => Some(ts) } | "None" ^^ { _ => None }
+
+  def agg_signature: Parser[AggSignature] =
+    ir_agg_op ~ type_expr ~ type_exprs ~ type_exprs_opt ~ type_exprs ^^ { case op ~ inputType ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
+      AggSignature(op, inputType, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
+    }
+
+  def ir_named_value_exprs: Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr)
+
+  def ir_named_value_expr: Parser[(String, ir.IR)] =
+    ir_identifier ~ ir_value_expr ^^ { case n ~ x => (n, x) }
+
+  def ir_value_expr_1: Parser[ir.IR] =
+    "I32" ~> int32_literal ^^ { x => ir.I32(x) } |
+      "I64" ~> int64_literal ^^ { x => ir.I64(x) } |
+      "F32" ~> float32_literal ^^ { x => ir.F32(x) } |
+      "I32" ~> float64_literal ^^ { x => ir.F64(x) } |
+      "Str" ~> string_literal ^^ { x => ir.Str(x) } |
+      "True" ^^ { x => ir.True() } |
+      "False" ^^ { x => ir.False() } |
+      "Void" ^^ { x => ir.Void() } |
+      "Cast" ~> ir_value_expr ~ type_expr ^^ { case (v, t) => ir.Cast(v, t) } |
+      "NA" ~> type_expr ^^ { t => ir.NA(t) } |
+      "IsNA" ~> ir_value_expr ^^ { value => ir.IsNA(value) } |
+      "If" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
+      "Let" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ value ~ body => ir.Let(name, body, value) } |
+      "Ref" ~> ir_identifier ~ type_expr ^^ { case name ~ t => ir.Ref(name, t) } |
+      "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
+      "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
+      "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
+      // FIXME parse error on array
+      "MakeArray" ~> ir_value_exprs ~ type_expr ^^ { case args ~ t => ir.MakeArray(args, t.asInstanceOf[TArray]) } |
+      "ArrayRef" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ i => ir.ArrayRef(a, i) } |
+      "ArrayLen" ~> ir_value_expr ^^ { a => ir.ArrayLen(a) } |
+      "ArrayRange" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |
+      "ArraySort" ~> ir_value_expr ~ ir_value_expr ^^ { case (a, ascending) => ir.ArraySort(a, ascending) } |
+      "ToSet" ~> ir_value_expr ^^ { a => ir.ToSet(a) } |
+      "ToDict" ~> ir_value_expr ^^ { a => ir.ToDict(a) } |
+      "ToArray" ~> ir_value_expr ^^ { a => ir.ToArray(a) } |
+      "LowerBoundOnOrderedCollection" ~> ir_value_expr ~ ir_value_expr ~ boolean_literal ^^ { case col ~ elem ~ onKey => ir.LowerBoundOnOrderedCollection(col, elem, onKey) } |
+      "GroupByKey" ~> ir_value_expr ^^ { a => ir.GroupByKey(a) } |
+      "ArrayMap" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayMap(a, name, body) } |
+      "ArrayFilter" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFilter(a, name, body) } |
+      "ArrayFlatMap" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFlatMap(a, name, body) } |
+      "ArrayFold" ~> ir_value_expr ~ ir_value_expr ~ ir_identifier ~ ir_identifier ~ ir_value_expr ^^ { case a ~ zero ~ accumName ~ valueName ~ body => ir.ArrayFold(a, zero, accumName, valueName, body) } |
+      "ArrayFor" ~> ir_value_expr ~ ir_identifier ~ ir_value_expr ^^ { case a ~ name ~ body => ir.ArrayFor(a, name, body) } |
+      "ApplyAggOp" ~> ir_value_expr ~ ir_value_exprs ~ ir_value_exprs_opt ~ agg_signature ^^ { case a ~ ctorArgs ~ initOpArgs ~ aggSig => ir.ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) } |
+      "InitOp" ~> ir_value_expr ~ ir_value_exprs ~ agg_signature ^^ { case i ~ args ~ aggSig => ir.InitOp(i, args, aggSig) } |
+      "SeqOp" ~> ir_value_expr ~ ir_value_expr ~ agg_signature ~ ir_value_exprs ^^ { case a ~ i ~ aggSig ~ args => ir.SeqOp(a, i, aggSig, args) } |
+      "Begin" ~> ir_value_exprs ^^ { xs => ir.Begin(xs) } |
+      "MakeStruct" ~> ir_named_value_exprs ^^ { fields => ir.MakeStruct(fields) } |
+      "SelectFields" ~> ir_value_expr ~ ir_identifiers ^^ { case old ~ fields => ir.SelectFields(old, fields) } |
+      "InsertFields" ~> ir_value_expr ~ ir_named_value_exprs ^^ { case old ~ fields => ir.InsertFields(old, fields) } |
+      "GetField" ~> ir_value_expr ~ ir_identifier ^^ { case o ~ name => ir.GetField(o, name) } |
+      "MakeTuple" ~> ir_value_exprs ^^ { xs => ir.MakeTuple(xs) } |
+      "GetTupleElement" ~> ir_value_expr ~ int32_literal ^^ { case o ~ idx => ir.GetTupleElement(o, idx) } |
+      "StringSlice" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case s ~ start ~ end => ir.StringSlice(s, start, end) } |
+      "StringLength" ~> ir_value_expr ^^ { s => ir.StringLength(s) } |
+      "In" ~> int32_literal ~ type_expr ^^ { case i ~ t => ir.In(i, t) } |
+      "Die" ~> string_literal ~ type_expr ^^ { case message ~ t => ir.Die(message, t) } |
+
+
 }
