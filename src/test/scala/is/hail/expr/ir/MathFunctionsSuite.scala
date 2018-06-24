@@ -138,4 +138,15 @@ class MathFunctionsSuite extends TestNGSuite {
     check(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087)
     check(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
   }
+  
+ @Test def hwe_test() {
+    def check(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, rExpectedHetFreq: Double) {
+      val r = eval(invoke("hwe_test", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
+      assert(D0_==(pValue, r.getDouble(0)))
+      assert(D0_==(rExpectedHetFreq, r.getDouble(1)))
+    }
+
+    check(0, 1, 0, 0.5, 1.0)
+    // FIXME add more
+  }
 }

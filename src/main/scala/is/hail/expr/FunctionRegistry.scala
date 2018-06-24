@@ -872,9 +872,9 @@ object FunctionRegistry {
     (x: Annotation, y: Annotation, includesStart: Boolean, includesEnd: Boolean) => Interval(x, y, includesStart, includesEnd)
   })(TTHr, TTHr, boolHr, boolHr, intervalHr(TTHr))
 
-  registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
-    val res = hwe(nHomRef, nHet, nHomVar)
-    Annotation(res._1.orNull, res._2)
+  registerAnn("hweTest", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
+    val res = hweTest(nHomRef, nHet, nHomVar)
+    Annotation(res(0), res(1))
   })
 
   registerAnn("chi_sq_test", chisqStruct, { (a: Int, b: Int, c: Int, d: Int) =>

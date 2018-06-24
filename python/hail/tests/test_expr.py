@@ -1601,3 +1601,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
+    def test_hwe_test(self):
+        res = hl.hwe_test(1, 2, 1).value
+        self.assertAlmostEqual(res['p_value'], 0.65714285)
+        self.assertAlmostEqual(res['r_expected_het_freq'], 0.875)

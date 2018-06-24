@@ -8,7 +8,7 @@ import is.hail.variant.Call
 import scala.annotation.switch
 
 object HWECombiner {
-  def signature = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
+  def signature = TStruct("p_value" -> TFloat64(), "r_expected_het_freq" -> TFloat64())
 }
 
 class HWECombiner extends Serializable {
@@ -41,22 +41,18 @@ class HWECombiner extends Serializable {
 
   def n = nHomRef + nHet + nHomVar
   def nA = nHet + 2 * nHomRef.min(nHomVar)
-
   def lh = LeveneHaldane(n, nA)
 
-  def asAnnotation: Annotation = Annotation(divOption(lh.getNumericalMean, n).orNull, lh.exactMidP(nHet))
+  def asAnnotation: Annotation = Annotation(lh.exactMidP(nHet), nHet / lh.getNumericalMean)
 
   def result(rvb: RegionValueBuilder) {
     rvb.startStruct()
 
-    val rExpHetFreq = divNull(lh.getNumericalMean, n)
-    if (rExpHetFreq == null)
-      rvb.setMissing()
-    else
-      rvb.addDouble(rExpHetFreq)
-
     val p = lh.exactMidP(nHet)
     rvb.addDouble(p)
+
+    val rExpHetFreq = nHet / lh.getNumericalMean
+    rvb.addDouble(rExpHetFreq)
 
     rvb.endStruct()
   }

@@ -194,7 +194,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
 
-    hwe = hl.hardy_weinberg_p(mt[name].homozygote_count[0],
+    hwe = hl.hwe_test(mt[name].homozygote_count[0],
                               mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
                               mt[name].homozygote_count[1])
     mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,

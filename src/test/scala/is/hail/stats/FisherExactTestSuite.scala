@@ -106,8 +106,8 @@ class FisherExactTestSuite extends SparkSuite {
           .annotateRowsExpr("majControl" ->
             """AGG.filter(g => sa.pheno == "Control" && g.GT.isHet()).count() +
               |2L * AGG.filter(g => sa.pheno == "ADHD" && g.GT.isHomRef()).count()""".stripMargin)
-          .annotateRowsExpr("fisher_exact_test" ->
-            """fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
+          .annotateRowsExpr("fet" ->
+            """fisher_exact_test(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
 
 
         val (_, q1) = vds2.queryVA("va.macCase")

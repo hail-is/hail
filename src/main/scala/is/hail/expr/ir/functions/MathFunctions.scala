@@ -5,7 +5,7 @@ import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
-import is.hail.stats.{uniroot, entropy, fisherExactTest, chisqStruct, fetStruct}
+import is.hail.stats.{uniroot, entropy, chisqStruct, fetStruct, hweStruct}
 
 import is.hail.utils.fatal
 
@@ -171,6 +171,20 @@ object MathFunctions extends RegistryFunctions {
         srvb.offset
       )
     }
+
+    registerCode("hwe_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
+      val res = mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(mb, hweStruct)
+      Code(
+        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hweTest", nHomRef, nHet, nHomVar),
+        srvb.start(),
+        srvb.addDouble(res(0)),
+        srvb.advance(),
+        srvb.addDouble(res(1)),
+        srvb.advance(),
+        srvb.offset
+      )
+    }
     
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
@@ -206,6 +220,6 @@ object MathFunctions extends RegistryFunctions {
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
 
-    registerWrappedScalaFunction("entropy", TString(), TFloat64())(statsPackageClass, "irentropy")
+    registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
   }
 }

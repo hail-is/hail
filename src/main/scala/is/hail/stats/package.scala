@@ -108,9 +108,9 @@ package object stats {
     }
   }
 
-  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
+  val hweStruct = TStruct("p_value" -> TFloat64(), "r_expected_het_freq" -> TFloat64())
   
-  def hwe(nHomRef: Int, nHet: Int, nHomVar: Int): (Option[Double], Double) = {
+  def hweTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
       fatal(s"hwe: all arguments must be non-negative, got $nHomRef, $nHet, $nHomVar")
   
@@ -119,7 +119,7 @@ package object stats {
     val nA = nAB + 2 * nHomRef.min(nHomVar)
 
     val LH = LeveneHaldane(n, nA)
-    (divOption(LH.getNumericalMean, n), LH.exactMidP(nAB))
+    Array(LH.exactMidP(nAB), nAB / LH.getNumericalMean)
   }
   
   val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())

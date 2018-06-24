@@ -647,50 +647,56 @@ def fraction(predicate) -> Float64Expression:
                           predicate._aggregations.push(Aggregation(predicate)))
 
 @typecheck(expr=agg_expr(expr_call))
-def hardy_weinberg(expr) -> StructExpression:
-    """Compute Hardy-Weinberg Equilbrium (HWE) p-value and heterozygosity ratio.
+def hwe_test(expr) -> StructExpression:
+    """Tests whether genotypes are in Hardy-Weinberg equilibrium.
 
     Examples
     --------
-    Compute HWE statistics per row of a dataset:
+    Test each row of a dataset:
 
-    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
+    >>> dataset_result = dataset.annotate_rows(hwe = agg.hwe_test(dataset.GT))
 
-    Compute HWE statistics for a single population:
+    Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.hwe_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
-    This method returns a struct expression with the following fields:
+    This method performs a two-sided exact test with mid-p-value correction of
+    `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
+    via an efficient implementation of the
+    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
+    which models the number of heterozygous individuals under equilibrium.
+
+    The mean of this distribution is ``(n_hom_ref * n_hom_var / (2n - 1)`` where
+    ``n = n_hom_ref + n_het + n_hom_var``. So under equilibrium, the ratio
+    of observed to expected heterozygous calls is ``n_het`` divided by this mean.
+
+    The resulting struct expression has two fields:
+
+    - `p_value` (:py:data:`.tfloat64`) - p-value.
 
     - `r_expected_het_freq` (:py:data:`.tfloat64`) - Ratio of observed to
-      expected heterozygote frequency.
-    - `p_hwe` (:py:data:`.tfloat64`) - Hardy-Weinberg p-value.
-
-    Hail computes the exact p-value with mid-p-value correction, i.e. the
-    probability of a less-likely outcome plus one-half the probability of an
-    equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for
-    details on the Levene-Haldane distribution and references.
+      expected number of heterozygous calls.
 
     Warning
     -------
-    Non-diploid calls (``ploidy != 2``) are not included in statistics. It is
-    assumed the row is biallelic. Use :func:`~hail.methods.split_multi` to split multiallelic
-    variants before computing statistics.
+    Non-diploid calls (``ploidy != 2``) are ignored.
+    This test should typically only be applied to bi-allelic calls;
+    use :func:`~hail.methods.split_multi` to split multi-allelic variants beforehand.
 
     Parameters
     ----------
     expr : :class:`.CallExpression`
-        Call for which to compute Hardy-Weinberg statistics.
+        Call to test for Hardy-Weinberg equilibrium.
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `r_expected_het_freq` and `p_hwe`.
+        Struct expression with fields `p_value` and `r_expected_het_freq`.
     """
-    t = tstruct(r_expected_het_freq=tfloat64, p_hwe=tfloat64)
+    t = tstruct(p_value=tfloat64, r_expected_het_freq=tfloat64)
     return _agg_func('hardyWeinberg', expr, t)
 
 

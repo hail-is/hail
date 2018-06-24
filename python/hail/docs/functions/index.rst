@@ -130,7 +130,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     contingency_table_test
     dbeta
     dpois
-    hardy_weinberg_p
+    hwe_test
     pchisqtail
     pnorm
     ppois

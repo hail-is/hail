@@ -625,41 +625,49 @@ def ceil(x):
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
-    """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
+def hwe_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+    """Tests whether a variant is in Hardy-Weinberg equilibrium.
 
     Examples
     --------
 
-    >>> hl.hardy_weinberg_p(20, 50, 26).value
-    Struct(r_expected_het_freq=0.500654450262, p_hwe=0.762089599352)
+    >>> hl.hwe_test(20, 50, 26).value
+    Struct(p_value=, r_expected_het_freq=)
 
-    >>> hl.hardy_weinberg_p(37, 200, 85).value
-    Struct(r_expected_het_freq=0.489649643074, p_hwe=1.13372103832e-06)
+    >>> hl.hwe_test(37, 200, 85).value
+    Struct(p_value=, r_expected_het_freq=)
 
     Notes
     -----
-    For more information, see the
-    `Wikipedia page <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
+    This method performs a two-sided exact test with mid-p-value correction of
+    `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
+    via an efficient implementation of the
+    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
+    which models the number of heterozygous individuals under equilibrium.
+
+    The mean of this distribution is ``(n_hom_ref * n_hom_var / (2n - 1)`` where
+    ``n = n_hom_ref + n_het + n_hom_var``. So under equilibrium, the ratio
+    `r_expected_het_freq` of observed to expected heterozygous genotypes is
+    ``n_het`` divided by this mean.
 
     Parameters
     ----------
     n_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
-        Homozygous reference count.
+        Number of homozygous reference genotypes.
     n_het : int or :class:`.Expression` of type :py:data:`.tint32`
-        Heterozygote count.
+        Number of heterozygous genotypes.
     n_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
-        Homozygous alternate count.
+        Number of homozygous variant genotypes.
 
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `r_expected_het_freq`
-        (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
+        A struct expression with two fields, `p_value` (:py:data:`.tfloat64`)
+        and `r_expected_het_freq` (:py:data:`.tfloat64`).
     """
-    ret_type = tstruct(r_expected_het_freq=tfloat64,
-                       p_hwe=tfloat64)
-    return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
+    ret_type = tstruct(p_value=tfloat64,
+                       r_expected_het_freq=tfloat64)
+    return _func("hweTest", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
 @typecheck(structs=expr_array(expr_struct()),
