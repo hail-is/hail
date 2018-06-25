@@ -69,7 +69,7 @@ object MathFunctions extends RegistryFunctions {
   }
   
   def irentropy(s: String): Double = entropy(s)
-  
+
   def registerAll() {
     val thisClass = getClass
     val mathPackageClass = Class.forName("scala.math.package$")

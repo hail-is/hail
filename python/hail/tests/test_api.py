@@ -1456,8 +1456,10 @@ class MatrixTableTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
-    # FIXME, NaN parsing issue
-    def _test_hwe(self):
+    # FIXME test fails due to JSON parsing failure on NaN, resolve with issue #3785
+    def test_hwe(self):
+        import math
+
         mt = hl.import_vcf(resource('HWE_test.vcf'))
         mt = mt.select_rows(**hl.agg.hwe_test(mt.GT))
         rt = mt.rows()
@@ -1468,15 +1470,20 @@ class MatrixTableTests(unittest.TestCase):
                 p_value_hwe=p,
                 r_obs_exp_het=r)
             for (pos, alleles, p, r) in [
-                    (1, ['A', 'G'], 0.5, float('nan')),
-                    (2, ['A', 'G'], 0.5, 1.0),
-                    (3, ['T', 'C'], 0.21428571428571427, 0.4666666666666667),
-                    (4, ['T', 'A'], 0.6571428571428573, 0.875),
-                    (5, ['G', 'A'], 0.5, 1.0),
-                    (6, ['T', 'C'], 0.5, float('nan'))]],
-                                        key=['locus', 'alleles'])
-        self.assertTrue(rt.filter(rt.locus.position != 1 & rt.locus.position != 6)._same(
-            expected.locus.position != 1 & expected.locus.position != 6))
+                (2, ['A', 'G'], 0.5, 1.0),
+                (3, ['T', 'C'], 0.21428571428571427, 0.4666666666666667),
+                (4, ['T', 'A'], 0.6571428571428573, 0.875),
+                (5, ['G', 'A'], 0.5, 1.0)]],
+            key=['locus', 'alleles'])
+        self.assertTrue(rt.filter((rt.locus.position != 1) & (rt.locus.position != 6))._same(expected))
+
+        rt16 = rt.filter((rt.locus.position == 1) | (rt.locus.position == 6)).collect()
+
+        self.assertEqual(rt16[0]['p_value_hwe'], 0.5)
+        self.assertTrue(math.isnan(rt16[0]['r_obs_exp_het']))
+
+        self.assertEqual(rt16[1]['p_value_hwe'], 0.5)
+        self.assertTrue(math.isnan(rt16[1]['r_obs_exp_het']))
 
     def test_hwe_p_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))

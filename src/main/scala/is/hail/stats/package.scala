@@ -166,7 +166,7 @@ package object stats {
       fatal("Confidence level must be between 0 and 1")
 
     if (oddsRatio < 0d)
-      fatal("Odds ratio must be positive")
+      fatal("Odds ratio must be non-negative")
 
     if (alternative != "greater" && alternative != "less" && alternative != "two.sided")
       fatal("Did not recognize test type string. Use one of greater, less, two.sided")
@@ -305,7 +305,7 @@ package object stats {
     assert(pvalue >= 0d && pvalue <= 1.000000000002)
 
     val oddsRatioEstimate = mle(numSuccessSample)
-    
+
     val confInterval = alternative match {
       case "less" => (0d, ncpUpper(numSuccessSample, 1 - confidenceLevel))
       case "greater" => (ncpLower(numSuccessSample, 1 - confidenceLevel), Double.PositiveInfinity)
