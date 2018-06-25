@@ -186,22 +186,6 @@ class IRSuite extends TestNGSuite {
       false)
   }
 
-  @Test def testDictGet() {
-    val t = TDict(TInt32(), TString())
-    assertEvalsTo(invoke("get", NA(t), I32(2)), null)
-
-    val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(invoke("get", In(0, t), NA(TInt32())),
-      FastIndexedSeq((d, t)),
-      "c")
-    assertEvalsTo(invoke("get", In(0, t), I32(2)),
-      FastIndexedSeq((d, t)),
-      null)
-    assertEvalsTo(invoke("get", In(0, t), I32(0)),
-      FastIndexedSeq((d, t)),
-      null)
-  }
-
   @Test def testArrayMap() {
     val naa = NA(TArray(TInt32()))
     val a = MakeArray(Seq(I32(3), NA(TInt32()), I32(7)), TArray(TInt32()))

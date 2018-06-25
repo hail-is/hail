@@ -242,7 +242,7 @@ class OrderingSuite extends TestNGSuite {
   @Test def testDictGetOnRandomDict() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
       case (k, v) =>
-        Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue)
+        Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
     }
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
       val telt = coerce[TBaseStruct](tdict.elementType)
