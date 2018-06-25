@@ -663,7 +663,7 @@ def hwe_test(expr) -> StructExpression:
 
     Notes
     -----
-    This method performs the test described in :func:`.hwe_test` based solely on
+    This method performs the test described in :func:`.functions.hwe_test` based solely on
     the three counts: ``n_hom_ref``, ``n_het``, and ``n_hom_var``.
 
     The resulting struct expression has two fields:

@@ -140,14 +140,14 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
     - `p_value_hwe` (``float64``) -- p-value for test of Hardy-Weinberg
-      equilibrium. See :func:`.hwe_test` for details.
+      equilibrium. See :func:`.functions.hwe_test` for details.
     - `r_obs_exp_het` (``float64``) -- Ratio of observed number of
       heterozygotes over the expected number of heterozygotes under
-      Hardy-Weinberg equilibrium. See :func:`.hwe_test` for details.
+      Hardy-Weinberg equilibrium. See :func:`.functions.hwe_test` for details.
 
     Warning
     -------
-    `p_value_hwe` and `r_obs_exp_het` are calculated as in :func:`.hwe_test`,
+    `p_value_hwe` and `r_obs_exp_het` are calculated as in :func:`.functions.hwe_test`,
     with non-diploid calls (``ploidy != 2``) ignored in the counts. As this test
     is only statistically rigorous in the bi-allelic setting, :func:`variant_qc`
     sets both fields to missing for non-bi-allelic variants. Consider using
