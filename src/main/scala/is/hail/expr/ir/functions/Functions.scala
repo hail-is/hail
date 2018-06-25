@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations._
+import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -122,6 +123,24 @@ abstract class RegistryFunctions {
     case _: TFloat32 => coerce[Float]
     case _: TFloat64 => coerce[Double]
     case _: TCall => coerce[Int]
+    case _: TString => c =>
+      Code.invokeScalaObject[Region, Long, String](
+        TString.getClass, "loadString",
+        getRegion(mb), coerce[Long](c))
+    case _ => c =>
+      Code.invokeScalaObject[Type, Region, Long, Any](
+        UnsafeRow.getClass, "read",
+        mb.getType(t),
+        getRegion(mb), coerce[Long](c))
+  }
+
+  def boxArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[Any] = t match {
+    case _: TBoolean => c => Code.boxBoolean(coerce[Boolean](c))
+    case _: TInt32 => c => Code.boxInt(coerce[Int](c))
+    case _: TInt64 => c => Code.boxLong(coerce[Long](c))
+    case _: TFloat32 => c => Code.boxFloat(coerce[Float](c))
+    case _: TFloat64 => c => Code.boxDouble(coerce[Double](c))
+    case _: TCall => c => Code.boxInt(coerce[Int](c))
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
         TString.getClass, "loadString",

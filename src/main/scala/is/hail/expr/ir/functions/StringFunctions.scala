@@ -7,16 +7,10 @@ import is.hail.expr.ir
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
 import is.hail.utils._
+import org.json4s.JValue
+import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
-
-  def str(x: Int): String = x.toString
-
-  def str(x: Long): String = x.toString
-
-  def str(x: Float): String = x.formatted("%.5e")
-
-  def str(x: Double): String = x.formatted("%.5e")
 
   def upper(s: String): String = s.toUpperCase
 
@@ -112,10 +106,20 @@ object StringFunctions extends RegistryFunctions {
       ir.StringLength(s)
     }
 
-    registerWrappedScalaFunction("str", TInt32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TInt64(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat64(), TString())(thisClass, "str")
+    registerCodeWithMissingness("str", tv("T"), TString()) { (mb, a) =>
+      val typ = tv("T").subst()
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(mb, typ)(a.v))
+      val str = mb.getType(typ).invoke[Any, String]("str", annotation)
+      EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
+    }
+
+    registerCodeWithMissingness("json", tv("T"), TString()) { (mb, a) =>
+      val typ = tv("T").subst()
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(mb, typ)(a.v))
+      val json = mb.getType(typ).invoke[Any, JValue]("toJSON", annotation)
+      val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
+      EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
+    }
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")
