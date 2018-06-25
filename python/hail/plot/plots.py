@@ -3,7 +3,8 @@ from math import log, isnan
 from bokeh.io import show
 from bokeh.plotting import figure
 from bokeh.layouts import gridplot
-from bokeh.models import Span
+from bokeh.models import Span, ColumnDataSource, CategoricalColorMapper
+from bokeh.palettes import Category10
 
 
 def histogram(data, legend=None, title=None, xlabel=None, ylabel='Frequency', background_fill_color='#EEEEEE'):
@@ -15,12 +16,19 @@ def histogram(data, legend=None, title=None, xlabel=None, ylabel='Frequency', ba
     show(p)
 
 
-def scatter(x, y, title=None, xlabel=None, ylabel=None,
-            background_fill_color='#EEEEEE', alpha=0.5,
-            legend=None, color='blue', size=8,
+def scatter(x, y, title=None, xlabel=None, ylabel=None, label=None,
+            background_fill_color='#EEEEEE', alpha=0.5, size=8,
             indicate_outlier_cuts=False, threshold_x=None, threshold_y=None):
-    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color=background_fill_color, )
-    p.scatter(x, y, alpha=alpha, color=color, legend=legend, size=size)
+    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color=background_fill_color)
+    if label is not None:
+        source = ColumnDataSource(dict(x=x, y=y, label=label))
+        # FIXME: y-axis values are opposite unless factors are in this order: ['AFR', 'EAS', 'EUR', 'SAS', 'AMR']
+        factors = list(set(label))
+        color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
+        p.circle('x', 'y', alpha=alpha, source=source, size=size,
+                 color={'field': 'label', 'transform': color_mapper}, legend='label')
+    else:
+        p.circle(x, y, alpha=alpha, size=size)
     if indicate_outlier_cuts:
         p.renderers.extend(
             [Span(location=threshold_y, dimension='width', line_color='black', line_width=1),
