@@ -58,13 +58,13 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def isDir(filename: String): Boolean = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.getFileStatus(hPath).isDirectory
+    fs.isDirectory(hPath)
   }
 
   def isFile(filename: String): Boolean = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.getFileStatus(hPath).isFile
+    fs.isFile(hPath)
   }
 
   def exists(files: String*): Boolean = {
