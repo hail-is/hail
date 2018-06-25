@@ -310,6 +310,15 @@ class HailContext private(val sc: SparkContext,
       nPartitions, rg, contigRecoding, skipInvalidLoci, includedVariantsPerFile)
   }
 
+  private[this] def absolutePath(rel: String): String = {
+    val matches = hadoopConf.glob(rel)
+    if (matches.length != 1)
+      fatal(s"""found more than one match for variant filter path: $rel:
+                 |${matches.mkString(",")}""".stripMargin)
+    val abs = matches(0).getPath.toString
+    abs
+  }
+
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     includeGT: Boolean = true,
@@ -322,7 +331,7 @@ class HailContext private(val sc: SparkContext,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
@@ -335,6 +344,19 @@ class HailContext private(val sc: SparkContext,
           .filter(p => ".*part-[0-9]+".r.matches(p))
       else
         Array(file)
+    }
+
+    val includedVariantsPerFile = toMapIfUnique(
+      includedVariantsPerUnresolvedFilePath
+    )(absolutePath _
+    ) match {
+      case Left(duplicatedPaths) =>
+        fatal(s"""some relative paths in the import_bgen _variants_per_file
+                 |parameter have resolved to the same absolute path
+                 |$duplicatedPaths""".stripMargin)
+      case Right(m) =>
+        log.info(s"variant filters per file after path resolution is $m")
+        m
     }
 
     if (inputs.isEmpty)

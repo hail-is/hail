@@ -570,8 +570,7 @@ class BGENTests(unittest.TestCase):
                                 reference_genome=None,
                                 min_partitions=10,
                                 _row_fields=['file_row_idx'],
-                                _variants_per_file={ 'file:' + os.path.abspath(resource('example.8bits.bgen')) : desired_variant_indexes})
-        print({ 'file:' + resource('example.8bits.bgen') : desired_variant_indexes})
+                                _variants_per_file={ resource('example.8bits.bgen') : desired_variant_indexes})
         # doing the expected import_bgen second catches the case where the
         # hadoop configuraiton is polluted with old data from the
         # _variants_per_file

@@ -613,6 +613,23 @@ package object utils extends Logging
     else
       s
   }
+
+  def toMapIfUnique[K, K2, V](
+    kvs: Traversable[(K, V)]
+  )(keyBy: K => K2
+  ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
+    val grouped = kvs.groupBy(x => keyBy(x._1))
+
+    val dupes = grouped.filter { case (k, m) => m.size != 1 }
+
+    if (dupes.nonEmpty) {
+      Left(dupes.map { case (k, m) => k -> m.map(_._1) })
+    } else {
+      Right(grouped
+        .map { case (k, m) => k -> m.map(_._2).head }
+        .toMap)
+    }
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
