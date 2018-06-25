@@ -121,8 +121,9 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
   def inputType: Type = aggSig.inputType
 
   def key: Option[IR] = {
-    val Array(seqOp: SeqOp) = Extract(a, _.isInstanceOf[SeqOp])
-    seqOp.k
+    val x = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
+    assert(x.length == 0 || x.length == 1)
+    x.headOption.flatMap(_.k)
   }
 }
 
