@@ -36,9 +36,11 @@ class TInt32(override val required: Boolean) extends TIntegral {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
     new CodeOrdering {
       type T = Int
+
       def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
         Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", x, y)
 
@@ -57,6 +59,7 @@ class TInt32(override val required: Boolean) extends TIntegral {
       override def equivNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
         x.ceq(y)
     }
+  }
 
   override def byteSize: Long = 4
 }

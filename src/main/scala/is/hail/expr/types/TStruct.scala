@@ -73,7 +73,10 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = CodeOrdering.rowOrdering(this, mb)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[TStruct], mb)
+  }
 
   def fieldByName(name: String): Field = fields(fieldIdx(name))
 

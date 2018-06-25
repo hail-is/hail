@@ -37,8 +37,11 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
-    CodeOrdering.intervalOrdering(this, mb)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.intervalOrdering(this, other.asInstanceOf[TInterval], mb)
+  }
+
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
     new UnsafeOrdering {

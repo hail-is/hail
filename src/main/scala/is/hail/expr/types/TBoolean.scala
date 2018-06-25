@@ -36,10 +36,14 @@ class TBoolean(override val required: Boolean) extends Type {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
-    type T = Boolean
-    def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
-      Code.invokeStatic[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
+    new CodeOrdering {
+      type T = Boolean
+
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
+        Code.invokeStatic[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
+    }
   }
 
   override def byteSize: Long = 1

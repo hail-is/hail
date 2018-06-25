@@ -42,5 +42,5 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 
   val ordering: ExtendedOrdering = null
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }

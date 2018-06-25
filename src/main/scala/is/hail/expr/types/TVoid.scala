@@ -16,5 +16,5 @@ case object TVoid extends Type {
 
   override def isRealizable = false
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }

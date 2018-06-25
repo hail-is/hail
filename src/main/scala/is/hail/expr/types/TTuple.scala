@@ -30,7 +30,10 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = CodeOrdering.rowOrdering(this, mb)
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[TTuple], mb)
+  }
 
   val size: Int = types.length
 

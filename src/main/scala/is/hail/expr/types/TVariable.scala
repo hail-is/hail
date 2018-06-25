@@ -36,5 +36,5 @@ final case class TVariable(name: String, cond: (Type) => Boolean = { _ => true }
 
   val ordering: ExtendedOrdering = null
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }
