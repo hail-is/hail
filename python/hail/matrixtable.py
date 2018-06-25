@@ -2435,20 +2435,16 @@ class MatrixTable(ExprContainer):
         if row_exprs:
             row_key = None if len(set(self.row_key) & set(row_exprs.keys())) == 0 else self.row_key
             row_struct = self.row.annotate(**row_exprs)
-            analyze("MatrixTable.annotate_rows", row_struct, self._row_indices)
             jmt = jmt.selectRows(row_struct._ast.to_hql(), row_key)
         if col_exprs:
             col_key = None if len(set(self.col_key) & set(col_exprs.keys())) == 0 else self.col_key
             col_struct = self.col.annotate(**col_exprs)
-            analyze("MatrixTable.annotate_cols", col_struct, self._col_indices)
             jmt = jmt.selectCols(col_struct._ast.to_hql(), col_key)
         if entry_exprs:
             entry_struct = self.entry.annotate(**entry_exprs)
-            analyze("MatrixTable.annotate_entries", entry_struct, self._entry_indices)
             jmt = jmt.selectEntries(entry_struct._ast.to_hql())
         if global_exprs:
             globals_struct = self.globals.annotate(**global_exprs)
-            analyze("MatrixTable.annotate_globals", globals_struct, self._global_indices)
             jmt = jmt.selectGlobals(globals_struct._ast.to_hql())
 
         return cleanup(MatrixTable(jmt))
