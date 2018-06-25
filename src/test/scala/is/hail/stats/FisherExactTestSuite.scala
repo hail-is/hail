@@ -6,7 +6,6 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{Call, Genotype}
 import is.hail.variant.{MatrixTable, _}
 import org.testng.annotations.Test
 
@@ -25,7 +24,7 @@ class FisherExactTestSuite extends SparkSuite {
     val c = 95
     val d = 90
 
-    val result = FisherExactTest(a, b, c, d).map(_.getOrElse(Double.NaN))
+    val result = fisherExactTest(a, b, c, d)
 
     assert(math.abs(result(0) - 0.2828) < 1e-4)
     assert(math.abs(result(1) - 0.4754059) < 1e-4)
@@ -53,27 +52,23 @@ class FisherExactTestSuite extends SparkSuite {
         val rGreater = rResultGreater.split(" ").take(4)
           .map { s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
 
-        val hailTwoSided = FisherExactTest(a, b, c, d, alternative = "two.sided")
-        val hailLess = FisherExactTest(a, b, c, d, alternative = "less")
-        val hailGreater = FisherExactTest(a, b, c, d, alternative = "greater")
+        val hailTwoSided = fisherExactTest(a, b, c, d, alternative = "two.sided")
+        val hailLess = fisherExactTest(a, b, c, d, alternative = "less")
+        val hailGreater = fisherExactTest(a, b, c, d, alternative = "greater")
 
-        val hailResults = Array(hailTwoSided, hailLess, hailGreater).map {
-          _.map {
-            _.getOrElse(Double.NaN)
-          }
-        }
+        val hailResults = Array(hailTwoSided, hailLess, hailGreater)
         val rResults = Array(rTwoSided, rLess, rGreater)
 
         hailResults.zip(rResults).forall { case (h, r) =>
-          val res = D_==(h(0), r(0)) &&
-            D_==(h(1), h(1)) &&
-            D_==(h(2), r(2)) &&
-            D_==(h(3), r(3))
+          val res = D0_==(h(0), r(0)) &&
+            D0_==(h(1), h(1)) &&
+            D0_==(h(2), r(2)) &&
+            D0_==(h(3), r(3))
           if (!res) {
-            println(h(0), r(0), D_==(h(0), r(0)))
-            println(h(1), r(1), D_==(h(1), h(1)))
-            println(h(2), r(2), D_==(h(2), r(2)))
-            println(h(3), r(3), D_==(h(3), r(3)))
+            println(h(0), r(0), D0_==(h(0), r(0)))
+            println(h(1), r(1), D0_==(h(1), h(1)))
+            println(h(2), r(2), D0_==(h(2), r(2)))
+            println(h(3), r(3), D0_==(h(3), r(3)))
           }
           res
         }
@@ -125,14 +120,19 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q8) = vds2.queryVA("va.fet.ci_95_upper")
 
         vds2.variantsAndAnnotations.forall { case (v, va) =>
-          val result = FisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,
-            q3(va).asInstanceOf[Long].toInt, q4(va).asInstanceOf[Long].toInt)
-          val annotationResult = Array(Option(q5(va)).asInstanceOf[Option[Double]],
-            Option(q6(va)).asInstanceOf[Option[Double]],
-            Option(q7(va)).asInstanceOf[Option[Double]],
-            Option(q8(va)).asInstanceOf[Option[Double]])
+          val result = fisherExactTest(
+            q1(va).asInstanceOf[Long].toInt,
+            q2(va).asInstanceOf[Long].toInt,
+            q3(va).asInstanceOf[Long].toInt,
+            q4(va).asInstanceOf[Long].toInt)
 
-          result sameElements annotationResult
+          val annotationResult = Array(
+            q5(va).asInstanceOf[Double],
+            q6(va).asInstanceOf[Double],
+            q7(va).asInstanceOf[Double],
+            q8(va).asInstanceOf[Double])
+
+          result.zip(annotationResult).forall{ case (a, b) => D0_==(a, b) }
         }
       }
   }

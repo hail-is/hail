@@ -4,6 +4,8 @@ Unit tests for Hail.
 import pandas as pd
 import unittest
 import random
+import math
+
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
@@ -1471,10 +1473,13 @@ class MatrixTableTests(unittest.TestCase):
                     (2, ['A', 'G'], 0.25, 0.5),
                     (3, ['T', 'C'], 0.5357142857142857, 0.21428571428571427),
                     (4, ['T', 'A'], 0.5714285714285714,0.6571428571428573),
-                    (5, ['G', 'A'], 0.3333333333333333, 0.5),
-                    (6, ['T', 'C'], hl.null(hl.tfloat64), 0.5)]],
+                    (5, ['G', 'A'], 0.3333333333333333, 0.5)]],
                                         key=['locus', 'alleles'])
-        self.assertTrue(rt._same(expected))
+        self.assertTrue(rt.filter(rt.locus.position != 6)._same(expected))
+
+        rt6 = rt.filter(rt.locus.position == 6).collect()[0]
+        self.assertEqual(rt6['p_hwe'], 0.5)
+        self.assertTrue(math.isnan(rt6['r_expected_het_freq']))
 
     def test_hw_p_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
