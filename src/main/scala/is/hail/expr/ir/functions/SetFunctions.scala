@@ -19,6 +19,10 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
+    registerIR("toArray", TSet(tv("T"))) { a =>
+      ToArray(a)
+    }
+
     registerIR("size", TSet(tv("T"))) { s =>
       ArrayLen(ToArray(s))
     }

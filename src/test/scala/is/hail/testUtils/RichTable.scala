@@ -13,14 +13,14 @@ class RichTable(ht: Table) {
     val (a, t) = ht.aggregate(s"AGG.filter(row => let t = $code in !(isDefined(t) && t)).count() == i64#0")
     assert(t.isOfType(TBoolean()))
     assert(a != null)
-    a.isInstanceOf[Boolean]
+    a.asInstanceOf[Boolean]
   }
 
   def exists(code: String): Boolean = {
     val (a, t) = ht.aggregate(s"AGG.filter(row => let t = $code in isDefined(t) && t).count() > i64#0")
     assert(t.isOfType(TBoolean()))
     assert(a != null)
-    a.isInstanceOf[Boolean]
+    a.asInstanceOf[Boolean]
   }
 
   def rename(rowUpdateMap: Map[String, String], globalUpdateMap: Map[String, String]): Table = {

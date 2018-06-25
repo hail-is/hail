@@ -373,7 +373,7 @@ object FunctionRegistry {
   registerMethod("nNonRefAlleles", { (c: Call) => Call.nNonRefAlleles(c) })(callHr, int32Hr)
   registerMethod("unphasedDiploidGtIndex", { (c: Call) => Call.unphasedDiploidGtIndex(c) })(callHr, int32Hr)
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
-  registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
+  registerMethod("oneHotAlleles", { (c: Call, nAlleles: Int) => Call.oneHotAlleles(c, nAlleles) })(callHr, int32Hr, arrayHr(int32Hr))
 
   register("min_rep", { (l: Locus, a: IndexedSeq[String]) =>
     val (newLocus, newAlleles) = VariantMethods.minRep(l, a)

@@ -42,7 +42,7 @@ class GroupBySuite extends SparkSuite {
   }
 
   @Test def testResultSchemaFromAggregateColsByKey() {
-    val mt = sampleVDS.annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val mt = sampleVDS.annotateColsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles().toInt64()).sum().toInt32()")
 
     val resultMT = mt.keyColsBy("AC")
       .aggregateColsByKey("{max : AGG.map(g => g.GT.nNonRefAlleles()).max(), " +
@@ -73,7 +73,7 @@ class GroupBySuite extends SparkSuite {
   }
   
   @Test def testGroupVariantsBy() {
-    val mt = sampleVDS.annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles()).sum()")
+    val mt = sampleVDS.annotateRowsExpr("AC" -> "AGG.map(g => g.GT.nNonRefAlleles().toInt64()).sum().toInt32()")
     val mt2 = mt.keyRowsBy(Array("AC"), Array("AC"))
       .aggregateRowsByKey(
         "{ max : AGG.map(g => g.GT.nNonRefAlleles()).max() }",
