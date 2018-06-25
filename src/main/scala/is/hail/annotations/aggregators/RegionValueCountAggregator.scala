@@ -19,6 +19,12 @@ class RegionValueCountAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueCountAggregator = new RegionValueCountAggregator()
 
+  def deepCopy: RegionValueCountAggregator = {
+    val rva = new RegionValueCountAggregator()
+    rva.count = count
+    rva
+  }
+
   def clear() {
     count = 0
   }

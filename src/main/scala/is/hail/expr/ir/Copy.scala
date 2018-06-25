@@ -93,10 +93,22 @@ object Copy {
       case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name)
-      case InitOp(_, _, aggSig) =>
-        InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
-      case SeqOp(_, _, aggSig, args) =>
-        SeqOp(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], aggSig, newChildren.drop(2).map(_.asInstanceOf[IR]))
+      case x@InitOp(_, _, aggSig, keyType) =>
+        InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig, keyType)
+      case x@SeqOp(_, _, aggSig, _, _) =>
+        if (x.isKeyed) {
+          SeqOp(newChildren(0).asInstanceOf[IR],
+            newChildren(1).asInstanceOf[IR],
+            aggSig,
+            newChildren.drop(2).map(_.asInstanceOf[IR]).dropRight(1),
+            Some(newChildren.last.asInstanceOf[IR]))
+        } else {
+          SeqOp(newChildren(0).asInstanceOf[IR],
+            newChildren(1).asInstanceOf[IR],
+            aggSig,
+            newChildren.drop(2).map(_.asInstanceOf[IR]),
+            None)
+        }
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>

@@ -10,6 +10,7 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -794,4 +795,44 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   }
 
   def copy() = new TakeByAggregator(t, f, n)
+}
+
+class KeyedAggregator[T, K](aggregator: TypedAggregator[T], t: Type) extends TypedAggregator[Map[Any, T]] {
+  private val m = mutable.Map[Any, TypedAggregator[T]]()
+
+  def result = m.map { case (k, v) => (k, v.result) }.toMap
+
+  def seqOp(x: Any) {
+    val cx = Annotation.copy(t, x).asInstanceOf[Row]
+
+    if (cx != null)
+      seqOp(cx.get(0), cx.get(1))
+    else
+      seqOp(null, null)
+  }
+
+  private def seqOp(x: Any, key: Any) {
+    val agg = m.getOrElseUpdate(key, aggregator.copy())
+    agg match {
+      case tagg: TakeByAggregator[_] =>
+        val (a, b) = x.asInstanceOf[Tuple2[_, _]]
+        tagg.seqOp(a, b)
+      case _ =>
+        agg.seqOp(x)
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    agg2.m.foreach { case (k, v2) =>
+      m(k) = m.get(k) match {
+        case Some(v) =>
+          v.combOp(v2.asInstanceOf[v.type])
+          v
+        case None =>
+          v2
+      }
+    }
+  }
+
+  def copy() = new KeyedAggregator(aggregator, t)
 }

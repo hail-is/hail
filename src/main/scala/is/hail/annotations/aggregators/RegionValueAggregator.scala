@@ -11,5 +11,7 @@ trait RegionValueAggregator extends Serializable {
 
   def copy(): RegionValueAggregator
 
+  def deepCopy(): RegionValueAggregator
+
   def clear(): Unit
 }

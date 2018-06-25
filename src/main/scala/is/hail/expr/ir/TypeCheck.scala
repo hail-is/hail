@@ -136,14 +136,15 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
-      case x@InitOp(i, args, _) =>
+      case x@InitOp(i, args, _, _) =>
         args.foreach(check(_))
         check(i)
         assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(a, i, aggSig, args) =>
+      case x@SeqOp(a, i, aggSig, args, k) =>
         check(a)
         check(i)
         args.foreach(check(_))
+        k.foreach(check(_))
         assert(a.typ == aggSig.inputType)
         assert(i.typ.isInstanceOf[TInt32])
       case x@Begin(xs) =>
@@ -156,7 +157,10 @@ object TypeCheck {
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(a.typ == TVoid)
-        assert(x.typ == AggOp.getType(aggSig))
+        x.key match {
+          case Some(key) => assert(x.typ == AggOp.getKeyedType(aggSig, key.typ))
+          case None => assert(x.typ == AggOp.getType(aggSig))
+        }
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>

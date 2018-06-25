@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{HailContext, stats}
-import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.annotations.aggregators.{KeyedRegionValueAggregator, RegionValueAggregator, RegionValueCallStatsAggregator}
 import is.hail.annotations._
 import is.hail.expr.{SymbolTable, TypedAggregator}
 import is.hail.expr.types._
@@ -322,22 +322,39 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(a, i, aggSig, seqOpArgs) =>
+      case x@SeqOp(a, i, aggSig, seqOpArgs, k) =>
         assert(i == I32(0))
-        aggSig.op match {
-          case Inbreeding() =>
-            val IndexedSeq(af) = seqOpArgs
-            aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
-          case TakeBy() =>
-            val IndexedSeq(key) = seqOpArgs
-            aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(key))
-          case _ =>
-            aggregator.get.seqOp(interpret(a))
+        k match {
+          case Some(key) => aggSig.op match {
+            case Inbreeding() =>
+              val IndexedSeq(af) = seqOpArgs
+              aggregator.get.seqOp(Row((interpret(key), interpret(a)), interpret(af)))
+            case TakeBy() =>
+              val IndexedSeq(sortKey) = seqOpArgs
+              aggregator.get.seqOp(Row((interpret(a), interpret(sortKey)), interpret(key)))
+            case _ =>
+              aggregator.get.seqOp(Row(interpret(a), interpret(key)))
+          }
+          case None => aggSig.op match {
+            case Inbreeding() =>
+              val IndexedSeq(af) = seqOpArgs
+              aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
+            case TakeBy() =>
+              val IndexedSeq(key) = seqOpArgs
+              aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(key))
+            case _ =>
+              aggregator.get.seqOp(interpret(a))
+          }
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val aggType = aggSig.inputType
-        assert(AggOp.getType(aggSig) == x.typ)
-        val aggregator = aggSig.op match {
+
+        x.key match {
+          case Some(key) => assert(x.typ == AggOp.getKeyedType(aggSig, key.typ))
+          case None => assert(x.typ == AggOp.getType(aggSig))
+        }
+
+        var aggregator = aggSig.op match {
           case CallStats() =>
             assert(aggType == TCall())
             val nAlleles = interpret(initOpArgs.get(0))
@@ -412,6 +429,13 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
         }
+
+        x.key match {
+          case Some(key) =>
+            aggregator = new KeyedAggregator(aggregator, TTuple(aggType, key.typ))
+          case None =>
+        }
+
         val Some((aggElements, aggElementType)) = agg
         aggElements.foreach { element =>
           val env = (element.toSeq, aggElementType.fieldNames).zipped

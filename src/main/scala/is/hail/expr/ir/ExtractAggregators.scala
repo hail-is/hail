@@ -10,14 +10,14 @@ import scala.language.{existentials, postfixOps}
 
 object ExtractAggregators {
 
-  private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
+  private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp)
 
   def apply(ir: IR): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     def rewriteSeqOps(x: IR, i: Int): IR = {
       def rewrite(x: IR): IR = rewriteSeqOps(x, i)
       x match {
-        case SeqOp(a, _, aggSig, args) =>
-          SeqOp(a, I32(i), aggSig, args)
+        case SeqOp(a, _, aggSig, args, k) =>
+          SeqOp(a, I32(i), aggSig, args, k)
         case _ => Recur(rewrite)(x)
       }
     }
@@ -27,7 +27,10 @@ object ExtractAggregators {
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
       .zipWithIndex
       .map { case (x, i) =>
-        (x.initOpArgs.map(args => InitOp(I32(i), args, x.aggSig)), rewriteSeqOps(x.a, i))
+        x match {
+          case x@ApplyAggOp(a, _, initOpArgs, aggSig) =>
+            (initOpArgs.map(args => InitOp(I32(i), args, aggSig, x.key.map(_.typ))), rewriteSeqOps(a, i))
+        }
       }.unzip
 
     val seqOpIR = Begin(seqOps)
@@ -70,7 +73,7 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, constructorArgs, _, aggSig) =>
+    case x@ApplyAggOp(seqOp, constructorArgs, _, aggSig) =>
       val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
@@ -81,9 +84,9 @@ object ExtractAggregators {
         case AggSignature(Counter(), t@(_: TBoolean), _, _, _) =>
         case AggSignature(Counter(), t, _, _, _) =>
           codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(TakeBy(), aggType, _, _, Seq(keyType)) =>
+        case AggSignature(TakeBy(), aggType, _, _, Seq(sortType)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
-            EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
+            EmitTriplet(Code._empty, const(false), fb.getType(sortType)))
         case _ =>
       }
 
@@ -92,6 +95,11 @@ object ExtractAggregators {
         AggOp.get(aggSig)
           .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
 
-      Region.scoped(fb.result()()(_))
+      val rvagg = Region.scoped(fb.result()()(_))
+
+      x.key match {
+        case Some(key) => KeyedRegionValueAggregator(rvagg, key.typ, AggOp.getType(aggSig))
+        case None => rvagg
+      }
   }
 }

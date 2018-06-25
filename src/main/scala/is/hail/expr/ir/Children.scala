@@ -68,10 +68,13 @@ object Children {
       Array(old)
     case InsertFields(old, fields) =>
       (old +: fields.map(_._2)).toIndexedSeq
-    case InitOp(i, args, aggSig) =>
+    case InitOp(i, args, aggSig, keyType) =>
       i +: args
-    case SeqOp(a, i, _, args) =>
-      Array(a, i) ++ args
+    case x@SeqOp(a, i, _, args, k) =>
+      k match {
+        case Some(key) => Array(a, i) ++ args :+ key
+        case None => Array(a, i) ++ args
+      }
     case Begin(xs) =>
       xs
     case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>

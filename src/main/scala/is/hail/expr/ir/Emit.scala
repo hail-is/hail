@@ -616,7 +616,7 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case InitOp(i, args, aggSig) =>
+      case x@InitOp(i, args, aggSig, keyType) =>
         val nArgs = args.length
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
         val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
@@ -636,20 +636,32 @@ private class Emit(
         }.toArray: _*)
 
         val agg = AggOp.get(aggSig)
+
+        val initOp = keyType match {
+          case Some(t) =>
+            val keyedAgg = agg.toKeyedAggregator(t)
+            keyedAgg.initOp(
+              aggregator(coerce[Int](codeI.v)),
+              argsv.map(Code(_)),
+              argsm.map(Code(_).asInstanceOf[Code[Boolean]]))
+          case None =>
+            agg.initOp(
+              aggregator(coerce[Int](codeI.v)),
+              argsv.map(Code(_)),
+              argsm.map(Code(_).asInstanceOf[Code[Boolean]]))
+        }
+
         EmitTriplet(
           Code(codeI.setup,
             Code(codeA.map(_.setup): _*),
             argsSetup,
             codeI.m.mux(
               Code._empty,
-              agg.initOp(
-                aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+              initOp)),
           const(false),
           Code._empty)
 
-      case x@SeqOp(a, i, aggSig, args) =>
+      case x@SeqOp(a, i, aggSig, args, k) =>
         val codeI = emit(i)
         val agg = AggOp.get(aggSig)
         val fullArgs = Array(a) ++ args.toFastSeq
@@ -669,19 +681,42 @@ private class Emit(
           )
         }.toArray: _*)
 
-        EmitTriplet(
-          Code(codeI.setup,
-            Code(codeArgs.map(_.setup): _*),
-            argsSetup,
-            codeI.m.mux(
-              Code._empty,
-              agg.seqOp(
-                region,
-                aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
-          const(false),
-          Code._empty)
+        k match {
+          case Some(key) =>
+            val codeK = emit(key)
+            val keyedAgg = agg.toKeyedAggregator(key.typ)
+
+            EmitTriplet(
+              Code(codeI.setup,
+                codeK.setup,
+                Code(codeArgs.map(_.setup): _*),
+                argsSetup,
+                codeI.m.mux(
+                  Code._empty,
+                  keyedAgg.seqOp(
+                    region,
+                    aggregator(coerce[Int](codeI.v)),
+                    codeK.v,
+                    codeK.m,
+                    argsv.map(Code(_)),
+                    argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+              const(false),
+              Code._empty)
+          case None =>
+            EmitTriplet(
+              Code(codeI.setup,
+                Code(codeArgs.map(_.setup): _*),
+                argsSetup,
+                codeI.m.mux(
+                  Code._empty,
+                  agg.seqOp(
+                    region,
+                    aggregator(coerce[Int](codeI.v)),
+                    argsv.map(Code(_)),
+                    argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+              const(false),
+              Code._empty)
+        }
 
       case Begin(xs) =>
         EmitTriplet(
