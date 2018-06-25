@@ -1409,11 +1409,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     def test_ld_prune_with_duplicate_row_keys(self):
-        ds = hl.import_vcf(resource("sample.vcf"))
-        ds_duplicate = ds.annotate_rows(duplicate = [1,2])
-        ds_duplicate = ds_duplicate.explode_rows(ds_duplicate['duplicate'])
-        result = hl.ld_prune(ds_duplicate.GT)
-        result.show()
+        ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
+        ds_duplicate = ds.annotate_rows(duplicate = [1,2]).explode_rows('duplicate')
+        pruned_table = hl.ld_prune(ds_duplicate.GT)
+        self.assertEqual(pruned_table.count(), 1)
 
     def test_entries(self):
         n_rows, n_cols = 5, 3
