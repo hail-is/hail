@@ -24,7 +24,6 @@ class BgenInputFormatV12 extends IndexedBinaryInputFormat[BgenRecordV12] {
         positions != null && indices != null)
       if (positions != null) {
         val decodedPositions = LoadBgen.decodeLongs(positions)
-        log.info(s"variant filters found for $path: ${decodedPositions.mkString("[", ",", "]")}")
         val (keptIndices, keptPositions) = LoadBgen.decodeInts(indices).zip(decodedPositions)
           .filter { case (_, x) =>
             split.getStart <= x && x < split.getStart + split.getLength
