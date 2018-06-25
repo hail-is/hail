@@ -144,7 +144,7 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
-            case MatrixRead(typ, partitionCounts, dropCols, dropRows, requestedType, _) =>
+            case MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
               s"$typ partition_counts=${ partitionCounts.map(_.mkString(",")).getOrElse("None") } ${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
