@@ -21,7 +21,7 @@ object DictFunctions extends RegistryFunctions {
       LowerBoundOnOrderedCollection(dict, key, onKey=true),
       If(IsNA(dict),
         NA(default.typ),
-        If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
+        If(ApplyComparisonOp(EQ(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
           GetField(ArrayRef(ToArray(dict), i), "value"),
           default)))
   }
