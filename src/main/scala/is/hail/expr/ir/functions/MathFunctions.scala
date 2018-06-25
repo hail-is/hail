@@ -172,7 +172,7 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hwe_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
+    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, hweStruct)
       Code(

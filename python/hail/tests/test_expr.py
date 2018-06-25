@@ -1,8 +1,9 @@
 import unittest
+import math
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr import dtype, coercer_from_dtype
+from hail.expr import coercer_from_dtype
 from hail.expr.types import *
 from .utils import startTestHailContext, stopTestHailContext, resource
 
@@ -1569,7 +1570,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)
 
     def test_chi_sq_test(self):
-        import math
         res = hl.chi_sq_test(0, 0, 0, 0).value
         self.assertTrue(math.isnan(res['p_value']))
         self.assertTrue(math.isnan(res['odds_ratio']))
@@ -1579,7 +1579,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
 
     def test_fisher_exact_test(self):
-        import math
         res = hl.fisher_exact_test(0, 0, 0, 0).value
         self.assertTrue(math.isnan(res['p_value']))
         self.assertTrue(math.isnan(res['odds_ratio']))
@@ -1601,7 +1600,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
-    def test_hwe_test(self):
-        res = hl.hwe_test(1, 2, 1).value
+    def test_hardy_weinberg_test(self):
+        res = hl.hardy_weinberg_test(1, 2, 1).value
         self.assertAlmostEqual(res['p_value_hwe'], 0.65714285)
         self.assertAlmostEqual(res['r_obs_exp_het'], 0.875)

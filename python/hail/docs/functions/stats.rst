@@ -9,7 +9,7 @@ Statistical functions
     contingency_table_test
     dbeta
     dpois
-    hwe_test
+    hardy_weinberg_test
     binom_test
     pchisqtail
     pnorm
@@ -23,7 +23,7 @@ Statistical functions
 .. autofunction:: contingency_table_test
 .. autofunction:: dbeta
 .. autofunction:: dpois
-.. autofunction:: hwe_test
+.. autofunction:: hardy_weinberg_test
 .. autofunction:: binom_test
 .. autofunction:: pchisqtail
 .. autofunction:: pnorm

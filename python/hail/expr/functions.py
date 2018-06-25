@@ -1,7 +1,6 @@
 import builtins
 import math
 
-import hail
 import hail as hl
 from hail.expr.expr_ast import *
 from hail.expr.expressions import *
@@ -9,7 +8,7 @@ from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import *
-from hail.utils import LinkedList
+
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -625,16 +624,16 @@ def ceil(x):
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hwe_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     """Tests whether a variant is in Hardy-Weinberg equilibrium.
 
     Examples
     --------
 
-    >>> hl.hwe_test(250, 500, 250).value
+    >>> hl.hardy_weinberg_test(250, 500, 250).value
     Struct(p_value_hwe=0.9747844394217698, r_obs_exp_het=0.9995)
 
-    >>> hl.hwe_test(37, 200, 85).value
+    >>> hl.hardy_weinberg_test(37, 200, 85).value
     Struct(p_value_hwe=1.1337210383168987e-06, r_obs_exp_het=1.2684947721444073)
 
     Notes

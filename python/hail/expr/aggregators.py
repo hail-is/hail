@@ -647,24 +647,24 @@ def fraction(predicate) -> Float64Expression:
                           predicate._aggregations.push(Aggregation(predicate)))
 
 @typecheck(expr=agg_expr(expr_call))
-def hwe_test(expr) -> StructExpression:
+def hardy_weinberg_test(expr) -> StructExpression:
     """Tests whether genotypes are in Hardy-Weinberg equilibrium.
 
     Examples
     --------
     Test each row of a dataset:
 
-    >>> dataset_result = dataset.annotate_rows(hwe = agg.hwe_test(dataset.GT))
+    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg_test(dataset.GT))
 
     Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hwe_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.hardy_weinberg_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
-    This method performs the test described in :func:`.functions.hwe_test` based solely on
-    the three counts: ``n_hom_ref``, ``n_het``, and ``n_hom_var``.
+    This method performs the test described in :func:`.functions.hardy_weinberg_test` based solely on
+    the counts of homozygous reference, heterozygous, and homozygous variant calls.
 
     The resulting struct expression has two fields:
 

@@ -2,8 +2,10 @@
 Unit tests for Hail.
 """
 import pandas as pd
+import math
 import unittest
 import random
+
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
@@ -256,7 +258,7 @@ class TableTests(unittest.TestCase):
                            x8=agg.count_where(kt.qPheno == 3),
                            x9=agg.fraction(kt.qPheno == 1),
                            x10=agg.stats(hl.float64(kt.qPheno)),
-                           x11=agg.hwe_test(kt.GT),
+                           x11=agg.hardy_weinberg_test(kt.GT),
                            x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
                            x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
@@ -1458,10 +1460,8 @@ class MatrixTableTests(unittest.TestCase):
 
     # FIXME test fails due to JSON parsing failure on NaN, resolve with issue #3785
     def test_hwe(self):
-        import math
-
         mt = hl.import_vcf(resource('HWE_test.vcf'))
-        mt = mt.select_rows(**hl.agg.hwe_test(mt.GT))
+        mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
         rt = mt.rows()
         expected = hl.Table.parallelize([
             hl.struct(
@@ -1489,9 +1489,9 @@ class MatrixTableTests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_rows(
             stats = hl.agg.call_stats(mt.GT, mt.alleles),
-            hw = hl.agg.hwe_test(mt.GT))
+            hw = hl.agg.hardy_weinberg_test(mt.GT))
         mt = mt.annotate_rows(
-            hw2 = hl.hwe_test(mt.stats.homozygote_count[0],
+            hw2 = hl.hardy_weinberg_test(mt.stats.homozygote_count[0],
                               mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
                               mt.stats.homozygote_count[1]))
         rt = mt.rows()
@@ -1647,7 +1647,7 @@ class FunctionsTests(unittest.TestCase):
             drop=kt.h.drop('b', 'c'),
             exp=hl.exp(kt.c),
             fet=hl.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
-            hwe=hl.hwe_test(1, 2, 1),
+            hwe=hl.hardy_weinberg_test(1, 2, 1),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
             is_nan=hl.is_nan(hl.float64(kt.a)),
