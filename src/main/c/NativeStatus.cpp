@@ -4,17 +4,17 @@
 
 namespace hail {
 
-NATIVEMETHOD(long, NativeStatus, nativeCtorErrnoOffset)(
+NATIVEMETHOD(jlong, NativeStatus, nativeCtorErrnoOffset)(
   JNIEnv* env,
   jobject thisJ
 ) {
   auto status = std::make_shared<NativeStatus>();
   // C++ "offsetof" can be weird when used on subclasses
-  long errnoOffset = ((long)&status->errno_) - (long)status.get();
+  int64_t errnoOffset = ((char*)&status->errno_) - (char*)status.get();
   // Upcast/copy into a NativeObjPtr
   NativeObjPtr ptr = status;
   init_NativePtr(env, thisJ, &ptr);
-  return(errnoOffset);
+  return errnoOffset;
 }
 
 NATIVEMETHOD(jstring, NativeStatus, getMsg)(

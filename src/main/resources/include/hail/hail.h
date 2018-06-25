@@ -20,4 +20,10 @@
 #define NAMESPACE_HAIL_MODULE_END \
   } }
 
+template<typename T>
+inline ssize_t ssize(const T& container) { return static_cast<ssize_t>(container.size()); }
+
+template<>
+inline ssize_t ssize<size_t>(const size_t& value) { return static_cast<ssize_t>(value); }
+
 #endif

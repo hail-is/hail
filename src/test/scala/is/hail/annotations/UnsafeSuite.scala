@@ -203,24 +203,19 @@ class UnsafeSuite extends SparkSuite {
   @Test def testRegion() {
     val buff = Region()
 
-    val o1 = buff.appendLong(124L)
-    val o2 = buff.appendByte(2)
-    val o3 = buff.appendByte(1)
-    val o4 = buff.appendByte(4)
-    val o5 = buff.appendInt(1234567)
-    val o6 = buff.appendDouble(1.1)
+    val addrA = buff.appendLong(124L)
+    val addrB = buff.appendByte(2)
+    val addrC = buff.appendByte(1)
+    val addrD = buff.appendByte(4)
+    val addrE = buff.appendInt(1234567)
+    val addrF = buff.appendDouble(1.1)
 
-    assert(buff.loadLong(o1) == 124L)
-    assert(buff.loadByte(o2) == 2)
-    assert(buff.loadByte(o3) == 1)
-    assert(buff.loadByte(o4) == 4)
-    assert(buff.loadInt(o5) == 1234567)
-    assert(buff.loadDouble(o6) == 1.1)
-    assert(o2 - o1 == 8)
-    assert(o3 - o2 == 1)
-    assert(o4 - o3 == 1)
-    assert(o5 - o4 == 2) // nb: alignment
-    assert(o6 - o5 == 4)
+    assert(buff.loadLong(addrA) == 124L)
+    assert(buff.loadByte(addrB) == 2)
+    assert(buff.loadByte(addrC) == 1)
+    assert(buff.loadByte(addrD) == 4)
+    assert(buff.loadInt(addrE) == 1234567)
+    assert(buff.loadDouble(addrF) == 1.1)
   }
 
   val g = (for {
@@ -329,4 +324,8 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
+  
+  // Tests for Region serialization have been removed since an off-heap Region
+  // contains absolute addresses and can't be serialized/deserialized without 
+  // knowing the RegionValue Type.
 }

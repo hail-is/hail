@@ -59,7 +59,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
       case _: TBaseStruct => start(true)
       case _: TBinary =>
         assert(pOffset == null)
-        startOffset := -1
+        startOffset := -1L
       case _ =>
         startOffset := region.allocate(ftype.alignment, ftype.byteSize)
     }

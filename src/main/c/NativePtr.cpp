@@ -59,7 +59,7 @@ class NativePtrInfo;
 
 class TwoAddrs {
 public:
-  long addrs_[2];
+  int64_t addrs_[2];
 
 public:
   TwoAddrs(JNIEnv* env, jobject obj, NativePtrInfo* info) {
@@ -67,7 +67,7 @@ public:
     addrs_[1] = env->GetLongField(obj, info->addrB_id_);
   }
   
-  TwoAddrs(long addrA, long addrB) {
+  TwoAddrs(int64_t addrA, int64_t addrB) {
     addrs_[0] = addrA;
     addrs_[1] = addrB;
   }
@@ -93,25 +93,25 @@ public:
     env->SetLongField(obj, info->addrB_id_, addrs_[1]);
   }
   
-  long get_addrA() const { return addrs_[0]; }
-  long get_addrB() const { return addrs_[1]; }
-  void set_addrA(long v) { addrs_[0] = v; }
-  void set_addrB(long v) { addrs_[1] = v; }
+  int64_t get_addrA() const { return addrs_[0]; }
+  int64_t get_addrB() const { return addrs_[1]; }
+  void set_addrA(int64_t v) { addrs_[0] = v; }
+  void set_addrB(int64_t v) { addrs_[1] = v; }
 };
 
 void check_assumptions() {
   // Check that std::shared_ptr matches our assumptions
   auto ptr = std::make_shared<NativeObj>();
   TwoAddrs* buf = reinterpret_cast<TwoAddrs*>(&ptr);
-  assert(sizeof(ptr) == 2*sizeof(long));
-  assert(buf->get_addrA() == reinterpret_cast<long>(ptr.get()));
+  assert(sizeof(ptr) == 2*sizeof(int64_t));
+  assert(buf->get_addrA() == reinterpret_cast<int64_t>(ptr.get()));
 }
 
 } // end anon
 
 NativeObj* get_from_NativePtr(JNIEnv* env, jobject obj) {
   auto info = get_info(env, __LINE__);
-  long addrA = env->GetLongField(obj, info->addrA_id_);
+  int64_t addrA = env->GetLongField(obj, info->addrA_id_);
   return reinterpret_cast<NativeObj*>(addrA);
 }
 
@@ -180,7 +180,7 @@ NATIVEMETHOD(void, NativeBase, nativeReset)(
   // The Scala object fields are cleared in the wrapper
 }
 
-NATIVEMETHOD(long, NativeBase, nativeUseCount)(
+NATIVEMETHOD(jlong, NativeBase, nativeUseCount)(
   JNIEnv* env,
   jobject thisJ,
   jlong addrA,
@@ -191,7 +191,7 @@ NATIVEMETHOD(long, NativeBase, nativeUseCount)(
 }
 
 // We have constructors corresponding to std::make_shared<T>(...)
-// with various numbers of long arguments.
+// with various numbers of int64_t arguments.
 
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL0)(
   JNIEnv* env,
@@ -314,28 +314,28 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
 
 class TestObjA : public hail::NativeObj {
 private:
-  std::vector<long> vec_;
+  std::vector<int64_t> vec_;
   
 public:
   TestObjA() : vec_() {
     fprintf(stderr, "DEBUG: TestObjA::ctor()\n");
   }
   
-  TestObjA(long a0) : vec_({a0}) {
-    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx)\n", a0);
+  TestObjA(int64_t a0) : vec_({a0}) {
+    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx)\n", (long)a0);
   }
 
-  TestObjA(long a0, long a1) : vec_({a0, a1}) {
-    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx, %08lx)\n", a0, a1);
+  TestObjA(int64_t a0, int64_t a1) : vec_({a0, a1}) {
+    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx, %08lx)\n", (long)a0, (long)a1);
   }
 
-  TestObjA(long a0, long a1, long a2) : vec_({a0,a1,a2}) {
-    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx, %08lx, %08lx)\n", a0, a1, a2);
+  TestObjA(int64_t a0, int64_t a1, int64_t a2) : vec_({a0,a1,a2}) {
+    fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx, %08lx, %08lx)\n", (long)a0, (long)a1, (long)a2);
   }
 
-  TestObjA(long a0, long a1, long a2, long a3) : vec_({a0,a1,a2,a3}) {
+  TestObjA(int64_t a0, int64_t a1, int64_t a2, int64_t a3) : vec_({a0,a1,a2,a3}) {
     fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx, %08lx, %08lx, %08lx)\n",
-      a0, a1, a2, a3);
+      (long)a0, (long)a1, (long)a2, (long)a3);
   }
 
   virtual ~TestObjA() {
@@ -347,19 +347,19 @@ NativeObjPtr nativePtrFuncTestObjA0() {
   return std::make_shared<TestObjA>();
 }
 
-NativeObjPtr nativePtrFuncTestObjA1(long a0) {
+NativeObjPtr nativePtrFuncTestObjA1(int64_t a0) {
   return std::make_shared<TestObjA>(a0);
 }
 
-NativeObjPtr nativePtrFuncTestObjA2(long a0, long a1) {
+NativeObjPtr nativePtrFuncTestObjA2(int64_t a0, int64_t a1) {
   return std::make_shared<TestObjA>(a0, a1);
 }
 
-NativeObjPtr nativePtrFuncTestObjA3(long a0, long a1, long a2) {
+NativeObjPtr nativePtrFuncTestObjA3(int64_t a0, int64_t a1, int64_t a2) {
   return std::make_shared<TestObjA>(a0, a1, a2);
 }
 
-NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, long a0, long a1, long a2, long a3) {
+NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
   return std::make_shared<TestObjA>(a0, a1, a2, a3);
 }
 

@@ -3,300 +3,195 @@ package is.hail.annotations
 import java.io.{ObjectInputStream, ObjectOutputStream}
 import java.util
 
+import com.esotericsoftware.kryo.io.{Input, Output}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
 import is.hail.utils._
+import is.hail.nativecode._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object Region {
-  def apply(): Region = {
-    val blockSize = 16L * 1024L
-    val blocks = new ArrayBuilder[Long]()
-    blocks += Memory.malloc(blockSize)
-    new Region(
-      blocks,
-      blockSize,
-      0,
-      0L,
-      new ArrayBuilder()
-    )
+  def apply(sizeHint: Long = 128): Region = {
+    new Region()
   }
 
   def scoped[T](f: Region => T): T =
     using(Region())(f)
 }
 
-final class Region private (
-  private[this] var blocks: ArrayBuilder[Long],
-  private[this] var blockSize: Long,
-  private[this] var activeBlock: Int,
-  private[this] var end: Long,
-  private[this] var bigBlocks: ArrayBuilder[Long]
-) extends UnKryoSerializable with AutoCloseable {
-  def summary(): String = {
-    s"""((${blocks.underlying.mkString(" ")})
-        |$blockSize
-        |$end
-        |(${bigBlocks.underlying.mkString(" ")}))""".stripMargin
-  }
+// Off-heap implementation of Region differs from the previous
+// Scala contiguous-buffer implementation.
+//
+//  - it now has multiple memory chunks rather than one contiguous buffer
+//
+//  - references are now absolute addresses rather than buffer-offsets
+//
+//  - consequently, Region is not copy'able or Serializable, because
+//    those operations have to know the RegionValue's Type to convert
+//    within-Region references to/from absolute addresses.
 
-  def capacity: Long = blockSize
+final class Region() extends NativeBase() {
+  @native def nativeCtor(): Unit
+  nativeCtor()
+  
+  def this(b: Region) {
+    this()
+    copyAssign(b)
+  }  
 
-  def copyFrom(other: Region, readStart: Long, writeStart: Long, n: Long) {
-    assert(end <= capacity)
-    assert(n >= 0)
-    assert(readStart >= 0)
-    assert(writeStart >= 0)
-    Memory.memcpy(writeStart, readStart, n)
-  }
+  // FIXME: not sure what this should mean ...
+  // def setFrom(b: Region) { }
 
-  def loadInt(off: Long): Int = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadInt(off)
-  }
+  final def copyAssign(b: Region) = super.copyAssign(b)
+  final def moveAssign(b: Region) = super.moveAssign(b)
+  
+  @native def clearButKeepMem(): Unit
+  final def clear(): Unit = clearButKeepMem()
+  
+  @native def nativeAlign(alignment: Long): Unit
+  @native def nativeAlignAllocate(alignment: Long, n: Long): Long
+  @native def nativeAllocate(n: Long): Long
+  
+  final def align(a: Long) = nativeAlign(a)
+  final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
+  final def allocate(n: Long): Long = nativeAllocate(n)
+  
+  final def loadInt(addr: Long): Int = Memory.loadInt(addr)
+  final def loadLong(addr: Long): Long = Memory.loadLong(addr)
+  final def loadFloat(addr: Long): Float = Memory.loadFloat(addr)
+  final def loadDouble(addr: Long): Double = Memory.loadDouble(addr)
+  final def loadAddress(addr: Long): Long = Memory.loadLong(addr)
+  final def loadByte(addr: Long): Byte = Memory.loadByte(addr)
+  
+  final def storeInt(addr: Long, v: Int) = Memory.storeInt(addr, v)
+  final def storeLong(addr: Long, v: Long) = Memory.storeLong(addr, v)
+  final def storeFloat(addr: Long, v: Float) = Memory.storeFloat(addr, v)
+  final def storeDouble(addr: Long, v: Double) = Memory.storeDouble(addr, v)
+  final def storeAddress(addr: Long, v: Long) = Memory.storeAddress(addr, v)
+  final def storeByte(addr: Long, v: Byte) = Memory.storeByte(addr, v)
+  
+  final def loadBoolean(addr: Long): Boolean = if (Memory.loadByte(addr) == 0) false else true
+  final def storeBoolean(addr: Long, v: Boolean) = Memory.storeByte(addr, if (v) 1 else 0)
 
-  def loadLong(off: Long): Long = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadLong(off)
-  }
-
-  def loadFloat(off: Long): Float = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadFloat(off)
-  }
-
-  def loadDouble(off: Long): Double = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadDouble(off)
-  }
-
-  def loadAddress(off: Long): Long = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadAddress(off)
-  }
-
-  def loadByte(off: Long): Byte = {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.loadByte(off)
-  }
-
-  def loadBytes(off: Long, n: Int): Array[Byte] = {
-    assert(end <= capacity)
-    assert(off >= 0)
+  final def loadBytes(addr: Long, n: Int): Array[Byte] = {
     val a = new Array[Byte](n)
-    Memory.memcpy(a, 0, off, n)
+    Memory.copyToArray(a, 0, addr, n)
     a
   }
 
-  def loadBytes(off: Long, to: Array[Byte], toOff: Long, n: Long) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    assert(toOff + n <= to.length)
-    Memory.memcpy(to, toOff, off, n)
+  final def loadBytes(addr: Long, dst: Array[Byte], dstOff: Long, n: Long): Unit = {
+    Memory.copyToArray(dst, dstOff, addr, n)
   }
 
-  def storeInt(off: Long, i: Int) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeInt(off, i)
+  final def storeBytes(addr: Long, src: Array[Byte]) {
+    Memory.copyFromArray(addr, src, 0, src.length)
   }
 
-  def storeLong(off: Long, l: Long) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeLong(off, l)
+  final def storeBytes(addr: Long, src: Array[Byte], srcOff: Long, n: Long) {
+    Memory.copyFromArray(addr, src, srcOff, n)
   }
 
-  def storeFloat(off: Long, f: Float) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeFloat(off, f)
+  final def copyFrom(src: Region, srcOff: Long, dstOff: Long, n: Long) {
+    Memory.memcpy(dstOff, srcOff, n)
   }
 
-  def storeDouble(off: Long, d: Double) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeDouble(off, d)
-  }
-
-  def storeAddress(off: Long, a: Long) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeAddress(off, a)
-  }
-
-  def storeByte(off: Long, b: Byte) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    Memory.storeByte(off, b)
-  }
-
-  def storeBytes(off: Long, bytes: Array[Byte]) {
-    storeBytes(off, bytes, 0, bytes.length)
-  }
-
-  def storeBytes(off: Long, bytes: Array[Byte], bytesOff: Long, n: Int) {
-    assert(end <= capacity)
-    assert(off >= 0)
-    assert(bytesOff + n <= bytes.length)
-    Memory.memcpy(off, bytes, bytesOff, n)
-  }
-
-  private def align(alignment: Long) {
-    assert(alignment > 0)
-    assert((alignment & (alignment - 1)) == 0) // power of 2
-    end = (end + (alignment - 1)) & ~(alignment - 1)
-  }
-
-  private def allocate(n: Long): Long = {
-    assert(n >= 0)
-    if (n > blockSize / 2) {
-      // FIXME: is this guaranteed to be aligned to anything?
-      log.info(s"Allocating a large block $n, currently have ${bigBlocks.length} large blocks")
-      val mem = Memory.malloc(n)
-      bigBlocks += mem
-      mem
-    } else {
-      val required = end + n
-      if (required > capacity) {
-        // FIXME: is this guaranteed to be aligned to anything?
-        activeBlock += 1
-        val mem = if (activeBlock == blocks.length) {
-          log.info(s"Allocating a new block, $end $n $capacity, currently have ${blocks.length} blocks")
-          val temp = Memory.malloc(blockSize)
-          blocks += temp
-          temp
-        } else {
-          blocks(activeBlock)
-        }
-        end = n
-        mem
-      } else {
-        val mem = blocks(activeBlock) + end
-        end += n
-        mem
-      }
-    }
-  }
-
-  def allocate(alignment: Long, n: Long): Long = {
-    align(alignment)
-    allocate(n)
-  }
-
-  def loadBoolean(off: Long): Boolean = {
-    val b = loadByte(off)
-    assert(b == 1 || b == 0)
-    b != 0
-  }
-
-  def loadBit(byteOff: Long, bitOff: Long): Boolean = {
+  final def loadBit(byteOff: Long, bitOff: Long): Boolean = {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
   }
 
-  def setBit(byteOff: Long, bitOff: Long) {
+  final def setBit(byteOff: Long, bitOff: Long) {
     val b = byteOff + (bitOff >> 3)
     storeByte(b,
       (loadByte(b) | (1 << (bitOff & 7))).toByte)
   }
 
-  def clearBit(byteOff: Long, bitOff: Long) {
+  final def clearBit(byteOff: Long, bitOff: Long) {
     val b = byteOff + (bitOff >> 3)
     storeByte(b,
       (loadByte(b) & ~(1 << (bitOff & 7))).toByte)
   }
 
-  def storeBit(byteOff: Long, bitOff: Long, b: Boolean) {
+  final def storeBit(byteOff: Long, bitOff: Long, b: Boolean) {
     if (b)
       setBit(byteOff, bitOff)
     else
       clearBit(byteOff, bitOff)
   }
 
-  def appendInt(i: Int): Long = {
-    val off = allocate(4, 4)
-    storeInt(off, i)
-    off
+  final def appendBinary(v: Array[Byte]): Long = {
+    val len: Int = v.length
+    val grain = if (TBinary.contentAlignment < 4) 4 else TBinary.contentAlignment
+    val addr = allocate(grain, grain+len) + (grain-4)
+    storeInt(addr, len)
+    storeBytes(addr+4, v)
+    addr
   }
-
-  def appendBoolean(b: Boolean): Long =
-    appendByte(b.toByte)
-
-  def appendLong(l: Long): Long = {
-    val off = allocate(8, 8)
-    storeLong(off, l)
-    off
-  }
-
-  def appendFloat(f: Float): Long = {
-    val off = allocate(4, 4)
-    storeFloat(off, f)
-    off
-  }
-
-  def appendDouble(d: Double): Long = {
-    val off = allocate(8, 8)
-    storeDouble(off, d)
-    off
-  }
-
-  def appendByte(b: Byte): Long = {
-    val off = allocate(1)
-    storeByte(off, b)
-    off
-  }
-
-  def appendBinary(bytes: Array[Byte]): Long = {
-    val n = bytes.length
-    val off = allocate(math.max(TBinary.contentAlignment, 4), n + 4)
-    storeInt(off, n)
-    storeBytes(TBinary.bytesOffset(off), bytes)
-    off
-  }
-
-  def appendBinarySlice(
+  
+  final def appendBinarySlice(
     fromRegion: Region,
     fromOff: Long,
     start: Int,
-    n: Int
+    len: Int
   ): Long = {
-    assert(n >= 0)
-    val off = allocate(math.max(TBinary.contentAlignment, 4), n + 4)
-    storeInt(off, n)
-    copyFrom(fromRegion, TBinary.bytesOffset(fromOff) + start, off + 4, n)
-    off
+    assert(len >= 0)
+    val grain = if (TBinary.contentAlignment < 4) 4 else TBinary.contentAlignment
+    val addr = allocate(grain, grain+len) + (grain-4)
+    storeInt(addr, len)
+    copyFrom(fromRegion, TBinary.bytesOffset(fromOff) + start, addr+4, len)
+    addr
   }
 
-  def appendString(s: String): Long =
-    appendBinary(s.getBytes)
-
-  def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
-    appendBinarySlice(fromRegion, fromOff, start, n)
-
-  def appendArrayInt(a: Array[Int]): Long = {
-    val t = TArray(+TInt32())
-    val aoff = t.allocate(this, a.length)
-    t.initialize(this, aoff, a.length)
-    var i = 0
-    while (i < a.length) {
-      storeInt(t.elementOffset(aoff, a.length, i), a(i))
-      i += 1
+  // Use of appendXXX methods is deprecated now that Region uses absolute
+  // addresses and non-contiguous memory allocation.  You can't assume any
+  // relationships between the addresses returned by appendXXX methods -
+  // and to make it even more confusing, there may be long sequences of 
+  // ascending addresses (within a buffer) followed by an arbitrary jump
+  // to an address in a different buffer.
+  
+  final def appendArrayInt(v: Array[Int]): Long = {
+    val len: Int = v.length
+    val addr = allocate(4, 4*(1+len))
+    storeInt(addr, len)
+    val data = addr+4
+    var idx = 0
+    while (idx < len) {
+      storeInt(data + 4 * idx, v(idx))
+      idx += 1
     }
-    aoff
+    addr
   }
-
-  def clear() {
-    end = 0
-    activeBlock = 0
-    bigBlocks.result().foreach(Memory.free)
-    bigBlocks.clear()
+  
+  final def appendInt(v: Int): Long = {
+    val a = allocate(4, 4)
+    Memory.storeInt(a, v)
+    a
   }
+  final def appendLong(v: Long): Long = {
+    val a = allocate(8, 8)
+    Memory.storeLong(a, v)
+    a
+  }
+  final def appendFloat(v: Float): Long = {
+    val a = allocate(4, 4)
+    Memory.storeFloat(a, v)
+    a
+  }
+  final def appendDouble(v: Double): Long = {
+    val a = allocate(8, 8)
+    Memory.storeDouble(a, v)
+    a
+  }
+  final def appendByte(v: Byte): Long = {
+    val a = allocate(1)
+    Memory.storeByte(a, v)
+    a
+  }
+  final def appendString(v: String): Long =
+    appendBinary(v.getBytes)
+  
+  final def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
+    appendBinarySlice(fromRegion, fromOff, start, n)
 
   def visit(t: Type, off: Long, v: ValueVisitor) {
     t match {
@@ -364,22 +259,9 @@ final class Region private (
     visit(t, off, v)
     v.result()
   }
-
-  def close(): Unit = {
-    log.info(s"Freeing all blocks. ${blocks.length} ${bigBlocks.length}")
-    blocks.result().foreach(Memory.free)
-    bigBlocks.result().foreach(Memory.free)
-  }
-
-  private def writeObject(s: ObjectOutputStream): Unit = {
-    throw new NotImplementedException()
-  }
-
-  private def readObject(s: ObjectInputStream): Unit = {
-    throw new NotImplementedException()
-  }
-
+  
   def prettyBits(): String = {
     "FIXME: implement prettyBits on Region"
   }
+
 }

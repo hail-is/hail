@@ -7,7 +7,7 @@
 
 namespace hail {
 
-using LongFuncN = long(...);
+using LongFuncN = int64_t(...);
 using PtrFuncN = NativeObjPtr(...);
 
 template<typename ReturnT>
@@ -56,12 +56,12 @@ public:
   }
 };
 
-inline PtrFuncN* get_PtrFuncN(long addr) {
+inline PtrFuncN* get_PtrFuncN(int64_t addr) {
   return reinterpret_cast< NativeFuncObj<NativeObjPtr>* >(addr)->func_;
 }
 
-inline LongFuncN* get_LongFuncN(long addr) {
-  return reinterpret_cast< NativeFuncObj<long>* >(addr)->func_;
+inline LongFuncN* get_LongFuncN(int64_t addr) {
+  return reinterpret_cast< NativeFuncObj<int64_t>* >(addr)->func_;
 }
 
 NativeObj* get_from_NativePtr(JNIEnv* env, jobject obj);

@@ -246,7 +246,6 @@ class CompileSuite {
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       println(s"array location $roff")
-      printRegion(mb, "hi amanda")
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i)) {
           println(s" $i")
