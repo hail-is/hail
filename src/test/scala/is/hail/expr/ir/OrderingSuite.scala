@@ -4,6 +4,8 @@ import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.ir.TestUtils._
+import is.hail.TestUtils._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
@@ -242,27 +244,23 @@ class OrderingSuite extends TestNGSuite {
   @Test def testDictGetOnRandomDict() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
       case (k, v) =>
-        Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue)
+        Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
     }
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
-      val telt = coerce[TBaseStruct](tdict.elementType)
+      assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
+        IndexedSeq(dict -> tdict,
+          testKey1 -> -tdict.keyType),
+        dict.getOrElse(testKey1, null))
 
-      val ir = { irs: Seq[IR] => invoke("get", irs(0), irs(1)) }
-      val dictgetF = getCompiledFunction(ir, tdict, tdict.keyType, -tdict.valueType)
-
-      Region.scoped { region =>
-        if (dict.nonEmpty) {
-          val testKey2 = dict.keys.toSeq.head
-          val expected2 = dict(testKey2)
-          val actual2 = dictgetF(region, Seq(dict, testKey2))
-          assert(expected2 == actual2)
-        }
-
-        val expected1 = dict.getOrElse(testKey1, null)
-        val actual1 = dictgetF(region, Seq(dict, testKey1))
-
-        expected1 == actual1
+      if (dict.nonEmpty) {
+        val testKey2 = dict.keys.toSeq.head
+        val expected2 = if (testKey2 == null) null else dict(testKey2)
+        assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
+          IndexedSeq(dict -> tdict,
+            testKey2 -> -tdict.keyType),
+          expected2)
       }
+      true
     }
     p.check()
   }

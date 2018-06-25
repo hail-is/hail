@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.{TDict, TInt32}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -85,5 +87,23 @@ class DictFunctionsSuite extends TestNGSuite {
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
     assertEvalsTo(invoke("values", toIRDict(a)), values)
+  }
+
+  @Test def dictGet() {
+    val d = IRDict((1, 3), (2, 7), (3, null))
+    val na = NA(TInt32())
+    assertEvalsTo(invoke("get", NA(TDict(TInt32(), TInt32())), 1, na), null)
+    assertEvalsTo(invoke("get", d, 1, na), 3)
+    assertEvalsTo(invoke("get", d, 2, 50), 7)
+    assertEvalsTo(invoke("get", d, 3, 50), null)
+    assertEvalsTo(invoke("get", d, 100, 50), 50)
+    assertEvalsTo(invoke("get", d, 100, na), null)
+
+    assertEvalsTo(invoke("[]", d, 1), 3)
+    assertEvalsTo(invoke("[]", d, 3), null)
+    assertFatal(invoke("[]", d, 100), "dictionary")
+
+    assertEvalsTo(invoke("get", d, na, 50), null)
+    assertEvalsTo(invoke("[]", d, na), null)
   }
 }

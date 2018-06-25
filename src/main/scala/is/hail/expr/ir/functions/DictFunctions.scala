@@ -21,7 +21,7 @@ object DictFunctions extends RegistryFunctions {
       LowerBoundOnOrderedCollection(dict, key, onKey=true),
       If(IsNA(dict),
         NA(default.typ),
-        If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
+        If(ApplyComparisonOp(EQ(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
           GetField(ArrayRef(ToArray(dict), i), "value"),
           default)))
   }
@@ -40,9 +40,14 @@ object DictFunctions extends RegistryFunctions {
     registerIR("contains", tdict, tv("key"))(contains)
 
     registerIR("get", tdict, tv("key"), tv("value"))(get)
-
     registerIR("get", tdict, tv("key")) { (d, k) =>
       get(d, k, NA(types.coerce[TDict](d.typ).valueType))
+    }
+
+    registerIR("[]", tdict, tv("key")) { (d, k) =>
+      val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
+      val errormsg = "Key not found in dictionary."
+      get(d, k, Die(errormsg, vtype))
     }
 
     registerIR("dictToArray", tdict) { d =>
