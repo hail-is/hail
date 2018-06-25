@@ -1408,6 +1408,13 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
+    def test_ld_prune_with_duplicate_row_keys(self):
+        ds = hl.import_vcf(resource("sample.vcf"))
+        ds_duplicate = ds.annotate_rows(duplicate = [1,2])
+        ds_duplicate = ds_duplicate.explode_rows(ds_duplicate['duplicate'])
+        result = hl.ld_prune(ds_duplicate.GT)
+        result.show()
+
     def test_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]

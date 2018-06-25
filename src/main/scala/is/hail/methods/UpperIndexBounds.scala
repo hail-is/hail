@@ -14,10 +14,11 @@ object UpperIndexBounds {
       s"${ plural(t.valueSignature.size, "field") } of ${ plural(t.valueSignature.size, "type") } " +
       s"${ t.valueSignature.types.mkString(", ") }.")
 
-    val fieldIndex = t.valueFieldIdx(0)
-
-    t.groupByKey("positions").rdd.map(
-      _.get(fieldIndex).asInstanceOf[Vector[Row]].toArray.map(_.get(0).asInstanceOf[Int]))
+    val groupedTable = t.groupByKey("positions")
+    val positionsIndex = groupedTable.valueFieldIdx(0)
+    
+    groupedTable.rdd.map(
+      _.get(positionsIndex).asInstanceOf[Vector[Row]].toArray.map(_.get(0).asInstanceOf[Int]))
   }
 
   // positions is non-decreasing, radius is non-negative
@@ -60,8 +61,8 @@ object UpperIndexBounds {
     })
 
     val absoluteUpperIndexBounds = shiftUpperIndexBounds(relativeUpperIndexBounds)
-    assert(absoluteUpperIndexBounds.length == gp.nRows)
-    
+    assert(absoluteUpperIndexBounds.length == gp.nRows, s"absoluteUpperIndexBounds length ${ absoluteUpperIndexBounds.length } did not match GridPartition nRows ${ gp.nRows }")
+
     if (includeDiagonal)
       gp.rowIntervalsBlocks((0L until gp.nRows).toArray, absoluteUpperIndexBounds)
     else
