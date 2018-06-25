@@ -61,6 +61,12 @@ class Tests(unittest.TestCase):
     def test_hadoop_is_file(self):
         self.assertTrue(hl.hadoop_is_file(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_is_file(resource('ls_test/subdir')))
+        self.assertFalse(hl.hadoop_is_file(resource('ls_test/invalid-path')))
+
+    def test_hadoop_is_dir(self):
+        self.assertTrue(hl.hadoop_is_dir(resource('ls_test/subdir')))
+        self.assertFalse(hl.hadoop_is_dir(resource('ls_test/f_50')))
+        self.assertFalse(hl.hadoop_is_dir(resource('ls_test/invalid-path')))
 
     def test_hadoop_stat(self):
         path1 = resource('ls_test')
