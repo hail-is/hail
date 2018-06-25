@@ -42,6 +42,7 @@ object DictFunctions extends RegistryFunctions {
     registerIR("get", tdict, tv("key"), tv("value"))(get)
     registerIR("get", tdict, tv("key")) { (d, k) =>
       get(d, k, NA(types.coerce[TDict](d.typ).valueType))
+    }
 
     registerIR("[]", tdict, tv("key")) { (d, k) =>
       val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
