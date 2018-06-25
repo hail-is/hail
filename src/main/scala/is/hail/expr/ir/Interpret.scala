@@ -219,7 +219,10 @@ object Interpret {
               sortType.ordering
             else
               sortType.ordering.reverse
-          aValue.asInstanceOf[IndexedSeq[Row]].sortBy(_.get(0))(ord.toOrdering)
+          if (onKey)
+            aValue.asInstanceOf[IndexedSeq[Row]].sortBy(_.get(0))(ord.toOrdering)
+          else
+            aValue.asInstanceOf[IndexedSeq[Any]].sorted(ord.toOrdering)
         }
       case ToSet(a) =>
         val aValue = interpret(a, env, args, agg)
