@@ -2409,7 +2409,7 @@ class CallExpression(Expression):
         :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
-        return self._method("oneHotAlleles", tarray(tint32), alleles)
+        return self._method("oneHotAlleles", tarray(tint32), hl.len(alleles))
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
