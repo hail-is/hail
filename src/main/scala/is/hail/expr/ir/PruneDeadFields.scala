@@ -284,10 +284,10 @@ object PruneDeadFields {
   def memoizeMatrixIR(mir: MatrixIR, requestedType: MatrixType, memo: Memo[BaseType]) {
     memo.bind(mir, requestedType)
     mir match {
-      case MatrixFilterCols(child, pred) =>
+      case FilterColsIR(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType, irDep), memo)
-      case MatrixFilterRows(child, pred) =>
+      case MatrixFilterRowsIR(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType, irDep), memo)
       case MatrixFilterEntries(child, pred) =>
@@ -324,7 +324,7 @@ object PruneDeadFields {
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _, _) =>
       case MatrixLiteral(typ, value) =>
-      case MatrixFilterCols(child, cond) =>
+      case FilterColsIR(child, cond) =>
         memoizeMatrixIR(child, child.typ, memo)
       case ChooseCols(child, oldIndices) =>
         memoizeMatrixIR(child, requestedType, memo)
@@ -599,12 +599,12 @@ object PruneDeadFields {
     mir match {
       case x@MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
         MatrixRead(dep, partitionCounts, dropCols, dropRows, reader)
-      case MatrixFilterCols(child, pred) =>
+      case FilterColsIR(child, pred) =>
         val child2 = rebuild(child, memo)
-        MatrixFilterCols(child2, rebuild(pred, child2.typ, memo))
-      case MatrixFilterRows(child, pred) =>
+        FilterColsIR(child2, rebuild(pred, child2.typ, memo))
+      case MatrixFilterRowsIR(child, pred) =>
         val child2 = rebuild(child, memo)
-        MatrixFilterRows(child2, rebuild(pred, child2.typ, memo))
+        MatrixFilterRowsIR(child2, rebuild(pred, child2.typ, memo))
       case MatrixFilterEntries(child, pred) =>
         val child2 = rebuild(child, memo)
         MatrixFilterEntries(child2, rebuild(pred, child2.typ, memo))
