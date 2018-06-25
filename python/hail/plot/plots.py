@@ -22,7 +22,8 @@ def scatter(x, y, title=None, xlabel=None, ylabel=None, label=None,
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color=background_fill_color)
     if label is not None:
         source = ColumnDataSource(dict(x=x, y=y, label=label))
-        # FIXME: y-axis values are opposite unless factors are in this order: ['AFR', 'EAS', 'EUR', 'SAS', 'AMR']
+        # FIXME: y-axis values for multicolored tutorial plot are opposite unless factors are in this order:
+        # ['AFR', 'EAS', 'EUR', 'SAS', 'AMR']
         factors = list(set(label))
         color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
         p.circle('x', 'y', alpha=alpha, source=source, size=size,
