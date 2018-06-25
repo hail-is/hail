@@ -4,7 +4,7 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 
@@ -98,58 +98,65 @@ class MathFunctionsSuite extends TestNGSuite {
       null)
   }
 
-  @Test def chisq() {
-    def check(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
+  @DataProvider(name = "chisq")
+  def chisqData(): Array[Array[Any]] = Array(
+    Array(0, 0, 0, 0, Double.NaN, Double.NaN),
+    Array(0, 1, 1, 1, 0.38647623077123266, 0.0),
+    Array(1, 0, 1, 1, 0.38647623077123266, Double.PositiveInfinity),
+    Array(1, 1, 0, 1, 0.38647623077123266, Double.PositiveInfinity),
+    Array(1, 1, 1, 0, 0.38647623077123266, 0.0),
+    Array(10, 10, 10, 10, 1.0, 1.0),
+    Array(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
+  )
+  
+  @Test(dataProvider = "chisq")
+  def chisq(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
       val r = eval(invoke("chisq", a, b, c, d)).asInstanceOf[Row]
       assert(D0_==(pValue, r.getDouble(0)))
       assert(D0_==(oddsRatio, r.getDouble(1)))
-    }
-        
-    check(0, 0, 0, 0, Double.NaN, Double.NaN)
-    check(0, 1, 1, 1, 0.38647623077123266, 0.0)
-    check(1, 0, 1, 1, 0.38647623077123266, Double.PositiveInfinity)
-    check(1, 1, 0, 1, 0.38647623077123266, Double.PositiveInfinity)
-    check(1, 1, 1, 0, 0.38647623077123266, 0.0)
-    check(10, 10, 10, 10, 1.0, 1.0)
-    check(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
   }
 
-  @Test def fet() {
-    def check(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double, confLower: Double, confUpper: Double) {
-      val r = eval(invoke("fet", a, b, c, d)).asInstanceOf[Row]
-      println(r)
-      assert(D0_==(pValue, r.getDouble(0)))
-      assert(D0_==(oddsRatio, r.getDouble(1)))
-      assert(D0_==(confLower, r.getDouble(2)))
-      assert(D0_==(confUpper, r.getDouble(3)))
-    }
-    
-    check(0, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN)
-    check(10, 10, 10, 10, 1.0, 1.0, 0.243858, 4.100748)
-    check(51, 43, 22, 92, 2.1565e-7, 4.918058, 2.565937, 9.677930)
+  @DataProvider(name = "fet")
+  def fetData(): Array[Array[Any]] = Array(
+    Array(0, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN),
+    Array(10, 10, 10, 10, 1.0, 1.0, 0.243858, 4.100748),
+    Array(51, 43, 22, 92, 2.1565e-7, 4.918058, 2.565937, 9.677930)
+  )
+
+  @Test(dataProvider = "fet")
+  def fet(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double, confLower: Double, confUpper: Double) {
+    val r = eval(invoke("fet", a, b, c, d)).asInstanceOf[Row]
+    assert(D0_==(pValue, r.getDouble(0)))
+    assert(D0_==(oddsRatio, r.getDouble(1)))
+    assert(D0_==(confLower, r.getDouble(2)))
+    assert(D0_==(confUpper, r.getDouble(3)))
   }
+
+  @DataProvider(name = "ctt")
+  def cttData(): Array[Array[Any]] = Array(
+    Array(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087),
+    Array(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
+  )
   
- @Test def ctt() {
-    def check(a: Int, b: Int, c: Int, d: Int, minCellCount: Int, pValue: Double, oddsRatio: Double) {
-      val r = eval(invoke("ctt", a, b, c, d, minCellCount)).asInstanceOf[Row]
-      assert(D0_==(pValue, r.getDouble(0)))
-      assert(D0_==(oddsRatio, r.getDouble(1)))
-    }
-
-    check(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087)
-    check(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
+  @Test(dataProvider = "ctt")
+  def ctt(a: Int, b: Int, c: Int, d: Int, minCellCount: Int, pValue: Double, oddsRatio: Double) {
+    val r = eval(invoke("ctt", a, b, c, d, minCellCount)).asInstanceOf[Row]
+    assert(D0_==(pValue, r.getDouble(0)))
+    assert(D0_==(oddsRatio, r.getDouble(1)))
   }
-  
- @Test def hwe() {
-    def check(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, expectedHetFreq: Double) {
-      val r = eval(invoke("hwe", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
-      assert(D0_==(pValue, r.getDouble(0)))
-      assert(D0_==(expectedHetFreq, r.getDouble(1)))
-    }
 
-    check(0, 0, 0, Double.NaN, 0.5)
-    check(1, 2, 1, 0.57142857, 0.65714285)
-    check(0, 1, 0, 1.0, 0.5)
-    check(100, 200, 100, 0.50062578, 0.96016808)
+  @DataProvider(name = "hwe")
+  def hweData(): Array[Array[Any]] = Array(
+    Array(0, 0, 0, Double.NaN, 0.5),
+    Array(1, 2, 1, 0.57142857, 0.65714285),
+    Array(0, 1, 0, 1.0, 0.5),
+    Array(100, 200, 100, 0.50062578, 0.96016808)
+  )
+  
+  @Test(dataProvider = "hwe")
+  def hwe(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, expectedHetFreq: Double) {
+    val r = eval(invoke("hwe", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
+    assert(D0_==(pValue, r.getDouble(0)))
+    assert(D0_==(expectedHetFreq, r.getDouble(1)))
   }
 }
