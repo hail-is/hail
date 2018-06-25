@@ -5,7 +5,7 @@ import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
-import is.hail.stats.{uniroot, entropy}
+import is.hail.stats.{uniroot, entropy, chisqStruct, fetStruct, hweStruct}
 
 import is.hail.utils.fatal
 
@@ -113,8 +113,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
     registerCode("rpois", TInt32(), TFloat64(), TArray(TFloat64()), isDeterministic = false){ (mb, n, lambda) => 
+      val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
-      val res = srvb.mb.newLocal[Array[Double]]
       Code(
         res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
         srvb.start(res.length()),
@@ -161,5 +161,65 @@ object MathFunctions extends RegistryFunctions {
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
+
+    registerCode("fet", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
+      val res = mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(mb, fetStruct)
+      Code(
+        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
+        srvb.start(),
+        srvb.addDouble(res(0)),
+        srvb.advance(),
+        srvb.addDouble(res(1)),
+        srvb.advance(),
+        srvb.addDouble(res(2)),
+        srvb.advance(),
+        srvb.addDouble(res(3)),
+        srvb.advance(),
+        srvb.offset
+      )
+    }
+    
+    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
+      val res = mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      Code(
+        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chisqTest", a, b, c, d),
+        srvb.start(),
+        srvb.addDouble(res(0)),
+        srvb.advance(),
+        srvb.addDouble(res(1)),
+        srvb.advance(),
+        srvb.offset
+      )
+    }
+
+    registerCode("ctt", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
+      val res = mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      Code(
+        res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
+        srvb.start(),
+        srvb.addDouble(res(0)),
+        srvb.advance(),
+        srvb.addDouble(res(1)),
+        srvb.advance(),
+        srvb.offset
+      )
+    }
+
+    registerCode("hwe", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
+      val res = mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(mb, hweStruct)
+      Code(
+        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hweTest", nHomRef, nHet, nHomVar),
+        srvb.start(),
+        srvb.addDouble(res(0)),
+        srvb.advance(),
+        srvb.addDouble(res(1)),
+        srvb.advance(),
+        srvb.offset
+      )
+    }
   }
 }

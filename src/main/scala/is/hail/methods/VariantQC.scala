@@ -47,6 +47,7 @@ final class VariantQCCombiner {
     val nA = nAB + 2 * math.min(nHomRef, nHomVar)
 
     val LH = LeveneHaldane(nCalled, nA)
+    val hweHetFreq = LH.getNumericalMean / n
     val hweP = LH.exactMidP(nAB)
 
     rvb.startStruct() // qc
@@ -99,12 +100,7 @@ final class VariantQCCombiner {
     else
       rvb.setMissing()
 
-    // rExpectedHetFreq
-    if (nCalled != 0)
-      rvb.addDouble(LH.getNumericalMean / nCalled)
-    else
-      rvb.setMissing()
-
+    rvb.addDouble(hweHetFreq)
     rvb.addDouble(hweP)
     rvb.endStruct()
   }
