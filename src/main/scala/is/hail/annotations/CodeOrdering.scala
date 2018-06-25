@@ -22,7 +22,6 @@ object CodeOrdering {
 
   def rowOrdering(t1: TBaseStruct, t2: TBaseStruct, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
-    val orderings: Array[CodeOrdering] = t1.types.zip(t2.types).map{ case (t1, t2) => t1.codeOrdering(mb, t2) }
 
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]

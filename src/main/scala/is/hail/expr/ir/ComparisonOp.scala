@@ -11,27 +11,23 @@ object ComparisonOp {
     if (!lt.isOfType(rt))
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
-  // FIXME: this needs to happen for now because CodeOrdering can't compare across types.
-  private def comparable(lt: Type, rt: Type): Boolean =
-    lt isOfType rt
-
   val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp] = {
-    case ("==", t1, t2) if comparable(t1, t2) =>
+    case ("==", t1, t2) =>
       checkCompatible(t1, t2)
       EQ(t1, t2)
-    case ("!=", t1, t2) if comparable(t1, t2) =>
+    case ("!=", t1, t2) =>
       checkCompatible(t1, t2)
       NEQ(t1, t2)
-    case (">=", t1, t2) if comparable(t1, t2) =>
+    case (">=", t1, t2) =>
       checkCompatible(t1, t2)
       GTEQ(t1, t2)
-    case ("<=", t1, t2) if comparable(t1, t2) =>
+    case ("<=", t1, t2) =>
       checkCompatible(t1, t2)
       LTEQ(t1, t2)
-    case (">", t1, t2) if comparable(t1, t2) =>
+    case (">", t1, t2) =>
       checkCompatible(t1, t2)
       GT(t1, t2)
-    case ("<", t1, t2) if comparable(t1, t2) =>
+    case ("<", t1, t2) =>
       checkCompatible(t1, t2)
       LT(t1, t2)
   }
