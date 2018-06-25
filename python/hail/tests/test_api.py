@@ -2,8 +2,10 @@
 Unit tests for Hail.
 """
 import pandas as pd
+import math
 import unittest
 import random
+
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.java import Env, scala_object
@@ -256,7 +258,7 @@ class TableTests(unittest.TestCase):
                            x8=agg.count_where(kt.qPheno == 3),
                            x9=agg.fraction(kt.qPheno == 1),
                            x10=agg.stats(hl.float64(kt.qPheno)),
-                           x11=agg.hardy_weinberg(kt.GT),
+                           x11=agg.hardy_weinberg_test(kt.GT),
                            x13=agg.inbreeding(kt.GT, 0.1),
                            x14=agg.call_stats(kt.GT, ["A", "T"]),
                            x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
@@ -273,7 +275,7 @@ class TableTests(unittest.TestCase):
                     u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
                     u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
                     u'x8': 1, u'x9': 0.0, u'x16': u'apple',
-                    u'x11': {u'r_expected_het_freq': 0.5, u'p_hwe': 0.5},
+                    u'x11': {u'p_value_hwe': 0.5, u'r_obs_exp_het': 1.0},
                     u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39, u'x7': 2, u'x4': 13, u'x5': 16,
                     u'x17': [],
                     u'x18': [],
@@ -1456,37 +1458,44 @@ class MatrixTableTests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    # FIXME test fails due to JSON parsing failure on NaN, resolve with issue #3785
     def test_hwe(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
-        mt = mt.select_rows(**hl.agg.hardy_weinberg(mt.GT))
+        mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
         rt = mt.rows()
         expected = hl.Table.parallelize([
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
-                r_expected_het_freq=r,
-                p_hwe=p)
-            for (pos, alleles, r, p) in [
-                    (1, ['A', 'G'], 0.0, 0.5),
-                    (2, ['A', 'G'], 0.25, 0.5),
-                    (3, ['T', 'C'], 0.5357142857142857, 0.21428571428571427),
-                    (4, ['T', 'A'], 0.5714285714285714,0.6571428571428573),
-                    (5, ['G', 'A'], 0.3333333333333333, 0.5),
-                    (6, ['T', 'C'], hl.null(hl.tfloat64), 0.5)]],
-                                        key=['locus', 'alleles'])
-        self.assertTrue(rt._same(expected))
+                p_value_hwe=p,
+                r_obs_exp_het=r)
+            for (pos, alleles, p, r) in [
+                (2, ['A', 'G'], 0.5, 1.0),
+                (3, ['T', 'C'], 0.21428571428571427, 0.4666666666666667),
+                (4, ['T', 'A'], 0.6571428571428573, 0.875),
+                (5, ['G', 'A'], 0.5, 1.0)]],
+            key=['locus', 'alleles'])
+        self.assertTrue(rt.filter((rt.locus.position != 1) & (rt.locus.position != 6))._same(expected))
 
-    def test_hw_p_and_agg_agree(self):
+        rt16 = rt.filter((rt.locus.position == 1) | (rt.locus.position == 6)).collect()
+
+        self.assertEqual(rt16[0]['p_value_hwe'], 0.5)
+        self.assertTrue(math.isnan(rt16[0]['r_obs_exp_het']))
+
+        self.assertEqual(rt16[1]['p_value_hwe'], 0.5)
+        self.assertTrue(math.isnan(rt16[1]['r_obs_exp_het']))
+
+    def test_hwe_p_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_rows(
             stats = hl.agg.call_stats(mt.GT, mt.alleles),
-            hw = hl.agg.hardy_weinberg(mt.GT))
+            hw = hl.agg.hardy_weinberg_test(mt.GT))
         mt = mt.annotate_rows(
-            hw2 = hl.hardy_weinberg_p(mt.stats.homozygote_count[0],
-                                      mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
-                                      mt.stats.homozygote_count[1]))
+            hw2 = hl.hardy_weinberg_test(mt.stats.homozygote_count[0],
+                              mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
+                              mt.stats.homozygote_count[1]))
         rt = mt.rows()
-        self.assertTrue(rt.all(rt.hw == rt.hw2))
+        self.assertTrue(rt.all((rt.hw == rt.hw2) | (hl.is_nan(rt.hw.r_obs_exp_het) & hl.is_nan(rt.hw.r_obs_exp_het))))
 
 
 class GroupedMatrixTableTests(unittest.TestCase):
@@ -1631,14 +1640,14 @@ class FunctionsTests(unittest.TestCase):
         kt = hl.Table.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
-            chisq=hl.chisq(kt.a, kt.b, kt.c, kt.d),
-            ctt=hl.ctt(kt.a, kt.b, kt.c, kt.d, 5),
+            chisq=hl.chi_sq_test(kt.a, kt.b, kt.c, kt.d),
+            ctt=hl.contingency_table_test(kt.a, kt.b, kt.c, kt.d, 5),
             dict=hl.dict(hl.zip([kt.a, kt.b], [kt.c, kt.d])),
             dpois=hl.dpois(4, kt.a),
             drop=kt.h.drop('b', 'c'),
             exp=hl.exp(kt.c),
             fet=hl.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
-            hwe=hl.hardy_weinberg_p(1, 2, 1),
+            hwe=hl.hardy_weinberg_test(1, 2, 1),
             is_defined=hl.is_defined(kt.i),
             is_missing=hl.is_missing(kt.i),
             is_nan=hl.is_nan(hl.float64(kt.a)),

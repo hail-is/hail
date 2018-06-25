@@ -125,12 +125,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
-    chisq
+    chi_sq_test
     fisher_exact_test
-    ctt
+    contingency_table_test
     dbeta
     dpois
-    hardy_weinberg_p
+    hardy_weinberg_test
     pchisqtail
     pnorm
     ppois

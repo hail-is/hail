@@ -184,7 +184,17 @@ package object utils extends Logging
 
   def D_>=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     (a == b) || a - b >= -D_epsilon(a, b, tolerance)
-
+  
+  def D0_==(x: Double, y: Double, tolerance: Double = defaultTolerance): Boolean =
+    if (x.isNaN)
+      y.isNaN
+    else if (x.isPosInfinity)
+      y.isPosInfinity
+    else if (x.isNegInfinity)
+      y.isNegInfinity
+    else
+      D_==(x, y, tolerance)
+  
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 

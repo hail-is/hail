@@ -28,7 +28,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     stats
     product
     fraction
-    hardy_weinberg
+    hardy_weinberg_test
     explode
     filter
     inbreeding
@@ -52,7 +52,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: stats
 .. autofunction:: product
 .. autofunction:: fraction
-.. autofunction:: hardy_weinberg
+.. autofunction:: hardy_weinberg_test
 .. autofunction:: explode
 .. autofunction:: filter
 .. autofunction:: inbreeding
