@@ -568,6 +568,7 @@ class BGENTests(unittest.TestCase):
                                 ['GT'],
                                 contig_recoding={'01': '1'},
                                 reference_genome=None,
+                                min_partitions=10,
                                 _row_fields=['file_row_idx'],
                                 _variants_per_file={ 'file:' + os.path.abspath(resource('example.8bits.bgen')) : desired_variant_indexes})
         print({ 'file:' + resource('example.8bits.bgen') : desired_variant_indexes})
@@ -581,16 +582,8 @@ class BGENTests(unittest.TestCase):
                                     _row_fields=['file_row_idx'])
         self.assertEqual(everything.count(), (199, 500))
 
-        everything.rows().show()
-
         expected = everything.filter_rows(
             hl.set(desired_variant_indexes).contains(hl.int32(everything.file_row_idx)))
-
-        actual.rows().show()
-        expected.rows().show(20)
-
-        print("actual size " + str(actual.count()))
-        print("expected size " + str(expected.count()))
 
         self.assertTrue(expected._same(actual))
         self.assertEqual((hl.str(actual.locus.contig) + ":" + hl.str(actual.locus.position)).collect(),

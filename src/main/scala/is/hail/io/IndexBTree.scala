@@ -9,10 +9,10 @@ import org.apache.hadoop.fs._
 import scala.collection.mutable
 
 object IndexBTree {
-  private[io] def calcDepth(numBtreeElements: Long, branchingFactor: Int): Int = {
+  private[io] def calcDepth(internalAndExternalNodeCount: Long, branchingFactor: Int): Int = {
     var depth = 1
     var maximumTreeSize = branchingFactor.toLong
-    while (numBtreeElements > maximumTreeSize) {
+    while (internalAndExternalNodeCount > maximumTreeSize) {
       assert(depth <= 6) // 1024^7 > Long.MaxValue
       maximumTreeSize = maximumTreeSize * branchingFactor + branchingFactor
       depth += 1
