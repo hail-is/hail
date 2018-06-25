@@ -89,7 +89,10 @@ class PruneSuite extends SparkSuite {
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TInt32())),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
 
-  val mr = MatrixRead(mat.typ, None, false, false, mat.typ, _ => null)
+  val mr = MatrixRead(mat.typ, None, false, false,
+    new MatrixReader {
+      def apply(mr: MatrixRead): MatrixValue = ???
+    })
 
   val emptyTableDep = TableType(TStruct(), None, TStruct())
 
@@ -480,7 +483,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mfc = r.asInstanceOf[FilterColsIR]
         TypeCheck(mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ), None)
-        mfc.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
+        mfc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }
     )
   }
@@ -491,7 +494,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mfe = r.asInstanceOf[MatrixFilterEntries]
         TypeCheck(mfe.pred, PruneDeadFields.relationalTypeToEnv(mfe.child.typ), None)
-        mfe.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+        mfe.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
   }
@@ -503,7 +506,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mmr = r.asInstanceOf[MatrixMapRows]
         TypeCheck(mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ), None)
-        mmr.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+        mmr.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
   }
@@ -515,7 +518,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mmc = r.asInstanceOf[MatrixMapCols]
         TypeCheck(mmc.newCol, PruneDeadFields.relationalTypeToEnv(mmc.child.typ), None)
-        mmc.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+        mmc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
   }
@@ -526,7 +529,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mme = r.asInstanceOf[MatrixMapEntries]
         TypeCheck(mme.newEntries, PruneDeadFields.relationalTypeToEnv(mme.child.typ), None)
-        mme.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
+        mme.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }
     )
   }
@@ -538,7 +541,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val mmg = r.asInstanceOf[MatrixMapGlobals]
         TypeCheck(mmg.newRow, PruneDeadFields.relationalTypeToEnv(mmg.child.typ), None)
-        mmg.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
+        mmg.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
       }
     )
   }
@@ -549,7 +552,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateRowsByKey]
         TypeCheck(ma.expr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
-        ma.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
+        ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
   }
@@ -560,7 +563,7 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateColsByKey]
         TypeCheck(ma.aggIR, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
-        ma.child.asInstanceOf[MatrixRead].requestedType == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
+        ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
   }
@@ -574,11 +577,11 @@ class PruneSuite extends SparkSuite {
   def subsetTS(fields: String*): TStruct = ts.filterSet(fields.toSet)._1
 
   @Test def testNARebuild() {
-  checkRebuild(NA(ts), subsetTS("b"),
-    (_: BaseIR, r: BaseIR) => {
-      val na = r.asInstanceOf[NA]
-      na.typ == subsetTS("b")
-    })
+    checkRebuild(NA(ts), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val na = r.asInstanceOf[NA]
+        na.typ == subsetTS("b")
+      })
   }
 
   @Test def testIfRebuild() {

@@ -322,7 +322,7 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
         // FIXME push down into value
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
-      case MatrixRead(_, _, _, _, _, _) =>
+      case MatrixRead(_, _, _, _, _) =>
       case MatrixLiteral(typ, value) =>
       case FilterCols(child, cond) =>
         memoizeMatrixIR(child, child.typ, memo)
@@ -599,8 +599,8 @@ object PruneDeadFields {
   def rebuild(mir: MatrixIR, memo: Memo[BaseType]): MatrixIR = {
     val dep = memo.lookup(mir).asInstanceOf[MatrixType]
     mir match {
-      case x@MatrixRead(typ, partitionCounts, dropCols, dropRows, _, f) =>
-        MatrixRead(typ, partitionCounts, dropCols, dropRows, dep, f)
+      case x@MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
+        MatrixRead(dep, partitionCounts, dropCols, dropRows, reader)
       case FilterColsIR(child, pred) =>
         val child2 = rebuild(child, memo)
         FilterColsIR(child2, rebuild(pred, child2.typ, memo))
