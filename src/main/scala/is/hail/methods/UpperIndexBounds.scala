@@ -11,12 +11,12 @@ object UpperIndexBounds {
   def groupPositionsByKey(t: Table): RDD[Array[Int]] = {
     require(t.valueSignature.size == 1 && t.valueSignature.types(0) == TInt32(),
       s"Expected table to have one value field of type int32, but found ${ t.valueSignature.size } value " +
-      s"${ plural(t.valueSignature.size, "field") } of ${ plural(t.valueSignature.size, "type") } " +
-      s"${ t.valueSignature.types.mkString(", ") }.")
+        s"${ plural(t.valueSignature.size, "field") } of ${ plural(t.valueSignature.size, "type") } " +
+        s"${ t.valueSignature.types.mkString(", ") }.")
 
     val groupedTable = t.groupByKey("positions")
     val positionsIndex = groupedTable.valueFieldIdx(0)
-    
+
     groupedTable.rdd.map(
       _.get(positionsIndex).asInstanceOf[Vector[Row]].toArray.map(_.get(0).asInstanceOf[Int]))
   }
@@ -61,7 +61,7 @@ object UpperIndexBounds {
     })
 
     val absoluteUpperIndexBounds = shiftUpperIndexBounds(relativeUpperIndexBounds)
-    assert(absoluteUpperIndexBounds.length == gp.nRows, s"absoluteUpperIndexBounds length ${ absoluteUpperIndexBounds.length } did not match GridPartition nRows ${ gp.nRows }")
+    assert(absoluteUpperIndexBounds.length == gp.nRows)
 
     if (includeDiagonal)
       gp.rowIntervalsBlocks((0L until gp.nRows).toArray, absoluteUpperIndexBounds)
