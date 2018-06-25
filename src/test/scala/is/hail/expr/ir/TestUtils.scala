@@ -30,6 +30,16 @@ object TestUtils {
 
   def IRArray(a: Integer*): IR = toIRArray(a)
 
+  def toIRStringArray(a: Seq[String]): IR =
+    if (a == null)
+      NA(TArray(TString()))
+    else
+      MakeArray(a.map(s => Literal(s, TString())), TArray(TString()))
+
+  def IRStringArray(a: String*): IR = toIRStringArray(a)
+
+  def IRStringSet(a: String*): IR = ToSet(toIRStringArray(a))
+
   def toIRDoubleArray(a: Seq[java.lang.Double]): IR =
     if (a == null)
       NA(TArray(TFloat64()))

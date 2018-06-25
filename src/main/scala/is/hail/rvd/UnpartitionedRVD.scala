@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{KeyedRow, RegionValue, UnsafeRow}
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.{ TInt64, TStruct }
 import is.hail.sparkextras._
 import is.hail.io.CodecSpec
 import is.hail.utils._
@@ -48,6 +48,15 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crdd.sample(withReplacement, p, seed))
+
+  def zipWithIndex(name: String): UnpartitionedRVD = {
+    val (newRowType, newCRDD) = zipWithIndexCRDD(name)
+
+    new UnpartitionedRVD(
+      rowType = newRowType,
+      crdd = newCRDD
+    )
+  }
 
   override protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
     UnpartitionedRVDSpec(rowType, codecSpec, partFiles)

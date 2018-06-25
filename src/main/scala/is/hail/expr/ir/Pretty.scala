@@ -40,6 +40,21 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
+        case TableImport(paths, _, conf) =>
+          sb += '\n'
+          sb.append(" " * (depth + 2))
+          sb.append("(paths\n")
+          paths.foreachBetween { p =>
+            sb.append(" " * (depth + 4))
+            sb.append(StringEscapeUtils.escapeString(p))
+          }(sb += '\n')
+          sb += ')'
+          sb += '\n'
+          sb.append(" " * (depth + 2))
+          sb.append("(useCols ")
+          conf.useColIndices.foreachBetween(i => sb.append(i))(sb.append(','))
+          sb += ')'
+          sb += ')'
         case _ =>
           val header = ir match {
             case I32(x) => x.toString

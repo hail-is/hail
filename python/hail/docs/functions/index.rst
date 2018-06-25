@@ -88,6 +88,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     is_nan
     log
     log10
+    sign
     sqrt
     int
     int32
@@ -118,6 +119,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     json
     hamming
     delimit
+    entropy
 
 .. rubric:: Statistical functions
 
@@ -150,6 +152,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     locus
+    locus_from_global_position
     locus_interval
     parse_locus
     parse_variant

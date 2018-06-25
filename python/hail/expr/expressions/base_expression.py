@@ -89,6 +89,9 @@ def impute_type(x):
         return tdict(unified_key_type, unified_value_type)
     elif x is None:
         raise ExpressionException("Hail cannot impute the type of 'None'")
+    elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
+        raise ExpressionException("'switch' and 'case' expressions must end with a call to either"
+                                  "'default' or 'or_missing'")
     else:
         raise ExpressionException("Hail cannot automatically impute type of {}: {}".format(type(x), x))
 
@@ -228,7 +231,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
         sources = defaultdict(lambda: [])
         for e in exprs:
             from .expression_utils import get_refs
-            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a._exprs]).items():
+            for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
         raise ExpressionException("Cannot combine expressions from different source objects."
                                   "\n    Found fields from {n} objects:{fields}".format(

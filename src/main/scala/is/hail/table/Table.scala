@@ -73,7 +73,7 @@ object Table {
     var typ = spec.table_type
     if (rowFields != null)
       typ = typ.copy(
-        rowType = typ.rowType.filter(rowFields)._1)
+        rowType = typ.rowType.filterSet(rowFields)._1)
 
     new Table(hc, TableRead(path, spec, typ, dropRows = false))
   }
@@ -228,17 +228,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
         new UnpartitionedRVD(signature, crdd))))
 
   def typ: TableType = tir.typ
-
-  private def useIR(ast: AST): Boolean = {
-    if (hc.forceIR)
-      return true
-    !ast.`type`.isInstanceOf[TStruct] || ast.`type`.asInstanceOf[TStruct].size < 500
-  }
-
+  
   lazy val value: TableValue = {
+    log.info("in Table.value: pre-opt:\n" + ir.Pretty(tir))
     val opt = ir.Optimize(tir)
-
-    log.info("in Table.value: execute:\n" + ir.Pretty(opt))
+    log.info("in Table.value: post-opt:\n" + ir.Pretty(opt))
 
     opt.execute(hc)
   }
@@ -318,7 +312,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def valueSignature: TStruct = {
-    val (t, _) = signature.filter(keyOrEmpty.toSet, include = false)
+    val (t, _) = signature.filterSet(keyOrEmpty.toSet, include = false)
     t
   }
 
@@ -442,7 +436,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val queryAST = Parser.parseToAST(expr, ec)
     queryAST.toIROpt(Some("AGG" -> "row")) match {
-      case Some(ir) if useIR(queryAST) =>
+      case Some(ir) =>
         aggregate(ir)
       case _ =>
         val globalsBc = globals.broadcast
@@ -488,7 +482,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
-      case Some(ir) if useIR(ast) =>
+      case Some(ir) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
       case _ =>
         ec.set(0, globals.value)
@@ -512,7 +506,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         )
       case None =>
         if (!keep)
-          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+          filterAST = ApplyAST(filterAST.getPos, "!", Array(filterAST))
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
         val localSignature = signature
 
@@ -570,7 +564,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     assert(ast.`type`.isInstanceOf[TStruct])
 
     ast.toIROpt() match {
-      case Some(ir) if useIR(ast) =>
+      case Some(ir) =>
         new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
       case _ =>
         val (t, f) = Parser.parseExpr(expr, ec)
@@ -792,7 +786,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
 
     ast.toIROpt(Some("AGG" -> "row")) match {
-      case Some(x) if useIR(ast) =>
+      case Some(x) =>
         new Table(hc, TableAggregateByKey(tir, x))
       case _ =>
         log.warn(s"group_by(...).aggregate() found no AST to IR conversion: ${ PrettyAST(ast) }")
@@ -976,13 +970,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def index(name: String): Table = {
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
-
-    val (newSignature, ins) = signature.insert(TInt64(), name)
-
-    // FIXME: should use RVD, need zipWithIndex
-    val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
-
-    copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
+    val newRvd = rvd.zipWithIndex(name)
+    copy2(signature = newRvd.rowType, rvd = newRvd)
   }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {

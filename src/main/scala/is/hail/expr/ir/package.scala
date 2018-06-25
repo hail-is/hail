@@ -67,4 +67,5 @@ package object ir {
   implicit def longToIR(l: Long): IR = I64(l)
   implicit def floatToIR(f: Float): IR = F32(f)
   implicit def doubleToIR(d: Double): IR = F64(d)
+  implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
 }

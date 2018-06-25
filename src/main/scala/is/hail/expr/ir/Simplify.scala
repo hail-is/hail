@@ -155,18 +155,18 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case MatrixFilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, f), False() | NA(_)) =>
-        MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f)
+      case MatrixFilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, reader), False() | NA(_)) =>
+        MatrixRead(typ, partitionCounts, dropCols, dropRows = true, reader)
 
-      case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, f), False() | NA(_)) =>
-        MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f)
+      case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, reader), False() | NA(_)) =>
+        MatrixRead(typ, partitionCounts, dropCols = true, dropRows, reader)
 
       // Ignore column or row data that is immediately dropped
-      case MatrixRowsTable(MatrixRead(typ, partitionCounts, false, dropRows, f)) =>
-        MatrixRowsTable(MatrixRead(typ, partitionCounts, dropCols = true, dropRows, f))
+      case MatrixRowsTable(MatrixRead(typ, partitionCounts, false, dropRows, reader)) =>
+        MatrixRowsTable(MatrixRead(typ, partitionCounts, dropCols = true, dropRows, reader))
 
-      case MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, false, f)) =>
-        MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, dropRows = true, f))
+      case MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, false, reader)) =>
+        MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, dropRows = true, reader))
 
       // Keep all rows/cols = do nothing
       case MatrixFilterRowsIR(m, True()) => m

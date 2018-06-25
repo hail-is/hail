@@ -290,7 +290,7 @@ package object stats {
 
   def rpois(lambda: Double): Double = new Poisson(lambda).random()
 
-  def rpois(n: Int, lambda: Double): IndexedSeq[Double] = new Poisson(lambda).random(n)
+  def rpois(n: Int, lambda: Double): Array[Double] = new Poisson(lambda).random(n)
 
   def dpois(x: Double, lambda: Double, logP: Boolean): Double = new Poisson(lambda).density(x, logP)
 
@@ -328,8 +328,11 @@ package object stats {
       length += count
       acc += count * math.log(count)
     }
-
-    (math.log(length) - (acc / length)) / math.log(2)
+    
+    if (length != 0)
+      (math.log(length) - (acc / length)) / math.log(2)
+    else
+      0.0
   }
 
   def uninitialized[T]: T = null.asInstanceOf[T]

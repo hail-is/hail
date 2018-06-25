@@ -18,7 +18,12 @@ import scala.io.Source
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
   headerLength: Int, dataStart: Int, hasIds: Boolean, version: Int)
 
-case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, T)])
+case class BgenResult(
+  file: String,
+  nSamples: Int,
+  nVariants: Int,
+  rdd: RDD[(LongWritable, BgenRecordV12)]
+)
 
 object LoadBgen {
 
@@ -28,6 +33,9 @@ object LoadBgen {
     includeGT: Boolean,
     includeGP: Boolean,
     includeDosage: Boolean,
+    includeLid: Boolean,
+    includeRsid: Boolean,
+    includeFileRowIdx: Boolean,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
@@ -46,6 +54,8 @@ object LoadBgen {
     hadoop.setBoolean("includeGT", includeGT)
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
+    hadoop.setBoolean("includeLid", includeLid)
+    hadoop.setBoolean("includeRsid", includeRsid)
 
     val sc = hc.sc
     val results = files.map { file =>
@@ -77,10 +87,15 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("locus" -> TLocus.schemaFromRG(rg),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(),
-      "varid" -> TString())
+    val rowFields = Array(
+      (true, "locus" -> TLocus.schemaFromRG(rg)),
+      (true, "alleles" -> TArray(TString())),
+      (includeRsid, "rsid" -> TString()),
+      (includeLid, "varid" -> TString()),
+      (includeFileRowIdx, "file_row_idx" -> TInt64()))
+      .withFilter(_._1).map(_._2)
+
+    val signature = TStruct(rowFields:_*)
 
     val entryFields = Array(
       (includeGT, "GT" -> TCall()),
@@ -108,7 +123,9 @@ object LoadBgen {
       val rv = RegionValue(region)
 
       it.flatMap { case (_, record) =>
-        val (contig, pos, alleles) = record.getKey
+        val contig = record.getContig
+        val pos = record.getPosition
+        val alleles = record.getAlleles
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
         if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
@@ -134,16 +151,15 @@ object LoadBgen {
       }
     }))
 
-    val loadEntries = entryFields.length > 0
-
     val rdd2 = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
       it.flatMap { case (_, record) =>
-        val (contig, pos, alleles) = record.getKey
-        val va = record.getAnnotation.asInstanceOf[Row]
+        val contig = record.getContig
+        val pos = record.getPosition
+        val alleles = record.getAlleles
 
         val contigRecoded = contigRecoding.getOrElse(contig, contig)
 
@@ -162,22 +178,16 @@ object LoadBgen {
             i += 1
           }
           rvb.endArray()
-          rvb.addAnnotation(rowType.types(2), va.get(0))
-          rvb.addAnnotation(rowType.types(3), va.get(1))
-          if (loadEntries)
-            record.getValue(rvb) // gs
-          else {
-            rvb.startArray(nSamples)
-            var j = 0
-            while (j < nSamples) {
-              rvb.startStruct()
-              rvb.endStruct()
-              j += 1
-            }
-            rvb.endArray()
-          }
-          rvb.endStruct()
 
+          if (includeRsid)
+            rvb.addString(record.getRsid)
+          if (includeLid)
+            rvb.addString(record.getLid)
+          if (includeFileRowIdx)
+            rvb.addLong(record.getFileRowIdx)
+          record.getValue(rvb) // gs
+
+          rvb.endStruct()
           rv.setOffset(rvb.end())
           Some(rv)
         }

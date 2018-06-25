@@ -4,21 +4,13 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, TypeToIRIntermediateClassTag}
+import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
 import is.hail.utils._
-
-import scala.reflect.{ClassTag, classTag}
+import org.json4s.JValue
+import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
-
-  def str(x: Int): String = x.toString
-
-  def str(x: Long): String = x.toString
-
-  def str(x: Float): String = x.formatted("%.5e")
-
-  def str(x: Double): String = x.formatted("%.5e")
 
   def upper(s: String): String = s.toUpperCase
 
@@ -35,6 +27,21 @@ object StringFunctions extends RegistryFunctions {
   def firstMatchIn(s: String, regex: String): IndexedSeq[String] = {
     regex.r.findFirstMatchIn(s).map(_.subgroups.toArray.toFastIndexedSeq).orNull
   }
+
+  def regexMatch(regex: String, s: String): Boolean = regex.r.findFirstIn(s).isDefined
+
+  def concat(s: String, t: String): String = s + t
+
+  def replace(str: String, pattern1: String, pattern2: String): String =
+    str.replaceAll(pattern1, pattern2)
+
+  def split(s: String, p: String): IndexedSeq[String] = s.split(p)
+
+  def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
+
+  def arrayMkString(a: IndexedSeq[String], sep: String): String = a.mkString(sep)
+
+  def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
   def registerAll(): Unit = {
     val thisClass = getClass
@@ -99,10 +106,20 @@ object StringFunctions extends RegistryFunctions {
       ir.StringLength(s)
     }
 
-    registerWrappedScalaFunction("str", TInt32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TInt64(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat32(), TString())(thisClass, "str")
-    registerWrappedScalaFunction("str", TFloat64(), TString())(thisClass, "str")
+    registerCodeWithMissingness("str", tv("T"), TString()) { (mb, a) =>
+      val typ = tv("T").subst()
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(mb, typ)(a.v))
+      val str = mb.getType(typ).invoke[Any, String]("str", annotation)
+      EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
+    }
+
+    registerCodeWithMissingness("json", tv("T"), TString()) { (mb, a) =>
+      val typ = tv("T").subst()
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(mb, typ)(a.v))
+      val json = mb.getType(typ).invoke[Any, JValue]("toJSON", annotation)
+      val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
+      EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
+    }
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")
@@ -110,6 +127,24 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("contains", TString(), TString(), TBoolean())(thisClass, "contains")
     registerWrappedScalaFunction("startswith", TString(), TString(), TBoolean())(thisClass, "startswith")
     registerWrappedScalaFunction("endswith", TString(), TString(), TBoolean())(thisClass, "endswith")
+
+    registerWrappedScalaFunction("~", TString(), TString(), TBoolean())(thisClass, "regexMatch")
+
+    registerWrappedScalaFunction("+", TString(), TString(), TString())(thisClass, "concat")
+
+    registerIR("length", TString())(StringLength)
+
+    registerIR("size", TString())(StringLength)
+
+    registerWrappedScalaFunction("split", TString(), TString(), TArray(TString()))(thisClass, "split")
+
+    registerWrappedScalaFunction("split", TString(), TString(), TInt32(), TArray(TString()))(thisClass, "splitLimited")
+
+    registerWrappedScalaFunction("replace", TString(), TString(), TString(), TString())(thisClass, "replace")
+
+    registerWrappedScalaFunction("mkString", TSet(TString()), TString(), TString())(thisClass, "setMkString")
+
+    registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString())(thisClass, "arrayMkString")
 
     registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) { (mb: EmitMethodBuilder, s: EmitTriplet, r: EmitTriplet) =>
       val out: LocalRef[IndexedSeq[String]] = mb.newLocal[IndexedSeq[String]]
@@ -148,7 +183,7 @@ object StringFunctions extends RegistryFunctions {
       val len = mb.newLocal[Int]
       val i = mb.newLocal[Int]
       val n = mb.newLocal[Int]
-      val region: Code[Region] = mb.getArg[Region](1)
+      val region: Code[Region] = getRegion(mb)
 
       val v1 = mb.newLocal[Long]
       val v2 = mb.newLocal[Long]

@@ -67,6 +67,17 @@ class OrderedRVD(
   def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
 
+  def zipWithIndex(name: String): OrderedRVD = {
+    assert(!typ.key.contains(name))
+    val (newRowType, newCRDD) = zipWithIndexCRDD(name)
+
+    OrderedRVD(
+      typ.copy(rowType = newRowType.asInstanceOf[TStruct]),
+      partitioner,
+      crdd = newCRDD
+    )
+  }
+
   def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
     new OrderedRVD(typ, partitioner, iterationRDD) {

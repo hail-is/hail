@@ -1,6 +1,6 @@
 # Hail
 
-[![Gitter](https://badges.gitter.im/hail-is/hail.svg)](https://gitter.im/hail-is/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
+[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
 
 [Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
 
@@ -52,7 +52,7 @@ for `0.1` but will be updated for `0.2` soon.
 
 There are many ways to get in touch with the Hail team if you need help using Hail, or if you would like to suggest improvements or features. We also love to hear from new users about how they are using Hail.
 
-- chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
+- chat with the Hail team in our [Zulip chatroom](https://hail.zulipchat.com).
 - post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests, or to share your Hail-powered science 
 - please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues)
 
@@ -63,7 +63,7 @@ Hail uses a continuous deployment approach to software development, which means 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
 - see [Getting Started Developing](https://hail.is/docs/devel/getting_started_developing.html) for info on compiling Hail
-- chat with us about development in our [Gitter dev room](https://gitter.im/hail-is/hail-dev)
+- chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
 
@@ -84,9 +84,9 @@ If you use Hail for published work, please cite the software:
 
 ##### Acknowledgements
 
-Hail team uses IntelliJ and <a
-href="https://www.yourkit.com/java/profiler/">YourKit Java
-Profiler</a>.  We would like to thank
-YourKit, LLC for generously supporting open-source
-projects with free licenses.  <img
-src="https://www.yourkit.com/images/yklogo.png" align="right" />
+We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
+open-source by providing free hosting, and YourKit, LLC for generously providing
+free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
+Profiler</a> for open-source development.
+
+<img src="https://www.yourkit.com/images/yklogo.png" align="right" />

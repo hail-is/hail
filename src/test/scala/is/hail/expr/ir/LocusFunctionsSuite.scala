@@ -1,8 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.TestUtils.assertEvalsTo
+import is.hail.expr.types.{TArray, TString}
 import is.hail.utils.FastSeq
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.{Locus, RGBase, ReferenceGenome}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
@@ -51,5 +53,20 @@ class LocusFunctionsSuite extends TestNGSuite {
 
   @Test def inYPar() {
     assertEvalsTo(invoke("inYPar", locusIR), locus.inYPar(grch38))
+  }
+
+  @Test def minRep() {
+    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString()))
+    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), IndexedSeq("A", "T")))
+    assertEvalsTo(invoke("min_rep", locusIR, NA(TArray(TString()))), null)
+  }
+  
+  @Test def globalPosition() {
+    assertEvalsTo(invoke("locusToGlobalPos(GRCh38)", locusIR), grch38.locusToGlobalPos(locus))
+  }
+  
+  @Test def reverseGlobalPosition() {
+    val globalPosition = 2824183054L
+    assertEvalsTo(invoke("globalPosToLocus(GRCh38)", I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
   }
 }

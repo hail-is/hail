@@ -700,6 +700,32 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
                           tlocus(reference_genome), indices, aggregations)
 
 
+@typecheck(global_pos=expr_int64,
+           reference_genome=reference_genome_type)
+def locus_from_global_position(global_pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+    """Construct a locus expression from a global position and a reference genome.
+    The inverse of :meth:`.LocusExpression.global_position`.
+
+    Examples
+    --------
+    >>> hl.locus_from_global_position(2824183054, 'GRCh38').value
+    Locus(contig=22, position=1, reference_genome=GRCh38)
+
+    Parameters
+    ----------
+    global_pos : int or :class:`.Expression` of type :py:data:`.tint64`
+        Global base position along the reference genome.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use for converting the global position to a contig and local position.
+
+    Returns
+    -------
+    :class:`.LocusExpression`
+    """
+    return construct_expr(ApplyMethod('globalPosToLocus({})'.format(reference_genome.name), global_pos._ast), 
+                          tlocus(reference_genome), global_pos._indices, global_pos._aggregations)
+
+
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
 def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
@@ -1138,7 +1164,7 @@ def is_missing(expression) -> BooleanExpression:
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
 def is_nan(x) -> BooleanExpression:
-    """Returns ``True`` if the argument is ``NaN`` (not a number).
+    """Returns ``True`` if the argument is ``nan`` (not a number).
 
     Examples
     --------
@@ -1154,7 +1180,7 @@ def is_nan(x) -> BooleanExpression:
 
     Notes
     -----
-    Note that :meth:`.is_missing` will return ``False`` on ``NaN`` since ``NaN``
+    Note that :meth:`.is_missing` will return ``False`` on ``nan`` since ``nan``
     is a defined value. Additionally, this method will return missing if `x` is
     missing.
 
@@ -1166,7 +1192,7 @@ def is_nan(x) -> BooleanExpression:
     Returns
     -------
     :class:`.BooleanExpression`
-        ``True`` if `x` is ``NaN``, ``False`` otherwise.
+        ``True`` if `x` is ``nan``, ``False`` otherwise.
     """
     return _func("isnan", tbool, x)
 
@@ -2128,6 +2154,43 @@ def hamming(s1, s2) -> Int32Expression:
     return _func("hamming", tint32, s1, s2)
 
 
+@typecheck(s=expr_str)
+def entropy(s) -> Float64Expression:
+    r"""Returns the `Shannon entropy <https://en.wikipedia.org/wiki/Entropy_(information_theory)>`__
+    of the character distribution defined by the string.
+
+    Examples
+    --------
+
+    >>> hl.entropy('ac').value
+    1.0
+
+    >>> hl.entropy('accctg').value
+    1.79248
+
+    Notes
+    -----
+    For a string of length :math:`n` with :math:`k` unique characters
+    :math:`\{ c_1, \dots, c_k \}`, let :math:`p_i` be the probability that
+    a randomly chosen character is :math:`c_i`, e.g. the number of instances
+    of :math:`c_i` divided by :math:`n`. Then the base-2 Shannon entropy is
+    given by
+
+    .. math::
+
+        H = \sum_{i=1}^k p_i \log_2(p_i).
+
+    Parameters
+    ----------
+    s : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("entropy", tfloat64, s)
+
+
 @typecheck(x=expr_any)
 def str(x) -> StringExpression:
     """Returns the string representation of `x`.
@@ -2377,9 +2440,7 @@ def find(f: Callable, collection):
         Expression whose type is the element type of the collection.
     """
 
-    return collection._bin_lambda_method("find", f,
-                                         collection.dtype.element_type,
-                                         lambda _: collection.dtype.element_type)
+    return collection.find(f)
 
 
 @typecheck(f=func_spec(1, expr_any),
@@ -2719,23 +2780,27 @@ def abs(x):
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
-def signum(x):
-    """Returns the sign (1, 0, or -1) of a numeric value or array.
+def sign(x):
+    """Returns the sign of a numeric value or array.
 
     Examples
     --------
 
-    >>> hl.signum(-1.23).value
-    -1
+    >>> hl.sign(-1.23).value
+    -1.0
 
-    >>> hl.signum(555).value
-    1
+    >>> hl.sign([-4, 0, 5]).value
+    [-1, 0, 1]
 
-    >>> hl.signum(0.0).value
-    0
+    >>> hl.sign([0.0, 3.14]).value
+    [0.0, 1.0]
 
-    >>> hl.signum([1, -5, 0, -125]).value
-    [1, -1, 0, -1]
+    >>> hl.sign(float('nan')).value  # doctest: +SKIP
+    nan
+
+    Notes
+    -----
+    The sign function preserves type and maps ``nan`` to ``nan``.
 
     Parameters
     ----------
@@ -2743,12 +2808,12 @@ def signum(x):
 
     Returns
     -------
-    :class:`.Int32Expression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray):
-        return map(signum, x)
+        return map(sign, x)
     else:
-        return x._method('signum', tint32)
+        return x._method('sign', x.dtype)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))

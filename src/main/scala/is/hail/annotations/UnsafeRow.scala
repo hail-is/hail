@@ -168,6 +168,8 @@ class UnsafeRow(var t: TBaseStruct,
 
   def copy(): Row = new UnsafeRow(t, region, offset)
 
+  def pretty(): String = region.pretty(t, offset)
+
   override def getInt(i: Int): Int = {
     assertDefined(i)
     region.loadInt(t.loadField(region, offset, i))

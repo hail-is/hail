@@ -313,8 +313,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[String]]("""s.split(",")""").contains(IndexedSeq("12", "34", "56", "78")))
     assert(eval[Int]("s2.length()").contains(62))
 
-    assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
-
     assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x])""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)))
     assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x, x + 1])""").contains(IndexedSeq(1, 2, 2, 3, null, null, 6, 7, 3, 4, 3, 4, -1, 0, 8, 9)))
 
@@ -413,7 +411,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
 
-    assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
+    assert(eval[String](""" "HELLO=" + str(j) + ", asdasd" + str(9)""")
       .contains("HELLO=-7, asdasd9"))
 
     assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4)   """)
@@ -445,7 +443,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""a.sum()""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String]("""let l = Locus("1", 1000) in json(l)""").contains("""{"contig":"1","position":1000}"""))
-    assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[String](""" "" + str(5) + "5" """) == eval[String](""" "5" + str(5) """))
     assert(eval[Int]("""iset.min()""").contains(0))
     assert(eval[Int]("""iset.max()""").contains(2))
     assert(eval[Int]("""iset.sum()""").contains(3))
@@ -864,9 +862,6 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("Cannot compare arguments") {
       eval("str(1) == 1")
     }
-
-    assert(eval("Dict([1,2,3], [1,2,3])").contains(Map(1 -> 1, 2 -> 2, 3 -> 3)))
-    assert(eval("""Dict(["foo", "bar"], [1,2])""").contains(Map("foo" -> 1, "bar" -> 2)))
 
     assert(eval("isnan(0/0)").contains(true))
     assert(eval("isnan(0d)").contains(false))

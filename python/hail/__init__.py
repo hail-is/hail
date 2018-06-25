@@ -15,7 +15,7 @@ For API documentation, visit the website: www.hail.is
 
 For help, visit either:
  - the forum (discuss.hail.is) 
- - or the gitter channel: https://gitter.im/hail-is/hail/
+ - or our Zulip chatroom: https://hail.zulipchat.com
  
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """

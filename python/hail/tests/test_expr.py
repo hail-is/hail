@@ -979,6 +979,10 @@ class Tests(unittest.TestCase):
         self.assertEqual((b_array + f1).value, [6.5, 5.5])
         self.assertEqual((b_array + f_array).value, [2.5, 2.5])
 
+    def test_int_typecheck(self):
+        self.assertIsNone(hl.literal(None, dtype='int32').value)
+        self.assertIsNone(hl.literal(None, dtype='int64').value)
+
     def test_is_transition(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
         self.assertTrue(hl.eval_expr(hl.is_transition("C", "T")))
@@ -1166,6 +1170,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.parse_variant('1:1:A:T').value,
                          hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
+    def test_locus_to_global_position(self):
+        self.assertEqual(hl.locus('chr22', 1, 'GRCh38').global_position().value, 2824183054)
+
+    def test_locus_from_global_position(self):
+        self.assertEqual(hl.locus_from_global_position(2824183054, 'GRCh38').value, hl.locus('chr22', 1, 'GRCh38').value)
+
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
         self.assertEqual(hl.eval_expr(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
@@ -1195,9 +1205,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [1, 3, 5, 6])), False)
         self.assertEqual(hl.eval_expr(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
 
-        self.assertEqual(hl.eval_expr(hl.find(lambda x: x % 2 == 0, [1, 3, 4, 6])), 4)
-        self.assertEqual(hl.eval_expr(hl.find(lambda x: x % 2 != 0, [0, 2, 4, 6])), None)
-
         self.assertEqual(hl.eval_expr(hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6])), [True, False, True, True])
 
         self.assertEqual(hl.eval_expr(hl.len([0, 1, 4, 6])), 4)
@@ -1215,6 +1222,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
+
+    def test_array_find(self):
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: hl.null(hl.tbool), [1, 0, -4, 6])), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, [1, 0, -4, 6])), -4)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, [1, 0, 4, 6])), None)
+
+    def test_set_find(self):
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tset(hl.tint32)))), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: hl.null(hl.tbool), hl.set([1, 0, -4, 6]))), None)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
+        self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval_expr(hl.literal(True) & True))
@@ -1253,11 +1272,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.abs(5.5)), 5.5)
         self.assertEqual(hl.eval_expr(hl.abs([5.5, -5.5])), [5.5, 5.5])
 
-    def test_signum(self):
-        self.assertEqual(hl.eval_expr(hl.signum(-5)), -1)
-        self.assertEqual(hl.eval_expr(hl.signum(0.0)), 0)
-        self.assertEqual(hl.eval_expr(hl.signum(10.0)), 1)
-        self.assertEqual(hl.eval_expr(hl.signum([-5, 0, 10])), [-1, 0, 1])
+    def test_sign(self):
+        self.assertEqual(hl.eval_expr(hl.sign(-5)), -1)
+        self.assertEqual(hl.eval_expr(hl.sign(0.0)), 0.0)
+        self.assertEqual(hl.eval_expr(hl.sign(10.0)), 1.0)
+        self.assertTrue(hl.eval_expr(hl.is_nan(hl.sign(float('nan')))))
+        self.assertEqual(hl.eval_expr(hl.sign(float('inf'))), 1.0)
+        self.assertEqual(hl.eval_expr(hl.sign(float('-inf'))), -1.0)
+        self.assertEqual(hl.eval_expr(hl.sign([-2, 0, 2])), [-1, 0, 1])
+        self.assertEqual(hl.eval_expr(hl.sign([-2.0, 0.0, 2.0])), [-1.0, 0.0, 1.0])
 
     def test_argmin_and_argmax(self):
         a = hl.array([2, 1, 1, 4, 4, 3])

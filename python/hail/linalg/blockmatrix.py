@@ -355,7 +355,7 @@ class BlockMatrix(object):
         this method will greatly improve its performance.
 
         The method will fail if any values are missing. To be clear, special
-        float values like ``NaN`` are not missing values.
+        float values like ``nan`` are not missing values.
 
         Parameters
         ----------
@@ -551,7 +551,7 @@ class BlockMatrix(object):
         this method will greatly improve its performance.
 
         The method will fail if any values are missing. To be clear, special
-        float values like ``NaN`` are not missing values.
+        float values like ``nan`` are not missing values.
 
         Parameters
         ----------

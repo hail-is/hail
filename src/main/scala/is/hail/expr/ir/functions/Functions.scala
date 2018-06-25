@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations._
+import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -113,6 +114,8 @@ abstract class RegistryFunctions {
   def tnum(name: String): TVariable =
     tv(name, _.isInstanceOf[TNumeric])
 
+  def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
+
   def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
     case _: TBoolean => coerce[Boolean]
     case _: TInt32 => coerce[Int]
@@ -123,12 +126,30 @@ abstract class RegistryFunctions {
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
         TString.getClass, "loadString",
-        mb.getArg[Region](1), coerce[Long](c))
+        getRegion(mb), coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[Type, Region, Long, Any](
         UnsafeRow.getClass, "read",
         mb.getType(t),
-        mb.getArg[Region](1), coerce[Long](c))
+        getRegion(mb), coerce[Long](c))
+  }
+
+  def boxArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[Any] = t match {
+    case _: TBoolean => c => Code.boxBoolean(coerce[Boolean](c))
+    case _: TInt32 => c => Code.boxInt(coerce[Int](c))
+    case _: TInt64 => c => Code.boxLong(coerce[Long](c))
+    case _: TFloat32 => c => Code.boxFloat(coerce[Float](c))
+    case _: TFloat64 => c => Code.boxDouble(coerce[Double](c))
+    case _: TCall => c => Code.boxInt(coerce[Int](c))
+    case _: TString => c =>
+      Code.invokeScalaObject[Region, Long, String](
+        TString.getClass, "loadString",
+        getRegion(mb), coerce[Long](c))
+    case _ => c =>
+      Code.invokeScalaObject[Type, Region, Long, Any](
+        UnsafeRow.getClass, "read",
+        mb.getType(t),
+        getRegion(mb), coerce[Long](c))
   }
 
   def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
@@ -138,7 +159,7 @@ abstract class RegistryFunctions {
     case _: TFloat32 => coerce[Float]
     case _: TFloat64 => coerce[Double]
     case _: TString => c =>
-      mb.getArg[Region](1).load().appendString(coerce[String](c))
+      getRegion(mb).appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
       val srvb = new StagedRegionValueBuilder(mb, t)
@@ -153,7 +174,23 @@ abstract class RegistryFunctions {
           srvb.start(len),
           Code.whileLoop(srvb.arrayIdx < len,
             v := Code.checkcast[java.lang.Integer](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
-            v.isNull.mux(srvb.setMissing, srvb.addInt(v.invoke[Int]("intValue"))),
+            v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
+            srvb.advance())),
+        srvb.offset)
+    case TArray(_: TString, _) => c =>
+      val srvb = new StagedRegionValueBuilder(mb, t)
+      val alocal = mb.newLocal[IndexedSeq[String]]
+      val len = mb.newLocal[Int]
+      val v = mb.newLocal[java.lang.String]
+
+      Code(
+        alocal := coerce[IndexedSeq[String]](c),
+        len := alocal.invoke[Int]("size"),
+        Code(
+          srvb.start(len),
+          Code.whileLoop(srvb.arrayIdx < len,
+            v := Code.checkcast[java.lang.String](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
+            v.isNull.mux(srvb.setMissing(), srvb.addString(v)),
             srvb.advance())),
         srvb.offset)
   }
@@ -200,6 +237,8 @@ abstract class RegistryFunctions {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
+      case TArray(_: TString, _) => classTag[IndexedSeq[String]]
+      case TSet(_: TString, _) => classTag[Set[String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 
@@ -215,6 +254,9 @@ abstract class RegistryFunctions {
 
   def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, rType: Type)(cls: Class[_], method: String): Unit =
     registerWrappedScalaFunction(mname, Array(a1, a2), rType)(cls, method)
+
+  def registerWrappedScalaFunction(mname: String, a1: Type, a2: Type, a3: Type, rType: Type)(cls: Class[_], method: String): Unit =
+    registerWrappedScalaFunction(mname, Array(a1, a2, a3), rType)(cls, method)
 
   def registerJavaStaticFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String, isDeterministic: Boolean) {
     registerCode(mname, argTypes, rType, isDeterministic) { (mb, args) =>

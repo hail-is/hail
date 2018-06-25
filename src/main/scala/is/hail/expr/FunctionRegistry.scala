@@ -827,13 +827,6 @@ object FunctionRegistry {
   register("Call", { (s: String) => Call.parse(s) })(stringHr, callHr)
   register("UnphasedDiploidGtIndexCall", { (gt: Int) => Call2.fromUnphasedDiploidGtIndex(gt) })(int32Hr, callHr)
 
-  register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
-    if (keys.length != values.length)
-      fatal(s"mismatch between length of keys (${ keys.length }) and values (${ values.length })")
-    keys.zip(values).toMap
-  })(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
-
-
   val tuple2Hr = new HailRep[Annotation] {
     override def typ: Type = TTuple(TTHr.typ, TUHr.typ)
   }
@@ -977,7 +970,7 @@ object FunctionRegistry {
   register("qnorm", { (p: Double) => qnorm(p) })
 
   register("rpois", { (lambda: Double) => rpois(lambda) })
-  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda) })(int32Hr, float64Hr, arrayHr(float64Hr))
+  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda).toFastIndexedSeq })(int32Hr, float64Hr, arrayHr(float64Hr))
   register("dpois", { (x: Double, lambda: Double) => dpois(x, lambda) })
   register("dpois", { (x: Double, lambda: Double, logP: Boolean) => dpois(x, lambda, logP) })
   register("ppois", { (x: Double, lambda: Double) => ppois(x, lambda) })
@@ -1119,20 +1112,6 @@ object FunctionRegistry {
     }): java.lang.Double
   }
   )(unaryHr(float64Hr, float64Hr), float64Hr, float64Hr, boxedFloat64Hr)
-
-  registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.find { elt =>
-      val r = f(elt)
-      r != null && r.asInstanceOf[Boolean]
-    }.orNull
-  )(arrayHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
-
-  registerLambdaMethod("find", (s: Set[Any], f: (Any) => Any) =>
-    s.find { elt =>
-      val r = f(elt)
-      r != null && r.asInstanceOf[Boolean]
-    }.orNull
-  )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
   registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) => {
     val l = a.length
@@ -1548,6 +1527,11 @@ object FunctionRegistry {
   registerMethod("toFloat32", (b: Boolean) => b.toFloat)
   registerMethod("toFloat64", (b: Boolean) => b.toDouble)
 
+  registerMethod("sign", (x: Int) => math.signum(x))
+  registerMethod("sign", (x: Long) => math.signum(x))
+  registerMethod("sign", (x: Float) => math.signum(x))
+  registerMethod("sign", (x: Double) => math.signum(x))
+  
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
     // registerNumeric("+", ev.plus)
     registerNumeric("-", ev.minus)
@@ -1555,7 +1539,6 @@ object FunctionRegistry {
     // registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
 
     registerMethod("abs", ev.abs _)
-    registerMethod("signum", ev.signum _)
 
     register("-", ev.negate _)
 
@@ -2123,7 +2106,7 @@ object FunctionRegistry {
     a: IndexedSeq[java.lang.Double]
   })(arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
 
-  register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
+  register("+", (x: String, y: String) => x + y)(stringHr, stringHr, stringHr)
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
 
