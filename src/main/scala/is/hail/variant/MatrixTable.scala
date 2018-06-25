@@ -1598,9 +1598,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         val entriesRowType = et.typ.rowType
         val aggEnv = new ir.Env[ir.IR].bind(
-          "g" -> ir.Ref("row", entriesRowType),
-          "va" -> ir.Ref("row", entriesRowType),
-          "sa" -> ir.Ref("row", entriesRowType))
+          "g" -> ir.SelectFields(ir.Ref("row", entriesRowType), entryType.fieldNames),
+          "va" -> ir.SelectFields(ir.Ref("row", entriesRowType), rowType.fieldNames),
+          "sa" -> ir.SelectFields(ir.Ref("row", entriesRowType), colType.fieldNames))
 
         val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
         et.aggregate(sqir)

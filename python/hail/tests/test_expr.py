@@ -1235,6 +1235,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
+    def test_sorted(self):
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2)), [0, 4, 2, 1, 3])
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
+
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [None, 4, 3, 2, 1, 0])
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval_expr(hl.literal(True) & True))
         self.assertTrue(hl.eval_expr(True & hl.literal(True)))

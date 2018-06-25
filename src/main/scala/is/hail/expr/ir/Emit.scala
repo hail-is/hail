@@ -370,7 +370,7 @@ private class Emit(
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val (a, ascending: IR, keyOnly) = x match {
-          case ArraySort(a, ascending) => (a, ascending, false)
+          case ArraySort(a, ascending, onKey) => (a, ascending, onKey)
           case ToSet(a) => (a, True(), false)
           case ToDict(a) => (a, True(), true)
         }

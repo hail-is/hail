@@ -22,7 +22,7 @@ object Infer {
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         -coerce[TArray](a.typ).elementType
-      case ArraySort(a, ascending) =>
+      case ArraySort(a, ascending, _) =>
         assert(ascending.typ.isOfType(TBoolean()))
         a.typ
       case ToSet(a) =>
