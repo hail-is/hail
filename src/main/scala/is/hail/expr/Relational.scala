@@ -2215,6 +2215,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
 // Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
 // partition bounds will remain valid.
 case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]) extends TableIR {
+  require(!(newKey.isDefined ^ preservedKeyFields.isDefined))
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
