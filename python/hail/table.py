@@ -2365,7 +2365,7 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.StructExpression`
-            Struct of all row fields.
+            Struct of all row fields, including key fields.
         """
         return self._row
 
@@ -2377,18 +2377,18 @@ class Table(ExprContainer):
         --------
         The data type of the row struct:
 
-        >>> table1.row.dtype
+        >>> table1.row_value.dtype
         dtype('struct{HT: int32, SEX: str, X: int32, Z: int32, C1: int32, C2: int32, C3: int32}')
 
         The number of row fields:
 
-        >>> len(table1.row)
+        >>> len(table1.row_value)
         7
 
         Returns
         -------
         :class:`.StructExpression`
-            Struct of all row fields.
+            Struct of all non-key row fields.
         """
         return self._row.drop(*self.key.keys()) if self.key is not None else self._row
 
