@@ -95,14 +95,15 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("get", NA(TDict(TInt32(), TInt32())), 1, na), null)
     assertEvalsTo(invoke("get", d, 1, na), 3)
     assertEvalsTo(invoke("get", d, 2, 50), 7)
-    assertEvalsTo(invoke("get", d, na, 50), null)
     assertEvalsTo(invoke("get", d, 3, 50), null)
     assertEvalsTo(invoke("get", d, 100, 50), 50)
     assertEvalsTo(invoke("get", d, 100, na), null)
 
     assertEvalsTo(invoke("[]", d, 1), 3)
-    assertEvalsTo(invoke("[]", d, na), null)
     assertEvalsTo(invoke("[]", d, 3), null)
     assertFatal(invoke("[]", d, 100), "dictionary")
+
+    assertEvalsTo(invoke("get", d, na, 50), null)
+    assertEvalsTo(invoke("[]", d, na), null)
   }
 }
