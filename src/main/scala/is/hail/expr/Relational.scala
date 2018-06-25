@@ -650,9 +650,8 @@ case class FilterColsIR(
     val (rTyp, predCompiledFunc) = ir.Compile[Long, Long, Boolean](
       "global", typ.globalType,
       "sa", typ.colType,
-      pred
-    )
-    // Note that we don't yet support IR aggregators
+      pred)
+
     val p = (sa: Annotation, i: Int) => {
       Region.scoped { colRegion =>
         // FIXME: it would be nice to only load the globals once per matrix
