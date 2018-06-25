@@ -39,6 +39,11 @@ class IntervalSuite extends TestNGSuite {
     assertEvalsTo(invoke("start", na), null)
   }
 
+  @Test def defaultValueCorrectlyStored() {
+    assertEvalsTo(If(GetTupleElement(invoke("start", i1), 0).ceq(1), true, false), true)
+    assertEvalsTo(If(GetTupleElement(invoke("end", i1), 0).ceq(2), true, false), true)
+  }
+
   @Test def end() {
     assertEvalsTo(invoke("end", i1), Row(2))
     assertEvalsTo(invoke("end", i2), null)

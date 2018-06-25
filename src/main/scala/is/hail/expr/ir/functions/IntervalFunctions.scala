@@ -43,7 +43,7 @@ object IntervalFunctions extends RegistryFunctions {
         val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
-          interval.setup,
+          Code(interval.setup, iv.storeAny(defaultValue(tinterval))),
           interval.m || !Code(iv := interval.value[Long], tinterval.startDefined(region, iv)),
           region.loadIRIntermediate(tv("T").t)(tinterval.startOffset(iv))
         )
@@ -55,7 +55,7 @@ object IntervalFunctions extends RegistryFunctions {
         val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
-          interval.setup,
+          Code(interval.setup, iv.storeAny(defaultValue(tinterval))),
           interval.m || !Code(iv := interval.value[Long], tinterval.endDefined(region, iv)),
           region.loadIRIntermediate(tv("T").t)(tinterval.endOffset(iv))
         )
