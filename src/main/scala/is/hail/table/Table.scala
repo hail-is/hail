@@ -435,7 +435,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = aggEvalContext()
 
     val queryAST = Parser.parseToAST(expr, ec)
-    queryAST.toIROpt(Some("AGG" -> "row")) match {
+    (queryAST.toIROpt(Some("AGG" -> "row")): @unchecked) match {
       case Some(ir) =>
         aggregate(ir)
     }
@@ -468,7 +468,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
-    ast.toIROpt() match {
+    (ast.toIROpt(): @unchecked) match {
       case Some(ir) =>
         new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
     }
@@ -478,7 +478,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = rowEvalContext()
     var filterAST = Parser.parseToAST(cond, ec)
     val pred = filterAST.toIROpt()
-    pred match {
+    (pred: @unchecked) match {
       case Some(irPred) =>
         new Table(hc,
           TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep))
@@ -528,7 +528,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
 
-    ast.toIROpt() match {
+    (ast.toIROpt(): @unchecked) match {
       case Some(ir) =>
         new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
     }
@@ -739,7 +739,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val ec = aggEvalContext()
     val ast = Parser.parseToAST(expr, ec)
 
-    ast.toIROpt(Some("AGG" -> "row")) match {
+    (ast.toIROpt(Some("AGG" -> "row")): @unchecked) match {
       case Some(x) =>
         new Table(hc, TableAggregateByKey(tir, x))
     }
