@@ -24,9 +24,9 @@ class RegionValueInfoScoreAggregator extends RegionValueAggregator {
     combiner.result(rvb)
   }
 
-  override def copy(): RegionValueAggregator = new RegionValueInfoScoreAggregator()
+  override def newInstance(): RegionValueAggregator = new RegionValueInfoScoreAggregator()
 
-  override def deepCopy(): RegionValueInfoScoreAggregator = {
+  override def copy(): RegionValueInfoScoreAggregator = {
     val rva = new RegionValueInfoScoreAggregator()
     rva.combiner = combiner.copy()
     rva

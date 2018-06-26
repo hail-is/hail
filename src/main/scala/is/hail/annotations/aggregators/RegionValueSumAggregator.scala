@@ -18,9 +18,9 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
     rvb.addLong(sum)
   }
 
-  def copy(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
+  def newInstance(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
 
-  def deepCopy(): RegionValueSumLongAggregator = {
+  def copy(): RegionValueSumLongAggregator = {
     val rva = new RegionValueSumLongAggregator()
     rva.sum = sum
     rva
@@ -47,9 +47,9 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
     rvb.addDouble(sum)
   }
 
-  def copy(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
+  def newInstance(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
 
-  def deepCopy(): RegionValueSumDoubleAggregator = {
+  def copy(): RegionValueSumDoubleAggregator = {
     val rva = new RegionValueSumDoubleAggregator()
     rva.sum = sum
     rva

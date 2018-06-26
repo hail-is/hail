@@ -28,9 +28,9 @@ class RegionValueMinBooleanAggregator extends RegionValueAggregator {
       rvb.addBoolean(min)
   }
 
-  def copy(): RegionValueMinBooleanAggregator = new RegionValueMinBooleanAggregator()
+  def newInstance(): RegionValueMinBooleanAggregator = new RegionValueMinBooleanAggregator()
 
-  def deepCopy(): RegionValueMinBooleanAggregator = {
+  def copy(): RegionValueMinBooleanAggregator = {
     val rva = new RegionValueMinBooleanAggregator()
     rva.min = min
     rva.empty = empty
@@ -69,9 +69,9 @@ class RegionValueMinIntAggregator extends RegionValueAggregator {
       rvb.addInt(min)
   }
 
-  def copy(): RegionValueMinIntAggregator = new RegionValueMinIntAggregator()
+  def newInstance(): RegionValueMinIntAggregator = new RegionValueMinIntAggregator()
 
-  def deepCopy(): RegionValueMinIntAggregator = {
+  def copy(): RegionValueMinIntAggregator = {
     val rva = new RegionValueMinIntAggregator()
     rva.min = min
     rva.empty = empty
@@ -110,9 +110,9 @@ class RegionValueMinLongAggregator extends RegionValueAggregator {
       rvb.addLong(min)
   }
 
-  def copy(): RegionValueMinLongAggregator = new RegionValueMinLongAggregator()
+  def newInstance(): RegionValueMinLongAggregator = new RegionValueMinLongAggregator()
 
-  def deepCopy(): RegionValueMinLongAggregator = {
+  def copy(): RegionValueMinLongAggregator = {
     val rva = new RegionValueMinLongAggregator()
     rva.min = min
     rva.empty = empty
@@ -151,9 +151,9 @@ class RegionValueMinFloatAggregator extends RegionValueAggregator {
       rvb.addFloat(min)
   }
 
-  def copy(): RegionValueMinFloatAggregator = new RegionValueMinFloatAggregator()
+  def newInstance(): RegionValueMinFloatAggregator = new RegionValueMinFloatAggregator()
   
-  def deepCopy(): RegionValueMinFloatAggregator = {
+  def copy(): RegionValueMinFloatAggregator = {
     val rva = new RegionValueMinFloatAggregator()
     rva.min = min
     rva.empty = empty
@@ -192,9 +192,9 @@ class RegionValueMinDoubleAggregator extends RegionValueAggregator {
       rvb.addDouble(min)
   }
 
-  def copy(): RegionValueMinDoubleAggregator = new RegionValueMinDoubleAggregator()
+  def newInstance(): RegionValueMinDoubleAggregator = new RegionValueMinDoubleAggregator()
 
-  def deepCopy(): RegionValueMinDoubleAggregator = {
+  def copy(): RegionValueMinDoubleAggregator = {
     val rva = new RegionValueMinDoubleAggregator()
     rva.min = min
     rva.empty = empty

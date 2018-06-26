@@ -47,9 +47,9 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
     rvb.endStruct()
   }
 
-  def copy() = new RegionValueHistogramAggregator(start, end, bins)
+  def newInstance() = new RegionValueHistogramAggregator(start, end, bins)
 
-  override def deepCopy(): RegionValueHistogramAggregator = {
+  override def copy(): RegionValueHistogramAggregator = {
     val rva = new RegionValueHistogramAggregator(start, end, bins)
     rva.combiner = combiner.copy()
     rva

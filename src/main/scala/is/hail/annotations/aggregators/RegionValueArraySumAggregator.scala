@@ -62,9 +62,9 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator()
+  def newInstance(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator()
 
-  def deepCopy(): RegionValueArraySumLongAggregator = {
+  def copy(): RegionValueArraySumLongAggregator = {
     val rva = new RegionValueArraySumLongAggregator()
     rva.sum = sum.clone()
     rva
@@ -133,9 +133,9 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator()
+  def newInstance(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator()
 
-  def deepCopy(): RegionValueArraySumDoubleAggregator = {
+  def copy(): RegionValueArraySumDoubleAggregator = {
     val rva = new RegionValueArraySumDoubleAggregator()
     rva.sum = sum.clone()
     rva

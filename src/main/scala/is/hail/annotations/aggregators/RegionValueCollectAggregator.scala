@@ -27,9 +27,9 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
+  def newInstance(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
 
-  def deepCopy(): RegionValueCollectBooleanAggregator = {
+  def copy(): RegionValueCollectBooleanAggregator = {
     val rva = new RegionValueCollectBooleanAggregator()
     rva.ab = ab.clone()
     rva
@@ -63,9 +63,9 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
+  def newInstance(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
 
-  def deepCopy(): RegionValueCollectIntAggregator = {
+  def copy(): RegionValueCollectIntAggregator = {
     val rva = new RegionValueCollectIntAggregator()
     rva.ab = ab.clone()
     rva
@@ -99,9 +99,9 @@ class RegionValueCollectLongAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectLongAggregator = new RegionValueCollectLongAggregator()
+  def newInstance(): RegionValueCollectLongAggregator = new RegionValueCollectLongAggregator()
 
-  def deepCopy(): RegionValueCollectLongAggregator = {
+  def copy(): RegionValueCollectLongAggregator = {
     val rva = new RegionValueCollectLongAggregator()
     rva.ab = ab.clone()
     rva
@@ -135,9 +135,9 @@ class RegionValueCollectFloatAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectFloatAggregator = new RegionValueCollectFloatAggregator()
+  def newInstance(): RegionValueCollectFloatAggregator = new RegionValueCollectFloatAggregator()
 
-  def deepCopy(): RegionValueCollectFloatAggregator = {
+  def copy(): RegionValueCollectFloatAggregator = {
     val rva = new RegionValueCollectFloatAggregator()
     rva.ab = ab.clone()
     rva
@@ -171,9 +171,9 @@ class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectDoubleAggregator = new RegionValueCollectDoubleAggregator()
+  def newInstance(): RegionValueCollectDoubleAggregator = new RegionValueCollectDoubleAggregator()
 
-  def deepCopy(): RegionValueCollectDoubleAggregator = {
+  def copy(): RegionValueCollectDoubleAggregator = {
     val rva = new RegionValueCollectDoubleAggregator()
     rva.ab = ab.clone()
     rva
@@ -207,9 +207,9 @@ class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggrega
     ab.write(rvb, t)
   }
 
-  def copy(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
+  def newInstance(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
 
-  def deepCopy(): RegionValueCollectAnnotationAggregator = {
+  def copy(): RegionValueCollectAnnotationAggregator = {
     val rva = new RegionValueCollectAnnotationAggregator(t)
     rva.ab = ab.clone()
     rva

@@ -39,9 +39,9 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetBooleanAggregator = new RegionValueCollectAsSetBooleanAggregator()
+  def newInstance(): RegionValueCollectAsSetBooleanAggregator = new RegionValueCollectAsSetBooleanAggregator()
 
-  override def deepCopy(): RegionValueCollectAsSetBooleanAggregator = {
+  override def copy(): RegionValueCollectAsSetBooleanAggregator = {
     val rva = new RegionValueCollectAsSetBooleanAggregator()
     rva.hasTrue = hasTrue
     rva.hasFalse = hasFalse
@@ -83,9 +83,9 @@ class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetIntAggregator = new RegionValueCollectAsSetIntAggregator()
+  def newInstance(): RegionValueCollectAsSetIntAggregator = new RegionValueCollectAsSetIntAggregator()
 
-  override def deepCopy(): RegionValueCollectAsSetIntAggregator = {
+  override def copy(): RegionValueCollectAsSetIntAggregator = {
     val rva = new RegionValueCollectAsSetIntAggregator()
     rva.values = values.clone()
     rva
@@ -124,9 +124,9 @@ class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetLongAggregator = new RegionValueCollectAsSetLongAggregator()
+  def newInstance(): RegionValueCollectAsSetLongAggregator = new RegionValueCollectAsSetLongAggregator()
 
-  override def deepCopy(): RegionValueCollectAsSetLongAggregator = {
+  override def copy(): RegionValueCollectAsSetLongAggregator = {
     val rva = new RegionValueCollectAsSetLongAggregator()
     rva.values = values.clone()
     rva
@@ -165,9 +165,9 @@ class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetFloatAggregator = new RegionValueCollectAsSetFloatAggregator()
+  def newInstance(): RegionValueCollectAsSetFloatAggregator = new RegionValueCollectAsSetFloatAggregator()
 
-  override def deepCopy(): RegionValueCollectAsSetFloatAggregator = {
+  override def copy(): RegionValueCollectAsSetFloatAggregator = {
     val rva = new RegionValueCollectAsSetFloatAggregator()
     rva.values = values.clone()
     rva
@@ -206,9 +206,9 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetDoubleAggregator = new RegionValueCollectAsSetDoubleAggregator()
+  def newInstance(): RegionValueCollectAsSetDoubleAggregator = new RegionValueCollectAsSetDoubleAggregator()
 
-  override def deepCopy(): RegionValueCollectAsSetDoubleAggregator = {
+  override def copy(): RegionValueCollectAsSetDoubleAggregator = {
     val rva = new RegionValueCollectAsSetDoubleAggregator()
     rva.values = values.clone()
     rva
@@ -239,9 +239,9 @@ class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionV
     rvb.addAnnotation(TSet(typ), values.toSet)
   }
 
-  def copy(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)
+  def newInstance(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)
 
-  override def deepCopy(): RegionValueCollectAsSetAnnotationAggregator = {
+  override def copy(): RegionValueCollectAsSetAnnotationAggregator = {
     val rva = new RegionValueCollectAsSetAnnotationAggregator(typ)
     rva.values = values.clone()
     rva
