@@ -47,50 +47,53 @@ def ld_score(entry_expr, annotations, position, window_size):
 
     Example
     -------
-    # Load genetic data into MatrixTable
-    mt = hl.import_plink(bed='gs://.../my_data.bed',
-                         bim='gs://.../my_data.bim',
-                         fam='gs://.../my_data.fam')
-
-    # Create locus-keyed Table with numeric variant annotations
-    ht = hl.import_table('gs://.../my_annotations.tsv.bgz')
-    ht = ht.annotate(locus=hl.locus(ht.contig, ht.position))  
-    ht = ht.key_by('locus')
-
-    # Annotate MatrixTable with external annotations 
-    mt = mt.annotate_rows(annotation_0=hl.literal(1),   # univariate LD scores
-                          annotation_1=ht_annotations[mt.locus].annotation_1, 
-                          annotation_2=ht_annotations[mt.locus].annotation_2)
-
-    # Annotate MatrixTable with alt allele count stats
-    mt = mt.annotate_rows(stats=hl.agg.stats(mt.GT.n_alt_alleles()))
-
-    # Calculate LD score for each variant, annotation using standardized genotypes
-    ht_scores = hl.ld_score(entry_expr=hl.or_else((mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0),
-                            annotations=[mt.annotation_0, mt.annotation_1, mt.annotation_2],
-                            position=mt.cm_position,
-                            window_size=1)
+    
+    >>> # Load genetic data into MatrixTable
+    >>> mt = hl.import_plink(bed='gs://.../my_data.bed', 
+    ...                      bim='gs://.../my_data.bim', 
+    ...                      fam='gs://.../my_data.fam')
+    
+    >>> # Create locus-keyed Table with numeric variant annotations
+    >>> ht = hl.import_table('gs://.../my_annotations.tsv.bgz')
+    >>> ht = ht.annotate(locus=hl.locus(ht.contig, ht.position))  
+    >>> ht = ht.key_by('locus')
+    
+    >>> # Annotate MatrixTable with external annotations 
+    >>> mt = mt.annotate_rows(annotation_0=hl.literal(1),   # univariate LD scores
+    ...                       annotation_1=ht_annotations[mt.locus].annotation_1, 
+    ...                       annotation_2=ht_annotations[mt.locus].annotation_2)
+    ...
+    >>> # Annotate MatrixTable with alt allele count stats
+    >>> mt = mt.annotate_rows(stats=hl.agg.stats(mt.GT.n_alt_alleles()))
+     
+    >>> # Calculate LD score for each variant, annotation using standardized genotypes
+    >>> ht_scores = hl.ld_score(entry_expr=hl.or_else((mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0),
+    ...                         annotations=[mt.annotation_0, mt.annotation_1, mt.annotation_2],
+    ...                         position=mt.cm_position,
+    ...                         window_size=1)
 
     Warning
     -------
-    :func:`.ld_score` will fail if `entry_expr` results in any missing values. The special float value `nan` is not considered a missing value.
+    :func:`.ld_score` will fail if ``entry_expr`` results in any missing values. The special float value ``nan`` is not considered a missing value.
 
-    Further reading
-    ---------------
-    See `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__ 
-    and `Partitioning heritability by functional annotation using genome-wide association summary statistcs (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__ 
-    for more in-depth discussion of LD scores.
+
+    **Further reading**
+
+    For more in-depth discussion of LD scores, see:
+
+    - `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
+    - `Partitioning heritability by functional annotation using genome-wide association summary statistics (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
 
     Parameters
     ----------
     entry_expr  : :class:`.NumericExpression`
-        Expression for entries of genotype matrix (e.g. mt.GT.n_alt_alleles()).
+        Expression for entries of genotype matrix (e.g. ``mt.GT.n_alt_alleles()``).
     annotations : :class:`.NumericExpression` or :obj:`list` of :class:`.NumericExpression`
-        Expression for annotation(s) to partition LD scores.
+        Annotation expression(s) to partition LD scores.
     position   : :class:`.NumericExpression`
-        Expression for position of variant (e.g. mt.cm_position, mt.locus.position).
+        Expression for position of variant (e.g. ``mt.cm_position``, ``mt.locus.position``).
     window_size : :obj:`int` or :obj:`float`
-        Size of variant window used to calculate LD scores, in units of `position`.
+        Size of variant window used to calculate LD scores, in units of ``position``.
 
     Returns
     -------
@@ -115,11 +118,10 @@ def ld_score(entry_expr, annotations, position, window_size):
     variant_positions = np.array(position.collect())
     n = G.n_cols
 
-    starts, stops = _compute_row_intervals(variant_positions, window_size)
-
-    R = ((G @ G.T)/n)
-    R_squared = R ** 2
+    R_squared = ((G @ G.T)/n) ** 2
     R_squared_adj = R_squared - (1.0 - R_squared)/(n - 2.0)
+
+    starts, stops = _compute_row_intervals(variant_positions, window_size)
     R_squared_adj_sparse = R_squared_adj.sparsify_row_intervals(starts=starts, stops=stops)
 
     L_squared = R_squared_adj_sparse @ A

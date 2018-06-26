@@ -1,4 +1,4 @@
-from .ldsc import ld_scores
+from .ldsc import ld_score
 
-__all__ = ['ld_scores']
+__all__ = ['ld_score']
 
