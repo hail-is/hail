@@ -610,7 +610,7 @@ object Parser extends JavaTokenParsers {
     ir_identifier ^^ { x => ir.UnaryOp.fromString(x) }
 
   def ir_comparison_op: Parser[ir.ComparisonOp] =
-    "(" ~> ir_identifier ~ type_expr <~ ")" ^^ { case x ~ t => ir.ComparisonOp.fromStringAndTypes(x, t, t) }
+    "(" ~> ir_identifier ~ type_expr ~ type_expr <~ ")" ^^ { case x ~ t1 ~ t2 => ir.ComparisonOp.fromStringAndTypes(x, t1, t2) }
 
   def ir_agg_op: Parser[ir.AggOp] =
     ir_identifier ^^ { x => ir.AggOp.fromString(x) }
