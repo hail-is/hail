@@ -207,4 +207,22 @@ class UtilsSuite extends SparkSuite {
     assert(c4.toSeq == Seq("a", "b", "c", "aD", "aDD", "cD", "aDDD"))
     assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
   }
+
+  @Test def toMapUniqueEmpty() {
+    assert(toMapIfUnique(Seq[(Int, Int)]())(x => x % 2) == Right(Map()))
+  }
+
+  @Test def toMapUniqueSingleton() {
+    assert(toMapIfUnique(Seq(1 -> 2))(x => x % 2) == Right(Map(1 -> 2)))
+  }
+
+  @Test def toMapUniqueSmallNoDupe() {
+    assert(toMapIfUnique(Seq(1 -> 2, 3 -> 6, 10 -> 2))(x => x % 5) ==
+      Right(Map(1 -> 2, 3 -> 6, 0 -> 2)))
+  }
+
+  @Test def toMapUniqueSmallDupes() {
+    assert(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5) ==
+      Left(Map(1 -> Seq(1, 6))))
+  }
 }

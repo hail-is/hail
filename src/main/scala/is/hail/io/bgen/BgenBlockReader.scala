@@ -7,37 +7,39 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[BgenRecordV12](job, split) {
-  val file = split.getPath
-  val bState = LoadBgen.readState(bfis)
-  val indexPath = file + ".idx"
-  val btree = new IndexBTree(indexPath, job)
+class BgenBlockReaderV12(
+  job: Configuration,
+  split: BgenV12InputSplit
+) extends IndexedBinaryBlockReader[BgenRecordV12](job, split.fileSplit) {
+  private[this] val file = split.getPath
+  private[this] val bState = LoadBgen.readState(bfis)
+  private[this] val indexPath = file + ".idx"
 
-  val includeGT = job.get("includeGT").toBoolean
-  val includeGP = job.get("includeGP").toBoolean
-  val includeDosage = job.get("includeDosage").toBoolean
-  val includeLid = job.get("includeLid").toBoolean
-  val includeRsid = job.get("includeRsid").toBoolean
+  private[this] val includeGT = job.get("includeGT").toBoolean
+  private[this] val includeGP = job.get("includeGP").toBoolean
+  private[this] val includeDosage = job.get("includeDosage").toBoolean
+  private[this] val includeLid = job.get("includeLid").toBoolean
+  private[this] val includeRsid = job.get("includeRsid").toBoolean
+  private[this] var partitionFirstFileRowIdx: Long = _
 
-  private[bgen] var partitionFirstFileRowIdx: Long = _
-
-  seekToFirstBlockInSplit(split.getStart)
-
-  def seekToFirstBlockInSplit(start: Long) {
-    btree.queryArrayPositionAndFileOffset(start) match {
-      case Some((arrayPosition, byteOffset)) =>
-        partitionFirstFileRowIdx = arrayPosition
-        pos = byteOffset
-      case None =>
-        pos = end
+  using(new IndexBTree(indexPath, job)) { btree =>
+    if (split.hasFilter) {
+      pos = split.keptPositions(0)
+    } else {
+      btree.queryArrayPositionAndFileOffset(split.getStart) match {
+        case Some((arrayPosition, byteOffset)) =>
+          partitionFirstFileRowIdx = arrayPosition
+          pos = byteOffset
+        case None =>
+          pos = end
+      }
     }
-
-    btree.close()
-    bfis.seek(pos)
   }
 
+  bfis.seek(pos)
+
   override def createValue(): BgenRecordV12 =
-    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, includeLid, includeRsid, bfis, end, partitionFirstFileRowIdx)
+    new BgenRecordV12(bState.compressed, bState.nSamples, includeGT, includeGP, includeDosage, includeLid, includeRsid, bfis, end, partitionFirstFileRowIdx, split)
 
   override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
     value.advance()

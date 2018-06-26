@@ -15,7 +15,8 @@ class BgenRecordV12 (
   includeRsid: Boolean,
   bfis: HadoopFSDataBinaryReader,
   end: Long,
-  partitionsFirstFileRowIndex: Long
+  partitionsFirstFileRowIndex: Long,
+  split: BgenV12InputSplit
 ) {
   private[this] var rsid: String = _
   private[this] var lid: String = _
@@ -25,6 +26,7 @@ class BgenRecordV12 (
   private[this] var alleles: Array[String] = _
   private[this] var data: Array[Byte] = _
   private[this] var dataSize: Int = 0
+  private[this] var filterIndex = 0
 
   def getContig: String = contig
 
@@ -42,10 +44,18 @@ class BgenRecordV12 (
     includeGT || includeGP || includeDosage
 
   def advance(): Boolean = {
-    if (bfis.getPosition >= end)
-      return false
-
-    fileRowIdx += 1
+    if (split.hasFilter) {
+      if (filterIndex < split.keptIndices.length) {
+        fileRowIdx = split.keptIndices(filterIndex)
+        filterIndex += 1
+      } else
+        return false
+    } else {
+      if (bfis.getPosition < end)
+        fileRowIdx += 1
+      else
+        return false
+    }
 
     if (includeLid)
       lid = bfis.readLengthAndString(2)
@@ -139,6 +149,13 @@ class BgenRecordV12 (
                  |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
     } else {
       bfis.skipBytes(dataSize)
+    }
+
+    if (split.hasFilter) {
+      if (filterIndex < split.keptIndices.length) {
+        // skip to next variant
+        bfis.seek(split.keptPositions(filterIndex))
+      }
     }
 
     return true

@@ -303,9 +303,20 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
     importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding, skipInvalidLoci)
+      nPartitions, rg, contigRecoding, skipInvalidLoci, includedVariantsPerFile)
+  }
+
+  private[this] def absolutePath(rel: String): String = {
+    val matches = hadoopConf.glob(rel)
+    if (matches.length != 1)
+      fatal(s"""found more than one match for variant filter path: $rel:
+                 |${matches.mkString(",")}""".stripMargin)
+    val abs = matches(0).getPath.toString
+    abs
   }
 
   def importBgens(files: Seq[String],
@@ -319,7 +330,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+  ): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -333,13 +346,26 @@ class HailContext private(val sc: SparkContext,
         Array(file)
     }
 
+    val includedVariantsPerFile = toMapIfUnique(
+      includedVariantsPerUnresolvedFilePath
+    )(absolutePath _
+    ) match {
+      case Left(duplicatedPaths) =>
+        fatal(s"""some relative paths in the import_bgen _variants_per_file
+                 |parameter have resolved to the same absolute path
+                 |$duplicatedPaths""".stripMargin)
+      case Right(m) =>
+        log.info(s"variant filters per file after path resolution is $m")
+        m
+    }
+
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
+      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
   }
 
   def importGen(file: String,
