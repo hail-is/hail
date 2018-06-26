@@ -456,6 +456,13 @@ class TableTests(unittest.TestCase):
         ht1 = ht.annotate(foo = 5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
+    def test_multiple_entry_joins(self):
+        mt = hl.utils.range_matrix_table(4, 4)
+        mt2 = hl.utils.range_matrix_table(4, 4)
+        mt2 = mt2.annotate_entries(x=mt2.row_idx + mt2.col_idx)
+        mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
+                          b=mt2[mt.row_idx, mt.col_idx].x)
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
