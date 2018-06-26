@@ -12,24 +12,6 @@ import is.hail.testUtils._
 import org.apache.spark.sql.Row
 
 class ImportVCFSuite extends SparkSuite {
-
-  @Test def testParseCall() {
-    import is.hail.io.vcf.HtsjdkRecordReader._
-    assert(parseCall("0/0", 2) == Call2(0, 0))
-    assert(parseCall("1/0", 2) == Call2(1, 0))
-    assert(parseCall("0", 2) == Call1(0))
-    assert(parseCall(".", 2) == null)
-    assert(parseCall("./.", 2) == null)
-    assert(parseCall("1|0", 2) == Call2(1, 0, phased = true))
-    assert(parseCall("0|1", 2) == Call2(0, 1, phased = true))
-    intercept[HailException] {
-      parseCall("./0", 2) == Call2(0, 0)
-    }
-    intercept[HailException] {
-      parseCall("""0\0""", 2) == Call2(0, 0)
-    }
-  }
-
   @Test def randomExportImportIsIdentity() {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
 
