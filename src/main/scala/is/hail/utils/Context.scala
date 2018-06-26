@@ -36,6 +36,14 @@ case class WithContext[T](value: T, source: Context) {
     }
   }
 
+  def wrap[U](f: T => U): U = {
+    try {
+      f(value)
+    } catch {
+      case e: Throwable => source.wrapException(e)
+    }
+  }
+  
   def foreach(f: T => Unit) {
     try {
       f(value)

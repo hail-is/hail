@@ -114,7 +114,7 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     } else if (line.length == newoff || line(newoff) == sep) {
       if (isNegative) rvb.addInt(-v) else rvb.addInt(v)
     } else {
-      fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
+      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
     }
     newoff + 1
   }
@@ -374,17 +374,17 @@ object LoadMatrix {
 
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row
-          val line = v.value
-
-          rvb.start(matrixType.rvRowType)
-          rvb.startStruct()
-          if (useIndex) {
-            rvb.addLong(partitionCounts(i) + row)
+          v.wrap { line =>
+            rvb.start(matrixType.rvRowType)
+            rvb.startStruct()
+            if (useIndex) {
+              rvb.addLong(partitionCounts(i) + row)
+            }
+            parser.parseLine(line, fileRowNum)
+            rvb.endStruct()
+            rv.setOffset(rvb.end())
+            rv
           }
-          parser.parseLine(line, fileRowNum)
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
         }
       }
 
