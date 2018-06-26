@@ -863,7 +863,26 @@ private class Emit(
       case Die(m, typ) =>
         present(Code._throw(Code.newInstance[HailException, String](m)))
       case ir@ApplyIR(fn, args, conversion) =>
-        emit(ir.explicitNode)
+        if (ir.explicitNode.size < 10)
+          emit(ir.explicitNode)
+        else {
+          val mfield = mb.newField[Boolean]
+          val vfield = mb.newField()(typeToTypeInfo(ir.typ))
+
+          val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+            Code(
+              v.setup,
+              mfield := v.m,
+              mfield.mux(
+                vfield.storeAny(defaultValue(t)),
+                vfield.storeAny(v.v)))
+          }
+
+          EmitTriplet(
+            wrapToMethod(FastSeq(ir.explicitNode), env)(addFields),
+            mfield, vfield)
+        }
+
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
         val unified = impl.unify(args.map(_.typ))
