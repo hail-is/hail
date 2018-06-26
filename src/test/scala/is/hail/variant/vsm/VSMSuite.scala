@@ -135,7 +135,7 @@ class VSMSuite extends SparkSuite {
       .indexCols("colIdx")
       .annotateRowsExpr("origGenos" -> "AGG.take(5)")
     val reorderedVds = filteredVds.reorderCols(newOrder.map(Annotation(_)))
-      .annotateRowsExpr("newGenos" -> "AGG.takeBy(g => sa.colIdx, 5)")
+      .annotateRowsExpr("newGenos" -> "AGG.takeBy(g => sa.colIdx.toFloat64(), 5)")
 
     assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
     assert(vds.reorderCols(vds.colKeys.toArray).same(vds))
