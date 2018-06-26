@@ -963,9 +963,6 @@ case class VCFMatrixReader(
   private val hc = HailContext.get
   private val sc = hc.sc
 
-  private val header = LoadVCF.parseHeader(
-    new HtsjdkRecordReader(callFields), headerLines, arrayElementsRequired = arrayElementsRequired)
-  private val headerLinesBc = sc.broadcast(headerLines)
   private lazy val lines = {
     hc.gzAsBGZ(gzAsBGZ) {
       ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
@@ -992,6 +989,7 @@ case class VCFMatrixReader(
     val reader = new HtsjdkRecordReader(callFields)
     val genotypeSignature = matrixType.entryType
     val rvRowType = matrixType.rvRowType
+    val headerLinesBc = sc.broadcast(headerLines)
 
     val localSampleIDs: Array[String] = if (mr.dropCols) Array.empty[String] else sampleIDs
     val localNSamples = localSampleIDs.length
