@@ -7,19 +7,18 @@ from bokeh.models import Span, ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
 
 
-def histogram(data, legend=None, title=None, xlabel=None, ylabel='Frequency', background_fill_color='#EEEEEE'):
-    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color=background_fill_color, )
+def histogram(data, label=None, title=None, ylabel='Frequency'):
+    p = figure(title=title, x_axis_label=label, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
-        legend=legend, line_color='black')
+        legend=label, line_color='black')
     show(p)
 
 
-def scatter(x, y, title=None, xlabel=None, ylabel=None, label=None,
-            background_fill_color='#EEEEEE', alpha=0.5, size=8,
+def scatter(x, y, title=None, xlabel=None, ylabel=None, label=None, alpha=0.5, size=8,
             indicate_outlier_cuts=False, threshold_x=None, threshold_y=None):
-    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color=background_fill_color)
+    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
