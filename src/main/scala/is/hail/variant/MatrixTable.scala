@@ -1280,14 +1280,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.colEC)
-    var pred = filterAST.toIROpt(Some("AGG" -> "g"))
-    pred match {
-      case Some(irPred) if ContainsAgg(irPred) =>
-        // FIXME: the IR path doesn't yet support aggs
-        log.info("filterCols: predicate contains aggs - not yet supported in IR")
-        pred = None
-      case _ =>
-    }
+    val pred = filterAST.toIROpt(Some("AGG" -> "g"))
     pred match {
       case Some(irPred) =>
         new MatrixTable(hc,
