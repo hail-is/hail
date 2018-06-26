@@ -307,7 +307,7 @@ def counter(expr) -> DictExpression:
 
 @typecheck(expr=agg_expr(expr_any),
            n=int,
-           ordering=nullable(oneof(oneof(expr_float64, expr_str, expr_call), func_spec(1, oneof(expr_float64, expr_str, expr_call)))))
+           ordering=nullable(oneof(oneof(expr_float64, expr_str), func_spec(1, oneof(expr_float64, expr_str)))))
 def take(expr, n, ordering=None) -> ArrayExpression:
     """Take `n` records of `expr`, optionally ordered by `ordering`.
 
@@ -374,10 +374,6 @@ def take(expr, n, ordering=None) -> ArrayExpression:
             lambda_result = ordering
         indices, aggregations = unify_all(expr, lambda_result)
 
-        # if not (is_numeric(ordering.dtype) or ordering.dtype == tstr):
-        #     raise TypeError("'take' expects 'ordering' to be or return an ordered expression\n"
-        #                     "    Ordered expressions are 'int32', 'int64', 'float32', 'float64', 'str'\n"
-        #                     "    Found '{}'".format(ordering._type))
         ast = LambdaClassMethod('takeBy', uid, expr._ast, lambda_result._ast, n._ast)
 
         if aggregations:
