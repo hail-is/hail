@@ -131,7 +131,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testTake() {
     val vds = hc.importVCF("src/test/resources/aggTake.vcf")
       .annotateRowsExpr("take" -> "AGG.map(g => g.DP).take(3)")
-      .annotateRowsExpr("takeBy" -> "AGG.map(g => g.DP).takeBy(dp => g.GQ, 3)")
+      .annotateRowsExpr("takeBy" -> "AGG.map(g => g.DP).takeBy(dp => g.GQ.toFloat64(), 3)")
 
     val (_, qTake) = vds.queryVA("va.take")
     val (_, qTakeBy) = vds.queryVA("va.takeBy")
@@ -217,7 +217,7 @@ class AggregatorSuite extends SparkSuite {
 
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
       val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
-      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)")
+      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1].toFloat64(), 10)")
 
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
@@ -239,7 +239,7 @@ class AggregatorSuite extends SparkSuite {
       vds.typecheck()
 
       val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
-      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ, 10)")
+      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ.toFloat64(), 10)")
 
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
