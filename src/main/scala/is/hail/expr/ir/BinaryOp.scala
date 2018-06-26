@@ -87,11 +87,11 @@ object BinaryOp {
     }
 
   val fromString: PartialFunction[String, BinaryOp] = {
-    case "+" => Add()
-    case "-" => Subtract()
-    case "*" => Multiply()
-    case "/" => FloatingPointDivide()
-    case "//" => RoundToNegInfDivide()
+    case "+" | "Add" => Add()
+    case "-" | "Subtract" => Subtract()
+    case "*" | "Multiply" => Multiply()
+    case "/" | "FloatingPointDivide"  => FloatingPointDivide()
+    case "//" | "RoundToNegInfDivide" => RoundToNegInfDivide()
   }
 }
 

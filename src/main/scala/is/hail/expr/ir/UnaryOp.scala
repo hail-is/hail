@@ -56,8 +56,8 @@ object UnaryOp {
   }
 
   val fromString: PartialFunction[String, UnaryOp] = {
-    case "-" => Negate()
-    case "!" => Bang()
+    case "-" | "Negate" => Negate()
+    case "!" | "Bang" => Bang()
   }
 }
 
