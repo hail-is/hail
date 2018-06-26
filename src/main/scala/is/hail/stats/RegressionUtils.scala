@@ -52,12 +52,6 @@ object RegressionUtils {
     }
   }
 
-  def parseFloat64Expr(expr: String, ec: EvalContext): () => java.lang.Double = {
-    val (xt, xf0) = Parser.parseExpr(expr, ec)
-    assert(xt.isOfType(TFloat64()))
-    () => xf0().asInstanceOf[java.lang.Double]
-  }
-
   // IndexedSeq indexed by column, Array by field
   def getColumnVariables(mt: MatrixTable, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
     val colType = mt.colType

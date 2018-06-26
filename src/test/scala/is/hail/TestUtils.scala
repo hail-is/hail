@@ -192,9 +192,9 @@ object TestUtils {
   def computeRRM(hc: HailContext, vds: MatrixTable): KinshipMatrix = {
     var mt = vds
     mt = mt.selectEntries("{gt: g.GT.nNonRefAlleles()}")
-      .annotateRowsExpr("AC" -> "AGG.map(g => g.gt).sum()",
-                        "ACsq" -> "AGG.map(g => g.gt * g.gt).sum()",
-                        "nCalled" -> "AGG.filter(g => isDefined(g.gt)).count().toInt32")
+      .annotateRowsExpr("AC" -> "AGG.map(g => g.gt.toInt64()).sum().toInt32()",
+                        "ACsq" -> "AGG.map(g => (g.gt * g.gt).toInt64()).sum().toInt32()",
+                        "nCalled" -> "AGG.filter(g => isDefined(g.gt)).count().toInt32()")
       .filterRowsExpr("(va.AC > 0) && (va.AC < 2 * va.nCalled) && ((va.AC != va.nCalled) || (va.ACsq != va.nCalled))")
     
     val (nVariants, nSamples) = mt.count()

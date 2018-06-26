@@ -263,15 +263,15 @@ class TableSuite extends SparkSuite {
     val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
     val kt2 = kt1.aggregateByKey(
-      """{ A : AGG.map(r => r.field2).sum()
-        |, B : AGG.map(r => r.field2).sum()
-        |, C : AGG.map(r => r.field2 + r.field3).sum()
+      """{ A : AGG.map(r => r.field2.toInt64()).sum().toInt32()
+        |, B : AGG.map(r => r.field2.toInt64()).sum().toInt32()
+        |, C : AGG.map(r => (r.field2 + r.field3).toInt64()).sum().toInt32()
         |, D : AGG.count()
         |, E : AGG.filter(r => r.field2 == 3).count()
         |}""".stripMargin,
-      "A = AGG.map(r => r.field2).sum(), " +
-      "B = AGG.map(r => r.field2).sum(), " +
-      "C = AGG.map(r => r.field2 + r.field3).sum(), " +
+      "A = AGG.map(r => r.field2.toInt64()).sum().toInt32(), " +
+      "B = AGG.map(r => r.field2.toInt64()).sum().toInt32(), " +
+      "C = AGG.map(r => (r.field2 + r.field3).toInt64()).sum().toInt32(), " +
       "D = AGG.count(), " +
       "E = AGG.filter(r => r.field2 == 3).count()"
     )

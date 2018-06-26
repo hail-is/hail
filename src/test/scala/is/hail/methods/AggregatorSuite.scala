@@ -18,7 +18,7 @@ class AggregatorSuite extends SparkSuite {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
       var vds2 = VariantQC(vds, "qc")
       vds2 = vds2
-        .annotateRowsExpr("oneHotAC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()")
+        .annotateRowsExpr("oneHotAC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles.length()).map(x => x.toInt64())).sum().map(x => x.toInt32())")
         .annotateRowsExpr("same" -> ("(AGG.filter(g => isDefined(g.GT)).count() == 0L) || " +
           "(va.oneHotAC[0] == va.qc.n_called * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.n_het + 2 * va.qc.n_hom_var)"))
       vds2.rowsTable().forall("row.same")
@@ -100,7 +100,7 @@ class AggregatorSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
       .annotateRowsExpr(
         "callStats" -> "AGG.map(g => g.GT).callStats(g => va.alleles.length)",
-          "AC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles)).sum()",
+          "AC" -> "AGG.map(g => g.GT.oneHotAlleles(va.alleles.length()).map(x => x.toInt64())).sum().map(x => x.toInt32())",
           "AN" -> "AGG.filter(g => isDefined(g.GT)).count() * 2L")
       .annotateRowsExpr("AF" -> "va.AC.map(x => x.toFloat64) / va.AN.toFloat64()")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
@@ -139,32 +139,6 @@ class AggregatorSuite extends SparkSuite {
     val va = vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va) == IndexedSeq[Any](11, null, 20))
     assert(qTakeBy(va) == IndexedSeq[Any](5, 20, 1))
-  }
-
-  @Test def testTransformations() {
-    val p = Prop.forAll(
-      for {
-        vds <- MatrixTable.gen(hc, VSMSubgen.random
-          .copy(sGen = _ => Gen.oneOf("a", "b")))
-          .filter(vds => vds.numCols > 0);
-        s <- Gen.choose(0, vds.numCols - 1)
-      } yield {
-        val s1 = vds.stringSampleIds(0)
-        assert(vds.aggregateCols(s"""AGG.map(r => if (r.s == "$s1") (NA : String) else r.s).map(x => 1).sum()""")._1 == vds.numCols)
-        assert(vds.aggregateCols("AGG.filter(r => true).map(id => 1).sum()")._1 == vds.numCols)
-        assert(vds.aggregateCols("AGG.filter(r => false).map(id => 1).sum()")._1 == 0)
-        assert(vds.aggregateCols("AGG.flatMap(g => [1]).sum()")._1 == vds.numCols)
-        assert(vds.aggregateCols("AGG.flatMap(g => [0][:0]).sum()")._1 == 0)
-        assert(vds.aggregateCols("AGG.flatMap(g => [1,2]).sum()")._1 == 3 * vds.numCols)
-        assert(vds.aggregateCols("AGG.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
-        assert(vds.aggregateCols("AGG.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.numCols)
-
-        vds.annotateRowsExpr("foo" -> s"""AGG.filter(g => sa.s == "$s1").map(g => 1).sum()""")
-          .rowsTable()
-          .forall("row.foo == 1")
-      })
-
-    p.check()
   }
 
   private def isLensedPrefix[T, K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
@@ -253,24 +227,6 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  private def runAggregatorExpression(expr: String, aggregableName: String, aggregableElementType: Type, aggregableValue: TraversableOnce[_]): Any = {
-    val ec = EvalContext(Map(aggregableName -> (0, TAggregable(aggregableElementType, Map("x" -> (0, aggregableElementType))))))
-
-    val compiledCode = Parser.parseToAST(expr, ec).compile().run(Seq(), ec)
-    val aggs = ec.aggregations.map { case (_, _, agg0) => agg0.copy() }
-    for (x <- aggregableValue) {
-      ec.a(0) = x
-      for ((_, transform, agg) <- ec.aggregations) {
-        transform(agg.seqOp)
-      }
-    }
-    for ((resultBox, _, agg) <- ec.aggregations) {
-      resultBox.v = agg.result
-    }
-
-    compiledCode()
-  }
-
   private val na = null
 
   private def doubleSeqEq(xs: Seq[java.lang.Double], ys: Seq[java.lang.Double]) =
@@ -284,63 +240,6 @@ class AggregatorSuite extends SparkSuite {
       case (x, y) => x == y
     }
 
-  @Test def testExistsForAll() {
-    val gs = Array(7, 6, 3, na, 1, 2, na, 4, 5, -1)
-
-    assert(runAggregatorExpression("AGG.exists(x => x < 0)", "AGG", TInt32(), gs) == true)
-    assert(runAggregatorExpression("AGG.exists(x => x < -2)", "AGG", TInt32(), gs) == false)
-
-    assert(runAggregatorExpression("AGG.forall(x => isMissing(x) || x.abs() < 10)", "AGG", TInt32(), gs) == true)
-    assert(runAggregatorExpression("AGG.forall(x => x > -2)", "AGG", TInt32(), gs) == false) // because missing
-  }
-
-  @Test def takeByNAIsAlwaysLast() {
-    val inf = Double.PositiveInfinity
-    val nan = Double.NaN
-
-    val xs = Array(inf, -1.0, 1.0, 0.0, -inf, na, nan)
-
-    val ascending = runAggregatorExpression("xs.takeBy(x => x, 7)", "xs", TFloat64(), xs)
-      .asInstanceOf[IndexedSeq[java.lang.Double]]
-
-    assert(doubleSeqEq(ascending, IndexedSeq(-inf, -1.0, 0.0, 1.0, inf, nan, na)),
-      s"expected ascending sequence of `java.lang.Double`s, but got: $ascending")
-
-    val descending = runAggregatorExpression("xs.takeBy(x => -x, 7)", "xs", TFloat64(), xs)
-      .asInstanceOf[IndexedSeq[java.lang.Double]]
-
-    assert(doubleSeqEq(descending, IndexedSeq(inf, 1.0, 0.0, -1.0, -inf, nan, na)),
-      s"expected descending sequence of `java.lang.Double`s, but got: $descending")
-  }
-
-  @Test def takeByIntExampleFromDocsIsCorrect() {
-    val gs = Array(7, 6, 3, na, 1, 2, na, 4, 5, -1)
-
-    {
-      val result = runAggregatorExpression("AGG.takeBy(x => x, 5)", "AGG", TInt32(), gs)
-        .asInstanceOf[IndexedSeq[java.lang.Integer]]
-      assert(result == IndexedSeq(-1, 1, 2, 3, 4))
-    }
-
-    {
-      val result = runAggregatorExpression("AGG.takeBy(x => -x, 5)", "AGG", TInt32(), gs)
-        .asInstanceOf[IndexedSeq[java.lang.Integer]]
-      assert(result == IndexedSeq(7, 6, 5, 4, 3))
-    }
-
-    {
-      val result = runAggregatorExpression("AGG.takeBy(x => x, 10)", "AGG", TInt32(), gs)
-        .asInstanceOf[IndexedSeq[java.lang.Integer]]
-      assert(result == IndexedSeq(-1, 1, 2, 3, 4, 5, 6, 7, na, na))
-    }
-  }
-
-  @Test def takeByMoreThanExist() {
-    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt32(), Array(0, 1, 2))
-      .asInstanceOf[IndexedSeq[java.lang.Integer]]
-    assert(result == IndexedSeq(0, 1, 2))
-  }
-
   @Test def testCollectAsSet() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
@@ -351,7 +250,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testArraySumInt64() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.select("{foo : [row.idx]}", None, None)
+    assert(kt.select("{foo : [row.idx.toInt64()]}", None, None)
       .aggregate("AGG.map(r => r.foo).sum()")._1
       == Seq((0 until 100).sum))
   }

@@ -41,37 +41,4 @@ object CompilationHelp {
       }
     }).asInstanceOf[Code[Array[T]]]
 
-  def arrayOfWithConversion(elementType: Type, elements: IndexedSeq[Code[AnyRef]]): CM[Code[Array[AnyRef]]] =
-    loadElementsIntoArrayWithConversion(elementType, elements).map { loadElements =>
-      Code(Code.newArray[AnyRef](elements.length), loadElements) }
-
-  private def loadElementsIntoArrayWithConversion(elementType: Type, elements: IndexedSeq[Code[AnyRef]]): CM[Code[Array[AnyRef]]] = elementType match {
-    case t: TNumeric =>
-      CM.sequence(elements.asInstanceOf[IndexedSeq[Code[java.lang.Number]]]
-        .zipWithIndex
-        .map { case (x, i) =>
-          t.conv.to(x).map { convertedX =>
-            new Code[AnyRef] {
-              def emit(il: Growable[AbstractInsnNode]) {
-                il += new InsnNode(DUP)
-                i.emit(il)
-                convertedX.emit(il)
-                il += new InsnNode(classInfo[AnyRef].astoreOp)
-              }
-            }
-          }
-      }).map(x => toCodeFromIndexedSeq(x).asInstanceOf[Code[Array[AnyRef]]])
-    case _ =>
-      CM.ret(toCodeFromIndexedSeq(elements.zipWithIndex.map { case (x, i) =>
-        new Code[AnyRef] {
-          def emit(il: Growable[AbstractInsnNode]) {
-            il += new InsnNode(DUP)
-            i.emit(il)
-            x.emit(il)
-            il += new InsnNode(classInfo[AnyRef].astoreOp)
-          }
-        }
-      }).asInstanceOf[Code[Array[AnyRef]]])
-  }
-
 }

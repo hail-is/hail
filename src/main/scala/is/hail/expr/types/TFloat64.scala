@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.expr.DoubleNumericConversion
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
@@ -19,8 +18,6 @@ class TFloat64(override val required: Boolean) extends TNumeric {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("float64")
   }
-
-  val conv = DoubleNumericConversion
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
 

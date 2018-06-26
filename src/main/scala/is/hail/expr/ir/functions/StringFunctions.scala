@@ -43,6 +43,8 @@ object StringFunctions extends RegistryFunctions {
 
   def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
+  def index(s: String, i: Int): String = s.slice(i, i + 1)
+
   def registerAll(): Unit = {
     val thisClass = getClass
 
@@ -120,6 +122,8 @@ object StringFunctions extends RegistryFunctions {
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
     }
+
+    registerWrappedScalaFunction("[]", TString(), TInt32(), TString())(thisClass, "index")
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")

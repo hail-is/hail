@@ -78,306 +78,6 @@ object FunctionRegistry {
   def lookupFieldReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
     lookup(name, FieldType(typ +: typs: _*)).map(-_.retType)
 
-  def lookupField(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CM[Code[AnyRef]]] = {
-    import is.hail.expr.CM._
-
-    require(args.isEmpty)
-
-    val m = FunctionRegistry.lookup(name, FieldType(typ +: typs: _*))
-    m.map { f =>
-      (f match {
-        case f: UnaryFun[_, _] =>
-          AST.evalComposeCodeM(lhs)(CM.invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
-        case f: UnaryFunCode[t, u] =>
-          AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
-        case f: UnarySpecial[_, _] =>
-          // FIXME: don't thunk the argument
-          lhs.compile().flatMap(invokePrimitive1(x => f.asInstanceOf[(() => AnyRef) => AnyRef](() => x)))
-        case fn =>
-          throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
-      }).map(Code.checkcast(_)(f.retType.scalaClassTag))
-    }
-  }
-
-  def call(name: String, args: Seq[AST], argTypes: Seq[Type], rtTypConcrete: Option[Type] = None): CM[Code[AnyRef]] = {
-    import is.hail.expr.CM._
-
-    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*), rtTypConcrete)
-      .valueOr(x => fatal(x.message))
-
-    (m match {
-      case aggregator: Arity0Aggregator[_, _] =>
-        for (
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor());
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: Arity1Aggregator[_, u, _] =>
-        for (
-          ec <- ec();
-          u = args(1).run(ec)();
-
-          _ = (if (u == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(u.asInstanceOf[u]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: Arity3Aggregator[_, u, v, w, _] =>
-        for (
-          ec <- ec();
-          u = args(1).run(ec)();
-          v = args(2).run(ec)();
-          w = args(3).run(ec)();
-
-          _ = (if (u == null)
-            fatal(s"Argument 1 evaluated to missing in call to aggregator $name"));
-          _ = (if (v == null)
-            fatal(s"Argument 2 evaluated to missing in call to aggregator $name"));
-          _ = (if (w == null)
-            fatal(s"Argument 3 evaluated to missing in call to aggregator $name"));
-
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(
-            u.asInstanceOf[u],
-            v.asInstanceOf[v],
-            w.asInstanceOf[w]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: UnaryLambdaAggregator[t, u, v] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
-
-        for (
-          ec <- ec();
-          st <- currentSymbolTable();
-          (idx, localA) <- ecNewPosition();
-
-          bodyST = args(0).`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => st
-          };
-
-          bodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-              } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
-            res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.zipWithIndex.map { case ((name, (_, typ)), i) => (name, typ, i) }, ec);
-
-          g = (x: Any) => {
-            localA(idx) = x
-            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g));
-
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
-
-        for (
-          ec <- ec();
-          st <- currentSymbolTable();
-          (idx, localA) <- ecNewPosition();
-
-          bodyST = args(0).`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => st
-          };
-
-          bodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-              } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
-            res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (i, typ)) => (name, typ, i) }, ec);
-
-          g = (x: Any) => {
-            localA(idx) = x
-            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          v = args(2).run(ec)();
-
-          _ = (if (v == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g, v.asInstanceOf[v]));
-
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case f: UnaryFun[_, _] =>
-        AST.evalComposeCodeM(args(0))(invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
-      case f: UnarySpecial[_, _] =>
-        // FIXME: don't thunk the argument
-        args(0).compile().flatMap(invokePrimitive1(x => f.asInstanceOf[(() => AnyRef) => AnyRef](() => x)))
-      case f: BinaryFun[_, _, _] =>
-        AST.evalComposeCodeM(args(0), args(1))(invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
-      case f: BinarySpecial[_, _, _] => {
-        val g = ((x: AnyRef, y: AnyRef) =>
-          f.asInstanceOf[(() => AnyRef, () => AnyRef) => AnyRef](() => x, () => y))
-
-        for (
-          t <- args(0).compile();
-          u <- args(1).compile();
-          result <- invokePrimitive2(g)(t, u))
-          yield result
-      }
-      case f: BinaryLambdaFun[t, _, _] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
-        args(0).`type` match {
-          case tagg: TAggregable =>
-            if (!tagg.symTab.isEmpty)
-              throw new RuntimeException(s"found a non-empty symbol table in a taggregable: $tagg, $tagg.symTab, $name, $args, $argTypes")
-          case _ =>
-        }
-
-        val g = ((xs: AnyRef, lam: AnyRef) =>
-          f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
-
-        for (
-          lamc <- createLambda(param, paramType, body.compile());
-          res <- AST.evalComposeCodeM(args(0)) { xs =>
-            invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
-          }
-        ) yield res
-      case f: Arity3LambdaMethod[t, _, v, _] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
-        args(0).`type` match {
-          case tagg: TAggregable =>
-            if (!tagg.symTab.isEmpty)
-              throw new RuntimeException(s"found a non-empty symbol table in a taggregable: $tagg, $tagg.symTab, $name, $args, $argTypes")
-          case _ =>
-        }
-
-        val g = ((xs: AnyRef, lam: AnyRef, y: AnyRef) =>
-          f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
-
-        for (
-          lamc <- createLambda(param, paramType, body.compile());
-          res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
-            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
-          }
-        ) yield res
-      case f: Arity3LambdaFun[_, u, v, _] =>
-        val Lambda(_, param, body) = args(0)
-        val TFunction(Seq(paramType), _) = argTypes(0)
-
-        val g = ((lam: AnyRef, x: AnyRef, y: AnyRef) =>
-          f(lam.asInstanceOf[Any => Any], x.asInstanceOf[u], y.asInstanceOf[v]).asInstanceOf[AnyRef])
-
-        for (
-          lamc <- createLambda(param, paramType, body.compile());
-          res <- AST.evalComposeCodeM(args(1), args(2)) { (x, y) =>
-            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(lamc, x, y)
-          }
-        ) yield res
-      case f: Arity3Fun[_, _, _, _] =>
-        AST.evalComposeCodeM(args(0), args(1), args(2))(invokePrimitive3(f.asInstanceOf[(AnyRef, AnyRef, AnyRef) => AnyRef]))
-      case f: Arity3Special[_, _, _, _] => {
-        val g = ((x: AnyRef, y: AnyRef, z: AnyRef) =>
-          f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => x, () => y, () => z))
-
-        for (
-          t <- args(0).compile();
-          u <- args(1).compile();
-          v <- args(2).compile();
-          result <- invokePrimitive3(g)(t, u, v))
-          yield result
-      }
-      case f: Arity4Fun[_, _, _, _, _] =>
-        AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
-      case f: Arity5Fun[_, _, _, _, _, _] =>
-        AST.evalComposeCodeM(args(0), args(1), args(2), args(3), args(4))(invokePrimitive5(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
-      case f: UnaryFunCode[t, u] =>
-        AST.evalComposeCodeM[t](args(0))(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
-      case f: BinaryFunCode[t, u, v] =>
-        AST.evalComposeCodeM[t, u](args(0), args(1))(f.asInstanceOf[(Code[t], Code[u]) => CM[Code[AnyRef]]])
-      case f: BinarySpecialCode[t, u, v] => for (
-        a0 <- args(0).compile();
-        a1 <- args(1).compile();
-        result <- f(a0.asInstanceOf[Code[t]], a1.asInstanceOf[Code[u]]))
-        yield result.asInstanceOf[Code[AnyRef]]
-      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
-        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${ argTypes.mkString(",") }) in non-aggregator position")
-      case f: Arity6Special[_, _, _, _, _, _, _] => {
-        val g = ((t: AnyRef, u: AnyRef, v: AnyRef, w: AnyRef, x: AnyRef, y: AnyRef) =>
-          f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => t, () => u, () => v, () => w, () => x, () => y))
-
-        for (
-          t <- args(0).compile();
-          u <- args(1).compile();
-          v <- args(2).compile();
-          w <- args(3).compile();
-          x <- args(4).compile();
-          y <- args(5).compile();
-          result <- invokePrimitive6(g)(t, u, v, w, x, y))
-          yield result
-      }
-      case x =>
-        throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${ x.getClass } $x")
-    }).map(Code.checkcast(_)(m.retType.scalaClassTag))
-  }
-
-  def callAggregatorTransformation(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): CMCodeCPS[AnyRef] = {
-    import is.hail.expr.CM._
-
-    require(typs.length == args.length)
-
-    val m = FunctionRegistry.lookup(name, MethodType(typ +: typs: _*))
-      .valueOr(x => fatal(x.message))
-
-    m match {
-      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
-        val Lambda(_, param, body) = args(0)
-        val TFunction(Seq(paramType), _) = typs(0)
-
-      { (k: Code[AnyRef] => CM[Code[Unit]]) =>
-        for (
-          st <- currentSymbolTable();
-
-          bodyST = lhs.`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => st
-          };
-
-          fb <- fb();
-
-          externalBindings = bodyST.toSeq.map { case (name, (i, typ)) =>
-            (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-          };
-
-          g = { (_x: Code[AnyRef]) =>
-            for (
-              (stx, x) <- memoize(_x);
-              bindings = externalBindings :+ ((param, paramType, ret(x)));
-              cbody <- bindRepInRaw(bindings)(body.compile())
-            ) yield Code(stx, cbody)
-          }: (Code[AnyRef] => CM[Code[AnyRef]]);
-
-          res <- lhs.compileAggregator() { (t: Code[AnyRef]) =>
-            f.fcode(t, g)(k)
-          }
-        ) yield res
-      }
-      case _ =>
-        throw new RuntimeException(s"Internal hail error, non-aggregator transformation, `$name' with argument types $typ, $typs, found in aggregator position")
-    }
-  }
-
   def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
     lookup(name, MethodType(typ +: typs: _*)).map(-_.retType)
 
@@ -386,182 +86,178 @@ object FunctionRegistry {
 
   def registerField[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FieldType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+    bind(name, FieldType(hrt.typ), UnaryFun[T, U](hru.typ))
   }
 
   def registerFieldCode[T, U](name: String, impl: (Code[T]) => CM[Code[U]])
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FieldType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl))
+    bind(name, FieldType(hrt.typ), UnaryFunCode[T, U](hru.typ))
   }
 
   def registerMethod[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+    bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ))
   }
 
   def registerMethodCode[T, U](name: String, impl: (Code[T]) => CM[Code[U]])
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)))
+    bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ))
   }
 
   def registerMethodDependent[T, U](name: String, impl: () => T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnaryDependentFun[T, U](hru.typ, impl))
+    bind(name, MethodType(hrt.typ), UnaryDependentFun[T, U](hru.typ))
   }
 
   def registerMethodSpecial[T, U](name: String, impl: (() => Any) => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnarySpecial[T, U](hru.typ, impl))
+    bind(name, MethodType(hrt.typ), UnarySpecial[T, U](hru.typ))
   }
 
   def registerMethod[T, U, V](name: String, impl: (T, U) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ))
   }
 
   def registerMethodDependent[T, U, V](name: String, impl: () => (T, U) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ))
   }
 
   def registerMethodCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ))
   }
 
   def registerMethodSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ))
   }
 
   def registerLambdaMethod[T, U, V](name: String, impl: (T, (Any) => Any) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    val m = BinaryLambdaFun[T, U, V](hrv.typ, impl)
+    val m = BinaryLambdaFun[T, U, V](hrv.typ)
     bind(name, MethodType(hrt.typ, hru.typ), m)
   }
 
   def registerLambdaMethod[T, U, V, W](name: String, impl: (T, (Any) => Any, V) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    val m = Arity3LambdaMethod[T, U, V, W](hrw.typ, impl)
+    val m = Arity3LambdaMethod[T, U, V, W](hrw.typ)
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m)
   }
 
   def registerLambda[T, U, V, W](name: String, impl: ((Any) => Any, U, V) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    val m = Arity3LambdaFun[T, U, V, W](hrw.typ, impl)
+    val m = Arity3LambdaFun[T, U, V, W](hrw.typ)
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ), m)
   }
 
   def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V],
     codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl, codeImpl)
+    val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ)
     bind(name, MethodType(hrt.typ, hru.typ), m)
   }
 
   def registerMethod[T, U, V, W](name: String, impl: (T, U, V) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ))
   }
 
   def register[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ))
   }
 
   def registerCode[T, U](name: String, impl: Code[T] => CM[Code[U]])
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ))
   }
 
   def registerDependentCode[T, U](name: String, impl: () => Code[T] => CM[Code[U]])
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ))
   }
 
   def registerDependent[T, U](name: String, impl: () => T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnaryDependentFun[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnaryDependentFun[T, U](hru.typ))
   }
 
   def registerSpecial[T, U](name: String, impl: (() => Any) => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ))
   }
 
   def registerUnaryNAFilteredCollectionMethod[T, U](name: String, impl: TraversableOnce[T] => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(TArray(hrt.typ)), UnaryFun[IndexedSeq[_], U](hru.typ, { (ts: IndexedSeq[_]) =>
-      impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
-    }))
-    bind(name, MethodType(TSet(hrt.typ)), UnaryFun[Set[_], U](hru.typ, { (ts: Set[_]) =>
-      impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
-    }))
+    bind(name, MethodType(TArray(hrt.typ)), UnaryFun[IndexedSeq[_], U](hru.typ))
+    bind(name, MethodType(TSet(hrt.typ)), UnaryFun[Set[_], U](hru.typ))
   }
 
   def register[T, U, V](name: String, impl: (T, U) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ))
   }
 
   def registerCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ))
   }
 
   def registerSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ))
   }
 
   def registerSpecialCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinarySpecialCode[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinarySpecialCode[T, U, V](hrv.typ))
   }
 
   def registerDependent[T, U, V](name: String, impl: () => (T, U) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ))
   }
 
   def register[T, U, V, W](name: String, impl: (T, U, V) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ))
   }
 
   def registerSpecial[T, U, V, W](name: String, impl: (() => Any, () => Any, () => Any) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Special[T, U, V, W](hrw.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Special[T, U, V, W](hrw.typ))
   }
 
   def registerDependent[T, U, V, W](name: String, impl: () => (T, U, V) => W)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3DependentFun[T, U, V, W](hrw.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3DependentFun[T, U, V, W](hrw.typ))
   }
 
   def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ))
   }
 
   def registerDependent[T, U, V, W, X](name: String, impl: () => (T, U, V, W) => X)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4DependentFun[T, U, V, W, X](hrx.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4DependentFun[T, U, V, W, X](hrx.typ))
   }
 
   def registerSpecial[T, U, V, W, X, Y, Z](name: String, impl: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y], hrz: HailRep[Z]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity6Special[T, U, V, W, X, Y, Z](hrz.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity6Special[T, U, V, W, X, Y, Z](hrz.typ))
   }
 
   def register[T, U, V, W, X, Y](name: String, impl: (T, U, V, W, X) => Y)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5Fun[T, U, V, W, X, Y](hry.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5Fun[T, U, V, W, X, Y](hry.typ))
   }
 
   def registerDependent[T, U, V, W, X, Y](name: String, impl: () => (T, U, V, W, X) => Y)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5DependentFun[T, U, V, W, X, Y](hry.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5DependentFun[T, U, V, W, X, Y](hry.typ))
   }
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation)
@@ -601,42 +297,42 @@ object FunctionRegistry {
 
   def registerAggregator[T, U](name: String, ctor: () => TypedAggregator[U])
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), Arity0Aggregator[T, U](hru.typ, ctor))
+    bind(name, MethodType(hrt.typ), Arity0Aggregator[T, U](hru.typ))
   }
 
   def registerDependentAggregator[T, U](name: String, ctor: () => (() => TypedAggregator[U]))
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), Arity0DependentAggregator[T, U](hru.typ, ctor))
+    bind(name, MethodType(hrt.typ), Arity0DependentAggregator[T, U](hru.typ))
   }
 
   def registerLambdaAggregator[T, U, V](name: String, ctor: ((Any) => Any) => TypedAggregator[V])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), UnaryLambdaAggregator[T, U, V](hrv.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ), UnaryLambdaAggregator[T, U, V](hrv.typ))
   }
 
   def registerLambdaAggregator[T, U, V, W](name: String, ctor: ((Any) => Any, V) => TypedAggregator[W])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryLambdaAggregator[T, U, V, W](hrw.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryLambdaAggregator[T, U, V, W](hrw.typ))
   }
 
   def registerDependentLambdaAggregator[T, U, V, W](name: String, ctor: () => (((Any) => Any, V) => TypedAggregator[W]))
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryDependentLambdaAggregator[T, U, V, W](hrw.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryDependentLambdaAggregator[T, U, V, W](hrw.typ))
   }
 
   def registerAggregator[T, U, V](name: String, ctor: (U) => TypedAggregator[V])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), Arity1Aggregator[T, U, V](hrv.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ), Arity1Aggregator[T, U, V](hrv.typ))
   }
 
   def registerDependentAggregator[T, U, V](name: String, ctor: () => ((U) => TypedAggregator[V]))
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), Arity1DependentAggregator[T, U, V](hrv.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ), Arity1DependentAggregator[T, U, V](hrv.typ))
   }
 
   def registerAggregator[T, U, V, W, X](name: String, ctor: (U, V, W) => TypedAggregator[X])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity3Aggregator[T, U, V, W, X](hrx.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity3Aggregator[T, U, V, W, X](hrx.typ))
   }
 
   val TT = TVariable("T")
@@ -677,7 +373,7 @@ object FunctionRegistry {
   registerMethod("nNonRefAlleles", { (c: Call) => Call.nNonRefAlleles(c) })(callHr, int32Hr)
   registerMethod("unphasedDiploidGtIndex", { (c: Call) => Call.unphasedDiploidGtIndex(c) })(callHr, int32Hr)
   registerMethod("[]", (c: Call, i: Int) => Call.alleleByIndex(c, i))(callHr, int32Hr, int32Hr)
-  registerMethod("oneHotAlleles", { (c: Call, alleles: IndexedSeq[String]) => Call.oneHotAlleles(c, alleles.length) })(callHr, arrayHr(stringHr), arrayHr(int32Hr))
+  registerMethod("oneHotAlleles", { (c: Call, nAlleles: Int) => Call.oneHotAlleles(c, nAlleles) })(callHr, int32Hr, arrayHr(int32Hr))
 
   register("min_rep", { (l: Locus, a: IndexedSeq[String]) =>
     val (newLocus, newAlleles) = VariantMethods.minRep(l, a)

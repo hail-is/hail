@@ -324,9 +324,7 @@ object PruneDeadFields {
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _, _) =>
       case MatrixLiteral(typ, value) =>
-      case FilterCols(child, cond) =>
-        memoizeMatrixIR(child, child.typ, memo)
-      case MatrixFilterRowsAST(child, cond) =>
+      case FilterColsIR(child, cond) =>
         memoizeMatrixIR(child, child.typ, memo)
       case ChooseCols(child, oldIndices) =>
         memoizeMatrixIR(child, requestedType, memo)
