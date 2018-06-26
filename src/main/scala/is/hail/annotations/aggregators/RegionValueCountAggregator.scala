@@ -17,7 +17,13 @@ class RegionValueCountAggregator extends RegionValueAggregator {
     rvb.addLong(count)
   }
 
-  def copy(): RegionValueCountAggregator = new RegionValueCountAggregator()
+  def newInstance(): RegionValueCountAggregator = new RegionValueCountAggregator()
+
+  def copy: RegionValueCountAggregator = {
+    val rva = new RegionValueCountAggregator()
+    rva.count = count
+    rva
+  }
 
   def clear() {
     count = 0

@@ -5,7 +5,7 @@ import is.hail.expr.types.{TBaseStruct, Type}
 import is.hail.utils._
 
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
-  private val ab = new MissingBooleanArrayBuilder()
+  private var ab = new MissingBooleanArrayBuilder()
 
   def seqOp(region: Region, b: Boolean, missing: Boolean) {
     if (missing)
@@ -27,7 +27,13 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
+  def newInstance(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
+
+  def copy(): RegionValueCollectBooleanAggregator = {
+    val rva = new RegionValueCollectBooleanAggregator()
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()
@@ -35,7 +41,7 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectIntAggregator extends RegionValueAggregator {
-  private val ab = new MissingIntArrayBuilder()
+  private var ab = new MissingIntArrayBuilder()
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
     if (missing)
@@ -57,7 +63,13 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
+  def newInstance(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
+
+  def copy(): RegionValueCollectIntAggregator = {
+    val rva = new RegionValueCollectIntAggregator()
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()
@@ -65,7 +77,7 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectLongAggregator extends RegionValueAggregator {
-  private val ab = new MissingLongArrayBuilder()
+  private var ab = new MissingLongArrayBuilder()
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (missing)
@@ -87,7 +99,13 @@ class RegionValueCollectLongAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectLongAggregator = new RegionValueCollectLongAggregator()
+  def newInstance(): RegionValueCollectLongAggregator = new RegionValueCollectLongAggregator()
+
+  def copy(): RegionValueCollectLongAggregator = {
+    val rva = new RegionValueCollectLongAggregator()
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()
@@ -95,7 +113,7 @@ class RegionValueCollectLongAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectFloatAggregator extends RegionValueAggregator {
-  private val ab = new MissingFloatArrayBuilder()
+  private var ab = new MissingFloatArrayBuilder()
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
     if (missing)
@@ -117,7 +135,13 @@ class RegionValueCollectFloatAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectFloatAggregator = new RegionValueCollectFloatAggregator()
+  def newInstance(): RegionValueCollectFloatAggregator = new RegionValueCollectFloatAggregator()
+
+  def copy(): RegionValueCollectFloatAggregator = {
+    val rva = new RegionValueCollectFloatAggregator()
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()
@@ -125,7 +149,7 @@ class RegionValueCollectFloatAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
-  private val ab = new MissingDoubleArrayBuilder()
+  private var ab = new MissingDoubleArrayBuilder()
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (missing)
@@ -147,7 +171,13 @@ class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
     ab.write(rvb)
   }
 
-  def copy(): RegionValueCollectDoubleAggregator = new RegionValueCollectDoubleAggregator()
+  def newInstance(): RegionValueCollectDoubleAggregator = new RegionValueCollectDoubleAggregator()
+
+  def copy(): RegionValueCollectDoubleAggregator = {
+    val rva = new RegionValueCollectDoubleAggregator()
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()
@@ -155,7 +185,7 @@ class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggregator {
-  private val ab = new MissingAnnotationArrayBuilder()
+  private var ab = new MissingAnnotationArrayBuilder()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)
@@ -177,7 +207,13 @@ class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggrega
     ab.write(rvb, t)
   }
 
-  def copy(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
+  def newInstance(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
+
+  def copy(): RegionValueCollectAnnotationAggregator = {
+    val rva = new RegionValueCollectAnnotationAggregator(t)
+    rva.ab = ab.clone()
+    rva
+  }
 
   def clear() {
     ab.clear()

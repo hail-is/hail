@@ -21,7 +21,7 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
 
   var nSmaller = 0L
   var nLarger = 0L
-  val frequency = Array.fill(indices.length - 1)(0L)
+  var frequency = Array.fill(indices.length - 1)(0L)
 
   def merge(d: Double): HistogramCombiner = {
     if (d < min)
@@ -62,5 +62,13 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
     nSmaller = 0L
     nLarger = 0L
     util.Arrays.fill(frequency, 0L)
+  }
+
+  def copy(): HistogramCombiner = {
+    val c = new HistogramCombiner(indices)
+    c.nSmaller = nSmaller
+    c.nLarger = nLarger
+    c.frequency = frequency.clone()
+    c
   }
 }

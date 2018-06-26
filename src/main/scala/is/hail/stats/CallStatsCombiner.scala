@@ -23,8 +23,8 @@ case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[Index
 }
 
 class CallStatsCombiner(val nAlleles: Int) extends Serializable {
-  val alleleCount = new Array[Int](nAlleles)
-  val homozygoteCount = new Array[Int](nAlleles)
+  var alleleCount = new Array[Int](nAlleles)
+  var homozygoteCount = new Array[Int](nAlleles)
 
   def merge(c: Call): CallStatsCombiner = {
     (Call.ploidy(c): @switch) match {
@@ -85,5 +85,12 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
     cstats.homCount.foreach(rvb.addInt _)
     rvb.endArray()
     rvb.endStruct()
+  }
+
+  def copy(): CallStatsCombiner = {
+    val c = new CallStatsCombiner(nAlleles)
+    c.alleleCount = alleleCount.clone()
+    c.homozygoteCount = homozygoteCount.clone()
+    c
   }
 }

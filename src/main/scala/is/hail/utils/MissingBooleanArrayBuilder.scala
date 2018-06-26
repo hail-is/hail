@@ -4,10 +4,10 @@ import is.hail.expr.types._
 import is.hail.annotations._
 import scala.collection.mutable
 
-class MissingBooleanArrayBuilder {
+class MissingBooleanArrayBuilder extends Serializable {
   private var len = 0
-  private val elements = new mutable.BitSet()
-  private val isMissing = new mutable.BitSet()
+  private var elements = new mutable.BitSet()
+  private var isMissing = new mutable.BitSet()
 
   def addMissing() {
     isMissing.add(len)
@@ -52,5 +52,13 @@ class MissingBooleanArrayBuilder {
     len = 0
     elements.clear()
     isMissing.clear()
+  }
+
+  override def clone(): MissingBooleanArrayBuilder = {
+    val ab = new MissingBooleanArrayBuilder()
+    ab.len = len
+    ab.elements = elements.clone()
+    ab.isMissing = isMissing.clone()
+    ab
   }
 }

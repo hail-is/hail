@@ -42,7 +42,13 @@ class RegionValueStatisticsAggregator extends RegionValueAggregator {
     }
   }
 
-  def copy() = new RegionValueStatisticsAggregator()
+  def newInstance() = new RegionValueStatisticsAggregator()
+
+  def copy(): RegionValueStatisticsAggregator = {
+    val rva = new RegionValueStatisticsAggregator()
+    rva.sc = sc.copy()
+    rva
+  }
 
   def clear() {
     sc = new StatCounter()

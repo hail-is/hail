@@ -28,7 +28,14 @@ class RegionValueMaxBooleanAggregator extends RegionValueAggregator {
       rvb.addBoolean(max)
   }
 
-  def copy(): RegionValueMaxBooleanAggregator = new RegionValueMaxBooleanAggregator()
+  def newInstance(): RegionValueMaxBooleanAggregator = new RegionValueMaxBooleanAggregator()
+  
+  def copy(): RegionValueMaxBooleanAggregator = {
+    val rva = new RegionValueMaxBooleanAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
 
   def clear() {
     max = false
@@ -62,8 +69,15 @@ class RegionValueMaxIntAggregator extends RegionValueAggregator {
       rvb.addInt(max)
   }
 
-  def copy(): RegionValueMaxIntAggregator = new RegionValueMaxIntAggregator()
+  def newInstance(): RegionValueMaxIntAggregator = new RegionValueMaxIntAggregator()
 
+  def copy(): RegionValueMaxIntAggregator = {
+    val rva = new RegionValueMaxIntAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0
     empty = true
@@ -96,8 +110,15 @@ class RegionValueMaxLongAggregator extends RegionValueAggregator {
       rvb.addLong(max)
   }
 
-  def copy(): RegionValueMaxLongAggregator = new RegionValueMaxLongAggregator()
+  def newInstance(): RegionValueMaxLongAggregator = new RegionValueMaxLongAggregator()
 
+  def copy(): RegionValueMaxLongAggregator = {
+    val rva = new RegionValueMaxLongAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0L
     empty = true
@@ -130,8 +151,15 @@ class RegionValueMaxFloatAggregator extends RegionValueAggregator {
       rvb.addFloat(max)
   }
 
-  def copy(): RegionValueMaxFloatAggregator = new RegionValueMaxFloatAggregator()
+  def newInstance(): RegionValueMaxFloatAggregator = new RegionValueMaxFloatAggregator()
 
+  def copy(): RegionValueMaxFloatAggregator = {
+    val rva = new RegionValueMaxFloatAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0.0f
     empty = true
@@ -164,8 +192,15 @@ class RegionValueMaxDoubleAggregator extends RegionValueAggregator {
       rvb.addDouble(max)
   }
 
-  def copy(): RegionValueMaxDoubleAggregator = new RegionValueMaxDoubleAggregator()
+  def newInstance(): RegionValueMaxDoubleAggregator = new RegionValueMaxDoubleAggregator()
 
+  def copy(): RegionValueMaxDoubleAggregator = {
+    val rva = new RegionValueMaxDoubleAggregator()
+    rva.max = max
+    rva.empty = empty
+    rva
+  }
+  
   def clear() {
     max = 0.0
     empty = true

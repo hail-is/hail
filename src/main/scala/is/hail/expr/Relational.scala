@@ -982,7 +982,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           while (i < nCols) {
             var j = 0
             while (j < nAggs) {
-              colRVAggs(i * nAggs + j) = rvAggs(j).copy()
+              colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
               j += 1
             }
             i += 1
@@ -1185,7 +1185,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
     while (i < nKeys) {
       var j = 0
       while (j < nAggs) {
-        colRVAggs(i * nAggs + j) = rvAggs(j).copy()
+        colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
         j += 1
       }
       i += 1
@@ -1603,7 +1603,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     while (i < localNCols) {
       var j = 0
       while (j < nAggs) {
-        colRVAggs(i * nAggs + j) = rvAggs(j).copy()
+        colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
         j += 1
       }
       i += 1

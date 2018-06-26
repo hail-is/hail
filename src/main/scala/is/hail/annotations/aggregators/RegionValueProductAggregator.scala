@@ -18,7 +18,13 @@ class RegionValueProductLongAggregator extends RegionValueAggregator {
     rvb.addLong(product)
   }
 
-  def copy(): RegionValueProductLongAggregator = new RegionValueProductLongAggregator()
+  def newInstance(): RegionValueProductLongAggregator = new RegionValueProductLongAggregator()
+
+  def copy(): RegionValueProductLongAggregator = {
+    val rva = new RegionValueProductLongAggregator()
+    rva.product = product
+    rva
+  }
 
   def clear() {
     product = 1L
@@ -41,7 +47,13 @@ class RegionValueProductDoubleAggregator extends RegionValueAggregator {
     rvb.addDouble(product)
   }
 
-  def copy(): RegionValueProductDoubleAggregator = new RegionValueProductDoubleAggregator()
+  def newInstance(): RegionValueProductDoubleAggregator = new RegionValueProductDoubleAggregator()
+
+  def copy(): RegionValueProductDoubleAggregator = {
+    val rva = new RegionValueProductDoubleAggregator()
+    rva.product = product
+    rva
+  }
 
   def clear() {
     product = 1.0

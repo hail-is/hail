@@ -23,7 +23,7 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
 
   private val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
 
-  private val combiner = new HistogramCombiner(indices)
+  private var combiner = new HistogramCombiner(indices)
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (!missing)
@@ -47,7 +47,13 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
     rvb.endStruct()
   }
 
-  def copy() = new RegionValueHistogramAggregator(start, end, bins)
+  def newInstance() = new RegionValueHistogramAggregator(start, end, bins)
+
+  override def copy(): RegionValueHistogramAggregator = {
+    val rva = new RegionValueHistogramAggregator(start, end, bins)
+    rva.combiner = combiner.copy()
+    rva
+  }
 
   def clear() {
     combiner.clear()

@@ -301,7 +301,7 @@ object TestUtils {
             i += 1
           }
 
-          val rvAggs2 = rvAggs.map(_.copy())
+          val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
           initOps()(region, rvAggs2, argsOff, false)
           while (i < aggElements.length) {

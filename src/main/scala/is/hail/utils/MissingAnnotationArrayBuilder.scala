@@ -5,10 +5,10 @@ import is.hail.expr.types.Type
 
 import scala.collection.mutable
 
-class MissingAnnotationArrayBuilder extends Serializable{
+class MissingAnnotationArrayBuilder extends Serializable {
   private var len = 0
-  private val elements = new ArrayBuilder[Annotation]()
-  private val isMissing = new mutable.BitSet()
+  private var elements = new ArrayBuilder[Annotation]()
+  private var isMissing = new mutable.BitSet()
 
   def addMissing() {
     isMissing.add(len)
@@ -56,5 +56,13 @@ class MissingAnnotationArrayBuilder extends Serializable{
     len = 0
     elements.clear()
     isMissing.clear()
+  }
+
+  override def clone(): MissingAnnotationArrayBuilder = {
+    val ab = new MissingAnnotationArrayBuilder()
+    ab.len = len
+    ab.elements = elements.clone()
+    ab.isMissing = isMissing.clone()
+    ab
   }
 }

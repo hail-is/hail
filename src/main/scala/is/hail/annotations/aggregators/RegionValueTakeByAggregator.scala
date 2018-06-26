@@ -34,7 +34,13 @@ class RegionValueTakeByAggregator(n: Int, aggType: Type, keyType: Type) extends 
     rvb.endArray()
   }
 
-  override def copy(): RegionValueTakeByAggregator = new RegionValueTakeByAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAggregator = new RegionValueTakeByAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAggregator = {
+    val rva = new RegionValueTakeByAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 
   override def clear() {
     _state.clear()
@@ -46,7 +52,13 @@ class RegionValueTakeByBooleanBooleanAggregator(n: Int, aggType: Type, keyType: 
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByBooleanBooleanAggregator = new RegionValueTakeByBooleanBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanBooleanAggregator = new RegionValueTakeByBooleanBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanBooleanAggregator = {
+    val rva = new RegionValueTakeByBooleanBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByBooleanIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -54,7 +66,13 @@ class RegionValueTakeByBooleanIntAggregator(n: Int, aggType: Type, keyType: Type
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByBooleanIntAggregator = new RegionValueTakeByBooleanIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanIntAggregator = new RegionValueTakeByBooleanIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanIntAggregator = {
+    val rva = new RegionValueTakeByBooleanIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByBooleanLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -62,7 +80,13 @@ class RegionValueTakeByBooleanLongAggregator(n: Int, aggType: Type, keyType: Typ
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByBooleanLongAggregator = new RegionValueTakeByBooleanLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanLongAggregator = new RegionValueTakeByBooleanLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanLongAggregator = {
+    val rva = new RegionValueTakeByBooleanLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByBooleanFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -70,7 +94,13 @@ class RegionValueTakeByBooleanFloatAggregator(n: Int, aggType: Type, keyType: Ty
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByBooleanFloatAggregator = new RegionValueTakeByBooleanFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanFloatAggregator = new RegionValueTakeByBooleanFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanFloatAggregator = {
+    val rva = new RegionValueTakeByBooleanFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByBooleanDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -78,7 +108,13 @@ class RegionValueTakeByBooleanDoubleAggregator(n: Int, aggType: Type, keyType: T
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByBooleanDoubleAggregator = new RegionValueTakeByBooleanDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanDoubleAggregator = new RegionValueTakeByBooleanDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanDoubleAggregator = {
+    val rva = new RegionValueTakeByBooleanDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByBooleanAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -86,7 +122,13 @@ class RegionValueTakeByBooleanAnnotationAggregator(n: Int, aggType: Type, keyTyp
     seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByBooleanAnnotationAggregator = new RegionValueTakeByBooleanAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByBooleanAnnotationAggregator = new RegionValueTakeByBooleanAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByBooleanAnnotationAggregator = {
+    val rva = new RegionValueTakeByBooleanAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -94,7 +136,13 @@ class RegionValueTakeByIntBooleanAggregator(n: Int, aggType: Type, keyType: Type
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByIntBooleanAggregator = new RegionValueTakeByIntBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntBooleanAggregator = new RegionValueTakeByIntBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntBooleanAggregator = {
+    val rva = new RegionValueTakeByIntBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -102,7 +150,13 @@ class RegionValueTakeByIntIntAggregator(n: Int, aggType: Type, keyType: Type) ex
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByIntIntAggregator = new RegionValueTakeByIntIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntIntAggregator = new RegionValueTakeByIntIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntIntAggregator = {
+    val rva = new RegionValueTakeByIntIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -110,7 +164,13 @@ class RegionValueTakeByIntLongAggregator(n: Int, aggType: Type, keyType: Type) e
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByIntLongAggregator = new RegionValueTakeByIntLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntLongAggregator = new RegionValueTakeByIntLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntLongAggregator = {
+    val rva = new RegionValueTakeByIntLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -118,7 +178,13 @@ class RegionValueTakeByIntFloatAggregator(n: Int, aggType: Type, keyType: Type) 
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByIntFloatAggregator = new RegionValueTakeByIntFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntFloatAggregator = new RegionValueTakeByIntFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntFloatAggregator = {
+    val rva = new RegionValueTakeByIntFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -126,7 +192,13 @@ class RegionValueTakeByIntDoubleAggregator(n: Int, aggType: Type, keyType: Type)
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByIntDoubleAggregator = new RegionValueTakeByIntDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntDoubleAggregator = new RegionValueTakeByIntDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntDoubleAggregator = {
+    val rva = new RegionValueTakeByIntDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByIntAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -134,7 +206,13 @@ class RegionValueTakeByIntAnnotationAggregator(n: Int, aggType: Type, keyType: T
     seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByIntAnnotationAggregator = new RegionValueTakeByIntAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByIntAnnotationAggregator = new RegionValueTakeByIntAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByIntAnnotationAggregator = {
+    val rva = new RegionValueTakeByIntAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -142,7 +220,13 @@ class RegionValueTakeByLongBooleanAggregator(n: Int, aggType: Type, keyType: Typ
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByLongBooleanAggregator = new RegionValueTakeByLongBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongBooleanAggregator = new RegionValueTakeByLongBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongBooleanAggregator = {
+    val rva = new RegionValueTakeByLongBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -150,7 +234,13 @@ class RegionValueTakeByLongIntAggregator(n: Int, aggType: Type, keyType: Type) e
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByLongIntAggregator = new RegionValueTakeByLongIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongIntAggregator = new RegionValueTakeByLongIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongIntAggregator = {
+    val rva = new RegionValueTakeByLongIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -158,7 +248,13 @@ class RegionValueTakeByLongLongAggregator(n: Int, aggType: Type, keyType: Type) 
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByLongLongAggregator = new RegionValueTakeByLongLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongLongAggregator = new RegionValueTakeByLongLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongLongAggregator = {
+    val rva = new RegionValueTakeByLongLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -166,7 +262,13 @@ class RegionValueTakeByLongFloatAggregator(n: Int, aggType: Type, keyType: Type)
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByLongFloatAggregator = new RegionValueTakeByLongFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongFloatAggregator = new RegionValueTakeByLongFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongFloatAggregator = {
+    val rva = new RegionValueTakeByLongFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -174,7 +276,13 @@ class RegionValueTakeByLongDoubleAggregator(n: Int, aggType: Type, keyType: Type
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByLongDoubleAggregator = new RegionValueTakeByLongDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongDoubleAggregator = new RegionValueTakeByLongDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongDoubleAggregator = {
+    val rva = new RegionValueTakeByLongDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByLongAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -182,7 +290,13 @@ class RegionValueTakeByLongAnnotationAggregator(n: Int, aggType: Type, keyType: 
     seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByLongAnnotationAggregator = new RegionValueTakeByLongAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByLongAnnotationAggregator = new RegionValueTakeByLongAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByLongAnnotationAggregator = {
+    val rva = new RegionValueTakeByLongAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -190,7 +304,13 @@ class RegionValueTakeByFloatBooleanAggregator(n: Int, aggType: Type, keyType: Ty
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByFloatBooleanAggregator = new RegionValueTakeByFloatBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatBooleanAggregator = new RegionValueTakeByFloatBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatBooleanAggregator = {
+    val rva = new RegionValueTakeByFloatBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -198,7 +318,13 @@ class RegionValueTakeByFloatIntAggregator(n: Int, aggType: Type, keyType: Type) 
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByFloatIntAggregator = new RegionValueTakeByFloatIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatIntAggregator = new RegionValueTakeByFloatIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatIntAggregator = {
+    val rva = new RegionValueTakeByFloatIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -206,7 +332,13 @@ class RegionValueTakeByFloatLongAggregator(n: Int, aggType: Type, keyType: Type)
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByFloatLongAggregator = new RegionValueTakeByFloatLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatLongAggregator = new RegionValueTakeByFloatLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatLongAggregator = {
+    val rva = new RegionValueTakeByFloatLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -214,7 +346,13 @@ class RegionValueTakeByFloatFloatAggregator(n: Int, aggType: Type, keyType: Type
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByFloatFloatAggregator = new RegionValueTakeByFloatFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatFloatAggregator = new RegionValueTakeByFloatFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatFloatAggregator = {
+    val rva = new RegionValueTakeByFloatFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -222,7 +360,13 @@ class RegionValueTakeByFloatDoubleAggregator(n: Int, aggType: Type, keyType: Typ
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByFloatDoubleAggregator = new RegionValueTakeByFloatDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatDoubleAggregator = new RegionValueTakeByFloatDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatDoubleAggregator = {
+    val rva = new RegionValueTakeByFloatDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByFloatAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -230,7 +374,13 @@ class RegionValueTakeByFloatAnnotationAggregator(n: Int, aggType: Type, keyType:
     seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByFloatAnnotationAggregator = new RegionValueTakeByFloatAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByFloatAnnotationAggregator = new RegionValueTakeByFloatAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByFloatAnnotationAggregator = {
+    val rva = new RegionValueTakeByFloatAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -238,7 +388,13 @@ class RegionValueTakeByDoubleBooleanAggregator(n: Int, aggType: Type, keyType: T
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByDoubleBooleanAggregator = new RegionValueTakeByDoubleBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleBooleanAggregator = new RegionValueTakeByDoubleBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleBooleanAggregator = {
+    val rva = new RegionValueTakeByDoubleBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -246,7 +402,13 @@ class RegionValueTakeByDoubleIntAggregator(n: Int, aggType: Type, keyType: Type)
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByDoubleIntAggregator = new RegionValueTakeByDoubleIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleIntAggregator = new RegionValueTakeByDoubleIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleIntAggregator = {
+    val rva = new RegionValueTakeByDoubleIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -254,7 +416,13 @@ class RegionValueTakeByDoubleLongAggregator(n: Int, aggType: Type, keyType: Type
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByDoubleLongAggregator = new RegionValueTakeByDoubleLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleLongAggregator = new RegionValueTakeByDoubleLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleLongAggregator = {
+    val rva = new RegionValueTakeByDoubleLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -262,7 +430,13 @@ class RegionValueTakeByDoubleFloatAggregator(n: Int, aggType: Type, keyType: Typ
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByDoubleFloatAggregator = new RegionValueTakeByDoubleFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleFloatAggregator = new RegionValueTakeByDoubleFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleFloatAggregator = {
+    val rva = new RegionValueTakeByDoubleFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -270,7 +444,13 @@ class RegionValueTakeByDoubleDoubleAggregator(n: Int, aggType: Type, keyType: Ty
     seqOp(if (xm) null else x, if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByDoubleDoubleAggregator = new RegionValueTakeByDoubleDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleDoubleAggregator = new RegionValueTakeByDoubleDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleDoubleAggregator = {
+    val rva = new RegionValueTakeByDoubleDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByDoubleAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -278,7 +458,13 @@ class RegionValueTakeByDoubleAnnotationAggregator(n: Int, aggType: Type, keyType
     seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByDoubleAnnotationAggregator = new RegionValueTakeByDoubleAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByDoubleAnnotationAggregator = new RegionValueTakeByDoubleAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByDoubleAnnotationAggregator = {
+    val rva = new RegionValueTakeByDoubleAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -286,7 +472,13 @@ class RegionValueTakeByAnnotationBooleanAggregator(n: Int, aggType: Type, keyTyp
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByAnnotationBooleanAggregator = new RegionValueTakeByAnnotationBooleanAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationBooleanAggregator = new RegionValueTakeByAnnotationBooleanAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationBooleanAggregator = {
+    val rva = new RegionValueTakeByAnnotationBooleanAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -294,7 +486,13 @@ class RegionValueTakeByAnnotationIntAggregator(n: Int, aggType: Type, keyType: T
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByAnnotationIntAggregator = new RegionValueTakeByAnnotationIntAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationIntAggregator = new RegionValueTakeByAnnotationIntAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationIntAggregator = {
+    val rva = new RegionValueTakeByAnnotationIntAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -302,7 +500,13 @@ class RegionValueTakeByAnnotationLongAggregator(n: Int, aggType: Type, keyType: 
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByAnnotationLongAggregator = new RegionValueTakeByAnnotationLongAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationLongAggregator = new RegionValueTakeByAnnotationLongAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationLongAggregator = {
+    val rva = new RegionValueTakeByAnnotationLongAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -310,7 +514,13 @@ class RegionValueTakeByAnnotationFloatAggregator(n: Int, aggType: Type, keyType:
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByAnnotationFloatAggregator = new RegionValueTakeByAnnotationFloatAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationFloatAggregator = new RegionValueTakeByAnnotationFloatAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationFloatAggregator = {
+    val rva = new RegionValueTakeByAnnotationFloatAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -318,7 +528,13 @@ class RegionValueTakeByAnnotationDoubleAggregator(n: Int, aggType: Type, keyType
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else k)
   }
 
-  override def copy(): RegionValueTakeByAnnotationDoubleAggregator = new RegionValueTakeByAnnotationDoubleAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationDoubleAggregator = new RegionValueTakeByAnnotationDoubleAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationDoubleAggregator = {
+    val rva = new RegionValueTakeByAnnotationDoubleAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }
 
 class RegionValueTakeByAnnotationAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
@@ -326,5 +542,11 @@ class RegionValueTakeByAnnotationAnnotationAggregator(n: Int, aggType: Type, key
     seqOp(if (xm) null else SafeRow.read(aggType, region, x), if (km) null else SafeRow.read(keyType, region, k))
   }
 
-  override def copy(): RegionValueTakeByAnnotationAnnotationAggregator = new RegionValueTakeByAnnotationAnnotationAggregator(n, aggType, keyType)
+  override def newInstance(): RegionValueTakeByAnnotationAnnotationAggregator = new RegionValueTakeByAnnotationAnnotationAggregator(n, aggType, keyType)
+
+  override def copy(): RegionValueTakeByAnnotationAnnotationAggregator = {
+    val rva = new RegionValueTakeByAnnotationAnnotationAggregator(n, aggType, keyType)
+    rva._state = _state.clone()
+    rva
+  }
 }

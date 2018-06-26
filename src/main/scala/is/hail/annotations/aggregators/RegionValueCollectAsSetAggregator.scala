@@ -39,7 +39,15 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetBooleanAggregator = new RegionValueCollectAsSetBooleanAggregator()
+  def newInstance(): RegionValueCollectAsSetBooleanAggregator = new RegionValueCollectAsSetBooleanAggregator()
+
+  override def copy(): RegionValueCollectAsSetBooleanAggregator = {
+    val rva = new RegionValueCollectAsSetBooleanAggregator()
+    rva.hasTrue = hasTrue
+    rva.hasFalse = hasFalse
+    rva.hasMissing = hasMissing
+    rva
+  }
 
   def clear() {
     hasTrue = false
@@ -49,7 +57,7 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
-  private val values = mutable.Set[Int]()
+  private var values = mutable.Set[Int]()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
@@ -75,7 +83,13 @@ class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetIntAggregator = new RegionValueCollectAsSetIntAggregator()
+  def newInstance(): RegionValueCollectAsSetIntAggregator = new RegionValueCollectAsSetIntAggregator()
+
+  override def copy(): RegionValueCollectAsSetIntAggregator = {
+    val rva = new RegionValueCollectAsSetIntAggregator()
+    rva.values = values.clone()
+    rva
+  }
 
   def clear() {
     values.clear()
@@ -84,7 +98,7 @@ class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
-  private val values = mutable.Set[Long]()
+  private var values = mutable.Set[Long]()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
@@ -110,7 +124,13 @@ class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetLongAggregator = new RegionValueCollectAsSetLongAggregator()
+  def newInstance(): RegionValueCollectAsSetLongAggregator = new RegionValueCollectAsSetLongAggregator()
+
+  override def copy(): RegionValueCollectAsSetLongAggregator = {
+    val rva = new RegionValueCollectAsSetLongAggregator()
+    rva.values = values.clone()
+    rva
+  }
 
   def clear() {
     values.clear()
@@ -119,7 +139,7 @@ class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
-  private val values = mutable.Set[Float]()
+  private var values = mutable.Set[Float]()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
@@ -145,7 +165,13 @@ class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetFloatAggregator = new RegionValueCollectAsSetFloatAggregator()
+  def newInstance(): RegionValueCollectAsSetFloatAggregator = new RegionValueCollectAsSetFloatAggregator()
+
+  override def copy(): RegionValueCollectAsSetFloatAggregator = {
+    val rva = new RegionValueCollectAsSetFloatAggregator()
+    rva.values = values.clone()
+    rva
+  }
 
   def clear() {
     values.clear()
@@ -154,7 +180,7 @@ class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
-  private val values = mutable.Set[Double]()
+  private var values = mutable.Set[Double]()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
@@ -180,7 +206,13 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
     rvb.endArray()
   }
 
-  def copy(): RegionValueCollectAsSetDoubleAggregator = new RegionValueCollectAsSetDoubleAggregator()
+  def newInstance(): RegionValueCollectAsSetDoubleAggregator = new RegionValueCollectAsSetDoubleAggregator()
+
+  override def copy(): RegionValueCollectAsSetDoubleAggregator = {
+    val rva = new RegionValueCollectAsSetDoubleAggregator()
+    rva.values = values.clone()
+    rva
+  }
 
   def clear() {
     values.clear()
@@ -189,7 +221,7 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionValueAggregator {
-  private val values = mutable.Set[Any]()
+  private var values = mutable.Set[Any]()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)
@@ -207,7 +239,13 @@ class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionV
     rvb.addAnnotation(TSet(typ), values.toSet)
   }
 
-  def copy(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)
+  def newInstance(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)
+
+  override def copy(): RegionValueCollectAsSetAnnotationAggregator = {
+    val rva = new RegionValueCollectAsSetAnnotationAggregator(typ)
+    rva.values = values.clone()
+    rva
+  }
 
   def clear() {
     values.clear()
