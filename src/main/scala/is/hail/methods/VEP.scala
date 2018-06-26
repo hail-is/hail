@@ -290,10 +290,10 @@ object VEP {
                       val x = csqRegex.findFirstIn(s)
                       val a = x match {
                         case Some(value) =>
-                          value.substring(4).split(",")
+                          value.substring(4).split(",").toFastIndexedSeq
                         case None =>
                           warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
-                          Annotation.empty
+                          null
                       }
                       (Annotation(locus, alleles), a)
                     case None =>
