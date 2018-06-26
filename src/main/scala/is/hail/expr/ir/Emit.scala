@@ -649,21 +649,20 @@ private class Emit(
           const(false),
           Code._empty)
 
-      case x@SeqOp(a, i, aggSig, args) =>
+      case x@SeqOp(i, args, aggSig) =>
         val codeI = emit(i)
         val agg = AggOp.get(aggSig)
-        val fullArgs = Array(a) ++ args.toFastSeq
-        val nArgs = fullArgs.length
+        val nArgs = args.length
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
-        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(fullArgs(i).typ))).toArray
-        val codeArgs = fullArgs.map(ir => emit(ir))
+        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
+        val codeArgs = args.map(ir => emit(ir))
 
         val argsSetup = Code((0 until nArgs).map { i =>
           val a = codeArgs(i)
           Code(
             argsm(i) := a.m,
             argsv(i).storeAny(argsm(i).mux(
-              defaultValue(fullArgs(i).typ),
+              defaultValue(args(i).typ),
               a.v
             ))
           )

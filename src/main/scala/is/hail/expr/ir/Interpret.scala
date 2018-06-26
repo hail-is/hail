@@ -328,17 +328,17 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(a, i, aggSig, seqOpArgs) =>
+      case x@SeqOp(i, seqOpArgs, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
           case Inbreeding() =>
-            val IndexedSeq(af) = seqOpArgs
+            val IndexedSeq(a, af) = seqOpArgs
             aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
           case TakeBy() =>
-            val IndexedSeq(key) = seqOpArgs
-            aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(key))
+            val IndexedSeq(a, ordering) = seqOpArgs
+            aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(ordering))
           case _ =>
-            aggregator.get.seqOp(interpret(a))
+            aggregator.get.seqOp(interpret(seqOpArgs.head))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         val aggType = aggSig.inputType
@@ -394,8 +394,10 @@ object Interpret {
           case TakeBy() =>
             val IndexedSeq(n) = constructorArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
-            val IndexedSeq(key) = a.asInstanceOf[SeqOp].args
-            val ord = key.typ.ordering.toOrdering
+            val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
+            assert(seqOps.length == 1)
+            val IndexedSeq(_, ordering: IR) = seqOps.head.args
+            val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
           case InfoScore() => new InfoScoreAggregator()

@@ -102,11 +102,9 @@ object Pretty {
           pretty(i, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case SeqOp(a, i, aggSig, args) =>
+        case SeqOp(i, args, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(a, depth + 2)
           sb += '\n'
           pretty(i, depth + 2)
           sb += '\n'

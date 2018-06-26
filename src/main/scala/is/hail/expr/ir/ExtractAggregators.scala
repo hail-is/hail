@@ -16,8 +16,8 @@ object ExtractAggregators {
     def rewriteSeqOps(x: IR, i: Int): IR = {
       def rewrite(x: IR): IR = rewriteSeqOps(x, i)
       x match {
-        case SeqOp(a, _, aggSig, args) =>
-          SeqOp(a, I32(i), aggSig, args)
+        case SeqOp(_, args, aggSig) =>
+          SeqOp(I32(i), args, aggSig)
         case _ => Recur(rewrite)(x)
       }
     }

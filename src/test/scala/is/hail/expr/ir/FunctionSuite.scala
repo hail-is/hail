@@ -32,7 +32,7 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerIR("addone", TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
     registerIR("sumaggregator32", TAggregable(TInt32())) { ir =>
       val aggSig = AggSignature(Sum(), TInt64(), FastSeq(), None, FastSeq())
-      ApplyAggOp(SeqOp(Cast(ir, TInt64()), I32(0), aggSig), FastSeq(), None, aggSig)
+      ApplyAggOp(SeqOp(I32(0), FastSeq(Cast(ir, TInt64())), aggSig), FastSeq(), None, aggSig)
     }
     registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")

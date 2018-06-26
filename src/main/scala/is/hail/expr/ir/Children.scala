@@ -69,8 +69,8 @@ object Children {
       (old +: fields.map(_._2)).toIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
-    case SeqOp(a, i, _, args) =>
-      Array(a, i) ++ args
+    case SeqOp(i, args, _) =>
+      i +: args
     case Begin(xs) =>
       xs
     case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
