@@ -433,8 +433,6 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
       "va", vaType,
       pred)
 
-    assert(rTyp == typ.rvRowType)
-
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
       val rvb = new RegionValueBuilder()
       val predicate = f()
