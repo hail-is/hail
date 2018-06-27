@@ -1790,9 +1790,10 @@ class MatrixTable(ExprContainer):
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_rows' expects array or set, found: {field_expr.dtype}")
 
-        for k in self.row_key.values():
-            if k is field_expr:
-                raise ValueError(f"method 'explode_rows' cannot explode a key field")
+        if self.row_key is not None:
+            for k in self.row_key.values():
+                if k is field_expr:
+                    raise ValueError(f"method 'explode_rows' cannot explode a key field")
 
         return MatrixTable(self._jvds.explodeRows(field_expr._ast.to_hql()))
 
@@ -1845,9 +1846,10 @@ class MatrixTable(ExprContainer):
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_cols' expects array or set, found: {field_expr.dtype}")
 
-        for k in self.col_key.values():
-            if k is field_expr:
-                raise ValueError(f"method 'explode_cols' cannot explode a key field")
+        if self.col_key is not None:
+            for k in self.col_key.values():
+                if k is field_expr:
+                    raise ValueError(f"method 'explode_cols' cannot explode a key field")
 
         return MatrixTable(self._jvds.explodeCols(field_expr._ast.to_hql()))
 

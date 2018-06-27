@@ -2255,9 +2255,10 @@ class Table(ExprContainer):
         if not isinstance(field.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
 
-        for k in self.key.values():
-            if k is field:
-                raise ValueError(f"method 'explode' cannot explode a key field")
+        if self.key is not None:
+            for k in self.key.values():
+                if k is field:
+                    raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
         t = Table(self._jt.explode(f))
