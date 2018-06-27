@@ -1174,7 +1174,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val keyType = keysType match {
       case TArray(e, _) => e
       case TSet(e, _) => e
-      case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
 
     val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path)
@@ -1212,7 +1211,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val keyType = keysType match {
       case TArray(e, _) => e
       case TSet(e, _) => e
-      case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
     var size = 0
     val keys = colValues.value.map { sa =>

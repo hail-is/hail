@@ -648,6 +648,12 @@ class TableTests(unittest.TestCase):
         ht = ht.key_by('idx', 'b')
         ht._force_count()
 
+    def test_explode_key_error(self):
+        t = hl.utils.range_table(1)
+        t = t.key_by(a=['a', 'b', 'c'])
+        with self.assertRaises(ValueError):
+            t.explode('a')
+
     def test_explode_on_set(self):
         t = hl.utils.range_table(1)
         t = t.annotate(a=hl.set(['a', 'b', 'c']))
@@ -894,6 +900,13 @@ class MatrixTableTests(unittest.TestCase):
         self.assertEqual(mt.annotate_cols(x = hl.empty_array('int')).explode_cols('x').count_cols(), 0)
         self.assertEqual(mt.annotate_cols(x = hl.null('array<int>')).explode_cols('x').count_cols(), 0)
         self.assertEqual(mt.annotate_cols(x = hl.range(0, mt.col_idx)).explode_cols('x').count_cols(), 6)
+
+    def test_explode_key_errors(self):
+        mt = hl.utils.range_matrix_table(1, 1).key_cols_by(a=[1]).key_rows_by(b=[1])
+        with self.assertRaises(ValueError):
+            mt.explode_cols('a')
+        with self.assertRaises(ValueError):
+            mt.explode_rows('b')
 
     def test_aggregate_cols_by(self):
         mt = hl.utils.range_matrix_table(2, 4)

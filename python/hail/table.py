@@ -474,7 +474,8 @@ class Table(ExprContainer):
                 rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
 
     @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), exactly([])),
-                      named_keys=Expression)
+                      named_keys=expr_any
+                      )
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
 
@@ -2250,8 +2251,13 @@ class Table(ExprContainer):
             # global field
             assert field._indices == self._global_indices
             raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
-        if not (isinstance(field.dtype, tarray) or isinstance(field.dtype, tset)):
+
+        if not isinstance(field.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
+
+        for k in self.key.values():
+            if k is field:
+                raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
         t = Table(self._jt.explode(f))
