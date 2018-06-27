@@ -4,7 +4,7 @@ import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.MatrixValue
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
 import is.hail.variant._
 import is.hail.utils._

@@ -2,7 +2,7 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.MatrixValue
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.{TString, TStruct}
 import is.hail.io.plink.BimAnnotationView
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}

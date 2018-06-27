@@ -1,7 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.BaseIR
-
 import scala.collection.mutable
 
 object RefEquality {

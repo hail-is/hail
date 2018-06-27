@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.expr.BaseIR
 
 object FoldConstants {
   private[this] def isDeterministic(ir: IR): Boolean = ir match {
