@@ -10,7 +10,7 @@ a method to plot your data and then choose to extend the plot however you like b
 directly with Bokeh.
 
 Plot functions in Hail currently accept data in the form of Python objects, but they will soon be able
-to accept `.Table` and `.MatrixTable` fields as well.
+to accept :class:`.Table` and :class:`.MatrixTable` fields as well.
 
 .. toctree::
     :maxdepth: 2
