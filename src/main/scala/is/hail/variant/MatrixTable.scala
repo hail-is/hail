@@ -76,7 +76,7 @@ abstract class RelationalSpec {
 
   def globalsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("globals")
 
-  def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts
+  def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
   def write(hc: HailContext, path: String) {
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
@@ -100,7 +100,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   }
 }
 
-case class PartitionCountsComponentSpec(counts: Array[Long]) extends ComponentSpec
+case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
 case class MatrixTableSpec(
   file_version: Int,
@@ -178,17 +178,9 @@ object MatrixTable {
     val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
     val partCounts = partition(nRows, nPartitionsAdj)
 
-    val typ: MatrixType = MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("col_idx"),
-      colType = TStruct("col_idx" -> TInt32()),
-      rowPartitionKey = Array("row_idx"),
-      rowKey = Array("row_idx"),
-      rowType = TStruct("row_idx" -> TInt32()),
-      entryType = TStruct.empty())
-
-    new MatrixTable(hc, MatrixRead(typ, Some(partCounts.map(_.toLong)),
-      dropRows = false, dropCols = false, reader = MatrixRangeReader(typ, nRows, nCols, nPartitions)))
+    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
+    new MatrixTable(hc, MatrixRead(reader.typ, Some(partCounts.map(_.toLong)),
+      dropRows = false, dropCols = false, reader = reader))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
@@ -523,7 +515,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
-      case Some(counts) => counts
+      case Some(counts) => counts.toArray
       case None => rvd.countPerPartition()
     }
   }

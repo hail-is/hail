@@ -1,14 +1,17 @@
 package is.hail.expr.ir
 
+import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.annotations.BroadcastRow
 import is.hail.expr.Parser
+import is.hail.table.Table
 import is.hail.utils._
+import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
-class IRSuite extends TestNGSuite {
+class IRSuite extends SparkSuite {
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
@@ -290,8 +293,8 @@ class IRSuite extends TestNGSuite {
     assertEvalsTo(ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
   }
 
-  @DataProvider(name = "irs")
-  def irs(): Array[Array[IR]] = {
+  @DataProvider(name = "valueIRs")
+  def valueIRs(): Array[Array[IR]] = {
     val b = True()
     val c = Ref("c", TBoolean())
     val i = I32(5)
@@ -365,10 +368,71 @@ class IRSuite extends TestNGSuite {
     irs.map(x => Array(x))
   }
 
-  @Test(dataProvider = "irs")
-  def testParser(x: IR) {
+  @DataProvider(name = "tableIRs")
+  def tableIRs(): Array[Array[TableIR]] = {
+    try {
+      val ht = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+      val mt = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+
+      val read = ht.tir.asInstanceOf[TableRead]
+      val mtRead = mt.ast.asInstanceOf[MatrixRead]
+      val b = True()
+
+      val xs: Array[TableIR] = Array(
+        TableUnkey(read),
+        TableKeyBy(read, Array("m", "d"), Some(1)),
+        TableFilter(read, b),
+        read,
+        MatrixColsTable(mtRead),
+        TableAggregateByKey(read,
+          MakeStruct(FastIndexedSeq(
+            "a" -> I32(5)))),
+        TableJoin(read,
+          TableRange(100, 10), "inner"),
+        MatrixEntriesTable(mtRead),
+        MatrixRowsTable(mtRead),
+        TableParallelize(
+          TableType(
+            TStruct("a" -> TInt32()),
+            None,
+            TStruct.empty()),
+          FastIndexedSeq(null, Row(5), Row(-3)),
+          None),
+        TableMapRows(read,
+          MakeStruct(FastIndexedSeq(
+            "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
+            "b" -> F64(-2.11))),
+          None, None),
+        TableMapGlobals(read,
+          MakeStruct(FastIndexedSeq(
+            "foo" -> NA(TArray(TInt32())))),
+          BroadcastRow(Row(), TStruct.empty(), hc.sc)),
+        TableRange(100, 10),
+        TableUnion(
+          FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
+        TableExplode(read, "mset")
+      )
+      xs.map(x => Array(x))
+    } catch {
+      case t: Throwable =>
+        println(t)
+        println(t.printStackTrace())
+        throw t
+    }
+  }
+
+  @Test(dataProvider = "valueIRs")
+  def testValueIRParser(x: IR) {
     val s = Pretty(x)
     val x2 = Parser.parse(Parser.ir_value_expr, s)
+    assert(x2 == x)
+  }
+
+  @Test(dataProvider = "tableIRs")
+  def testTableIRParser(x: TableIR) {
+    val s = Pretty(x)
+    println(s)
+    val x2 = Parser.parse(Parser.table_ir, s)
     assert(x2 == x)
   }
 }
