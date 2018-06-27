@@ -25,10 +25,11 @@ from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
-from . import genetics as genetics
 from .methods import *
+from . import genetics as genetics
 from . import methods as methods
 from . import linalg as linalg
+from . import plot as plot
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
@@ -56,7 +57,8 @@ __all__ = ['init',
            'agg',
            'genetics',
            'methods',
-           'linalg']
+           'linalg',
+           'plot']
 
 
 __all__.extend(genetics.__all__)
