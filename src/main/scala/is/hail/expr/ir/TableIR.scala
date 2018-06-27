@@ -802,9 +802,8 @@ case class TableScan(child: TableIR, newRow: IR) extends TableIR {
     val globalsBc = value.globals.broadcast
 
     val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators
-      .scan[Long, Long, Long, Long, Long](
+      .scan[Long, Long, Long, Long](
       "global", child.typ.globalType,
-      "row", child.typ.rowType,
       "global", child.typ.globalType,
       "row", child.typ.rowType,
       newRow,
@@ -821,7 +820,7 @@ case class TableScan(child: TableIR, newRow: IR) extends TableIR {
         rvb.addAnnotation(gType, globalsBc.value)
         val globals = rvb.end()
 
-        initOps()(region, rvAggs, globals, false, 0L, false)
+        initOps()(region, rvAggs, globals, false)
       }
 
       val rvAggsPerPartition = value.rvd.collectPerPartition { (ctx, it) =>
