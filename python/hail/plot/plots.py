@@ -1,13 +1,30 @@
 import numpy as np
 from math import log, isnan
+from hail.typecheck import *
 from bokeh.plotting import figure
 from bokeh.layouts import gridplot
 from bokeh.models import ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
 
 
-def histogram(data, label=None, title=None, ylabel='Frequency'):
-    p = figure(title=title, x_axis_label=label, y_axis_label=ylabel, background_fill_color='#EEEEEE')
+def histogram(data, label=None, title=None):
+    """Create a histogram.
+
+    Parameters
+    ----------
+    data : :class: `hail.utils.struct.Struct`
+        Sequence of data to plot.
+    label : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+
+    Returns
+    -------
+    :class: `bokeh.plotting.figure.Figure`
+        Bokeh Figure with histogram data plotted.
+    """
+    p = figure(title=title, x_axis_label=label, y_axis_label='Frequency', background_fill_color='#EEEEEE')
     p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
@@ -15,7 +32,31 @@ def histogram(data, label=None, title=None, ylabel='Frequency'):
     return p
 
 
-def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=8):
+def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
+    """Create a scatterplot.
+
+    Parameters
+    ----------
+    x : list
+        List of x-values to be plotted.
+    y : list
+        List of y-values to be plotted.
+    label : list
+        List of labels for x and y values, used to assign each point a label (e.g. population)
+    title : str
+        Title of the scatterplot.
+    xlabel : str
+        X-axis label.
+    ylabel : str
+        Y-axis label.
+    size : :class: `bokeh.core.properties.ScreenDistanceSpec`
+        Size of markers in screen space units.
+
+    Returns
+    -------
+    :class: `bokeh.plotting.figure.Figure`
+        Bokeh Figure with histogram data plotted.
+    """
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
         source = ColumnDataSource(dict(x=x, y=y, label=label))
@@ -28,13 +69,40 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=8):
     return p
 
 
-# plots is a 2D array of plots that the user organizes, e.g. [[p1, p2], [p3, p4]]
 def grid(plots, total_width=400, total_height=400):
+    """Create a grid of plots.
+
+    Parameters
+    ----------
+    plots : 2D array of :class: `bokeh.plotting.figure.Figure`
+        Plots that the user organizes to go in the grid, e.g. [[p1, p2], [p3, p4]].
+    total_width : int
+        Total width of the grid.
+    total_height : int
+        Total height of the grid.
+
+    Returns
+    -------
+    :class: `bokeh.models.layouts.Column`
+        Grid of Bokeh Figures.
+    """
     g = gridplot(plots, plot_width=total_width, plot_height=total_height)
     return g
 
 
 def qq(pvals):
+    """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
+
+    Parameters
+    ----------
+    pvals : list
+        P-values to be plotted.
+
+    Returns
+    -------
+    :class: `bokeh.plotting.figure.Figure`
+        Bokeh Figure with p-values plotted in a Q-Q plot.
+    """
     spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
     exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
     obs = [-log(p, 10) for p in spvals]
