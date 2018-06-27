@@ -41,11 +41,11 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
 
     Parameters
     ----------
-    x : List[float]
+    x : List[float] or :class:`.Float64Expression`
         List of x-values to be plotted.
-    y : List[float]
+    y : List[float] or :class:`.Float64Expression`
         List of y-values to be plotted.
-    label : List[str]
+    label : List[str] or :class:`.StringExpression`
         List of labels for x and y values, used to assign each point a label (e.g. population)
     title : str
         Title of the scatterplot.
@@ -62,19 +62,19 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     """
     if isinstance(x, Expression):
         if x._indices.source is not None:
-            x = aggregators.collect(x).collect()  # FIXME: need to go from ArrayExpression => Python list
+            x = x.collect()
         else:
             return ValueError('Invalid input')
     if isinstance(y, Expression):
         if y._indices.source is not None:
-            y = aggregators.collect(y)  # FIXME: need to go from ArrayExpression => Python list
+            y = y.collect()
         else:
             return ValueError('Invalid input')
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
         if isinstance(label, Expression):
-            label = aggregators.collect(label)  # FIXME: need to go from ArrayExpression => Python list
+            label = label.collect()
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
         color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
@@ -91,7 +91,7 @@ def qq(pvals):
 
     Parameters
     ----------
-    pvals : List[float]
+    pvals : List[float] or :class:`.Float64Expression`
         P-values to be plotted.
 
     Returns
