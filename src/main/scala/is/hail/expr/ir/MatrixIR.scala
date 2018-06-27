@@ -404,7 +404,11 @@ case class MatrixRead(
     MatrixRead(typ, dropCols, dropRows, reader)
   }
 
-  def execute(hc: HailContext): MatrixValue = reader(this)
+  def execute(hc: HailContext): MatrixValue = {
+    val mv = reader(this)
+    assert(mv.typ == typ)
+    mv
+  }
 
   override def toString: String = s"MatrixRead($typ, " +
     s"partitionCounts = $partitionCounts, " +
