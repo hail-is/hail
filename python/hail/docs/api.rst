@@ -33,6 +33,7 @@ Use ``import hail as hl`` to access this functionality.
     linalg <linalg/index>
     stats <stats/index>
     genetics <genetics/index>
+    plot <plot>
 
 .. rubric:: Module functions
 
