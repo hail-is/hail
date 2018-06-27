@@ -7,14 +7,14 @@ from bokeh.models import ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
 
 
-def histogram(data, label=None, title=None):
+def histogram(data, legend=None, title=None):
     """Create a histogram.
 
     Parameters
     ----------
     data : :class: `hail.utils.struct.Struct`
         Sequence of data to plot.
-    label : str
+    legend : str
         Label of data on the x-axis.
     title : str
         Title of the histogram.
@@ -24,11 +24,11 @@ def histogram(data, label=None, title=None):
     :class: `bokeh.plotting.figure.Figure`
         Bokeh Figure with histogram data plotted.
     """
-    p = figure(title=title, x_axis_label=label, y_axis_label='Frequency', background_fill_color='#EEEEEE')
+    p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency', background_fill_color='#EEEEEE')
     p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
-        legend=label, line_color='black')
+        legend=legend, line_color='black')
     return p
 
 
@@ -37,11 +37,11 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
 
     Parameters
     ----------
-    x : list
+    x : list[float]
         List of x-values to be plotted.
-    y : list
+    y : list[float]
         List of y-values to be plotted.
-    label : list
+    label : list[str]
         List of labels for x and y values, used to assign each point a label (e.g. population)
     title : str
         Title of the scatterplot.
@@ -49,7 +49,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
         X-axis label.
     ylabel : str
         Y-axis label.
-    size : :class: `bokeh.core.properties.ScreenDistanceSpec`
+    size : int
         Size of markers in screen space units.
 
     Returns
@@ -95,7 +95,7 @@ def qq(pvals):
 
     Parameters
     ----------
-    pvals : list
+    pvals : list[float]
         P-values to be plotted.
 
     Returns
