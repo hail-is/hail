@@ -17,6 +17,10 @@ def histogram(data, legend=None, title=None):
         Label of data on the x-axis.
     title : str
         Title of the histogram.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
     """
     p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency', background_fill_color='#EEEEEE')
     p.quad(
@@ -45,6 +49,10 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
         Y-axis label.
     size : int
         Size of markers in screen space units.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
     """
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
@@ -65,6 +73,10 @@ def qq(pvals):
     ----------
     pvals : List[float]
         P-values to be plotted.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
     """
     spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
     exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
