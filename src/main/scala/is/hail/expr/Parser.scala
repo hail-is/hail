@@ -385,7 +385,7 @@ object Parser extends JavaTokenParsers {
             return Failure(s"unterminated $what", r)
           val c = r.first
           r = r.rest
-          if (c == '"')
+          if (c == delim)
             continue = false
           else {
             sb += c
