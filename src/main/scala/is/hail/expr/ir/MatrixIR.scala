@@ -358,9 +358,7 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
 }
 
-case class MatrixFilterCols(
-  child: MatrixIR,
-  pred: IR) extends MatrixIR {
+case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
@@ -402,10 +400,7 @@ case class MatrixFilterCols(
   }
 }
 
-case class MatrixFilterRows(
-  child: MatrixIR,
-  pred: IR
-) extends MatrixIR {
+case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
@@ -430,35 +425,17 @@ case class MatrixFilterRows(
     assert(child.typ == prev.typ)
 
     val localGlobalsType = prev.typ.globalType
-    val localColsType = TArray(prev.typ.colType)
-    val localNCols = prev.nCols
-    val colValuesBc = prev.colValues.broadcast
     val globalsBc = prev.globals.broadcast
 
-    val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, makeInit, makeSeq, aggResultType, makePred, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Boolean](
+    val (rTyp, f) = Compile[Long, Long, Boolean](
       "global", prev.typ.globalType,
       "va", vaType,
-      "global", prev.typ.globalType,
-      "colValues", colValuesType,
-      "va", vaType,
-      pred, { (nAggs: Int, initialize: IR) => initialize }, { (nAggs: Int, sequence: IR) =>
-        ir.ArrayFor(
-          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-          "i",
-          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
-            ir.Let("g", ir.ArrayRef(
-              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
-              ir.Ref("i", TInt32())),
-              sequence)))
-      })
+      pred)
 
     val filteredRDD = prev.rvd.mapPartitionsPreservesPartitioning(prev.typ.orvdType, { (ctx, it) =>
       val rvb = new RegionValueBuilder()
-      val initialize = makeInit()
-      val sequence = makeSeq()
-      val predicate = makePred()
+      val predicate = f()
 
       val partRegion = ctx.freshContext.region
 
@@ -467,40 +444,11 @@ case class MatrixFilterRows(
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
       val globals = rvb.end()
 
-      val cols = if (rvAggs.nonEmpty) {
-        rvb.start(localColsType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
-        rvb.end()
-      } else 0L
-
       it.filter { rv =>
         val region = rv.region
         val row = rv.offset
 
-        val aggResultsOff = if (rvAggs.nonEmpty) {
-          var j = 0
-          while (j < rvAggs.length) {
-            rvAggs(j).clear()
-            j += 1
-          }
-
-          initialize(region, rvAggs, globals, false, row, false)
-          sequence(region, rvAggs, globals, false, cols, false, row, false)
-
-          rvb.start(aggResultType)
-          rvb.startStruct()
-
-          j = 0
-          while (j < rvAggs.length) {
-            rvAggs(j).result(rvb)
-            j += 1
-          }
-          rvb.endStruct()
-          val aggResultsOff = rvb.end()
-          aggResultsOff
-        } else 0L
-
-        if (predicate(region, aggResultsOff, false, globals, false, row, false))
+        if (predicate(region, globals, false, row, false))
           true
         else {
           ctx.region.clear()

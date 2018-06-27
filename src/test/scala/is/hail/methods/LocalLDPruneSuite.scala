@@ -336,7 +336,9 @@ class LocalLDPruneSuite extends SparkSuite {
   }
 
   @Test def testNoPrune() {
-    val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
+    val filteredVDS = vds
+      .annotateRowsExpr("__flag" -> "AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
+      .filterRowsExpr("va.__flag")
     val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize = maxQueueSize)
     assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }

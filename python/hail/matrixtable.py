@@ -1332,10 +1332,17 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Filtered matrix table.
         """
+        caller = 'MatrixTable.filter_rows'
+        analyze(caller, expr, self._row_indices, {self._col_axis})
+
+        if expr._aggregations:
+            bool_uid = Env.get_uid()
+            mt = self._select_rows(caller, value_struct=self.row_value.annotate(**{bool_uid: expr}))
+            return mt.filter_rows(mt[bool_uid], keep).drop(bool_uid)
+
         base, cleanup = self._process_joins(expr)
-        analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
-        m = MatrixTable(base._jvds.filterRowsExpr(expr._ast.to_hql(), keep))
-        return cleanup(m)
+        mt = MatrixTable(base._jvds.filterRowsExpr(expr._ast.to_hql(), keep))
+        return cleanup(mt)
 
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_cols(self, expr, keep: bool = True) -> 'MatrixTable':
@@ -1403,12 +1410,12 @@ class MatrixTable(ExprContainer):
 
         if expr._aggregations:
             bool_uid = Env.get_uid()
-            m = self._select_cols(caller, value_struct=self.col_value.annotate(**{bool_uid: expr}))
-            return m.filter_cols(m[bool_uid], keep).drop(bool_uid)
+            mt = self._select_cols(caller, value_struct=self.col_value.annotate(**{bool_uid: expr}))
+            return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
 
         base, cleanup = self._process_joins(expr)
-        m = MatrixTable(base._jvds.filterColsExpr(expr._ast.to_hql(), keep))
-        return cleanup(m)
+        mt = MatrixTable(base._jvds.filterColsExpr(expr._ast.to_hql(), keep))
+        return cleanup(mt)
 
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_entries(self, expr, keep: bool = True) -> 'MatrixTable':
