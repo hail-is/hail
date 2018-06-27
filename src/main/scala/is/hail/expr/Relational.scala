@@ -594,15 +594,15 @@ case class MatrixRead(
   override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
 }
 
-case class FilterColsIR(
+case class MatrixFilterCols(
   child: MatrixIR,
   pred: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterColsIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterCols = {
     assert(newChildren.length == 2)
-    FilterColsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixFilterCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   val (typ, filterF) = MatrixIR.filterCols(child.typ)
@@ -638,16 +638,16 @@ case class FilterColsIR(
   }
 }
 
-case class MatrixFilterRowsIR(
+case class MatrixFilterRows(
   child: MatrixIR,
   pred: IR
 ) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRowsIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRows = {
     assert(newChildren.length == 2)
-    MatrixFilterRowsIR(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
+    MatrixFilterRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   def typ: MatrixType = child.typ

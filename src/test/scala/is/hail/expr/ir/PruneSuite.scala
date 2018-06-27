@@ -272,14 +272,14 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixFilterColsMemo() {
-    val mfc = FilterColsIR(mat, matrixRefBoolean(mat.typ, "global.g1", "sa.c2"))
+    val mfc = MatrixFilterCols(mat, matrixRefBoolean(mat.typ, "global.g1", "sa.c2"))
     checkMemo(mfc,
       subsetMatrixTable(mfc.typ, "sa.c3"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "sa.c3"), null))
   }
 
   @Test def testMatrixFilterRowsMemo() {
-    val mfr = MatrixFilterRowsIR(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2"))
+    val mfr = MatrixFilterRows(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2"))
     checkMemo(mfr,
       subsetMatrixTable(mfr.typ, "sa.c3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "va.r3"), null))
@@ -478,10 +478,10 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixFilterColsRebuild() {
-    val mfc = FilterColsIR(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2"))
+    val mfc = MatrixFilterCols(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2"))
     checkRebuild(mfc, subsetMatrixTable(mfc.typ, "global.g1"),
       (_: BaseIR, r: BaseIR) => {
-        val mfc = r.asInstanceOf[FilterColsIR]
+        val mfc = r.asInstanceOf[MatrixFilterCols]
         TypeCheck(mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ), None)
         mfc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }

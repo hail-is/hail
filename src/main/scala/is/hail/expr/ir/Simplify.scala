@@ -155,10 +155,10 @@ object Simplify {
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
-      case MatrixFilterRowsIR(MatrixRead(typ, partitionCounts, dropCols, _, reader), False() | NA(_)) =>
+      case MatrixFilterRows(MatrixRead(typ, partitionCounts, dropCols, _, reader), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols, dropRows = true, reader)
 
-      case FilterColsIR(MatrixRead(typ, partitionCounts, _, dropRows, reader), False() | NA(_)) =>
+      case MatrixFilterCols(MatrixRead(typ, partitionCounts, _, dropRows, reader), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, dropCols = true, dropRows, reader)
 
       // Ignore column or row data that is immediately dropped
@@ -169,9 +169,9 @@ object Simplify {
         MatrixColsTable(MatrixRead(typ, partitionCounts, dropCols, dropRows = true, reader))
 
       // Keep all rows/cols = do nothing
-      case MatrixFilterRowsIR(m, True()) => m
+      case MatrixFilterRows(m, True()) => m
 
-      case FilterColsIR(m, True()) => m
+      case MatrixFilterCols(m, True()) => m
     })
   }
 }

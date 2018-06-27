@@ -947,7 +947,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def deleteVA(path: List[String]): (Type, Deleter) = rowType.delete(path)
 
   def dropCols(): MatrixTable =
-    copyAST(ast = FilterColsIR(ast, ir.False()))
+    copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
   def dropRows(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
 
@@ -1067,7 +1067,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (pred: @unchecked) match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          FilterColsIR(ast, ir.filterPredicateWithKeep(irPred, keep))
+          MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep))
         )
     }
   }
@@ -1086,7 +1086,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (filterAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
       case Some(irPred) =>
         new MatrixTable(hc,
-          MatrixFilterRowsIR(ast, ir.filterPredicateWithKeep(irPred, keep)))
+          MatrixFilterRows(ast, ir.filterPredicateWithKeep(irPred, keep)))
     }
   }
 
