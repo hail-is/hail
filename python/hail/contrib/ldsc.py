@@ -7,38 +7,6 @@ from hail.typecheck import *
 from hail.expr.expressions import *
 from hail.utils import new_temp_file, wrap_to_list
 
-def _compute_row_intervals(positions, window_size):
-    """
-    a is ndarray of non-decreasing floats
-    b is ndarray of non-decreasing floats
-    radius is non-negative float
-    
-    starts and stops are ndarrays of int of length a.size
-    starts[i] is minimum index j in b such that b[j] >= a[i] - radius
-    stops[i] is one greater than the maximum index j in b such that b[j] <= a[i] + radius
-    """ 
-    assert window_size >= 0
-    
-    positions_size = positions.size
-
-    starts = np.zeros(positions_size, dtype=int)
-    stops = np.zeros(positions_size, dtype=int)
-    
-    j = 0
-    k = 0
-    
-    for i in range(positions_size):
-        min_val = positions[i] - window_size
-        max_val = positions[i] + window_size
-        while (j < positions_size) and (positions[j] < min_val):
-            j += 1
-        starts[i] = j
-        while (k < positions_size) and (positions[k] <= max_val):
-            k += 1
-        stops[i] = k
-
-    return [int(x) for x in starts], [int(x) for x in stops]
-
 @typecheck(entry_expr=expr_numeric,
            annotation_exprs=oneof(expr_numeric, sequenceof(expr_numeric)),
            position_expr=expr_numeric,
