@@ -62,20 +62,19 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     """
     if isinstance(x, Expression):
         if x._indices.source is not None:
-            x = aggregators.collect(x)  # FIXME: go from ArrayExpression => Python list
+            x = aggregators.collect(x).collect()  # FIXME: need to go from ArrayExpression => Python list
         else:
-            return TypeError
+            return ValueError('Invalid input')
     if isinstance(y, Expression):
         if y._indices.source is not None:
-            y = aggregators.collect(y)
+            y = aggregators.collect(y)  # FIXME: need to go from ArrayExpression => Python list
         else:
-            return TypeError
+            return ValueError('Invalid input')
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
         if isinstance(label, Expression):
-            # FIXME: is a source check needed here?
-            label = aggregators.collect(label)
+            label = aggregators.collect(label)  # FIXME: need to go from ArrayExpression => Python list
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
         color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
@@ -86,6 +85,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     return p
 
 
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64))
 def qq(pvals):
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
@@ -98,6 +98,12 @@ def qq(pvals):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
+    if isinstance(pvals, Expression):
+        if pvals._indices.source is not None:
+            pvals = pvals.collect()
+        else:
+            return ValueError('Invalid input')
+
     spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
     exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
     obs = [-log(p, 10) for p in spvals]
