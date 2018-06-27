@@ -782,6 +782,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   }
 }
 
+// newRow can't change key fields
 case class TableScan(child: TableIR, newRow: IR) extends TableIR {
 
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
