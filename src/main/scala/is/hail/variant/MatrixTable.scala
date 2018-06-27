@@ -5,7 +5,7 @@ import is.hail.check.Gen
 import is.hail.linalg._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.{ChooseCols, CollectColsByKey, MatrixAggregateColsByKey, MatrixAggregateRowsByKey, MatrixColsTable, MatrixEntriesTable, MatrixFilterCols, MatrixFilterEntries, MatrixFilterRows, MatrixIR, MatrixLiteral, MatrixMapCols, MatrixMapEntries, MatrixMapGlobals, MatrixMapRows, MatrixNativeReader, MatrixRangeReader, MatrixRead, MatrixRowsTable, MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir._
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}

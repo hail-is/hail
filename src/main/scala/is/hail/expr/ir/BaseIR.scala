@@ -2,9 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.BaseType
 
-/**
-  * Created by cotton on 6/26/18.
-  */
 abstract class BaseIR {
   def typ: BaseType
 
