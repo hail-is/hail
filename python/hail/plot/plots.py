@@ -1,6 +1,9 @@
 import numpy as np
 from math import log, isnan
-from hail.typecheck import *
+from hail.expr.expressions import *
+from hail.expr.expr_ast import *
+from hail.expr import aggregators
+from hail.expr.expressions import Expression
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
@@ -30,6 +33,9 @@ def histogram(data, legend=None, title=None):
     return p
 
 
+@typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
+           label=oneof(nullable(str), expr_str), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str), size=int)
 def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     """Create a scatterplot.
 
@@ -54,8 +60,22 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
+    if isinstance(x, Expression):
+        if x._indices.source is not None:
+            x = aggregators.collect(x)  # FIXME: go from ArrayExpression => Python list
+        else:
+            return TypeError
+    if isinstance(y, Expression):
+        if y._indices.source is not None:
+            y = aggregators.collect(y)
+        else:
+            return TypeError
+
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
+        if isinstance(label, Expression):
+            # FIXME: is a source check needed here?
+            label = aggregators.collect(label)
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
         color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
