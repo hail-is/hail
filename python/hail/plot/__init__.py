@@ -1,6 +1,5 @@
-from .plots import histogram, scatter, grid, qq
+from .plots import histogram, scatter, qq
 
 __all__ = ['histogram',
            'scatter',
-           'grid',
            'qq']
