@@ -1,9 +1,11 @@
+
 import numpy as np
 import hail as hl
+from hail.table import Table
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.expr.expressions import *
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, wrap_to_list
 
 def _compute_row_intervals(positions, window_size):
     """
@@ -41,7 +43,7 @@ def _compute_row_intervals(positions, window_size):
            annotations=oneof(expr_numeric, sequenceof(expr_numeric)),
            position=expr_numeric,
            window_size=oneof(int, float))
-def ld_score(entry_expr, annotations, position, window_size):
+def ld_score(entry_expr, annotations, position, window_size) -> Table:
     """
     Calculate LD scores.
 
@@ -112,6 +114,9 @@ def ld_score(entry_expr, annotations, position, window_size):
                                                      .select('annotation', 'value')) for x in annotation_names])
     mt_annotations = ht_annotations.to_matrix_table(row_key=variant_key, col_key=['annotation'])
 
+    cols = mt_annotations['annotation'].collect()
+    col_idxs = {i: cols[i] for i in range(len(cols))}
+
     G = BlockMatrix.from_entry_expr(entry_expr)
     A = BlockMatrix.from_entry_expr(mt_annotations.value)
 
@@ -135,7 +140,7 @@ def ld_score(entry_expr, annotations, position, window_size):
     ht_scores = hl.import_table(tmp_tsv_path, no_header=True, impute=True)
     ht_scores = ht_scores.add_index()
     ht_scores = ht_scores.key_by('idx')
-    ht_scores = ht_scores.rename({'f{:}'.format(i): annotation_names[i] for i in range(len(annotation_names))})
+    ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i] for i in range(len(cols))})
 
     ht_variants = mt.rows()
     ht_variants = ht_variants.drop(*[x for x in ht_variants.row if x not in variant_key])
