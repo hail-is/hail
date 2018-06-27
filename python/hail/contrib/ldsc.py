@@ -40,10 +40,10 @@ def _compute_row_intervals(positions, window_size):
     return [int(x) for x in starts], [int(x) for x in stops]
 
 @typecheck(entry_expr=expr_numeric,
-           annotations=oneof(expr_numeric, sequenceof(expr_numeric)),
-           position=expr_numeric,
+           annotation_exprs=oneof(expr_numeric, sequenceof(expr_numeric)),
+           position_expr=expr_numeric,
            window_size=oneof(int, float))
-def ld_score(entry_expr, annotations, position, window_size) -> Table:
+def ld_score(entry_expr, annotation_exprs, position_expr, window_size) -> Table:
     """
     Calculate LD scores.
 
@@ -70,8 +70,8 @@ def ld_score(entry_expr, annotations, position, window_size) -> Table:
      
     >>> # Calculate LD score for each variant, annotation using standardized genotypes
     >>> ht_scores = hl.ld_score(entry_expr=hl.or_else((mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0),
-    ...                         annotations=[mt.annotation_0, mt.annotation_1, mt.annotation_2],
-    ...                         position=mt.cm_position,
+    ...                         annotation_exprs=[mt.annotation_0, mt.annotation_1, mt.annotation_2],
+    ...                         position_expr=mt.cm_position,
     ...                         window_size=1)
 
     Warning
@@ -90,9 +90,9 @@ def ld_score(entry_expr, annotations, position, window_size) -> Table:
     ----------
     entry_expr  : :class:`.NumericExpression`
         Expression for entries of genotype matrix (e.g. ``mt.GT.n_alt_alleles()``).
-    annotations : :class:`.NumericExpression` or :obj:`list` of :class:`.NumericExpression`
+    annotation_exprs : :class:`.NumericExpression` or :obj:`list` of :class:`.NumericExpression`
         Annotation expression(s) to partition LD scores.
-    position   : :class:`.NumericExpression`
+    position_expr   : :class:`.NumericExpression`
         Expression for position of variant (e.g. ``mt.cm_position``, ``mt.locus.position``).
     window_size : :obj:`int` or :obj:`float`
         Size of variant window used to calculate LD scores, in units of ``position``.
@@ -103,8 +103,10 @@ def ld_score(entry_expr, annotations, position, window_size) -> Table:
         Locus-keyed table with LD scores for each variant and annotation.
     """
 
+    assert window_size >= 0
+
     mt = entry_expr._indices.source
-    annotations = wrap_to_list(annotations)
+    annotations = wrap_to_list(annotation_exprs)
     variant_key = [x for x in mt.row_key]
 
     ht_annotations = mt.select_rows(*annotations).rows()
@@ -120,15 +122,31 @@ def ld_score(entry_expr, annotations, position, window_size) -> Table:
     G = BlockMatrix.from_entry_expr(entry_expr)
     A = BlockMatrix.from_entry_expr(mt_annotations.value)
 
-    variant_positions = np.array(position.collect())
     n = G.n_cols
 
     R_squared = ((G @ G.T)/n) ** 2
     R_squared_adj = R_squared - (1.0 - R_squared)/(n - 2.0)
+    
+    positions = np.array(position_expr.collect())
+    n_positions = positions.size
 
-    starts, stops = _compute_row_intervals(variant_positions, window_size)
-    R_squared_adj_sparse = R_squared_adj.sparsify_row_intervals(starts=starts, stops=stops)
+    starts = np.zeros(n_positions, dtype=int)
+    stops = np.zeros(n_positions, dtype=int)
+    
+    j = 0
+    k = 0
+    
+    for i in range(n_positions):
+        min_val = positions[i] - window_size
+        max_val = positions[i] + window_size
+        while (j < n_positions) and (positions[j] < min_val):
+            j += 1
+        starts[i] = j
+        while (k < n_positions) and (positions[k] <= max_val):
+            k += 1
+        stops[i] = k
 
+    R_squared_adj_sparse = R_squared_adj.sparsify_row_intervals(starts=[int(x) for x in starts], stops=[int(x) for x in stops])
     L_squared = R_squared_adj_sparse @ A
 
     tmp_bm_path = new_temp_file()
