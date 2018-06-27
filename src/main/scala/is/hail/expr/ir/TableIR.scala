@@ -2,14 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
-import is.hail.variant._
 import org.apache.spark.sql.Row
 
 abstract sealed class TableIR extends BaseIR {
@@ -495,7 +493,6 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
   }
 }
 
-
 case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
@@ -782,5 +779,122 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     })
 
     prev.copy(rvd = newRVD, typ = typ)
+  }
+}
+
+case class TableScan(child: TableIR, newRow: IR) extends TableIR {
+
+  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+
+  val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableScan = {
+    assert(newChildren.length == 2)
+    TableScan(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
+  }
+
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
+  def execute(hc: HailContext): TableValue = {
+    val value = child.execute(hc)
+    val gType = typ.globalType
+    val globalsBc = value.globals.broadcast
+
+    val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators
+      .scan[Long, Long, Long, Long, Long](
+      "global", child.typ.globalType,
+      "row", child.typ.rowType,
+      "global", child.typ.globalType,
+      "row", child.typ.rowType,
+      newRow,
+      (nAggs: Int, initOpIR: IR) => initOpIR,
+      (nAggs: Int, seqOpIR: IR) => seqOpIR)
+
+    assert(t == typ.rowType)
+
+    val newRVD = if (rvAggs.nonEmpty) {
+      Region.scoped { region =>
+        val rvb: RegionValueBuilder = new RegionValueBuilder()
+        rvb.set(region)
+        rvb.start(gType)
+        rvb.addAnnotation(gType, globalsBc.value)
+        val globals = rvb.end()
+
+        initOps()(region, rvAggs, globals, false, 0L, false)
+      }
+
+      val rvAggsPerPartition = value.rvd.collectPerPartition { (ctx, it) =>
+        it.foreach { rv =>
+          val rowOffset = rv.offset
+          val rvb = new RegionValueBuilder(ctx.freshRegion)
+          rvb.start(gType)
+          rvb.addAnnotation(gType, globalsBc.value)
+          val globalsOffset = rvb.end()
+
+          seqOps()(rv.region, rvAggs, globalsOffset, false, rowOffset, false)
+        }
+        rvAggs
+      }.scanLeft(rvAggs) { (a1, a2) =>
+        (a1, a2).zipped.map { (agg1, agg2) =>
+          agg2.combOp(agg1)
+          agg2
+        }
+      }
+
+      val itf: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] =
+      { (i, ctx, it) =>
+        val rvAggs = rvAggsPerPartition(i)
+        val rvb = new RegionValueBuilder(ctx.freshRegion)
+        rvb.start(gType)
+        rvb.addAnnotation(gType, globalsBc.value)
+        val globals = rvb.end()
+
+        val rv2 = RegionValue()
+        val newRow = f()
+
+        it.map { rv =>
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          rvAggs.foreach(_.result(rvb))
+          rvb.endStruct()
+          val aggOff = rvb.end()
+
+          rv2.set(rv.region, newRow(rv.region, aggOff, false, globals, false, rv.offset, false))
+          seqOps()(rv.region, rvAggs, globals, false, rv.offset, false)
+          rv2
+        }
+      }
+      value.rvd match {
+        case ordered: OrderedRVD =>
+          val orvdType = ordered.typ.copy(rowType=typ.rowType)
+          ordered.mapPartitionsWithIndexPreservesPartitioning(orvdType, itf)
+        case unordered: UnpartitionedRVD =>
+          unordered.mapPartitionsWithIndex(typ.rowType)(itf)
+      }
+
+    } else {
+      val itf: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] =
+        { (ctx, it) =>
+          val rvb = new RegionValueBuilder(ctx.freshRegion)
+          rvb.start(gType)
+          rvb.addAnnotation(gType, globalsBc.value)
+          val globals = rvb.end()
+
+          val rv2 = RegionValue()
+          val newRow = f()
+          it.map { rv =>
+            rv2.set(rv.region, newRow(rv.region, 0, false, globals, false, rv.offset, false))
+            rv2
+          }
+        }
+      value.rvd match {
+        case ordered: OrderedRVD =>
+          val orvdType = ordered.typ.copy(rowType=typ.rowType)
+          ordered.mapPartitionsPreservesPartitioning(orvdType, itf)
+        case unordered: UnpartitionedRVD =>
+          unordered.mapPartitions(typ.rowType, itf)
+      }
+    }
+    TableValue(typ, value.globals, newRVD)
   }
 }

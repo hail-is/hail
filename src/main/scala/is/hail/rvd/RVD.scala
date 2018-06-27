@@ -287,6 +287,9 @@ trait RVD {
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
+  def mapPartitionsWithIndex(newRowType: TStruct)(f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
+    new UnpartitionedRVD(newRowType, crdd.cmapPartitionsWithIndex(f))
+
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
     filter(p).takeAsBytes(1, codec).headOption
 
@@ -358,14 +361,16 @@ trait RVD {
     }.run.fold(0L)(_ + _)
 
   def countPerPartition(): Array[Long] =
-    crdd.cmapPartitions { (ctx, it) =>
+    collectPerPartition { (ctx, it) =>
       var count = 0L
       it.foreach { rv =>
         count += 1
-        ctx.region.clear()
       }
-      Iterator.single(count)
-    }.collect()
+      count
+    }
+
+  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
+    clearingRun(crdd.cmapPartitions((ctx, it) => Iterator.single(f(ctx, it)))).collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType

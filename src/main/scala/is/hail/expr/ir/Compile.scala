@@ -328,6 +328,37 @@ object CompileWithAggregators {
     ](args, aggArgs, body, transformInitOp, transformAggIR)
   }
 
+  def scan[
+  T0: ClassTag,
+  T1: ClassTag,
+  S0: ClassTag,
+  S1: ClassTag,
+  R: TypeInfo : ClassTag
+  ](name0: String, typ0: Type,
+    name1: String, typ1: Type,
+    aggName0: String, aggType0: Type,
+    aggName1: String, aggType1: Type,
+    body: IR,
+    transformInitOp: (Int, IR) => IR,
+    transformAggIR: (Int, IR) => IR
+  ): (Array[RegionValueAggregator],
+    () => IRAggFun2[T0, T1],
+    () => IRAggFun2[S0, S1],
+    Type,
+    () => IRFun3[Long, T0, T1, R],
+    Type) = {
+    val args = FastSeq(
+      (name0, typ0, classTag[T0]),
+      (name1, typ1, classTag[T1]))
+
+    val aggArgs = FastSeq(
+      (aggName0, aggType0, classTag[S0]),
+      (aggName1, aggType1, classTag[S1]))
+
+    apply[IRAggFun2[T0, T1], IRAggFun2[S0, S1], IRFun3[Long, T0, T1, R], R
+      ](args, aggArgs, body, transformInitOp, transformAggIR)
+  }
+
   def apply[
   T0: ClassTag,
   T1: ClassTag,
