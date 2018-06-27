@@ -1332,8 +1332,15 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Filtered matrix table.
         """
+        caller = 'MatrixTable.filter_rows'
+        analyze(caller, expr, self._row_indices, {self._col_axis})
+
+        if expr._aggregations:
+            bool_uid = Env.get_uid()
+            m = self._select_rows(caller, value_struct=self.row_value.annotate(**{bool_uid: expr}))
+            return m.filter_rows(m[bool_uid], keep).drop(bool_uid)
+
         base, cleanup = self._process_joins(expr)
-        analyze('MatrixTable.filter_rows', expr, self._row_indices, {self._col_axis})
         m = MatrixTable(base._jvds.filterRowsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
