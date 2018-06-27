@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.{BaseIR, MatrixIR, MatrixValue, TableIR}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.{ExportType, FastIndexedSeq}
 

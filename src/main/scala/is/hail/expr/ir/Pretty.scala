@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{BaseIR, MatrixRead, TableImport, TableRead}
 import is.hail.utils._
 
 object Pretty {

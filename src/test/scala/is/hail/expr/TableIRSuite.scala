@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.SparkSuite
+import is.hail.expr.ir.TableFilter
 import is.hail.expr.types._
 import is.hail.table.Table
 import org.apache.spark.sql.Row

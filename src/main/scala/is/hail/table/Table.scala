@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty}
+import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableLiteral, TableMapGlobals, TableMapRows, TableParallelize, TableRange, TableRead, TableUnion, TableUnkey, TableValue}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.methods.Aggregators

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.expr.{Parser, TableRange}
+import is.hail.expr.Parser
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

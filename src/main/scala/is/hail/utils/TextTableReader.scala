@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import is.hail.HailContext
 import is.hail.expr._
+import is.hail.expr.ir.TableImport
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
