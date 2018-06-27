@@ -496,7 +496,7 @@ class HailContext private(val sc: SparkContext,
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    gzAsBGZ(forceBGZ) {
+    maybeGZipAsBGZip(forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
         skipBlankLines).keyBy(keyNames.map(_.toArray), sort = false)
@@ -596,7 +596,7 @@ class HailContext private(val sc: SparkContext,
   private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
 
-  def gzAsBGZ[T](force: Boolean)(body: => T): T = {
+  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
     if (!force)
       body
     else {
@@ -620,7 +620,7 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false): MatrixTable = {
-    LoadVCF(Array(file), callFields, headerFile,nPartitions, dropSamples, rg,
+    LoadVCF(Array(file), callFields, headerFile, nPartitions, dropSamples, rg,
       contigRecoding.getOrElse(Map.empty[String, String]), arrayElementsRequired, skipInvalidLoci, forceBGZ, force)
   }
 
@@ -649,7 +649,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = hadoopConf.globAll(files)
 
-    gzAsBGZ(forceBGZ) {
+    maybeGZipAsBGZip (forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }

@@ -3,24 +3,23 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{MatrixRead, MatrixReader, MatrixValue}
 import is.hail.expr.types._
+import is.hail.expr.{MatrixRead, MatrixReader, MatrixValue}
 import is.hail.io.vcf.LoadVCF.parseLines
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
+import scala.language.implicitConversions
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
   filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
@@ -828,7 +827,8 @@ object LoadVCF {
     skipInvalidLoci: Boolean,
     gzAsBGZ: Boolean,
     forceGZ: Boolean
-  ): MatrixTable = apply(files.asScala.toArray,
+  ): MatrixTable = apply(
+    files.asScala.toArray,
     callFields.asScala.toSet,
     Option(headerFile),
     minPartitions,
@@ -937,9 +937,9 @@ object LoadVCF {
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
     val headerLines = getHeaderLines(hConf, headerFile)
-    val VCFHeaderInfo(_, _, _, _, filtersAttrs, infoAttrs, formatAttrs, _) = parseHeader(reader, headerLines)
+    val VCFHeaderInfo(_, _, _, _, filterAttrs, infoAttrs, formatAttrs, _) = parseHeader(reader, headerLines)
 
-    Map("filter" -> filtersAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
+    Map("filter" -> filterAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
   }
 }
 
@@ -964,7 +964,7 @@ case class VCFMatrixReader(
   private val sc = hc.sc
 
   private lazy val lines = {
-    hc.gzAsBGZ(gzAsBGZ) {
+    hc.maybeGZipAsBGZip(gzAsBGZ) {
       ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
     }
   }
@@ -983,7 +983,6 @@ case class VCFMatrixReader(
     skipInvalidLoci)).partitioner
 
   def apply(mr: MatrixRead): MatrixValue = {
-
     val infoSignatureBc = sc.broadcast(infoSignature)
     val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)
     val reader = new HtsjdkRecordReader(callFields)
@@ -992,7 +991,7 @@ case class VCFMatrixReader(
     val headerLinesBc = sc.broadcast(headerLines)
 
     val localSampleIDs: Array[String] = if (mr.dropCols) Array.empty[String] else sampleIDs
-    val localNSamples = localSampleIDs.length
+    val nSamples = localSampleIDs.length
 
     val rvd = if (mr.dropRows)
       OrderedRVD.empty(sc, matrixType.orvdType)
@@ -1003,8 +1002,8 @@ case class VCFMatrixReader(
         val vc = c.codec.decode(l.line)
         reader.readVariantInfo(vc, rvb, infoSignatureBc.value, infoFlagFieldNamesBc.value)
 
-        rvb.startArray(localNSamples) // gs
-        if (localNSamples > 0) {
+        rvb.startArray(nSamples) // gs
+        if (nSamples > 0) {
           // l is pointing at qual
           var i = 0
           while (i < 3) { // qual, filter, info
@@ -1020,7 +1019,7 @@ case class VCFMatrixReader(
 
           fp.parse(l, rvb)
           i = 1
-          while (i < localNSamples) {
+          while (i < nSamples) {
             l.nextField()
             fp.parse(l, rvb)
             i += 1
@@ -1031,7 +1030,7 @@ case class VCFMatrixReader(
 
     MatrixValue(matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
-      BroadcastIndexedSeq(localSampleIDs.map(x => Annotation(x)), TArray(matrixType.globalType), sc),
+      BroadcastIndexedSeq(localSampleIDs.map(Annotation(_)), TArray(matrixType.colType), sc),
       rvd
     )
   }
