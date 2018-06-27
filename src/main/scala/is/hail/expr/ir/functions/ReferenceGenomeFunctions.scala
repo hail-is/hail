@@ -260,38 +260,52 @@ class LiftoverFunctions(rg: ReferenceGenome, destRG: ReferenceGenome) extends Re
 
   def registerLiftoverCode(
     mname: String, args: Array[Type], rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]
+    impl: (EmitMethodBuilder, Array[EmitTriplet]) => EmitTriplet
   ): Unit = {
     val newName = destRG.wrapFunctionName(rg.wrapFunctionName(mname))
     registered += newName
-    registerCode(newName, args, rt, isDeterministic)(impl)
+    registerCodeWithMissingness(newName, args, rt, isDeterministic)(impl)
   }
 
-  def registerLiftoverCode[A1, A2](
+  def registerLiftoverCode(
     mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+    impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet
   ): Unit =
     registerLiftoverCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+      case (mb, Array(a1, a2)) => impl(mb, a1, a2)
     }
 
-  def registerLiftoverCode[A1, A2](
+  def registerLiftoverCode(
     mname: String, arg1: Type, arg2: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
+    impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet
   ): Unit = registerLiftoverCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
 
   override def registerAll() {
 
-    registerLiftoverCode[Long, Double]("liftoverLocus", tlocus, TFloat64(), TLocus(destRG)) {
-      (mb, locoff: Code[Long], minMatch: Code[Double]) =>
-        val locus = Code.checkcast[Locus](asm4s.coerce[AnyRef](wrapArg(mb, TLocus(rg))(locoff)))
-        emitLocus(mb, rgCode(mb).invoke[String, Locus, Double, Locus]("liftoverLocus", destRG.name, locus, minMatch))
+    registerLiftoverCode("liftoverLocus", tlocus, TFloat64(), TLocus(destRG)) {
+      (mb, loc, minMatch) =>
+        val locus = Code.checkcast[Locus](asm4s.coerce[AnyRef](wrapArg(mb, TLocus(rg))(loc.value[Long])))
+        val llocal = mb.newLocal[Locus]
+        val lifted = rgCode(mb).invoke[String, Locus, Double, Locus]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
+
+        EmitTriplet(
+          Code(loc.setup, minMatch.setup, llocal := Code._null),
+          loc.m || minMatch.m || Code(llocal := lifted, llocal.isNull),
+          emitLocus(mb, llocal)
+        )
     }
 
-    registerLiftoverCode[Long, Double]("liftoverLocusInterval", tinterval, TFloat64(), TInterval(TLocus(destRG))) {
-      (mb, ioff: Code[Long], minMatch: Code[Double]) =>
-        val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(mb, tinterval)(ioff)))
-        emitInterval(mb, rgCode(mb).invoke[String, Interval, Double, Interval]("liftoverLocusInterval", destRG.name, interval, minMatch))
+    registerLiftoverCode("liftoverLocusInterval", tinterval, TFloat64(), TInterval(TLocus(destRG))) {
+      (mb, i, minMatch) =>
+        val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(mb, tinterval)(i.value[Long])))
+        val ilocal = mb.newLocal[Interval]
+        val lifted = rgCode(mb).invoke[String, Interval, Double, Interval]("liftoverLocusInterval", destRG.name, interval, minMatch.value[Double])
+
+        EmitTriplet(
+          Code(i.setup, minMatch.setup, ilocal := Code._null),
+          i.m || minMatch.m || Code(ilocal := lifted, ilocal.isNull),
+          emitInterval(mb, ilocal)
+        )
     }
   }
 }
