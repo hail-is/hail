@@ -95,23 +95,39 @@ def ld_score(entry_expr, annotation_exprs, position_expr, window_size) -> Table:
     R_squared = ((G @ G.T)/n) ** 2
     R_squared_adj = R_squared - (1.0 - R_squared)/(n - 2.0)
     
-    positions = np.array(position_expr.collect())
-    n_positions = positions.size
+    positions = [(x[0], float(x[1])) for x in hl.array([mt.locus.contig, hl.str(position_expr)]).collect()]
+    n_positions = len(positions)
 
     starts = np.zeros(n_positions, dtype=int)
     stops = np.zeros(n_positions, dtype=int)
+
+    contig = '0'
     
-    j = 0
-    k = 0
-    
-    for i in range(n_positions):
-        min_val = positions[i] - window_size
-        max_val = positions[i] + window_size
-        while (j < n_positions) and (positions[j] < min_val):
+    for i, (c, p) in enumerate(positions):
+
+        if c != contig:
+
+            j = i
+            k = i
+            contig = c
+
+        min_val = p - window_size
+        max_val = p + window_size
+
+        while j < n_positions and positions[j][1] < min_val:
             j += 1
+
         starts[i] = j
-        while (k < n_positions) and (positions[k] <= max_val):
+
+        if k == n_positions:
+            stops[i] = k
+            continue
+
+        while positions[k][0] == contig and positions[k][1] <= max_val:
             k += 1
+            if k == n_positions:
+                break
+
         stops[i] = k
 
     R_squared_adj_sparse = R_squared_adj.sparsify_row_intervals(starts=[int(x) for x in starts], stops=[int(x) for x in stops])

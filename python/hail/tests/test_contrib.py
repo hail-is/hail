@@ -23,21 +23,32 @@ class Tests(unittest.TestCase):
                                 position_expr=mt.cm_position,
                                 window_size=1)
 
-        first_scores = ht_scores.aggregate(hl.struct(univariate=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '20') & 
+        chr20_firsts = ht_scores.aggregate(hl.struct(univariate=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '20') & 
                                                                                              (ht_scores.locus.position == 82079), ht_scores.univariate))[0],
                                                      binary=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '20') & 
                                                                                          (ht_scores.locus.position == 82079), ht_scores.binary))[0],
                                                      continuous=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '20') & 
                                                                                              (ht_scores.locus.position == 82079), ht_scores.continuous))[0]))
 
-        self.assertAlmostEqual(first_scores.univariate, 1.601, places=3)
-        self.assertAlmostEqual(first_scores.binary, 1.152, places=3)
-        self.assertAlmostEqual(first_scores.continuous, 73.014, places=3)
+        self.assertAlmostEqual(chr20_firsts.univariate, 1.601, places=3)
+        self.assertAlmostEqual(chr20_firsts.binary, 1.152, places=3)
+        self.assertAlmostEqual(chr20_firsts.continuous, 73.014, places=3)
 
-        mean_scores = ht_scores.aggregate(hl.struct(univariate=hl.agg.mean(ht_scores.univariate),
-                                                    binary=hl.agg.mean(ht_scores.binary),
-                                                    continuous=hl.agg.mean(ht_scores.continuous)))
+        chr22_firsts = ht_scores.aggregate(hl.struct(univariate=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '22') & 
+                                                                                             (ht_scores.locus.position == 16894090), ht_scores.univariate))[0],
+                                                     binary=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '22') & 
+                                                                                         (ht_scores.locus.position == 16894090), ht_scores.binary))[0],
+                                                     continuous=hl.agg.collect(hl.agg.filter((ht_scores.locus.contig == '22') & 
+                                                                                             (ht_scores.locus.position == 16894090), ht_scores.continuous))[0]))
 
-        self.assertAlmostEqual(mean_scores.univariate, 3.826, places=3)
-        self.assertAlmostEqual(mean_scores.binary, 0.996, places=3)
-        self.assertAlmostEqual(mean_scores.continuous, 199.469, places=3)
+        self.assertAlmostEqual(chr22_firsts.univariate, 1.140, places=3)
+        self.assertAlmostEqual(chr22_firsts.binary, 1.107, places=3)
+        self.assertAlmostEqual(chr22_firsts.continuous, 102.174, places=3)
+
+        means = ht_scores.aggregate(hl.struct(univariate=hl.agg.mean(ht_scores.univariate),
+                                              binary=hl.agg.mean(ht_scores.binary),
+                                              continuous=hl.agg.mean(ht_scores.continuous)))
+
+        self.assertAlmostEqual(means.univariate, 3.507, places=3)
+        self.assertAlmostEqual(means.binary, 0.965, places=3)
+        self.assertAlmostEqual(means.continuous, 176.528, places=3)
