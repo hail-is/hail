@@ -5,7 +5,7 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{RVD, RVDSpec, UnpartitionedRVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD}
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
@@ -19,6 +19,19 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def rdd: RDD[Row] =
     rvd.toRows
+
+  def enforceOrderingRVD: RVD = (rvd, typ.key) match {
+    case (orvd: OrderedRVD, Some(key)) =>
+      assert(orvd.typ.key.startsWith(key))
+      orvd
+    case (orvd: OrderedRVD, None) =>
+      orvd.toUnpartitionedRVD
+    case (urvd: UnpartitionedRVD, Some(key)) =>
+      val orvdType = new OrderedRVDType(key.toArray, key.toArray, typ.rowType)
+      OrderedRVD.coerce(orvdType, rvd, None, None)
+    case (urvd: UnpartitionedRVD, None) =>
+      urvd
+  }
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
@@ -63,7 +76,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     hc.hadoopConf.mkDir(globalsPath)
     RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = rvd.write(path + "/rows", codecSpec)
+    val partitionCounts = enforceOrderingRVD.write(path + "/rows", codecSpec)
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)
