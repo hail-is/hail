@@ -17,28 +17,28 @@ def ld_score(entry_expr, annotation_exprs, position_expr, window_size) -> Table:
 
     Example
     -------
-    
+
     >>> # Load genetic data into MatrixTable
-    >>> mt = hl.import_plink(bed='gs://.../my_data.bed', 
-    ...                      bim='gs://.../my_data.bim', 
-    ...                      fam='gs://.../my_data.fam')
+    >>> mt = hl.import_plink(bed='data/ldsc.bed', 
+    ...                      bim='data/ldsc.bim', 
+    ...                      fam='data/ldsc.fam')
     
     >>> # Create locus-keyed Table with numeric variant annotations
-    >>> ht = hl.import_table('gs://.../my_annotations.tsv.bgz')
-    >>> ht = ht.annotate(locus=hl.locus(ht.contig, ht.position))  
+    >>> ht = hl.import_table('data/ldsc.annot', types={'BP': hl.tint, 'binary': hl.tfloat, 'continuous': hl.tfloat})
+    >>> ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))  
     >>> ht = ht.key_by('locus')
     
     >>> # Annotate MatrixTable with external annotations 
-    >>> mt = mt.annotate_rows(annotation_0=hl.literal(1),   # univariate LD scores
-    ...                       annotation_1=ht_annotations[mt.locus].annotation_1, 
-    ...                       annotation_2=ht_annotations[mt.locus].annotation_2)
+    >>> mt = mt.annotate_rows(univariate_annotation=hl.literal(1),   # univariate LD scores
+    ...                       binary_annotation=ht[mt.locus].binary, 
+    ...                       continuous_annotation=ht[mt.locus].continuous)
     ...
     >>> # Annotate MatrixTable with alt allele count stats
     >>> mt = mt.annotate_rows(stats=hl.agg.stats(mt.GT.n_alt_alleles()))
      
     >>> # Calculate LD score for each variant, annotation using standardized genotypes
     >>> ht_scores = hl.ld_score(entry_expr=hl.or_else((mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0),
-    ...                         annotation_exprs=[mt.annotation_0, mt.annotation_1, mt.annotation_2],
+    ...                         annotation_exprs=[mt.univariate_annotation, mt.binary_annotation, mt.continuous_annotation],
     ...                         position_expr=mt.cm_position,
     ...                         window_size=1)
 
@@ -98,8 +98,8 @@ def ld_score(entry_expr, annotation_exprs, position_expr, window_size) -> Table:
     positions = [(x[0], float(x[1])) for x in hl.array([mt.locus.contig, hl.str(position_expr)]).collect()]
     n_positions = len(positions)
 
-    starts = np.zeros(n_positions, dtype=int)
-    stops = np.zeros(n_positions, dtype=int)
+    starts = np.zeros(n_positions, dtype='int')
+    stops = np.zeros(n_positions, dtype='int')
 
     contig = '0'
     
