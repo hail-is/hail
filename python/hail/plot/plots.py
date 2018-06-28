@@ -9,15 +9,19 @@ from bokeh.models import ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
 
 
-# FIXME: typecheck for Struct? also if field is passed in, user needs to specify start, end, bins args
-@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), legend=nullable(str), title=nullable(str))
-def histogram(data, legend=None, title=None):
+@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
+           bins=int, legend=nullable(str), title=nullable(str))
+def histogram(data, range=None, bins=50, legend=None, title=None):
     """Create a histogram.
 
     Parameters
     ----------
     data : :class:`.Struct`
         Sequence of data to plot.
+    range : Tuple[floa
+        Range of x values in the histogram.
+    bins : int
+        Number of bins in the histogram.
     legend : str
         Label of data on the x-axis.
     title : str
@@ -30,6 +34,13 @@ def histogram(data, legend=None, title=None):
     if isinstance(data, Expression):
         if data._indices.source is not None:
             data = data.collect()
+            if range is not None:
+                start = range[0]
+                end = range[1]
+            else:
+                start = min(data)
+                end = max(data)
+            data = aggregators.hist(data, start, end, bins)
         else:
             return ValueError('Invalid input')
 
