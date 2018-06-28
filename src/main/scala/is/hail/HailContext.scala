@@ -105,10 +105,11 @@ object HailContext {
 
     val problems = new ArrayBuffer[String]
 
-    val serializer = conf.get("spark.serializer")
+    val serializer = conf.getOption("spark.serializer")
     val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
-    if (serializer != kryoSerializer)
-      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  Found: $serializer."
+    if (!serializer.contains(kryoSerializer))
+      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  " +
+        s"Found: ${ serializer.getOrElse("empty parameter") }."
 
     if (!conf.getOption("spark.kryo.registrator").exists(_.split(",").contains("is.hail.kryo.HailKryoRegistrator")))
       problems += s"Invalid config parameter: spark.kryo.registrator must include is.hail.kryo.HailKryoRegistrator." +
