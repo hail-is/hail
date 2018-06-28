@@ -33,13 +33,12 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
-            data = data.collect()
             if range is not None:
                 start = range[0]
                 end = range[1]
             else:
-                start = min(data)
-                end = max(data)
+                start = aggregators.min(data)
+                end = aggregators.max(data)
             data = aggregators.hist(data, start, end, bins)
         else:
             return ValueError('Invalid input')
