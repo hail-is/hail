@@ -153,7 +153,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_vcf(resource('skip_invalid_loci.vcf'))
+            hl.import_vcf(resource('skip_invalid_loci.vcf')).count()
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
