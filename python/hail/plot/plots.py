@@ -37,8 +37,9 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
                 start = range[0]
                 end = range[1]
             else:
-                start = aggregators.min(data)
-                end = aggregators.max(data)
+                start = aggregators.min(data).collect()
+                end = aggregators.max(data).collect()
+            # FIXME: convert this StructExpression to a hail.utils.struct.Struct
             data = aggregators.hist(data, start, end, bins)
         else:
             return ValueError('Invalid input')
