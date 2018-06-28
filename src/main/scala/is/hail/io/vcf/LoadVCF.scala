@@ -94,6 +94,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   def endFormatArrayField(): Boolean = endFormatArrayField(pos)
 
+  def skipFormatField(): Unit = {
+    while (!endFormatField())
+      pos += 1
+  }
+
   def fieldMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
@@ -518,10 +523,8 @@ object FormatParser {
     val formatFieldsSet = formatFields.toSet
     new FormatParser(
       gType,
-      formatFields.map(gType.fieldIdx),
-      (0 until gType.size)
-        .filter(i => !formatFieldsSet.contains(gType.fields(i).name))
-        .toArray)
+      formatFields.map(f => gType.fieldIdx.getOrElse(f, -1)), // -1 means field has been pruned
+      gType.fields.filter(f => !formatFieldsSet.contains(f.name)).map(_.index).toArray)
   }
 }
 
@@ -531,23 +534,28 @@ class FormatParser(
   missingGIndices: Array[Int]) {
 
   def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
+    // negative j values indicate field is pruned
     val j = formatFieldGIndex(i)
-    rvb.setFieldIndex(j)
-    gType.types(j) match {
-      case TCall(_) =>
-        l.parseAddCall(rvb)
-      case TInt32(_) =>
-        l.parseAddFormatInt(rvb)
-      case TFloat64(_) =>
-        l.parseAddFormatDouble(rvb)
-      case TString(_) =>
-        l.parseAddFormatString(rvb)
-      case TArray(TInt32(_), _) =>
-        l.parseAddFormatArrayInt(rvb)
-      case TArray(TFloat64(_), _) =>
-        l.parseAddFormatArrayDouble(rvb)
-      case TArray(TString(_), _) =>
-        l.parseAddFormatArrayString(rvb)
+    if (j == -1)
+      l.skipFormatField()
+    else {
+      rvb.setFieldIndex(j)
+      gType.types(j) match {
+        case TCall(_) =>
+          l.parseAddCall(rvb)
+        case TInt32(_) =>
+          l.parseAddFormatInt(rvb)
+        case TFloat64(_) =>
+          l.parseAddFormatDouble(rvb)
+        case TString(_) =>
+          l.parseAddFormatString(rvb)
+        case TArray(TInt32(_), _) =>
+          l.parseAddFormatArrayInt(rvb)
+        case TArray(TFloat64(_), _) =>
+          l.parseAddFormatArrayDouble(rvb)
+        case TArray(TString(_), _) =>
+          l.parseAddFormatArrayString(rvb)
+      }
     }
   }
 
@@ -733,7 +741,15 @@ object LoadVCF {
 
     val sampleIds: Array[String] = headerLine.split("\t").drop(9)
 
-    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, filterAttrs, infoAttrs, formatAttrs, infoFlagFields)
+    VCFHeaderInfo(
+      sampleIds,
+      infoSignature,
+      vaSignature,
+      gSignature.copy(required = true),
+      filterAttrs,
+      infoAttrs,
+      formatAttrs,
+      infoFlagFields)
   }
 
   def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
@@ -796,7 +812,7 @@ object LoadVCF {
                 var caretPad = prefix.length + pos - excerptStart
                 var pad = " " * caretPad
 
-                fatal(s"${ source.locationString(pos) }: ${ e.msg }\n$prefix$excerpt$suffix\n$pad^\noffending line: @1\nsee the Hail log for the full offending line", line)
+                fatal(s"${ source.locationString(pos) }: ${ e.msg }\n$prefix$excerpt$suffix\n$pad^\noffending line: @1\nsee the Hail log for the full offending line", line, e)
               case e: Throwable =>
                 lwc.source.wrapException(e)
             }
@@ -930,7 +946,7 @@ object LoadVCF {
       entryType = genotypeSignature)
 
     val vcfReader = VCFMatrixReader(callFields, inputs, minPartitions, sampleIDs, rg, contigRecoding,
-      arrayElementsRequired, skipInvalidLoci, gzAsBGZ, infoSignature, infoFlagFieldNames, headerLines1, matrixType)
+      arrayElementsRequired, skipInvalidLoci, gzAsBGZ, infoFlagFieldNames, headerLines1, matrixType)
     new MatrixTable(hc, MatrixRead(matrixType, None, dropSamples, false, vcfReader))
   }
 
@@ -954,10 +970,9 @@ case class VCFMatrixReader(
   arrayElementsRequired: Boolean,
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
-  infoSignature: TStruct,
   infoFlagFieldNames: Set[String],
   headerLines: Array[String],
-  matrixType: MatrixType
+  originalMatrixType: MatrixType
 ) extends MatrixReader {
 
   private val hc = HailContext.get
@@ -969,68 +984,78 @@ case class VCFMatrixReader(
     }
   }
 
-  private lazy val partitioner = OrderedRVD.coerce(new OrderedRVDType(
-    Array("locus"),
-    Array("locus", "alleles"),
-    matrixType.rowKeyStruct), LoadVCF.parseLines(
-    () => ()
-  )((c, l, rvb) => ()
-  )(lines,
-    matrixType.rowKeyStruct,
-    rg,
-    contigRecoding,
-    arrayElementsRequired,
-    skipInvalidLoci)).partitioner
+  private lazy val coercer = OrderedRVD.makeCoercer(originalMatrixType.orvdType,
+    parseLines(
+      () => ()
+    )((c, l, rvb) => ()
+    )(lines,
+      originalMatrixType.rowKeyStruct,
+      rg,
+      contigRecoding,
+      arrayElementsRequired,
+      skipInvalidLoci), None)
 
   def apply(mr: MatrixRead): MatrixValue = {
-    val infoSignatureBc = sc.broadcast(infoSignature)
     val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)
     val reader = new HtsjdkRecordReader(callFields)
-    val genotypeSignature = matrixType.entryType
-    val rvRowType = matrixType.rvRowType
     val headerLinesBc = sc.broadcast(headerLines)
+
+    val requestedType = mr.typ
+    assert(mr.typ.entryType.required)
+    val noEntryFields = requestedType.entryType.size == 0
+
+    val infoSignature = mr.typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
+    val hasID = mr.typ.rowType.hasField("rsid")
+    val hasQual = mr.typ.rowType.hasField("qual")
+    val hasFilters = mr.typ.rowType.hasField("filters")
+    val formatSignature = mr.typ.entryType
 
     val localSampleIDs: Array[String] = if (mr.dropCols) Array.empty[String] else sampleIDs
     val nSamples = localSampleIDs.length
 
     val rvd = if (mr.dropRows)
-      OrderedRVD.empty(sc, matrixType.orvdType)
+      OrderedRVD.empty(sc, requestedType.orvdType)
     else
-      OrderedRVD(matrixType.orvdType, partitioner, parseLines { () =>
-        new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
+      coercer.coerce(requestedType.orvdType, parseLines { () =>
+        new ParseLineContext(formatSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
         val vc = c.codec.decode(l.line)
-        reader.readVariantInfo(vc, rvb, infoSignatureBc.value, infoFlagFieldNamesBc.value)
+        reader.readVariantInfo(vc, rvb, hasID, hasQual, hasFilters, infoSignature, infoFlagFieldNamesBc.value)
 
         rvb.startArray(nSamples) // gs
+
         if (nSamples > 0) {
-          // l is pointing at qual
-          var i = 0
-          while (i < 3) { // qual, filter, info
-            l.skipField()
+          if (noEntryFields)
+            rvb.unsafeAdvance(nSamples) // super fast
+          else {
+            // l is pointing at qual
+            var i = 0
+            while (i < 3) { // qual, filter, info
+              l.skipField()
+              l.nextField()
+              i += 1
+            }
+
+            val format = l.parseString()
             l.nextField()
-            i += 1
-          }
 
-          val format = l.parseString()
-          l.nextField()
+            val fp = c.getFormatParser(format)
 
-          val fp = c.getFormatParser(format)
-
-          fp.parse(l, rvb)
-          i = 1
-          while (i < nSamples) {
-            l.nextField()
             fp.parse(l, rvb)
-            i += 1
+            i = 1
+            while (i < nSamples) {
+              l.nextField()
+              fp.parse(l, rvb)
+              i += 1
+            }
           }
         }
         rvb.endArray()
-      }(lines, rvRowType, rg, contigRecoding, arrayElementsRequired, skipInvalidLoci))
+      }(lines, requestedType.rvRowType, rg, contigRecoding, arrayElementsRequired, skipInvalidLoci))
 
-    MatrixValue(matrixType,
-      BroadcastRow(Row.empty, matrixType.globalType, sc),
-      BroadcastIndexedSeq(localSampleIDs.map(Annotation(_)), TArray(matrixType.colType), sc),
+    MatrixValue(requestedType,
+      BroadcastRow(Row.empty, requestedType.globalType, sc),
+      BroadcastIndexedSeq(localSampleIDs.map(Annotation(_)), TArray(requestedType.colType), sc),
       rvd
     )
   }

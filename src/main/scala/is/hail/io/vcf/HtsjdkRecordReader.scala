@@ -26,41 +26,56 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
 
   import HtsjdkRecordReader._
 
-  def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, infoFlagFieldNames: Set[String]) {
+  def readVariantInfo(
+    vc: VariantContext,
+    rvb: RegionValueBuilder,
+    hasID: Boolean,
+    hasQual: Boolean,
+    hasFilters: Boolean,
+    infoType: TStruct,
+    infoFlagFieldNames: Set[String]) {
     // locus, alleles added via VCFLine
 
     // rsid
-    val vcID = vc.getID
-    val rsid = if (vcID == ".")
-      rvb.setMissing()
-    else
-      rvb.addString(vcID)
+    if (hasID) {
+      val vcID = vc.getID
+      if (vcID == ".")
+        rvb.setMissing()
+      else
+        rvb.addString(vcID)
+    }
 
-    rvb.addDouble(vc.getPhredScaledQual)
+    if (hasQual) {
+      rvb.addDouble(vc.getPhredScaledQual)
+    }
 
     // filters
-    if (!vc.filtersWereApplied)
-      rvb.setMissing()
-    else {
-      if (vc.isNotFiltered) {
-        rvb.startArray(0)
-        rvb.endArray()
-      } else {
-        rvb.startArray(vc.getFilters.size())
-        val fi = vc.getFilters.iterator()
-        while (fi.hasNext)
-          rvb.addString(fi.next())
-        rvb.endArray()
+    if (hasFilters) {
+      if (!vc.filtersWereApplied)
+        rvb.setMissing()
+      else {
+        if (vc.isNotFiltered) {
+          rvb.startArray(0)
+          rvb.endArray()
+        } else {
+          rvb.startArray(vc.getFilters.size())
+          val fi = vc.getFilters.iterator()
+          while (fi.hasNext)
+            rvb.addString(fi.next())
+          rvb.endArray()
+        }
       }
     }
 
-    // info
-    rvb.startStruct()
-    infoType.fields.foreach { f =>
-      val a = vc.getAttribute(f.name)
-      addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
+    if (infoType != null) {
+      // info
+      rvb.startStruct()
+      infoType.fields.foreach { f =>
+        val a = vc.getAttribute(f.name)
+        addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
+      }
+      rvb.endStruct() // info
     }
-    rvb.endStruct() // info
   }
 }
 

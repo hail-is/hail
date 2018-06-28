@@ -392,7 +392,7 @@ object LoadMatrix {
       val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.pkType)
       OrderedRVD(matrixType.orvdType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
-      OrderedRVD.coerce(matrixType.orvdType, rdd, None, None)
+      OrderedRVD.coerce(matrixType.orvdType, rdd)
 
     new MatrixTable(hc,
       matrixType,

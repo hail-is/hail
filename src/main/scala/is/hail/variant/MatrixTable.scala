@@ -167,7 +167,7 @@ object MatrixTable {
 
             rv
           }
-        }, None, None))
+        }))
     ds.typecheck()
     ds
   }
