@@ -745,7 +745,7 @@ object LoadVCF {
       sampleIds,
       infoSignature,
       vaSignature,
-      gSignature.copy(required = true),
+      gSignature,
       filterAttrs,
       infoAttrs,
       formatAttrs,
@@ -1002,8 +1002,6 @@ case class VCFMatrixReader(
 
     val requestedType = mr.typ
     assert(PruneDeadFields.isSupertype(requestedType, originalMatrixType))
-    assert(mr.typ.entryType.required)
-    val noEntryFields = requestedType.entryType.size == 0
 
     val infoSignature = mr.typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
     val hasID = mr.typ.rowType.hasField("rsid")
@@ -1026,29 +1024,25 @@ case class VCFMatrixReader(
         rvb.startArray(nSamples) // gs
 
         if (nSamples > 0) {
-          if (noEntryFields)
-            rvb.unsafeAdvance(nSamples) // super fast
-          else {
-            // l is pointing at qual
-            var i = 0
-            while (i < 3) { // qual, filter, info
-              l.skipField()
-              l.nextField()
-              i += 1
-            }
-
-            val format = l.parseString()
+          // l is pointing at qual
+          var i = 0
+          while (i < 3) { // qual, filter, info
+            l.skipField()
             l.nextField()
+            i += 1
+          }
 
-            val fp = c.getFormatParser(format)
+          val format = l.parseString()
+          l.nextField()
 
+          val fp = c.getFormatParser(format)
+
+          fp.parse(l, rvb)
+          i = 1
+          while (i < nSamples) {
+            l.nextField()
             fp.parse(l, rvb)
-            i = 1
-            while (i < nSamples) {
-              l.nextField()
-              fp.parse(l, rvb)
-              i += 1
-            }
+            i += 1
           }
         }
         rvb.endArray()
