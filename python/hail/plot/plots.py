@@ -9,6 +9,8 @@ from bokeh.models import ColumnDataSource, CategoricalColorMapper
 from bokeh.palettes import Category10
 
 
+# FIXME: typecheck for Struct? also if field is passed in, user needs to specify start, end, bins args
+@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), legend=nullable(str), title=nullable(str))
 def histogram(data, legend=None, title=None):
     """Create a histogram.
 
@@ -25,6 +27,12 @@ def histogram(data, legend=None, title=None):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
+    if isinstance(data, Expression):
+        if data._indices.source is not None:
+            data = data.collect()
+        else:
+            return ValueError('Invalid input')
+
     p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency', background_fill_color='#EEEEEE')
     p.quad(
         bottom=0, top=data.bin_freq,
