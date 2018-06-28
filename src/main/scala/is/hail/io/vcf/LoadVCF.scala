@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
+import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF.parseLines
 import is.hail.io.{VCFAttributes, VCFMetadata}
@@ -1001,6 +1001,7 @@ case class VCFMatrixReader(
     val headerLinesBc = sc.broadcast(headerLines)
 
     val requestedType = mr.typ
+    assert(PruneDeadFields.isSupertype(requestedType, originalMatrixType))
     assert(mr.typ.entryType.required)
     val noEntryFields = requestedType.entryType.size == 0
 
