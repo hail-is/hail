@@ -634,7 +634,7 @@ class MatrixTable(ExprContainer):
         return self._entry
 
     @typecheck_method(keys=oneof(str, Expression),
-                      named_keys=Expression)
+                      named_keys=expr_any)
     def key_cols_by(self, *keys, **named_keys) -> 'MatrixTable':
         """Key columns by a new set of fields.
 
@@ -668,7 +668,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(partition_key=oneof(str, sequenceof(str)),
                       keys=oneof(str, Expression),
-                      named_keys=Expression)
+                      named_keys=expr_any)
     def partition_rows_by(self, partition_key, *keys, **named_keys) -> 'MatrixTable':
         """Key rows by a new set of fields, specifying a partition key.
 
@@ -734,7 +734,7 @@ class MatrixTable(ExprContainer):
 
 
     @typecheck_method(keys=oneof(str, Expression),
-                      named_keys=Expression)
+                      named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
         """Key rows by a new set of fields.
 
@@ -1770,8 +1770,6 @@ class MatrixTable(ExprContainer):
         If the field referenced with `field_expr` is missing or empty, the row is
         removed entirely.
 
-
-
         Parameters
         ----------
         field_expr : str or :class:`.Expression`
@@ -1788,15 +1786,23 @@ class MatrixTable(ExprContainer):
             elif self._fields[field_expr]._indices != self._row_indices:
                 raise ExpressionException("Method 'explode_rows' expects a field indexed by row, found axes '{}'"
                                           .format(self._fields[field_expr]._indices.axes))
-            s = 'va.{}'.format(escape_id(field_expr))
+            field_expr = self._fields[field_expr]
         else:
             analyze('MatrixTable.explode_rows', field_expr, self._row_indices, set(self._fields.keys()))
             if field_expr._ast.search(
                     lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
-            s = field_expr._ast.to_hql()
-        return MatrixTable(self._jvds.explodeRows(s))
+
+        if not isinstance(field_expr.dtype, (tarray, tset)):
+            raise ValueError(f"method 'explode_rows' expects array or set, found: {field_expr.dtype}")
+
+        if self.row_key is not None:
+            for k in self.row_key.values():
+                if k is field_expr:
+                    raise ValueError(f"method 'explode_rows' cannot explode a key field")
+
+        return MatrixTable(self._jvds.explodeRows(field_expr._ast.to_hql()))
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_cols(self, field_expr) -> 'MatrixTable':
@@ -1836,15 +1842,23 @@ class MatrixTable(ExprContainer):
             elif self._fields[field_expr]._indices != self._col_indices:
                 raise ExpressionException("Method 'explode_cols' expects a field indexed by col, found axes '{}'"
                                           .format(self._fields[field_expr]._indices.axes))
-            s = 'sa.{}'.format(escape_id(field_expr))
+            field_expr = self._fields[field_expr]
         else:
             analyze('MatrixTable.explode_cols', field_expr, self._col_indices)
             if field_expr._ast.search(
                     lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
-            s = field_expr._ast.to_hql()
-        return MatrixTable(self._jvds.explodeCols(s))
+
+        if not isinstance(field_expr.dtype, (tarray, tset)):
+            raise ValueError(f"method 'explode_cols' expects array or set, found: {field_expr.dtype}")
+
+        if self.col_key is not None:
+            for k in self.col_key.values():
+                if k is field_expr:
+                    raise ValueError(f"method 'explode_cols' cannot explode a key field")
+
+        return MatrixTable(self._jvds.explodeCols(field_expr._ast.to_hql()))
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
     def group_rows_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
