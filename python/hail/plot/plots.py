@@ -3,6 +3,7 @@ from math import log, isnan
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr import aggregators
+from hail import MatrixTable
 from hail.expr.expressions import Expression
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CategoricalColorMapper
@@ -18,7 +19,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
     ----------
     data : :class:`.Struct`
         Sequence of data to plot.
-    range : Tuple[floa
+    range : Tuple[float]
         Range of x values in the histogram.
     bins : int
         Number of bins in the histogram.
@@ -33,14 +34,21 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
+            source = data._indices.source
             if range is not None:
                 start = range[0]
                 end = range[1]
             else:
-                start = aggregators.min(data).collect()
-                end = aggregators.max(data).collect()
-            # FIXME: convert this StructExpression to a hail.utils.struct.Struct
-            data = aggregators.hist(data, start, end, bins)
+                if isinstance(source, MatrixTable):
+                    start = source.aggregate_entries(aggregators.min(data))
+                    end = source.aggregate_entries(aggregators.max(data))
+                else:
+                    start = source.aggregate(aggregators.min(data))
+                    end = source.aggregate(aggregators.min(data))
+            if isinstance(source, MatrixTable):
+                data = source.aggregate_entries(aggregators.hist(data, start, end, bins))
+            else:
+                data = source.aggregate(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
 
