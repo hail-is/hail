@@ -156,17 +156,18 @@ object CompileWithAggregators {
   F1 >: Null : TypeInfo,
   F2 >: Null : TypeInfo,
   R: TypeInfo : ClassTag
-  ](args: Seq[(String, Type, ClassTag[_])],
-    aggScopeArgs: Seq[(String, Type, ClassTag[_])],
+  ](initOpArgs: Seq[(String, Type, ClassTag[_])],
+    seqOpArgs: Seq[(String, Type, ClassTag[_])],
+    postAggArgs: Seq[(String, Type, ClassTag[_])],
     body: IR
   ): (Array[RegionValueAggregator], (IR, Compiler[F0]), (IR, Compiler[F1]), Type, (IR, Compiler[F2])) = {
-    assert((args ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
+    assert((initOpArgs ++ seqOpArgs ++ postAggArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
     val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body)
-    val compileInitOp = (initOp: IR) => Compile[F0, Unit](args, initOp, 2)
-    val compileSeqOp = (seqOp: IR) => Compile[F1, Unit](aggScopeArgs, seqOp, 2)
+    val compileInitOp = (initOp: IR) => Compile[F0, Unit](initOpArgs, initOp, 2)
+    val compileSeqOp = (seqOp: IR) => Compile[F1, Unit](seqOpArgs, seqOp, 2)
 
-    val args2 = ("AGGR", aggResultType, classTag[Long]) +: args
+    val args2 = ("AGGR", aggResultType, classTag[Long]) +: postAggArgs
     val compilePostAgg = (postAgg: IR) => Compile[F2, R](args2, postAgg, 1)
     (rvAggs,
       (initOpIR, compileInitOp),
@@ -180,8 +181,9 @@ object CompileWithAggregators {
   F1 >: Null : TypeInfo,
   F2 >: Null : TypeInfo,
   R: TypeInfo : ClassTag
-  ](args: Seq[(String, Type, ClassTag[_])],
-    aggScopeArgs: Seq[(String, Type, ClassTag[_])],
+  ](initOpArgs: Seq[(String, Type, ClassTag[_])],
+    seqOpArgs: Seq[(String, Type, ClassTag[_])],
+    postAggArgs: Seq[(String, Type, ClassTag[_])],
     body: IR,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
@@ -192,7 +194,7 @@ object CompileWithAggregators {
       (seqOpIR, compileSeqOp),
       aggResultType,
       (postAggIR, compilePostAgg)
-    ) = toIRs[F0, F1, F2, R](args, aggScopeArgs, body)
+    ) = toIRs[F0, F1, F2, R](initOpArgs, seqOpArgs, postAggArgs, body)
     val nAggs = rvAggs.length
     val (_, initOps) = compileInitOp(trace("initop", transformInitOp(nAggs, initOpIR)))
     val (_, seqOps) = compileSeqOp(trace("seqop", transformSeqOp(nAggs, seqOpIR)))
@@ -229,7 +231,7 @@ object CompileWithAggregators {
       (aggName1, aggTyp1, classTag[S1]))
 
     apply[IRAggFun1[T0], IRAggFun2[S0, S1], IRFun2[Long, T0, R], R
-    ](args, aggScopeArgs, body, transformInitOp, transformSeqOp)
+    ](args, aggScopeArgs, args, body, transformInitOp, transformSeqOp)
   }
 
   def apply[
@@ -263,7 +265,7 @@ object CompileWithAggregators {
       (aggName2, aggType2, classTag[S2]))
 
     apply[IRAggFun2[T0, T1], IRAggFun3[S0, S1, S2], IRFun3[Long, T0, T1, R], R
-    ](args, aggArgs, body, transformInitOp, transformSeqOp)
+    ](args, aggArgs, args, body, transformInitOp, transformSeqOp)
   }
 
   def toIRs[
@@ -294,7 +296,7 @@ object CompileWithAggregators {
       (aggName2, aggType2, classTag[S2]))
 
     toIRs[IRAggFun2[T0, T1], IRAggFun3[S0, S1, S2], IRFun3[Long, T0, T1, R], R
-    ](args, aggArgs, body)
+    ](args, aggArgs, args, body)
   }
 
   def apply[
@@ -325,7 +327,7 @@ object CompileWithAggregators {
       (aggName2, aggType2, classTag[S2]))
 
     apply[IRAggFun1[T0], IRAggFun3[S0, S1, S2], IRFun2[Long, T0, R], R
-    ](args, aggArgs, body, transformInitOp, transformAggIR)
+    ](args, aggArgs, args, body, transformInitOp, transformAggIR)
   }
 
   def apply[
@@ -365,6 +367,34 @@ object CompileWithAggregators {
       (aggName3, aggType3, classTag[S3]))
 
     apply[IRAggFun3[T0, T1, T2], IRAggFun4[S0, S1, S2, S3], IRFun4[Long, T0, T1, T2, R], R
-    ](args, aggArgs, body, transformInitOp, transformSeqOp)
+    ](args, aggArgs, args, body, transformInitOp, transformSeqOp)
+  }
+
+  def scan[
+  T0: ClassTag,
+  S0: ClassTag,
+  S1: ClassTag,
+  R: TypeInfo : ClassTag
+  ](name0: String, typ0: Type,
+    aggName0: String, aggType0: Type,
+    aggName1: String, aggType1: Type,
+    body: IR,
+    transformInitOp: (Int, IR) => IR,
+    transformAggIR: (Int, IR) => IR
+  ): (Array[RegionValueAggregator],
+    () => IRAggFun1[T0],
+    () => IRAggFun2[S0, S1],
+    Type,
+    () => IRFun3[Long, S0, S1, R],
+    Type) = {
+    val args = FastSeq(
+      (name0, typ0, classTag[T0]))
+
+    val aggArgs = FastSeq(
+      (aggName0, aggType0, classTag[S0]),
+      (aggName1, aggType1, classTag[S1]))
+
+    apply[IRAggFun1[T0], IRAggFun2[S0, S1], IRFun3[Long, S0, S1, R], R
+      ](args, aggArgs, aggArgs, body, transformInitOp, transformAggIR)
   }
 }

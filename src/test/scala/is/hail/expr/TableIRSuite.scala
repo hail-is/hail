@@ -1,9 +1,10 @@
 package is.hail.expr
 
 import is.hail.SparkSuite
-import is.hail.expr.ir.TableFilter
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.table.Table
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -22,14 +23,24 @@ class TableIRSuite extends SparkSuite {
   @Test def testFilter() {
     val kt = getKT
     val kt2 = new Table(hc, TableFilter(kt.tir,
-      ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.I32(3))))
+      ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", kt.typ.rowType), "field1"), I32(3))))
     assert(kt2.count() == 1)
   }
 
   @Test def testFilterGlobals() {
     val kt = getKT.selectGlobal("{g: 3}")
     val kt2 = new Table(hc, TableFilter(kt.tir,
-      ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.GetField(ir.Ref("row", kt.typ.rowType), "field1"), ir.GetField(ir.Ref("global", kt.typ.globalType), "g"))))
+      ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", kt.typ.rowType), "field1"), GetField(Ref("global", kt.typ.globalType), "g"))))
     assert(kt2.count() == 1)
+  }
+
+  @Test def testScan() {
+    val kt = getKT
+    val row = Ref("row", kt.typ.rowType)
+    val aggSig = AggSignature(Count(), TInt32(), FastSeq.empty, None, FastSeq.empty)
+    val newRow = InsertFields(row, Seq("idx" -> ApplyAggOp(SeqOp(0, 0, aggSig), FastIndexedSeq.empty, None, aggSig)))
+    val indexWithScan = TableScan(kt.tir, newRow)
+    val kt2 = new Table(hc, indexWithScan)
+    assert(Array.range(0, kt2.count().toInt) sameElements kt2.collect().map { case Row(_, _, _, idx) => idx })
   }
 }
