@@ -34,6 +34,7 @@ Use ``import hail as hl`` to access this functionality.
     stats <stats/index>
     genetics <genetics/index>
     plot <plot>
+    experimental <experimental>
 
 .. rubric:: Module functions
 
