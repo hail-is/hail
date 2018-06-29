@@ -410,14 +410,52 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val (rTyp, f) = ir.Compile[Long, Long, Long](
-      "row", child.typ.rowType,
-      "global", child.typ.globalType,
-      newRow)
-    assert(rTyp == typ.rowType)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
-    val itF = { (ctx: RVDContext, it: Iterator[RegionValue]) =>
+
+    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
+      "global", gType,
+      "global", gType,
+      "row", tv.typ.rowType,
+      CompileWithAggregators.liftScan(newRow), "SCANR",
+      (nAggs: Int, initOp: IR) => initOp,
+      (nAggs: Int, seqOp: IR) => seqOp)
+
+    val scanAggsPerPartition = if (scanAggs.nonEmpty) {
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(gType)
+        rvb.addAnnotation(gType, globalsBc.value)
+        val globals = rvb.end()
+        scanInitOps()(region, scanAggs, globals, false)
+      }
+      tv.rvd.collectPerPartition { (ctx, it) =>
+        val rvb = new RegionValueBuilder(ctx.freshRegion)
+        rvb.start(gType)
+        rvb.addAnnotation(gType, globalsBc.value)
+        val globals = rvb.end()
+        it.foreach { rv =>
+          scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
+        }
+        scanAggs
+      }.scanLeft(scanAggs) { (a1, a2) =>
+        (a1, a2).zipped.map { (agg1, agg2) =>
+          val newAgg = agg1.copy()
+          newAgg.combOp(agg2)
+          newAgg
+        }
+      }
+    } else Array.fill(tv.rvd.getNumPartitions)(Array.empty[RegionValueAggregator])
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "SCANR", scanResultType,
+      "global", child.typ.globalType,
+      "row", child.typ.rowType,
+      postScanIR)
+    assert(rTyp == typ.rowType)
+
+    val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val partitionAggs = scanAggsPerPartition(i)
       val rvb = new RegionValueBuilder(ctx.freshRegion)
       rvb.start(gType)
       rvb.addAnnotation(gType, globalsBc.value)
@@ -425,7 +463,18 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       val rv2 = RegionValue()
       val newRow = f()
       it.map { rv =>
-        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globals, false))
+        rvb.start(scanResultType)
+        rvb.startStruct()
+        var j = 0
+        while (j < partitionAggs.length) {
+          partitionAggs(j).result(rvb)
+          j += 1
+        }
+        rvb.endStruct()
+        val scanOffset = rvb.end()
+
+        rv2.set(rv.region, newRow(rv.region, scanOffset, false, globals, false, rv.offset, false))
+        scanSeqOps()(rv.region, partitionAggs, globals, false, rv.offset, false)
         rv2
       }
     }
@@ -439,19 +488,19 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
                 partitionKey = key.take(pkLength).toArray,
                 key = key.toArray,
                 rowType = typ.rowType)
-              ordered.mapPartitionsPreservesPartitioning(newType, itF)
+              ordered.mapPartitionsWithIndexPreservesPartitioning(newType, itF)
             } else {
               val newType = ordered.typ.copy(
                 partitionKey = key.toArray,
                 key = key.toArray,
                 rowType = typ.rowType)
-              OrderedRVD.coerce(newType, ordered.mapPartitions(typ.rowType, itF))
+              OrderedRVD.coerce(newType, ordered.mapPartitionsWithIndex(typ.rowType, itF))
             }
           case None =>
-            ordered.mapPartitions(typ.rowType, itF)
+            ordered.mapPartitionsWithIndex(typ.rowType, itF)
         }
       case unordered: UnpartitionedRVD =>
-        unordered.mapPartitions(typ.rowType, itF)
+        unordered.mapPartitionsWithIndex(typ.rowType, itF)
     }
 
     TableValue(typ, tv.globals, newRVD)
