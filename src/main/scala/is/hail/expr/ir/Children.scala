@@ -75,6 +75,8 @@ object Children {
       xs
     case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
       (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
+      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

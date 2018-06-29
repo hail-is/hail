@@ -370,7 +370,7 @@ trait RVD {
       Iterator.single(count)
     }.collect()
 
-  def collectPerPartition[T](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
+  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
     clearingRun(crdd.cmapPartitions{ (ctx, it) =>
       Iterator.single(f(ctx, it))
     }).collect()

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.annotations.aggregators.{RegionValueAggregator, RegionValueCountAggregator}
 import is.hail.expr.types._
 import is.hail.expr.{Parser, TableAnnotationImpex, ir}
 import is.hail.io._
@@ -1100,9 +1100,9 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     else Ref("va", vaType)
 
     val (withAggsTyp, addAggF) = ir.Compile[Long, Long, Long, Long](
+      "AGGR", aggResultType,
       "global", prev.typ.globalType,
       "va", vaType,
-      "AGGR", aggResultType,
       addAggsIR)
 
     def rewriteScanIR(ir: IR): IR = ir match {
@@ -1115,7 +1115,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       "global", prev.typ.globalType,
       "global", prev.typ.globalType,
       "va", withAggsTyp,
-      rewriteScanIR(postAggIR), "SCANR",
+      CompileWithAggregators.liftScan(rewriteScanIR(postAggIR)), "SCANR",
       (nAggs: Int, initOp: IR) => initOp,
       (nAggs: Int, seqOp: IR) => seqOp)
 
@@ -1187,12 +1187,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         }
       })
 
-      var j = 0
-      while (j < scanAggs.length) {
-        scanAggs(j).clear()
-        j += 1
-      }
-
       Region.scoped { region =>
         val rvb = new RegionValueBuilder()
 
@@ -1213,16 +1207,15 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
           rvb.start(localGlobalsType)
           rvb.addAnnotation(localGlobalsType, globalsBc.value)
           val globals = rvb.end()
-
-          scanInitOps()(partRegion, scanAggs, globals, false)
           it.foreach { rv =>
             scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
           }
           scanAggs
         }.scanLeft(scanAggs) { (a1, a2) =>
           (a1, a2).zipped.map { (agg1, agg2) =>
-            agg2.combOp(agg1)
-            agg2
+            val newAgg = agg1.copy()
+            newAgg.combOp(agg2)
+            newAgg
           }
         }
 
@@ -1240,18 +1233,18 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         val rowF = returnF()
 
         it.map { rv =>
-          scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
           rvb.start(scanResultType)
           rvb.startStruct()
           var j = 0
-          while (j < scanAggs.length) {
-            scanAggs(j).result(rvb)
+          while (j < partitionAggs.length) {
+            partitionAggs(j).result(rvb)
             j += 1
           }
           rvb.endStruct()
           val scanOff = rvb.end()
 
           newRV.set(rv.region, rowF(rv.region, scanOff, false, globals, false, rv.offset, false))
+          scanSeqOps()(rv.region, partitionAggs, globals, false, rv.offset, false)
           newRV
         }
       }
@@ -1259,13 +1252,12 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       if (newKey.isDefined) {
         OrderedRVD.coerce(
             typ.orvdType,
-            prev.rvd.mapPartitionsWithIndex(typ.rvRowType, mapPartitionF))
+            withAggsRVD.mapPartitionsWithIndex(typ.rvRowType, mapPartitionF))
       } else {
-        prev.rvd.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, mapPartitionF)
+        withAggsRVD.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, mapPartitionF)
       }
 
-    }
-    else {
+    } else {
       val (rTyp, returnF) = ir.Compile[Long, Long, Long, Long](
         "AGGR", aggResultType,
         "global", prev.typ.globalType,
