@@ -914,9 +914,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
     orderedRVDLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
-  def count(): (Long, Long) = (countRows(), numCols)
+  def count(): (Long, Long) = (countRows(), countCols())
 
-  def countRows(): Long = partitionCounts().sum
+  def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
+
+  def countCols(): Int = Interpret(TableCount(MatrixColsTable(ast)))
 
   def forceCountRows(): Long = rvd.count()
 
