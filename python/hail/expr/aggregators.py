@@ -646,28 +646,34 @@ def fraction(predicate) -> Float64Expression:
     return construct_expr(ast, tfloat64, Indices(source=predicate._indices.source),
                           predicate._aggregations.push(Aggregation(predicate)))
 
+
 @typecheck(expr=agg_expr(expr_call))
 def hardy_weinberg(expr) -> StructExpression:
-    """Compute Hardy-Weinberg Equilbrium (HWE) p-value and heterozygosity ratio.
+    """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
-    Compute HWE statistics per row of a dataset:
+    Test each row of a dataset:
 
     >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
 
-    Compute HWE statistics for a single population:
+    Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
     ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
-    This method returns a struct expression with the following fields:
+    This method performs the test described in :func:`.functions.hardy_weinberg_p` based solely on
+    the counts of homozygous reference, heterozygous, and homozygous variant calls.
 
-    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Ratio of observed to
-      expected heterozygote frequency.
-    - `p_hwe` (:py:data:`.tfloat64`) - Hardy-Weinberg p-value.
+    The resulting struct expression has two fields:
+
+    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Expected frequency
+      of heterozygous calls under Hardy-Weinberg equilibrium.
+
+    - `p_hwe` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
+      equilibrium.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
@@ -676,14 +682,15 @@ def hardy_weinberg(expr) -> StructExpression:
 
     Warning
     -------
-    Non-diploid calls (``ploidy != 2``) are not included in statistics. It is
-    assumed the row is biallelic. Use :func:`~hail.methods.split_multi` to split multiallelic
-    variants before computing statistics.
+    Non-diploid calls (``ploidy != 2``) are ignored in the counts. While the
+    counts are defined for multiallelic variants, this test is only statistically
+    rigorous in the biallelic setting; use :func:`~hail.methods.split_multi`
+    to split multiallelic variants beforehand.
 
     Parameters
     ----------
     expr : :class:`.CallExpression`
-        Call for which to compute Hardy-Weinberg statistics.
+        Call to test for Hardy-Weinberg equilibrium.
 
     Returns
     -------

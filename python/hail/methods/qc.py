@@ -139,14 +139,20 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
-    - `p_hwe` (``float64``) -- Hardy-Weinberg p-value corresponding to
-      the probability that the distribution of genotypes is under Hardy-Weinberg
-      equilibrium. **Assumes that all genotype calls are diploid, and is only
-      defined for biallelic variants**.
-    - `r_expected_het_freq` (``float64``) -- Ratio of heterozygote count to the
-      expected number of heterozygotes under Hardy-Weinberg equilibrium.
-      **Assumes that all genotype calls are diploid, and is only defined for
-      biallelic variants**.
+    - `p_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+      See :func:`.functions.hardy_weinberg_test` for details.
+    - `r_expected_het_freq` (``float64``) -- Expected frequency of heterozygous
+      samples under Hardy-Weinberg equilibrium. See
+      :func:`.functions.hardy_weinberg_p` for details.
+
+    Warning
+    -------
+    `p_hwe` and `r_expected_het_freq` are calculated as in
+    :func:`.functions.hardy_weinberg_p`, with non-diploid calls
+    (``ploidy != 2``) ignored in the counts. As this test is only
+    statistically rigorous in the biallelic setting, :func:`variant_qc`
+    sets both fields to missing for multiallelic variants. Consider using
+    :func:`~hail.methods.split_multi` to split multi-allelic variants beforehand.
 
     Parameters
     ----------
