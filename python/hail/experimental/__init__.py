@@ -1,6 +1,3 @@
+from .ldscore import ld_score
 
-
-# please keep alphabetized to avoid unnecessary conflicts
-__all__ = [
-
-]
+__all__ = ['ld_score']

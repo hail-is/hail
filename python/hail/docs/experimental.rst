@@ -2,12 +2,11 @@ Experimental
 ============
 
 This module serves two functions: as a staging area for extensions of Hail
-not ready for inclusion in the main package, as a library of lightly reviewed
+not ready for inclusion in the main package, and as a library of lightly reviewed
 community submissions.
 
-
 Contribution Guidelines
-=======================
+-----------------------
 Submissions from the community are welcome! The criteria for inclusion in the
 experimental module are loose and subject to change:
 
@@ -21,3 +20,11 @@ experimental module are loose and subject to change:
 
 .. currentmodule:: hail.experimental
 
+Genetics Methods
+----------------
+
+.. autosummary::
+
+    ld_score
+
+.. autofunction:: ld_score
