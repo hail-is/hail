@@ -59,6 +59,6 @@ __all__ = ['trio_matrix',
            'de_novo',
            'filter_alleles',
            'filter_alleles_hts',
-           'LinearMixedModel'
+           'LinearMixedModel',
            'summarize_variants',
            ]

@@ -3,7 +3,7 @@ package is.hail.stats
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.{TableLiteral, TableValue}
+import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct, TableType}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
@@ -135,8 +135,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
-      val n = lmmData.px.rows
-      val f = lmmData.px.cols + 1
+      val n = px.rows
+      val f = px.cols + 1
       val dof = n - f
       val r0 = 0 to 0
       val r1 = 1 until f
