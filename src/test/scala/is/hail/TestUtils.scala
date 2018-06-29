@@ -263,13 +263,18 @@ object TestUtils {
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
-        val (rvAggs, initOps, seqOps, aggResultType, f, resultType2) = CompileWithAggregators[Long, Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
           argsVar, argsType,
           argsVar, argsType,
           aggVar, aggType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))),
+          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
           (i, x) => x,
           (i, x) => x)
+
+        val (resultType2, f) = Compile[Long, Long, Long](
+          "AGGR", aggResultType,
+          argsVar, argsType,
+          postAggIR)
         assert(resultType2 == resultType)
 
         Region.scoped { region =>

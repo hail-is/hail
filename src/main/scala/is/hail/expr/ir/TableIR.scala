@@ -664,13 +664,18 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val prev = child.execute(hc)
     val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
 
-    val (rvAggs, makeInit, makeSeq, aggResultType, makeAnnotate, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long](
+    val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", child.typ.globalType,
       "global", child.typ.globalType,
       "row", child.typ.rowType,
-      expr,
+      expr, "AGGR",
       (nAggs, initializeIR) => initializeIR,
       (nAggs, sequenceIR) => sequenceIR)
+
+    val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
+      "AGGR", aggResultType,
+      "global", child.typ.globalType,
+      postAggIR)
 
     val nAggs = rvAggs.length
 

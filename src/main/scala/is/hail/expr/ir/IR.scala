@@ -108,6 +108,20 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
 }
 
 final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
+  assert(!(a +: (constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR]))).exists(ContainsScan(_)))
+  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
+  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+
+  def nConstructorArgs = constructorArgs.length
+
+  def hasInitOp = initOpArgs.isDefined
+
+  def op: AggOp = aggSig.op
+
+  def inputType: Type = aggSig.inputType
+}
+
+final case class ApplyScanOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
 

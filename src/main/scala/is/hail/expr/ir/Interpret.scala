@@ -445,6 +445,8 @@ object Interpret {
           interpret(a, env, FastIndexedSeq(), None, Some(aggregator))
         }
         aggregator.result
+      case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
+        throw new UnsupportedOperationException("interpreter doesn't support scans right now.")
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })
       case SelectFields(old, fields) =>
@@ -573,13 +575,18 @@ object Interpret {
         tableValue.export(path, typesFile, header, exportType)
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
-        val (rvAggs, initOps, seqOps, aggResultType, f, t) = CompileWithAggregators[Long, Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
           "global", child.typ.globalType,
           "global", child.typ.globalType,
           "row", child.typ.rowType,
-          MakeTuple(Array(query)),
+          MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
+
+        val (t, f) = Compile[Long, Long, Long](
+          "AGGR", aggResultType,
+          "global", child.typ.globalType,
+          postAggIR)
 
         val value = child.execute(HailContext.get)
         val globalsBc = value.globals.broadcast

@@ -12,7 +12,7 @@ object ExtractAggregators {
 
   private case class IRAgg(ref: Ref, applyAggOp: ApplyAggOp) {}
 
-  def apply(ir: IR): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
+  def apply(ir: IR, resultName: String = "AGGR"): (IR, TStruct, IR, IR, Array[RegionValueAggregator]) = {
     def rewriteSeqOps(x: IR, i: Int): IR = {
       def rewrite(x: IR): IR = rewriteSeqOps(x, i)
       x match {
@@ -22,7 +22,7 @@ object ExtractAggregators {
       }
     }
 
-    val (ir2, aggs) = extract(ir)
+    val (ir2, aggs) = extract(ir, resultName)
 
     val (initOps, seqOps) = aggs.map(_.applyAggOp)
       .zipWithIndex
@@ -47,21 +47,21 @@ object ExtractAggregators {
     (ir2, resultStruct, initOpIR, seqOpIR, rvas)
   }
 
-  private def extract(ir: IR): (IR, Array[IRAgg]) = {
+  private def extract(ir: IR, resultName: String): (IR, Array[IRAgg]) = {
     val ab = new ArrayBuilder[IRAgg]()
-    val ir2 = extract(ir, ab)
+    val ir2 = extract(ir, ab, resultName)
     (ir2, ab.result())
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[IRAgg]): IR = {
-    def extract(ir: IR): IR = this.extract(ir, ab)
+  private def extract(ir: IR, ab: ArrayBuilder[IRAgg], resultName: String): IR = {
+    def extract(ir: IR): IR = this.extract(ir, ab, resultName)
 
     ir match {
       case Ref(name, typ) =>
         assert(typ.isRealizable)
         ir
       case x: ApplyAggOp =>
-        val ref = Ref("AGGR", null)
+        val ref = Ref(resultName, null)
         ab += IRAgg(ref, x)
 
         GetField(ref, (ab.length - 1).toString)
