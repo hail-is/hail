@@ -452,6 +452,22 @@ object Interpret {
             new LinearRegressionAggregator(null, nxsValue)
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
+          case Downsample() =>
+            val Seq(xmin, xmax, ymin, ymax, nDivisions) = constructorArgs
+            val xminValue = interpret(xmin, Env.empty[Any], null, null).asInstanceOf[Double]
+            val xmaxValue = interpret(xmax, Env.empty[Any], null, null).asInstanceOf[Double]
+            val yminValue = interpret(ymin, Env.empty[Any], null, null).asInstanceOf[Double]
+            val ymaxValue = interpret(ymax, Env.empty[Any], null, null).asInstanceOf[Double]
+            val nDivisionsValue = interpret(nDivisions, Env.empty[Any], null, null).asInstanceOf[Int]
+
+            if (xmaxValue <= xminValue)
+              fatal(s"""xmax value must be greater than xmin value, got xmin = $xminValue and xmax = $xmaxValue""")
+            if (ymaxValue <= yminValue)
+              fatal(s"""ymax value must be greater than ymin value, got ymin = $yminValue and ymax = $ymaxValue""")
+            if (nDivisionsValue < 1)
+              fatal(s"""nDivisions value must be greater than or equal to 1, got nDivisions = $nDivisionsValue""")
+
+            new DownsampleAggregator(xminValue, xmaxValue, yminValue, ymaxValue, nDivisionsValue)
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)

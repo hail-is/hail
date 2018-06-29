@@ -6,6 +6,7 @@ import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
+import is.hail.annotations.aggregators.RegionValueDownsampleAggregator.{toBoxes, toCoords}
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
@@ -569,4 +570,28 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
   }
 
   def copy() = new KeyedAggregator(aggregator.copy())
+}
+
+class DownsampleAggregator(xmin: Double, xmax: Double, ymin: Double, ymax: Double, nDivisions: Int) extends TypedAggregator[IndexedSeq[Row]] {
+
+  var _state: Set[(Int, Int)] = Set.empty[(Int, Int)]
+
+  def result = {
+    _state.map{ case (i, j) =>
+      val (x, y) = toCoords(i, j, xmin, xmax, ymin, ymax, nDivisions)
+      Row(x, y)
+    }.toIndexedSeq
+  }
+
+  def seqOp(x: Any) {
+    if (x != null) {
+      val xcoord = x.asInstanceOf[Row].getDouble(0)
+      val ycoord = x.asInstanceOf[Row].getDouble(1)
+      _state += toBoxes(xcoord, ycoord, xmin, xmax, ymin, ymax, nDivisions)
+    }
+  }
+
+  def combOp(agg2: this.type) = _state ++= agg2._state
+
+  def copy() = new DownsampleAggregator(xmin, xmax, ymin, ymax, nDivisions)
 }

@@ -1005,6 +1005,15 @@ def hist(expr, start, end, bins) -> StructExpression:
     return _agg_func('Histogram', expr, t, [start, end, bins])
 
 
+@typecheck(x=expr_float64, y=expr_float64,
+           xmin=expr_float64, xmax=expr_float64, ymin=expr_float64, ymax=expr_float64, nDivisions=expr_int32)
+def downsample(x, y, xmin, xmax, ymin, ymax, nDivisions) -> ArrayExpression:
+    analyze('downsample', x, y._indices)
+    if xmin._indices.axes != set() or xmax._indices.axes != set() or ymin._indices.axes != set() or ymax._indices.axes != set():
+        raise ValueError('Invalid input: x, y bounds')
+    return _agg_func('downsample', _to_agg(hl.tuple([x, y])), tarray(ttuple(tfloat64, tfloat64)), [xmin, xmax, ymin, ymax, nDivisions])
+
+
 @typecheck(gp=agg_expr(expr_array(expr_float64)))
 def info_score(gp) -> StructExpression:
     r"""Compute the IMPUTE information score.
