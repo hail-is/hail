@@ -46,7 +46,7 @@ object Pretty {
         import RelationalSpec.formats
         val specJSONStr = Serialization.write(reader.spec)
         "(MatrixNativeReader " + prettyStringLiteral(reader.path) + " " +
-        prettyStringLiteral(specJSONStr) + ")"
+          prettyStringLiteral(specJSONStr) + ")"
       case reader: MatrixRangeReader =>
         s"(MatrixRangeReader ${ reader.nCols } ${ reader.nRows } ${ prettyIntOpt(reader.nPartitions) })"
     }
@@ -172,7 +172,7 @@ object Pretty {
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
             case MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
               typ.parsableString() + " " +
-              prettyLongsOpt(partitionCounts) + " " +
+                prettyLongsOpt(partitionCounts) + " " +
                 prettyBooleanLiteral(dropCols) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
                 prettyMatrixReader(reader)
@@ -219,11 +219,8 @@ object Pretty {
 
               ""
             case TableKeyBy(_, keys, nPartitionKeys, sort) =>
-              keys.map(prettyIdentifier).mkString("(", " ", ")") + " " +
-                (nPartitionKeys match {
-                  case Some(n) => n.toString
-                  case None => "None"
-                }) + " " +
+              prettyIdentifiers(keys) + " " +
+                prettyIntOpt(nPartitionKeys) + " " +
                 prettyBooleanLiteral(sort)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableJoin(_, _, joinType) => joinType

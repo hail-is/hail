@@ -431,7 +431,6 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x)
-    println(s)
     val x2 = Parser.parse(Parser.table_ir, s)
     assert(x2 == x)
   }

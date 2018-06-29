@@ -404,31 +404,6 @@ object Parser extends JavaTokenParsers {
       }
     }
 
-  /*
-  def quotedLiteral(delim: Char, what: String): Parser[String] =
-    withPos(s"$delim(?:[^$delim\\\\]|\\\\.)*$delim".r) ^^ { s =>
-      try {
-        unescapeString(s.x.substring(1, s.x.length - 1))
-      } catch {
-        case e: Exception =>
-          val toSearch = s.x.substring(1, s.x.length - 1)
-          """\\[^\\"bfnrt'"`]""".r.findFirstMatchIn(toSearch) match {
-            case Some(m) =>
-              // + 1 for the opening "
-              ParserUtils.error(advancePosition(s.pos, m.start + 1),
-                s"""invalid escape character in $what: ${ m.matched }""")
-
-            case None =>
-              // For safety.  Should never happen.
-              ParserUtils.error(s.pos, s"invalid $what")
-          }
-
-      }
-    } | withPos(s"$delim([^$delim\\\\]|\\\\.)*\\z".r) ^^ { s =>
-      ParserUtils.error(s.pos, s"unterminated $what")
-    }
-    */
-
   def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
 
   override def stringLiteral: Parser[String] =
@@ -641,13 +616,13 @@ object Parser extends JavaTokenParsers {
         _.toDouble
       }
 
-  def int32_literal_opt: Parser[Option[Int]] = int32_literal ^^ { x => Some(x) } | "None" ^^ { _ => None }
+  def int32_literal_opt: Parser[Option[Int]] = int32_literal ^^ { Some(_) } | "None" ^^ { _ => None }
 
   def int64_literals: Parser[IndexedSeq[Long]] = "(" ~> rep(int64_literal) <~ ")" ^^ {
     _.toFastIndexedSeq
   }
 
-  def int64_literals_opt: Parser[Option[IndexedSeq[Long]]] = int64_literals ^^ { x => Some(x) } | "None" ^^ { _ => None }
+  def int64_literals_opt: Parser[Option[IndexedSeq[Long]]] = int64_literals ^^ { Some(_) } | "None" ^^ { _ => None }
 
   def string_literal: Parser[String] = stringLiteral
 
