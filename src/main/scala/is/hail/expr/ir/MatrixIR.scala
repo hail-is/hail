@@ -1447,22 +1447,11 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       rewriteInitOp,
       rewriteSeqOp)
 
-    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) =
-      ir.CompileWithAggregators[Long, Long, Long, Long, Long](
-        "global", localGlobalsType,
-        "AGGR", aggResultType,
-        "global", localGlobalsType,
-        "colValues", colValuesType,
-        "AGGR", aggResultType,
-        CompileWithAggregators.liftScan(postAggIR), "SCANR",
-        (naggs, initOp) => initOp,
-        (naggs, seqOp) => seqOp)
-
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "AGGR", aggResultType,
       "global", localGlobalsType,
       "colValues", colValuesType,
-      "AGGR", aggResultType,
-      postScanIR)
+      postAggIR)
 
     val nAggs = rvAggs.length
 
