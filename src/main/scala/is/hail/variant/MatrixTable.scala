@@ -918,7 +918,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
 
-  def countCols(): Int = Interpret(TableCount(MatrixColsTable(ast)))
+  def countCols(): Long = Interpret(TableCount(MatrixColsTable(ast)))
 
   def forceCountRows(): Long = rvd.count()
 
