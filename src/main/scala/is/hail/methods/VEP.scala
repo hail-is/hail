@@ -1,8 +1,5 @@
 package is.hail.methods
 
-import java.io.{FileInputStream, IOException}
-import java.util.Properties
-
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir.{TableLiteral, TableValue}
@@ -15,12 +12,17 @@ import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
+import org.apache.hadoop
 
 import scala.collection.JavaConverters._
 
-object VEP {
+case class VEPConfiguration(
+  command: Array[String],
+  env: Map[String, String],
+  vep_json_schema: TStruct)
 
-  val vepSignature = TStruct(
+object VEP {
+  val defaultSchema = TStruct(
     "assembly_name" -> TString(),
     "allele_string" -> TString(),
     "ancestral" -> TString(),
@@ -149,6 +151,14 @@ object VEP {
       "variant_allele" -> TString())),
     "variant_class" -> TString())
 
+  def readConfiguration(hadoopConf: hadoop.conf.Configuration, path: String): VEPConfiguration = {
+    val jv = hadoopConf.readFile(path) { in =>
+      JsonMethods.parse(in)
+    }
+    implicit val formats = defaultJSONFormats + new TStructSerializer
+    jv.extract[VEPConfiguration]
+  }
+
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
@@ -174,77 +184,18 @@ object VEP {
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
-  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
+  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): MatrixTable = {
     assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
     assert(ht.typ.rowType.size == 2)
 
-    val properties = try {
-      val p = new Properties()
-      val is = new FileInputStream(config)
-      p.load(is)
-      is.close()
-      p
-    } catch {
-      case e: IOException =>
-        fatal(s"could not open file: ${ e.getMessage }")
-    }
+    val conf = readConfiguration(vsm.hadoopConf, config)
+    val vepSignature = conf.vep_json_schema
 
-    val perl = properties.getProperty("hail.vep.perl", "perl")
-
-    val perl5lib = properties.getProperty("hail.vep.perl5lib")
-
-    val path = properties.getProperty("hail.vep.path")
-
-    val location = properties.getProperty("hail.vep.location")
-    if (location == null)
-      fatal("property `hail.vep.location' required")
-
-    val cacheDir = properties.getProperty("hail.vep.cache_dir")
-    if (cacheDir == null)
-      fatal("property `hail.vep.cache_dir' required")
-
-
-    val plugin = if (properties.getProperty("hail.vep.plugin") != null) {
-      properties.getProperty("hail.vep.plugin")
-    } else {
-
-      val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-      if (humanAncestor == null)
-        fatal("property `hail.vep.lof.human_ancestor' required")
-
-      val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
-      if (conservationFile == null)
-        fatal("property `hail.vep.lof.conservation_file' required")
-
-      s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
-    }
-
-    val fasta = properties.getProperty("hail.vep.fasta")
-    if (fasta == null)
-      fatal("property `hail.vep.fasta' required")
-
-    var assembly = properties.getProperty("hail.vep.assembly")
-    if (assembly == null) {
-      warn("property `hail.vep.assembly' not specified. Setting to GRCh37")
-      assembly = "GRCh37"
-    }
-
-    val cmd =
-      Array(
-        perl,
-        s"$location",
-        "--format", "vcf",
-        if (csq) "--vcf" else "--json",
-        "--everything",
-        "--allele_number",
-        "--no_stats",
-        "--cache", "--offline",
-        "--dir", s"$cacheDir",
-        "--fasta", s"$fasta",
-        "--minimal",
-        "--assembly", s"$assembly",
-        "--plugin", s"$plugin",
-        "-o", "STDOUT")
+    val cmd = conf.command.map(s =>
+      if (s == "__OUTPUT_FORMAT_FLAG__")
+        if (csq) "--vcf" else "--json"
+      else
+        s)
 
     val inputQuery = vepSignature.query("input")
 
@@ -260,10 +211,9 @@ object VEP {
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
-        if (perl5lib != null)
-          env.put("PERL5LIB", perl5lib)
-        if (path != null)
-          env.put("PATH", path)
+        conf.env.foreach { case (key, value) =>
+            env.put(key, value)
+        }
 
         val rvv = new RegionValueVariant(localRowType)
         it
