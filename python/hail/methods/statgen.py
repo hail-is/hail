@@ -2405,7 +2405,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     distribution :math:`\pi`. Note that the actual size of each population is
     random.
 
-    Variants are modeled as bi-allelic and unlinked. Ancestral allele
+    Variants are modeled as biallelic and unlinked. Ancestral allele
     frequencies are drawn independently for each variant from a frequency
     spectrum :math:`P_0`. The extent of genetic drift of each modern population
     from the ancestral population is defined by the corresponding :math:`F_{ST}`

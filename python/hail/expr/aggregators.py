@@ -649,7 +649,7 @@ def fraction(predicate) -> Float64Expression:
 
 @typecheck(expr=agg_expr(expr_call))
 def hardy_weinberg(expr) -> StructExpression:
-    """Tests whether genotypes are in Hardy-Weinberg equilibrium.
+    """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
@@ -670,9 +670,9 @@ def hardy_weinberg(expr) -> StructExpression:
     The resulting struct expression has two fields:
 
     - `r_expected_het_freq` (:py:data:`.tfloat64`) - Expected frequency
-      of heterozygous under Hardy-Weinberg equilibrium.
+      of heterozygous calls under Hardy-Weinberg equilibrium.
 
-    - `p_hwe` (:py:data:`.tfloat64`) - p-value for test of Hardy-Weinberg
+    - `p_hwe` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
@@ -683,9 +683,9 @@ def hardy_weinberg(expr) -> StructExpression:
     Warning
     -------
     Non-diploid calls (``ploidy != 2``) are ignored in the counts. While the
-    counts are defined for non-bi-allelic variants, this test is only statistically
-    rigorous in the bi-allelic setting; use :func:`~hail.methods.split_multi`
-    to split multi-allelic variants beforehand.
+    counts are defined for multiallelic variants, this test is only statistically
+    rigorous in the biallelic setting; use :func:`~hail.methods.split_multi`
+    to split multiallelic variants beforehand.
 
     Parameters
     ----------

@@ -627,7 +627,7 @@ def ceil(x):
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
 def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
-    """Tests whether a variant is in Hardy-Weinberg equilibrium.
+    """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
