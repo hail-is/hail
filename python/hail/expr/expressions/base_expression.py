@@ -777,6 +777,20 @@ class Expression(object):
         """
         return hl.eval_expr(self)
 
+    def _aggregation_method(self):
+        src = self._indices.source
+        assert src is not None
+        assert len(self._indices.axes) > 0
+        if isinstance(src, hl.MatrixTable):
+            if self._indices.axes == {'row'}:
+                return src.aggregate_rows
+            elif self._indices.axes == {'col'}:
+                return src.aggregate_cols
+            else:
+                return src.aggregate_entries
+        else:
+            return src.aggregate
+
 
 class Aggregable(object):
     """Expression that can only be aggregated.

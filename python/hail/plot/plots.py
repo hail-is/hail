@@ -34,21 +34,14 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
-            source = data._indices.source
+            agg_f = data._aggregation_method()
             if range is not None:
                 start = range[0]
                 end = range[1]
             else:
-                if isinstance(source, MatrixTable):
-                    start = source.aggregate_entries(aggregators.min(data))
-                    end = source.aggregate_entries(aggregators.max(data))
-                else:
-                    start = source.aggregate(aggregators.min(data))
-                    end = source.aggregate(aggregators.min(data))
-            if isinstance(source, MatrixTable):
-                data = source.aggregate_entries(aggregators.hist(data, start, end, bins))
-            else:
-                data = source.aggregate(aggregators.hist(data, start, end, bins))
+                start = agg_f(aggregators.min(data))
+                end = agg_f(aggregators.max(data))
+            data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
 
