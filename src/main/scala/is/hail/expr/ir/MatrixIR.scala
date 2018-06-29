@@ -1370,14 +1370,14 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
 
-    var initOpNeedsSA: Boolean = false
+    var initOpNeedsSA = false
     var initOpNeedsGlobals = false
     var seqOpNeedsSA = false
     var seqOpNeedsGlobals = false
 
     val rewriteInitOp = { (nAggs: Int, initOp: IR) =>
       initOpNeedsSA = Mentions(initOp, "sa")
-      initOpNeedsGlobals = Mentions(initOp, "globals")
+      initOpNeedsGlobals = Mentions(initOp, "global")
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1394,15 +1394,21 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
       }
 
+      val wrappedInit = if (initOpNeedsSA) {
+        ir.Let(
+          "sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
+          rewrite(initOp))
+      } else {rewrite(initOp)}
+
       ir.ArrayFor(
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
-        rewrite(initOp))
+        wrappedInit)
     }
 
     val rewriteSeqOp = { (nAggs: Int, seqOp: IR) =>
       seqOpNeedsSA = Mentions(seqOp, "sa")
-      seqOpNeedsGlobals = Mentions(seqOp, "globals")
+      seqOpNeedsGlobals = Mentions(seqOp, "global")
 
       val colIdx = ir.genUID()
 
@@ -1439,7 +1445,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val (rvAggs, initOps, seqOps, aggResultType, postAggIR) =
     ir.CompileWithAggregators[Long, Long, Long, Long, Long](
       "global", localGlobalsType,
-      "sa", prev.typ.colType,
+      "colValues", colValuesType,
       "global", localGlobalsType,
       "colValues", colValuesType,
       "va", vaType,
