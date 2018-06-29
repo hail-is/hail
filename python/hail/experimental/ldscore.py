@@ -45,12 +45,13 @@ def ld_score(entry_expr, annotation_exprs,
     ...     (mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0))
 
     >>> # Calculate LD scores using standardized genotypes
-    >>> ht_scores = hl.ld_score(entry_expr=mt.GT_std,
-    ...                         annotation_exprs=[mt.univariate_annotation,
-    ...                                           mt.binary_annotation,
-    ...                                           mt.continuous_annotation],
-    ...                         position_expr=mt.cm_position,
-    ...                         window_size=1)
+    >>> ht_scores = hl.experimental.ld_score(entry_expr=mt.GT_std,
+    ...                                      annotation_exprs=[
+    ...                                         mt.univariate_annotation,
+    ...                                         mt.binary_annotation,
+    ...                                         mt.continuous_annotation],
+    ...                                      position_expr=mt.cm_position,
+    ...                                      window_size=1)
 
     Warning
     -------

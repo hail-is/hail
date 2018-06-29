@@ -30,12 +30,12 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(GT_std=hl.or_else(
             (mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0))
 
-        ht_scores = hl.ld_score(entry_expr=mt.GT_std,
-                                annotation_exprs=[mt.univariate,
-                                                  mt.binary,
-                                                  mt.continuous],
-                                position_expr=mt.cm_position,
-                                window_size=1)
+        ht_scores = hl.experimental.ld_score(entry_expr=mt.GT_std,
+                                             annotation_exprs=[mt.univariate,
+                                                               mt.binary,
+                                                               mt.continuous],
+                                             position_expr=mt.cm_position,
+                                             window_size=1)
 
         chr20_firsts = ht_scores.aggregate(
             hl.struct(univariate=hl.agg.collect(
