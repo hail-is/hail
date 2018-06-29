@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call
 
 object TestUtils {
@@ -71,4 +72,28 @@ object TestUtils {
   def IRSet(a: Integer*): IR = toIRSet(a)
 
   def IRCall(c: Call): IR = Cast(I32(c), TCall())
+
+    def IRAggCount: IR = {
+    val aggSig = AggSignature(Count(), TInt32(), FastSeq.empty, None, FastSeq.empty)
+    ApplyAggOp(SeqOp(0, 0, aggSig), FastIndexedSeq.empty, None, aggSig)
+  }
+
+  def IRScanCount: IR = {
+    val aggSig = AggSignature(Count(), TInt32(), FastSeq.empty, None, FastSeq.empty)
+    ApplyScanOp(SeqOp(0, 0, aggSig), FastIndexedSeq.empty, None, aggSig)
+  }
+
+  def IRAggCollect(ir: IR): IR = {
+    val aggSig = AggSignature(Collect(), ir.typ, FastIndexedSeq(), None, FastIndexedSeq())
+    ApplyAggOp(
+      SeqOp(ir, I32(0), aggSig, FastIndexedSeq()),
+      FastIndexedSeq(), None, aggSig)
+  }
+
+  def IRScanCollect(ir: IR): IR = {
+    val aggSig = AggSignature(Collect(), ir.typ, FastIndexedSeq(), None, FastIndexedSeq())
+    ApplyScanOp(
+      SeqOp(ir, I32(0), aggSig, FastIndexedSeq()),
+      FastIndexedSeq(), None, aggSig)
+  }
 }
