@@ -27,6 +27,7 @@ from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
 from .methods import *
+from .experimental import *
 from . import genetics as genetics
 from . import methods as methods
 from . import linalg as linalg
