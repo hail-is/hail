@@ -1450,7 +1450,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
       "AGGR", aggResultType,
       "global", localGlobalsType,
-      "colValues", colValuesType,
+      "sa", prev.typ.colType,
       postAggIR)
 
     val nAggs = rvAggs.length
