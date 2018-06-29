@@ -1359,7 +1359,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         oneSampleSeqOp)
     }
 
-    val (rvAggs, initOps, seqOps, aggResultType, postAggIR) =
+    val (entryAggs, initOps, seqOps, aggResultType, postAggIR) =
     ir.CompileWithAggregators[Long, Long, Long, Long, Long](
       "global", localGlobalsType,
       "colValues", colValuesType,
@@ -1370,13 +1370,28 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       rewriteInitOp,
       rewriteSeqOp)
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+    var scanInitOpNeedsGlobals = false
+
+    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) =
+      ir.CompileWithAggregators[Long, Long, Long, Long](
+        "global", localGlobalsType,
+        "AGGR", aggResultType,
+        "global", localGlobalsType,
+        "sa", prev.typ.colType,
+        CompileWithAggregators.liftScan(postAggIR), "SCANR",
+        {(nAggs, init) =>
+          scanInitOpNeedsGlobals = Mentions(init, "global")
+          init},
+        (nAggs, seq) => seq)
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long, Long](
       "AGGR", aggResultType,
+      "SCANR", scanResultType,
       "global", localGlobalsType,
       "sa", prev.typ.colType,
-      postAggIR)
+      postScanIR)
 
-    val nAggs = rvAggs.length
+    val nAggs = entryAggs.length
 
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 
@@ -1390,7 +1405,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     while (i < localNCols) {
       var j = 0
       while (j < nAggs) {
-        colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
+        colRVAggs(i * nAggs + j) = entryAggs(j).newInstance()
         j += 1
       }
       i += 1
@@ -1451,6 +1466,20 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val prevColType = prev.typ.colType
     val rvb = new RegionValueBuilder()
 
+    if (scanAggs.nonEmpty) {
+      Region.scoped { region =>
+        val rvb: RegionValueBuilder = new RegionValueBuilder()
+        rvb.set(region)
+        val globals = if (scanInitOpNeedsGlobals) {
+          rvb.start(localGlobalsType)
+          rvb.addAnnotation(localGlobalsType, globalsBc.value)
+          rvb.end()
+        } else 0L
+
+        scanInitOps()(region, scanAggs, globals, false)
+      }
+    }
+
     val mapF = (a: Annotation, i: Int) => {
       Region.scoped { region =>
         rvb.set(region)
@@ -1474,7 +1503,18 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         colRVb.addAnnotation(prevColType, a)
         val colRVoffset = colRVb.end()
 
-        val resultOffset = f()(region, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
+        rvb.start(scanResultType)
+        rvb.startStruct()
+        j = 0
+        while (j < scanAggs.length) {
+          scanAggs(j).result(rvb)
+          j += 1
+        }
+        rvb.endStruct()
+        val scanResultsOffset = rvb.end()
+
+        val resultOffset = f()(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)
+        scanSeqOps()(region, scanAggs, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
 
         SafeRow(coerce[TStruct](rTyp), region, resultOffset)
       }
