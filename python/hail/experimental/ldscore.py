@@ -26,16 +26,16 @@ def ld_score(entry_expr, annotation_exprs,
 
     >>> # Create locus-keyed Table with numeric variant annotations
     >>> ht = hl.import_table('data/ldsc.annot',
-                             types={'BP': hl.tint,
-                                    'binary': hl.tfloat,
-                                    'continuous': hl.tfloat})
+    ...                      types={'BP': hl.tint,
+    ...                             'binary': hl.tfloat,
+    ...                             'continuous': hl.tfloat})
     >>> ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))
     >>> ht = ht.key_by('locus')
 
     >>> # Annotate MatrixTable with external annotations
     >>> mt = mt.annotate_rows(univariate_annotation=1,
-                              binary_annotation=ht[mt.locus].binary,
-                              continuous_annotation=ht[mt.locus].continuous)
+    ...                       binary_annotation=ht[mt.locus].binary,
+    ...                       continuous_annotation=ht[mt.locus].continuous)
 
     >>> # Annotate MatrixTable with alt allele count stats
     >>> mt = mt.annotate_rows(stats=hl.agg.stats(mt.GT.n_alt_alleles()))
