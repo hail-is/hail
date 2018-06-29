@@ -793,4 +793,11 @@ class AggregatorsSuite {
       None,
       seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TString()), Ref("k3", TBoolean()), Ref("x", TInt32())))
   }
+
+  @Test def downsample() {
+    runAggregator(Downsample(), TTuple(TFloat64(), TFloat64()),
+      FastIndexedSeq(Row(1500.0, 1500.0), Row(5500.0, 5500.0), Row(5600.0, 5600.0), Row(9200.0, 9200.0), Row(9400.0, 9400.0), Row(0.0, 10000.0)),
+      FastIndexedSeq(Row(1500.0, 1500.0), Row(5600.0, 5600.0), Row(9400.0, 9400.0), Row(0.0, 10000.0)),
+      FastIndexedSeq(10))
+  }
 }

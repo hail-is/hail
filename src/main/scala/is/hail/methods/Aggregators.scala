@@ -570,3 +570,25 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
 
   def copy() = new KeyedAggregator(aggregator.copy())
 }
+
+class DownsampleAggregator(nDivisions: Int) extends TypedAggregator[IndexedSeq[Row]] {
+  require(nDivisions > 0)
+
+  var _state = new DownsampleCombiner(nDivisions)
+
+  def result: IndexedSeq[Row] = _state.toRes
+
+  def seqOp(x: Any) {
+    if (x != null) {
+      val r = x.asInstanceOf[Row]
+      val xcoord = r.getDouble(0)
+      val ycoord = r.getDouble(1)
+
+      _state.merge(xcoord, ycoord)
+    }
+  }
+
+  def combOp(agg2: this.type) = _state.merge(agg2._state)
+
+  def copy() = new DownsampleAggregator(nDivisions)
+}

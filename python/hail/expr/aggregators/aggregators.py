@@ -1018,6 +1018,28 @@ def hist(expr, start, end, bins) -> StructExpression:
     return _agg_func('Histogram', expr, t, [start, end, bins])
 
 
+@typecheck(x=expr_float64, y=expr_float64, n_divisions=int)
+def downsample(x, y, n_divisions=500) -> ArrayExpression:
+    """Downsample (x, y) coordinate datapoints.
+
+    Parameters
+    ---------
+    x : :class:`.Float64Expression`
+        X-values to be downsampled.
+    y : :class:`.Float64Expression`
+        Y-Values to be downsampled.
+    n_divisions : int
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Expression for downsampled coordinate points (x, y).
+    """
+    analyze('downsample', x, y._indices)
+    return _agg_func('downsample', _to_agg(hl.tuple([x, y])), tarray(ttuple(tfloat64, tfloat64)), constructor_args=[n_divisions])
+
+
 @typecheck(gp=agg_expr(expr_array(expr_float64)))
 def info_score(gp) -> StructExpression:
     r"""Compute the IMPUTE information score.

@@ -452,6 +452,10 @@ object Interpret {
             new LinearRegressionAggregator(null, nxsValue)
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
+          case Downsample() =>
+            val Seq(nDivisions) = constructorArgs
+            val nDivisionsValue = interpret(nDivisions, Env.empty[Any], null, null).asInstanceOf[Int]
+            new DownsampleAggregator(nDivisionsValue)
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
