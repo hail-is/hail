@@ -15,7 +15,7 @@ import org.apache.spark.sql.Row
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
-  def partitionCounts: Option[Array[Long]] = None
+  def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def execute(hc: HailContext): TableValue
 }
@@ -36,7 +36,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
   assert(PruneDeadFields.isSupertype(typ, spec.table_type))
 
-  override def partitionCounts: Option[Array[Long]] = Some(spec.partitionCounts)
+  override def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -215,7 +215,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
   private val partCounts = partition(n, nPartitionsAdj)
 
-  override val partitionCounts = Some(partCounts.map(_.toLong))
+  override val partitionCounts = Some(partCounts.map(_.toLong).toFastIndexedSeq)
 
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32()),
@@ -406,7 +406,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
     TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey, preservedKeyFields)
   }
 
-  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
@@ -469,7 +469,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
     TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], value)
   }
 
-  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
@@ -593,7 +593,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
     assert(newChildren.length == 1)
