@@ -2069,7 +2069,7 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of columns in the matrix.
         """
-        return self._jvds.numCols()
+        return self._jvds.countCols()
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
