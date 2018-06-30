@@ -112,8 +112,6 @@ object Simplify {
           fields2.filter { case (name, _) => !fields1Set.contains(name) }
         MakeStruct(finalFields)
 
-      case InsertFields(struct, Seq()) => struct
-
       case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
       case SelectFields(MakeStruct(fields), fieldNames) =>
