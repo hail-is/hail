@@ -127,8 +127,7 @@ object LoadBgen {
     new MatrixTable(hc, matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
       BroadcastIndexedSeq(sampleIds.map(x => Annotation(x)), TArray(matrixType.colType), sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd2, fastKeys
-      ))
+      OrderedRVD.coerce(matrixType.orvdType, rdd2, fastKeys))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

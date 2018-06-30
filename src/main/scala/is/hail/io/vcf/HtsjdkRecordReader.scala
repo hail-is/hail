@@ -29,7 +29,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
   def readVariantInfo(
     vc: VariantContext,
     rvb: RegionValueBuilder,
-    hasID: Boolean,
+    hasRSID: Boolean,
     hasQual: Boolean,
     hasFilters: Boolean,
     infoType: TStruct,
@@ -37,7 +37,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     // locus, alleles added via VCFLine
 
     // rsid
-    if (hasID) {
+    if (hasRSID) {
       val vcID = vc.getID
       if (vcID == ".")
         rvb.setMissing()

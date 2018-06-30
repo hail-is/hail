@@ -555,7 +555,7 @@ object OrderedRVD {
     // keys: RDD[kType]
     keys: ContextRDD[RVDContext, RegionValue]
   ): Array[OrderedRVPartitionInfo] = {
-    // the type of keys is
+    // the region values in 'keys' are just the key type
     val nPartitions = keys.getNumPartitions
     if (nPartitions == 0)
       return Array()
