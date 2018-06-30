@@ -593,6 +593,8 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
+  override def partitionCounts: Option[Array[Long]] = child.partitionCounts
+
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
     assert(newChildren.length == 1)
     MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
