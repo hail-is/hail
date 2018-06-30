@@ -1,6 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.types.TArray
 import is.hail.utils._
+import is.hail.variant.RelationalSpec
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
   def prettyStringLiteral(s: String): String =
@@ -23,6 +27,29 @@ object Pretty {
     sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
     sb += ')'
     sb.result()
+  }
+
+  def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
+
+  def prettyLongs(x: IndexedSeq[Long]): String = x.mkString("(", " ", ")")
+
+  def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
+    x.map(prettyLongs).getOrElse("None")
+
+  def prettyIdentifiers(x: IndexedSeq[String]): String = x.map(prettyIdentifier).mkString("(", " ", ")")
+
+  def prettyIdentifiersOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyIdentifiers).getOrElse("None")
+
+  def prettyMatrixReader(reader: MatrixReader): String = {
+    reader match {
+      case reader: MatrixNativeReader =>
+        import RelationalSpec.formats
+        val specJSONStr = Serialization.write(reader.spec)
+        "(MatrixNativeReader " + prettyStringLiteral(reader.path) + " " +
+          prettyStringLiteral(specJSONStr) + ")"
+      case reader: MatrixRangeReader =>
+        s"(MatrixRangeReader ${ reader.nCols } ${ reader.nRows } ${ prettyIntOpt(reader.nPartitions) })"
+    }
   }
 
   def apply(ir: BaseIR): String = {
@@ -144,7 +171,11 @@ object Pretty {
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
             case MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
-              s"$typ partition_counts=${ partitionCounts.map(_.mkString(",")).getOrElse("None") } ${ if (dropRows) "drop_rows" else "" }${ if (dropCols) "drop_cols" else "" }"
+              typ.parsableString() + " " +
+                prettyLongsOpt(partitionCounts) + " " +
+                prettyBooleanLiteral(dropCols) + " " +
+                prettyBooleanLiteral(dropRows) + " " +
+                prettyMatrixReader(reader)
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head
@@ -160,11 +191,13 @@ object Pretty {
 
                 ""
               }
-            case TableRead(path, _, typ, dropRows) =>
-              if (dropRows)
-                s"${ StringEscapeUtils.escapeString(path) } drop_rows"
-              else
-                path
+            case TableRead(path, spec, typ, dropRows) =>
+              implicit val formats = RelationalSpec.formats
+              val specJSONStr = Serialization.write(spec)
+              prettyStringLiteral(path) + " " +
+                prettyStringLiteral(specJSONStr) + " " +
+                typ.parsableString() + " " +
+                prettyBooleanLiteral(dropRows)
             case TableWrite(_, path, overwrite, _) =>
               if (overwrite)
                 s"${ StringEscapeUtils.escapeString(path) } overwrite"
@@ -185,6 +218,25 @@ object Pretty {
               }(sb += '\n')
 
               ""
+            case TableKeyBy(_, keys, nPartitionKeys, sort) =>
+              prettyIdentifiers(keys) + " " +
+                prettyIntOpt(nPartitionKeys) + " " +
+                prettyBooleanLiteral(sort)
+            case TableRange(n, nPartitions) => s"$n $nPartitions"
+            case TableJoin(_, _, joinType) => joinType
+            case TableMapRows(_, _, newKey, preservedKeyFields) =>
+              prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
+            case TableExplode(_, field) => field
+            case TableParallelize(typ, rows, nPartitions) =>
+              val valueType = TArray(typ.rowType)
+              typ.parsableString() + " " + valueType.parsableString() + " " +
+                prettyStringLiteral(
+                  JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(rows, valueType))) + " " +
+                prettyIntOpt(nPartitions)
+            case TableMapGlobals(_, _, value) =>
+              value.t.parsableString() + " " +
+                prettyStringLiteral(
+                  JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case _ => ""
           }
 
