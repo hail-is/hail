@@ -173,6 +173,11 @@ case class MatrixLiteral(
   override def toString: String = "MatrixLiteral(...)"
 }
 
+object MatrixReader {
+  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
+    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader]))
+}
+
 abstract class MatrixReader {
   def apply(mr: MatrixRead): MatrixValue
 }

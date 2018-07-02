@@ -41,15 +41,8 @@ object Pretty {
   def prettyIdentifiersOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyIdentifiers).getOrElse("None")
 
   def prettyMatrixReader(reader: MatrixReader): String = {
-    reader match {
-      case reader: MatrixNativeReader =>
-        import RelationalSpec.formats
-        val specJSONStr = Serialization.write(reader.spec)
-        "(MatrixNativeReader " + prettyStringLiteral(reader.path) + " " +
-          prettyStringLiteral(specJSONStr) + ")"
-      case reader: MatrixRangeReader =>
-        s"(MatrixRangeReader ${ reader.nCols } ${ reader.nRows } ${ prettyIntOpt(reader.nPartitions) })"
-    }
+    import MatrixReader.formats
+    s"(MatrixReader ${ prettyStringLiteral(Serialization.write(reader)) })"
   }
 
   def apply(ir: BaseIR): String = {
