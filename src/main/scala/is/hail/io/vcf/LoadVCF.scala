@@ -945,7 +945,7 @@ object LoadVCF {
       rowPartitionKey = Array("locus"),
       entryType = genotypeSignature)
 
-    val vcfReader = VCFMatrixReader(callFields, inputs, minPartitions, sampleIDs, rg, contigRecoding,
+    val vcfReader = VCFMatrixReader(callFields, inputs, minPartitions, sampleIDs, rg.map(_.name), contigRecoding,
       arrayElementsRequired, skipInvalidLoci, gzAsBGZ, infoFlagFieldNames, headerLines1, matrixType)
     new MatrixTable(hc, MatrixRead(matrixType, None, dropSamples, false, vcfReader))
   }
@@ -965,7 +965,7 @@ case class VCFMatrixReader(
   inputs: Array[String],
   minPartitions: Option[Int],
   sampleIDs: Array[String],
-  rg: Option[ReferenceGenome],
+  rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
   skipInvalidLoci: Boolean,
@@ -977,6 +977,7 @@ case class VCFMatrixReader(
 
   private val hc = HailContext.get
   private val sc = hc.sc
+  private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   private lazy val lines = {
     hc.maybeGZipAsBGZip(gzAsBGZ) {
@@ -990,7 +991,7 @@ case class VCFMatrixReader(
     )((c, l, rvb) => ()
     )(lines,
       originalMatrixType.rowKeyStruct,
-      rg,
+      referenceGenome,
       contigRecoding,
       arrayElementsRequired,
       skipInvalidLoci), None)
@@ -1056,7 +1057,7 @@ case class VCFMatrixReader(
           }
         }
         rvb.endArray()
-      }(lines, requestedType.rvRowType, rg, contigRecoding, arrayElementsRequired, skipInvalidLoci))
+      }(lines, requestedType.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci))
 
     MatrixValue(requestedType,
       BroadcastRow(Row.empty, requestedType.globalType, sc),
