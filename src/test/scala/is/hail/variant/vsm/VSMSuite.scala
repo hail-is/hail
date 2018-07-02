@@ -4,7 +4,6 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.expr.ir.Pretty
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.testUtils._
