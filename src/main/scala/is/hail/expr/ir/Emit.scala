@@ -338,6 +338,10 @@ private class Emit(
         val len = mb.newLocal[Int]
         val xmi = mb.newLocal[Boolean]()
         val xmv = mb.newLocal[Boolean]()
+        val prettied = Pretty(x)
+        val irString =
+          if (prettied.size > 100) prettied.take(100) + " ..."
+          else prettied
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
@@ -360,7 +364,7 @@ private class Emit(
                     .concat(" / ")
                     .concat(len.load().toS)
                     .concat(". IR: ")
-                    .concat(Pretty(x)))))))
+                    .concat(irString))))))
 
         EmitTriplet(setup, xmv, Code(
           region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi))))
