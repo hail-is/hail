@@ -89,7 +89,7 @@ class PruneSuite extends SparkSuite {
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TInt32())),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
 
-  val mr = MatrixRead(mat.typ, None, false, false,
+  val mr = MatrixRead(mat.typ, None, None, false, false,
     new MatrixReader {
       def apply(mr: MatrixRead): MatrixValue = ???
     })
