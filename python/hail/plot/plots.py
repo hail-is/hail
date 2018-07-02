@@ -3,7 +3,6 @@ from math import log, isnan
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr import aggregators
-from hail import MatrixTable
 from hail.expr.expressions import Expression
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CategoricalColorMapper
@@ -39,8 +38,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
                 start = range[0]
                 end = range[1]
             else:
-                start = agg_f(aggregators.min(data))
-                end = agg_f(aggregators.max(data))
+                start, end = agg_f((aggregators.min(data), aggregators.max(data)))
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
@@ -80,21 +78,24 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
-    if isinstance(x, Expression):
+    if isinstance(x, Expression) and isinstance(y, Expression):
         if x._indices.source is not None:
-            x = x.collect()
+            if isinstance(label, Expression):
+                res = hail.tuple([x, y, label]).collect()
+                x = [point[0] for point in res]
+                y = [point[1] for point in res]
+                label = [point[2] for point in res]
+            else:
+                res = hail.tuple([x, y]).collect()
+                x = [point[0] for point in res]
+                y = [point[1] for point in res]
         else:
-            return ValueError('Invalid input')
-    if isinstance(y, Expression):
-        if y._indices.source is not None:
-            y = y.collect()
-        else:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input: x and y must valid Hail Expressions.')
+    elif isinstance(x, Expression) or isinstance(y, Expression):
+        raise TypeError('Invalid input: x and y must both be either Expressions or Python Lists.')
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
-        if isinstance(label, Expression):
-            label = label.collect()
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
         color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
