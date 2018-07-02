@@ -16,7 +16,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
 
     Parameters
     ----------
-    data : :class:`.Struct`
+    data : :class:`.Struct` or :class:`.Float64Expression`
         Sequence of data to plot.
     range : Tuple[float]
         Range of x values in the histogram.
