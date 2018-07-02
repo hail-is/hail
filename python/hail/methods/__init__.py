@@ -7,7 +7,7 @@ from .statgen import linear_regression, logistic_regression, linear_mixed_regres
     genetic_relatedness_matrix, realized_relationship_matrix, pca, \
     hwe_normalized_pca, pc_relate, SplitMulti, filter_alleles, filter_alleles_hts, \
     split_multi_hts, balding_nichols_model, ld_prune
-from .qc import sample_qc, variant_qc, vep, concordance, nirvana
+from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
 from .misc import rename_duplicates, maximal_independent_set, filter_intervals, window_by_locus
 
 __all__ = ['trio_matrix',
@@ -58,4 +58,5 @@ __all__ = ['trio_matrix',
            'de_novo',
            'filter_alleles',
            'filter_alleles_hts',
+           'summarize_variants',
            ]
