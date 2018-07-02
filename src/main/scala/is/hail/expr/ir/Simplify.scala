@@ -156,7 +156,7 @@ object Simplify {
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR
       case MatrixFilterRows(MatrixRead(typ, partitionCounts, colCount, dropCols, _, reader), False() | NA(_)) =>
-        MatrixRead(typ, None, colCount, dropCols, dropRows = true, reader)
+        MatrixRead(typ, Some(FastIndexedSeq()), colCount, dropCols, dropRows = true, reader)
 
       case MatrixFilterCols(MatrixRead(typ, partitionCounts, _, _, dropRows, reader), False() | NA(_)) =>
         MatrixRead(typ, partitionCounts, Some(0), dropCols = true, dropRows, reader)
@@ -166,7 +166,7 @@ object Simplify {
         MatrixRowsTable(MatrixRead(typ, partitionCounts, Some(0), dropCols = true, dropRows, reader))
 
       case MatrixColsTable(MatrixRead(typ, partitionCounts, colCount, dropCols, false, reader)) =>
-        MatrixColsTable(MatrixRead(typ, None, colCount, dropCols, dropRows = true, reader))
+        MatrixColsTable(MatrixRead(typ, Some(FastIndexedSeq()), colCount, dropCols, dropRows = true, reader))
 
       // Keep all rows/cols = do nothing
       case MatrixFilterRows(m, True()) => m
