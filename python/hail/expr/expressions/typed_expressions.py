@@ -2468,17 +2468,32 @@ class LocusExpression(Expression):
         return self._field("position", tint32)
 
     def global_position(self):
-        """Returns a global position, computed as the sum of the local position
-        and the chromosome's starting position on this locus's reference genome.
+        """Returns a zero-indexed absolute position along the reference genome.
+
+        The global position is computed as :py:attr:`~position` - 1 plus the sum
+        of the lengths of all the contigs that precede this locus's :py:attr:`~contig`
+        in the reference genome's ordering of contigs.
+
         See also :func:`.locus_from_global_position`.
 
         Examples
         --------
-        >>> hl.locus('3', 100).global_position().value
-        492450093
+        A locus with position 1 along chromosome 1 will have a global position of 0 along
+        the reference genome GRCh37.
 
-        >>> hl.locus('chr3', 100, 'GRCh38').global_position().value
-        491150050
+        >>> hl.locus('1', 1).global_position().value
+        0
+
+        A locus with position 1 along chromosome 2 will have a global position of (1-1) + 249250621,
+        where 249250621 is the length of chromosome 1 on GRCh37.
+
+        >>> hl.locus('2', 1).global_position().value
+        249250621
+
+        A different reference genome than the default results in a different global position.
+
+        >>> hl.locus('chr2', 1, 'GRCh38').global_position().value
+        248956422
 
         Returns
         -------
@@ -2486,7 +2501,7 @@ class LocusExpression(Expression):
             Global base position of locus along the reference genome.
         """
         reference_genome = self.dtype.reference_genome
-        return construct_expr(ApplyMethod('locusToGlobalPos({})'.format(reference_genome), self._ast), 
+        return construct_expr(ApplyMethod('locusToGlobalPos({})'.format(reference_genome), self._ast),
                               tint64, self._indices, self._aggregations)
 
     def in_x_nonpar(self):
