@@ -387,7 +387,7 @@ def array_windows(a, radius):
 
     Notes
     -----
-    For a non-decreasing array ``a``, the resulting ``starts`` and ``stops``
+    For an array ``a`` in ascending order, the resulting ``starts`` and ``stops``
     arrays have the same length as ``a`` and the property that, for all indices
     ``i``, ``[starts[i], stops[i])`` is the maximal range of indices ``j`` such
     that ``a[i] - radius <= a[j] <= a[i] + radius``.
@@ -399,7 +399,7 @@ def array_windows(a, radius):
     Parameters
     ----------
     a: :obj:`ndarray` of signed integer or float values
-        Non-decreasing 1-dimensional array of values.
+        1-dimensional array of values, non-decreasing with respect to index.
     radius: :obj:`float`
         Non-negative radius of window for values.
 
@@ -413,19 +413,19 @@ def array_windows(a, radius):
     if a.ndim != 1:
         raise ValueError("array_windows: 'a' must be 1-dimensional")
     if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
-        if None in a:
-            raise ValueError(f"array_windows: 'a' contains a None value")
-        else:
-            raise ValueError(f"array_windows: 'a' must be an ndarray of signed integer or float values, "
-                             f"found dtype {str(a.dtype)}")
-    if (not np.all(a[:-1] <= a[1:])) or (a.size == 1 and np.isnan(a[0])):
-        raise ValueError("array_windows: 'a' must be non-decreasing with no nan elements")
+        raise ValueError(f"array_windows: 'a' must be an ndarray of signed integer or float values, "
+                         f"found dtype {str(a.dtype)}")
+
     size = a.size
-    if size > 0:
-        if a[0] - radius > a[0]:
-            raise ValueError('array_windows: underflow for a[0] - radius')
-        if a[-1] + radius < a[-1]:
-            raise ValueError('array_windows: overflow for a[-1] + radius')
+    if size == 0:
+        return np.zeros(shape=0, dtype=np.int64), np.zeros(shape=0, dtype=np.int64)
+
+    if (not np.all(a[:-1] <= a[1:])) or np.isnan(a[0]):
+        raise ValueError("array_windows: 'a' must be in ascending order with no nan elements")
+    if a[0] - radius > a[0]:
+        raise ValueError('array_windows: underflow for a[0] - radius')
+    if a[-1] + radius < a[-1]:
+        raise ValueError('array_windows: overflow for a[-1] + radius')
 
     starts, stops = np.zeros(size, dtype=np.int64),  np.zeros(size, dtype=np.int64)
     j, k = 0, 0
@@ -451,6 +451,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
     Examples
     --------
+
     Windows with 2bp radius for one contig with positions 1, 2, 3, 4, 5:
 
     >>> starts, stops = hl.locus_windows(
@@ -467,6 +468,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
     ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
     ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
     ...         {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+    >>>
     >>> ht = hl.Table.parallelize(
     ...         loci,
     ...         hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
@@ -498,7 +500,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
     Set `coord_expr` to use a value other than position to define the windows.
     This row-indexed numeric expression must be non-missing, non-``nan``, on the
-    same source as `locus_expr`, and non-decreasing with respect to locus
+    same source as `locus_expr`, and ascending with respect to locus
     position for each contig; otherwise the function will fail.
 
     The last example above uses centimorgan coordinates, so
@@ -527,14 +529,18 @@ def locus_windows(locus_expr, radius, coord_expr=None):
         Tuple of start indices array and stop indices array.
     """
     if radius < 0:
-        raise ValueError(f'locus_windows: radius must be non-negative, found {radius}')
-
+        raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
-
     if coord_expr is None:
-        global_pos = np.array(locus_expr.global_position().collect(), dtype=np.int64)
+        global_pos_list = locus_expr.global_position().collect()
+        n_loci = len(global_pos_list)
+        global_pos = np.zeros(n_loci, dtype=np.int64)
+        for i, p in enumerate(global_pos_list):
+            if p is None:
+                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
+            global_pos[i] = p
         coord = global_pos
-        n_loci = coord.size
+        del global_pos_list
     else:
         check_row_indexed('locus_windows', coord_expr)
         global_pos_and_coord =\
@@ -543,16 +549,17 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
         global_pos = np.zeros(n_loci, dtype=np.int64)
         coord = np.zeros(n_loci, dtype=np.float64)
-        for i in range(n_loci):
-            global_pos[i] = global_pos_and_coord[i][0]
-            coord[i] = global_pos_and_coord[i][1]
+        for i, x in enumerate(global_pos_and_coord):
+            if x[0] is None:
+                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
+            global_pos[i] = x[0]
+            if x[1] is None:
+                raise ValueError(f"locus_windows: missing value for 'coord_expr' at row {i}")
+            coord[i] = x[1]
         del global_pos_and_coord
 
     if n_loci == 0:
         return np.zeros(shape=0, dtype=np.int64), np.zeros(shape=0, dtype=np.int64)
-
-    if not np.all(global_pos[:-1] <= global_pos[1:]):
-        raise ValueError("locus_windows: 'locus_expr' must be ordered with respect to global position")
 
     contig_name = locus_expr.dtype.reference_genome.contigs
     contig_len = locus_expr.dtype.reference_genome.lengths
@@ -560,15 +567,18 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
     assert(global_pos[-1] < contig_cum_len[-1])
 
+    last = global_pos[0]
     contig_start_idx = [0]
     cum_len_iter = iter(contig_cum_len)
-    i = 0
     cum_len = next(cum_len_iter)
-    while i < n_loci:
-        while global_pos[i] >= cum_len:
+    for i in range(n_loci):
+        curr = global_pos[i]
+        if curr < last:
+            raise ValueError("locus_windows: 'locus_expr' global position must be in ascending order")
+        while curr >= cum_len:
             contig_start_idx.append(i)
             cum_len = next(cum_len_iter)
-        i += 1
+        last = curr
 
     n_contigs = len(contig_start_idx)
     contig_start_idx.append(n_loci)

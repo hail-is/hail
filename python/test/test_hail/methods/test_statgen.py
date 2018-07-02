@@ -983,7 +983,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10)
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)

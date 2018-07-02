@@ -59,6 +59,6 @@ __all__ = ['trio_matrix',
            'filter_alleles',
            'filter_alleles_hts',
            'array_windows',
-           'locus_windows'
+           'locus_windows',
            'summarize_variants',
            ]
