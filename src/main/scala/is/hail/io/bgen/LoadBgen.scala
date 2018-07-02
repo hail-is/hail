@@ -19,11 +19,11 @@ import scala.io.Source
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
   headerLength: Int, dataStart: Int, hasIds: Boolean, version: Int)
 
-case class BgenResult(
+case class BgenFileDimensions(
   file: String,
   nSamples: Int,
   nVariants: Int,
-  rdd: RDD[(LongWritable, BgenRecordV12)]
+  version: Int
 )
 
 object LoadBgen {
@@ -56,16 +56,42 @@ object LoadBgen {
 
     val nSamples = sampleIds.length
 
+    val sc = hc.sc
+    val fileDims = files.map { file =>
+      val bState = readState(sc.hadoopConfiguration, file)
+      BgenFileDimensions(file, bState.nSamples, bState.nVariants, bState.version)
+    }
+    val unequalSamples = fileDims.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
+    if (unequalSamples.length > 0)
+      fatal(
+        s"""The following BGEN files did not contain the expected number of samples $nSamples:
+            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
+
+    val noVariants = fileDims.filter(_.nVariants == 0).map(_.file)
+    if (noVariants.length > 0)
+      fatal(
+        s"""The following BGEN files did not contain at least 1 variant:
+            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
+
+    val notVersionTwo = fileDims.filter(_.version != 2).map(x => x.file -> x.version)
+    if (notVersionTwo.length > 0)
+      fatal(
+        s"""The following BGEN files are not BGENv2:
+            |  ${ notVersionTwo.mkString("\n  ") })""".stripMargin)
+
+    val nVariants = fileDims.map(_.nVariants).sum
+
+    info(s"Number of BGEN files parsed: ${ fileDims.length }")
+    info(s"Number of samples in BGEN files: $nSamples")
+    info(s"Number of variants across all BGEN files: $nVariants")
+
     hadoop.setBoolean("includeGT", includeGT)
     hadoop.setBoolean("includeGP", includeGP)
     hadoop.setBoolean("includeDosage", includeDosage)
     hadoop.setBoolean("includeLid", includeLid)
     hadoop.setBoolean("includeRsid", includeRsid)
 
-    val sc = hc.sc
-    val results = files.map { file =>
-      val bState = readState(sc.hadoopConfiguration, file)
-
+    val crdds = files.map { file =>
       includedVariantsPerFile.get(file) match {
         case Some(indices) =>
           val variantPositions =
@@ -81,31 +107,14 @@ object LoadBgen {
           hadoop.unset(includedVariantsIndicesHadoopPrefix + file)
       }
 
-      bState.version match {
-        case 2 =>
-          BgenResult(file, bState.nSamples, bState.nVariants,
-            sc.hadoopFile(file, classOf[BgenInputFormatV12], classOf[LongWritable], classOf[BgenRecordV12], nPartitions.getOrElse(sc.defaultMinPartitions)))
-        case x => fatal(s"Hail does not support BGEN v1.$x.")
-      }
+      ContextRDD.weaken[RVDContext](
+        sc.hadoopFile(
+          file,
+          classOf[BgenInputFormatV12],
+          classOf[LongWritable],
+          classOf[BgenRecordV12],
+          nPartitions.getOrElse(sc.defaultMinPartitions)))
     }
-
-    val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
-    if (unequalSamples.length > 0)
-      fatal(
-        s"""The following BGEN files did not contain the expected number of samples $nSamples:
-            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
-
-    val noVariants = results.filter(_.nVariants == 0).map(_.file)
-    if (noVariants.length > 0)
-      fatal(
-        s"""The following BGEN files did not contain at least 1 variant:
-            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
-
-    val nVariants = results.map(_.nVariants).sum
-
-    info(s"Number of BGEN files parsed: ${ results.length }")
-    info(s"Number of samples in BGEN files: $nSamples")
-    info(s"Number of variants across all BGEN files: $nVariants")
 
     val rowFields = Array(
       (true, "locus" -> TLocus.schemaFromRG(rg)),
@@ -134,8 +143,6 @@ object LoadBgen {
 
     val kType = matrixType.orvdType.kType
     val rowType = matrixType.rvRowType
-
-    val crdds = results.map(x => ContextRDD.weaken[RVDContext](x.rdd))
 
     val fastKeys = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
       val region = ctx.region
