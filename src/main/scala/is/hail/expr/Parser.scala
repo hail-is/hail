@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
-import is.hail.expr.ir.AggSignature
+import is.hail.expr.ir.{AggSignature, MatrixReader}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
 import is.hail.table.TableSpec
@@ -781,13 +781,9 @@ object Parser extends JavaTokenParsers {
   def matrix_reader: Parser[ir.MatrixReader] = "(" ~> matrix_reader_1 <~ ")"
 
   def matrix_reader_1: Parser[ir.MatrixReader] =
-    "MatrixNativeReader" ~> string_literal ~ string_literal ^^ { case path ~ specJSONStr =>
-      import RelationalSpec.formats
-      val specJSON = JsonMethods.parse(specJSONStr)
-      val spec = specJSON.extract[MatrixTableSpec]
-      ir.MatrixNativeReader(path, spec)
-    } | "MatrixRangeReader" ~> int32_literal ~ int32_literal ~ int32_literal_opt ^^ { case nRows ~ nCols ~ nParts =>
-      ir.MatrixRangeReader(nRows, nCols, nParts)
+    "MatrixReader" ~> string_literal ^^ { jsonString =>
+      import ir.MatrixReader.formats
+      JsonMethods.parse(jsonString).extract[MatrixReader]
     }
 
   def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
