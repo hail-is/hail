@@ -1,15 +1,14 @@
 import unittest
-import hail as hl
+
 from hail.genetics import *
-from .utils import resource, startTestHailContext, stopTestHailContext
+from ..helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+
 class Tests(unittest.TestCase):
-
     def test_pedigree(self):
-
         ped = Pedigree.read(resource('sample.fam'))
         ped.write('/tmp/sample_out.fam')
         ped2 = Pedigree.read('/tmp/sample_out.fam')
