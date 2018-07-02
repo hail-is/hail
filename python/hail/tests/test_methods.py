@@ -1572,3 +1572,15 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
+
+    def test_summarize_variants(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
+                               1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
+                               2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT'])})
+        mt = mt.annotate_rows(**variants[mt.row_idx]).partition_rows_by('locus', 'locus', 'alleles')
+        r = hl.summarize_variants(mt, show=False)
+        self.assertEqual(r.n_variants, 3)
+        self.assertEqual(r.contigs, {'1': 1, '2': 2})
+        self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
+        self.assertEqual(r.allele_counts, {2: 1, 3: 2})
