@@ -1,10 +1,9 @@
 import unittest
 
+import hail as hl
 from hail.utils import *
 from hail.utils.linkedlist import LinkedList
-from .utils import resource, startTestHailContext, stopTestHailContext
-from hail.genetics import Locus
-import hail as hl
+from ..helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext

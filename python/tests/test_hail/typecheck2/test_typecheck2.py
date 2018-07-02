@@ -1,6 +1,7 @@
-from hail.typecheck2 import typecheck
 import unittest
 from typing import *
+
+from hail.typecheck2 import typecheck
 
 
 class Tests(unittest.TestCase):

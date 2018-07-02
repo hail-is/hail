@@ -1,88 +1,172 @@
-import unittest
 import math
+import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr import coercer_from_dtype
 from hail.expr.types import *
-from .utils import startTestHailContext, stopTestHailContext, resource
+from ..helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
-class TypeTests(unittest.TestCase):
-    def types_to_test(self):
-        return [
-            tint32,
-            tint64,
-            tfloat32,
-            tfloat64,
-            tstr,
-            tbool,
-            tcall,
-            tinterval(tint32),
-            tdict(tstr, tint32),
-            tarray(tstr),
-            tset(tint64),
-            tlocus('GRCh37'),
-            tlocus('GRCh38'),
-            tstruct(),
-            tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-            tstruct(**{'weird field name 1': tint32,
-                       r"""this one ' has "" quotes and `` backticks```""": tint64,
-                       '!@#$%^&({[': tarray(tset(tstr))}),
-            tinterval(tlocus()),
-            tset(tinterval(tlocus())),
-            tstruct(a=tint32, b=tint32, c=tarray(tstr)),
-            tstruct(a=tfloat64, bb=tint32, c=tbool),
-            tstruct(a=tint32, b=tint32),
-            tstruct(**{'___': tint32, '_ . _': tint32}),
-            ttuple(tstr, tint32),
-            ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
-            ttuple()]
-
-    def test_parser_roundtrip(self):
-        for t in self.types_to_test():
-            self.assertEqual(t, dtype(str(t)))
-
-    def test_eval_roundtrip(self):
-        for t in self.types_to_test():
-            self.assertEqual(t, eval(repr(t)))
-
-    def test_equality(self):
-        ts = self.types_to_test()
-        ts2 = self.types_to_test()  # reallocates the non-primitive types
-
-        for i in range(len(ts)):
-            for j in range(len(ts2)):
-                if (i == j):
-                    self.assertEqual(ts[i], ts2[j])
-                else:
-                    self.assertNotEqual(ts[i], ts2[j])
-
-    def test_jvm_roundtrip(self):
-        ts = self.types_to_test()
-        for t in ts:
-            rev_str = t._jtype.toString()
-            self.assertEqual(t, dtype(rev_str))
-
-    def test_pretty_roundtrip(self):
-        ts = self.types_to_test()
-        for t in ts:
-            p1 = t.pretty()
-            p2 = t.pretty(5, 5)
-            self.assertEqual(t, dtype(p1))
-            self.assertEqual(t, dtype(p2))
-
-    def test_coercers_can_coerce(self):
-        ts = self.types_to_test()
-        for t in ts:
-            c = coercer_from_dtype(t)
-            self.assertTrue(c.can_coerce(t))
-            self.assertFalse(c.requires_conversion(t))
-
 
 class Tests(unittest.TestCase):
+    def test_operators(self):
+        schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
+
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
+
+        kt = hl.Table.parallelize(rows, schema)
+
+        result = convert_struct_to_dict(kt.annotate(
+            x1=kt.a + 5,
+            x2=5 + kt.a,
+            x3=kt.a + kt.b,
+            x4=kt.a - 5,
+            x5=5 - kt.a,
+            x6=kt.a - kt.b,
+            x7=kt.a * 5,
+            x8=5 * kt.a,
+            x9=kt.a * kt.b,
+            x10=kt.a / 5,
+            x11=5 / kt.a,
+            x12=kt.a / kt.b,
+            x13=-kt.a,
+            x14=+kt.a,
+            x15=kt.a == kt.b,
+            x16=kt.a == 5,
+            x17=5 == kt.a,
+            x18=kt.a != kt.b,
+            x19=kt.a != 5,
+            x20=5 != kt.a,
+            x21=kt.a > kt.b,
+            x22=kt.a > 5,
+            x23=5 > kt.a,
+            x24=kt.a >= kt.b,
+            x25=kt.a >= 5,
+            x26=5 >= kt.a,
+            x27=kt.a < kt.b,
+            x28=kt.a < 5,
+            x29=5 < kt.a,
+            x30=kt.a <= kt.b,
+            x31=kt.a <= 5,
+            x32=5 <= kt.a,
+            x33=(kt.a == 0) & (kt.b == 5),
+            x34=(kt.a == 0) | (kt.b == 5),
+            x35=False,
+            x36=True
+        ).take(1)[0])
+
+        expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
+                    'x1': 9, 'x2': 9, 'x3': 5,
+                    'x4': -1, 'x5': 1, 'x6': 3,
+                    'x7': 20, 'x8': 20, 'x9': 4,
+                    'x10': 4.0 / 5, 'x11': 5.0 / 4, 'x12': 4, 'x13': -4, 'x14': 4,
+                    'x15': False, 'x16': False, 'x17': False,
+                    'x18': True, 'x19': True, 'x20': True,
+                    'x21': True, 'x22': False, 'x23': True,
+                    'x24': True, 'x25': False, 'x26': True,
+                    'x27': False, 'x28': True, 'x29': False,
+                    'x30': False, 'x31': True, 'x32': False,
+                    'x33': False, 'x34': False, 'x35': False, 'x36': True}
+
+        for k, v in expected.items():
+            if isinstance(v, float):
+                self.assertAlmostEqual(v, result[k], msg=k)
+            else:
+                self.assertEqual(v, result[k], msg=k)
+
+    def test_array_slicing(self):
+        schema = hl.tstruct(a=hl.tarray(hl.tint32))
+        rows = [{'a': [1, 2, 3]}]
+        kt = hl.Table.parallelize(rows, schema)
+
+        result = convert_struct_to_dict(kt.annotate(
+            x1=kt.a[0],
+            x2=kt.a[2],
+            x3=kt.a[:],
+            x4=kt.a[1:2],
+            x5=kt.a[-1:2],
+            x6=kt.a[:2]
+        ).take(1)[0])
+
+        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
+                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+
+        self.assertDictEqual(result, expected)
+
+    def test_dict_methods(self):
+        schema = hl.tstruct(x=hl.tfloat64)
+        rows = [{'x': 2.0}]
+        kt = hl.Table.parallelize(rows, schema)
+
+        kt = kt.annotate(a={'cat': 3, 'dog': 7})
+
+        result = convert_struct_to_dict(kt.annotate(
+            x1=kt.a['cat'],
+            x2=kt.a['dog'],
+            x3=kt.a.keys().contains('rabbit'),
+            x4=kt.a.size() == 0,
+            x5=kt.a.key_set(),
+            x6=kt.a.keys(),
+            x7=kt.a.values(),
+            x8=kt.a.size(),
+            x9=kt.a.map_values(lambda v: v * 2.0)
+        ).take(1)[0])
+
+        expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
+                    'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
+                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
+
+        self.assertDictEqual(result, expected)
+
+    def test_numeric_conversion(self):
+        schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
+        kt = hl.Table.parallelize(rows, schema)
+        kt = kt.annotate(d=hl.int64(kt.d))
+
+        kt = kt.annotate(x1=[1.0, kt.a, 1],
+                         x2=[1, 1.0],
+                         x3=[kt.a, kt.c],
+                         x4=[kt.c, kt.d],
+                         x5=[1, kt.c])
+
+        expected_schema = {'a': hl.tfloat64,
+                           'b': hl.tfloat64,
+                           'c': hl.tint32,
+                           'd': hl.tint64,
+                           'x1': hl.tarray(hl.tfloat64),
+                           'x2': hl.tarray(hl.tfloat64),
+                           'x3': hl.tarray(hl.tfloat64),
+                           'x4': hl.tarray(hl.tint64),
+                           'x5': hl.tarray(hl.tint32)}
+
+        for f, t in kt.row.dtype.items():
+            self.assertEqual(expected_schema[f], t)
+
+    def test_genetics_constructors(self):
+        rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
+
+        schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
+        rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
+        kt = hl.Table.parallelize(rows, schema)
+        kt = kt.annotate(d=hl.int64(kt.d))
+
+        kt = kt.annotate(l1=hl.parse_locus("1:51"),
+                         l2=hl.locus("1", 51, reference_genome=rg),
+                         i1=hl.parse_locus_interval("1:51-56", reference_genome=rg),
+                         i2=hl.interval(hl.locus("1", 51, reference_genome=rg),
+                                        hl.locus("1", 56, reference_genome=rg)))
+
+        expected_schema = {'a': hl.tfloat64, 'b': hl.tfloat64, 'c': hl.tint32, 'd': hl.tint64,
+                           'l1': hl.tlocus(), 'l2': hl.tlocus(rg),
+                           'i1': hl.tinterval(hl.tlocus(rg)), 'i2': hl.tinterval(hl.tlocus(rg))}
+
+        self.assertTrue(all([expected_schema[f] == t for f, t in kt.row.dtype.items()]))
+
     def test_floating_point(self):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
