@@ -794,7 +794,8 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
            _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')),
-           _variants_per_file=dictof(str, sequenceof(int)))
+           _variants_per_file=dictof(str, sequenceof(int)),
+           _check_ploidy=bool)
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -803,7 +804,8 @@ def import_bgen(path,
                 contig_recoding=None,
                 skip_invalid_loci=False,
                 _row_fields=['varid', 'rsid'],
-                _variants_per_file={}) -> MatrixTable:
+                _variants_per_file={},
+                _check_ploidy=True) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -927,7 +929,8 @@ def import_bgen(path,
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
                                     joption(min_partitions), joption(rg), joption(contig_recoding),
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
+                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file),
+                                    _check_ploidy)
     return MatrixTable(jmt)
 
 

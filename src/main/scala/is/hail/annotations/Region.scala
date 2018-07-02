@@ -33,43 +33,43 @@ object Region {
 final class Region() extends NativeBase() {
   @native def nativeCtor(): Unit
   nativeCtor()
-  
+
   def this(b: Region) {
     this()
     copyAssign(b)
-  }  
+  }
 
   // FIXME: not sure what this should mean ...
   // def setFrom(b: Region) { }
 
   final def copyAssign(b: Region) = super.copyAssign(b)
   final def moveAssign(b: Region) = super.moveAssign(b)
-  
+
   @native def clearButKeepMem(): Unit
   final def clear(): Unit = clearButKeepMem()
-  
+
   @native def nativeAlign(alignment: Long): Unit
   @native def nativeAlignAllocate(alignment: Long, n: Long): Long
   @native def nativeAllocate(n: Long): Long
-  
+
   final def align(a: Long) = nativeAlign(a)
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
   final def allocate(n: Long): Long = nativeAllocate(n)
-  
+
   final def loadInt(addr: Long): Int = Memory.loadInt(addr)
   final def loadLong(addr: Long): Long = Memory.loadLong(addr)
   final def loadFloat(addr: Long): Float = Memory.loadFloat(addr)
   final def loadDouble(addr: Long): Double = Memory.loadDouble(addr)
   final def loadAddress(addr: Long): Long = Memory.loadLong(addr)
   final def loadByte(addr: Long): Byte = Memory.loadByte(addr)
-  
+
   final def storeInt(addr: Long, v: Int) = Memory.storeInt(addr, v)
   final def storeLong(addr: Long, v: Long) = Memory.storeLong(addr, v)
   final def storeFloat(addr: Long, v: Float) = Memory.storeFloat(addr, v)
   final def storeDouble(addr: Long, v: Double) = Memory.storeDouble(addr, v)
   final def storeAddress(addr: Long, v: Long) = Memory.storeAddress(addr, v)
   final def storeByte(addr: Long, v: Byte) = Memory.storeByte(addr, v)
-  
+
   final def loadBoolean(addr: Long): Boolean = if (Memory.loadByte(addr) == 0) false else true
   final def storeBoolean(addr: Long, v: Boolean) = Memory.storeByte(addr, if (v) 1 else 0)
 
@@ -93,6 +93,10 @@ final class Region() extends NativeBase() {
 
   final def copyFrom(src: Region, srcOff: Long, dstOff: Long, n: Long) {
     Memory.memcpy(dstOff, srcOff, n)
+  }
+
+  final def memset(addr: Long, bytes: Long, value: Byte) {
+    Memory.memset(addr, bytes, value)
   }
 
   final def loadBit(byteOff: Long, bitOff: Long): Boolean = {
@@ -127,7 +131,7 @@ final class Region() extends NativeBase() {
     storeBytes(addr+4, v)
     addr
   }
-  
+
   final def appendBinarySlice(
     fromRegion: Region,
     fromOff: Long,
@@ -145,10 +149,10 @@ final class Region() extends NativeBase() {
   // Use of appendXXX methods is deprecated now that Region uses absolute
   // addresses and non-contiguous memory allocation.  You can't assume any
   // relationships between the addresses returned by appendXXX methods -
-  // and to make it even more confusing, there may be long sequences of 
+  // and to make it even more confusing, there may be long sequences of
   // ascending addresses (within a buffer) followed by an arbitrary jump
   // to an address in a different buffer.
-  
+
   final def appendArrayInt(v: Array[Int]): Long = {
     val len: Int = v.length
     val addr = allocate(4, 4*(1+len))
@@ -161,7 +165,7 @@ final class Region() extends NativeBase() {
     }
     addr
   }
-  
+
   final def appendInt(v: Int): Long = {
     val a = allocate(4, 4)
     Memory.storeInt(a, v)
@@ -189,7 +193,7 @@ final class Region() extends NativeBase() {
   }
   final def appendString(v: String): Long =
     appendBinary(v.getBytes)
-  
+
   final def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
     appendBinarySlice(fromRegion, fromOff, start, n)
 
@@ -259,7 +263,7 @@ final class Region() extends NativeBase() {
     visit(t, off, v)
     v.result()
   }
-  
+
   def prettyBits(): String = {
     "FIXME: implement prettyBits on Region"
   }

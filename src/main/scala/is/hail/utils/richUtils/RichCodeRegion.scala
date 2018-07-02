@@ -10,6 +10,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
 
+  def memset(addr: Code[Long], bytes: Code[Long], value: Code[Byte]): Code[Unit] = {
+    region.invoke[Long, Long, Byte, Unit]("memset", addr, bytes, value)
+  }
+
   def storeInt(off: Code[Long], v: Code[Int]): Code[Unit] = {
     region.invoke[Long,Int,Unit]("storeInt", off, v)
   }

@@ -1,5 +1,6 @@
 package is.hail.io.bgen
 
+import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils.SerializableHadoopConfiguration
 import is.hail.variant.{ Call2, ReferenceGenome }
@@ -35,7 +36,8 @@ private case class BgenSettings (
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
   private val userContigRecoding: Map[String, String],
-  skipInvalidLoci: Boolean
+  skipInvalidLoci: Boolean,
+  checkPloidy: Boolean
 ) {
   private[this] val typedRowFields = Array(
     (true, "locus" -> TLocus.schemaFromRG(rg)),
@@ -92,6 +94,15 @@ object BgenRDD {
   ): ContextRDD[RVDContext, RegionValue] =
     ContextRDD(
       new BgenRDD(sc, files, minPartitions, includedVariantsPerFile, settings))
+
+  private[bgen] def decompress(
+    input: Array[Byte],
+    uncompressedSize: Int
+  ): Array[Byte] = is.hail.utils.decompress(input, uncompressedSize)
+
+  private[bgen] def triangle(
+    x: Int
+  ): Int = is.hail.utils.triangle(x)
 }
 
 private class BgenRDD(
@@ -114,227 +125,341 @@ private class BgenRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
     Iterator.single { (ctx: RVDContext) =>
-      FlipbookIterator(
-        new BgenRecordStateMachine(
-          ctx, split.asInstanceOf[BgenPartition], settings)) }
+      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings).flatten }
 }
 
-private class BgenRecordStateMachine (
+private class BgenRecordIterator(
   ctx: RVDContext,
   p: BgenPartition,
   settings: BgenSettings
-) extends StateMachine[RegionValue] {
+) extends Iterator[Option[RegionValue]] {
   private[this] val bfis = p.makeInputStream
-  private[this] var rv = RegionValue(ctx.region)
-  private[this] val rvb = ctx.rvb
-
-  def isValid: Boolean = rv != null
-  def value: RegionValue = rv
-  def advance() {
-    if (!p.hasNext(bfis)) {
-      rv = null
-      return
-    }
-
-    val rowFieldIndex = p.advance(bfis)
-
-    val varid = if (settings.rowFields.varid) {
-      bfis.readLengthAndString(2)
+  private[this] var read: Boolean = false
+  private[this] val rv = RegionValue(ctx.region)
+  private[this] val fb = new Function4Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
+  private[this] val mb = fb.apply_method
+  private[this] val cp = mb.getArg[BgenPartition](2).load()
+  private[this] val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
+  private[this] val csettings = mb.getArg[BgenSettings](4).load()
+  private[this] val srvb = new StagedRegionValueBuilder(mb, settings.typ)
+  private[this] val fileRowIndex = mb.newLocal[Long]
+  private[this] val varid = mb.newLocal[String]
+  private[this] val rsid = mb.newLocal[String]
+  private[this] val contig = mb.newLocal[String]
+  private[this] val contigRecoded = mb.newLocal[String]
+  private[this] val position = mb.newLocal[Int]
+  private[this] val nAlleles = mb.newLocal[Int]
+  private[this] val i = mb.newLocal[Int]
+  private[this] val dataSize = mb.newLocal[Int]
+  private[this] val invalidLocus = mb.newLocal[Boolean]
+  private[this] val data = mb.newLocal[Array[Byte]]
+  private[this] val uncompressedSize = mb.newLocal[Int]
+  private[this] val input = mb.newLocal[Array[Byte]]
+  private[this] val reader = mb.newLocal[ByteArrayReader]
+  private[this] val nRow = mb.newLocal[Int]
+  private[this] val nAlleles2 = mb.newLocal[Int]
+  private[this] val minPloidy = mb.newLocal[Int]
+  private[this] val maxPloidy = mb.newLocal[Int]
+  private[this] val longPloidy = mb.newLocal[Long]
+  private[this] val ploidy = mb.newLocal[Int]
+  private[this] val phase = mb.newLocal[Int]
+  private[this] val nBitsPerProb = mb.newLocal[Int]
+  private[this] val nGenotypes = mb.newLocal[Int]
+  private[this] val nExpectedBytesProbs = mb.newLocal[Int]
+  private[this] val c0 = mb.newLocal[Int]
+  private[this] val c1 = mb.newLocal[Int]
+  private[this] val c2 = mb.newLocal[Int]
+  private[this] val off = mb.newLocal[Int]
+  private[this] val d0 = mb.newLocal[Int]
+  private[this] val d1 = mb.newLocal[Int]
+  private[this] val d2 = mb.newLocal[Int]
+  private[this] val c = Code(
+    fileRowIndex := cp.invoke[HadoopFSDataBinaryReader, Long]("advance", cbfis),
+    if (settings.rowFields.varid) {
+      varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
     } else {
-      bfis.readLengthAndSkipString(2)
-      null
-    }
-    val rsid = if (settings.rowFields.rsid) {
-      bfis.readLengthAndString(2)
+      cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
+    },
+    if (settings.rowFields.rsid) {
+      rsid := cbfis.invoke[Int, String]("readLengthAndString", 2)
     } else {
-      bfis.readLengthAndSkipString(2)
-      null
-    }
-    val contig = bfis.readLengthAndString(2)
-    val contigRecoded = settings.recodeContig(contig)
-    val position = bfis.readInt()
-
-    if (settings.skipInvalidLoci && !settings.rg.forall(_.isValidLocus(contigRecoded, position))) {
-      val nAlleles = bfis.readShort()
-      var i = 0
-      while (i < nAlleles) {
-        bfis.readLengthAndSkipString(4)
-        i += 1
+      cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
+    },
+    contig := cbfis.invoke[Int, String]("readLengthAndString", 2),
+    contigRecoded := csettings.invoke[String, String]("recodeContig", contig),
+    position := cbfis.invoke[Int]("readInt"),
+    if (settings.skipInvalidLoci) {
+      Code(
+        invalidLocus :=
+          (if (settings.rg.nonEmpty) {
+            !csettings.invoke[Option[ReferenceGenome]]("rg")
+              .invoke[ReferenceGenome]("get")
+              .invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position)
+          } else false),
+        invalidLocus.mux(
+          Code(
+            nAlleles := cbfis.invoke[Int]("readShort"),
+            i := 0,
+            Code.whileLoop(i < nAlleles,
+              cbfis.invoke[Int, Unit]("readLengthAndSkipString", 4),
+              i := i + 1
+            ),
+            dataSize := cbfis.invoke[Int]("readInt"),
+            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)),
+            Code._return(-1L) // return -1 to indicate we are skipping this variant
+          ),
+          Code._empty // if locus is valid, continue
+        ))
+    } else {
+      if (settings.rg.nonEmpty) {
+        // verify the locus is valid before continuing
+        csettings.invoke[Option[ReferenceGenome]]("rg")
+          .invoke[ReferenceGenome]("get")
+          .invoke[String, Int, Unit]("checkLocus", contigRecoded, position)
+      } else {
+        Code._empty // if locus is valid continue
       }
-      val dataSize = bfis.readInt()
-      bfis.skipBytes(dataSize)
-      advance()
-    } else {
-      rvb.start(settings.typ)
-      rvb.startStruct() // record
-      rvb.startStruct() // locus
-      settings.rg.foreach(_.checkLocus(contigRecoded, position))
-      rvb.addString(contigRecoded)
-      rvb.addInt(position)
-      rvb.endStruct()
-
-      val nAlleles = bfis.readShort()
-      if (nAlleles != 2)
-        fatal(s"Only biallelic variants supported, found variant with $nAlleles")
-
-      // alleles
-      rvb.startArray(nAlleles)
-      var i = 0
-      while (i < nAlleles) {
-        rvb.addString(bfis.readLengthAndString(4))
-        i += 1
-      }
-      rvb.endArray()
-
-      if (settings.rowFields.rsid)
-        rvb.addString(rsid)
-      if (settings.rowFields.varid)
-        rvb.addString(varid)
-      if (settings.rowFields.fileRowIndex)
-        rvb.addLong(rowFieldIndex)
-
-      val dataSize = bfis.readInt()
-
-      readGenotypes(rvb, dataSize, nAlleles, varid)
-
-      rvb.endStruct()
-      rv.setOffset(rvb.end())
-    }
-  }
-
-  private[this] val readGenotypes: (RegionValueBuilder, Int, Int, String) => Unit =
+    },
+    srvb.start(),
+    srvb.addBaseStruct(settings.typ.types(settings.typ.fieldIdx("locus")).fundamentalType.asInstanceOf[TBaseStruct], { srvb =>
+      Code(
+        srvb.start(),
+        srvb.addString(contigRecoded),
+        srvb.advance(),
+        srvb.addInt(position))
+    }),
+    srvb.advance(),
+    nAlleles := cbfis.invoke[Int]("readShort"),
+    nAlleles.cne(2).mux(
+      Code._fatal(
+        const("Only biallelic variants supported, found variant with ")
+          .concat(nAlleles.toS)),
+      Code._empty),
+    srvb.addArray(settings.typ.types(settings.typ.fieldIdx("alleles")).asInstanceOf[TArray], { srvb =>
+      Code(
+        srvb.start(nAlleles),
+        i := 0,
+        Code.whileLoop(i < nAlleles,
+          srvb.addString(cbfis.invoke[Int, String]("readLengthAndString", 4)),
+          srvb.advance(),
+          i := i + 1))
+    }),
+    srvb.advance(),
+    if (settings.rowFields.rsid)
+      Code(srvb.addString(rsid), srvb.advance())
+    else Code._empty,
+    if (settings.rowFields.varid)
+      Code(srvb.addString(varid), srvb.advance())
+    else Code._empty,
+    if (settings.rowFields.fileRowIndex)
+      Code(srvb.addLong(fileRowIndex), srvb.advance())
+    else Code._empty,
+    dataSize := cbfis.invoke[Int]("readInt"),
     settings.entries match {
       case NoEntries =>
-        (rvb, dataSize, nAlleles, varid) => bfis.skipBytes(dataSize)
+        Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
       case EntriesWithFields(gt, gp, dosage)
           if !(gt || gp || dosage) =>
-        { (rvb, dataSize, nAlleles, varid) =>
-          rvb.startArray(settings.nSamples)
-          assert(rvb.currentType().byteSize == 0)
-          rvb.unsafeAdvance(settings.nSamples)
-          rvb.endArray()
-          bfis.skipBytes(dataSize)
-        }
+        assert(settings.matrixType.entryType.byteSize == 0)
+        Code(
+          srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            Code(
+              srvb.start(settings.nSamples),
+              i := 0,
+              Code.whileLoop(i < settings.nSamples,
+                srvb.advance(),
+                i := i + 1))
+          }),
+          srvb.advance(),
+          Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
 
       case EntriesWithFields(includeGT, includeGP, includeDosage) =>
-        { (rvb, dataSize, nAlleles, varid) =>
-          val data = if (p.compressed) {
-            val uncompressedSize = bfis.readInt()
-            val input = bfis.readBytes(dataSize - 4)
-            decompress(input, uncompressedSize)
+        Code(
+          if (p.compressed) {
+            Code(
+              uncompressedSize := cbfis.invoke[Int]("readInt"),
+              input := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4),
+              data := Code.invokeScalaObject[Array[Byte], Int, Array[Byte]](
+                BgenRDD.getClass, "decompress", input, uncompressedSize))
           } else {
-            bfis.readBytes(dataSize)
-          }
-          val reader = new ByteArrayReader(data)
+            data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)
+          },
+          reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),
+          nRow := reader.invoke[Int]("readInt"),
+          (nRow.cne(settings.nSamples)).mux(
+            Code._fatal(
+              const("row nSamples is not equal to header nSamples ")
+                .concat(nRow.toS)
+                .concat(", ")
+                .concat(settings.nSamples.toString)),
+            Code._empty),
+          nAlleles2 := reader.invoke[Int]("readShort"),
+          (nAlleles.cne(nAlleles2)).mux(
+            Code._fatal(
+              const("""Value for `nAlleles' in genotype probability data storage is
+                        |not equal to value in variant identifying data. Expected""".stripMargin)
+                .concat(nAlleles.toS)
+                .concat(" but found ")
+                .concat(nAlleles2.toS)
+                .concat(" at ")
+                .concat(contig)
+                .concat(":")
+                .concat(position.toS)
+                .concat(".")),
+            Code._empty),
+          minPloidy := reader.invoke[Int]("read"),
+          maxPloidy := reader.invoke[Int]("read"),
+          (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
+            Code._fatal(
+              const("Hail only supports diploid genotypes. Found min ploidy equals `")
+                .concat(minPloidy.toS)
+                .concat("' and max ploidy equals `")
+                .concat(maxPloidy.toS)
+                .concat("'.")),
+            Code._empty),
+          i := 0,
+          if (settings.checkPloidy) {
+            Code(
+              Code.whileLoop(i < (settings.nSamples - 8),
+                longPloidy := reader.invoke[Long]("readLong"),
+                ((longPloidy & 0x3f3f3f3f3f3f3f3fL).cne(0x0202020202020202L)).mux(
+                  Code._fatal(
+                    const("Ploidy value must equal to 2. Found ")
+                      .concat(longPloidy.toS)
+                      .concat(" somewhere between sample ")
+                      .concat(i.toS)
+                      .concat(" and ")
+                      .concat((i + 8).toS)
+                      .concat(" at ")
+                      .concat(contig)
+                      .concat(":")
+                      .concat(position.toS)
+                      .concat(".")),
+                  Code._empty),
+                i += 8
+              ),
+              Code.whileLoop(i < settings.nSamples,
+                ploidy := reader.invoke[Int]("read"),
+                ((ploidy & 0x3f).cne(2)).mux(
+                  Code._fatal(
+                    const("Ploidy value must equal to 2. Found ")
+                      .concat(ploidy.toS)
+                      .concat(".")),
+                  Code._empty),
+                i += 1
+              ))
+          } else {
+            Code.toUnit(reader.invoke[Long, Long]("skipBytes", settings.nSamples))
+          },
+          phase := reader.invoke[Int]("read"),
+          (phase.cne(0) && phase.cne(1)).mux(
+            Code._fatal(
+              const("Value for phase must be 0 or 1. Found ")
+                .concat(phase.toS)
+                .concat(".")),
+            Code._empty),
+          phase.ceq(1).mux(
+            Code._fatal("Hail does not support phased genotypes."),
+            Code._empty),
+          nBitsPerProb := reader.invoke[Int]("read"),
+          (nBitsPerProb < 1 || nBitsPerProb > 32).mux(
+            Code._fatal(
+              const("Value for nBits must be between 1 and 32 inclusive. Found ")
+                .concat(nBitsPerProb.toS)
+                .concat(".")),
+            Code._empty),
+          (nBitsPerProb.cne(8)).mux(
+            Code._fatal(
+              const("Only 8-bit probabilities supported, found ")
+                .concat(nBitsPerProb.toS)
+                .concat(".")),
+            Code._empty),
+          nGenotypes := Code.invokeScalaObject[Int, Int](
+            BgenRDD.getClass, "triangle", nAlleles),
+          nExpectedBytesProbs := (const(settings.nSamples) * (nGenotypes - 1) * nBitsPerProb + 7) / 8,
+          (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
+            Code._fatal(
+              const("Number of uncompressed bytes `")
+                .concat(reader.invoke[Int]("length").toS)
+                .concat("' does not match the expected size `")
+                .concat(nExpectedBytesProbs.toS)
+                .concat("'.")),
+            Code._empty),
+          c0 := Call2.fromUnphasedDiploidGtIndex(0),
+          c1 := Call2.fromUnphasedDiploidGtIndex(1),
+          c2 := Call2.fromUnphasedDiploidGtIndex(2),
+          srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            Code(
+              srvb.start(settings.nSamples),
+              i := 0,
+              Code.whileLoop(i < settings.nSamples,
+                (data(i + 8) & 0x80).cne(0).mux(
+                  srvb.setMissing(),
+                  srvb.addBaseStruct(settings.matrixType.entryType, { srvb =>
+                    Code(
+                      srvb.start(),
+                      off := const(settings.nSamples + 10) + i * 2,
+                      d0 := data(off) & 0xff,
+                      d1 := data(off + 1) & 0xff,
+                      d2 := const(255) - d0 - d1,
+                      if (includeGT) {
+                        Code(
+                          (d0 > d1).mux(
+                            (d0 > d2).mux(
+                              srvb.addInt(c0),
+                              (d2 > d0).mux(
+                                srvb.addInt(c2),
+                                // d0 == d2
+                                srvb.setMissing())),
+                            // d0 <= d1
+                            (d2 > d1).mux(
+                              srvb.addInt(c2),
+                              // d2 <= d1
+                              (d1.ceq(d0) || d1.ceq(d2)).mux(
+                                srvb.setMissing(),
+                                srvb.addInt(c1)))),
+                          srvb.advance())
+                      } else Code._empty,
+                      if (includeGP) {
+                        Code(
+                          srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray], { srvb =>
+                            Code(
+                              srvb.start(3),
+                              srvb.addDouble(d0.toD / 255.0),
+                              srvb.advance(),
+                              srvb.addDouble(d1.toD / 255.0),
+                              srvb.advance(),
+                              srvb.addDouble(d2.toD / 255.0),
+                              srvb.advance())
+                          }),
+                          srvb.advance())
+                      } else Code._empty,
+                      if (includeDosage) {
+                        val dosage = (d1 + (d2 << 1)).toD / 255.0
+                        Code(
+                          srvb.addDouble(dosage),
+                          srvb.advance())
+                      } else Code._empty)
+                    })),
+                srvb.advance(),
+                i := i + 1))
+          }))
+    },
+    srvb.end())
 
-          val nRow = reader.readInt()
-          if (nRow != settings.nSamples)
-            fatal("row nSamples is not equal to header nSamples $nRow, $nSamples")
-
-          val nAlleles2 = reader.readShort()
-          if (nAlleles != nAlleles2)
-            fatal(s"""Value for `nAlleles' in genotype probability data storage is
-                 |not equal to value in variant identifying data. Expected
-                 |$nAlleles but found $nAlleles2 at $varid.""".stripMargin)
-
-          val minPloidy = reader.read()
-          val maxPloidy = reader.read()
-
-          if (minPloidy != 2 || maxPloidy != 2)
-            fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
-
-          var i = 0
-          while (i < settings.nSamples) {
-            val ploidy = reader.read()
-            if ((ploidy & 0x3f) != 2)
-              fatal(s"Ploidy value must equal to 2. Found $ploidy.")
-            i += 1
-          }
-
-          val phase = reader.read()
-          if (phase != 0 && phase != 1)
-            fatal(s"Value for phase must be 0 or 1. Found $phase.")
-          val isPhased = phase == 1
-
-          if (isPhased)
-            fatal("Hail does not support phased genotypes.")
-
-          val nBitsPerProb = reader.read()
-          if (nBitsPerProb < 1 || nBitsPerProb > 32)
-            fatal(s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
-          if (nBitsPerProb != 8)
-            fatal(s"Only 8-bit probabilities supported, found $nBitsPerProb")
-
-          val nGenotypes = triangle(nAlleles)
-
-          val nExpectedBytesProbs = (settings.nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-          if (reader.length != nExpectedBytesProbs + settings.nSamples + 10)
-            fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
-                 |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
-
-          val c0 = Call2.fromUnphasedDiploidGtIndex(0)
-          val c1 = Call2.fromUnphasedDiploidGtIndex(1)
-          val c2 = Call2.fromUnphasedDiploidGtIndex(2)
-
-          rvb.startArray(settings.nSamples) // gs
-          i = 0
-          while (i < settings.nSamples) {
-            val sampleMissing = (data(8 + i) & 0x80) != 0
-            if (sampleMissing)
-              rvb.setMissing()
-            else {
-              rvb.startStruct() // g
-
-              val off = settings.nSamples + 10 + 2 * i
-              val d0 = data(off) & 0xff
-              val d1 = data(off + 1) & 0xff
-              val d2 = 255 - d0 - d1
-
-              if (includeGT) {
-                if (d0 > d1) {
-                  if (d0 > d2)
-                    rvb.addInt(c0)
-                  else if (d2 > d0)
-                    rvb.addInt(c2)
-                  else {
-                    // d0 == d2
-                    rvb.setMissing()
-                  }
-                } else {
-                  // d0 <= d1
-                  if (d2 > d1)
-                    rvb.addInt(c2)
-                  else {
-                    // d2 <= d1
-                    if (d1 == d0 || d1 == d2)
-                      rvb.setMissing()
-                    else
-                      rvb.addInt(c1)
-                  }
-                }
-              }
-
-              if (includeGP) {
-                rvb.startArray(3) // GP
-                rvb.addDouble(d0 / 255.0)
-                rvb.addDouble(d1 / 255.0)
-                rvb.addDouble(d2 / 255.0)
-                rvb.endArray()
-              }
-
-              if (includeDosage) {
-                val dosage = (d1 + (d2 << 1)) / 255.0
-                rvb.addDouble(dosage)
-              }
-
-              rvb.endStruct() // g
-            }
-            i += 1
-          }
-          rvb.endArray()
-        }
+  mb.emit(c)
+  private[this] val compiledNext = fb.result()()
+  def next(): Option[RegionValue] = {
+    val maybeOffset = compiledNext(ctx.region, p, bfis, settings)
+    if (maybeOffset == -1) {
+      None
+    } else {
+      rv.setOffset(maybeOffset)
+      Some(rv)
     }
+  }
 
-  advance() // make sure iterator is initialized in first valid state
+  def hasNext(): Boolean =
+    p.hasNext(bfis)
 }

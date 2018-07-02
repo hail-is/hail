@@ -440,6 +440,11 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def toS: Code[String] = lhs.mux(const("true"), const("false"))
 }
 
+class CodeShort(val lhs: Code[Short]) extends AnyVal {
+  // on the JVM Shorts are represented as Ints
+  def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
+}
+
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def unary_-(): Code[Int] = Code(lhs, new InsnNode(INEG))
 

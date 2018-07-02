@@ -175,13 +175,17 @@ abstract class TBaseStruct extends Type {
   }
 
   def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, region.storeByte(off + i.toLong, const(0)))
-      i += 1
+    if (nMissingBytes < 8) {
+      var c: Code[Unit] = Code._empty
+      var i = 0
+      while (i < nMissingBytes) {
+        c = Code(c, region.storeByte(off + i.toLong, const(0)))
+        i += 1
+      }
+      c
+    } else {
+      region.memset(off, nMissingBytes, 0.toByte)
     }
-    c
   }
 
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
