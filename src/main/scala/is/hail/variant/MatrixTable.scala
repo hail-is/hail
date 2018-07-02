@@ -126,8 +126,9 @@ object MatrixTable {
       case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     }
     val typ = spec.matrix_type
+    val nCols = spec.colsComponent.read(hc, path, TStruct()).count().toInt
     new MatrixTable(hc,
-      MatrixRead(typ, Some(spec.partitionCounts), dropCols, dropRows, MatrixNativeReader(path, spec)))
+      MatrixRead(typ, Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec)))
   }
 
   def fromLegacy[T](hc: HailContext,
@@ -179,7 +180,7 @@ object MatrixTable {
     val partCounts = partition(nRows, nPartitionsAdj)
 
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    new MatrixTable(hc, MatrixRead(reader.typ, Some(partCounts.map(_.toLong)),
+    new MatrixTable(hc, MatrixRead(reader.typ, Some(partCounts.map(_.toLong)), Some(nCols),
       dropRows = false, dropCols = false, reader = reader))
   }
 
@@ -910,7 +911,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
 
-  def countCols(): Long = Interpret(TableCount(MatrixColsTable(ast)))
+  def countCols(): Long = ast.columnCount.getOrElse(Interpret(TableCount(MatrixColsTable(ast))))
 
   def forceCountRows(): Long = rvd.count()
 

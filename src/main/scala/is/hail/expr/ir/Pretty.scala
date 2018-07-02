@@ -163,9 +163,10 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
-            case MatrixRead(typ, partitionCounts, dropCols, dropRows, reader) =>
+            case MatrixRead(typ, partitionCounts, colCount, dropCols, dropRows, reader) =>
               typ.parsableString() + " " +
                 prettyLongsOpt(partitionCounts) + " " +
+                prettyIntOpt(colCount) + " " +
                 prettyBooleanLiteral(dropCols) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
                 prettyMatrixReader(reader)
