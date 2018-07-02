@@ -122,6 +122,7 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
 }
 
 final case class ApplyScanOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
+  assert(!(a +: (constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR]))).exists(ContainsAgg(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
 

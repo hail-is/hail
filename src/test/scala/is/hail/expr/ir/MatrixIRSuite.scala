@@ -36,10 +36,10 @@ class MatrixIRSuite extends SparkSuite {
     val mt = rangeMatrix
     val oldRow = Ref("va", mt.typ.rvRowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(IRAggCount * GetField(oldRow, "row_idx").toL)))
+    val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
     val newMatrix = MatrixMapRows(mt, newRow, None)
     val rows = new MatrixTable(hc, newMatrix).rowsTable().collect()
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx).map(_ * 20)})
+    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx))})
   }
 }
