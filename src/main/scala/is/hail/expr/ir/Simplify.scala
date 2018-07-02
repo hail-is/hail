@@ -179,8 +179,8 @@ object Simplify {
         TableMapRows(
           mrt,
           Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))),
-          None,
-          None)
+          Some(child.typ.rowKey),
+          Some(child.typ.rowKey.length))
       case MatrixRowsTable(MatrixFilterRows(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "sa") =>
         val mrt = MatrixRowsTable(child)
@@ -202,8 +202,8 @@ object Simplify {
         TableMapRows(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
-          None,
-          None)
+          Some(child.typ.colKey),
+          Some(child.typ.colKey.length))
       case MatrixColsTable(MatrixFilterCols(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "va") =>
         val mct = MatrixColsTable(child)
