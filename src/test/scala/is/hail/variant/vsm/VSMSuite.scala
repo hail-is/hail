@@ -36,8 +36,6 @@ class VSMSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
-    println(Pretty(hc.read(f).ast))
-
     assert(hc.read(f, dropCols = true)
       .filterRowsExpr("va.info.AF[0] < 0.01")
       .countRows() == 234)
