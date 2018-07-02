@@ -175,7 +175,7 @@ object JSONAnnotationImpex {
                 a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
 
               case None =>
-                warn(s"$t has no field $name at $parent")
+                warn(s"$t has no field $name at $parent for value $jv2")
             }
           }
 
