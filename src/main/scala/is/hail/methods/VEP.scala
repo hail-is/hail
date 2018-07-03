@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir.{TableLiteral, TableValue}
@@ -123,7 +124,14 @@ object VEP {
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
+                  val jv = try {
+                    JsonMethods.parse(s)
+                  } catch {
+                    case _: JsonParseException =>
+                      log.warn(s"vep: failed to parse json: $s")
+                      null
+                  }
+                  val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
                   val vepv@(vepLocus, vepAlleles) = variantFromInput(inputQuery(a).asInstanceOf[String])
 
                   nonStarToOriginalVariant.get(vepv) match {
