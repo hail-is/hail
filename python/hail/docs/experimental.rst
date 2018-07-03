@@ -26,5 +26,7 @@ Genetics Methods
 .. autosummary::
 
     ld_score
+    hail_metadata
 
 .. autofunction:: ld_score
+.. autofunction:: hail_metadata
