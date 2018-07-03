@@ -1,7 +1,7 @@
 package is.hail
 
 package object table {
-  def asc(field: String): SortColumn = SortColumn(field, Ascending)
+  def asc(field: String): SortField = SortField(field, Ascending)
 
-  def desc(field: String): SortColumn = SortColumn(field, Descending)
+  def desc(field: String): SortField = SortField(field, Descending)
 }

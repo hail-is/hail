@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.TArray
+import is.hail.table.Ascending
 import is.hail.utils._
 import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -229,6 +230,8 @@ object Pretty {
               value.t.parsableString() + " " +
                 prettyStringLiteral(
                   JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
+            case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
+              (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
             case _ => ""
           }
 

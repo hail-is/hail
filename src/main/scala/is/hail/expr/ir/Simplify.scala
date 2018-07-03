@@ -130,6 +130,12 @@ object Simplify {
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
 
+      case TableFilter(TableOrderBy(child, sortFields), pred) =>
+        TableOrderBy(TableFilter(child, pred), sortFields)
+
+      case TableKeyBy(TableOrderBy(child, sortFields), keys, nPartitionKeys, true) =>
+        TableKeyBy(child, keys, nPartitionKeys, true)
+
       case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
 
       case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
@@ -138,6 +144,8 @@ object Simplify {
         children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
       case TableCount(TableKeyBy(child, _, _, _)) => TableCount(child)
+
+      case TableCount(TableOrderBy(child, _)) => TableCount(child)
 
       case TableCount(TableUnkey(child)) => TableCount(child)
 

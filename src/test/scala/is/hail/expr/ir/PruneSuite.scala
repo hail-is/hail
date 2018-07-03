@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.{Ascending, SortField, Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -259,6 +259,11 @@ class PruneSuite extends SparkSuite {
     val tu = TableUnkey(tk)
     checkMemo(tu, subsetTable(tu.typ, "row.2"),
       Array(subsetTable(tk.typ, "row.2")))
+  }
+
+  @Test def testTableOrderByMemo() {
+    val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
+    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2")))
   }
 
   @Test def testMatrixFilterColsMemo() {

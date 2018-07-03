@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableLiteral, TableMapGlobals, TableMapRows, TableParallelize, TableRange, TableRead, TableUnion, TableUnkey, TableValue}
+import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableUnion, TableUnkey, TableValue}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.methods.Aggregators
@@ -32,11 +32,7 @@ case object Ascending extends SortOrder
 
 case object Descending extends SortOrder
 
-object SortColumn {
-  implicit def fromColumn(column: String): SortColumn = SortColumn(column, Ascending)
-}
-
-case class SortColumn(column: String, sortOrder: SortOrder)
+case class SortField(field: String, sortOrder: SortOrder)
 
 case class TableSpec(
   file_version: Int,
@@ -834,36 +830,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
-  def orderBy(sortCols: SortColumn*): Table =
-    orderBy(sortCols.toArray)
-
-  def orderBy(sortCols: Array[SortColumn]): Table = {
-    val sortColIndexOrd = sortCols.map { case SortColumn(n, so) =>
-      val i = signature.fieldIdx(n)
-      val f = signature.fields(i)
-      val fo = f.typ.ordering
-      (i, if (so == Ascending) fo else fo.reverse)
-    }
-
-    val ord: Ordering[Annotation] = new Ordering[Annotation] {
-      def compare(a: Annotation, b: Annotation): Int = {
-        var i = 0
-        while (i < sortColIndexOrd.length) {
-          val (fi, ford) = sortColIndexOrd(i)
-          val c = ford.compare(
-            a.asInstanceOf[Row].get(fi),
-            b.asInstanceOf[Row].get(fi))
-          if (c != 0) return c
-          i += 1
-        }
-
-        0
-      }
-    }
-
-    val act = implicitly[ClassTag[Annotation]]
-    // FIXME: need to add sortBy on rvd?
-    copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
+  def orderBy(sortFields: Array[SortField]): Table = {
+    new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
   }
 
   def repartition(n: Int, shuffle: Boolean = true): Table = copy2(rvd = rvd.coalesce(n, shuffle))
