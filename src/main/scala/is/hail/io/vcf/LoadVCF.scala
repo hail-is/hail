@@ -873,6 +873,7 @@ object LoadVCF {
     val hConf = hc.hadoopConf
 
     rg.foreach(_.validateContigRemap(contigRecoding))
+    rg.foreach(rg => if (!ReferenceGenome.references.contains(rg.name)) ReferenceGenome.addReference(rg))
 
     val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
 
