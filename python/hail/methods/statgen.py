@@ -3040,7 +3040,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
-    _, stops = hl.locus_windows(locally_pruned_table.locus, bp_window_size)
+    _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
 
     entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries()
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))

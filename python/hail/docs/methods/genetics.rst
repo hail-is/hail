@@ -19,7 +19,6 @@ Genetics
     realized_relationship_matrix
     impute_sex
     ld_prune
-    locus_windows
     mendel_errors
     de_novo
     nirvana
@@ -46,7 +45,6 @@ Genetics
 .. autofunction:: realized_relationship_matrix
 .. autofunction:: impute_sex
 .. autofunction:: ld_prune
-.. autofunction:: locus_windows
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
 .. autofunction:: nirvana

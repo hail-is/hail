@@ -18,3 +18,10 @@ to maintain compatibility.
     :template: class.rst
 
     BlockMatrix
+
+.. rubric:: Modules
+
+.. toctree::
+    :maxdepth: 1
+
+    utils <utils/index>
