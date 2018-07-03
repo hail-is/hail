@@ -850,10 +850,25 @@ def gp_dosage(gp) -> Float64Expression:
 
 @typecheck(pl=expr_array(expr_int32))
 def pl_dosage(pl) -> Float64Expression:
-    """
+    r"""
     Return expected genotype dosage from array of Phred-scaled genotype
     likelihoods with uniform prior. Only defined for bi-allelic variants. The
     `pl` argument must be length 3.
+
+    For a PL array ``[a, b, c]``, let:
+
+    .. math::
+
+        a^\prime = 10^{-a/10} \\
+        b^\prime = 10^{-b/10} \\
+        c^\prime = 10^{-c/10} \\
+
+    The genotype dosage is given by:
+
+    .. math::
+
+        \frac{b^\prime + 2 c^\prime}
+             {a^\prime + b^\prime +c ^\prime}
 
     Examples
     --------
