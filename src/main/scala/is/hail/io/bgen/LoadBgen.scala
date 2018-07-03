@@ -45,7 +45,6 @@ object LoadBgen {
     skipInvalidLoci: Boolean = false,
     includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
-
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
 
@@ -58,14 +57,17 @@ object LoadBgen {
 
     val sc = hc.sc
     val fileDims = files.map { file =>
-      val bState = readState(sc.hadoopConfiguration, file)
+      val bState = readState(hadoop, file)
       BgenFileDimensions(file, bState.nSamples, bState.nVariants, bState.version)
     }
     val unequalSamples = fileDims.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
-    if (unequalSamples.length > 0)
+    if (unequalSamples.length > 0) {
+      val unequalSamplesString =
+        unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ")
       fatal(
         s"""The following BGEN files did not contain the expected number of samples $nSamples:
-            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
+            |  $unequalSamplesString""".stripMargin)
+    }
 
     val noVariants = fileDims.filter(_.nVariants == 0).map(_.file)
     if (noVariants.length > 0)
@@ -77,7 +79,7 @@ object LoadBgen {
     if (notVersionTwo.length > 0)
       fatal(
         s"""The following BGEN files are not BGENv2:
-            |  ${ notVersionTwo.mkString("\n  ") })""".stripMargin)
+            |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
 
     val nVariants = fileDims.map(_.nVariants).sum
 
@@ -85,141 +87,59 @@ object LoadBgen {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    hadoop.setBoolean("includeGT", includeGT)
-    hadoop.setBoolean("includeGP", includeGP)
-    hadoop.setBoolean("includeDosage", includeDosage)
-    hadoop.setBoolean("includeLid", includeLid)
-    hadoop.setBoolean("includeRsid", includeRsid)
+    val fastKeysSettings = BgenSettings(
+      nSamples,
+      nVariants,
+      NoEntries,
+      Set(),
+      rg,
+      contigRecoding,
+      skipInvalidLoci
+    )
 
-    val crdds = files.map { file =>
-      includedVariantsPerFile.get(file) match {
-        case Some(indices) =>
-          val variantPositions =
-            using(new OnDiskBTreeIndexToValue(file + ".idx", hadoop)) { index =>
-              index.positionOfVariants(indices.toArray)
-            }
-          hadoop.set(includedVariantsPositionsHadoopPrefix + file, encodeLongs(variantPositions))
-          hadoop.set(includedVariantsIndicesHadoopPrefix + file, encodeInts(indices.toArray))
-        case None =>
-          // if import_bgen was previously called, we must clear the old
-          // configuration
-          hadoop.unset(includedVariantsPositionsHadoopPrefix + file)
-          hadoop.unset(includedVariantsIndicesHadoopPrefix + file)
-      }
+    var includedEntryFields = Set[EntryField]()
+    if (includeGT)
+      includedEntryFields += GT
+    if (includeGP)
+      includedEntryFields += GP
+    if (includeDosage)
+      includedEntryFields += Dosage
 
-      ContextRDD.weaken[RVDContext](
-        sc.hadoopFile(
-          file,
-          classOf[BgenInputFormatV12],
-          classOf[LongWritable],
-          classOf[BgenRecordV12],
-          nPartitions.getOrElse(sc.defaultMinPartitions)))
-    }
+    var includedRowFields = Set[RowField]()
+    if (includeLid)
+      includedRowFields += VARID
+    if (includeRsid)
+      includedRowFields += RSID
+    if (includeFileRowIdx)
+      includedRowFields += FileRowIndex
 
-    val rowFields = Array(
-      (true, "locus" -> TLocus.schemaFromRG(rg)),
-      (true, "alleles" -> TArray(TString())),
-      (includeRsid, "rsid" -> TString()),
-      (includeLid, "varid" -> TString()),
-      (includeFileRowIdx, "file_row_idx" -> TInt64()))
-      .withFilter(_._1).map(_._2)
+    val recordsSettings = BgenSettings(
+      nSamples,
+      nVariants,
+      EntriesWithFields(includedEntryFields),
+      includedRowFields,
+      rg,
+      contigRecoding,
+      skipInvalidLoci
+    )
 
-    val signature = TStruct(rowFields: _*)
+    val matrixType = recordsSettings.matrixType
 
-    val entryFields = Array(
-      (includeGT, "GT" -> TCall()),
-      (includeGP, "GP" -> +TArray(+TFloat64())),
-      (includeDosage, "dosage" -> +TFloat64()))
-      .withFilter(_._1).map(_._2)
+    val fastKeys = BgenRDD(
+      sc,
+      files,
+      nPartitions,
+      includedVariantsPerFile,
+      fastKeysSettings
+    )
 
-    val matrixType: MatrixType = MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowType = signature,
-      rowKey = Array("locus", "alleles"),
-      rowPartitionKey = Array("locus"),
-      entryType = TStruct(entryFields: _*))
-
-    val kType = matrixType.orvdType.kType
-    val rowType = matrixType.rvRowType
-
-    val fastKeys = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-
-      it.flatMap { case (_, record) =>
-        val contig = record.getContig
-        val pos = record.getPosition
-        val alleles = record.getAlleles
-        val contigRecoded = contigRecoding.getOrElse(contig, contig)
-
-        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
-          None
-        else {
-          rvb.start(kType)
-          rvb.startStruct()
-          rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
-
-          val nAlleles = alleles.length
-          rvb.startArray(nAlleles)
-          var i = 0
-          while (i < nAlleles) {
-            rvb.addString(alleles(i))
-            i += 1
-          }
-          rvb.endArray()
-          rvb.endStruct()
-
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
-      }
-    }))
-
-    val rdd2 = ContextRDD.union(sc, crdds.map(_.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-
-      it.flatMap { case (_, record) =>
-        val contig = record.getContig
-        val pos = record.getPosition
-        val alleles = record.getAlleles
-
-        val contigRecoded = contigRecoding.getOrElse(contig, contig)
-
-        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contigRecoded, pos)))
-          None
-        else {
-          rvb.start(rowType)
-          rvb.startStruct()
-          rvb.addAnnotation(kType.types(0), Locus.annotation(contigRecoded, pos, rg))
-
-          val nAlleles = alleles.length
-          rvb.startArray(nAlleles)
-          var i = 0
-          while (i < nAlleles) {
-            rvb.addString(alleles(i))
-            i += 1
-          }
-          rvb.endArray()
-
-          if (includeRsid)
-            rvb.addString(record.getRsid)
-          if (includeLid)
-            rvb.addString(record.getLid)
-          if (includeFileRowIdx)
-            rvb.addLong(record.getFileRowIdx)
-          record.getValue(rvb) // gs
-
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
-      }
-    }))
+    val rdd2 = BgenRDD(
+      sc,
+      files,
+      nPartitions,
+      includedVariantsPerFile,
+      recordsSettings
+    )
 
     new MatrixTable(hc, matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
@@ -351,8 +271,8 @@ object LoadBgen {
     val isCompressed = compressType != 0
 
     val version = (flags >>> 2) & 0xf
-    if (version != 1 && version != 2)
-      fatal(s"Hail supports BGEN version 1.1 and 1.2, got version 1.$version")
+    if (version != 2)
+      fatal(s"Hail supports BGEN version 1.2, got version 1.$version")
 
     val hasIds = (flags >> 31 & 1) != 0
     BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
