@@ -343,14 +343,23 @@ object Interpret {
           case LinearRegression() =>
             val IndexedSeq(y, xs) = seqOpArgs
             aggregator.get.asInstanceOf[LinearRegressionAggregator].seqOp(interpret(y), interpret(xs))
+          case Keyed(aggOp) =>
+            assert(args.nonEmpty)
+            def formatArgs(aggOp: AggOp, args: IndexedSeq[IR]): Row = {
+              aggOp match {
+                case Keyed(op) => Row(interpret(args.head), formatArgs(op, args.tail))
+                case _ => Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*))
+              }
+            }
+            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
           case _ =>
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val seqOpArgTypes = aggSig.seqOpArgs
         assert(AggOp.getType(aggSig) == x.typ)
-        val aggregator = aggSig.op match {
+
+        def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
           case CallStats() =>
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
@@ -415,7 +424,7 @@ object Interpret {
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
             assert(seqOps.length == 1)
-            val IndexedSeq(_, ordering: IR) = seqOps.head.args
+            val ordering = seqOps.head.args.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
@@ -442,7 +451,11 @@ object Interpret {
             val Seq(nxs) = constructorArgs
             val nxsValue = interpret(nxs, Env.empty[Any], null, null).asInstanceOf[Int]
             new LinearRegressionAggregator(null, nxsValue)
+          case Keyed(op) =>
+            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
         }
+
+        val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
         val Some((aggElements, aggElementType)) = agg
         aggElements.foreach { element =>
           val env = (element.toSeq, aggElementType.fieldNames).zipped

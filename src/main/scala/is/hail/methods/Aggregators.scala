@@ -18,10 +18,6 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-object Aggregators {
-
-}
-
 class CountAggregator() extends TypedAggregator[Long] {
 
   var _state = 0L
@@ -527,4 +523,47 @@ class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggreg
     lra.combiner = combiner.copy()
     lra
   }
+}
+
+class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
+
+  private val m = mutable.Map[Any, TypedAggregator[T]]()
+
+  def result = m.map { case (k, v) => (k, v.result) }.toMap
+
+  def seqOp(x: Any) {
+    val cx = x.asInstanceOf[Row]
+    if (cx != null)
+      seqOp(cx.get(0), cx.get(1))
+    else
+      seqOp(null, null)
+  }
+
+  private def seqOp(key: Any, x: Any) {
+    val agg = m.getOrElseUpdate(key, aggregator.copy())
+    val r = x.asInstanceOf[Row]
+    agg match {
+      case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
+      case tagg: CountAggregator => agg.seqOp(0)
+      case tagg: InbreedingAggregator =>
+        agg.asInstanceOf[InbreedingAggregator].seqOp(r.get(0), r.get(1))
+      case tagg: TakeByAggregator[_] =>
+        agg.asInstanceOf[TakeByAggregator[_]].seqOp(r.get(0), r.get(1))
+      case _ => agg.seqOp(r.get(0))
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    agg2.m.foreach { case (k, v2) =>
+      m(k) = m.get(k) match {
+        case Some(v) =>
+          v.combOp(v2.asInstanceOf[v.type])
+          v
+        case None =>
+          v2
+      }
+    }
+  }
+
+  def copy() = new KeyedAggregator(aggregator.copy())
 }
