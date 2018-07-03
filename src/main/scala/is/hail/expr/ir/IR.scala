@@ -123,7 +123,7 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
-final case class SeqOp(a: IR, i: IR, aggSig: AggSignature, args: IndexedSeq[IR] = FastIndexedSeq()) extends IR {
+final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   val typ = TVoid
 }
 

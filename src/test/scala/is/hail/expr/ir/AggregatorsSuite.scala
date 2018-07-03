@@ -14,7 +14,7 @@ class AggregatorsSuite {
     initOpArgs: Option[IndexedSeq[IR]] = None, seqOpArgs: IndexedSeq[IR] = FastIndexedSeq()) {
     val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
     assertEvalsTo(ApplyAggOp(
-      SeqOp(Ref("x", t), I32(0), aggSig, seqOpArgs),
+      SeqOp(I32(0), Ref("x", t) +: seqOpArgs, aggSig),
       args, initOpArgs, aggSig),
       (a.map(i => Row(i)), TStruct("x" -> t)),
       expected)
@@ -31,7 +31,7 @@ class AggregatorsSuite {
     seqOpArgs: IndexedSeq[IR]) {
     val aggSig = AggSignature(op, aggIR.typ, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
     assertEvalsTo(ApplyAggOp(
-      SeqOp(aggIR, I32(0), aggSig, seqOpArgs),
+      SeqOp(I32(0), aggIR +: seqOpArgs, aggSig),
       args, initOpArgs, aggSig),
       (a, t),
       expected)
@@ -278,8 +278,8 @@ class AggregatorsSuite {
       ApplyAggOp(
         If(
           ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
-          SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())),
-            I32(0), aggSig),
+          SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
+            aggSig),
           Begin(FastSeq())),
         FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
@@ -290,7 +290,7 @@ class AggregatorsSuite {
   def sumMultivar() {
     val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None, FastSeq())
     assertEvalsTo(ApplyAggOp(
-      SeqOp(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64())), I32(0), aggSig),
+      SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))), aggSig),
       FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
       110.0)
@@ -303,7 +303,7 @@ class AggregatorsSuite {
     val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None, FastSeq())
     val aggregable = a.map(Row(_))
     assertEvalsTo(
-      ApplyAggOp(SeqOp(Ref("a", TArray(hailType[T])), I32(0), aggSig), FastSeq(), None, aggSig),
+      ApplyAggOp(SeqOp(I32(0), FastSeq(Ref("a", TArray(hailType[T]))), aggSig), FastSeq(), None, aggSig),
       (aggregable, TStruct("a" -> TArray(hailType[T]))),
       expected)
   }

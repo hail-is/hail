@@ -532,7 +532,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), initOpArgs, aggSig): IR
       case (t: TAggregable, "inbreeding", IndexedSeq(Lambda(_, name, body))) =>
@@ -552,7 +552,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, seqOpArgs))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x) ++ seqOpArgs, aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, "takeBy", IndexedSeq(Lambda(_, name, body), n)) =>
@@ -572,7 +572,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(x, ir.I32(0), aggSig, FastIndexedSeq(ir.Let(name, x, bodyx))))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x) ++ FastIndexedSeq(ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(nx), None, aggSig): IR
       case (t: TAggregable, "fraction", IndexedSeq(Lambda(_, name, body))) =>
@@ -591,7 +591,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.Let(name, x, bodyx), ir.I32(0), aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, _, _) =>
@@ -614,11 +614,11 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             "no CodeAggregator",
             AggOp.getOption(aggSig))
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(
-            if (method == "count")
+            ir.I32(0),
+            FastIndexedSeq(if (method == "count")
               ir.I32(0)
             else
-              x,
-            ir.I32(0), aggSig))
+              x), aggSig))
         } yield
           ir.ApplyAggOp(rx, constructorArgs, None, aggSig): IR
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>
