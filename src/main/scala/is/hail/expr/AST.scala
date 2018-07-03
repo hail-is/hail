@@ -524,10 +524,9 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           bodyx <- body.toIR()
           initOpArgs = Some(FastIndexedSeq(bodyx))
           aggSig = AggSignature(op,
-            -t.elementType,
             FastIndexedSeq(),
             initOpArgs.map(_.map(_.typ)),
-            FastIndexedSeq())
+            FastIndexedSeq(-t.elementType))
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -544,10 +543,9 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           bodyx <- body.toIR()
           seqOpArgs = FastIndexedSeq(bodyx)
           aggSig = AggSignature(op,
-            -t.elementType,
             FastIndexedSeq(),
             None,
-            seqOpArgs.map(_.typ))
+            -t.elementType +: seqOpArgs.map(_.typ))
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -564,10 +562,9 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           nx <- n.toIR()
           bodyx <- body.toIR()
           aggSig = AggSignature(op,
-            -t.elementType,
             FastIndexedSeq(nx.typ),
             None,
-            FastIndexedSeq(bodyx.typ))
+            FastIndexedSeq(-t.elementType, bodyx.typ))
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -583,10 +580,9 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             AggOp.fromString.lift(method))
           bodyx <- body.toIR()
           aggSig = AggSignature(op,
-            bodyx.typ,
             FastIndexedSeq(),
             None,
-            FastIndexedSeq())
+            FastIndexedSeq(bodyx.typ))
           ca <- fromOption(
             this,
             "no CodeAggregator",
@@ -602,13 +598,12 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             AggOp.fromString.lift(method))
           constructorArgs <- all(args.map(_.toIR(agg))).map(_.toFastIndexedSeq)
           aggSig = AggSignature(op,
-            if (method == "count")
-              TInt32()
-            else
-              -t.elementType,
             constructorArgs.map(_.typ),
             None,
-            FastIndexedSeq())
+            FastIndexedSeq(if (method == "count")
+              TInt32()
+            else
+              -t.elementType))
           ca <- fromOption(
             this,
             "no CodeAggregator",

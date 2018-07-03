@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 class AggregatorsSuite {
   def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(),
     initOpArgs: Option[IndexedSeq[IR]] = None, seqOpArgs: IndexedSeq[IR] = FastIndexedSeq()) {
-    val aggSig = AggSignature(op, t, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
+    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), t +: seqOpArgs.map(_.typ))
     assertEvalsTo(ApplyAggOp(
       SeqOp(I32(0), Ref("x", t) +: seqOpArgs, aggSig),
       args, initOpArgs, aggSig),
@@ -29,7 +29,7 @@ class AggregatorsSuite {
     args: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]],
     seqOpArgs: IndexedSeq[IR]) {
-    val aggSig = AggSignature(op, aggIR.typ, args.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
+    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), aggIR.typ +: seqOpArgs.map(_.typ))
     assertEvalsTo(ApplyAggOp(
       SeqOp(I32(0), aggIR +: seqOpArgs, aggSig),
       args, initOpArgs, aggSig),
@@ -273,7 +273,7 @@ class AggregatorsSuite {
 
   @Test
   def ifInApplyAggOp() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None, FastSeq())
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
     assertEvalsTo(
       ApplyAggOp(
         If(
@@ -288,7 +288,7 @@ class AggregatorsSuite {
 
   @Test
   def sumMultivar() {
-    val aggSig = AggSignature(Sum(), TFloat64(), FastSeq(), None, FastSeq())
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
     assertEvalsTo(ApplyAggOp(
       SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))), aggSig),
       FastSeq(), None, aggSig),
@@ -300,7 +300,7 @@ class AggregatorsSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), TArray(hailType[T]), FastSeq(), None, FastSeq())
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TArray(hailType[T])))
     val aggregable = a.map(Row(_))
     assertEvalsTo(
       ApplyAggOp(SeqOp(I32(0), FastSeq(Ref("a", TArray(hailType[T]))), aggSig), FastSeq(), None, aggSig),
