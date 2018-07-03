@@ -1491,6 +1491,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     else:
         field = Env.get_uid()
         mt = mt.select_entries(**{field: entry_expr})
+    mt = mt.select_cols().select_rows().select_globals()
 
     r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
     scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
