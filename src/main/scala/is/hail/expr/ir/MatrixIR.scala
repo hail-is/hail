@@ -154,6 +154,8 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
+  def columnCount: Option[Int] = None
+
   def execute(hc: HailContext): MatrixValue
 }
 
@@ -169,6 +171,8 @@ case class MatrixLiteral(
     assert(newChildren.isEmpty)
     MatrixLiteral(typ, value)
   }
+
+  override def columnCount: Option[Int] = Some(value.nCols)
 
   override def toString: String = "MatrixLiteral(...)"
 }
@@ -356,6 +360,7 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
 case class MatrixRead(
   typ: MatrixType,
   override val partitionCounts: Option[IndexedSeq[Long]],
+  override val columnCount: Option[Int],
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
@@ -364,12 +369,16 @@ case class MatrixRead(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    MatrixRead(typ, partitionCounts, dropCols, dropRows, reader)
+    MatrixRead(typ, partitionCounts, columnCount, dropCols, dropRows, reader)
   }
 
   def execute(hc: HailContext): MatrixValue = reader(this)
 
-  override def toString: String = s"MatrixRead($typ, partitionCounts = $partitionCounts, dropCols = $dropCols, dropRows = $dropRows)"
+  override def toString: String = s"MatrixRead($typ, " +
+    s"partitionCounts = $partitionCounts, " +
+    s"columnCount = $columnCount, " +
+    s"dropCols = $dropCols, " +
+    s"dropRows = $dropRows)"
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
@@ -382,6 +391,8 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
   }
 
   val (typ, filterF) = MatrixIR.filterCols(child.typ)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -433,6 +444,8 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
     "sa" -> (3, child.typ.colType))
 
   val tAgg = TAggregable(tAggElt, aggSymTab)
+
+  override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -487,6 +500,8 @@ case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR 
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
+  override def columnCount: Option[Int] = Some(oldIndices.length)
+
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
@@ -503,6 +518,8 @@ case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
   }
 
   val (typ, groupF) = MatrixIR.collectColsByKey(child.typ)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -525,6 +542,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     rowType = child.typ.orvdType.kType,
     entryType = coerce[TStruct](expr.typ)
   )
+
+  override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -727,6 +746,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
     val newEntryType = aggIR.typ
     child.typ.copyParts(entryType = coerce[TStruct](newEntryType), colType = child.typ.colKeyStruct)
   }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
     val mv = child.execute(hc)
@@ -959,6 +980,8 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
+  override def columnCount: Option[Int] = child.columnCount
+
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
@@ -1022,6 +1045,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -1143,6 +1168,8 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -1355,6 +1382,8 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
+  override def columnCount: Option[Int] = child.columnCount
+
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
@@ -1387,6 +1416,10 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
   }
 
   val typ: MatrixType = child.typ
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
     val mv = child.execute(hc)
