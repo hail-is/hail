@@ -778,7 +778,7 @@ object Parser extends JavaTokenParsers {
       "TableUnion" ~> table_ir_children ^^ { children => ir.TableUnion(children) } |
       "TableOrderBy" ~> table_ir ~ ir_identifiers ^^ { case child ~ identifiers =>
         ir.TableOrderBy(child, identifiers.map(i =>
-          if (i(0) == 'A')
+          if (i.charAt(0) == 'A')
             SortField(i.substring(1), Ascending)
           else
             SortField(i.substring(1), Descending)))
