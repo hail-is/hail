@@ -79,18 +79,15 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     :class:`bokeh.plotting.figure.Figure`
     """
     if isinstance(x, Expression) and isinstance(y, Expression):
-        if x._indices.source is not None:
-            if isinstance(label, Expression):
-                res = hail.tuple([x, y, label]).collect()
-                x = [point[0] for point in res]
-                y = [point[1] for point in res]
-                label = [point[2] for point in res]
-            else:
-                res = hail.tuple([x, y]).collect()
-                x = [point[0] for point in res]
-                y = [point[1] for point in res]
+        if isinstance(label, Expression):
+            res = hail.tuple([x, y, label]).collect()
+            x = [point[0] for point in res]
+            y = [point[1] for point in res]
+            label = [point[2] for point in res]
         else:
-            raise ValueError('Invalid input: x and y must valid Hail Expressions.')
+            res = hail.tuple([x, y]).collect()
+            x = [point[0] for point in res]
+            y = [point[1] for point in res]
     elif isinstance(x, Expression) or isinstance(y, Expression):
         raise TypeError('Invalid input: x and y must both be either Expressions or Python Lists.')
 
