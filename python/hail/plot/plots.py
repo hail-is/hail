@@ -133,3 +133,14 @@ def qq(pvals):
     bound = max(max(exp), max(obs)) * 1.1
     p.line([0, bound], [0, bound], color='red')
     return p
+
+
+@typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
+           label=oneof(nullable(str), expr_str), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str), size=int)
+def manhattan(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
+    if isinstance(y, Expression):
+        y = -hail.log10(y)
+    else:
+        y = [log(val, 10) for val in y]
+    return scatter(x, y, label=label, title=title, xlabel=xlabel, ylabel=ylabel, size=size)
