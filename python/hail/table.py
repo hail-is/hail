@@ -403,7 +403,6 @@ class Table(ExprContainer):
 
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
-
         return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
 
     @typecheck_method(key_struct=oneof(nullable(expr_struct()), exactly("default")),
@@ -415,7 +414,7 @@ class Table(ExprContainer):
         jt = self._jt
         if self.key is not None and preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key else None)
+        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key is not None else None)
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         return Table(jt)
