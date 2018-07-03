@@ -174,7 +174,7 @@ object Simplify {
       case MatrixFilterCols(m, True()) => m
 
       case MatrixRowsTable(MatrixMapRows(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "sa") =>
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
         val mrt = MatrixRowsTable(child)
         TableMapRows(
           mrt,
@@ -182,7 +182,7 @@ object Simplify {
           Some(child.typ.rowKey),
           Some(child.typ.rowKey.length))
       case MatrixRowsTable(MatrixFilterRows(child, newRow))
-        if !Mentions(newRow, "g") && !Mentions(newRow, "sa") =>
+        if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
         val mrt = MatrixRowsTable(child)
         TableFilter(
           mrt,
@@ -197,7 +197,7 @@ object Simplify {
       case MatrixRowsTable(CollectColsByKey(child)) => MatrixRowsTable(child)
 
       case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") =>
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
         val mct = MatrixColsTable(child)
         TableMapRows(
           mct,
@@ -205,7 +205,7 @@ object Simplify {
           Some(child.typ.colKey),
           Some(child.typ.colKey.length))
       case MatrixColsTable(MatrixFilterCols(child, newRow))
-        if !Mentions(newRow, "g") && !Mentions(newRow, "va") =>
+        if !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
         val mct = MatrixColsTable(child)
         TableFilter(
           mct,
