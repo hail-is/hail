@@ -2099,7 +2099,7 @@ class Table(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
-        """Sort by the specified fields.
+        """Sort by the specified fields. Unkeys the table, if keyed.
 
         Examples
         --------
@@ -2118,6 +2118,10 @@ class Table(ExprContainer):
         Missing values are sorted after non-missing values. When multiple
         fields are passed, the table will be sorted first by the first
         argument, then the second, etc.
+
+        Note
+        ----
+        This method unkeys the table.
 
         Parameters
         ----------
