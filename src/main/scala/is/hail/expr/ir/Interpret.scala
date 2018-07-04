@@ -557,7 +557,7 @@ object Interpret {
           stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
 
       case TablePartitionCounts(child) =>
-        child._partitionCounts
+        child._fastPartitionCounts
           .getOrElse(child.execute(HailContext.get).rvd.countPerPartition(): IndexedSeq[Long])
       case MatrixWrite(child, f) =>
         val mv = child.execute(HailContext.get)

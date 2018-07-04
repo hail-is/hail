@@ -514,12 +514,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   lazy val MatrixValue(_, globals, colValues, rvd) = value
 
-  def partitionCounts(): Array[Long] = {
-    ast._partitionCounts match {
-      case Some(counts) => counts.toArray
-      case None => rvd.countPerPartition()
-    }
-  }
+  def partitionCounts(): Array[Long] = ast.partitionCounts.toArray
 
   // length nPartitions + 1, first element 0, last element rvd count
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)

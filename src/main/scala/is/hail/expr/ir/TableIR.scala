@@ -17,14 +17,21 @@ abstract sealed class TableIR extends BaseIR {
 
   def count(): Long = partitionCounts.sum
 
-  lazy val partitionCounts: IndexedSeq[Long] = {
-    _partitionCounts match {
-      case Some(counts) => counts
-      case None => Interpret(TablePartitionCounts(this))
-    }
+  var _partitionCounts: Option[IndexedSeq[Long]] = None
+
+  def partitionCounts: IndexedSeq[Long] = {
+    if (fastPartitionCounts.isEmpty)
+      _partitionCounts = Some(Interpret(TablePartitionCounts(this)))
+    _partitionCounts.get
   }
 
-  def _partitionCounts: Option[IndexedSeq[Long]] = None
+  def fastPartitionCounts: Option[IndexedSeq[Long]] = {
+    if (_partitionCounts.isEmpty)
+      _partitionCounts = _fastPartitionCounts
+    _partitionCounts
+  }
+
+  def _fastPartitionCounts: Option[IndexedSeq[Long]] = None
 
   def execute(hc: HailContext): TableValue
 }
@@ -45,7 +52,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
   assert(PruneDeadFields.isSupertype(typ, spec.table_type))
 
-  override def _partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+  override def _fastPartitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -224,7 +231,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
   private val partCounts = partition(n, nPartitionsAdj)
 
-  override val _partitionCounts = Some(partCounts.map(_.toLong).toFastIndexedSeq)
+  override val _fastPartitionCounts = Some(partCounts.map(_.toLong).toFastIndexedSeq)
 
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32()),
@@ -415,7 +422,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
     TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey, preservedKeyFields)
   }
 
-  override def _partitionCounts: Option[IndexedSeq[Long]] = child._partitionCounts
+  override def _fastPartitionCounts: Option[IndexedSeq[Long]] = child.fastPartitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
@@ -478,7 +485,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
     TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], value)
   }
 
-  override def _partitionCounts: Option[IndexedSeq[Long]] = child._partitionCounts
+  override def _fastPartitionCounts: Option[IndexedSeq[Long]] = child.fastPartitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
@@ -602,7 +609,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def _partitionCounts: Option[IndexedSeq[Long]] = child._partitionCounts
+  override def _fastPartitionCounts: Option[IndexedSeq[Long]] = child.fastPartitionCounts
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
     assert(newChildren.length == 1)
