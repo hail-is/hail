@@ -9,12 +9,10 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 /**
-  * Pair the aggregator with a staged seqOp that calls the non-generic seqOp
-  * method and handles missingness correctly. If an initOp exists, the arguments
-  * have already had missingness handled.
+  * Pair the aggregator with a staged seqOp that calls the non-generic seqOp and initOp
+  * methods. Missingness is handled by Emit.
   **/
 case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
-  in: Type,
   out: Type,
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
   initOpArgTypes: Option[Array[Class[_]]] = None,
@@ -31,9 +29,7 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
     assert(vs.length == ms.length)
     val argTypes = seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
-    Code.checkcast[Agg](rva).invoke("seqOp", Array(classOf[Region],
-      TypeToIRIntermediateClassTag(in).runtimeClass, classOf[Boolean]) ++ argTypes,
-      Array(region) ++ args)(classTag[Unit])
+    Code.checkcast[Agg](rva).invoke("seqOp", Array(classOf[Region]) ++ argTypes, Array(region) ++ args)(classTag[Unit])
   }
 
   def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[Agg] = {

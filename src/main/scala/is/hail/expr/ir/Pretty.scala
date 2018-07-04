@@ -21,7 +21,6 @@ object Pretty {
     sb += '('
     sb.append(prettyClass(aggSig.op))
     sb += ' '
-    sb.append(aggSig.inputType.parsableString())
     sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
     sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
     sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))

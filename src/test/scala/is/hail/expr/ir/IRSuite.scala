@@ -309,13 +309,13 @@ class IRSuite extends SparkSuite {
 
     val call = Ref("call", TCall())
 
-    val collectSig = AggSignature(Collect(), TInt32(), Seq(), None, Seq())
+    val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
 
-    val callStatsSig = AggSignature(CallStats(), TCall(), Seq(), Some(Seq(TInt32())), Seq())
+    val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
-    val histSig = AggSignature(Histogram(), TFloat64(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq())
+    val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
 
-    val takeBySig = AggSignature(TakeBy(), TFloat64(), Seq(TInt32()), None, Seq(TInt32()))
+    val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),

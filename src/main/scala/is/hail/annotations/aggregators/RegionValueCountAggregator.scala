@@ -5,7 +5,7 @@ import is.hail.annotations._
 class RegionValueCountAggregator extends RegionValueAggregator {
   private var count: Long = 0
 
-  def seqOp(region: Region, dummy: Int, missing: Boolean) {
+  def seqOp(region: Region) {
     count += 1
   }
 

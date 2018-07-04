@@ -673,8 +673,8 @@ object Parser extends JavaTokenParsers {
   def type_exprs_opt: Parser[Option[Seq[Type]]] = type_exprs ^^ { ts => Some(ts) } | "None" ^^ { _ => None }
 
   def agg_signature: Parser[AggSignature] =
-    "(" ~> ir_agg_op ~ type_expr ~ type_exprs ~ type_exprs_opt ~ type_exprs <~ ")" ^^ { case op ~ inputType ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
-      AggSignature(op, inputType, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
+    "(" ~> ir_agg_op ~ type_exprs ~ type_exprs_opt ~ type_exprs <~ ")" ^^ { case op ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
+      AggSignature(op, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
     }
 
   def ir_named_value_exprs: Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr)

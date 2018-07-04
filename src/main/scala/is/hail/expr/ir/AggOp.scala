@@ -9,11 +9,9 @@ import scala.reflect.ClassTag
 
 case class AggSignature(
   op: AggOp,
-  inputType: Type,
   constructorArgs: Seq[Type],
   initOpArgs: Option[Seq[Type]],
-  seqOpArgs: Seq[Type]
-)
+  seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
 // nulary
@@ -65,140 +63,154 @@ object AggOp {
   def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
   def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
-    getOption(aggSig.op, aggSig.inputType, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
+    getOption(aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
 
-  val getOption: ((AggOp, Type, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
-    case (Fraction(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueFractionAggregator](in, TFloat64())
+  val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
+    case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
+      CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
 
-    case (Statistics(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueStatisticsAggregator](in, RegionValueStatisticsAggregator.typ)
+    case (Statistics(), Seq(), None, Seq(_: TFloat64)) =>
+      CodeAggregator[RegionValueStatisticsAggregator](RegionValueStatisticsAggregator.typ, seqOpArgTypes = Array(classOf[Double]))
 
-    case (Collect(), in, Seq(), None, Seq()) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](in, TArray(in))
-      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectIntAggregator](in, TArray(in))
-      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](in, TArray(in))
-      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](in, TArray(in))
-      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](in, TArray(in))
-      case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Type]))
+    case (Collect(), Seq(), None, Seq(in)) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](TArray(in), seqOpArgTypes = Array(classOf[Boolean]))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectIntAggregator](TArray(in), seqOpArgTypes = Array(classOf[Int]))
+      case _: TInt64 => CodeAggregator[RegionValueCollectLongAggregator](TArray(in), seqOpArgTypes = Array(classOf[Long]))
+      case _: TFloat32 => CodeAggregator[RegionValueCollectFloatAggregator](TArray(in), seqOpArgTypes = Array(classOf[Float]))
+      case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](TArray(in), seqOpArgTypes = Array(classOf[Double]))
+      case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](TArray(in), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
     }
 
-    case (InfoScore(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) => CodeAggregator[RegionValueInfoScoreAggregator](in, RegionValueInfoScoreAggregator.typ)
-      
-    case (Sum(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumLongAggregator](in, TInt64())
-    case (Sum(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueSumDoubleAggregator](in, TFloat64())
-    case (Sum(), in@TArray(TInt64(_), _), Seq(), None, Seq()) =>
-      CodeAggregator[RegionValueArraySumLongAggregator](in, TArray(TInt64()))
+    case (InfoScore(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
+      CodeAggregator[RegionValueInfoScoreAggregator](RegionValueInfoScoreAggregator.typ, seqOpArgTypes = Array(classOf[Long]))
 
-    case (CollectAsSet(), in, Seq(), None, Seq()) =>
+    case (Sum(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueSumLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
+    case (Sum(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueSumDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
+    case (Sum(), Seq(), None, Seq(TArray(TInt64(_), _))) =>
+      CodeAggregator[RegionValueArraySumLongAggregator](TArray(TInt64()), seqOpArgTypes = Array(classOf[Long]))
+
+    case (CollectAsSet(), Seq(), None, Seq(in)) =>
       in match {
-        case _: TBoolean => CodeAggregator[RegionValueCollectAsSetBooleanAggregator](in, TSet(TBoolean()))
-        case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectAsSetIntAggregator](in, TSet(in))
-        case _: TInt64 => CodeAggregator[RegionValueCollectAsSetLongAggregator](in, TSet(TInt64()))
-        case _: TFloat32 => CodeAggregator[RegionValueCollectAsSetFloatAggregator](in, TSet(TFloat32()))
-        case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](in, TSet(TFloat64()))
-        case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](in, TSet(in), constrArgTypes = Array(classOf[Type]))
+        case _: TBoolean => CodeAggregator[RegionValueCollectAsSetBooleanAggregator](TSet(TBoolean()), seqOpArgTypes = Array(classOf[Boolean]))
+        case _: TInt32 | _: TCall => CodeAggregator[RegionValueCollectAsSetIntAggregator](TSet(in), seqOpArgTypes = Array(classOf[Int]))
+        case _: TInt64 => CodeAggregator[RegionValueCollectAsSetLongAggregator](TSet(TInt64()), seqOpArgTypes = Array(classOf[Long]))
+        case _: TFloat32 => CodeAggregator[RegionValueCollectAsSetFloatAggregator](TSet(TFloat32()), seqOpArgTypes = Array(classOf[Float]))
+        case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](TSet(TFloat64()), seqOpArgTypes = Array(classOf[Double]))
+        case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](TSet(in), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
       }
-    case (Sum(), in@TArray(TFloat64(_), _), Seq(), None, Seq()) =>
-      CodeAggregator[RegionValueArraySumDoubleAggregator](in, TArray(TFloat64()))
 
-    case (Product(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductLongAggregator](in, TInt64())
-    case (Product(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueProductDoubleAggregator](in, TFloat64())
+    case (Sum(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
+      CodeAggregator[RegionValueArraySumDoubleAggregator](TArray(TFloat64()), seqOpArgTypes = Array(classOf[Long]))
 
-    case (HardyWeinberg(), in: TCall, Seq(), None, Seq()) => CodeAggregator[RegionValueHardyWeinbergAggregator](in, RegionValueHardyWeinbergAggregator.typ)
+    case (Product(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueProductLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
+    case (Product(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueProductDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
-    case (Max(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxBooleanAggregator](in, TBoolean())
-    case (Max(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxIntAggregator](in, TInt32())
-    case (Max(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxLongAggregator](in, TInt64())
-    case (Max(), in: TFloat32, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxFloatAggregator](in, TFloat32())
-    case (Max(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueMaxDoubleAggregator](in, TFloat64())
+    case (HardyWeinberg(), Seq(), None, Seq(_: TCall)) => CodeAggregator[RegionValueHardyWeinbergAggregator](
+      RegionValueHardyWeinbergAggregator.typ,
+      seqOpArgTypes = Array(classOf[Int]))
 
-    case (Min(), in: TBoolean, Seq(), None, Seq()) => CodeAggregator[RegionValueMinBooleanAggregator](in, TBoolean())
-    case (Min(), in: TInt32, Seq(), None, Seq()) => CodeAggregator[RegionValueMinIntAggregator](in, TInt32())
-    case (Min(), in: TInt64, Seq(), None, Seq()) => CodeAggregator[RegionValueMinLongAggregator](in, TInt64())
-    case (Min(), in: TFloat32, Seq(), None, Seq()) => CodeAggregator[RegionValueMinFloatAggregator](in, TFloat32())
-    case (Min(), in: TFloat64, Seq(), None, Seq()) => CodeAggregator[RegionValueMinDoubleAggregator](in, TFloat64())
+    case (Max(), Seq(), None, Seq(_: TBoolean)) => CodeAggregator[RegionValueMaxBooleanAggregator](TBoolean(), seqOpArgTypes = Array(classOf[Boolean]))
+    case (Max(), Seq(), None, Seq(_: TInt32)) => CodeAggregator[RegionValueMaxIntAggregator](TInt32(), seqOpArgTypes = Array(classOf[Int]))
+    case (Max(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueMaxLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
+    case (Max(), Seq(), None, Seq(_: TFloat32)) => CodeAggregator[RegionValueMaxFloatAggregator](TFloat32(), seqOpArgTypes = Array(classOf[Float]))
+    case (Max(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueMaxDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
-    case (Count(), in, Seq(), None, Seq()) => CodeAggregator[RegionValueCountAggregator](in, TInt64())
+    case (Min(), Seq(), None, Seq(_: TBoolean)) => CodeAggregator[RegionValueMinBooleanAggregator](TBoolean(), seqOpArgTypes = Array(classOf[Boolean]))
+    case (Min(), Seq(), None, Seq(_: TInt32)) => CodeAggregator[RegionValueMinIntAggregator](TInt32(), seqOpArgTypes = Array(classOf[Int]))
+    case (Min(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueMinLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
+    case (Min(), Seq(), None, Seq(_: TFloat32)) => CodeAggregator[RegionValueMinFloatAggregator](TFloat32(), seqOpArgTypes = Array(classOf[Float]))
+    case (Min(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueMinDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
-    case (Counter(), in, Seq(), None, Seq()) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueCounterBooleanAggregator](in, TDict(in, TInt64()))
-      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCounterIntAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
-      case _: TInt64 => CodeAggregator[RegionValueCounterLongAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
-      case _: TFloat32 => CodeAggregator[RegionValueCounterFloatAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
-      case _: TFloat64 => CodeAggregator[RegionValueCounterDoubleAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
-      case _ => CodeAggregator[RegionValueCounterAnnotationAggregator](in, TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]))
+    case (Count(), Seq(), None, Seq()) => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array())
+
+    case (Counter(), Seq(), None, Seq(in)) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueCounterBooleanAggregator](TDict(in, TInt64()), seqOpArgTypes = Array(classOf[Boolean]))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCounterIntAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Int]))
+      case _: TInt64 => CodeAggregator[RegionValueCounterLongAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
+      case _: TFloat32 => CodeAggregator[RegionValueCounterFloatAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Float]))
+      case _: TFloat64 => CodeAggregator[RegionValueCounterDoubleAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Double]))
+      case _ => CodeAggregator[RegionValueCounterAnnotationAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
     }
 
-    case (Take(), in, constArgs@Seq(_: TInt32), None, Seq()) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueTakeBooleanAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
-      case _: TInt32 | _: TCall => CodeAggregator[RegionValueTakeIntAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
-      case _: TInt64 => CodeAggregator[RegionValueTakeLongAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
-      case _: TFloat32 => CodeAggregator[RegionValueTakeFloatAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
-      case _: TFloat64 => CodeAggregator[RegionValueTakeDoubleAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int]))
-      case _ => CodeAggregator[RegionValueTakeAnnotationAggregator](in, TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type]))
+    case (Take(), constArgs@Seq(_: TInt32), None, Seq(in)) => in match {
+      case _: TBoolean => CodeAggregator[RegionValueTakeBooleanAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Boolean]))
+      case _: TInt32 | _: TCall => CodeAggregator[RegionValueTakeIntAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Int]))
+      case _: TInt64 => CodeAggregator[RegionValueTakeLongAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Long]))
+      case _: TFloat32 => CodeAggregator[RegionValueTakeFloatAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Float]))
+      case _: TFloat64 => CodeAggregator[RegionValueTakeDoubleAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Double]))
+      case _ => CodeAggregator[RegionValueTakeAnnotationAggregator](TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
     }
 
-    case (TakeBy(), in, constArgs@Seq(_: TInt32), None, Seq(key)) =>
-      def tbCodeAgg[T <: RegionValueTakeByAggregator](seqOpArg: Class[_])(implicit ct: ClassTag[T]) =
-        new CodeAggregator[T](in, TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type], classOf[Type]), seqOpArgTypes = Array(seqOpArg))
+    case (TakeBy(), constArgs@Seq(_: TInt32), None, Seq(in, key)) =>
+      def tbCodeAgg[T <: RegionValueTakeByAggregator](seqOpArgs: Class[_]*)(implicit ct: ClassTag[T]) =
+        new CodeAggregator[T](TArray(in), constrArgTypes = Array(classOf[Int], classOf[Type], classOf[Type]), seqOpArgTypes = seqOpArgs.toArray)
       
       (in, key) match {
-        case (_: TBoolean, _: TBoolean) => tbCodeAgg[RegionValueTakeByBooleanBooleanAggregator](classOf[Boolean])
-        case (_: TBoolean, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByBooleanIntAggregator](classOf[Int])
-        case (_: TBoolean, _: TInt64) => tbCodeAgg[RegionValueTakeByBooleanLongAggregator](classOf[Long])
-        case (_: TBoolean, _: TFloat32) => tbCodeAgg[RegionValueTakeByBooleanFloatAggregator](classOf[Float])
-        case (_: TBoolean, _: TFloat64) => tbCodeAgg[RegionValueTakeByBooleanDoubleAggregator](classOf[Double])
-        case (_: TBoolean, _) => tbCodeAgg[RegionValueTakeByBooleanAnnotationAggregator](classOf[Long])
+        case (_: TBoolean, _: TBoolean) => tbCodeAgg[RegionValueTakeByBooleanBooleanAggregator](classOf[Boolean], classOf[Boolean])
+        case (_: TBoolean, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByBooleanIntAggregator](classOf[Boolean], classOf[Int])
+        case (_: TBoolean, _: TInt64) => tbCodeAgg[RegionValueTakeByBooleanLongAggregator](classOf[Boolean], classOf[Long])
+        case (_: TBoolean, _: TFloat32) => tbCodeAgg[RegionValueTakeByBooleanFloatAggregator](classOf[Boolean], classOf[Float])
+        case (_: TBoolean, _: TFloat64) => tbCodeAgg[RegionValueTakeByBooleanDoubleAggregator](classOf[Boolean], classOf[Double])
+        case (_: TBoolean, _) => tbCodeAgg[RegionValueTakeByBooleanAnnotationAggregator](classOf[Boolean], classOf[Long])
 
-        case (_: TInt32 | _: TCall, _: TBoolean) => tbCodeAgg[RegionValueTakeByIntBooleanAggregator](classOf[Boolean])
-        case (_: TInt32 | _: TCall, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByIntIntAggregator](classOf[Int])
-        case (_: TInt32 | _: TCall, _: TInt64) => tbCodeAgg[RegionValueTakeByIntLongAggregator](classOf[Long])
-        case (_: TInt32 | _: TCall, _: TFloat32) => tbCodeAgg[RegionValueTakeByIntFloatAggregator](classOf[Float])
-        case (_: TInt32 | _: TCall, _: TFloat64) => tbCodeAgg[RegionValueTakeByIntDoubleAggregator](classOf[Double])
-        case (_: TInt32 | _: TCall, _) => tbCodeAgg[RegionValueTakeByIntAnnotationAggregator](classOf[Long])
+        case (_: TInt32 | _: TCall, _: TBoolean) => tbCodeAgg[RegionValueTakeByIntBooleanAggregator](classOf[Int], classOf[Boolean])
+        case (_: TInt32 | _: TCall, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByIntIntAggregator](classOf[Int], classOf[Int])
+        case (_: TInt32 | _: TCall, _: TInt64) => tbCodeAgg[RegionValueTakeByIntLongAggregator](classOf[Int], classOf[Long])
+        case (_: TInt32 | _: TCall, _: TFloat32) => tbCodeAgg[RegionValueTakeByIntFloatAggregator](classOf[Int], classOf[Float])
+        case (_: TInt32 | _: TCall, _: TFloat64) => tbCodeAgg[RegionValueTakeByIntDoubleAggregator](classOf[Int], classOf[Double])
+        case (_: TInt32 | _: TCall, _) => tbCodeAgg[RegionValueTakeByIntAnnotationAggregator](classOf[Int], classOf[Long])
 
-        case (_: TInt64, _: TBoolean) => tbCodeAgg[RegionValueTakeByLongBooleanAggregator](classOf[Boolean])
-        case (_: TInt64, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByLongIntAggregator](classOf[Int])
-        case (_: TInt64, _: TInt64) => tbCodeAgg[RegionValueTakeByLongLongAggregator](classOf[Long])
-        case (_: TInt64, _: TFloat32) => tbCodeAgg[RegionValueTakeByLongFloatAggregator](classOf[Float])
-        case (_: TInt64, _: TFloat64) => tbCodeAgg[RegionValueTakeByLongDoubleAggregator](classOf[Double])
-        case (_: TInt64, _) => tbCodeAgg[RegionValueTakeByLongAnnotationAggregator](classOf[Long])
+        case (_: TInt64, _: TBoolean) => tbCodeAgg[RegionValueTakeByLongBooleanAggregator](classOf[Long], classOf[Boolean])
+        case (_: TInt64, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByLongIntAggregator](classOf[Long], classOf[Int])
+        case (_: TInt64, _: TInt64) => tbCodeAgg[RegionValueTakeByLongLongAggregator](classOf[Long], classOf[Long])
+        case (_: TInt64, _: TFloat32) => tbCodeAgg[RegionValueTakeByLongFloatAggregator](classOf[Long], classOf[Float])
+        case (_: TInt64, _: TFloat64) => tbCodeAgg[RegionValueTakeByLongDoubleAggregator](classOf[Long], classOf[Double])
+        case (_: TInt64, _) => tbCodeAgg[RegionValueTakeByLongAnnotationAggregator](classOf[Long], classOf[Long])
 
-        case (_: TFloat32, _: TBoolean) => tbCodeAgg[RegionValueTakeByFloatBooleanAggregator](classOf[Boolean])
-        case (_: TFloat32, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByFloatIntAggregator](classOf[Int])
-        case (_: TFloat32, _: TInt64) => tbCodeAgg[RegionValueTakeByFloatLongAggregator](classOf[Long])
-        case (_: TFloat32, _: TFloat32) => tbCodeAgg[RegionValueTakeByFloatFloatAggregator](classOf[Float])
-        case (_: TFloat32, _: TFloat64) => tbCodeAgg[RegionValueTakeByFloatDoubleAggregator](classOf[Double])
-        case (_: TFloat32, _) => tbCodeAgg[RegionValueTakeByFloatAnnotationAggregator](classOf[Long])
+        case (_: TFloat32, _: TBoolean) => tbCodeAgg[RegionValueTakeByFloatBooleanAggregator](classOf[Float], classOf[Boolean])
+        case (_: TFloat32, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByFloatIntAggregator](classOf[Float], classOf[Int])
+        case (_: TFloat32, _: TInt64) => tbCodeAgg[RegionValueTakeByFloatLongAggregator](classOf[Float], classOf[Long])
+        case (_: TFloat32, _: TFloat32) => tbCodeAgg[RegionValueTakeByFloatFloatAggregator](classOf[Float], classOf[Float])
+        case (_: TFloat32, _: TFloat64) => tbCodeAgg[RegionValueTakeByFloatDoubleAggregator](classOf[Float], classOf[Double])
+        case (_: TFloat32, _) => tbCodeAgg[RegionValueTakeByFloatAnnotationAggregator](classOf[Float], classOf[Long])
 
-        case (_: TFloat64, _: TBoolean) => tbCodeAgg[RegionValueTakeByDoubleBooleanAggregator](classOf[Boolean])
-        case (_: TFloat64, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByDoubleIntAggregator](classOf[Int])
-        case (_: TFloat64, _: TInt64) => tbCodeAgg[RegionValueTakeByDoubleLongAggregator](classOf[Long])
-        case (_: TFloat64, _: TFloat32) => tbCodeAgg[RegionValueTakeByDoubleFloatAggregator](classOf[Float])
-        case (_: TFloat64, _: TFloat64) => tbCodeAgg[RegionValueTakeByDoubleDoubleAggregator](classOf[Double])
-        case (_: TFloat64, _) => tbCodeAgg[RegionValueTakeByDoubleAnnotationAggregator](classOf[Long])
+        case (_: TFloat64, _: TBoolean) => tbCodeAgg[RegionValueTakeByDoubleBooleanAggregator](classOf[Double], classOf[Boolean])
+        case (_: TFloat64, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByDoubleIntAggregator](classOf[Double], classOf[Int])
+        case (_: TFloat64, _: TInt64) => tbCodeAgg[RegionValueTakeByDoubleLongAggregator](classOf[Double], classOf[Long])
+        case (_: TFloat64, _: TFloat32) => tbCodeAgg[RegionValueTakeByDoubleFloatAggregator](classOf[Double], classOf[Float])
+        case (_: TFloat64, _: TFloat64) => tbCodeAgg[RegionValueTakeByDoubleDoubleAggregator](classOf[Double], classOf[Double])
+        case (_: TFloat64, _) => tbCodeAgg[RegionValueTakeByDoubleAnnotationAggregator](classOf[Double], classOf[Long])
 
-        case (_, _: TBoolean) => tbCodeAgg[RegionValueTakeByAnnotationBooleanAggregator](classOf[Boolean])
-        case (_, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByAnnotationIntAggregator](classOf[Int])
-        case (_, _: TInt64) => tbCodeAgg[RegionValueTakeByAnnotationLongAggregator](classOf[Long])
-        case (_, _: TFloat32) => tbCodeAgg[RegionValueTakeByAnnotationFloatAggregator](classOf[Float])
-        case (_, _: TFloat64) => tbCodeAgg[RegionValueTakeByAnnotationDoubleAggregator](classOf[Double])
-        case (_, _) => tbCodeAgg[RegionValueTakeByAnnotationAnnotationAggregator](classOf[Long])
+        case (_, _: TBoolean) => tbCodeAgg[RegionValueTakeByAnnotationBooleanAggregator](classOf[Long], classOf[Boolean])
+        case (_, _: TInt32 | _: TCall) => tbCodeAgg[RegionValueTakeByAnnotationIntAggregator](classOf[Long], classOf[Int])
+        case (_, _: TInt64) => tbCodeAgg[RegionValueTakeByAnnotationLongAggregator](classOf[Long], classOf[Long])
+        case (_, _: TFloat32) => tbCodeAgg[RegionValueTakeByAnnotationFloatAggregator](classOf[Long], classOf[Float])
+        case (_, _: TFloat64) => tbCodeAgg[RegionValueTakeByAnnotationDoubleAggregator](classOf[Long], classOf[Double])
+        case (_, _) => tbCodeAgg[RegionValueTakeByAnnotationAnnotationAggregator](classOf[Long], classOf[Long])
       }
 
-    case (Histogram(), in: TFloat64, constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None, Seq()) =>
-      CodeAggregator[RegionValueHistogramAggregator](in, RegionValueHistogramAggregator.typ, constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]))
+    case (Histogram(), constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None, Seq(_: TFloat64)) =>
+      CodeAggregator[RegionValueHistogramAggregator](
+        RegionValueHistogramAggregator.typ,
+        constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]),
+        seqOpArgTypes = Array(classOf[Double]))
 
-    case (CallStats(), in: TCall, Seq(), initOpArgs@Some(Seq(_: TInt32)), Seq()) =>
-      CodeAggregator[RegionValueCallStatsAggregator](in, RegionValueCallStatsAggregator.typ, initOpArgTypes = Some(Array(classOf[Int])))
+    case (CallStats(), Seq(), initOpArgs@Some(Seq(_: TInt32)), Seq(_: TCall)) =>
+      CodeAggregator[RegionValueCallStatsAggregator](
+        RegionValueCallStatsAggregator.typ,
+        initOpArgTypes = Some(Array(classOf[Int])),
+        seqOpArgTypes = Array(classOf[Int]))
 
-    case (Inbreeding(), in: TCall, Seq(), None, seqOpArgs@Seq(_: TFloat64)) =>
-      CodeAggregator[RegionValueInbreedingAggregator](in, RegionValueInbreedingAggregator.typ, seqOpArgTypes = Array(classOf[Double]))
+    case (Inbreeding(), Seq(), None, seqOpArgs@Seq(_: TCall, _: TFloat64)) =>
+      CodeAggregator[RegionValueInbreedingAggregator](
+        RegionValueInbreedingAggregator.typ,
+        seqOpArgTypes = Array(classOf[Int], classOf[Double]))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
-    throw new RuntimeException(s"no aggregator named ${ aggSig.op } taking arguments ([${ aggSig.constructorArgs.mkString(", ") }]" +
-      s", ${ if (aggSig.initOpArgs.isEmpty) "None" else "[" + aggSig.initOpArgs.get.mkString(", ") + "]" }) " +
-      s"operating on aggregables of type ${ aggSig.inputType }")
+    throw new RuntimeException(s"no aggregator named ${ aggSig.op } taking constructor arguments [${ aggSig.constructorArgs.mkString(", ") }] " +
+      s"initOp arguments ${ if (aggSig.initOpArgs.isEmpty) "None" else "[" + aggSig.initOpArgs.get.mkString(", ") + "]" } " +
+      s"and seqOp arguments [${ aggSig.seqOpArgs.mkString(", ")}]")
   }
 
   val fromString: PartialFunction[String, AggOp] = {
