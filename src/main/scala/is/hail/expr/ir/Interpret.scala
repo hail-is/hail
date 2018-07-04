@@ -349,60 +349,72 @@ object Interpret {
         assert(AggOp.getType(aggSig) == x.typ)
         val aggregator = aggSig.op match {
           case CallStats() =>
-            assert(seqOpArgs.head == TCall())
+            assert(seqOpArgs == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
           case Inbreeding() =>
-            assert(seqOpArgs.head == TCall())
+            assert(seqOpArgs == FastIndexedSeq(TCall()))
             new InbreedingAggregator(null)
           case HardyWeinberg() =>
-            assert(seqOpArgs.head == TCall())
+            assert(seqOpArgs == FastIndexedSeq(TCall()))
             new HWEAggregator()
           case Count() => new CountAggregator()
-          case Collect() => new CollectAggregator(seqOpArgs.head)
-          case Counter() => new CounterAggregator(seqOpArgs.head)
-          case CollectAsSet() => new CollectSetAggregator(seqOpArgs.head)
+          case Collect() =>
+            val IndexedSeq(aggType) = seqOpArgs
+            new CollectAggregator(aggType)
+          case Counter() =>
+            val IndexedSeq(aggType) = seqOpArgs
+            new CounterAggregator(aggType)
+          case CollectAsSet() =>
+            val IndexedSeq(aggType) = seqOpArgs
+            new CollectSetAggregator(aggType)
           case Fraction() =>
-            assert(seqOpArgs.head == TBoolean())
+            assert(seqOpArgs == FastIndexedSeq(TBoolean()))
             new FractionAggregator(a => a)
           case Sum() =>
-            seqOpArgs.head match {
+            val IndexedSeq(aggType) = seqOpArgs
+            aggType match {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat64(_) => new SumAggregator[Double]()
               case TArray(TInt64(_), _) => new SumArrayAggregator[Long]()
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
-            seqOpArgs.head match {
+            val IndexedSeq(aggType) = seqOpArgs
+            aggType match {
               case TInt64(_) => new ProductAggregator[Long]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
-            seqOpArgs.head match {
+            val IndexedSeq(aggType) = seqOpArgs
+            aggType match {
               case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
               case TFloat32(_) => new MinAggregator[Float, java.lang.Float]()
               case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
-            seqOpArgs.head match {
+            val IndexedSeq(aggType) = seqOpArgs
+            aggType match {
               case TInt32(_) => new MaxAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MaxAggregator[Long, java.lang.Long]()
               case TFloat32(_) => new MaxAggregator[Float, java.lang.Float]()
               case TFloat64(_) => new MaxAggregator[Double, java.lang.Double]()
             }
           case Take() =>
-            val Seq(n) = constructorArgs
+            val IndexedSeq(n) = constructorArgs
+            val IndexedSeq(aggType) = seqOpArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
-            new TakeAggregator(seqOpArgs.head, nValue)
+            new TakeAggregator(aggType, nValue)
           case TakeBy() =>
             val IndexedSeq(n) = constructorArgs
+            val IndexedSeq(aggType) = seqOpArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
             assert(seqOps.length == 1)
             val IndexedSeq(_, ordering: IR) = seqOps.head.args
             val ord = ordering.typ.ordering.toOrdering
-            new TakeByAggregator(seqOpArgs.head, null, nValue)(ord)
+            new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
           case InfoScore() => new InfoScoreAggregator()
           case Histogram() =>
