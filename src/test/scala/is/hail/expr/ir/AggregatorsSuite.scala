@@ -10,31 +10,27 @@ import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 
 class AggregatorsSuite {
-  def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any, args: IndexedSeq[IR] = FastIndexedSeq(),
-    initOpArgs: Option[IndexedSeq[IR]] = None, seqOpArgs: IndexedSeq[IR] = FastIndexedSeq()) {
-    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), t +: seqOpArgs.map(_.typ))
+  def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
+    initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
+
+    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
+
     assertEvalsTo(ApplyAggOp(
-      SeqOp(I32(0), Ref("x", t) +: seqOpArgs, aggSig),
-      args, initOpArgs, aggSig),
-      (a.map(i => Row(i)), TStruct("x" -> t)),
+      SeqOp(I32(0), seqOpArgs, aggSig),
+      constrArgs, initOpArgs, aggSig),
+      (agg, aggType),
       expected)
   }
 
-  def runAggregator(
-    op: AggOp,
-    t: TStruct,
-    a: IndexedSeq[Row],
-    expected: Any,
-    aggIR: IR,
-    args: IndexedSeq[IR],
-    initOpArgs: Option[IndexedSeq[IR]],
-    seqOpArgs: IndexedSeq[IR]) {
-    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), aggIR.typ +: seqOpArgs.map(_.typ))
-    assertEvalsTo(ApplyAggOp(
-      SeqOp(I32(0), aggIR +: seqOpArgs, aggSig),
-      args, initOpArgs, aggSig),
-      (a, t),
-      expected)
+  def runAggregator(op: AggOp, t: Type, a: IndexedSeq[Any], expected: Any,
+    constrArgs: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
+    runAggregator(op,
+      TStruct("x" -> t),
+      a.map(i => Row(i)),
+      expected,
+      constrArgs,
+      initOpArgs,
+      seqOpArgs = FastIndexedSeq(Ref("x", t)))
   }
 
   @Test def sumFloat64() {
@@ -83,11 +79,21 @@ class AggregatorsSuite {
       TArray(TInt32()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()), FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq()))
   }
 
-  @Test def collectStruct(): Unit = {
+  @Test def collectStruct() {
     runAggregator(Collect(),
       TStruct("a" -> TInt32(), "b" -> TBoolean()),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null))
+  }
+
+  @Test def count() {
+    runAggregator(Count(),
+      TStruct("x" -> TString()),
+      FastIndexedSeq(Row("hello"), Row("foo"), Row("a"), Row(null), Row("b"), Row(null), Row("c")),
+      7L,
+      constrArgs = FastIndexedSeq(),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq())
   }
 
   @Test def counterString() {
@@ -122,7 +128,7 @@ class AggregatorsSuite {
       FastIndexedSeq(1, 3, null, 1, 4, 3, null),
       Map(1 -> 2L, 3 -> 2L, 4 -> 1L, (null, 2L)))
   }
-  
+
   @Test def counterLong() {
     runAggregator(Counter(),
       TInt64(),
@@ -136,7 +142,7 @@ class AggregatorsSuite {
       FastIndexedSeq(1f, 3f, null, 1f, 4f, 3f, null),
       Map(1f -> 2L, 3f -> 2L, 4f -> 1L, (null, 2L)))
   }
-  
+
   @Test def counterDouble() {
     runAggregator(Counter(),
       TFloat64(),
@@ -196,10 +202,9 @@ class AggregatorsSuite {
         Row(Call2(0, 1), 0.2), Row(null, 0.3),
         Row(Call2(1, 1), 0.4), Row(Call2(0, 0), null)),
       Row(-1.040816, 4L, 3.02, 2L),
-      Ref("x", TCall()),
       FastIndexedSeq(),
       None,
-      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64())))
+      seqOpArgs = FastIndexedSeq(Ref("x", TCall()), Ref("y", TFloat64())))
   }
 
   @Test def infoScore() {
@@ -236,39 +241,39 @@ class AggregatorsSuite {
 
   @Test def takeInt32() {
     runAggregator(Take(), TInt32(), FastIndexedSeq(2, null, 7), FastIndexedSeq(2, null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def takeInt64() {
     runAggregator(Take(), TInt64(), FastIndexedSeq(2L, null, 7L), FastIndexedSeq(2L, null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def takeFloat32() {
     runAggregator(Take(), TFloat32(), FastIndexedSeq(2.0f, null, 7.2f), FastIndexedSeq(2.0f, null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def takeFloat64() {
     runAggregator(Take(), TFloat64(), FastIndexedSeq(2.0, null, 7.2), FastIndexedSeq(2.0, null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def takeCall() {
     runAggregator(Take(), TCall(), FastIndexedSeq(Call2(0, 0), null, Call2(1, 0)), FastIndexedSeq(Call2(0, 0), null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def takeString() {
     runAggregator(Take(), TString(), FastIndexedSeq("a", null, "b"), FastIndexedSeq("a", null),
-      args = FastIndexedSeq(I32(2)))
+      constrArgs = FastIndexedSeq(I32(2)))
   }
 
   @Test def testHist() {
     runAggregator(Histogram(), TFloat64(),
       FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
       Row((0 to 10).map(_.toDouble).toFastIndexedSeq, FastIndexedSeq(1L, 0L, 2L, 0L, 2L, 0L, 0L, 0L, 0L, 1L), 1L, 2L),
-      args = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
+      constrArgs = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
   }
 
   @Test
@@ -384,10 +389,9 @@ class AggregatorsSuite {
     runAggregator(TakeBy(), TStruct("x" -> aggType, "y" -> keyType),
       a,
       expected,
-      Ref("x", aggType),
-      args = FastIndexedSeq(I32(n)),
+      constrArgs = FastIndexedSeq(I32(n)),
       initOpArgs = None,
-      seqOpArgs = FastIndexedSeq(Ref("y", keyType)))
+      seqOpArgs = FastIndexedSeq(Ref("x", aggType), Ref("y", keyType)))
   }
 
   @Test def takeByNGreater() {

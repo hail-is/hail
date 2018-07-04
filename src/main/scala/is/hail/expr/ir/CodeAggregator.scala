@@ -16,9 +16,7 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   out: Type,
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
   initOpArgTypes: Option[Array[Class[_]]] = None,
-  seqOpArgTypes: Array[Class[_]]) {
-
-  assert(seqOpArgTypes.nonEmpty)
+  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) {
 
   def initOp(rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)

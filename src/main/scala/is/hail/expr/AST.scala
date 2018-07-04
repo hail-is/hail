@@ -541,16 +541,15 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             s"no AggOp for method $method",
             AggOp.fromString.lift(method))
           bodyx <- body.toIR()
-          seqOpArgs = FastIndexedSeq(bodyx)
           aggSig = AggSignature(op,
             FastIndexedSeq(),
             None,
-            -t.elementType +: seqOpArgs.map(_.typ))
+            FastIndexedSeq(-t.elementType, bodyx.typ))
           ca <- fromOption(
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x) ++ seqOpArgs, aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x, ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, "takeBy", IndexedSeq(Lambda(_, name, body), n)) =>
@@ -569,7 +568,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
-          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x) ++ FastIndexedSeq(ir.Let(name, x, bodyx)), aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x, ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(nx), None, aggSig): IR
       case (t: TAggregable, "fraction", IndexedSeq(Lambda(_, name, body))) =>
@@ -590,6 +589,23 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
+      case (t: TAggregable, "count", IndexedSeq()) =>
+        for {
+          op <- fromOption(
+            this,
+            s"no AggOp for method $method",
+            AggOp.fromString.lift(method))
+          aggSig = AggSignature(op,
+            FastIndexedSeq(),
+            None,
+            FastIndexedSeq())
+          ca <- fromOption(
+            this,
+            "no CodeAggregator",
+            AggOp.getOption(aggSig))
+          rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(), aggSig))
+        } yield
+          ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
       case (t: TAggregable, _, _) =>
         for {
           op <- fromOption(
@@ -600,20 +616,15 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           aggSig = AggSignature(op,
             constructorArgs.map(_.typ),
             None,
-            FastIndexedSeq(if (method == "count")
-              TInt32()
-            else
-              -t.elementType))
+            FastIndexedSeq(-t.elementType))
           ca <- fromOption(
             this,
             "no CodeAggregator",
             AggOp.getOption(aggSig))
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(
             ir.I32(0),
-            FastIndexedSeq(if (method == "count")
-              ir.I32(0)
-            else
-              x), aggSig))
+            FastIndexedSeq(x),
+            aggSig))
         } yield
           ir.ApplyAggOp(rx, constructorArgs, None, aggSig): IR
       case (t, m, IndexedSeq(Lambda(_, name, body))) =>

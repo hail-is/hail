@@ -11,11 +11,7 @@ case class AggSignature(
   op: AggOp,
   constructorArgs: Seq[Type],
   initOpArgs: Option[Seq[Type]],
-  seqOpArgs: Seq[Type]) {
-  assert(seqOpArgs.nonEmpty)
-
-  def inputType: Type = seqOpArgs.head
-}
+  seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
 // nulary
@@ -125,14 +121,7 @@ object AggOp {
     case (Min(), Seq(), None, Seq(_: TFloat32)) => CodeAggregator[RegionValueMinFloatAggregator](TFloat32(), seqOpArgTypes = Array(classOf[Float]))
     case (Min(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueMinDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
-    case (Count(), Seq(), None, Seq(in)) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Boolean]))
-      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Int]))
-      case _: TInt64 => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
-      case _: TFloat32 => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Float]))
-      case _: TFloat64 => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Double]))
-      case _ => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
-    }
+    case (Count(), Seq(), None, Seq()) => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array())
 
     case (Counter(), Seq(), None, Seq(in)) => in match {
       case _: TBoolean => CodeAggregator[RegionValueCounterBooleanAggregator](TDict(in, TInt64()), seqOpArgTypes = Array(classOf[Boolean]))

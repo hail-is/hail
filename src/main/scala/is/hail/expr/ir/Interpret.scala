@@ -328,60 +328,64 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(i, seqOpArgs, aggSig) =>
+      case x@SeqOp(i, args, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
           case Inbreeding() =>
-            val IndexedSeq(a, af) = seqOpArgs
+            val IndexedSeq(a, af) = args
             aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
           case TakeBy() =>
-            val IndexedSeq(a, ordering) = seqOpArgs
+            val IndexedSeq(a, ordering) = args
             aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(ordering))
+          case Count() =>
+            assert(args.isEmpty)
+            aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
           case _ =>
-            aggregator.get.seqOp(interpret(seqOpArgs.head))
+            val IndexedSeq(a) = args
+            aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val aggType = aggSig.inputType
+        val seqOpArgs = aggSig.seqOpArgs
         assert(AggOp.getType(aggSig) == x.typ)
         val aggregator = aggSig.op match {
           case CallStats() =>
-            assert(aggType == TCall())
+            assert(seqOpArgs.head == TCall())
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
           case Inbreeding() =>
-            assert(aggType == TCall())
+            assert(seqOpArgs.head == TCall())
             new InbreedingAggregator(null)
           case HardyWeinberg() =>
-            assert(aggType == TCall())
+            assert(seqOpArgs.head == TCall())
             new HWEAggregator()
           case Count() => new CountAggregator()
-          case Collect() => new CollectAggregator(aggType)
-          case Counter() => new CounterAggregator(aggType)
-          case CollectAsSet() => new CollectSetAggregator(aggType)
+          case Collect() => new CollectAggregator(seqOpArgs.head)
+          case Counter() => new CounterAggregator(seqOpArgs.head)
+          case CollectAsSet() => new CollectSetAggregator(seqOpArgs.head)
           case Fraction() =>
-            assert(aggType == TBoolean())
+            assert(seqOpArgs.head == TBoolean())
             new FractionAggregator(a => a)
           case Sum() =>
-            aggType match {
+            seqOpArgs.head match {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat64(_) => new SumAggregator[Double]()
               case TArray(TInt64(_), _) => new SumArrayAggregator[Long]()
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
-            aggType match {
+            seqOpArgs.head match {
               case TInt64(_) => new ProductAggregator[Long]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
-            aggType match {
+            seqOpArgs.head match {
               case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
               case TFloat32(_) => new MinAggregator[Float, java.lang.Float]()
               case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
-            aggType match {
+            seqOpArgs.head match {
               case TInt32(_) => new MaxAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MaxAggregator[Long, java.lang.Long]()
               case TFloat32(_) => new MaxAggregator[Float, java.lang.Float]()
@@ -390,7 +394,7 @@ object Interpret {
           case Take() =>
             val Seq(n) = constructorArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
-            new TakeAggregator(aggType, nValue)
+            new TakeAggregator(seqOpArgs.head, nValue)
           case TakeBy() =>
             val IndexedSeq(n) = constructorArgs
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
@@ -398,7 +402,7 @@ object Interpret {
             assert(seqOps.length == 1)
             val IndexedSeq(_, ordering: IR) = seqOps.head.args
             val ord = ordering.typ.ordering.toOrdering
-            new TakeByAggregator(aggType, null, nValue)(ord)
+            new TakeByAggregator(seqOpArgs.head, null, nValue)(ord)
           case Statistics() => new StatAggregator()
           case InfoScore() => new InfoScoreAggregator()
           case Histogram() =>

@@ -116,8 +116,6 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
   def hasInitOp = initOpArgs.isDefined
 
   def op: AggOp = aggSig.op
-
-  def inputType: Type = aggSig.inputType
 }
 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR {
