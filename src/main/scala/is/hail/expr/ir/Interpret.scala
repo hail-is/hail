@@ -345,34 +345,34 @@ object Interpret {
             aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val seqOpArgs = aggSig.seqOpArgs
+        val seqOpArgTypes = aggSig.seqOpArgs
         assert(AggOp.getType(aggSig) == x.typ)
         val aggregator = aggSig.op match {
           case CallStats() =>
-            assert(seqOpArgs == FastIndexedSeq(TCall()))
+            assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
           case Inbreeding() =>
-            assert(seqOpArgs == FastIndexedSeq(TCall(), TFloat64()))
+            assert(seqOpArgTypes == FastIndexedSeq(TCall(), TFloat64()))
             new InbreedingAggregator(null)
           case HardyWeinberg() =>
-            assert(seqOpArgs == FastIndexedSeq(TCall()))
+            assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             new HWEAggregator()
           case Count() => new CountAggregator()
           case Collect() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             new CollectAggregator(aggType)
           case Counter() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             new CounterAggregator(aggType)
           case CollectAsSet() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             new CollectSetAggregator(aggType)
           case Fraction() =>
-            assert(seqOpArgs == FastIndexedSeq(TBoolean()))
+            assert(seqOpArgTypes == FastIndexedSeq(TBoolean()))
             new FractionAggregator(a => a)
           case Sum() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat64(_) => new SumAggregator[Double]()
@@ -380,13 +380,13 @@ object Interpret {
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new ProductAggregator[Long]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
@@ -394,7 +394,7 @@ object Interpret {
               case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MaxAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MaxAggregator[Long, java.lang.Long]()
@@ -403,12 +403,12 @@ object Interpret {
             }
           case Take() =>
             val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
           case TakeBy() =>
             val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType) = seqOpArgs
+            val IndexedSeq(aggType, _) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
             assert(seqOps.length == 1)
