@@ -515,7 +515,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   lazy val MatrixValue(_, globals, colValues, rvd) = value
 
   def partitionCounts(): Array[Long] = {
-    ast.partitionCounts match {
+    ast._partitionCounts match {
       case Some(counts) => counts.toArray
       case None => rvd.countPerPartition()
     }
@@ -909,9 +909,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def count(): (Long, Long) = (countRows(), countCols())
 
-  def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
+  def countRows(): Long = ast.rowCount
 
-  def countCols(): Long = ast.columnCount.map(_.toLong).getOrElse(Interpret[Long](TableCount(MatrixColsTable(ast))))
+  def countCols(): Long = ast.columnCount
 
   def forceCountRows(): Long = rvd.count()
 

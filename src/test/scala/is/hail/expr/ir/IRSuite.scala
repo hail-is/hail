@@ -258,8 +258,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableCount() {
-    assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
-    assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
+    assertEvalsTo(TablePartitionCounts(TableRange(0, 4)), FastIndexedSeq())
+    assertEvalsTo(TablePartitionCounts(TableRange(7, 4)), FastIndexedSeq(2L, 2L, 2L, 1L))
   }
 
   @Test def testGroupByKey() {

@@ -130,20 +130,16 @@ object Simplify {
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
 
-      case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
+      case TablePartitionCounts(TableMapGlobals(child, _, _)) => TablePartitionCounts(child)
 
-      case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
+      case TablePartitionCounts(TableMapRows(child, _, _, _)) => TablePartitionCounts(child)
 
-      case TableCount(TableUnion(children)) =>
-        children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
+      case TablePartitionCounts(TableUnion(children)) =>
+        children.map(TablePartitionCounts).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
-      case TableCount(TableKeyBy(child, _, _, _)) => TableCount(child)
+      case TablePartitionCounts(TableKeyBy(child, _, _, _)) => TablePartitionCounts(child)
 
-      case TableCount(TableUnkey(child)) => TableCount(child)
-
-      case TableCount(TableRange(n, _)) => I64(n)
-
-      case TableCount(TableParallelize(_, rows, _)) => I64(rows.length)
+      case TablePartitionCounts(TableUnkey(child)) => TablePartitionCounts(child)
 
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>

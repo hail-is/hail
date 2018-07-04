@@ -131,9 +131,9 @@ object Copy {
         val IndexedSeq(child: MatrixIR) = newChildren
         MatrixWrite(child, f)
       // from TableIR
-      case TableCount(_) =>
+      case TablePartitionCounts(_) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableCount(child)
+        TablePartitionCounts(child)
       case TableAggregate(_, _) =>
         val IndexedSeq(child: TableIR, query: IR) = newChildren
         TableAggregate(child, query)

@@ -538,7 +538,7 @@ object PruneDeadFields {
             .zipWithIndex
             .map { case (t, i) => if (i == idx) requestedType else minimal(t) }: _*)
         memoizeValueIR(o, tupleDep, memo)
-      case TableCount(child) =>
+      case TablePartitionCounts(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
         Env.empty[(Type, Type)]
       case TableAggregate(child, query) =>

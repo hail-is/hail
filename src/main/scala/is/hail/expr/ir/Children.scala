@@ -100,7 +100,7 @@ object Children {
     // from MatrixIR
     case MatrixWrite(child, _) => IndexedSeq(child)
     // from TableIR
-    case TableCount(child) => IndexedSeq(child)
+    case TablePartitionCounts(child) => IndexedSeq(child)
     case TableAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _) => IndexedSeq(child)
     case TableExport(child, _, _, _, _) => IndexedSeq(child)
