@@ -337,9 +337,9 @@ object PruneDeadFields {
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _, _, _) =>
       case MatrixLiteral(typ, value) =>
-      case ChooseCols(child, oldIndices) =>
+      case MatrixChooseCols(child, oldIndices) =>
         memoizeMatrixIR(child, requestedType, memo)
-      case CollectColsByKey(child) =>
+      case MatrixCollectColsByKey(child) =>
         val colKeySet = requestedType.colKey.toSet
         val explodedDep = requestedType.copy(
           colType = TStruct(requestedType.colType.required, requestedType.colType.fields.map { f =>

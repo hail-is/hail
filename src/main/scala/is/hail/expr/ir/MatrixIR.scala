@@ -488,12 +488,12 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
   }
 }
 
-case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR {
+case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): ChooseCols = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixChooseCols = {
     assert(newChildren.length == 1)
-    ChooseCols(newChildren(0).asInstanceOf[MatrixIR], oldIndices)
+    MatrixChooseCols(newChildren(0).asInstanceOf[MatrixIR], oldIndices)
   }
 
   val (typ, colsF) = MatrixIR.chooseColsWithArray(child.typ)
@@ -505,16 +505,16 @@ case class ChooseCols(child: MatrixIR, oldIndices: Array[Int]) extends MatrixIR 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    colsF(prev, oldIndices)
+    colsF(prev, oldIndices.toArray)
   }
 }
 
-case class CollectColsByKey(child: MatrixIR) extends MatrixIR {
+case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): CollectColsByKey = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixCollectColsByKey = {
     assert(newChildren.length == 1)
-    CollectColsByKey(newChildren(0).asInstanceOf[MatrixIR])
+    MatrixCollectColsByKey(newChildren(0).asInstanceOf[MatrixIR])
   }
 
   val (typ, groupF) = MatrixIR.collectColsByKey(child.typ)

@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
-import is.hail.expr.ir.{AggSignature, MatrixReader}
+import is.hail.expr.ir.{AggSignature, MatrixCollectColsByKey, MatrixChooseCols, MatrixReader}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
 import is.hail.table.TableSpec
@@ -616,13 +616,21 @@ object Parser extends JavaTokenParsers {
         _.toDouble
       }
 
-  def int32_literal_opt: Parser[Option[Int]] = int32_literal ^^ { Some(_) } | "None" ^^ { _ => None }
+  def int32_literals: Parser[IndexedSeq[Int]] = "(" ~> rep(int32_literal) <~ ")" ^^ {
+    _.toFastIndexedSeq
+  }
+
+  def int32_literal_opt: Parser[Option[Int]] = int32_literal ^^ {
+    Some(_)
+  } | "None" ^^ { _ => None }
 
   def int64_literals: Parser[IndexedSeq[Long]] = "(" ~> rep(int64_literal) <~ ")" ^^ {
     _.toFastIndexedSeq
   }
 
-  def int64_literals_opt: Parser[Option[IndexedSeq[Long]]] = int64_literals ^^ { Some(_) } | "None" ^^ { _ => None }
+  def int64_literals_opt: Parser[Option[IndexedSeq[Long]]] = int64_literals ^^ {
+    Some(_)
+  } | "None" ^^ { _ => None }
 
   def string_literal: Parser[String] = stringLiteral
 
@@ -792,8 +800,8 @@ object Parser extends JavaTokenParsers {
     "MatrixFilterCols" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterCols(child, pred) } |
       "MatrixFilterRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterRows(child, pred) } |
       "MatrixFilterEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterEntries(child, pred) } |
-      "MatrixMapCols" ~> matrix_ir ~ ir_value_expr ~ string_literals_opt ^^ { case child ~ newCol ~ newKey => ir.MatrixMapCols(child, newCol, newKey) } |
-      "MatrixMapRows" ~> matrix_ir ~ ir_value_expr ~ string_literals_opt ~ string_literals_opt ^^ { case child ~ newCol ~ newKey ~ newPartitionKey =>
+      "MatrixMapCols" ~> string_literals_opt ~ matrix_ir ~ ir_value_expr ^^ { case newKey ~ child ~ newCol => ir.MatrixMapCols(child, newCol, newKey) } |
+      "MatrixMapRows" ~> string_literals_opt ~ string_literals_opt ~ matrix_ir ~ ir_value_expr ^^ { case newKey ~ newPartitionKey ~ child ~ newCol =>
         val newKPK = ((newKey, newPartitionKey): @unchecked) match {
           case (Some(k), Some(pk)) => Some((k, pk))
           case (None, None) => None
@@ -810,5 +818,7 @@ object Parser extends JavaTokenParsers {
       "MatrixRead" ~> matrix_type_expr ~ int64_literals_opt ~ int32_literal_opt ~ boolean_literal ~ boolean_literal ~ matrix_reader ^^ { case typ ~ partCounts ~ colCount ~ dropCols ~ dropRows ~ reader =>
         ir.MatrixRead(typ, partCounts.map(_.toArray), colCount, dropCols, dropRows, reader)
       } |
-      "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)}
+      "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)} |
+      "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => MatrixChooseCols(child, oldIndices) } |
+      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => MatrixCollectColsByKey(child) }
 }
