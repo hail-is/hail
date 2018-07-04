@@ -353,7 +353,7 @@ object Interpret {
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
           case Inbreeding() =>
-            assert(seqOpArgs == FastIndexedSeq(TCall()))
+            assert(seqOpArgs == FastIndexedSeq(TCall(), TFloat64()))
             new InbreedingAggregator(null)
           case HardyWeinberg() =>
             assert(seqOpArgs == FastIndexedSeq(TCall()))
