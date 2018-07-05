@@ -17,14 +17,14 @@ import org.apache.hadoop.fs._
 sealed trait EntriesSetting
 final case object NoEntries extends EntriesSetting
 final case class EntriesWithFields (
-  GT: Boolean,
-  GP: Boolean,
+  gt: Boolean,
+  gp: Boolean,
   dosage: Boolean
 ) extends EntriesSetting
 
 sealed case class RowFields (
-  VARID: Boolean,
-  RSID: Boolean,
+  varid: Boolean,
+  rsid: Boolean,
   fileRowIndex: Boolean
 )
 
@@ -40,8 +40,8 @@ private case class BgenSettings (
   private[this] val typedRowFields = Array(
     (true, "locus" -> TLocus.schemaFromRG(rg)),
     (true, "alleles" -> TArray(TString())),
-    (rowFields.RSID, "rsid" -> TString()),
-    (rowFields.VARID, "varid" -> TString()),
+    (rowFields.rsid, "rsid" -> TString()),
+    (rowFields.varid, "varid" -> TString()),
     (rowFields.fileRowIndex, "file_row_idx" -> TInt64()))
     .withFilter(_._1).map(_._2)
 
@@ -130,13 +130,13 @@ private class BgenRecordIterator(
   def next(): Option[RegionValue] = {
     val rowFieldIndex = p.advance(bfis)
 
-    val varid = if (settings.rowFields.VARID) {
+    val varid = if (settings.rowFields.varid) {
       bfis.readLengthAndString(2)
     } else {
       bfis.readLengthAndSkipString(2)
       null
     }
-    val rsid = if (settings.rowFields.RSID) {
+    val rsid = if (settings.rowFields.rsid) {
       bfis.readLengthAndString(2)
     } else {
       bfis.readLengthAndSkipString(2)
@@ -177,9 +177,9 @@ private class BgenRecordIterator(
       }
       rvb.endArray()
 
-      if (settings.rowFields.RSID)
+      if (settings.rowFields.rsid)
         rvb.addString(rsid)
-      if (settings.rowFields.VARID)
+      if (settings.rowFields.varid)
         rvb.addString(varid)
       if (settings.rowFields.fileRowIndex)
         rvb.addLong(rowFieldIndex)
