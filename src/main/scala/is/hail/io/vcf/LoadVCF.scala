@@ -948,7 +948,7 @@ object LoadVCF {
 
     val vcfReader = VCFMatrixReader(callFields, inputs, minPartitions, sampleIDs, rg.map(_.name), contigRecoding,
       arrayElementsRequired, skipInvalidLoci, gzAsBGZ, infoFlagFieldNames, headerLines1, matrixType)
-    new MatrixTable(hc, MatrixRead(matrixType, None, dropSamples, false, vcfReader))
+    new MatrixTable(hc, MatrixRead(matrixType, None, Some(sampleIDs.length), dropSamples, false, vcfReader))
   }
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
