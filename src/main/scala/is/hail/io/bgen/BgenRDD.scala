@@ -45,8 +45,8 @@ private case class BgenSettings (
     (rowFields.fileRowIndex, "file_row_idx" -> TInt64()))
     .withFilter(_._1).map(_._2)
 
-  private[this] val typedEntryFields = entries match {
-    case NoEntries => Array()
+  private[this] val typedEntryFields: Array[(String, Type)] = entries match {
+    case NoEntries => Array.empty
     case EntriesWithFields(gt, gp, dosage) => Array(
       (gt, "GT" -> TCall()),
       (gp, "GP" -> +TArray(+TFloat64())),
