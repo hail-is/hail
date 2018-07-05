@@ -51,7 +51,7 @@ object BgenRDDPartitions extends Logging {
     } else {
       val metadata = nonEmptyFilesAfterFilter(0)
       val recordByteSizeEstimate =
-        (metadata.byteFileSize - metadata.dataByteOffset) / metadata.nVariants
+        (metadata.fileByteSize - metadata.dataStart) / metadata.nVariants
       val minBlockSize =
         hConf.getInt("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0)
       var minRecordsPerPartition =
@@ -107,7 +107,7 @@ object BgenRDDPartitions extends Logging {
                 file.compressed,
                 i * maxRecordsPerPartition,
                 startOffsets(i),
-                file.byteFileSize,
+                file.fileByteSize,
                 partitionIndex,
                 sHadoopConfBc
               )
