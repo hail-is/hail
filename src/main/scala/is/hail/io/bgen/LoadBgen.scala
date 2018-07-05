@@ -91,33 +91,17 @@ object LoadBgen {
       nSamples,
       nVariants,
       NoEntries,
-      Set(),
+      RowFields(false, false, false),
       rg,
       contigRecoding,
       skipInvalidLoci
     )
 
-    var includedEntryFields = Set[EntryField]()
-    if (includeGT)
-      includedEntryFields += GT
-    if (includeGP)
-      includedEntryFields += GP
-    if (includeDosage)
-      includedEntryFields += Dosage
-
-    var includedRowFields = Set[RowField]()
-    if (includeLid)
-      includedRowFields += VARID
-    if (includeRsid)
-      includedRowFields += RSID
-    if (includeFileRowIdx)
-      includedRowFields += FileRowIndex
-
     val recordsSettings = BgenSettings(
       nSamples,
       nVariants,
-      EntriesWithFields(includedEntryFields),
-      includedRowFields,
+      EntriesWithFields(includeGT, includeGP, includeDosage),
+      RowFields(includeLid, includeRsid, includeFileRowIdx),
       rg,
       contigRecoding,
       skipInvalidLoci

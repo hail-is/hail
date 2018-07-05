@@ -14,55 +14,45 @@ import is.hail.utils._
 
 import org.apache.hadoop.fs._
 
-sealed trait EntryField
-final case object GT extends EntryField
-final case object GP extends EntryField
-final case object Dosage extends EntryField
-
-sealed trait EntriesSetting {
-  def contains(f: EntryField): Boolean = this match {
-    case NoEntries => false
-    case EntriesWithFields(fields) => fields.contains(f)
-  }
-}
+sealed trait EntriesSetting
 final case object NoEntries extends EntriesSetting
-final case class EntriesWithFields(fields: Set[EntryField]) extends EntriesSetting
+final case class EntriesWithFields (
+  GT: Boolean,
+  GP: Boolean,
+  dosage: Boolean
+) extends EntriesSetting
 
-sealed trait RowField
-final case object VARID extends RowField
-final case object RSID extends RowField
-final case object FileRowIndex extends RowField
+sealed case class RowFields (
+  VARID: Boolean,
+  RSID: Boolean,
+  fileRowIndex: Boolean
+)
 
 private case class BgenSettings (
   nSamples: Int,
   nVariants: Int,
   entries: EntriesSetting,
-  rowFields: Set[RowField],
+  rowFields: RowFields,
   rg: Option[ReferenceGenome],
   private val userContigRecoding: Map[String, String],
   skipInvalidLoci: Boolean
 ) {
-  val includeVarid = rowFields contains VARID
-  val includeRsid = rowFields contains RSID
-  val includeFileRowIndex = rowFields contains FileRowIndex
-
-  val includeGT = entries contains GT
-  val includeGP = entries contains GP
-  val includeDosage = entries contains Dosage
-
   private[this] val typedRowFields = Array(
     (true, "locus" -> TLocus.schemaFromRG(rg)),
     (true, "alleles" -> TArray(TString())),
-    (includeRsid, "rsid" -> TString()),
-    (includeVarid, "varid" -> TString()),
-    (includeFileRowIndex, "file_row_idx" -> TInt64()))
+    (rowFields.RSID, "rsid" -> TString()),
+    (rowFields.VARID, "varid" -> TString()),
+    (rowFields.fileRowIndex, "file_row_idx" -> TInt64()))
     .withFilter(_._1).map(_._2)
 
-  private[this] val typedEntryFields = Array(
-    (includeGT, "GT" -> TCall()),
-    (includeGP, "GP" -> +TArray(+TFloat64())),
-    (includeDosage, "dosage" -> +TFloat64()))
-    .withFilter(_._1).map(_._2)
+  private[this] val typedEntryFields = entries match {
+    case NoEntries => Array()
+    case EntriesWithFields(gt, gp, dosage) => Array(
+      (gt, "GT" -> TCall()),
+      (gp, "GP" -> +TArray(+TFloat64())),
+      (dosage, "dosage" -> +TFloat64()))
+        .withFilter(_._1).map(_._2)
+  }
 
   val matrixType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
@@ -76,7 +66,7 @@ private case class BgenSettings (
   val typ: TStruct = entries match {
     case NoEntries =>
       matrixType.rowType
-    case EntriesWithFields(_) =>
+    case _: EntriesWithFields =>
       matrixType.rvRowType
   }
 
@@ -140,13 +130,13 @@ private class BgenRecordIterator(
   def next(): Option[RegionValue] = {
     val rowFieldIndex = p.advance(bfis)
 
-    val varid = if (settings.includeVarid) {
+    val varid = if (settings.rowFields.VARID) {
       bfis.readLengthAndString(2)
     } else {
       bfis.readLengthAndSkipString(2)
       null
     }
-    val rsid = if (settings.includeRsid) {
+    val rsid = if (settings.rowFields.RSID) {
       bfis.readLengthAndString(2)
     } else {
       bfis.readLengthAndSkipString(2)
@@ -187,11 +177,11 @@ private class BgenRecordIterator(
       }
       rvb.endArray()
 
-      if (settings.includeRsid)
+      if (settings.rowFields.RSID)
         rvb.addString(rsid)
-      if (settings.includeVarid)
+      if (settings.rowFields.VARID)
         rvb.addString(varid)
-      if (settings.includeFileRowIndex)
+      if (settings.rowFields.fileRowIndex)
         rvb.addLong(rowFieldIndex)
 
       val dataSize = bfis.readInt()
@@ -210,21 +200,18 @@ private class BgenRecordIterator(
       case NoEntries =>
         (rvb, dataSize, nAlleles, varid) => bfis.skipBytes(dataSize)
 
-      case EntriesWithFields(entryFields) if entryFields.isEmpty => { (rvb, dataSize, nAlleles, varid) =>
-        rvb.startArray(settings.nSamples)
-        assert(rvb.currentType().byteSize == 0)
-        rvb.unsafeAdvance(settings.nSamples)
-        rvb.endArray()
-        bfis.skipBytes(dataSize)
-      }
+      case EntriesWithFields(gt, gp, dosage)
+          if !(gt || gp || dosage) =>
+        { (rvb, dataSize, nAlleles, varid) =>
+          rvb.startArray(settings.nSamples)
+          assert(rvb.currentType().byteSize == 0)
+          rvb.unsafeAdvance(settings.nSamples)
+          rvb.endArray()
+          bfis.skipBytes(dataSize)
+        }
 
-      case EntriesWithFields(entryFields) => new Function4[RegionValueBuilder, Int, Int, String, Unit]() {
-        private[this] val nSamples = settings.nSamples
-        private[this] val includeGT = settings.includeGT
-        private[this] val includeGP = settings.includeGP
-        private[this] val includeDosage = settings.includeDosage
-
-        def apply(rvb: RegionValueBuilder, dataSize: Int, nAlleles: Int, varid: String): Unit = {
+      case EntriesWithFields(includeGT, includeGP, includeDosage) =>
+        { (rvb, dataSize, nAlleles, varid) =>
           val data = if (p.compressed) {
             val uncompressedSize = bfis.readInt()
             val input = bfis.readBytes(dataSize - 4)
@@ -274,29 +261,25 @@ private class BgenRecordIterator(
 
           val nGenotypes = triangle(nAlleles)
 
-          val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-          if (reader.length != nExpectedBytesProbs + nSamples + 10)
+          val nExpectedBytesProbs = (settings.nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
+          if (reader.length != nExpectedBytesProbs + settings.nSamples + 10)
             fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
                  |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
 
-          dotheArray(data)
-        }
-
-        private[this] def dotheArray(data: Array[Byte]) {
           val c0 = Call2.fromUnphasedDiploidGtIndex(0)
           val c1 = Call2.fromUnphasedDiploidGtIndex(1)
           val c2 = Call2.fromUnphasedDiploidGtIndex(2)
 
-          rvb.startArray(nSamples) // gs
-          var i = 0
-          while (i < nSamples) {
+          rvb.startArray(settings.nSamples) // gs
+          i = 0
+          while (i < settings.nSamples) {
             val sampleMissing = (data(8 + i) & 0x80) != 0
             if (sampleMissing)
               rvb.setMissing()
             else {
               rvb.startStruct() // g
 
-              val off = nSamples + 10 + 2 * i
+              val off = settings.nSamples + 10 + 2 * i
               val d0 = data(off) & 0xff
               val d1 = data(off + 1) & 0xff
               val d2 = 255 - d0 - d1
@@ -344,7 +327,6 @@ private class BgenRecordIterator(
           }
           rvb.endArray()
         }
-      }
     }
 
 
