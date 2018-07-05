@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.{TableAnnotationImpex, ir}
+import is.hail.expr.{Parser, TableAnnotationImpex, ir}
 import is.hail.io._
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -1473,5 +1473,59 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
     mv.copy(rvd = newRVD)
+  }
+}
+
+case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild) = newChildren
+    MatrixExplodeRows(newChild.asInstanceOf[MatrixIR], path)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount
+
+  private val rvRowType = child.typ.rvRowType
+  private val (keysType, querier) = rvRowType.queryTyped(path: _*)
+  private val keyType = keysType match {
+    case TArray(e, _) => e
+    case TSet(e, _) => e
+  }
+
+  private val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path.toList)
+
+  val typ: MatrixType = child.typ.copy(rvRowType = newRVType)
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val localEntriesIndex = child.typ.entriesIdx
+    val oldRVType = rvRowType
+
+    MatrixValue(typ,
+      prev.globals,
+      prev.colValues,
+      prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
+        val region2 = ctx.region
+        val rv2 = RegionValue(region2)
+        val rv2b = ctx.rvb
+        val ur = new UnsafeRow(oldRVType)
+        it.flatMap { rv =>
+          ur.set(rv)
+          val keys = querier(ur).asInstanceOf[Iterable[Any]]
+          if (keys == null)
+            None
+          else
+            keys.iterator.map { explodedElement =>
+              rv2b.start(newRVType)
+              inserter(rv.region, rv.offset, rv2b,
+                () => rv2b.addAnnotation(keyType, explodedElement))
+              rv2.setOffset(rv2b.end())
+              rv2
+            }
+        }
+      }))
   }
 }

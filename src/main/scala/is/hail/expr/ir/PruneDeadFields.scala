@@ -1,10 +1,23 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.AnnotationPathException
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
 
+import scala.util.{Failure, Success, Try}
+
 object PruneDeadFields {
+  def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {
+    if (index == path.length)
+      PruneDeadFields.minimal(t)
+    else
+      t match {
+        case ts: TStruct => TStruct(ts.required, path(index) -> subsetType(ts.field(path(index)).typ, path, index + 1))
+        case ta: TArray => TArray(subsetType(ta.elementType, path, index), ta.required)
+      }
+  }
+
   def isSupertype(superType: BaseType, subType: BaseType): Boolean = {
     try {
       (superType, subType) match {
@@ -376,6 +389,19 @@ object PruneDeadFields {
           colType = irDep.colType
         )
         memoizeMatrixIR(child, childDep, memo)
+      case MatrixExplodeRows(child, path) =>
+        val baseType = child.typ.rowType.queryTyped(path.toList)._1
+        val fieldDep = Try(requestedType.rowType.queryTyped(path.toList)._1) match {
+          case Success(t) => baseType match {
+            case ta: TArray => ta.copy(elementType = t)
+            case ts: TSet => ts.copy(elementType = t)
+          }
+          case Failure(_) => minimal(baseType)
+        }
+        val minChild = minimal(child.typ)
+        val dep = requestedType.copy(rvRowType = unify(child.typ.rvRowType,
+          requestedType.rvRowType.insert(fieldDep, path.toList)._1.asInstanceOf[TStruct]))
+        memoizeMatrixIR(child, dep, memo)
     }
   }
 

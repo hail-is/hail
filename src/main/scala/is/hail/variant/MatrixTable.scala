@@ -944,39 +944,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def explodeRows(root: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
-    val (keysType, querier) = rvRowType.queryTyped(path)
-    val keyType = keysType match {
-      case TArray(e, _) => e
-      case TSet(e, _) => e
-    }
-
-    val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path)
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val oldRVType = rvRowType
-
-    val localEntriesIndex = entriesIndex
-
-    val explodedRDD = rvd.boundary.mapPartitionsPreservesPartitioning(newMatrixType.orvdType, { (ctx, it) =>
-      val region2 = ctx.region
-      val rv2 = RegionValue(region2)
-      val rv2b = ctx.rvb
-      val ur = new UnsafeRow(oldRVType)
-      it.flatMap { rv =>
-        ur.set(rv)
-        val keys = querier(ur).asInstanceOf[Iterable[Any]]
-        if (keys == null)
-          None
-        else
-          keys.iterator.map { explodedElement =>
-            rv2b.start(newRVType)
-            inserter(rv.region, rv.offset, rv2b,
-              () => rv2b.addAnnotation(keyType, explodedElement))
-            rv2.setOffset(rv2b.end())
-            rv2
-          }
-      }
-    })
-    copyMT(matrixType = newMatrixType, rvd = explodedRDD)
+    copyAST(MatrixExplodeRows(ast, path.toFastIndexedSeq))
   }
 
   def explodeCols(code: String): MatrixTable = {

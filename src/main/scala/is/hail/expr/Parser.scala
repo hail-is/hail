@@ -809,5 +809,6 @@ object Parser extends JavaTokenParsers {
       "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
       "MatrixRead" ~> matrix_type_expr ~ int64_literals_opt ~ int32_literal_opt ~ boolean_literal ~ boolean_literal ~ matrix_reader ^^ { case typ ~ partCounts ~ colCount ~ dropCols ~ dropRows ~ reader =>
         ir.MatrixRead(typ, partCounts.map(_.toArray), colCount, dropCols, dropRows, reader)
-      }
+      } |
+      "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)}
 }
