@@ -120,6 +120,8 @@ private class BgenRDD(
     includedVariantsPerFile,
     settings)
 
+  log.info("partitions: " + parts.mkString("[[[","\n","]]]"))
+
   protected def getPartitions: Array[Partition] = parts
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
@@ -136,83 +138,26 @@ private class BgenRecordIterator(
   private[this] var read: Boolean = false
   private[this] val rv = RegionValue(ctx.region)
   private[this] val rvb = ctx.rvb
+  private[this] val loadGenotypes: (RegionValueBuilder, Int, Int, String) => Unit =
+    settings.entries match {
+      case NoEntries =>
+        (rvb, dataSize, nAlleles, varid) => bfis.skipBytes(dataSize)
 
-  def next(): Option[RegionValue] = {
-    val rowFieldIndex = p.advance(bfis)
-
-    val varid = if (settings.includeVarid) {
-      bfis.readLengthAndString(2)
-    } else {
-      bfis.readLengthAndSkipString(2)
-      null
-    }
-    val rsid = if (settings.includeRsid) {
-      bfis.readLengthAndString(2)
-    } else {
-      bfis.readLengthAndSkipString(2)
-      null
-    }
-    val contig = bfis.readLengthAndString(2)
-    val contigRecoded = settings.recodeContig(contig)
-    val position = bfis.readInt()
-    val isValidLocus =
-      settings.rg.forall(_.isValidLocus(contigRecoded, position))
-    if (settings.skipInvalidLoci && !isValidLocus) {
-      val nAlleles = bfis.readShort()
-      var i = 0
-      while (i < nAlleles) {
-        bfis.readLengthAndSkipString(4)
-        i += 1
+      case EntriesWithFields(entryFields) if entryFields.isEmpty => { (rvb, dataSize, nAlleles, varid) =>
+        rvb.startArray(settings.nSamples)
+        assert(rvb.currentType().byteSize == 0)
+        rvb.unsafeAdvance(settings.nSamples)
+        rvb.endArray()
+        bfis.skipBytes(dataSize)
       }
-      val dataSize = bfis.readInt()
-      bfis.skipBytes(dataSize)
-      None
-    } else if (!isValidLocus) {
-      // produces an appropriate error message
-      settings.rg.foreach(_.checkLocus(contigRecoded, position))
-      throw new IllegalStateException("unreachable")
-    } else {
-      rvb.start(settings.typ)
-      rvb.startStruct() // record
-      rvb.startStruct() // locus
-      rvb.addString(contigRecoded)
-      rvb.addInt(position)
-      rvb.endStruct()
 
-      val nAlleles = bfis.readShort()
-      if (nAlleles != 2)
-        fatal(s"Only biallelic variants supported, found variant with $nAlleles")
+      case EntriesWithFields(entryFields) => new Function4[RegionValueBuilder, Int, Int, String, Unit]() {
+        private[this] val nSamples = settings.nSamples
+        private[this] val includeGT = settings.includeGT
+        private[this] val includeGP = settings.includeGP
+        private[this] val includeDosage = settings.includeDosage
 
-      // alleles
-      rvb.startArray(nAlleles)
-      var i = 0
-      while (i < nAlleles) {
-        rvb.addString(bfis.readLengthAndString(4))
-        i += 1
-      }
-      rvb.endArray()
-
-      if (settings.includeRsid)
-        rvb.addString(rsid)
-      if (settings.includeVarid)
-        rvb.addString(varid)
-      if (settings.includeFileRowIndex)
-        rvb.addLong(rowFieldIndex)
-
-      val dataSize = bfis.readInt()
-
-      settings.entries match {
-        case NoEntries =>
-          bfis.skipBytes(dataSize)
-
-        case EntriesWithFields(entryFields) if entryFields.isEmpty =>
-          rvb.startArray(settings.nSamples)
-          assert(rvb.currentType().byteSize == 0)
-          rvb.unsafeAdvance(settings.nSamples)
-          rvb.endArray()
-          bfis.skipBytes(dataSize)
-
-        case EntriesWithFields(entryFields) =>
+        def apply(rvb: RegionValueBuilder, dataSize: Int, nAlleles: Int, varid: String): Unit = {
           val data = if (p.compressed) {
             val uncompressedSize = bfis.readInt()
             val input = bfis.readBytes(dataSize - 4)
@@ -262,30 +207,34 @@ private class BgenRecordIterator(
 
           val nGenotypes = triangle(nAlleles)
 
-          val nExpectedBytesProbs = (settings.nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
-          if (reader.length != nExpectedBytesProbs + settings.nSamples + 10)
+          val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
+          if (reader.length != nExpectedBytesProbs + nSamples + 10)
             fatal(s"""Number of uncompressed bytes `${ reader.length }' does not
                  |match the expected size `$nExpectedBytesProbs'.""".stripMargin)
 
+          dotheArray(data)
+        }
+
+        private[this] def dotheArray(data: Array[Byte]) {
           val c0 = Call2.fromUnphasedDiploidGtIndex(0)
           val c1 = Call2.fromUnphasedDiploidGtIndex(1)
           val c2 = Call2.fromUnphasedDiploidGtIndex(2)
 
-          rvb.startArray(settings.nSamples) // gs
-          i = 0
-          while (i < settings.nSamples) {
+          rvb.startArray(nSamples) // gs
+          var i = 0
+          while (i < nSamples) {
             val sampleMissing = (data(8 + i) & 0x80) != 0
             if (sampleMissing)
               rvb.setMissing()
             else {
               rvb.startStruct() // g
 
-              val off = settings.nSamples + 10 + 2 * i
+              val off = nSamples + 10 + 2 * i
               val d0 = data(off) & 0xff
               val d1 = data(off + 1) & 0xff
               val d2 = 255 - d0 - d1
 
-              if (settings.includeGT) {
+              if (includeGT) {
                 if (d0 > d1) {
                   if (d0 > d2)
                     rvb.addInt(c0)
@@ -309,7 +258,7 @@ private class BgenRecordIterator(
                 }
               }
 
-              if (settings.includeGP) {
+              if (includeGP) {
                 rvb.startArray(3) // GP
                 rvb.addDouble(d0 / 255.0)
                 rvb.addDouble(d1 / 255.0)
@@ -317,7 +266,7 @@ private class BgenRecordIterator(
                 rvb.endArray()
               }
 
-              if (settings.includeDosage) {
+              if (includeDosage) {
                 val dosage = (d1 + (d2 << 1)) / 255.0
                 rvb.addDouble(dosage)
               }
@@ -327,7 +276,70 @@ private class BgenRecordIterator(
             i += 1
           }
           rvb.endArray()
+        }
       }
+    }
+
+  def next(): Option[RegionValue] = {
+    val rowFieldIndex = p.advance(bfis)
+
+    val varid = if (settings.includeVarid) {
+      bfis.readLengthAndString(2)
+    } else {
+      bfis.readLengthAndSkipString(2)
+      null
+    }
+    val rsid = if (settings.includeRsid) {
+      bfis.readLengthAndString(2)
+    } else {
+      bfis.readLengthAndSkipString(2)
+      null
+    }
+    val contig = bfis.readLengthAndString(2)
+    val contigRecoded = settings.recodeContig(contig)
+    val position = bfis.readInt()
+    if (settings.skipInvalidLoci && !settings.rg.forall(_.isValidLocus(contigRecoded, position))) {
+      val nAlleles = bfis.readShort()
+      var i = 0
+      while (i < nAlleles) {
+        bfis.readLengthAndSkipString(4)
+        i += 1
+      }
+      val dataSize = bfis.readInt()
+      bfis.skipBytes(dataSize)
+      None
+    } else {
+      rvb.start(settings.typ)
+      rvb.startStruct() // record
+      rvb.startStruct() // locus
+      settings.rg.foreach(_.checkLocus(contigRecoded, position))
+      rvb.addString(contigRecoded)
+      rvb.addInt(position)
+      rvb.endStruct()
+
+      val nAlleles = bfis.readShort()
+      if (nAlleles != 2)
+        fatal(s"Only biallelic variants supported, found variant with $nAlleles")
+
+      // alleles
+      rvb.startArray(nAlleles)
+      var i = 0
+      while (i < nAlleles) {
+        rvb.addString(bfis.readLengthAndString(4))
+        i += 1
+      }
+      rvb.endArray()
+
+      if (settings.includeRsid)
+        rvb.addString(rsid)
+      if (settings.includeVarid)
+        rvb.addString(varid)
+      if (settings.includeFileRowIndex)
+        rvb.addLong(rowFieldIndex)
+
+      val dataSize = bfis.readInt()
+
+      loadGenotypes(rvb, dataSize, nAlleles, varid)
 
       rvb.endStruct()
       rv.setOffset(rvb.end())
@@ -335,6 +347,7 @@ private class BgenRecordIterator(
       Some(rv)
     }
   }
+
   def hasNext(): Boolean =
     p.hasNext(bfis)
 }
