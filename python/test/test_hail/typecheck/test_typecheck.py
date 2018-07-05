@@ -1,8 +1,9 @@
 import unittest
+
 from hail.typecheck.check import *
 
 
-class TypeCheckTests(unittest.TestCase):
+class Tests(unittest.TestCase):
     def test_varargs(self):
         @typecheck(x=int, y=int)
         def f1(x, y):
@@ -102,7 +103,6 @@ class TypeCheckTests(unittest.TestCase):
         good_signature_6(7, "hello", [])
         self.assertRaises(TypeError, lambda: good_signature_6(1, "2", ("3", 4, 5)))
         self.assertRaises(TypeError, lambda: good_signature_6(7, "hello", [(9, 5.6, 10), (4, "hello", 1)], 1, 2, 3))
-        
 
     def test_helpers(self):
         # check nullable
@@ -203,7 +203,6 @@ class TypeCheckTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: f.d(2, 2, z='2'))
 
     def test_lazy(self):
-
         foo_type = lazy()
 
         class Foo:
@@ -225,7 +224,6 @@ class TypeCheckTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: foo.bar(2))
 
     def test_coercion(self):
-
         @typecheck(a=transformed((int, lambda x: 'int'),
                                  (str, lambda x: 'str')),
                    b=sequenceof(dictof(str, transformed((int, lambda x: 'int'),
@@ -246,9 +244,7 @@ class TypeCheckTests(unittest.TestCase):
         self.assertEqual(a, 'int')
         self.assertEqual(b, [{'5': 'int', '6': 'str'}, {'10': 'int'}])
 
-
     def test_function_checker(self):
-
         @typecheck(f=func_spec(3, int))
         def foo(f):
             return f(1, 2, 3)
@@ -262,10 +258,10 @@ class TypeCheckTests(unittest.TestCase):
         foo(l3)
 
     def test_complex_signature(self):
-
         @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
         def f(a, b='5', c=[10], *d, **e):
             pass
+
         f(1, 'a', )
         f(1, foo={})
         f(1, 'a', foo={})
@@ -274,10 +270,10 @@ class TypeCheckTests(unittest.TestCase):
             f(1, '2', a=2)
 
     def test_extra_args(self):
-
         @typecheck(x=int)
         def f(x):
             pass
+
         f(1)
         with self.assertRaises(TypeError):
-            f(1,2)
+            f(1, 2)

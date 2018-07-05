@@ -1,6 +1,6 @@
 import hail as hl
 import unittest
-from .utils import doctest_resource, startTestHailContext, stopTestHailContext
+from ..helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext

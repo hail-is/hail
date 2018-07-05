@@ -1,29 +1,23 @@
 import unittest
+from math import sqrt
+from struct import unpack
+from subprocess import DEVNULL, call as syscall
+
+import numpy as np
 
 import hail as hl
 import hail.expr.aggregators as agg
-from subprocess import DEVNULL, call as syscall
-import numpy as np
-from struct import unpack
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from math import sqrt
-from .utils import resource, doctest_resource, startTestHailContext, stopTestHailContext
+from ..helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    _dataset = None
-
-    def get_dataset(self):
-        if Tests._dataset is None:
-            Tests._dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        return Tests._dataset
-
     def test_ibd(self):
-        dataset = self.get_dataset()
+        dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
             vcf = utils.new_temp_file(prefix="plink", suffix="vcf")
@@ -120,7 +114,7 @@ class Tests(unittest.TestCase):
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
-        mt = mt.annotate_entries(x = mt.GT.n_alt_alleles()).cache()
+        mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
         t1 = hl.linear_regression(
             y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[mt.cov.Cov1, mt.cov.Cov2 + 1 - 1]).rows()
@@ -594,7 +588,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[16060511].firth.beta, -0.097079, places=4)
         self.assertAlmostEqual(results[16060511].firth.p_value, 0.26593, places=4)
 
-
         self.assertAlmostEqual(results[16115878].wald.beta, -0.052632, places=4)
         self.assertAlmostEqual(results[16115878].wald.standard_error, 0.11272, places=4)
         self.assertAlmostEqual(results[16115878].wald.z_stat, -0.46691, places=4)
@@ -630,140 +623,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[16117953].score.p_value, 0.21849, places=4)
         self.assertAlmostEqual(results[16117953].firth.beta, 0.5258, places=4)
         self.assertAlmostEqual(results[16117953].firth.p_value, 0.22562, places=4)
-
-    def test_trio_matrix(self):
-        """
-        This test depends on certain properties of the trio matrix VCF and
-        pedigree structure. This test is NOT a valid test if the pedigree
-        includes quads: the trio_matrix method will duplicate the parents
-        appropriately, but the genotypes_table and samples_table orthogonal
-        paths would require another duplication/explode that we haven't written.
-        """
-        ped = hl.Pedigree.read(resource('triomatrix.fam'))
-        ht = hl.import_fam(resource('triomatrix.fam'))
-
-        mt = hl.import_vcf(resource('triomatrix.vcf'))
-        mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
-
-        dads = ht.filter(hl.is_defined(ht.pat_id))
-        dads = dads.select(dads.pat_id, is_dad=True).key_by('pat_id')
-
-        moms = ht.filter(hl.is_defined(ht.mat_id))
-        moms = moms.select(moms.mat_id, is_mom=True).key_by('mat_id')
-
-        et = (mt.entries()
-              .key_by('s')
-              .join(dads, how='left')
-              .join(moms, how='left'))
-        et = et.annotate(is_dad=hl.is_defined(et.is_dad),
-                         is_mom=hl.is_defined(et.is_mom))
-
-        et = (et
-            .group_by(et.locus, et.alleles, fam=et.fam)
-            .aggregate(data=hl.agg.collect(hl.struct(
-            role=hl.case().when(et.is_dad, 1).when(et.is_mom, 2).default(0),
-            g=hl.struct(GT=et.GT, AD=et.AD, DP=et.DP, GQ=et.GQ, PL=et.PL)))))
-
-        et = et.filter(hl.len(et.data) == 3)
-        et = et.select('data').explode('data')
-
-        tt = hl.trio_matrix(mt, ped, complete_trios=True).entries().key_by('locus', 'alleles')
-        tt = tt.annotate(fam=tt.proband.fam,
-                         data=[hl.struct(role=0, g=tt.proband_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
-                               hl.struct(role=1, g=tt.father_entry.select('GT', 'AD', 'DP', 'GQ', 'PL')),
-                               hl.struct(role=2, g=tt.mother_entry.select('GT', 'AD', 'DP', 'GQ', 'PL'))])
-        tt = tt.select('fam', 'data').explode('data')
-        tt = tt.filter(hl.is_defined(tt.data.g)).key_by('locus', 'alleles', 'fam')
-
-        self.assertEqual(et.key.dtype, tt.key.dtype)
-        self.assertEqual(et.row.dtype, tt.row.dtype)
-        self.assertTrue(et._same(tt))
-
-        # test annotations
-        e_cols = (mt.cols()
-            .join(dads, how='left')
-            .join(moms, how='left'))
-        e_cols = e_cols.annotate(is_dad=hl.is_defined(e_cols.is_dad),
-                                 is_mom=hl.is_defined(e_cols.is_mom))
-        e_cols = (e_cols.group_by(fam=e_cols.fam)
-            .aggregate(data=hl.agg.collect(hl.struct(role=hl.case()
-                                                     .when(e_cols.is_dad, 1).when(e_cols.is_mom, 2).default(0),
-                                                     sa=hl.struct(**e_cols.row.select(*mt.col))))))
-        e_cols = e_cols.filter(hl.len(e_cols.data) == 3).select('data').explode('data')
-
-        t_cols = hl.trio_matrix(mt, ped, complete_trios=True).cols()
-        t_cols = t_cols.annotate(fam=t_cols.proband.fam,
-                                 data=[
-                                     hl.struct(role=0, sa=t_cols.proband),
-                                     hl.struct(role=1, sa=t_cols.father),
-                                     hl.struct(role=2, sa=t_cols.mother)]).key_by('fam').select('data').explode('data')
-        t_cols = t_cols.filter(hl.is_defined(t_cols.data.sa))
-
-        self.assertEqual(e_cols.key.dtype, t_cols.key.dtype)
-        self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
-        self.assertTrue(e_cols._same(t_cols))
-
-    def test_sample_qc(self):
-        dataset = self.get_dataset()
-        dataset = hl.sample_qc(dataset)
-
-    def test_variant_qc(self):
-        data = [
-            {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
-            {'v': '1:1:A:T', 's': '2', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
-            {'v': '1:1:A:T', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 11, 'DP': 100},
-            {'v': '1:1:A:T', 's': '4', 'GT': None, 'GQ': None, 'DP': 100},
-            {'v': '1:2:A:T,C', 's': '1', 'GT': hl.Call([1, 2]), 'GQ': 10, 'DP': 5},
-            {'v': '1:2:A:T,C', 's': '2', 'GT': hl.Call([2, 2]), 'GQ': 10, 'DP': 5},
-            {'v': '1:2:A:T,C', 's': '3', 'GT': hl.Call([0, 1]), 'GQ': 10, 'DP': 5},
-            {'v': '1:2:A:T,C', 's': '4', 'GT': hl.Call([1, 1]), 'GQ': 10, 'DP': 5},
-        ]
-
-        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
-        ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
-        mt = hl.variant_qc(mt, 'vqc')
-        r = mt.rows().collect()
-
-        self.assertEqual(r[0].vqc.AF, [0.5, 0.5])
-        self.assertEqual(r[0].vqc.AC, [3, 3])
-        self.assertEqual(r[0].vqc.AN, 6)
-        self.assertEqual(r[0].vqc.homozygote_count, [1, 1])
-        self.assertEqual(r[0].vqc.n_called, 3)
-        self.assertEqual(r[0].vqc.n_not_called, 1)
-        self.assertEqual(r[0].vqc.call_rate, 0.75)
-        self.assertEqual(r[0].vqc.n_het, 1)
-        self.assertEqual(r[0].vqc.n_non_ref, 2)
-        self.assertEqual(r[0].vqc.r_expected_het_freq, 0.6)
-        self.assertEqual(r[0].vqc.p_hwe, 0.7)
-        self.assertEqual(r[0].vqc.dp_stats.min, 0)
-        self.assertEqual(r[0].vqc.dp_stats.max, 100)
-        self.assertEqual(r[0].vqc.dp_stats.mean, 51.25)
-        self.assertAlmostEqual(r[0].vqc.dp_stats.stdev, 48.782040752719645)
-        self.assertEqual(r[0].vqc.gq_stats.min, 10)
-        self.assertEqual(r[0].vqc.gq_stats.max, 11)
-        self.assertAlmostEqual(r[0].vqc.gq_stats.mean, 10.333333333333334)
-        self.assertAlmostEqual(r[0].vqc.gq_stats.stdev, 0.47140452079103168)
-
-        self.assertEqual(r[1].vqc.AF, [0.125, 0.5, 0.375])
-        self.assertEqual(r[1].vqc.AC, [1, 4, 3])
-        self.assertEqual(r[1].vqc.AN, 8)
-        self.assertEqual(r[1].vqc.homozygote_count, [0, 1, 1])
-        self.assertEqual(r[1].vqc.n_called, 4)
-        self.assertEqual(r[1].vqc.n_not_called, 0)
-        self.assertEqual(r[1].vqc.call_rate, 1.0)
-        self.assertEqual(r[1].vqc.n_het, 2)
-        self.assertEqual(r[1].vqc.n_non_ref, 4)
-        self.assertEqual(r[1].vqc.p_hwe, None)
-        self.assertEqual(r[1].vqc.r_expected_het_freq, None)
-        self.assertEqual(r[1].vqc.dp_stats.min, 5)
-        self.assertEqual(r[1].vqc.dp_stats.max, 5)
-        self.assertEqual(r[1].vqc.dp_stats.mean, 5)
-        self.assertEqual(r[1].vqc.dp_stats.stdev, 0.0)
-        self.assertEqual(r[1].vqc.gq_stats.min, 10)
-        self.assertEqual(r[1].vqc.gq_stats.max, 10)
-        self.assertEqual(r[1].vqc.gq_stats.mean, 10)
-        self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
     def test_grm(self):
         tolerance = 0.001
@@ -819,7 +678,7 @@ class Tests(unittest.TestCase):
         grm_bin_file = utils.new_temp_file(prefix="test", suffix="grm.bin")
         grm_nbin_file = utils.new_temp_file(prefix="test", suffix="grm.N.bin")
 
-        dataset = self.get_dataset()
+        dataset = get_dataset()
         n_samples = dataset.count_cols()
         dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
                                         n_called=agg.count_where(hl.is_defined(dataset.GT)))
@@ -902,7 +761,7 @@ class Tests(unittest.TestCase):
                                            fst=(k * [fst]),
                                            seed=seed,
                                            n_partitions=4)
-        dataset = dataset.annotate_cols(s = hl.str(dataset.sample_idx)).key_cols_by('s')
+        dataset = dataset.annotate_cols(s=hl.str(dataset.sample_idx)).key_cols_by('s')
 
         def direct_calculation(ds):
             ds = BlockMatrix.from_entry_expr(ds['GT'].n_alt_alleles()).to_numpy()
@@ -959,8 +818,8 @@ class Tests(unittest.TestCase):
     def test_pca_against_numpy(self):
         mt = hl.import_vcf(resource('tiny_m.vcf'))
         mt = mt.filter_rows(hl.len(mt.alleles) == 2)
-        mt = mt.annotate_rows(AC = hl.agg.sum(mt.GT.n_alt_alleles()),
-                              n_called = hl.agg.count_where(hl.is_defined(mt.GT)))
+        mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
+                              n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
         mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
         n_rows = mt.count_rows()
 
@@ -968,7 +827,8 @@ class Tests(unittest.TestCase):
             return hl.cond(hl.is_defined(mt.GT),
                            (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
                            0)
-        eigen, scores, loadings= hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
+
+        eigen, scores, loadings = hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
         hail_scores = scores.explode('scores').scores.collect()
         hail_loadings = loadings.explode('loadings').loadings.collect()
 
@@ -978,8 +838,8 @@ class Tests(unittest.TestCase):
 
         # compute PCA with numpy
         def normalize(a):
-            ms = np.mean(a, axis = 0, keepdims = True)
-            return np.divide(np.subtract(a, ms), np.sqrt(2.0*np.multiply(ms/2.0, 1-ms/2.0)*a.shape[1]))
+            ms = np.mean(a, axis=0, keepdims=True)
+            return np.divide(np.subtract(a, ms), np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]))
 
         g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
         g[1, 0] = 1.0 / 3
@@ -987,8 +847,7 @@ class Tests(unittest.TestCase):
         U, s, V = np.linalg.svd(n, full_matrices=0)
         np_scores = U.dot(np.diag(s)).flatten()
         np_loadings = V.transpose().flatten()
-        np_eigenvalues = np.multiply(s,s).flatten()
-
+        np_eigenvalues = np.multiply(s, s).flatten()
 
         def check(hail_array, np_array):
             self.assertEqual(len(hail_array), len(np_array))
@@ -996,6 +855,7 @@ class Tests(unittest.TestCase):
                 self.assertAlmostEqual(abs(left), abs(right),
                                        msg=f'mismatch at index {i}: hl={left}, np={right}',
                                        places=4)
+
         check(eigen, np_eigenvalues)
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
@@ -1071,11 +931,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin3.count() > 0)
         self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
 
-    def test_rename_duplicates(self):
-        dataset = self.get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols().select().collect()
-        self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
-
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
@@ -1084,266 +939,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
-
-    def test_mendel_errors(self):
-        mt = hl.import_vcf(resource('mendel.vcf'))
-        ped = hl.Pedigree.read(resource('mendel.fam'))
-
-        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
-
-        self.assertEqual(men.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr))
-        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   mendel_code=hl.tint))
-        self.assertEqual(fam.key.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr))
-        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   children=hl.tint,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(ind.key.dtype, hl.tstruct(s=hl.tstr))
-        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(var.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr)))
-        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   errors=hl.tint64))
-
-        self.assertEqual(men.count(), 41)
-        self.assertEqual(fam.count(), 2)
-        self.assertEqual(ind.count(), 7)
-        self.assertEqual(var.count(), mt.count_rows())
-
-        self.assertEqual(set(fam.select('errors', 'snp_errors').collect()),
-                         {
-                             hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', errors=41, snp_errors=39),
-                             hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', errors=0, snp_errors=0)
-                         })
-
-        self.assertEqual(set(ind.select('errors', 'snp_errors').collect()),
-                         {
-                             hl.utils.Struct(s='Son1', errors=23, snp_errors=22),
-                             hl.utils.Struct(s='Dtr1', errors=18, snp_errors=17),
-                             hl.utils.Struct(s='Dad1', errors=19, snp_errors=18),
-                             hl.utils.Struct(s='Mom1', errors=22, snp_errors=21),
-                             hl.utils.Struct(s='Dad2', errors=0, snp_errors=0),
-                             hl.utils.Struct(s='Mom2', errors=0, snp_errors=0),
-                             hl.utils.Struct(s='Son2', errors=0, snp_errors=0)
-                         })
-
-        to_keep = hl.set([
-            (hl.Locus("1", 1), ['C', 'CT']),
-            (hl.Locus("1", 2), ['C', 'T']),
-            (hl.Locus("X", 1), ['C', 'T']),
-            (hl.Locus("X", 3), ['C', 'T']),
-            (hl.Locus("Y", 1), ['C', 'T']),
-            (hl.Locus("Y", 3), ['C', 'T'])
-        ])
-        self.assertEqual(var.filter(to_keep.contains((var.locus, var.alleles)))
-                         .order_by('locus')
-                         .select('errors').collect(),
-                         [
-                             hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
-                             hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("X", 1), alleles=['C', 'T'], errors=2),
-                             hl.utils.Struct(locus=hl.Locus("X", 3), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("Y", 1), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("Y", 3), alleles=['C', 'T'], errors=1),
-                         ])
-
-        ped2 = hl.Pedigree.read(resource('mendelWithMissingSex.fam'))
-        men2, _, _, _ = hl.mendel_errors(mt['GT'], ped2)
-
-        self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
-
-    def test_concordance(self):
-        dataset = self.get_dataset()
-        glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
-
-        self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
-
-        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
-                                                     n_hom_ref=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
-                                                     n_hom_var=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
-                                                     nNoCall=agg.count(
-                                                         agg.filter(hl.is_missing(dataset.GT), dataset.GT))))
-
-        self.assertEqual(glob_conc[0][0], 0)
-        self.assertEqual(glob_conc[1][1], counts.nNoCall)
-        self.assertEqual(glob_conc[2][2], counts.n_hom_ref)
-        self.assertEqual(glob_conc[3][3], counts.n_het)
-        self.assertEqual(glob_conc[4][4], counts.n_hom_var)
-        [self.assertEqual(glob_conc[i][j], 0) for i in range(5) for j in range(5) if i != j]
-
-        self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))
-        self.assertTrue(rows_conc.all(hl.sum(hl.flatten(rows_conc.concordance)) == dataset.count_cols()))
-
-        cols_conc.write('/tmp/foo.kt', overwrite=True)
-        rows_conc.write('/tmp/foo.kt', overwrite=True)
-
-    def test_annotate_intervals(self):
-        ds = self.get_dataset()
-
-        bed1 = hl.import_bed(resource('example1.bed'), reference_genome='GRCh37')
-        bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
-        bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
-        self.assertTrue(list(bed2.key.dtype) == ['interval'])
-        self.assertTrue(list(bed2.row.dtype) == ['interval','target'])
-
-        interval_list1 = hl.import_locus_intervals(resource('exampleAnnotation1.interval_list'))
-        interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
-        self.assertTrue(list(interval_list2.key.dtype) == ['interval'])
-        self.assertTrue(list(interval_list2.row.dtype) == ['interval', 'target'])
-
-        ann = ds.annotate_rows(in_interval = bed1[ds.locus]).rows()
-        self.assertTrue(ann.all((ann.locus.position <= 14000000) |
-                                (ann.locus.position >= 17000000) |
-                                (hl.is_missing(ann.in_interval))))
-
-        for bed in [bed2, bed3]:
-            ann = ds.annotate_rows(target = bed[ds.locus].target).rows()
-            expr = (hl.case()
-                    .when(ann.locus.position <= 14000000, ann.target == 'gene1')
-                    .when(ann.locus.position >= 17000000, ann.target == 'gene2')
-                    .default(ann.target == hl.null(hl.tstr)))
-            self.assertTrue(ann.all(expr))
-
-        self.assertTrue(ds.annotate_rows(in_interval = interval_list1[ds.locus]).rows()
-                        ._same(ds.annotate_rows(in_interval = bed1[ds.locus]).rows()))
-
-        self.assertTrue(ds.annotate_rows(target = interval_list2[ds.locus].target).rows()
-                        ._same(ds.annotate_rows(target = bed2[ds.locus].target).rows()))
-
-    def test_tdt(self):
-        pedigree = hl.Pedigree.read(resource('tdt.fam'))
-        tdt_tab = (hl.transmission_disequilibrium_test(
-            hl.split_multi_hts(hl.import_vcf(resource('tdt.vcf'), min_partitions=4)),
-            pedigree))
-
-        truth = hl.import_table(
-            resource('tdt_results.tsv'),
-            types={'POSITION': hl.tint32, 'T': hl.tint32, 'U': hl.tint32,
-                   'Chi2': hl.tfloat64, 'Pval': hl.tfloat64})
-        truth = (truth
-            .transmute(locus=hl.locus(truth.CHROM, truth.POSITION),
-                       alleles=[truth.REF, truth.ALT])
-            .key_by('locus', 'alleles'))
-
-        if tdt_tab.count() != truth.count():
-            self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
-
-        bad = (tdt_tab.filter(hl.is_nan(tdt_tab.p_value), keep=False)
-            .join(truth.filter(hl.is_nan(truth.Pval), keep=False), how='outer'))
-        bad.describe()
-
-        bad = bad.filter(~(
-                (bad.t == bad.T) &
-                (bad.u == bad.U) &
-                (hl.abs(bad.chi2 - bad.Chi2) < 0.001) &
-                (hl.abs(bad.p_value - bad.Pval) < 0.001)))
-
-        if bad.count() != 0:
-            bad.order_by(hl.asc(bad.v)).show()
-            self.fail('Found rows in violation of the predicate (see show output)')
-
-    def test_maximal_independent_set(self):
-        # prefer to remove nodes with higher index
-        t = hl.utils.range_table(10)
-        graph = t.select(i=hl.int64(t.idx), j=hl.int64(t.idx + 10), bad_type=hl.float32(t.idx))
-
-        mis_table = hl.maximal_independent_set(graph.i, graph.j, True, lambda l, r: l - r)
-        mis = [row['node'] for row in mis_table.collect()]
-        self.assertEqual(sorted(mis), list(range(0, 10)))
-        self.assertEqual(mis_table.row.dtype, hl.tstruct(node=hl.tint64))
-        self.assertEqual(mis_table.key.dtype, hl.tstruct(node=hl.tint64))
-
-        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, graph.bad_type, True))
-        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
-        self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
-
-    def test_maximal_independent_set2(self):
-        edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
-                 (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
-        edges = [{"i": l, "j": r} for l, r in edges]
-
-        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tint64, j=hl.tint64))
-        mis_t = hl.maximal_independent_set(t.i, t.j)
-        self.assertTrue(mis_t.row.dtype == hl.tstruct(node=hl.tint64) and
-                        mis_t.globals.dtype == hl.tstruct())
-
-        mis = set([row.node for row in mis_t.collect()])
-        maximal_indep_sets = [{0, 6, 5, 3}, {1, 4, 7, 2}]
-        non_maximal_indep_sets = [{0, 7}, {6, 1}]
-        self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
-
-    def test_maximal_independent_set3(self):
-        is_case = {"A", "C", "E", "G", "H"}
-        edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
-        edges = [{"i": {"id": l, "is_case": l in is_case},
-                  "j": {"id": r, "is_case": r in is_case}} for l, r in edges]
-
-        t = hl.Table.parallelize(edges, hl.tstruct(i=hl.tstruct(id=hl.tstr, is_case=hl.tbool),
-                                                   j=hl.tstruct(id=hl.tstr, is_case=hl.tbool)))
-
-        tiebreaker = lambda l, r: (hl.case()
-                                   .when(l.is_case & (~r.is_case), -1)
-                                   .when(~(l.is_case) & r.is_case, 1)
-                                   .default(0))
-
-        mis = hl.maximal_independent_set(t.i, t.j, tie_breaker=tiebreaker)
-
-        expected_sets = [{"A", "C", "E", "G"}, {"A", "C", "E", "H"}]
-
-        self.assertTrue(mis.all(mis.node.is_case))
-        self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
-
-    def test_filter_alleles(self):
-        # poor man's Gen
-        paths = [resource('sample.vcf'),
-                 resource('multipleChromosomes.vcf'),
-                 resource('sample2.vcf')]
-        for path in paths:
-            ds = hl.import_vcf(path)
-            self.assertEqual(
-                hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
-            self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
-
-    def test_filter_alleles_hts(self):
-        # 1 variant: A:T,G
-        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
-
-        self.assertTrue(
-            hl.filter_alleles_hts(ds, lambda a, i: a == 'T', subset=True)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))))
-
-        self.assertTrue(
-            hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=True)
-            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-            ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
-        )
-
-        self.assertTrue(
-            hl.filter_alleles_hts(ds, lambda a, i: a != 'G', subset=False)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
-        )
-
-        (hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)).old_to_new.show()
-        self.assertTrue(
-            hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
-        )
 
     def test_ld_prune(self):
         ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
@@ -1410,57 +1005,9 @@ class Tests(unittest.TestCase):
 
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
-        ds_duplicate = ds.annotate_rows(duplicate = [1,2]).explode_rows('duplicate')
+        ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
         pruned_table = hl.ld_prune(ds_duplicate.GT)
         self.assertEqual(pruned_table.count(), 1)
-
-    def test_entries(self):
-        n_rows, n_cols = 5, 3
-        rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
-        schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
-        table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
-        table = table.annotate(i=hl.int64(table.i),
-                               j=hl.int64(table.j)).key_by('i', 'j')
-
-        ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
-
-        for block_size in [1, 2, 1024]:
-            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
-            entries_table = block_matrix.entries()
-            self.assertEqual(entries_table.count(), n_cols * n_rows)
-            self.assertEqual(len(entries_table.row), 3)
-            self.assertTrue(table._same(entries_table))
-
-    def test_filter_intervals(self):
-        ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
-
-        self.assertEqual(
-            hl.filter_intervals(ds, [hl.parse_locus_interval('20:10639222-10644705')]).count_rows(), 3)
-
-        intervals = [hl.parse_locus_interval('20:10639222-10644700'),
-                     hl.parse_locus_interval('20:10644700-10644705')]
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700'),
-                              hl.parse_locus_interval('20:10644700-10644705')])
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').value,
-                              hl.parse_locus_interval('20:10644700-10644705')])
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
-
-        intervals = [hl.parse_locus_interval('[20:10019093-10026348]').value,
-                     hl.parse_locus_interval('[20:17705793-17716416]').value]
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
-
-    def test_filter_intervals_compound_partition_key(self):
-        ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
-        ds = (ds.annotate_rows(variant=hl.struct(locus=ds.locus, alleles=ds.alleles))
-              .key_rows_by('locus', 'alleles'))
-
-        intervals = [hl.Interval(hl.Struct(locus=hl.Locus('20', 10639222), alleles=['A', 'T']),
-                                 hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
-        self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
     def test_balding_nichols_model(self):
         from hail.stats import TruncatedBetaDist
@@ -1489,19 +1036,19 @@ class Tests(unittest.TestCase):
         ds2 = hl.import_vcf(resource('sample2.vcf'))
 
         covariates = (hl.import_table(resource("skat.cov"), impute=True)
-            .key_by("Sample"))
+                      .key_by("Sample"))
 
         phenotypes = (hl.import_table(resource("skat.pheno"),
-                                          types={"Pheno": hl.tfloat64},
-                                          missing="0")
-            .key_by("Sample"))
+                                      types={"Pheno": hl.tfloat64},
+                                      missing="0")
+                      .key_by("Sample"))
 
         intervals = (hl.import_locus_intervals(resource("skat.interval_list")))
 
         weights = (hl.import_table(resource("skat.weights"),
-                                       types={"locus": hl.tlocus(),
-                                              "weight": hl.tfloat64})
-            .key_by("locus"))
+                                   types={"locus": hl.tlocus(),
+                                          "weight": hl.tfloat64})
+                   .key_by("locus"))
 
         ds = hl.split_multi_hts(ds2)
         ds = ds.annotate_rows(gene=intervals[ds.locus],
@@ -1572,15 +1119,3 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
-
-    def test_summarize_variants(self):
-        mt = hl.utils.range_matrix_table(3, 3)
-        variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
-                               1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
-                               2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT'])})
-        mt = mt.annotate_rows(**variants[mt.row_idx]).partition_rows_by('locus', 'locus', 'alleles')
-        r = hl.summarize_variants(mt, show=False)
-        self.assertEqual(r.n_variants, 3)
-        self.assertEqual(r.contigs, {'1': 1, '2': 2})
-        self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
-        self.assertEqual(r.allele_counts, {2: 1, 3: 2})

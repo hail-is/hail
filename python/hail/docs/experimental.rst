@@ -14,7 +14,7 @@ experimental module are loose and subject to change:
    `NumPy style docstrings <http://www.sphinx-doc.org/en/stable/ext/example_numpy.html#example-numpy>`__.
 2. Tests are not required, but are encouraged. If you do include tests, they must
    run in no more than a few seconds. Place tests as a class method on ``Tests`` in
-   ``python/hail/tests/test_experimental.py``
+   ``python/tests/experimental/test_experimental.py``
 3. Code style is not strictly enforced, aside from egregious violations. We do
    recommend using `autopep8 <https://pypi.org/project/autopep8/>`__ though!
 

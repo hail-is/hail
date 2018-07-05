@@ -1,5 +1,5 @@
 import hail as hl
-from .utils import resource, doctest_resource, startTestHailContext, stopTestHailContext
+from ..helpers import *
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
 import unittest
 import os
@@ -167,13 +167,6 @@ class VCFTests(unittest.TestCase):
 
 
 class PLINKTests(unittest.TestCase):
-    _dataset = None
-
-    def get_dataset(self):
-        if PLINKTests._dataset is None:
-            PLINKTests._dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        return PLINKTests._dataset
-
     def test_import_fam(self):
         fam_file = resource('sample.fam')
         nfam = hl.import_fam(fam_file).count()
@@ -185,7 +178,7 @@ class PLINKTests(unittest.TestCase):
         self.assertEqual(nfam, i)
         
     def test_export_import_plink_same(self):
-        mt = self.get_dataset()
+        mt = get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
                             cm_position=15.0)
         mt = mt.select_cols(fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
@@ -201,21 +194,21 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
     def test_import_plink_empty_fam(self):
-        mt = self.get_dataset().drop_cols()
+        mt = get_dataset().drop_cols()
         bfile = '/tmp/test_empty_fam'
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, "Empty .fam file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_empty_bim(self):
-        mt = self.get_dataset().drop_rows()
+        mt = get_dataset().drop_rows()
         bfile = '/tmp/test_empty_bim'
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, ".bim file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_a1_major(self):
-        mt = self.get_dataset()
+        mt = get_dataset()
         bfile = '/tmp/sample_plink'
         hl.export_plink(mt, bfile, ind_id=mt.s)
 
@@ -318,7 +311,7 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(same)
 
     def test_export_plink_exprs(self):
-        ds = self.get_dataset()
+        ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
         bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',

@@ -3,7 +3,7 @@ import unittest
 import hail as hl
 from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
-from .utils import resource, startTestHailContext, stopTestHailContext
+from ..helpers import *
 import numpy as np
 import tempfile
 
@@ -12,14 +12,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    _dataset = None
-
-    @staticmethod
-    def get_dataset():
-        if Tests._dataset is None:
-            Tests._dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        return Tests._dataset
-
     @staticmethod
     def _np_matrix(a):
         if isinstance(a, BlockMatrix):
@@ -34,7 +26,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
 
     def test_from_entry_expr(self):
-        mt = self.get_dataset()
+        mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
         a1 = BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_numpy()
@@ -609,3 +601,20 @@ class Tests(unittest.TestCase):
         with self.assertRaises(FatalError) as e:
             BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
             self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
+
+    def test_block_matrix_entries(self):
+        n_rows, n_cols = 5, 3
+        rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
+        schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
+        table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
+        table = table.annotate(i=hl.int64(table.i),
+                               j=hl.int64(table.j)).key_by('i', 'j')
+
+        ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
+
+        for block_size in [1, 2, 1024]:
+            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
+            entries_table = block_matrix.entries()
+            self.assertEqual(entries_table.count(), n_cols * n_rows)
+            self.assertEqual(len(entries_table.row), 3)
+            self.assertTrue(table._same(entries_table))

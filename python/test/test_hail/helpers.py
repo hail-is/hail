@@ -1,14 +1,19 @@
 import os
-import sys
+
 import hail
+
+_initialized = False
 
 
 def startTestHailContext():
-    hail.init(master='local[2]', min_block_size=0, quiet=True)
+    global _initialized
+    if not _initialized:
+        hail.init(master='local[2]', min_block_size=0, quiet=True)
+        _initialized = True
 
 
 def stopTestHailContext():
-    hail.stop()
+    pass
 
 
 _test_dir = None
@@ -43,3 +48,32 @@ def doctest_resource(filename):
         _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
 
     return os.path.join(_doctest_dir, filename)
+
+
+def schema_eq(x, y):
+    x_fds = dict(x)
+    y_fds = dict(y)
+    return x_fds == y_fds
+
+
+def convert_struct_to_dict(x):
+    if isinstance(x, hail.Struct):
+        return {k: convert_struct_to_dict(v) for k, v in x._fields.items()}
+    elif isinstance(x, list):
+        return [convert_struct_to_dict(elt) for elt in x]
+    elif isinstance(x, tuple):
+        return tuple([convert_struct_to_dict(elt) for elt in x])
+    elif isinstance(x, dict):
+        return {k: convert_struct_to_dict(v) for k, v in x.items()}
+    else:
+        return x
+
+
+_dataset = None
+
+
+def get_dataset():
+    global _dataset
+    if _dataset is None:
+        _dataset = hail.split_multi_hts(hail.import_vcf(resource('sample.vcf'))).cache()
+    return _dataset
