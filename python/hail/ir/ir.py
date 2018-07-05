@@ -39,7 +39,7 @@ class Str(IR):
         self.x = x
 
     def __str__(self):
-        return '(Str {})'.format(escape_str(self.x))
+        return '(Str "{}")'.format(escape_str(self.x))
 
 class FalseIR(IR):
     def __init__(self):
@@ -54,6 +54,13 @@ class TrueIR(IR):
 
     def __str__(self):
         return '(True)'
+
+class Void(IR):
+    def __init__(self):
+        super().__init__()
+
+    def __str__(self):
+        return '(Void)'
 
 class Cast(IR):
     def __init__(self, v, typ):
@@ -78,17 +85,17 @@ class IsNA(IR):
         self.value = value
 
     def __str__(self):
-        return '(NA {})'.format(self.value)
+        return '(IsNA {})'.format(self.value)
 
 class If(IR):
     def __init__(self, cond, cnsq, altr):
         super().__init__()
         self.cond = cond
-        self.consq = consq
+        self.cnsq = cnsq
         self.altr = altr
 
     def __str__(self):
-        return '(If {} {} {})'.format(self.cond, self.consq, self.altr)
+        return '(If {} {} {})'.format(self.cond, self.cnsq, self.altr)
 
 class Let(IR):
     def __init__(self, name, value, body):
@@ -107,7 +114,7 @@ class Ref(IR):
         self.typ = typ
 
     def __str__(self):
-        return '(Ref {} {})'.format(escape_id(self.name), self.typ.parsableString())
+        return '(Ref {} {})'.format(self.typ._jtype.parsableString(), escape_id(self.name))
 
 class ApplyBinaryOp(IR):
     def __init__(self, op, l, r):
@@ -117,7 +124,7 @@ class ApplyBinaryOp(IR):
         self.r = r
 
     def __str__(self):
-        return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(op), self.l, self.r)
+        return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(self.op), self.l, self.r)
 
 class ApplyUnaryOp(IR):
     def __init__(self, op, x):
@@ -126,7 +133,7 @@ class ApplyUnaryOp(IR):
         self.x = x
 
     def __str__(self):
-        return '(ApplyUnaryPrimOp {} {})'.format(escape_id(op), self.x)
+        return '(ApplyUnaryPrimOp {} {})'.format(escape_id(self.op), self.x)
 
 class ApplyComparisonOp(IR):
     def __init__(self, op, l, r):
@@ -136,7 +143,7 @@ class ApplyComparisonOp(IR):
         self.r = r
 
     def __str__(self):
-        return '(ApplyComparisonOp {} {} {})'.format(escape_id(op), self.l, self.r)
+        return '(ApplyComparisonOp {} {} {})'.format(self.op, self.l, self.r)
 
 class MakeArray(IR):
     def __init__(self, args, typ):
@@ -145,7 +152,7 @@ class MakeArray(IR):
         self.typ = typ
 
     def __str__(self):
-        return '(MakeArray {} ({}))'.format(self.typ.parsableString(), ' '.join([str(x) for x in args]))
+        return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([str(x) for x in self.args]))
 
 class ArrayRef(IR):
     def __init__(self, a, i):
@@ -182,7 +189,7 @@ class ArraySort(IR):
         self.on_key = on_key
 
     def __str__(self):
-        return '(ArraySort {} {} {})'.format(self.a, self.ascending, self.on_key)
+        return '(ArraySort {} {} {})'.format(self.on_key, self.ascending, self.a)
 
 class ToSet(IR):
     def __init__(self, a):
@@ -216,7 +223,7 @@ class LowerBoundOnOrderedCollection(IR):
         self.on_key = on_key
 
     def __str__(self):
-        return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.ordered_collection, self.elem, self.on_key)
+        return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.on_key, self.ordered_collection, self.elem)
 
 class GroupByKey(IR):
     def __init__(self, collection):
@@ -234,7 +241,7 @@ class ArrayMap(IR):
         self.body = body
 
     def __str__(self):
-        return '(ArrayMap {} {} {})'.format(self.a, escape_id(self.name), self.body)
+        return '(ArrayMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
 class ArrayFilter(IR):
     def __init__(self, a, name, body):
@@ -244,7 +251,7 @@ class ArrayFilter(IR):
         self.body = body
 
     def __str__(self):
-        return '(ArrayFilter {} {} {})'.format(self.a, escape_id(self.name), self.body)
+        return '(ArrayFilter {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
 class ArrayFlatMap(IR):
     def __init__(self, a, name, body):
@@ -254,7 +261,7 @@ class ArrayFlatMap(IR):
         self.body = body
 
     def __str__(self):
-        return '(ArrayFlatMap {} {} {})'.format(self.a, escape_id(self.name), self.body)
+        return '(ArrayFlatMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
 class ArrayFold(IR):
     def __init__(self, a, zero, accum_name, value_name, body):
@@ -267,10 +274,10 @@ class ArrayFold(IR):
 
     def __str__(self):
         return '(ArrayFold {} {} {} {} {})'.format(
-            self.a, self.zero, escape_id(self.accum_name),
-            escape_id(self.value_name), self.body)
+            escape_id(self.accum_name), escape_id(self.value_name), 
+            self.a, self.zero, self.body)
 
-class ArryFor(IR):
+class ArrayFor(IR):
     def __init__(self, a, value_name, body):
         super().__init__()
         self.a = a
@@ -278,7 +285,7 @@ class ArryFor(IR):
         self.body = body
 
     def __str__(self):
-        return '(ArrayFor {} {} {})'.format(self.a, escape_id(self.value_name), self.body)
+        return '(ArrayFor {} {} {})'.format(escape_id(self.value_name), self.a, self.body)
 
 class ApplyAggOp(IR):
     def __init__(self, a, constructor_args, init_op_args, agg_sig):
@@ -303,7 +310,7 @@ class InitOp(IR):
         self.agg_sig = agg_sig
 
     def __str__(self):
-        return '(ArrayFor {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
+        return '(InitOp {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
 
 class SeqOp(IR):
     def __init__(self, i, args, agg_sig):
@@ -313,7 +320,7 @@ class SeqOp(IR):
         self.agg_sig = agg_sig
 
     def __str__(self):
-        return '(ArrayFor {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
+        return '(SeqOp {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
 
 class Begin(IR):
     def __init__(self, xs):
@@ -341,15 +348,15 @@ class SelectFields(IR):
         return '(SelectFields ({}) {})'.format(' '.join(self.fields), self.old)
 
 class InsertFields(IR):
-    def __init__(self, ):
+    def __init__(self, old, fields):
         super().__init__()
         self.old = old
         self.fields = fields
 
     def __str__(self):
-        return '(InsertFields ({}) {})'.format(
-            ' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]),
-            self.old)
+        return '(InsertFields {} {})'.format(
+            self.old,
+            ' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]))
 
 class GetField(IR):
     def __init__(self, o, name):
@@ -358,7 +365,7 @@ class GetField(IR):
         self.name = name
 
     def __str__(self):
-        return '(GetField {} {})'.format(self.o, escape_id(self.name))
+        return '(GetField {} {})'.format(escape_id(self.name), self.o)
 
 class MakeTuple(IR):
     def __init__(self, types):
@@ -366,7 +373,7 @@ class MakeTuple(IR):
         self.types = types
 
     def __str__(self):
-        return '(MakeTuple {})'.format(' '.join([str(self.x) for x in self.types]))
+        return '(MakeTuple {})'.format(' '.join([str(x) for x in self.types]))
 
 class GetTupleElement(IR):
     def __init__(self, o, idx):
@@ -375,7 +382,7 @@ class GetTupleElement(IR):
         self.idx = idx
 
     def __str__(self):
-        return '(GetTupleElement {} {})'.format(self.o.petty(), self.idx)
+        return '(GetTupleElement {} {})'.format(self.idx, self.o)
 
 class StringSlice(IR):
     def __init__(self, s, start, end):
@@ -402,7 +409,7 @@ class In(IR):
         self.typ = typ
 
     def __str__(self):
-        return '(In {} {})'.format(self.i, self.typ.parsableString())
+        return '(In {} {})'.format(self.typ._jtype.parsableString(), self.i)
 
 class Die(IR):
     def __init__(self, message, typ):
@@ -411,7 +418,7 @@ class Die(IR):
         self.typ = typ
 
     def __str__(self):
-        return '(Die {} {})'.format(escape_str(self.message), self.typ.parsableString())
+        return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
 
 class ApplyIR(IR):
     def __init__(self, function, args):
@@ -420,7 +427,7 @@ class ApplyIR(IR):
         self.args = args
 
     def __str__(self):
-        return '(ApplyIR {} {})'.format(escape_str(self.function), ' '.join([str(self.x) for x in self.args]))
+        return '(ApplyIR {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
 
 class Apply(IR):
     def __init__(self, function, args):
@@ -429,16 +436,16 @@ class Apply(IR):
         self.args = args
 
     def __str__(self):
-        return '(Apply {} {})'.format(escape_str(self.function), ' '.join([str(self.x) for x in self.args]))
+        return '(Apply {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
 
 class ApplySpecial(IR):
-    def __init__(self, ):
+    def __init__(self, function, args):
         super().__init__()
         self.function = function
         self.args = args
 
     def __str__(self):
-        return '(ApplySpecial {} {})'.format(escape_str(self.function), ' '.join([str(self.x) for x in self.args]))
+        return '(ApplySpecial {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
 
 class Uniroot(IR):
     def __init__(self, argname, function, min, max):
@@ -450,7 +457,7 @@ class Uniroot(IR):
 
     def __str__(self):
         return '(Uniroot {} {} {} {})'.format(
-            escape_id(argname), self.function, self.min, self.max)
+            escape_id(self.argname), self.function, self.min, self.max)
 
 class TableCount(IR):
     def __init__(self, child):
@@ -477,7 +484,7 @@ class TableWrite(IR):
         self.overwrite = overwrite
 
     def __str__(self):
-        return '(TableWrite {} {} {})'.format(escape_str(self.path), self.overwrite, self.child)
+        return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, self.child)
 
 class TableExport(IR):
     def __init__(self, child, path, types_file, header, export_type):
@@ -489,11 +496,11 @@ class TableExport(IR):
         self.export_type = export_type
 
     def __str__(self):
-        return '(TableExport {} {} {} {} {})'.format(
+        return '(TableExport "{}" "{}" "{}" {} {})'.format(
             escape_str(self.path),
             escape_str(self.types_file),
             escape_str(self.header),
-            self.export_type.parsableString(),
+            self.export_type._jtype.parsableString(),
             self.child)
 
 class MatrixWrite(IR):

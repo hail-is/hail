@@ -104,7 +104,7 @@ class TableRead(BaseIR):
         return '(TableRead {} {} {} {})'.format(
             escape_str(self.path),
             escape_str(json.dumps(self.spec)),
-            self.typ.parsableString(),
+            self.typ._jtype.parsableString(),
             self.drop_rows)
 
 class TableImport(BaseIR):
@@ -117,7 +117,7 @@ class TableImport(BaseIR):
     def __str__(self):
         return '(TableImport ({}) {} {})'.format(
             ' '.join([escape_str(path) for path in self.paths]),
-            self.typ.parsableString(),
+            self.typ._jtype.parsableString(),
             escape_str(json.dumps(self.reader_options)))
 
 class MatrixEntriesTable(BaseIR):
@@ -163,6 +163,6 @@ class TableParallelize(BaseIR):
 
     def __str__(self):
         return '(TableParallelize {} {} {})'.format(
-            self.typ.parsableString(),
+            self.typ._jtype.parsableString(),
             escape_str(json.dumps(self.rows)),
             self.n_partitions)

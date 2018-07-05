@@ -21,7 +21,7 @@ class MatrixRead(BaseIR):
 
     def __str__(self):
         '(MatrixRead {} {} {} {} {} {})'.format(
-            self.typ.parsableString(),
+            self.typ._jtype.parsableString(),
             '(' + ' '.join([str(n) for n in self.partition_counts]) if self.partition_counts else 'None',
             self.column_count,
             self.drop_cols,

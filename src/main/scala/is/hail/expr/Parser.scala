@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
-import is.hail.expr.ir.{AggSignature, MatrixCollectColsByKey, MatrixChooseCols, MatrixReader}
+import is.hail.expr.ir.{AggSignature, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
 import is.hail.table.{Ascending, Descending, SortField, TableSpec}
@@ -714,7 +714,7 @@ object Parser extends JavaTokenParsers {
       "ArrayRef" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ i => ir.ArrayRef(a, i) } |
       "ArrayLen" ~> ir_value_expr ^^ { a => ir.ArrayLen(a) } |
       "ArrayRange" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |
-      "ArraySort" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ ascending => ir.ArraySort(a, ascending) } |
+      "ArraySort" ~> boolean_literal ~ ir_value_expr ~ ir_value_expr ^^ { case onKey ~ a ~ ascending => ir.ArraySort(a, ascending, onKey) } |
       "ToSet" ~> ir_value_expr ^^ { a => ir.ToSet(a) } |
       "ToDict" ~> ir_value_expr ^^ { a => ir.ToDict(a) } |
       "ToArray" ~> ir_value_expr ^^ { a => ir.ToArray(a) } |
@@ -827,6 +827,13 @@ object Parser extends JavaTokenParsers {
         ir.MatrixRead(typ, partCounts.map(_.toArray), colCount, dropCols, dropRows, reader)
       } |
       "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)} |
-      "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => MatrixChooseCols(child, oldIndices) } |
-      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => MatrixCollectColsByKey(child) }
+      "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
+      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
+      }
+
+  def parse_value_ir(s: String): IR = parse(ir_value_expr, s)
+
+  def parse_table_ir(s: String): TableIR = parse(table_ir, s)
+
+  def parse_matrix_ir(s: String): MatrixIR = parse(matrix_ir, s)
 }
