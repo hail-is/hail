@@ -207,7 +207,7 @@ private class BgenRecordIterator(
 
         case EntriesWithFields(entryFields) if entryFields.isEmpty =>
           rvb.startArray(settings.nSamples)
-          assert(rvb.currentType().byteSize == 0, s"${rvb.currentType()}")
+          assert(rvb.currentType().byteSize == 0)
           rvb.unsafeAdvance(settings.nSamples)
           rvb.endArray()
           bfis.skipBytes(dataSize)
