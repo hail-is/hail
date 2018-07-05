@@ -85,7 +85,7 @@ private case class BgenSettings (
 object BgenRDD {
   def apply(
     sc: SparkContext,
-    files: Seq[String],
+    files: Seq[BgenHeader],
     minPartitions: Option[Int],
     includedVariantsPerFile: Map[String, Seq[Int]],
     settings: BgenSettings
@@ -96,7 +96,7 @@ object BgenRDD {
 
 private class BgenRDD(
   sc: SparkContext,
-  files: Seq[String],
+  files: Seq[BgenHeader],
   minPartitions: Option[Int],
   includedVariantsPerFile: Map[String, Seq[Int]],
   settings: BgenSettings

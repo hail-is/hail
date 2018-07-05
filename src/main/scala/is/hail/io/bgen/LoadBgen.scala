@@ -16,14 +16,16 @@ import org.apache.spark.sql.Row
 
 import scala.io.Source
 
-case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
-  headerLength: Int, dataStart: Int, hasIds: Boolean, version: Int)
-
-case class BgenFileDimensions(
-  file: String,
+case class BgenHeader(
+  compressed: Boolean,
   nSamples: Int,
   nVariants: Int,
-  version: Int
+  headerLength: Int,
+  dataStart: Int,
+  hasIds: Boolean,
+  version: Int,
+  fileByteSize: Long,
+  path: String
 )
 
 object LoadBgen {
@@ -56,11 +58,8 @@ object LoadBgen {
     val nSamples = sampleIds.length
 
     val sc = hc.sc
-    val fileDims = files.map { file =>
-      val bState = readState(hadoop, file)
-      BgenFileDimensions(file, bState.nSamples, bState.nVariants, bState.version)
-    }
-    val unequalSamples = fileDims.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
+    val fileHeaders = files.map(readState(hadoop, _))
+    val unequalSamples = fileHeaders.filter(_.nSamples != nSamples).map(x => (x.path, x.nSamples))
     if (unequalSamples.length > 0) {
       val unequalSamplesString =
         unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ")
@@ -69,21 +68,21 @@ object LoadBgen {
             |  $unequalSamplesString""".stripMargin)
     }
 
-    val noVariants = fileDims.filter(_.nVariants == 0).map(_.file)
+    val noVariants = fileHeaders.filter(_.nVariants == 0).map(_.path)
     if (noVariants.length > 0)
       fatal(
         s"""The following BGEN files did not contain at least 1 variant:
             |  ${ noVariants.mkString("\n  ") })""".stripMargin)
 
-    val notVersionTwo = fileDims.filter(_.version != 2).map(x => x.file -> x.version)
+    val notVersionTwo = fileHeaders.filter(_.version != 2).map(x => x.path -> x.version)
     if (notVersionTwo.length > 0)
       fatal(
         s"""The following BGEN files are not BGENv2:
             |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
 
-    val nVariants = fileDims.map(_.nVariants).sum
+    val nVariants = fileHeaders.map(_.nVariants).sum
 
-    info(s"Number of BGEN files parsed: ${ fileDims.length }")
+    info(s"Number of BGEN files parsed: ${ fileHeaders.length }")
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
@@ -111,7 +110,7 @@ object LoadBgen {
 
     val fastKeys = BgenRDD(
       sc,
-      files,
+      fileHeaders,
       nPartitions,
       includedVariantsPerFile,
       fastKeysSettings
@@ -119,7 +118,7 @@ object LoadBgen {
 
     val rdd2 = BgenRDD(
       sc,
-      files,
+      fileHeaders,
       nPartitions,
       includedVariantsPerFile,
       recordsSettings
@@ -222,11 +221,11 @@ object LoadBgen {
   def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenHeader = {
     hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
-      readState(reader)
+      readState(reader, file, hConf.getFileSize(file))
     }
   }
 
-  def readState(reader: HadoopFSDataBinaryReader): BgenHeader = {
+  def readState(reader: HadoopFSDataBinaryReader, path: String, byteSize: Long): BgenHeader = {
     reader.seek(0)
     val allInfoLength = reader.readInt()
     val headerLength = reader.readInt()
@@ -259,70 +258,16 @@ object LoadBgen {
       fatal(s"Hail supports BGEN version 1.2, got version 1.$version")
 
     val hasIds = (flags >> 31 & 1) != 0
-    BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
-  }
-
-  private[bgen] def encodeInts(a: Array[Int]): String = {
-    val b = new Array[Byte](a.length * 4)
-    var i = 0
-    while (i < a.length) {
-      b(4 * i) = (a(i) & 0xff).asInstanceOf[Byte]
-      b(4 * i + 1) = ((a(i) >>> 8) & 0xff).asInstanceOf[Byte]
-      b(4 * i + 2) = ((a(i) >>> 16) & 0xff).asInstanceOf[Byte]
-      b(4 * i + 3) = ((a(i) >>> 24) & 0xff).asInstanceOf[Byte]
-      i += 1
-    }
-    Base64.encodeBase64String(b)
-  }
-
-  private[bgen] def decodeInts(a: String): Array[Int] = {
-    val b = Base64.decodeBase64(a)
-    val c = new Array[Int](b.length / 4)
-    var i = 0
-    while (i < c.length) {
-      c(i) =
-        ((b(i * 4 + 3) & 0xff).asInstanceOf[Int] << 24) |
-        ((b(i * 4 + 2) & 0xff).asInstanceOf[Int] << 16) |
-        ((b(i * 4 + 1) & 0xff).asInstanceOf[Int] << 8) |
-        (b(i * 4).asInstanceOf[Int] & 0xff)
-      i += 1
-    }
-    c
-  }
-
-  private[bgen] def encodeLongs(a: Array[Long]): String = {
-    val b = new Array[Byte](a.length * 8)
-    var i = 0
-    while (i < a.length) {
-      b(8 * i) = (a(i) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 1) = ((a(i) >>> 8) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 2) = ((a(i) >>> 16) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 3) = ((a(i) >>> 24) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 4) = ((a(i) >>> 32) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 5) = ((a(i) >>> 40) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 6) = ((a(i) >>> 48) & 0xff).asInstanceOf[Byte]
-      b(8 * i + 7) = ((a(i) >>> 56) & 0xff).asInstanceOf[Byte]
-      i += 1
-    }
-    Base64.encodeBase64String(b)
-  }
-
-  private[bgen] def decodeLongs(a: String): Array[Long] = {
-    val b = Base64.decodeBase64(a)
-    val c = new Array[Long](b.length / 8)
-    var i = 0
-    while (i < c.length) {
-      c(i) =
-        ((b(i * 8 + 7) & 0xff).asInstanceOf[Long] << 56) |
-        ((b(i * 8 + 6) & 0xff).asInstanceOf[Long] << 48) |
-        ((b(i * 8 + 5) & 0xff).asInstanceOf[Long] << 40) |
-        ((b(i * 8 + 4) & 0xff).asInstanceOf[Long] << 32) |
-        ((b(i * 8 + 3) & 0xff).asInstanceOf[Long] << 24) |
-        ((b(i * 8 + 2) & 0xff).asInstanceOf[Long] << 16) |
-        ((b(i * 8 + 1) & 0xff).asInstanceOf[Long] << 8) |
-        (b(i * 8).asInstanceOf[Long] & 0xff)
-      i += 1
-    }
-    c
+    BgenHeader(
+      isCompressed,
+      nSamples,
+      nVariants,
+      headerLength,
+      dataStart,
+      hasIds,
+      version,
+      byteSize,
+      path
+    )
   }
 }

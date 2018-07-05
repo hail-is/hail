@@ -32,25 +32,24 @@ object BgenRDDPartitions extends Logging {
 
   def apply(
     sc: SparkContext,
-    files: Seq[String],
+    files: Seq[BgenHeader],
     minPartitions: Int,
     includedVariantsPerFile: Map[String, Seq[Int]],
     settings: BgenSettings
   ): Array[Partition] = {
     val hConf = sc.hadoopConfiguration
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
-    val fileMetadata = files.map { file =>
-      val state = LoadBgen.readState(hConf, file)
-      val keptVariants = includedVariantsPerFile.get(file)
+    val filesWithVariantFilters = files.map { header =>
+      val nKeptVariants = includedVariantsPerFile.get(header.path)
         .map(_.length)
-        .getOrElse(state.nVariants)
-      BgenFileMetadata(file, hConf.getFileSize(file), state.dataStart, keptVariants, state.compressed)
+        .getOrElse(header.nVariants)
+      header.copy(nVariants = nKeptVariants)
     }
-    val nonEmptyFileMetadatas = fileMetadata.filter(_.nVariants > 0)
-    if (nonEmptyFileMetadatas.isEmpty) {
+    val nonEmptyFilesAfterFilter = filesWithVariantFilters.filter(_.nVariants > 0)
+    if (nonEmptyFilesAfterFilter.isEmpty) {
       Array.empty
     } else {
-      val metadata = nonEmptyFileMetadatas(0)
+      val metadata = nonEmptyFilesAfterFilter(0)
       val recordByteSizeEstimate =
         (metadata.byteFileSize - metadata.dataByteOffset) / metadata.nVariants
       val minBlockSize =
@@ -69,7 +68,7 @@ object BgenRDDPartitions extends Logging {
       if (maxRecordsPerPartition < minRecordsPerPartition) {
         log.warn(
           s"""cannot satisfy requested min_partitions ($minPartitions) and
-             |min_block_size ($minBlockSize) for BGEN files $files from which
+             |min_block_size ($minBlockSize) for BGEN files ${files.map(_.path)} from which
              |we are loading ${settings.nVariants} variants, with an average
              |size of $recordByteSizeEstimate bytes.""".stripMargin)
         maxRecordsPerPartition = minRecordsPerPartition
@@ -79,12 +78,12 @@ object BgenRDDPartitions extends Logging {
       // than minRecordsPerPartition
       val partitions = new ArrayBuilder[Partition]()
       var partitionIndex = 0
-      var metadataIndex = 0
-      while (metadataIndex < nonEmptyFileMetadatas.length) {
-        val metadata = nonEmptyFileMetadatas(metadataIndex)
-        using(new OnDiskBTreeIndexToValue(metadata.file + ".idx", hConf)) { index =>
-          val nPartitions = (metadata.nVariants / maxRecordsPerPartition).ceil.toInt
-          includedVariantsPerFile.get(metadata.file) match {
+      var fileIndex = 0
+      while (fileIndex < nonEmptyFilesAfterFilter.length) {
+        val file = nonEmptyFilesAfterFilter(fileIndex)
+        using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
+          val nPartitions = (file.nVariants / maxRecordsPerPartition).ceil.toInt
+          includedVariantsPerFile.get(file.path) match {
             case None =>
               val startOffsets =
                 index.positionOfVariants(
@@ -92,8 +91,8 @@ object BgenRDDPartitions extends Logging {
               var i = 0
               while (i < nPartitions - 1) {
                 partitions += BgenPartitionWithoutFilter(
-                  metadata.file,
-                  metadata.compressed,
+                  file.path,
+                  file.compressed,
                   i * maxRecordsPerPartition,
                   startOffsets(i),
                   startOffsets(i + 1),
@@ -104,11 +103,11 @@ object BgenRDDPartitions extends Logging {
                 i += 1
               }
               partitions += BgenPartitionWithoutFilter(
-                metadata.file,
-                metadata.compressed,
+                file.path,
+                file.compressed,
                 i * maxRecordsPerPartition,
                 startOffsets(i),
-                metadata.byteFileSize,
+                file.byteFileSize,
                 partitionIndex,
                 sHadoopConfBc
               )
@@ -122,8 +121,8 @@ object BgenRDDPartitions extends Logging {
                 val left = i * maxRecordsPerPartition
                 val rightExclusive = (i + 1) * maxRecordsPerPartition
                 partitions += BgenPartitionWithFilter(
-                  metadata.file,
-                  metadata.compressed,
+                  file.path,
+                  file.compressed,
                   partitionIndex,
                   startOffsets.slice(left, rightExclusive),
                   variantIndices.slice(left, rightExclusive).toArray,
@@ -134,8 +133,8 @@ object BgenRDDPartitions extends Logging {
               }
               val left = i * maxRecordsPerPartition
               partitions += BgenPartitionWithFilter(
-                metadata.file,
-                metadata.compressed,
+                file.path,
+                file.compressed,
                 partitionIndex,
                 startOffsets.slice(left, startOffsets.length),
                 variantIndices.slice(left, variantIndices.length).toArray,
@@ -144,7 +143,7 @@ object BgenRDDPartitions extends Logging {
               partitionIndex += 1
           }
         }
-        metadataIndex += 1
+        fileIndex += 1
       }
       partitions.result()
     }
