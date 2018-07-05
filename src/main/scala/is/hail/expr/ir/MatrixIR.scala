@@ -1503,6 +1503,10 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
     val localEntriesIndex = child.typ.entriesIdx
     val oldRVType = rvRowType
+    val localNewRVType = newRVType
+    val localInserter = inserter
+    val localQuerier = querier
+    val localKeyType = keyType
 
     MatrixValue(typ,
       prev.globals,
@@ -1514,14 +1518,14 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
         val ur = new UnsafeRow(oldRVType)
         it.flatMap { rv =>
           ur.set(rv)
-          val keys = querier(ur).asInstanceOf[Iterable[Any]]
+          val keys = localQuerier(ur).asInstanceOf[Iterable[Any]]
           if (keys == null)
             None
           else
             keys.iterator.map { explodedElement =>
-              rv2b.start(newRVType)
-              inserter(rv.region, rv.offset, rv2b,
-                () => rv2b.addAnnotation(keyType, explodedElement))
+              rv2b.start(localNewRVType)
+              localInserter(rv.region, rv.offset, rv2b,
+                () => rv2b.addAnnotation(localKeyType, explodedElement))
               rv2.setOffset(rv2b.end())
               rv2
             }
