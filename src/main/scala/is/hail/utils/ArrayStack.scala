@@ -3,14 +3,14 @@ package is.hail.utils
 import scala.reflect.ClassTag
 
 final class ArrayStack[@specialized T](hintSize: Int = 16)(implicit tct: ClassTag[T]) {
-  private var a = new Array[T](hintSize)
-  
-  private var size_ = 0
-  
+  private[this] var a = new Array[T](hintSize)
+
+  private[this] var size_ = 0
+
   def size: Int = size_
 
   def capacity: Int = a.length
-  
+
   def isEmpty: Boolean = size_ == 0
 
   def nonEmpty: Boolean = size_ > 0
