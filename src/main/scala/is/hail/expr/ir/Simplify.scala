@@ -173,14 +173,6 @@ object Simplify {
 
       case MatrixFilterCols(m, True()) => m
 
-      case MatrixRowsTable(MatrixMapRows(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
-        val mrt = MatrixRowsTable(child)
-        TableMapRows(
-          mrt,
-          Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))),
-          Some(child.typ.rowKey),
-          Some(child.typ.rowKey.length))
       case MatrixRowsTable(MatrixFilterRows(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
         val mrt = MatrixRowsTable(child)
