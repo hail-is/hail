@@ -128,6 +128,7 @@ class OrderedRVD(
 
   override def unpersist(): OrderedRVD = this
 
+  // TODO: remove after AlignAndZip
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner
@@ -136,11 +137,14 @@ class OrderedRVD(
     require(ordType.rowType == typ.rowType)
     require(ordType.kType isPrefixOf typ.kType)
 
+    val coarsenedRangeBounds = newPartitioner.coarsenedPKRangeBounds(
+      Math.min(typ.partitionKey.length, newPartitioner.partitionKey.length)
+    )
+
     new OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
-      crdd = ContextRDD(RepartitionedOrderedRDD(this, newPartitioner)))
-
+      crdd = ContextRDD(new RepartitionedOrderedRDD2(this, coarsenedRangeBounds)))
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -937,7 +941,7 @@ object OrderedRVD {
           val region = ctx.region
           val rv = RegionValue(region)
           it.map { case (k, bytes) =>
-            assert(partBc.value.getSafePartition(k) == i)
+            assert(partBc.value.contains(i, k))
             RVD.bytesToRegionValue(dec, region, rv)(bytes)
           }
         })
@@ -1066,7 +1070,6 @@ object OrderedRVD {
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
         val prevK = WritableRegionValue(typ.kType, ctx.freshRegion)
-        val prevPK = WritableRegionValue(typ.pkType, ctx.freshRegion)
         val kUR = new UnsafeRow(typ.kType)
 
         new Iterator[RegionValue] {
@@ -1080,23 +1083,19 @@ object OrderedRVD {
             if (first)
               first = false
             else {
-              assert(localType.pkRowOrd.compare(prevPK.value, rv) <= 0 && localType.kRowOrd.compare(prevK.value, rv) <= 0)
+              assert(localType.kRowOrd.compare(prevK.value, rv) <= 0)
             }
 
             prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
-            prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
-
             kUR.set(prevK.value)
+
             if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR)) {
-              val shouldBeIn = partitionerBc.value.getPartitionPK(kUR)
               fatal(
                 s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
-                   |  Key should be in partition ${ shouldBeIn }: ${ partitionerBc.value.rangeBounds(shouldBeIn) }
                    |  Invalid key: ${ kUR.toString() }""".stripMargin)
             }
 
-            assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
             rv
           }
         }

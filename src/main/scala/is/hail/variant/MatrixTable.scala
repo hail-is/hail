@@ -1608,7 +1608,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       .zipWithIndex
       .map { case (bound, i) =>
         val startLocus = bound.start.asInstanceOf[Row].getAs[Locus](0)
-        val minPartitionNeeded = partitioner.getPartitionPK(
+        val minPartitionNeeded = partitioner.getSafePartitionUpperBound(
           Row(startLocus.copy(position = startLocus.position - basePairs)))
         (minPartitionNeeded to i)
           .map(Adjustment[RegionValue](_, identity))
