@@ -4,7 +4,6 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.expr.ir.Pretty
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.testUtils._
@@ -35,8 +34,6 @@ class VSMSuite extends SparkSuite {
     val f = tmpDir.createTempFile("sample", extension = ".vds")
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
-
-    println(Pretty(hc.read(f).ast))
 
     assert(hc.read(f, dropCols = true)
       .filterRowsExpr("va.info.AF[0] < 0.01")
