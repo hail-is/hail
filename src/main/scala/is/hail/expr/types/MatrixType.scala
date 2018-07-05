@@ -72,13 +72,13 @@ case class MatrixType(
   val colsTableType: TableType =
     TableType(
       colType,
-      if (colKey.isEmpty) None else Some(colKey),
+      Some(colKey),
       globalType)
 
   val rowsTableType: TableType =
     TableType(
       rowType,
-      if (rowKey.isEmpty) None else Some(rowKey),
+      Some(rowKey),
       globalType)
 
   lazy val entriesTableType: TableType = {

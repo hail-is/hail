@@ -172,6 +172,42 @@ object Simplify {
       case MatrixFilterRows(m, True()) => m
 
       case MatrixFilterCols(m, True()) => m
+
+      case MatrixRowsTable(MatrixFilterRows(child, newRow))
+        if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
+        val mrt = MatrixRowsTable(child)
+        TableFilter(
+          mrt,
+          Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
+      case MatrixRowsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixRowsTable(child), newRow, value)
+      case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixFilterCols(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixAggregateColsByKey(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(ChooseCols(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(CollectColsByKey(child)) => MatrixRowsTable(child)
+
+      case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
+        val mct = MatrixColsTable(child)
+        TableMapRows(
+          mct,
+          Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
+          Some(child.typ.colKey),
+          Some(child.typ.colKey.length))
+      case MatrixColsTable(MatrixFilterCols(child, newRow))
+        if !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
+        val mct = MatrixColsTable(child)
+        TableFilter(
+          mct,
+          Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+      case MatrixColsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixColsTable(child), newRow, value)
+      case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
     })
   }
 }
