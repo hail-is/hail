@@ -154,12 +154,12 @@ def qq(pvals):
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int)
-def manhattan(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
+def manhattan(x, y, label=None, title=None, size=4):
     if isinstance(y, Expression):
         y = -hail.log10(y)
     else:
         y = [log(val, 10) for val in y]
-    return scatter(x, y, label=label, title=title, xlabel=xlabel, ylabel=ylabel, size=size)
+    return scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
 
 
 def plot_hail_file_metadata(t_path: str) -> Optional[Union[Grid, Tabs, bokeh.plotting.Figure]]:
