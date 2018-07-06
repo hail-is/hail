@@ -2160,7 +2160,7 @@ class Table(ExprContainer):
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                     e.col = self._fields_inverse[e.col]
                     sort_cols.append(e._j_obj())
-        return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
+        return Table(self._jt.orderBy(jarray(Env.hail().table.SortField, sort_cols)))
 
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
