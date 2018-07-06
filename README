@@ -1,0 +1,15 @@
+To get kubectl credentials for a GKE cluster:
+
+$ gcloud container clusters get-credentials <cluster>
+
+To authorize docker to push to GCR:
+
+$ gcloud auth configure-docker
+
+To run batch locally, using the local kube credentials:
+
+$ docker run -i -v $HOME/.kube:/root/.kube -p 5000:5000 -t batch
+
+On OSX, the port will be accessible on the docker-machine:
+
+$(docker-machine ip default):5000
