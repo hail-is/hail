@@ -1,22 +1,21 @@
 package is.hail.methods
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-
-import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+
+object Aggregators {
+
+}
 
 class CountAggregator() extends TypedAggregator[Long] {
 
