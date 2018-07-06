@@ -2,6 +2,10 @@ import unittest
 import hail as hl
 import hail.ir as ir
 from hail.utils.java import Env
+from helpers import *
+
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 class IRTests(unittest.TestCase):
     def test_value_ir_parses(self):
