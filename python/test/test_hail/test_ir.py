@@ -2,7 +2,7 @@ import unittest
 import hail as hl
 import hail.ir as ir
 from hail.utils.java import Env
-from helpers import *
+from .helpers import *
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
