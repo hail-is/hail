@@ -215,7 +215,10 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
                              hl.map(lambda x_contig: hl.parse_locus_interval(x_contig, rg), rg.x_contigs),
                              keep=True)
     if not include_par:
-        mt = hl.filter_intervals(mt, rg.par, keep=False)
+        interval_type = hl.tarray(hl.tinterval(hl.tlocus(rg)))
+        mt = hl.filter_intervals(mt,
+                                 hl.literal(rg.par, interval_type),
+                                 keep=False)
 
     mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
     mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
