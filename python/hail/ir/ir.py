@@ -296,11 +296,11 @@ class ApplyAggOp(IR):
         self.agg_sig = agg_sig
 
     def __str__(self):
-        return '(ApplyAggOp {} ({}) {} {})'.format(
+        return '(ApplyAggOp {} {} ({}) {})'.format(
+            self.agg_sig,
             self.a,
             ' '.join([str(x) for x in self.constructor_args]),
-            '(' + ' '.join([str(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None',
-            self.agg_sig)
+            '(' + ' '.join([str(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None')
 
 class InitOp(IR):
     def __init__(self, i, args, agg_sig):
@@ -310,7 +310,7 @@ class InitOp(IR):
         self.agg_sig = agg_sig
 
     def __str__(self):
-        return '(InitOp {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
+        return '(InitOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
 
 class SeqOp(IR):
     def __init__(self, i, args, agg_sig):
@@ -320,7 +320,7 @@ class SeqOp(IR):
         self.agg_sig = agg_sig
 
     def __str__(self):
-        return '(SeqOp {} ({}) {})'.format(self.i, ' '.join([str(x) for x in self.args]), self.agg_sig)
+        return '(SeqOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
 
 class Begin(IR):
     def __init__(self, xs):

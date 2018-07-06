@@ -377,6 +377,11 @@ class IRSuite extends SparkSuite {
       val mtRead = mt.ast.asInstanceOf[MatrixRead]
       val b = True()
 
+      val t = TableType(
+        TStruct("a" -> TInt32()),
+        None,
+        TStruct.empty())
+
       val xs: Array[TableIR] = Array(
         TableUnkey(read),
         TableKeyBy(read, Array("m", "d"), Some(1)),
@@ -395,7 +400,7 @@ class IRSuite extends SparkSuite {
             TStruct("a" -> TInt32()),
             None,
             TStruct.empty()),
-          FastIndexedSeq(null, Row(5), Row(-3)),
+          FastIndexedSeq(Row(null), Row(5), Row(-3)),
           None),
         TableMapRows(read,
           MakeStruct(FastIndexedSeq(
@@ -480,6 +485,8 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
+    tableIRs()
+
     val s = Pretty(x)
     val x2 = Parser.parse(Parser.table_ir, s)
     assert(x2 == x)

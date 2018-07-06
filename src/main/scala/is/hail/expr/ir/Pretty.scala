@@ -182,13 +182,14 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
-            case MatrixRead(typ, partitionCounts, colCount, dropCols, dropRows, reader) =>
-              typ.parsableString() + " " +
-                prettyLongsOpt(partitionCounts) + " " +
-                prettyIntOpt(colCount) + " " +
+            case MatrixRead(typ, _, _, dropCols, dropRows, MatrixNativeReader(path, spec)) =>
+              prettyStringLiteral(path) + " " +
                 prettyBooleanLiteral(dropCols) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
-                prettyMatrixReader(reader)
+                (if (typ == spec.matrix_type)
+                  "None"
+                else
+                  typ.parsableString())
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
@@ -210,12 +211,12 @@ object Pretty {
                 ""
               }
             case TableRead(path, spec, typ, dropRows) =>
-              implicit val formats = RelationalSpec.formats
-              val specJSONStr = Serialization.write(spec)
               prettyStringLiteral(path) + " " +
-                prettyStringLiteral(specJSONStr) + " " +
-                typ.parsableString() + " " +
-                prettyBooleanLiteral(dropRows)
+                prettyBooleanLiteral(dropRows) + " " +
+                (if (typ == spec.table_type)
+                  "None"
+                else
+                  typ.parsableString())
             case TableWrite(_, path, overwrite, _) =>
               if (overwrite)
                 s"${ StringEscapeUtils.escapeString(path) } overwrite"

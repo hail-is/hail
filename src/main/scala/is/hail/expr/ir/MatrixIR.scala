@@ -19,6 +19,25 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
 object MatrixIR {
+  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
+    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
+      case mts: MatrixTableSpec => mts
+      case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+    }
+    val typ = spec.matrix_type
+    val nCols = spec.colsComponent.read(hc, path, TStruct()).count().toInt
+    MatrixRead(requestedType.getOrElse(typ), Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec))
+  }
+
+  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixIR = {
+    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
+    val partCounts = partition(nRows, nPartitionsAdj)
+
+    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
+    MatrixRead(reader.typ, Some(partCounts.map(_.toLong)), Some(nCols),
+      dropRows = false, dropCols = false, reader = reader)
+  }
+
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
     val rowType = typ.rvRowType
     val keepType = TArray(+TInt32())

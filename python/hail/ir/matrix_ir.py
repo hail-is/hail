@@ -1,4 +1,5 @@
 from hail.ir.base_ir import *
+from hail.utils.java import escape_str, escape_id
 
 class MatrixAggregateRowsByKey(BaseIR):
     def __init__(self, child, expr):
@@ -10,23 +11,27 @@ class MatrixAggregateRowsByKey(BaseIR):
         '(MatrixAggregateRowsByKey {} {})'.format(self.child, self.expr)
 
 class MatrixRead(BaseIR):
-    def __init__(self, typ, partition_counts, column_count, drop_cols, drop_rows, reader):
+    def __init__(self, path, drop_cols, drop_rows):
         super().__init__()
-        self.typ = typ
-        self.partition_counts = partition_counts
-        self.column_count = column_count
+        self.path = path
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
-        self.reader = reader
 
     def __str__(self):
-        '(MatrixRead {} {} {} {} {} {})'.format(
-            self.typ._jtype.parsableString(),
-            '(' + ' '.join([str(n) for n in self.partition_counts]) if self.partition_counts else 'None',
-            self.column_count,
-            self.drop_cols,
-            self.drop_rows,
-            self.reader)
+        return '(MatrixRead "{}" {} {} None)'.format(
+            self.path, self.drop_cols, self.drop_rows)
+
+class MatrixRange(BaseIR):
+    def __init__(self, path, n_rows, n_cols, n_partitions):
+        super().__init__()
+        self.n_rows = n_rows
+        self.n_cols = n_cols
+        self.n_partitions = n_partitions
+
+    def __str__(self):
+        return '(MatrixRange {} {} {} False False)'.format(
+            self.n_rows, self.n_cols,
+            self.n_partitions if self.n_partitions else 'None')
 
 class MatrixFilterRows(BaseIR):
     def __init__(self, child, pred):

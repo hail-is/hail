@@ -1,3 +1,4 @@
+import json
 from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id
 
@@ -7,7 +8,7 @@ class MatrixRowsTable(BaseIR):
         self.child = child
 
     def __str__(self):
-        return '(TableRowsTable {})'.format(self.child)
+        return '(MatrixRowsTable {})'.format(self.child)
 
 class TableJoin(BaseIR):
     def __init__(self, left, right, join_type):
@@ -37,7 +38,7 @@ class TableRange(BaseIR):
     def __str__(self):
         return '(TableRange {} {})'.format(self.n, self.n_partitions)
 
-class TaleMapGlobals(BaseIR):
+class TableMapGlobals(BaseIR):
     def __init__(self, child, new_row, value):
         super().__init__()
         self.child = child
@@ -46,8 +47,7 @@ class TaleMapGlobals(BaseIR):
 
     def __str__(self):
         return '(TableMapGlobals {} {} {})'.format(
-            escape_str(json.dumps(self.value)),
-            self.child, self.new_row)
+            self.value, self.child, self.new_row)
 
 class TableExplode(BaseIR):
     def __init__(self, child, field):
@@ -81,7 +81,8 @@ class TableMapRows(BaseIR):
 
     def __str__(self):
         return '(TableMapRows {} {} {} {})'.format(
-            ' '.join([escape_id(x) for x in self.new_keys]), self.preserved_key_fields,
+            ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
+            self.preserved_key_fields,
             self.child, self.new_row)
 
 class TableUnkey(BaseIR):
@@ -93,19 +94,17 @@ class TableUnkey(BaseIR):
         return '(TableUnkey {})'.format(self.child)
 
 class TableRead(BaseIR):
-    def __init__(self, path, spec, typ, drop_rows):
+    def __init__(self, path, drop_rows, typ):
         super().__init__()
         self.path = path
-        self.spec = spec
-        self.typ = typ
         self.drop_rows = drop_rows
+        self.typ = typ
 
     def __str__(self):
-        return '(TableRead {} {} {} {})'.format(
+        return '(TableRead "{}" {} {})'.format(
             escape_str(self.path),
-            escape_str(json.dumps(self.spec)),
-            self.typ._jtype.parsableString(),
-            self.drop_rows)
+            self.drop_rows,
+            self.typ)
 
 class TableImport(BaseIR):
     def __init__(self, paths, typ, reader_options):
@@ -135,7 +134,7 @@ class TableFilter(BaseIR):
         self.pred = pred
 
     def __str__(self):
-        return '(TableFilter {})'.format(self.child, self.pred)
+        return '(TableFilter {} {})'.format(self.child, self.pred)
 
 class TableAggregateByKey(BaseIR):
     def __init__(self, child, expr):
@@ -146,13 +145,13 @@ class TableAggregateByKey(BaseIR):
     def __str__(self):
         return '(TableAggregateByKey {} {})'.format(self.child, self.expr)
 
-class TableColsTable(BaseIR):
+class MatrixColsTable(BaseIR):
     def __init__(self, child):
         super().__init__()
         self.child = child
 
     def __str__(self):
-        return '(TableColsTable {})'.format(self.child)
+        return '(MatrixColsTable {})'.format(self.child)
 
 class TableParallelize(BaseIR):
     def __init__(self, typ, rows, n_partitions):
@@ -163,6 +162,6 @@ class TableParallelize(BaseIR):
 
     def __str__(self):
         return '(TableParallelize {} {} {})'.format(
-            self.typ._jtype.parsableString(),
-            escape_str(json.dumps(self.rows)),
+            self.typ,
+            self.rows,
             self.n_partitions)

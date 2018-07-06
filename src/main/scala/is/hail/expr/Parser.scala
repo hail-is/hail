@@ -676,6 +676,10 @@ object Parser extends JavaTokenParsers {
     ir_value_exprs ^^ { xs => Some(xs) } |
       "None" ^^ { _ => None }
 
+  def matrix_type_expr_opt: Parser[Option[MatrixType]] = matrix_type_expr ^^ {
+    Some(_)
+  } | "None" ^^ { _ => None }
+
   def type_exprs: Parser[Seq[Type]] = "(" ~> rep(type_expr) <~ ")"
 
   def type_exprs_opt: Parser[Option[Seq[Type]]] = type_exprs ^^ { ts => Some(ts) } | "None" ^^ { _ => None }
@@ -689,6 +693,8 @@ object Parser extends JavaTokenParsers {
 
   def ir_named_value_expr: Parser[(String, ir.IR)] =
     "(" ~> ir_identifier ~ ir_value_expr <~ ")" ^^ { case n ~ x => (n, x) }
+
+  def ir_opt[T](p: Parser[T]): Parser[Option[T]] = p ^^ { Some(_) } | "None" ^^ { _ => None }
 
   def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
 
@@ -762,11 +768,8 @@ object Parser extends JavaTokenParsers {
         ir.TableKeyBy(child, key, nPartKeys, sort)
       } |
       "TableFilter" ~> table_ir ~ ir_value_expr ^^ { case child ~ pred => ir.TableFilter(child, pred) } |
-      "TableRead" ~> string_literal ~ string_literal ~ table_type_expr ~ boolean_literal ^^ { case path ~ specJSONStr ~ typ ~ dropRows =>
-        import RelationalSpec.formats
-        val specJSON = JsonMethods.parse(specJSONStr)
-        val spec = specJSON.extract[TableSpec]
-        ir.TableRead(path, spec, typ, dropRows)
+      "TableRead" ~> string_literal ~ boolean_literal ~ ir_opt(table_type_expr) ^^ { case path ~ dropRows ~ typ =>
+        TableIR.read(HailContext.get, path, dropRows, typ)
       } |
       "MatrixColsTable" ~> matrix_ir ^^ { child => ir.MatrixColsTable(child) } |
       "MatrixRowsTable" ~> matrix_ir ^^ { child => ir.MatrixRowsTable(child) } |
@@ -823,13 +826,15 @@ object Parser extends JavaTokenParsers {
       } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
       "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
-      "MatrixRead" ~> matrix_type_expr ~ int64_literals_opt ~ int32_literal_opt ~ boolean_literal ~ boolean_literal ~ matrix_reader ^^ { case typ ~ partCounts ~ colCount ~ dropCols ~ dropRows ~ reader =>
-        ir.MatrixRead(typ, partCounts.map(_.toArray), colCount, dropCols, dropRows, reader)
+      "MatrixRange" ~> int32_literal ~ int32_literal ~ int32_literal_opt ^^ { case nRows ~ nCols ~ nPartitions =>
+        MatrixIR.range(HailContext.get, nRows, nCols, nPartitions)
+      } |
+      "MatrixRead" ~> string_literal ~ boolean_literal ~ boolean_literal ~ matrix_type_expr_opt ^^ { case path ~ dropCols ~ dropRows ~ requestedType =>
+        MatrixIR.read(HailContext.get, path, dropCols, dropRows, requestedType)
       } |
       "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
-      }
 
   def parse_value_ir(s: String): IR = parse(ir_value_expr, s)
 

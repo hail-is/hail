@@ -125,16 +125,8 @@ object FileFormat {
 }
 
 object MatrixTable {
-  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
-    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
-      case mts: MatrixTableSpec => mts
-      case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
-    }
-    val typ = spec.matrix_type
-    val nCols = spec.colsComponent.read(hc, path, TStruct()).count().toInt
-    new MatrixTable(hc,
-      MatrixRead(typ, Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec)))
-  }
+  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable =
+    new MatrixTable(hc, MatrixIR.read(hc, path, dropCols, dropRows, None))
 
   def fromLegacy[T](hc: HailContext,
     matrixType: MatrixType,
@@ -180,14 +172,8 @@ object MatrixTable {
     ds
   }
 
-  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable = {
-    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
-    val partCounts = partition(nRows, nPartitionsAdj)
-
-    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    new MatrixTable(hc, MatrixRead(reader.typ, Some(partCounts.map(_.toLong)), Some(nCols),
-      dropRows = false, dropCols = false, reader = reader))
-  }
+  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable =
+    new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
