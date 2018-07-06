@@ -263,7 +263,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableOrderByMemo() {
     val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
-    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2")))
+    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A")))
   }
 
   @Test def testMatrixFilterColsMemo() {
