@@ -41,7 +41,7 @@ class AggregatorsSuite {
     runAggregator(Sum(), TFloat64(), FastIndexedSeq(null, null, null), 0.0)
   }
 
-  def sumInt64() {
+  @Test def sumInt64() {
     runAggregator(Sum(), TInt64(), FastIndexedSeq(-1L, 2L, 3L), 4L)
 
   }
