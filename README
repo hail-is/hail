@@ -22,8 +22,16 @@ Hit a Flask REST endpoint with Curl:
 
 $ curl -X POST -H "Content-Type: application/json" -d <data> <url>
 
-$ curl -X POST -H "Content-Type: application/json" -d '{"name": "batchtest", "image": "gcr.io/broad-ctsa/true:1.0.0"}' localhost:5000/schedule
+$ curl -X POST -H "Content-Type: application/json" -d '{"name": "batchtest", "image": "gcr.io/broad-ctsa/true:1.0.0"}' batch/schedule
 
 Give default:default serviceaccount cluster-admin privileges:
 
 $ kubectl create clusterrolebinding cluster-admin-default --clusterrole cluster-admin --serviceaccount=default:default
+
+Run an image in a new pod:
+
+$ kubectl run <name> --restart=Never --image <image. -- <cmd>
+
+For example, run a shell in an new pod:
+
+$ kubectl run -i --tty apline --image=alpine --restart=Never -- sh
