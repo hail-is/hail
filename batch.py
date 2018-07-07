@@ -1,8 +1,9 @@
 import os
 import logging
 import threading
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, url_for
 import kubernetes as kube
+import cerberus
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('batch')
@@ -14,9 +15,10 @@ else:
 v1 = kube.client.CoreV1Api()
 
 pod_job = {}
+id_job = {}
 
 counter = 0
-def next_uid():
+def next_id():
     global counter
 
     counter = counter + 1
@@ -24,21 +26,23 @@ def next_uid():
 
 class Job(object):
     def _create_pod(self):
-        pod = v1.create_namespaced_pod('default', pod)
+        pod = v1.create_namespaced_pod('default', self.pod)
         pod_name = pod.metadata.name
         pod_uid = pod.metadata.uid
-        log.info('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.uid))
+        log.info('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.id))
         pod_job[pod_uid] = self
 
     def __init__(self, parameters):
         self.name = parameters['name']
-        self.uid = next_uid()
+        self.id = next_id()
+        id_job[self.id] = self
         
         image = parameters['image']
         command = parameters.get('command')
+        args = parameters.get('args')
         env = parameters.get('env')
         if env:
-            env = [kube.V1EnvVar(name = k, value = v) for (k, v) in env.items()]
+            env = [kube.client.V1EnvVar(name = k, value = v) for (k, v) in env.items()]
         self.pod = kube.client.V1Pod(
             metadata = kube.client.V1ObjectMeta(generate_name = self.name + '-'),
             spec = kube.client.V1PodSpec(
@@ -47,19 +51,20 @@ class Job(object):
                         name = 'default',
                         image = image,
                         command = command,
+                        args = args,
                         env = env)
                 ],
                 restart_policy = 'Never'))
 
         self.state = 'Created'
-        log.info('created job {}'.format(self.uid))
+        log.info('created job {}'.format(self.id))
 
         self._create_pod()
 
     def set_state(self, new_state):
         if self.state != new_state:
             log.info('job {} changed state: {} -> {}'.format(
-                self.uid,
+                self.id,
                 self.state,
                 new_state))
             self.state = new_state
@@ -67,15 +72,18 @@ class Job(object):
     def mark_unscheduled(self):
         self._create_pod()
 
-    def mark_complete(self, exit_code):
-        self.exit_code = exit_code
-        log.info('job {} complete, exit_code {}'.format(self.name, exit_code))
+    def mark_complete(self, pod):
+        self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
+        self.log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
+        
+        log.info('job {} complete, exit_code {}, log:\n{}'.format(
+            self.name, self.exit_code, self.log))
         self.state = 'Complete'
         # FIXME call callback
 
 app = Flask('batch')
 
-@app.route('/schedule', methods=['POST'])
+@app.route('/jobs/schedule', methods=['POST'])
 def schedule():
     parameters = request.json
 
@@ -83,18 +91,33 @@ def schedule():
         'name': {'type': 'string', 'required': True},
         'image': {'type': 'string', 'required': True},
         'command': {'type': 'list', 'schema': {'type': 'string'}},
+        'args': {'type': 'list', 'schema': {'type': 'string'}},
         'env': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         }
     }
-    v = Validator(schema)
+    v = cerberus.Validator(schema)
     if (not v.validate(parameters)):
         abort(404, 'invalid request: {}'.format(v.errors))
 
     job = Job(parameters)
-    result = {'uid': job.uid}
+    result = {'id': job.id, 'location': url_for('get_job', job_id=job.id, _external=True)}
+    return jsonify(result)
+
+@app.route('/jobs/<int:job_id>', methods=['GET'])
+def get_job(job_id):
+    job = id_job.get(job_id)
+    if not job:
+        abort(404)
+    result = {
+        'id': job.id,
+        'state': job.state,
+    }
+    if job.state == 'Complete':
+        result['exit_code'] = job.exit_code
+        result['log'] = job.log
     return jsonify(result)
 
 def flask_event_loop():
@@ -123,8 +146,7 @@ def kube_event_loop():
                     assert container_status.name == 'default'
 
                     if container_status.state and container_status.state.terminated:
-                        exit_code = container_status.state.terminated.exit_code
-                        job.mark_complete(exit_code)
+                        job.mark_complete(pod)
 
 kube_thread = threading.Thread(target=kube_event_loop)
 kube_thread.start()
