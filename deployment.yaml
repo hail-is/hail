@@ -1,0 +1,19 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: batch-deployment
+spec:
+  selector:
+    matchLabels:
+      app: batch
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: batch
+    spec:
+      containers:
+      - name: batch
+        image: gcr.io/broad-ctsa/batch
+        ports:
+        - containerPort: 5000

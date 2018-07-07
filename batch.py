@@ -1,9 +1,13 @@
+import logging
 import threading
 from flask import Flask, request, jsonify
 import kubernetes as kube
 
-# config.load_incluster_config()
-kube.config.load_kube_config()
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('batch')
+
+kube.config.load_incluster_config()
+# kube.config.load_kube_config()
 v1 = kube.client.CoreV1Api()
 
 pod_job = {}
@@ -29,7 +33,7 @@ class Job(object):
         pod = v1.create_namespaced_pod('default', pod)
         pod_name = pod.metadata.name
         pod_uid = pod.metadata.uid
-        print('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.uid))
+        log.info('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.uid))
         pod_job[pod_uid] = self
 
     def __init__(self, name, image, callback=None):
@@ -39,13 +43,13 @@ class Job(object):
         self.callback = callback
 
         self.state = 'Created'
-        print('created job {}'.format(self.uid))
+        log.info('created job {}'.format(self.uid))
 
         self._create_pod()
 
     def set_state(self, new_state):
         if self.state != new_state:
-            print('job {} changed state: {} -> {}'.format(
+            log.info('job {} changed state: {} -> {}'.format(
                 self.uid,
                 self.state,
                 new_state))
@@ -56,7 +60,7 @@ class Job(object):
 
     def mark_complete(self, exit_code):
         self.exit_code = exit_code
-        print('job {} complete, exit_code {}'.format(self.name, exit_code))
+        log.info('job {} complete, exit_code {}'.format(self.name, exit_code))
         self.state = 'Complete'
         # FIXME call callback
 

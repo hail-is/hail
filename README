@@ -13,3 +13,17 @@ $ docker run -i -v $HOME/.kube:/root/.kube -p 5000:5000 -t batch
 On OSX, the port will be accessible on the docker-machine:
 
 $(docker-machine ip default):5000
+
+Get a shell in a running pod:
+
+$ kubectl exec -it <pod> -- /bin/sh
+
+Hit a Flask REST endpoint with Curl:
+
+$ curl -X POST -H "Content-Type: application/json" -d <data> <url>
+
+$ curl -X POST -H "Content-Type: application/json" -d '{"name": "batchtest", "image": "gcr.io/broad-ctsa/true:1.0.0"}' localhost:5000/schedule
+
+Give default:default serviceaccount cluster-admin privileges:
+
+$ kubectl create clusterrolebinding cluster-admin-default --clusterrole cluster-admin --serviceaccount=default:default
