@@ -1,13 +1,16 @@
+import os
 import logging
 import threading
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
 import kubernetes as kube
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('batch')
 
-kube.config.load_incluster_config()
-# kube.config.load_kube_config()
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+    kube.config.load_kube_config()
+else:
+    kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
 pod_job = {}
@@ -15,32 +18,38 @@ pod_job = {}
 counter = 0
 def next_uid():
     global counter
-    
+
     counter = counter + 1
     return counter
 
 class Job(object):
     def _create_pod(self):
-        pod = kube.client.V1Pod(
-            metadata = kube.client.V1ObjectMeta(generate_name = self.name + '-'),
-            spec = kube.client.V1PodSpec(
-                containers = [
-                    kube.client.V1Container(
-                        name = 'default',
-                        image = self.image)
-                ],
-                restart_policy = 'Never'))
         pod = v1.create_namespaced_pod('default', pod)
         pod_name = pod.metadata.name
         pod_uid = pod.metadata.uid
         log.info('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.uid))
         pod_job[pod_uid] = self
 
-    def __init__(self, name, image, callback=None):
-        self.name = name
+    def __init__(self, parameters):
+        self.name = parameters['name']
         self.uid = next_uid()
-        self.image = image
-        self.callback = callback
+        
+        image = parameters['image']
+        command = parameters.get('command')
+        env = parameters.get('env')
+        if env:
+            env = [kube.V1EnvVar(name = k, value = v) for (k, v) in env.items()]
+        self.pod = kube.client.V1Pod(
+            metadata = kube.client.V1ObjectMeta(generate_name = self.name + '-'),
+            spec = kube.client.V1PodSpec(
+                containers = [
+                    kube.client.V1Container(
+                        name = 'default',
+                        image = image,
+                        command = command,
+                        env = env)
+                ],
+                restart_policy = 'Never'))
 
         self.state = 'Created'
         log.info('created job {}'.format(self.uid))
@@ -69,10 +78,23 @@ app = Flask('batch')
 @app.route('/schedule', methods=['POST'])
 def schedule():
     parameters = request.json
-    name = parameters['name']
-    image = parameters['image']
-    job = Job(name, image)
-    result = {'uid': job.uid, 'name': job.name}
+
+    schema = {
+        'name': {'type': 'string', 'required': True},
+        'image': {'type': 'string', 'required': True},
+        'command': {'type': 'list', 'schema': {'type': 'string'}},
+        'env': {
+            'type': 'dict',
+            'keyschema': {'type': 'string'},
+            'valueschema': {'type': 'string'}
+        }
+    }
+    v = Validator(schema)
+    if (not v.validate(parameters)):
+        abort(404, 'invalid request: {}'.format(v.errors))
+
+    job = Job(parameters)
+    result = {'uid': job.uid}
     return jsonify(result)
 
 def flask_event_loop():

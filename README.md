@@ -1,3 +1,7 @@
+Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md
+ - [V1Pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Pod.md)
+ - 
+
 To get kubectl credentials for a GKE cluster:
 
 $ gcloud container clusters get-credentials <cluster>
