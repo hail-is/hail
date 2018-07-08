@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 import logging
 import threading
 from flask import Flask, request, jsonify, abort, url_for
@@ -23,6 +24,7 @@ def next_id():
 
 pod_name_job = {}
 job_id_job = {}
+batch_jobs = {}
 
 class Job(object):
     def _create_pod(self):
@@ -39,7 +41,7 @@ class Job(object):
             try:
                 v1.delete_namespaced_pod(self._pod_name, 'default', kube.client.V1DeleteOptions())
             except kube.client.rest.ApiException as e:
-                if e.status == 404 and e.reason = 'NotFound':
+                if e.status == 404 and e.reason == 'NotFound':
                     pass
                 else:
                     raise
@@ -48,12 +50,20 @@ class Job(object):
 
     def __init__(self, parameters):
         self.name = parameters['name']
-        
+
         self.id = next_id()
         job_id_job[self.id] = self
         log.info('created job {}'.format(self.id))
 
         self._state = 'Created'
+
+        batch = parameters.get('batch')
+        if batch:
+            if batch in batch_jobs:
+                batch_jobs[batch].append(self)
+            else:
+                batch_jobs[batch] = [self]
+        self.batch = batch
 
         image = parameters['image']
         command = parameters.get('command')
@@ -120,7 +130,7 @@ class Job(object):
 app = Flask('batch')
 
 @app.route('/jobs/create', methods=['POST'])
-def schedule():
+def create_job():
     parameters = request.json
 
     schema = {
@@ -132,7 +142,8 @@ def schedule():
             'type': 'dict',
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
-        }
+        },
+        'batch': {'type': 'string'},
     }
     v = cerberus.Validator(schema)
     if (not v.validate(parameters)):
@@ -156,6 +167,16 @@ def cancel_job(job_id):
         abort(404)
     job.cancel()
     return jsonify({})
+
+@app.route('/batches/<batch>', methods=['GET'])
+def get_batch(batch):
+    jobs = batch_jobs.get(batch, [])
+    jobs = [j._state for j in jobs]
+    counter = Counter(jobs)
+    return jsonify({
+        'batch': batch,
+        'jobs': dict(counter)
+    })
 
 def flask_event_loop():
     app.run(debug=True, host='0.0.0.0')
