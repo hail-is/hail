@@ -1,5 +1,7 @@
 Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md
  - [V1Pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Pod.md)
+ - [create_namespaced_pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_pod)
+ - [delete_namespaced_pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md#delete_namespaced_pod)
  - 
 
 To get kubectl credentials for a GKE cluster:
@@ -26,7 +28,7 @@ Hit a Flask REST endpoint with Curl:
 
 $ curl -X POST -H "Content-Type: application/json" -d <data> <url>
 
-$ curl -X POST -H "Content-Type: application/json" -d '{"name": "batchtest", "image": "gcr.io/broad-ctsa/true:1.0.0"}' batch/schedule
+$ curl -X POST -H "Content-Type: application/json" -d '{"name": "batchtest", "image": "gcr.io/broad-ctsa/true"}' batch/schedule
 
 Give default:default serviceaccount cluster-admin privileges:
 
@@ -39,3 +41,8 @@ $ kubectl run <name> --restart=Never --image <image. -- <cmd>
 For example, run a shell in an new pod:
 
 $ kubectl run -i --tty apline --image=alpine --restart=Never -- sh
+
+Forward from a local port to a port on pod:
+
+$ kubectl port-forward jupyter-deployment-5f54cff675-msr85 8888:8888 # <local port>:<remote port>
+

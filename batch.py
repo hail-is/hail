@@ -14,9 +14,6 @@ else:
     kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
-pod_job = {}
-id_job = {}
-
 counter = 0
 def next_id():
     global counter
@@ -24,19 +21,40 @@ def next_id():
     counter = counter + 1
     return counter
 
+pod_name_job = {}
+job_id_job = {}
+
 class Job(object):
     def _create_pod(self):
-        pod = v1.create_namespaced_pod('default', self.pod)
-        pod_name = pod.metadata.name
-        pod_uid = pod.metadata.uid
-        log.info('created pod name: {}, uid: {} for job {}'.format(pod_name, pod_uid, self.id))
-        pod_job[pod_uid] = self
+        assert not self._pod_name
+
+        created_pod = v1.create_namespaced_pod('default', self.pod)
+        self._pod_name = created_pod.metadata.name
+        pod_name_job[self._pod_name] = self
+
+        log.info('created pod name: {} for job {}'.format(self._pod_name, self.id))
+
+    def _cancel_pod(self):
+        if self._pod_name:
+            try:
+                v1.delete_namespaced_pod(self._pod_name, 'default', kube.client.V1DeleteOptions())
+            except kube.client.rest.ApiException as e:
+                if e.status == 404 and e.reason = 'NotFound':
+                    pass
+                else:
+                    raise
+            del pod_name_job[self._pod_name]
+            self._pod_name = None
 
     def __init__(self, parameters):
         self.name = parameters['name']
-        self.id = next_id()
-        id_job[self.id] = self
         
+        self.id = next_id()
+        job_id_job[self.id] = self
+        log.info('created job {}'.format(self.id))
+
+        self._state = 'Created'
+
         image = parameters['image']
         command = parameters.get('command')
         args = parameters.get('args')
@@ -55,35 +73,53 @@ class Job(object):
                         env = env)
                 ],
                 restart_policy = 'Never'))
-
-        self.state = 'Created'
-        log.info('created job {}'.format(self.id))
-
+        self._pod_name = None
         self._create_pod()
 
     def set_state(self, new_state):
-        if self.state != new_state:
+        if self._state != new_state:
             log.info('job {} changed state: {} -> {}'.format(
                 self.id,
-                self.state,
+                self._state,
                 new_state))
-            self.state = new_state
+            self._state = new_state
+
+    def cancel(self):
+        if self.is_complete():
+            return
+        self._cancel_pod()
+        self.set_state('Cancelled')
+
+    def is_complete(self):
+        return self._state == 'Complete' or self._state == 'Cancelled'
 
     def mark_unscheduled(self):
+        if self._pod_name:
+            del pod_name_job[self._pod_name]
+            self._pod_name = None
         self._create_pod()
 
     def mark_complete(self, pod):
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
         self.log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
-        
+
         log.info('job {} complete, exit_code {}, log:\n{}'.format(
             self.name, self.exit_code, self.log))
-        self.state = 'Complete'
-        # FIXME call callback
+        self.set_state('Complete')
+
+    def to_json(self):
+        result = {
+            'id': self.id,
+            'state': self._state,
+        }
+        if self._state == 'Complete':
+            result['exit_code'] = self.exit_code
+            result['log'] = self.log
+        return result
 
 app = Flask('batch')
 
-@app.route('/jobs/schedule', methods=['POST'])
+@app.route('/jobs/create', methods=['POST'])
 def schedule():
     parameters = request.json
 
@@ -108,17 +144,18 @@ def schedule():
 
 @app.route('/jobs/<int:job_id>', methods=['GET'])
 def get_job(job_id):
-    job = id_job.get(job_id)
+    job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    result = {
-        'id': job.id,
-        'state': job.state,
-    }
-    if job.state == 'Complete':
-        result['exit_code'] = job.exit_code
-        result['log'] = job.log
-    return jsonify(result)
+    return jsonify(job.to_json())
+
+@app.route('/jobs/<int:job_id>/cancel', methods=['POST'])
+def cancel_job(job_id):
+    job = job_id_job.get(job_id)
+    if not job:
+        abort(404)
+    job.cancel()
+    return jsonify({})
 
 def flask_event_loop():
     app.run(debug=True, host='0.0.0.0')
@@ -131,12 +168,10 @@ def kube_event_loop():
 
         pod = event['object']
         name = pod.metadata.name
-        uid = pod.metadata.uid
 
-        job = pod_job.get(uid)
-        if job and job.state != 'Complete':
+        job = pod_name_job.get(name)
+        if job and not job.is_complete():
             if event_type == 'DELETE':
-                del pod_job[uid]
                 job.mark_unscheduled()
             else:
                 assert event_type == 'ADDED' or event_type == 'MODIFIED'
