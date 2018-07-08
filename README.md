@@ -1,4 +1,4 @@
-Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md
+Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md)
  - [V1Pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Pod.md)
  - [create_namespaced_pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_pod)
  - [delete_namespaced_pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md#delete_namespaced_pod)
