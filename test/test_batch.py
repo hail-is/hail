@@ -67,7 +67,6 @@ class Test(unittest.TestCase):
             'alpine', ['true'],
             attributes = a)
         status = j.status()
-        print(status)
         assert(status['attributes'] == a)
 
     def test_fail(self):
