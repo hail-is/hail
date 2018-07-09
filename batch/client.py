@@ -41,8 +41,8 @@ class Batch(object):
         self.client = client
         self.id = id
 
-    def create_job(self, image, command=None, args=None, env=None, attributes=None):
-        return self.client._create_job(image, command, args, env, attributes, self.id)
+    def create_job(self, image, command=None, args=None, env=None, attributes=None, callback=None):
+        return self.client._create_job(image, command, args, env, attributes, self.id, callback)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -65,8 +65,8 @@ class BatchClient(object):
             url = 'http://batch'
         self.url = url
 
-    def _create_job(self, image, command, args, env, attributes, batch_id):
-        j = api.create_job(self.url, image, command, args, env, attributes, batch_id)
+    def _create_job(self, image, command, args, env, attributes, batch_id, callback):
+        j = api.create_job(self.url, image, command, args, env, attributes, batch_id, callback)
         return Job(self, j['id'])
 
     def _get_job(self, id):
@@ -83,8 +83,8 @@ class BatchClient(object):
         j = api.get_job(self.url, id)
         return Job(self, j['id'])
 
-    def create_job(self, image, command=None, args=None, env=None, attributes=None):
-        return self._create_job(image, command, args, env, attributes, None)
+    def create_job(self, image, command=None, args=None, env=None, attributes=None, callback=None):
+        return self._create_job(image, command, args, env, attributes, None, callback)
 
     def create_batch(self, attributes=None):
         b = api.create_batch(self.url, attributes)

@@ -50,7 +50,7 @@ $ kubectl create clusterrolebinding cluster-admin-default --clusterrole cluster-
 Run an image in a new pod:
 
 ```
-$ kubectl run <name> --restart=Never --image <image. -- <cmd>
+$ kubectl run <name> --restart=Never --image <image> -- <cmd>
 ```
 
 For example, run a shell in an new pod:

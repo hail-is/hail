@@ -3,7 +3,7 @@ import time
 import random
 import requests
 
-def create_job(url, image, command, args, env, attributes, batch_id):
+def create_job(url, image, command, args, env, attributes, batch_id, callback):
     d = {'image': image}
     if command:
         d['command'] = command
@@ -15,6 +15,8 @@ def create_job(url, image, command, args, env, attributes, batch_id):
         d['attributes'] = attributes
     if batch_id:
         d['batch_id'] = batch_id
+    if callback:
+        d['callback'] = callback
 
     r = requests.post(url + '/jobs/create', json = d)
     r.raise_for_status()

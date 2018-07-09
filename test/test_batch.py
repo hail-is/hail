@@ -1,6 +1,47 @@
+import threading
+import time
 import os
 import unittest
 import batch
+import requests
+from werkzeug.serving import make_server
+from flask import Flask, request, jsonify, url_for, Response
+
+class ServerThread(threading.Thread):
+    def __init__(self, app, port=5000):
+        super().__init__()
+
+        @app.route('/ping', methods=['GET'])
+        def ping():
+            return Response(status=200)
+
+        self.host = '127.0.0.1'
+        self.port = port
+        self.app = app
+        self.server = make_server(self.host, self.port, app)
+        self.context = app.app_context()
+        self.context.push()
+
+    def ping(self):
+        ping_url = 'http://{}:{}/ping'.format(self.host, self.port)
+
+        up = False
+        while not up:
+            try:
+                requests.get(ping_url)
+                up = True
+            except requests.exceptions.ConnectionError:
+                time.sleep(0.01)
+
+    def start(self):
+        super().start()
+        self.ping()
+
+    def run(self):
+        self.server.serve_forever()
+
+    def shutdown(self):
+        self.server.shutdown()
 
 class Test(unittest.TestCase):
     def setUp(self):
@@ -58,3 +99,28 @@ class Test(unittest.TestCase):
         bstatus = b.wait()
         self.assertTrue(bstatus['jobs']['Cancelled'] == 1)
         self.assertTrue(bstatus['jobs']['Complete'] == 2)
+
+    def test_callback(self):
+        app = Flask('test-client')
+
+        d = {}
+
+        @app.route('/test', methods=['POST'])
+        def test():
+            d['status'] = request.get_json()
+            return Response(status=200)
+
+        server = ServerThread(app, port=5869)
+        server.start()
+
+        j = self.batch.create_job('alpine', ['echo', 'test'],
+                                  attributes={'foo': 'bar'},
+                                  callback='http://localhost:5869/test')
+        j.wait()
+
+        status = d['status']
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['attributes'], {'foo': 'bar'})
+
+        server.shutdown()
+        server.join()
