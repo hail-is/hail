@@ -3,7 +3,7 @@ package is.hail.utils
 import scala.reflect.ClassTag
 
 final class ArrayStack[@specialized T](hintSize: Int = 16)(implicit tct: ClassTag[T]) {
-  private[this] var a = new Array[T](hintSize)
+  private var a = new Array[T](hintSize)
 
   private[this] var size_ = 0
 
