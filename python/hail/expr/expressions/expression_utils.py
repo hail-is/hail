@@ -223,6 +223,19 @@ def matrix_table_source(caller, expr):
 @typecheck(caller=str,
            expr=Expression)
 def check_entry_indexed(caller, expr):
+    if expr._indices.source is None:
+        raise ExpressionException("{}: expression must be entry-indexed,"
+                                  " found no indices (no source)")
     if expr._indices != expr._indices.source._entry_indices:
         raise ExpressionException("{}: expression must be entry-indexed,"
+                                  " found indices {}".format(caller, list(expr._indices.axes)))
+
+@typecheck(caller=str,
+           expr=Expression)
+def check_row_indexed(caller, expr):
+    if expr._indices.source is None:
+        raise ExpressionException("{}: expression must be row-indexed,"
+                                  " found no indices (no source)")
+    if expr._indices != expr._indices.source._row_indices:
+        raise ExpressionException("{}: expression must be row-indexed,"
                                   " found indices {}".format(caller, list(expr._indices.axes)))

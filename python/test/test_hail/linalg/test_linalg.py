@@ -6,6 +6,7 @@ from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalE
 from ..helpers import *
 import numpy as np
 import tempfile
+from hail.expr.expressions import ExpressionException
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -618,3 +619,126 @@ class Tests(unittest.TestCase):
             self.assertEqual(entries_table.count(), n_cols * n_rows)
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
+
+    def test_array_windows(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(a, np.array(b)))
+
+        starts, stops = hl.linalg.utils.array_windows(np.array([1, 2, 4, 4, 6, 8]), 2)
+        assert_eq(starts, [0, 0, 1, 1, 2, 4])
+        assert_eq(stops, [2, 4, 5, 5, 6, 6])
+
+        starts, stops = hl.linalg.utils.array_windows(np.array([-10.0, -2.5, 0.0, 0.0, 1.2, 2.3, 3.0]), 2.5)
+        assert_eq(starts, [0, 1, 1, 1, 2, 2, 4])
+        assert_eq(stops, [1, 4, 6, 6, 7, 7, 7])
+
+        starts, stops = hl.linalg.utils.array_windows(np.array([0, 0, 1]), 0)
+        assert_eq(starts, [0, 0, 2])
+        assert_eq(stops, [2, 2, 3])
+
+        starts, stops = hl.linalg.utils.array_windows(np.array([]), 1)
+        self.assertEqual(starts.size, 0)
+        self.assertEqual(stops.size, 0)
+
+        starts, stops = hl.linalg.utils.array_windows(np.array([-float('inf'), -1, 0, 1, float("inf")]), 1)
+        assert_eq(starts, [0, 1, 1, 2, 4])
+        assert_eq(stops, [1, 3, 4, 4, 5])
+
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([1, 0]), -1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([0, float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([0.0, float('nan')]), 1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([None]), 1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([]), -1))
+        self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array(['str']), 1))
+
+    def test_locus_windows(self):
+        def assert_eq(a, b):
+            self.assertTrue(np.array_equal(a, np.array(b)))
+
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+
+        mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
+        mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
+
+        starts, stops = hl.linalg.utils.locus_windows(mt.locus, 2)
+        assert_eq(starts, [0, 0, 0, 1, 2])
+        assert_eq(stops, [3, 4, 5, 5, 5])
+
+        starts, stops = hl.linalg.utils.locus_windows(mt.locus, 0.5, coord_expr=mt.cm)
+        assert_eq(starts, [0, 1, 1, 1, 3])
+        assert_eq(stops, [1, 4, 4, 5, 5])
+
+        starts, stops = hl.linalg.utils.locus_windows(mt.locus, 1.0, coord_expr=2 * centimorgans[hl.int32(mt.row_idx)])
+        assert_eq(starts, [0, 1, 1, 1, 3])
+        assert_eq(stops, [1, 4, 4, 5, 5])
+
+        rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
+                {'locus': hl.Locus('1', 2), 'cm': 3.0},
+                {'locus': hl.Locus('1', 4), 'cm': 4.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+
+        ht = hl.Table.parallelize(rows,
+                                  hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
+                                  key=['locus'])
+
+        starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1)
+        assert_eq(starts, [0, 0, 2, 3, 3, 5])
+        assert_eq(stops, [2, 2, 3, 5, 5, 6])
+
+        starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
+        assert_eq(starts, [0, 1, 1, 3, 3, 5])
+        assert_eq(stops, [1, 3, 3, 5, 5, 6])
+
+        with self.assertRaises(ValueError) as cm:
+            hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
+        self.assertTrue('ascending order' in str(cm.exception))
+
+        with self.assertRaises(ExpressionException) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
+        self.assertTrue('different source' in str(cm.exception))
+
+        with self.assertRaises(ExpressionException) as cm:
+            hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
+        self.assertTrue("no source" in str(cm.exception))
+
+        with self.assertRaises(ExpressionException) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
+        self.assertTrue("no source" in str(cm.exception))
+
+        ht = ht.annotate_globals(x = hl.locus('1', 1), y = 1.0)
+        with self.assertRaises(ExpressionException) as cm:
+            hl.linalg.utils.locus_windows(ht.x, 1.0)
+        self.assertTrue("row-indexed" in str(cm.exception))
+        with self.assertRaises(ExpressionException) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
+        self.assertTrue("row-indexed" in str(cm.exception))
+
+        ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
+                                  hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
+        with self.assertRaises(ValueError) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0)
+        self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
+        with self.assertRaises(ValueError) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
+        self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
+
+        ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
+                                  hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
+        with self.assertRaises(ValueError) as cm:
+            hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
+        self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
+
+    def test_compute_contig_start_idx(self):
+        res = hl.linalg.utils._compute_contig_start_idx(
+            global_pos=[0, 1, 2, 2, 4, 4, 5, 5],
+            contig_cum_len=[1, 2, 4, 8])
+        self.assertEqual(res, [0, 1, 2, 4])
+
+        res = hl.linalg.utils._compute_contig_start_idx(
+            global_pos=[0, 0, 1, 2, 3, 4, 5, 5],
+            contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
+
+        self.assertEqual(res, [0, 0, 2, 2, 4, 6])

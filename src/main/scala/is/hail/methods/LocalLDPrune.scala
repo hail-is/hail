@@ -272,15 +272,6 @@ object LocalLDPrune {
   }
 
   def apply(mt: MatrixTable, callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
-
-    mt.requireRowKeyVariant("ld_prune")
-
-    if (r2Threshold < 0 || r2Threshold > 1)
-      fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
-
-    if (windowSize < 0)
-      fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
-
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 

@@ -941,10 +941,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds1._same(ds2))
 
     def test_ld_prune(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        pruned_table = hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000)
+        r2_threshold = 0.001
+        window_size = 5
+        ds = hl.split_multi_hts(hl.import_vcf(resource('ldprune.vcf'), min_partitions=3))
+        pruned_table = hl.ld_prune(ds.GT, r2=r2_threshold, bp_window_size=window_size)
 
-        filtered_ds = (ds.filter_rows(hl.is_defined(pruned_table[(ds.locus, ds.alleles)])))
+        filtered_ds = ds.filter_rows(hl.is_defined(pruned_table[ds.row_key]))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
         filtered_ds = filtered_ds.annotate_rows(
             mean=filtered_ds.stats.mean, sd_reciprocal=1 / filtered_ds.stats.stdev)
@@ -955,26 +957,34 @@ class Tests(unittest.TestCase):
                     (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
                     * filtered_ds['sd_reciprocal'] * (1 / hl.sqrt(n_samples)), 0))
 
-        block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
-        entries = ((block_matrix @ block_matrix.T) ** 2).entries()
+        std_bm = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
+
+        self.assertEqual(std_bm.n_rows, 14)
+
+        entries = ((std_bm @ std_bm.T) ** 2).entries()
 
         index_table = filtered_ds.add_row_index().rows().key_by('row_idx').select('locus')
         entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
-        contig_filter = entries.locus_i.contig == entries.locus_j.contig
-        window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
-        identical_filter = entries.i != entries.j
+        bad_pair = (
+            (entries.entry >= r2_threshold) &
+            (entries.locus_i.contig == entries.locus_j.contig) &
+            (hl.abs(entries.locus_j.position - entries.locus_i.position) <= window_size) &
+            (entries.i != entries.j)
+        )
 
-        self.assertEqual(entries.filter(
-            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count(), 0)
+        self.assertEqual(entries.filter(bad_pair).count(), 0)
 
     def test_ld_prune_inputs(self):
-        ds = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf')))
-        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=0.2, bp_window_size=1000000, memory_per_core=0))
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, bp_window_size=-1))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
+        self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
     def test_ld_prune_no_prune(self):
-        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=100)
-        pruned_table = hl.ld_prune(ds.GT, r2=0.1, bp_window_size=0)
+        ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
+        pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 

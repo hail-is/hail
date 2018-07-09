@@ -186,6 +186,14 @@ def require_partition_key_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
 
 
+def require_first_key_field_locus(table, method):
+    if (len(table.key) == 0 or
+            not isinstance(table.key[0].dtype, tlocus)):
+        raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
+                         "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(table[k].dtype)) for k in table.key)))
+
+
 @typecheck(table=Table, method=str)
 def require_key(table, method):
     if table.key is None:
