@@ -1161,6 +1161,8 @@ class Tests(unittest.TestCase):
         n_orig_markers = 100
         n_culprits = 10
         n_covariates = 3
+        sigma_sq = 1
+        tau_sq = 1
 
         from numpy.random import RandomState
         prng = RandomState(seed)
@@ -1189,8 +1191,6 @@ class Tests(unittest.TestCase):
 
         beta = np.arange(n_covariates)
         beta_stars = np.array([1] * n_culprits)
-        sigma_sq = 1
-        tau_sq = 1
 
         y = prng.multivariate_normal(
             np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
@@ -1291,9 +1291,11 @@ class Tests(unittest.TestCase):
         fst = n_populations * [.9]
         n_samples = 200
         n_variants = 500
-        n_orig_markers = 300
-        n_culprits = 10
+        n_orig_markers = 500
+        n_culprits = 20
         n_covariates = 3
+        sigma_sq = 1
+        tau_sq = 1
 
         from numpy.random import RandomState
         prng = RandomState(seed)
@@ -1319,8 +1321,6 @@ class Tests(unittest.TestCase):
 
         beta = np.arange(n_covariates)
         beta_stars = np.array([1] * n_culprits)
-        sigma_sq = 1
-        tau_sq = 1
 
         y = prng.multivariate_normal(
             np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
@@ -1363,12 +1363,7 @@ class Tests(unittest.TestCase):
         lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
         assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values
-        # assert lmm_vs_numpy_p_value[-1] < 1e-8  # all p-values
-
-        print(df_numpy.to_string())
-        print(df_lmm.to_string())
-        print((df_lmm['p_value'] - df_numpy['p_value']).to_string())
-        print(lmm_vs_numpy_p_value)
+        assert lmm_vs_numpy_p_value[-1] < 1e-8  # all p-values
 
         # compare LinearMixedModel and LinearMixedRegression
         y_bc = hl.literal(list(y.reshape(n_samples)))
@@ -1405,8 +1400,3 @@ class Tests(unittest.TestCase):
 
         assert lmm_vs_lmr_p_value[10] < 1e-7  # 10 least p-values
         assert lmm_vs_lmr_p_value[-1] < 2e-3  # all p-values
-
-        print(lmm_vs_lmr_p_value)
-
-        # this fails with 1e-8
-        assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
