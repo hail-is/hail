@@ -1280,10 +1280,10 @@ class Tests(unittest.TestCase):
         assert np.logical_xor(na_numpy, na_lmm).sum() <= 5
         mask = ~(na_lmm | na_lmr)
 
-        lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
+        lmm_vs_lmr_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
 
-        assert lmm_vs_lmr[10] < 1e-7  # 10 least p-values
-        assert lmm_vs_lmr[-1] < 2e-3  # all p-values
+        assert lmm_vs_lmr_p_value[10] < 1e-7  # 10 least p-values
+        assert lmm_vs_lmr_p_value[-1] < 2e-3  # all p-values
 
     def test_linear_mixed_model_full_rank(self):
         seed = 0
@@ -1326,7 +1326,6 @@ class Tests(unittest.TestCase):
             np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
             sigma_sq * k + tau_sq * np.eye(n_samples))
 
-        # compare with full rank S, P
         s, u = np.linalg.eigh(k)
         p = u.T
 
@@ -1364,7 +1363,12 @@ class Tests(unittest.TestCase):
         lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
         assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values
-        assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
+        # assert lmm_vs_numpy_p_value[-1] < 1e-8  # all p-values
+
+        print(df_numpy.to_string())
+        print(df_lmm.to_string())
+        print((df_lmm['p_value'] - df_numpy['p_value']).to_string())
+        print(lmm_vs_numpy_p_value)
 
         # compare LinearMixedModel and LinearMixedRegression
         y_bc = hl.literal(list(y.reshape(n_samples)))
@@ -1397,7 +1401,12 @@ class Tests(unittest.TestCase):
         assert np.logical_xor(na_numpy, na_lmm).sum() <= 10
         mask = ~(na_lmm | na_lmr)
 
-        lmm_vs_lmr = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
+        lmm_vs_lmr_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_lmr['p_value'][mask]))
 
-        assert lmm_vs_lmr[10] < 1e-7  # 10 least p-values
-        assert lmm_vs_lmr[-1] < 2e-3  # all p-values
+        assert lmm_vs_lmr_p_value[10] < 1e-7  # 10 least p-values
+        assert lmm_vs_lmr_p_value[-1] < 2e-3  # all p-values
+
+        print(lmm_vs_lmr_p_value)
+
+        # this fails with 1e-8
+        assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
