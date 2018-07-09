@@ -66,9 +66,18 @@ class Job(object):
         image = parameters['image']
         command = parameters.get('command')
         args = parameters.get('args')
-        env = parameters.get('env')
-        if env:
-            env = [kube.client.V1EnvVar(name = k, value = v) for (k, v) in env.items()]
+
+        # include POD_IP
+        env = [kube.client.V1EnvVar(
+            name = 'POD_IP',
+            value_from = kube.client.V1EnvVarSource(
+                field_ref = kube.client.V1ObjectFieldSelector(field_path = 'status.podIP')))
+        ]
+        
+        penv = parameters.get('env')
+        if penv:
+            env = [kube.client.V1EnvVar(name = k, value = v) for (k, v) in penv.items()]
+        
         self.pod = kube.client.V1Pod(
             metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id)),
             spec = kube.client.V1PodSpec(
@@ -78,7 +87,8 @@ class Job(object):
                         image = image,
                         command = command,
                         args = args,
-                        env = env)
+                        env = env,
+                        ports = [kube.client.V1ContainerPort(container_port = 5869)])
                 ],
                 restart_policy = 'Never'))
         self._pod_name = None

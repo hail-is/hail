@@ -8,14 +8,14 @@ from werkzeug.serving import make_server
 from flask import Flask, request, jsonify, url_for, Response
 
 class ServerThread(threading.Thread):
-    def __init__(self, app, port=5000):
+    def __init__(self, app, host='127.0.0.1', port=5000):
         super().__init__()
 
         @app.route('/ping', methods=['GET'])
         def ping():
             return Response(status=200)
 
-        self.host = '127.0.0.1'
+        self.host = host
         self.port = port
         self.app = app
         self.server = make_server(self.host, self.port, app)
@@ -47,6 +47,7 @@ class Test(unittest.TestCase):
     def setUp(self):
         self.batch = batch.client.BatchClient(
             url = os.environ.get('BATCH_URL'))
+        self.ip = os.environ.get('POD_IP')
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])
@@ -110,12 +111,12 @@ class Test(unittest.TestCase):
             d['status'] = request.get_json()
             return Response(status=200)
 
-        server = ServerThread(app, port=5869)
+        server = ServerThread(app, host=self.ip, port=5869)
         server.start()
 
         j = self.batch.create_job('alpine', ['echo', 'test'],
                                   attributes={'foo': 'bar'},
-                                  callback='http://localhost:5869/test')
+                                  callback='http://{}:5869/test'.format(self.ip))
         j.wait()
 
         status = d['status']
