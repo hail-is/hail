@@ -145,7 +145,7 @@ class Tests(unittest.TestCase):
         ])
         self.assertEqual(var.filter(to_keep.contains((var.locus, var.alleles)))
                          .order_by('locus')
-                         .select('errors').collect(),
+                         .select('locus', 'alleles', 'errors').collect(),
                          [
                              hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
                              hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
