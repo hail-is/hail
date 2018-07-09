@@ -2,7 +2,7 @@ import json
 import time
 import random
 import requests
-import api
+import batch.api as api
 
 class Job(object):
     def __init__(self, client, id):
@@ -52,7 +52,7 @@ class Batch(object):
         while True:
             status = self.status()
             if status['jobs'].get('Created', 0) == 0:
-                return
+                return status
             j = random.randrange(2 ** i)
             time.sleep(0.100 * j)
             # max 5.12s
