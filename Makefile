@@ -8,13 +8,17 @@ push-utils:
 	docker push gcr.io/broad-ctsa/false
 	docker push gcr.io/broad-ctsa/echo
 
-build:
+build: build-batch build-test
+
+build-batch:
 	docker build -t gcr.io/broad-ctsa/batch -t batch .
 
 build-test:
 	docker build -t gcr.io/broad-ctsa/batch-test -t batch-test -f Dockerfile.test .
 
-push:
+push: push-batch push-test
+
+push-batch:
 	docker push gcr.io/broad-ctsa/batch
 
 push-test:
