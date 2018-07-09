@@ -12,7 +12,7 @@ class Job(object):
 
     def is_complete(self):
         if self._status:
-            state = self._status['State']
+            state = self._status['state']
             if state == 'Complete' or state == 'Cancelled':
                 return True
         return False
@@ -82,7 +82,7 @@ class BatchClient(object):
         return Job(self, j['id'])
 
     def create_job(self, name, image, command=None, args=None, env=None):
-        return self._create_job(name, image, command, args, env)
+        return self._create_job(name, image, command, args, env, None)
 
     def create_batch(self, name):
         return Batch(self, name)
