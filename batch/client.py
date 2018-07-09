@@ -37,21 +37,21 @@ class Job(object):
         self.client._cancel_job(self.id)
 
 class Batch(object):
-    def __init__(self, client, name):
+    def __init__(self, client, id):
         self.client = client
-        self.name = name
+        self.id = id
 
-    def create_job(self, name, image, command=None, args=None, env=None):
-        return self.client._create_job(name, image, command, args, env, self.name)
+    def create_job(self, image, command=None, args=None, env=None, attributes=None):
+        return self.client._create_job(image, command, args, env, attributes, self.id)
 
     def status(self):
-        return self.client._get_batch(self.name)
+        return self.client._get_batch(self.id)
 
     def wait(self):
         i = 0
         while True:
             status = self.status()
-            if status['jobs'].get('Created', 0) == 0:
+            if status['jobs']['Created'] == 0:
                 return status
             j = random.randrange(2 ** i)
             time.sleep(0.100 * j)
@@ -65,8 +65,8 @@ class BatchClient(object):
             url = 'http://batch'
         self.url = url
 
-    def _create_job(self, name, image, command, args, env, batch):
-        j = api.create_job(self.url, name, image, command, args, env, batch)
+    def _create_job(self, image, command, args, env, attributes, batch_id):
+        j = api.create_job(self.url, image, command, args, env, attributes, batch_id)
         return Job(self, j['id'])
 
     def _get_job(self, id):
@@ -75,16 +75,17 @@ class BatchClient(object):
     def _cancel_job(self, id):
         api.cancel_job(self.url, id)
 
-    def _get_batch(self, batch):
-        return api.get_batch(self.url, batch)
+    def _get_batch(self, batch_id):
+        return api.get_batch(self.url, batch_id)
 
     def get_job(self, id):
         # make sure job exists
         j = api.get_job(self.url, id)
         return Job(self, j['id'])
 
-    def create_job(self, name, image, command=None, args=None, env=None):
-        return self._create_job(name, image, command, args, env, None)
+    def create_job(self, image, command=None, args=None, env=None, attributes=None):
+        return self._create_job(image, command, args, env, attributes, None)
 
-    def create_batch(self, name):
-        return Batch(self, name)
+    def create_batch(self, attributes=None):
+        b = api.create_batch(self.url, attributes)
+        return Batch(self, b['id'])

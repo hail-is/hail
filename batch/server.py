@@ -5,6 +5,7 @@ import threading
 from flask import Flask, request, jsonify, abort, url_for
 import kubernetes as kube
 import cerberus
+import requests
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('batch')
@@ -24,7 +25,6 @@ def next_id():
 
 pod_name_job = {}
 job_id_job = {}
-batch_jobs = {}
 
 class Job(object):
     def _create_pod(self):
@@ -49,21 +49,19 @@ class Job(object):
             self._pod_name = None
 
     def __init__(self, parameters):
-        self.name = parameters['name']
-
         self.id = next_id()
         job_id_job[self.id] = self
         log.info('created job {}'.format(self.id))
 
         self._state = 'Created'
 
-        batch = parameters.get('batch')
-        if batch:
-            if batch in batch_jobs:
-                batch_jobs[batch].append(self)
-            else:
-                batch_jobs[batch] = [self]
-        self.batch = batch
+        self.batch_id = parameters.get('batch_id')
+        if self.batch_id:
+            batch = batch_id_batch[self.batch_id]
+            batch.jobs.append(self)
+
+        self.attributes = parameters.get('attributes')
+        self.callback = parameters.get('callback')
 
         image = parameters['image']
         command = parameters.get('command')
@@ -72,7 +70,7 @@ class Job(object):
         if env:
             env = [kube.client.V1EnvVar(name = k, value = v) for (k, v) in env.items()]
         self.pod = kube.client.V1Pod(
-            metadata = kube.client.V1ObjectMeta(generate_name = self.name + '-'),
+            metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id)),
             spec = kube.client.V1PodSpec(
                 containers = [
                     kube.client.V1Container(
@@ -114,17 +112,22 @@ class Job(object):
         self.log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
 
         log.info('job {} complete, exit_code {}, log:\n{}'.format(
-            self.name, self.exit_code, self.log))
+            self.id, self.exit_code, self.log))
         self.set_state('Complete')
+
+        if self.callback:
+            requests.post(self.callback, json = self.to_json())
 
     def to_json(self):
         result = {
             'id': self.id,
-            'state': self._state,
+            'state': self._state
         }
         if self._state == 'Complete':
             result['exit_code'] = self.exit_code
             result['log'] = self.log
+        if self.attributes:
+            result['attributes'] = self.attributes
         return result
 
 app = Flask('batch')
@@ -134,7 +137,6 @@ def create_job():
     parameters = request.json
 
     schema = {
-        'name': {'type': 'string', 'required': True},
         'image': {'type': 'string', 'required': True},
         'command': {'type': 'list', 'schema': {'type': 'string'}},
         'args': {'type': 'list', 'schema': {'type': 'string'}},
@@ -143,15 +145,26 @@ def create_job():
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         },
-        'batch': {'type': 'string'},
+        'batch_id': {'type': 'integer'},
+        'attributes': {
+            'type': 'dict',
+            'keyschema': {'type': 'string'},
+            'valueschema': {'type': 'string'}
+        },
+        'callback': {'type': 'string'}
     }
     v = cerberus.Validator(schema)
     if (not v.validate(parameters)):
+        print(v.errors)
         abort(404, 'invalid request: {}'.format(v.errors))
 
+    batch_id = parameters.get('batch_id')
+    if batch_id:
+        if batch_id not in batch_id_batch:
+            abort(404, 'valid request: batch_id {} not found'.format(batch_id))
+
     job = Job(parameters)
-    result = {'id': job.id, 'location': url_for('get_job', job_id=job.id, _external=True)}
-    return jsonify(result)
+    return jsonify(job.to_json())
 
 @app.route('/jobs/<int:job_id>', methods=['GET'])
 def get_job(job_id):
@@ -168,15 +181,65 @@ def cancel_job(job_id):
     job.cancel()
     return jsonify({})
 
-@app.route('/batches/<batch>', methods=['GET'])
-def get_batch(batch):
-    jobs = batch_jobs.get(batch, [])
-    jobs = [j._state for j in jobs]
-    counter = Counter(jobs)
-    return jsonify({
-        'batch': batch,
-        'jobs': dict(counter)
-    })
+batch_id_batch = {}
+
+class Batch(object):
+    def __init__(self, attributes):
+        self.attributes = attributes
+        self.id = next_id()
+        batch_id_batch[self.id] = self
+        self.jobs = []
+
+    def delete(self):
+        del batch_id_batch[self.id]
+        for j in self.jobs:
+            assert j.batch_id == self.id
+            j.batch_id = None
+
+    def to_json(self):
+        state_count = Counter([j._state for j in self.jobs])
+        return {
+            'id': self.id,
+            'jobs': {
+                'Created': state_count.get('Created', 0),
+                'Complete': state_count.get('Complete', 0),
+                'Cancelled': state_count.get('Cancelled', 0)
+            },
+            'attributes': self.attributes
+        }
+
+@app.route('/batches/create', methods=['POST'])
+def create_batch():
+    parameters = request.json
+
+    schema = {
+        'attributes': {
+            'type': 'dict',
+            'keyschema': {'type': 'string'},
+            'valueschema': {'type': 'string'}
+        }
+    }
+    v = cerberus.Validator(schema)
+    if (not v.validate(parameters)):
+        abort(404, 'invalid request: {}'.format(v.errors))
+
+    batch = Batch(parameters.get('attributes'))
+    return jsonify(batch.to_json())
+
+@app.route('/batches/<int:batch_id>', methods=['GET'])
+def get_batch(batch_id):
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    return jsonify(batch.to_json())
+
+@app.route('/batches/<int:batch_id>/delete', methods=['DELETE'])
+def delete_batch(batch_id):
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    batch.delete()
+    return jsonify({})
 
 def flask_event_loop():
     app.run(debug=True, host='0.0.0.0')
