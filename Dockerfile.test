@@ -8,7 +8,6 @@ RUN pip install kubernetes
 RUN pip install cerberus
 
 COPY batch /batch
+COPY test /test
 
-EXPOSE 5000
-
-CMD ["python3", "/batch/server.py"]
+CMD ["python3", "-m", "unittest", "/test/test_batch.py"]

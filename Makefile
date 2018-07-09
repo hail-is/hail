@@ -11,11 +11,20 @@ push-utils:
 build:
 	docker build -t gcr.io/broad-ctsa/batch -t batch .
 
+build-test:
+	docker build -t gcr.io/broad-ctsa/batch-test -t batch-test -f Dockerfile.test .
+
 push:
 	docker push gcr.io/broad-ctsa/batch
+
+push-test:
+	docker push gcr.io/broad-ctsa/batch-test
 
 run-docker:
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run:
 	BATCH_USE_KUBE_CONFIG=1 python batch.py
+
+test-local:
+	BATCH_URL='http://localhost:5000' python -m unittest test/test_batch.py

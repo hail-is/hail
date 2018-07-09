@@ -60,7 +60,9 @@ class Batch(object):
                 i = i + 1
 
 class BatchClient(object):
-    def __init__(self, url='http://batch'):
+    def __init__(self, url=None):
+        if not url:
+            url = 'http://batch'
         self.url = url
 
     def _create_job(self, name, image, command, args, env, batch):
