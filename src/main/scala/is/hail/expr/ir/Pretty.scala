@@ -167,6 +167,7 @@ object Pretty {
                 prettyBooleanLiteral(dropCols) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
                 prettyMatrixReader(reader)
+            case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head

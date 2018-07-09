@@ -86,7 +86,7 @@ class PruneSuite extends SparkSuite {
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
     FastIndexedSeq("rk"),
     FastIndexedSeq("rk"),
-    TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TInt32())),
+    TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TStruct("rr" -> TInt32()))),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
 
   val mr = MatrixRead(mat.typ, None, None, false, false,
@@ -140,16 +140,6 @@ class PruneSuite extends SparkSuite {
     MakeStruct(FastIndexedSeq("foo" -> matrixRefBoolean(mt, fields: _*)))
   }
 
-  def subsetType(t: Type, path: Array[String], index: Int): Type = {
-    if (index == path.length)
-      PruneDeadFields.minimal(t)
-    else
-      t match {
-        case ts: TStruct => TStruct(ts.required, path(index) -> subsetType(ts.field(path(index)).typ, path, index + 1))
-        case ta: TArray => TArray(subsetType(ta.elementType, path, index), ta.required)
-      }
-  }
-
   def subsetTable(tt: TableType, fields: String*): TableType = {
     val rowFields = new ArrayBuilder[TStruct]()
     val globalFields = new ArrayBuilder[TStruct]()
@@ -159,7 +149,7 @@ class PruneSuite extends SparkSuite {
         case "row" => tt.rowType -> rowFields
         case "global" => tt.globalType -> globalFields
       }
-      ab += subsetType(head, split, 1).asInstanceOf[TStruct]
+      ab += PruneDeadFields.subsetType(head, split, 1).asInstanceOf[TStruct]
     }
     val min = PruneDeadFields.minimal(tt)
     tt.copy(
@@ -181,7 +171,7 @@ class PruneSuite extends SparkSuite {
         case "g" => mt.entryType -> entryFields
         case "global" => mt.globalType -> globalFields
       }
-      ab += subsetType(head, split, 1).asInstanceOf[TStruct]
+      ab += PruneDeadFields.subsetType(head, split, 1).asInstanceOf[TStruct]
     }
     val min = PruneDeadFields.minimal(mt)
     mt.copyParts(
@@ -316,6 +306,13 @@ class PruneSuite extends SparkSuite {
     checkMemo(ccbk,
       subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2"),
       Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))
+  }
+
+  @Test def testMatrixExplodeRowsMemo() {
+    val mer = MatrixExplodeRows(mat, FastIndexedSeq("r3"))
+    checkMemo(mer,
+      subsetMatrixTable(mer.typ, "va.r2"),
+      Array(subsetMatrixTable(mat.typ, "va.r2", "va.r3")))
   }
 
   @Test def testMatrixAggregateRowsByKeyMemo() {
