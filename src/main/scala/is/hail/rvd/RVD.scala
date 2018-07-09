@@ -304,6 +304,9 @@ trait RVD {
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.map(f))
 
+  def mapPartitionsWithIndex(newRowType: TStruct, f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
+    new UnpartitionedRVD(newRowType, crdd.cmapPartitionsWithIndex(f))
+
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
 
   def mapPartitionsWithIndex[T: ClassTag](
@@ -366,6 +369,11 @@ trait RVD {
       }
       Iterator.single(count)
     }.collect()
+
+  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
+    clearingRun(crdd.cmapPartitions{ (ctx, it) =>
+      Iterator.single(f(ctx, it))
+    }).collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType

@@ -104,6 +104,13 @@ object Copy {
           args.tail.take(x.nConstructorArgs),
           initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
           aggSig)
+      case x@ApplyScanOp(_, _, initOpArgs, aggSig) =>
+        val args = newChildren.map(_.asInstanceOf[IR])
+        ApplyScanOp(
+          args.head,
+          args.tail.take(x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
+          aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))
       case GetTupleElement(_, idx) =>

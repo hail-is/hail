@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.annotations.aggregators.{RegionValueAggregator, RegionValueCountAggregator}
 import is.hail.expr.types._
 import is.hail.expr.{Parser, TableAnnotationImpex, ir}
 import is.hail.io._
@@ -550,12 +550,12 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
     val nCols = prev.nCols
 
-    val (rvAggs, makeInit, makeSeq, aggResultType, makeAnnotate, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long](
+    val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long, Long](
       "global", child.typ.globalType,
       "global", child.typ.globalType,
       "colValues", TArray(child.typ.colType),
       "va", child.typ.rvRowType,
-      expr, { (nAggs, initializeIR) =>
+      expr, "AGGR", { (nAggs, initializeIR) =>
         val colIdx = ir.genUID()
 
         def rewrite(x: IR): IR = {
@@ -601,6 +601,12 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
               ir.Ref(colIdx, TInt32())),
               rewrite(sequenceIR))))
       })
+
+    val (rTyp, makeAnnotate) = Compile[Long, Long, Long](
+      "AGGR", aggResultType,
+      "global", child.typ.globalType,
+      postAggIR)
+
     val nAggs = rvAggs.length
 
     assert(coerce[TStruct](rTyp) == typ.entryType, s"$rTyp, ${ typ.entryType }")
@@ -830,7 +836,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
           )))
     }
 
-    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long, Long](
+    val (rvAggs, initOps, seqOps, aggResultType, postAgg) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long, Long](
       "global", oldGlobalsType,
       "va", oldRVRowType,
       "newColumnIndices", newColumnIndicesType,
@@ -838,9 +844,17 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
       "colValues", oldColsType,
       "va", oldRVRowType,
       "newColumnIndices", newColumnIndicesType,
-      aggIR,
+      aggIR, "AGGR",
       transformInitOp,
       transformSeqOp)
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long, Long](
+      "AGGR", aggResultType,
+      "global", oldGlobalsType,
+      "va", oldRVRowType,
+      "newColumnIndices", newColumnIndicesType,
+      postAgg
+    )
     assert(rTyp == typ.entryType)
 
     val nAggs = rvAggs.length
@@ -1060,87 +1074,176 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
-    val (rvAggs, initOps, seqOps, aggResultType, f, rTyp) = ir.CompileWithAggregators[Long, Long, Long, Long, Long, Long](
+
+    var scanInitNeedsGlobals = false
+    var scanSeqNeedsGlobals = false
+    var rowIterationNeedsGlobals = false
+    var rowIterationNeedsCols = false
+
+    val (entryAggs, initOps, seqOps, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long, Long, Long](
       "global", prev.typ.globalType,
       "va", vaType,
       "global", prev.typ.globalType,
       "colValues", colValuesType,
       "va", vaType,
-      newRVRow,
-      (nAggs: Int, initOpIR: IR) => initOpIR, { (nAggs: Int, seqOpIR: IR) =>
+      newRVRow, "AGGR",
+      { (nAggs: Int, initOpIR: IR) =>
+        rowIterationNeedsGlobals |= Mentions(initOpIR, "global")
+        initOpIR
+      },
+      { (nAggs: Int, seqOpIR: IR) =>
+        rowIterationNeedsGlobals |= Mentions(seqOpIR, "global")
+        val seqOpNeedsCols = Mentions(seqOpIR, "sa")
+        rowIterationNeedsCols |= seqOpNeedsCols
+
+        var singleSeqOp = ir.Let("g", ir.ArrayRef(
+          ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+          ir.Ref("i", TInt32())),
+          seqOpIR)
+
+        if (seqOpNeedsCols)
+          singleSeqOp = ir.Let("sa",
+            ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
+            singleSeqOp)
+
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
-          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
-            ir.Let("g", ir.ArrayRef(
-              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
-              ir.Ref("i", TInt32())),
-              seqOpIR)))
+          singleSeqOp)
       })
+
+    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
+      "global", prev.typ.globalType,
+      "global", prev.typ.globalType,
+      "va", vaType,
+      CompileWithAggregators.liftScan(postAggIR), "SCANR",
+      { (nAggs: Int, initOp: IR) =>
+        scanInitNeedsGlobals |= Mentions(initOp, "global")
+        initOp
+      },
+      { (nAggs: Int, seqOp: IR) =>
+        scanSeqNeedsGlobals |= Mentions(seqOp, "global")
+        rowIterationNeedsGlobals |= Mentions(seqOp, "global")
+        seqOp
+      })
+
+    rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
+
+    val (rTyp, returnF) = ir.Compile[Long, Long, Long, Long, Long](
+      "AGGR", aggResultType,
+      "SCANR", scanResultType,
+      "global", prev.typ.globalType,
+      "va", vaType,
+      postScanIR)
     assert(rTyp == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
 
-    val mapPartitionF = { (ctx: RVDContext, it: Iterator[RegionValue]) =>
+    Region.scoped { region =>
+      val globals = if (scanInitNeedsGlobals) {
+        val rvb = new RegionValueBuilder()
+        rvb.set(region)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        rvb.end()
+      } else 0L
+
+      scanInitOps()(region, scanAggs, globals, false)
+    }
+
+    val scanAggsPerPartition =
+      prev.rvd.collectPerPartition { (ctx, it) =>
+
+        val globals = if (scanSeqNeedsGlobals) {
+          val rvb = new RegionValueBuilder()
+          val partRegion = ctx.freshContext.region
+          rvb.set(partRegion)
+          rvb.start(localGlobalsType)
+          rvb.addAnnotation(localGlobalsType, globalsBc.value)
+          rvb.end()
+        } else 0L
+
+        it.foreach { rv =>
+          scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
+        }
+        scanAggs
+      }.scanLeft(scanAggs) { (a1, a2) =>
+        (a1, a2).zipped.map { (agg1, agg2) =>
+          val newAgg = agg1.copy()
+          newAgg.combOp(agg2)
+          newAgg
+        }
+      }
+
+    val mapPartitionF = {(i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val partitionAggs = scanAggsPerPartition(i)
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
-      val rowF = f()
-
       val partRegion = ctx.freshContext.region
-
       rvb.set(partRegion)
-      rvb.start(localGlobalsType)
-      rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val globals = rvb.end()
 
-      val cols = if (rvAggs.nonEmpty) {
+      val globals = if (rowIterationNeedsGlobals) {
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        rvb.end()
+      } else 0L
+
+
+      val cols = if (rowIterationNeedsCols) {
         rvb.start(localColsType)
         rvb.addAnnotation(localColsType, colValuesBc.value)
         rvb.end()
       } else 0L
 
+      val rowF = returnF()
+
       it.map { rv =>
-        val region = rv.region
-        val oldRow = rv.offset
-
-        val aggResultsOff = if (rvAggs.nonEmpty) {
-          var j = 0
-          while (j < rvAggs.length) {
-            rvAggs(j).clear()
-            j += 1
-          }
-
-          initOps()(region, rvAggs, globals, false, oldRow, false)
-          seqOps()(region, rvAggs, globals, false, cols, false, oldRow, false)
-
-          rvb.start(aggResultType)
+        val scanOff = if (scanAggs.nonEmpty) {
+          rvb.start(scanResultType)
           rvb.startStruct()
-
-          j = 0
-          while (j < rvAggs.length) {
-            rvAggs(j).result(rvb)
+          var j = 0
+          while (j < partitionAggs.length) {
+            partitionAggs(j).result(rvb)
             j += 1
           }
           rvb.endStruct()
-          val aggResultsOff = rvb.end()
-          aggResultsOff
-        } else
-          0
+          rvb.end()
+        } else 0L
 
-        val off = rowF(region, aggResultsOff, false, globals, false, oldRow, false)
+        val aggOff = if (entryAggs.nonEmpty) {
+          var j = 0
+          while (j < entryAggs.length) {
+            entryAggs(j).clear()
+            j += 1
+          }
 
-        newRV.set(region, off)
+          initOps()(rv.region, entryAggs, globals, false, rv.offset, false)
+          seqOps()(rv.region, entryAggs, globals, false, cols, false, rv.offset, false)
+
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          j = 0
+          while(j < entryAggs.length) {
+            entryAggs(j).result(rvb)
+            j += 1
+          }
+          rvb.endStruct()
+          rvb.end()
+        } else 0L
+
+        newRV.set(rv.region, rowF(rv.region, aggOff, false, scanOff, false, globals, false, rv.offset, false))
+        scanSeqOps()(rv.region, partitionAggs, globals, false, rv.offset, false)
         newRV
       }
     }
 
-    if (newKey.isDefined) {
-      prev.copy(typ = typ,
-        rvd = OrderedRVD.coerce(
-          typ.orvdType,
-          prev.rvd.mapPartitions(typ.rvRowType, mapPartitionF)))
+    val newRVD = if (newKey.isDefined) {
+      OrderedRVD.coerce(
+        typ.orvdType,
+        prev.rvd.mapPartitionsWithIndex(typ.rvRowType, mapPartitionF))
     } else {
-      val newRVD = prev.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
-      prev.copy(typ = typ, rvd = newRVD)
+      prev.rvd.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, mapPartitionF)
     }
+
+    prev.copy(typ = typ, rvd = newRVD)
   }
 }
 
@@ -1184,27 +1287,14 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.typ.rvRowType
 
-    val (rvAggs,
-    (preInitOp, initOpCompiler),
-    (preSeqOp, seqOpCompiler),
-    aggResultType,
-    (postAgg, postAggCompiler)
-      ) = ir.CompileWithAggregators.toIRs[
-      Long, Long, Long, Long, Long, Long
-      ]("global", localGlobalsType,
-      "sa", prev.typ.colType,
-      "global", localGlobalsType,
-      "colValues", colValuesType,
-      "va", vaType,
-      newCol)
+    var initOpNeedsSA = false
+    var initOpNeedsGlobals = false
+    var seqOpNeedsSA = false
+    var seqOpNeedsGlobals = false
 
-    val nAggs = rvAggs.length
-    val initOpNeedsSA = Mentions(preInitOp, "sa")
-    val initOpNeedsGlobals = Mentions(preInitOp, "global")
-    val seqOpNeedsSA = Mentions(preSeqOp, "sa")
-    val seqOpNeedsGlobals = Mentions(preSeqOp, "global")
-
-    val (_, initOps) = initOpCompiler({
+    val rewriteInitOp = { (nAggs: Int, initOp: IR) =>
+      initOpNeedsSA = Mentions(initOp, "sa")
+      initOpNeedsGlobals = Mentions(initOp, "global")
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1221,13 +1311,22 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
       }
 
+      val wrappedInit = if (initOpNeedsSA) {
+        ir.Let(
+          "sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
+          rewrite(initOp))
+      } else {rewrite(initOp)}
+
       ir.ArrayFor(
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
-        rewrite(preInitOp))
-    })
+        wrappedInit)
+    }
 
-    val (_, seqOps) = seqOpCompiler({
+    val rewriteSeqOp = { (nAggs: Int, seqOp: IR) =>
+      seqOpNeedsSA = Mentions(seqOp, "sa")
+      seqOpNeedsGlobals = Mentions(seqOp, "global")
+
       val colIdx = ir.genUID()
 
       def rewrite(x: IR): IR = {
@@ -1246,7 +1345,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       var oneSampleSeqOp = ir.Let("g", ir.ArrayRef(
         ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
         ir.Ref(colIdx, TInt32())),
-        rewrite(preSeqOp)
+        rewrite(seqOp)
       )
 
       if (seqOpNeedsSA)
@@ -1258,9 +1357,26 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
         colIdx,
         oneSampleSeqOp)
-    })
+    }
 
-    val (rTyp, f) = postAggCompiler(postAgg)
+    val (rvAggs, initOps, seqOps, aggResultType, postAggIR) =
+    ir.CompileWithAggregators[Long, Long, Long, Long, Long](
+      "global", localGlobalsType,
+      "colValues", colValuesType,
+      "global", localGlobalsType,
+      "colValues", colValuesType,
+      "va", vaType,
+      newCol, "AGGR",
+      rewriteInitOp,
+      rewriteSeqOp)
+
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      "AGGR", aggResultType,
+      "global", localGlobalsType,
+      "sa", prev.typ.colType,
+      postAggIR)
+
+    val nAggs = rvAggs.length
 
     assert(rTyp == typ.colType, s"$rTyp, ${ typ.colType }")
 

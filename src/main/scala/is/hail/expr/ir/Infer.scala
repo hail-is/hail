@@ -46,6 +46,8 @@ object Infer {
         zero.typ
       case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         AggOp.getType(aggSig)
+      case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
+        AggOp.getType(aggSig)
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

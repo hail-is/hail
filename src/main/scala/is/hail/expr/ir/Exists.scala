@@ -22,6 +22,10 @@ object ContainsAgg {
   def apply(root: BaseIR): Boolean = Exists(root, _.isInstanceOf[ApplyAggOp])
 }
 
+object ContainsScan {
+  def apply(root: BaseIR): Boolean = Exists(root, _.isInstanceOf[ApplyScanOp])
+}
+
 object Extract {
   private def extract(node: BaseIR, visitor: BaseIR => Boolean, ab: ArrayBuilder[BaseIR]) {
     if (visitor(node))

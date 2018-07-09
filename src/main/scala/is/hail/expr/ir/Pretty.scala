@@ -87,6 +87,20 @@ object Pretty {
               sb.append(" " * (depth + 2))
               sb.append("None")
           }
+        case ApplyScanOp(a, ctorArgs, initOpArgs, aggSig) =>
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          prettySeq(ctorArgs, depth + 2)
+          sb += '\n'
+          initOpArgs match {
+            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
+            case None =>
+              sb.append(" " * (depth + 2))
+              sb.append("None")
+          }
         case InitOp(i, args, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
