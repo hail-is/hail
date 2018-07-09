@@ -201,19 +201,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
     assert(global_pos[-1] < contig_cum_len[-1])
 
-    last = global_pos[0]
-    contig_start_idx = [0]
-    cum_len_iter = iter(contig_cum_len)
-    cum_len = next(cum_len_iter)
-    for i in range(n_loci):
-        curr = global_pos[i]
-        if curr < last:
-            raise ValueError("locus_windows: 'locus_expr' global position must be in ascending order")
-        while curr >= cum_len:
-            contig_start_idx.append(i)
-            cum_len = next(cum_len_iter)
-        last = curr
-
+    contig_start_idx = _compute_contig_start_idx(global_pos, contig_cum_len)
     n_contigs = len(contig_start_idx)
     contig_start_idx.append(n_loci)
     contig_bounds = [array_windows(coord[contig_start_idx[c]:contig_start_idx[c + 1]], radius)
@@ -222,3 +210,19 @@ def locus_windows(locus_expr, radius, coord_expr=None):
     stops = np.concatenate([contig_start_idx[c] + contig_bounds[c][1] for c in range(n_contigs)])
 
     return starts, stops
+
+
+def _compute_contig_start_idx(global_pos, contig_cum_len):
+    last = global_pos[0]
+    contig_start_idx = [0]
+    cum_len_iter = iter(contig_cum_len)
+    cum_len = next(cum_len_iter)
+    for i in range(len(global_pos)):
+        curr = global_pos[i]
+        if curr < last:
+            raise ValueError("locus_windows: 'locus_expr' global position must be in ascending order")
+        while curr >= cum_len:
+            contig_start_idx.append(i)
+            cum_len = next(cum_len_iter)
+        last = curr
+    return contig_start_idx
