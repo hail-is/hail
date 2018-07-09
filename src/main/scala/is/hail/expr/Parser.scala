@@ -776,7 +776,7 @@ object Parser extends JavaTokenParsers {
       } |
       "TableRange" ~> int32_literal ~ int32_literal ^^ { case n ~ nPartitions => ir.TableRange(n, nPartitions) } |
       "TableUnion" ~> table_ir_children ^^ { children => ir.TableUnion(children) } |
-      "TableOrderBy" ~> table_ir ~ ir_identifiers ^^ { case child ~ identifiers =>
+      "TableOrderBy" ~> ir_identifiers ~ table_ir ^^ { case identifiers ~ child =>
         ir.TableOrderBy(child, identifiers.map(i =>
           if (i.charAt(0) == 'A')
             SortField(i.substring(1), Ascending)

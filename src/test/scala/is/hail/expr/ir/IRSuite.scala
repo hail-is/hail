@@ -5,7 +5,7 @@ import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.Parser
-import is.hail.table.Table
+import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -410,7 +410,9 @@ class IRSuite extends SparkSuite {
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
-        TableExplode(read, "mset")
+        TableExplode(read, "mset"),
+        TableUnkey(read),
+        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending)))
       )
       xs.map(x => Array(x))
     } catch {
