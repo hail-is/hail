@@ -140,22 +140,6 @@ object Compile {
   }
 }
 
-case class AggregatorFunctions[
-FInit >: Null : TypeInfo,
-FSeq >: Null : TypeInfo,
-FInit2 >: Null : TypeInfo,
-FSeq2 >: Null : TypeInfo,
-F >: Null : TypeInfo,
-R : TypeInfo : ClassTag
-](rvAggs: Array[RegionValueAggregator],
-  aggInitOpF: () => FInit,
-  aggSeqOpF: () => FSeq,
-  aggResultType: TStruct,
-  scanInitOpF: () => FInit2,
-  scanSeqOpF: () => FSeq2,
-  postAggF: () => F,
-  rType: Type)
-
 object CompileWithAggregators {
   type Compiler[F] = (IR) => (Type, () => F)
   type IRAggFun1[T0] =

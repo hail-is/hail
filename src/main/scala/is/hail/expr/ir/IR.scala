@@ -117,8 +117,6 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
   def hasInitOp = initOpArgs.isDefined
 
   def op: AggOp = aggSig.op
-
-  def inputType: Type = aggSig.inputType
 }
 
 final case class ApplyScanOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {

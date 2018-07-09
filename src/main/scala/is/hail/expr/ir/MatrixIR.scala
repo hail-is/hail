@@ -1093,15 +1093,23 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       },
       { (nAggs: Int, seqOpIR: IR) =>
         rowIterationNeedsGlobals |= Mentions(seqOpIR, "global")
-        rowIterationNeedsCols |= Mentions(seqOpIR, "sa")
+        val seqOpNeedsCols = Mentions(seqOpIR, "sa")
+        rowIterationNeedsCols |= seqOpNeedsCols
+
+        var singleSeqOp = ir.Let("g", ir.ArrayRef(
+          ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
+          ir.Ref("i", TInt32())),
+          seqOpIR)
+
+        if (seqOpNeedsCols)
+          singleSeqOp = ir.Let("sa",
+            ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
+            singleSeqOp)
+
         ir.ArrayFor(
           ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
           "i",
-          ir.Let("sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref("i", TInt32())),
-            ir.Let("g", ir.ArrayRef(
-              ir.GetField(ir.Ref("va", vaType), MatrixType.entriesIdentifier),
-              ir.Ref("i", TInt32())),
-              seqOpIR)))
+          singleSeqOp)
       })
 
     val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
@@ -1220,7 +1228,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
           rvb.endStruct()
           rvb.end()
         } else 0L
-
 
         newRV.set(rv.region, rowF(rv.region, aggOff, false, scanOff, false, globals, false, rv.offset, false))
         scanSeqOps()(rv.region, partitionAggs, globals, false, rv.offset, false)
