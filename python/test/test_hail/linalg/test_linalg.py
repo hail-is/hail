@@ -733,6 +733,11 @@ class Tests(unittest.TestCase):
 
     def test_compute_contig_start_idx(self):
         res = hl.linalg.utils._compute_contig_start_idx(
+            global_pos=[0, 1, 2, 2, 4, 4, 5, 5],
+            contig_cum_len=[1, 2, 4, 8])
+        self.assertEqual(res, [0, 1, 2, 4])
+
+        res = hl.linalg.utils._compute_contig_start_idx(
             global_pos=[0, 0, 1, 2, 3, 4, 5, 5],
             contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
 

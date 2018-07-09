@@ -102,7 +102,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
     ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
     ...         {'locus': hl.Locus('2', 1), 'cm': 2.0},
     ...         {'locus': hl.Locus('3', 3), 'cm': 5.0}]
-    >>>
+
     >>> ht = hl.Table.parallelize(
     ...         loci,
     ...         hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
