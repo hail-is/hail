@@ -570,6 +570,38 @@ class OrderedRVD(
     partitioner,
     this.crdd.czip(that.crdd, preservesPartitioning = true)(zipper))
 
+  // New key type must be same as left key type. If this doesn't hold, use
+  // constrainToOrderedPartitioner on left RVD first.
+  // 'joinKey' must be prefix of both left key and right key.
+  // 'zipper' must take all output key values from left iterator, and be
+  // monotonic on left iterator (it can drop or duplicate elements of left
+  // iterator, but cannot rearrange them), and output region values must
+  // conform to 'newTyp'.
+  // Resulting OrderedRVD will have same partitioner as 'this'. Each
+  // partition will be computed by 'zipper', with corresponding partition
+  // of 'this' as first iterator, and with all rows of 'that' whose 'joinKey'
+  // might match something in partition as the second iterator.
+  def alignAndZipPartitions(
+    newTyp: OrderedRVDType,
+    that: OrderedRVD,
+    joinKey: TStruct
+  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = {
+    require(newTyp.kType == this.typ.kType)
+    require(joinKey isPrefixOf this.typ.kType)
+    require(joinKey isPrefixOf that.typ.kType)
+
+    OrderedRVD(
+      typ = newTyp,
+      partitioner = this.partitioner,
+      crdd = this.crddBoundary.czipPartitions(
+        new UnpartitionedRVD(
+          that.typ.rowType,
+          ContextRDD(new RepartitionedOrderedRDD2(that, this.partitioner.coarsenedPKRangeBounds(joinKey.size)))
+        ).crddBoundary
+      )(zipper))
+  }
+
   def writeRowsSplit(
     path: String,
     t: MatrixType,

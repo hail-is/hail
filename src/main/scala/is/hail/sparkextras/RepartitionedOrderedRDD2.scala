@@ -26,7 +26,7 @@ class OrderedDependency[T](
 class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
-  val prevCRDD: ContextRDD[RVDContext, RegionValue] = prev.crdd
+  val prevCRDD: ContextRDD[RVDContext, RegionValue] = prev.boundary.crdd
   val typ: OrderedRVDType = prev.typ
   val oldPartitionerBc: Broadcast[OrderedRVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
   val newRangeBoundsBc: Broadcast[IndexedSeq[Interval]] = prevCRDD.sparkContext.broadcast(newRangeBounds)
@@ -69,25 +69,6 @@ class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Inte
     prevCRDD.rdd)
 
   override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
-}
-
-/**
-  * Repartition prev to comply with newPartitioner, using narrow dependencies.
-  * Assumes new key type is a prefix of old key type, so no reordering is
-  * needed. No assumption should need to be made about partition keys, but currently
-  * assumes old partition key type is a prefix of the new partition key type.
-  */
-object RepartitionedOrderedRDD2 {
-  def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD2 = {
-
-    val coarsenedRangeBounds = newPartitioner.coarsenedPKRangeBounds(
-        Math.min(prev.typ.partitionKey.length, newPartitioner.partitionKey.length)
-      )
-
-    new RepartitionedOrderedRDD2(
-      prev,
-      coarsenedRangeBounds)
-  }
 }
 
 case class RepartitionedOrderedRDD2Partition(
