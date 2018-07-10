@@ -72,7 +72,7 @@ object Pretty {
             case _: MatrixRangeReader => sb.append("MatrixRange")
           }
         case _ =>
-          sb.append(prettyClass (ir) )
+          sb.append(prettyClass(ir) )
       }
 
       ir match {
