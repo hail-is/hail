@@ -50,6 +50,11 @@ object RelationalSpec {
       case JInt(rep) => SemanticVersion(rep.toInt)
       case _ =>
         fatal(s"metadata does not contain file version: $metadataFile")
+        fatal(
+          s"""cannot read matrix table: file not found: metadata does not contain file version: $metadataFile
+             |  Common causes:
+             |    - File is an 0.1 VariantDataset (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
+
     }
 
     if (!FileFormat.version.supports(fileVersion))
