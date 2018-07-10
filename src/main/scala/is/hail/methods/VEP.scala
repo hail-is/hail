@@ -3,13 +3,15 @@ package is.hail.methods
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
-import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
+import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, VariantMethods}
+import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -172,11 +174,9 @@ object VEP {
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
-  def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int): MatrixTable = {
-    assert(vsm.rowKey == FastIndexedSeq("locus", "alleles"))
-
-    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
+  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
+    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
+    assert(ht.typ.rowType.size == 2)
 
     val properties = try {
       val p = new Properties()
@@ -252,9 +252,11 @@ object VEP {
 
     val localBlockSize = blockSize
 
-    val localRowType = vsm.rvRowType
-    val rowKeyOrd = vsm.matrixType.rowKeyStruct.ordering
-    val annotations = vsm.rvd
+    val localRowType = ht.typ.rowType
+    val rowKeyOrd = ht.typ.keyType.get.ordering
+
+    val prev = ht.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val annotations = prev
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -321,22 +323,17 @@ object VEP {
 
             r
           }
-      }.persist(StorageLevel.MEMORY_AND_DISK)
+      }
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepORVDType = new OrderedRVDType(
-      vsm.rowPartitionKey.toArray, vsm.rowKey.toArray,
-      TStruct(
-        "locus" -> vsm.rowKeyTypes(0),
-        "alleles" -> vsm.rowKeyTypes(1),
-        "vep" -> vepType))
+    val vepORVDType = prev.typ.copy(rowType = prev.rowType ++ TStruct("vep" -> vepType))
 
     val vepRowType = vepORVDType.rowType
 
     val vepRVD: OrderedRVD = OrderedRVD(
       vepORVDType,
-      vsm.rvd.partitioner,
+      prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = ctx.rvb
@@ -350,16 +347,18 @@ object VEP {
           rvb.addAnnotation(vepRowType.types(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
-
           rv
         }
-      })
+      }).persist(StorageLevel.MEMORY_AND_DISK)
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    vsm.orderedRVDLeftJoinDistinctAndInsert(vepRVD, "vep", product = false)
+    new Table(ht.hc, TableLiteral(TableValue(
+        TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
+        BroadcastRow(Row(), TStruct(), ht.hc.sc),
+        vepRVD)))
   }
 
-  def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =
-    annotate(vsm, config, root, csq, blockSize)
+  def apply(ht: Table, config: String, csq: Boolean = false, blockSize: Int = 1000): Table =
+    annotate(ht, config, csq, blockSize)
 }

@@ -156,6 +156,14 @@ def require_col_key_str(dataset: MatrixTable, method: str):
         raise ValueError(f"Method '{method}' requires column key to be one field of type 'str', found "
                          f"{list(str(x.dtype) for x in dataset.col_key.values())}")
 
+def require_table_key_variant(ht, method):
+    if (list(ht.key) != ['locus', 'alleles'] or
+            not isinstance(ht['locus'].dtype, tlocus) or
+            not ht['alleles'].dtype == tarray(tstr)):
+        raise ValueError("Method '{}' requires key to be two fields 'locus' (type 'locus<any>') and "
+                         "'alleles' (type 'array<str>')\n"
+                         "  Found:{}".format(method, ''.join(
+            "\n    '{}': {}".format(k, str(ht[k].dtype)) for k in ht.key)))
 
 def require_row_key_variant(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles'] or
