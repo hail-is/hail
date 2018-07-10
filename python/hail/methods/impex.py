@@ -701,7 +701,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
     In Hail, unlike PLINK, the user must *explicitly* distinguish between
     case-control and quantitative phenotypes. Importing a quantitative
-    phenotype without ``quant_pheno=True`` will return an error
+    phenotype with ``quant_pheno=False`` will return an error
     (unless all values happen to be `0`, `1`, `2`, or `-9`):
 
     The resulting :class:`.Table` will have fields, types, and values that are interpreted as missing.
@@ -718,6 +718,12 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
        non-numeric or the ``missing`` argument, if given.
      - *quant_pheno* (:py:data:`.tfloat64`) -- Quantitative phenotype (missing = "NA" or
        the ``missing`` argument, if given.
+
+    Warning
+    -------
+    Hail will interpret the value "-9" as a valid quantitative phenotype, which
+    differs from default PLINK behavior. Use ``missing='-9'`` to interpret this
+    value as missing.
 
     Parameters
     ----------
