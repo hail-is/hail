@@ -643,9 +643,9 @@ class MatrixTable(ExprContainer):
         Parameters
         ----------
         keys : varargs of :obj:`str` or :class:`.Expression`.
-            Row fields to key by.
+            Column fields to key by.
         named_keys : keyword args of :class:`.Expression`.
-            Row fields to key by.
+            Column fields to key by.
         Returns
         -------
         :class:`.MatrixTable`
