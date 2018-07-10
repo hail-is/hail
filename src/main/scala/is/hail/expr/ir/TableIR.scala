@@ -269,6 +269,15 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
+
+    if (pred == True())
+      return ktv
+    else if (pred == False())
+      return ktv.copy(rvd = ktv.rvd match {
+        case orvd: OrderedRVD => OrderedRVD.empty(hc.sc, orvd.typ)
+        case urvd: UnpartitionedRVD => UnpartitionedRVD.empty(hc.sc, urvd.rowType)
+      })
+
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
       "row", child.typ.rowType,
       "global", child.typ.globalType,

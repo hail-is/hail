@@ -451,6 +451,11 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
     val prev = child.execute(hc)
     assert(child.typ == prev.typ)
 
+    if (pred == True())
+      return prev
+    else if (pred == False())
+      return prev.copy(rvd = OrderedRVD.empty(hc.sc, prev.rvd.typ))
+
     val localGlobalsType = prev.typ.globalType
     val globalsBc = prev.globals.broadcast
 
