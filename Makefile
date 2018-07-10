@@ -25,7 +25,9 @@ push-test:
 	docker push gcr.io/broad-ctsa/batch-test
 
 redeploy: build push
-	kubectl replace --force -f deployment.yaml
+	kubectl delete -f deployment.yaml
+	sleep 5
+	kubectl create -f deployment.yaml
 
 run-docker:
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch

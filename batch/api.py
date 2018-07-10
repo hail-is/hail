@@ -3,14 +3,8 @@ import time
 import random
 import requests
 
-def create_job(url, image, command, args, env, attributes, batch_id, callback):
-    d = {'image': image}
-    if command:
-        d['command'] = command
-    if args:
-        d['args'] = args
-    if env:
-        d['env'] = env
+def create_job(url, spec, attributes, batch_id, callback):
+    d = {'spec': spec}
     if attributes:
         d['attributes'] = attributes
     if batch_id:

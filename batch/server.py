@@ -30,8 +30,8 @@ class Job(object):
     def _create_pod(self):
         assert not self._pod_name
 
-        created_pod = v1.create_namespaced_pod('default', self.pod)
-        self._pod_name = created_pod.metadata.name
+        pod = v1.create_namespaced_pod('default', self.pod_template)
+        self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
         log.info('created pod name: {} for job {}'.format(self._pod_name, self.id))
@@ -48,50 +48,27 @@ class Job(object):
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
-    def __init__(self, parameters):
+    def __init__(self, pod_spec, batch_id, attributes, callback):
         self.id = next_id()
         job_id_job[self.id] = self
-        log.info('created job {}'.format(self.id))
 
-        self._state = 'Created'
-
-        self.batch_id = parameters.get('batch_id')
-        if self.batch_id:
-            batch = batch_id_batch[self.batch_id]
+        self.batch_id = batch_id
+        if batch_id:
+            batch = batch_id_batch[batch_id]
             batch.jobs.append(self)
 
-        self.attributes = parameters.get('attributes')
-        self.callback = parameters.get('callback')
+        self.attributes = attributes
+        self.callback = callback
 
-        image = parameters['image']
-        command = parameters.get('command')
-        args = parameters.get('args')
-
-        # include POD_IP
-        env = [kube.client.V1EnvVar(
-            name = 'POD_IP',
-            value_from = kube.client.V1EnvVarSource(
-                field_ref = kube.client.V1ObjectFieldSelector(field_path = 'status.podIP')))
-        ]
-        
-        penv = parameters.get('env')
-        if penv:
-            env = [kube.client.V1EnvVar(name = k, value = v) for (k, v) in penv.items()]
-        
-        self.pod = kube.client.V1Pod(
+        self.pod_template =     pod_template = kube.client.V1Pod(
             metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id)),
-            spec = kube.client.V1PodSpec(
-                containers = [
-                    kube.client.V1Container(
-                        name = 'default',
-                        image = image,
-                        command = command,
-                        args = args,
-                        env = env,
-                        ports = [kube.client.V1ContainerPort(container_port = 5869)])
-                ],
-                restart_policy = 'Never'))
+            spec = pod_spec)
+
         self._pod_name = None
+
+        self._state = 'Created'
+        log.info('created job {}'.format(self.id))
+
         self._create_pod()
 
     def set_state(self, new_state):
@@ -147,13 +124,11 @@ def create_job():
     parameters = request.json
 
     schema = {
-        'image': {'type': 'string', 'required': True},
-        'command': {'type': 'list', 'schema': {'type': 'string'}},
-        'args': {'type': 'list', 'schema': {'type': 'string'}},
-        'env': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
+        # will be validated when creating pod
+        'spec': {'type': 'dict',
+                 'required': True,
+                 'allow_unknown': True,
+                 'schema': {}
         },
         'batch_id': {'type': 'integer'},
         'attributes': {
@@ -165,15 +140,19 @@ def create_job():
     }
     v = cerberus.Validator(schema)
     if (not v.validate(parameters)):
-        print(v.errors)
+        # print(v.errors)
         abort(404, 'invalid request: {}'.format(v.errors))
+
+    pod_spec = v1.api_client._ApiClient__deserialize(
+        parameters['spec'], kube.client.V1PodSpec)
 
     batch_id = parameters.get('batch_id')
     if batch_id:
         if batch_id not in batch_id_batch:
             abort(404, 'valid request: batch_id {} not found'.format(batch_id))
 
-    job = Job(parameters)
+    job = Job(
+        pod_spec, batch_id, parameters.get('attributes'), parameters.get('callback'))
     return jsonify(job.to_json())
 
 @app.route('/jobs/<int:job_id>', methods=['GET'])

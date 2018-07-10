@@ -47,7 +47,10 @@ class Test(unittest.TestCase):
     def setUp(self):
         self.batch = batch.client.BatchClient(
             url = os.environ.get('BATCH_URL'))
+
         self.ip = os.environ.get('POD_IP')
+        if not self.ip:
+            self.ip = '127.0.0.1'
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])
@@ -110,12 +113,13 @@ class Test(unittest.TestCase):
             d['status'] = request.get_json()
             return Response(status=200)
 
-        server = ServerThread(app, host=self.ip, port=5869)
+        port = 5869
+        server = ServerThread(app, host=self.ip, port=port)
         server.start()
 
         j = self.batch.create_job('alpine', ['echo', 'test'],
                                   attributes={'foo': 'bar'},
-                                  callback='http://{}:5869/test'.format(self.ip))
+                                  callback='http://{}:{}/test'.format(self.ip, port))
         j.wait()
 
         status = d['status']

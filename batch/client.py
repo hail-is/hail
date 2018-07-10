@@ -41,8 +41,9 @@ class Batch(object):
         self.client = client
         self.id = id
 
-    def create_job(self, image, command=None, args=None, env=None, attributes=None, callback=None):
-        return self.client._create_job(image, command, args, env, attributes, self.id, callback)
+    def create_job(self, image, command=None, args=None, env=None, ports=None,
+                   attributes=None, callback=None):
+        return self.client._create_job(image, command, args, env, ports, attributes, self.id, callback)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -65,8 +66,39 @@ class BatchClient(object):
             url = 'http://batch'
         self.url = url
 
-    def _create_job(self, image, command, args, env, attributes, batch_id, callback):
-        j = api.create_job(self.url, image, command, args, env, attributes, batch_id, callback)
+    def _create_job(self, image, command, args, env, ports, attributes, batch_id, callback):
+        if env:
+            env = [{'name': k, 'value': v} for (k, v) in env.items()]
+        else:
+            env = []
+        env.append({
+            'name': 'POD_IP',
+            'valueFrom': {
+                'fieldRef': {'fieldPath': 'status.podIP'}
+            }
+        })
+        
+        container = {
+            'image': image,
+            'name': 'default'
+        }
+        if command:
+            container['command'] = command
+        if args:
+            container['args'] = args
+        if env:
+            container['env'] = env
+        if ports:
+            container['ports'] = [{
+                'containerPort': p,
+                'protocol': 'TCP'
+            } for p in ports]
+        spec = {
+            'containers': [container],
+            'restartPolicy': 'Never'
+        }
+
+        j = api.create_job(self.url, spec, attributes, batch_id, callback)
         return Job(self, j['id'])
 
     def _get_job(self, id):
@@ -83,8 +115,8 @@ class BatchClient(object):
         j = api.get_job(self.url, id)
         return Job(self, j['id'])
 
-    def create_job(self, image, command=None, args=None, env=None, attributes=None, callback=None):
-        return self._create_job(image, command, args, env, attributes, None, callback)
+    def create_job(self, image, command=None, args=None, env=None, ports=None, attributes=None, callback=None):
+        return self._create_job(image, command, args, env, ports, attributes, None, callback)
 
     def create_batch(self, attributes=None):
         b = api.create_batch(self.url, attributes)
