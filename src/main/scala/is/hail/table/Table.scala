@@ -523,9 +523,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def distinctByKey(): Table = {
-    require(key.isDefined)
-    val sorted = keyBy(key.get.toArray, sort = true)
-    sorted.copy2(rvd = sorted.rvd.asInstanceOf[OrderedRVD].distinctByKey())
+    new Table(hc, ir.TableDistinct(tir))
   }
 
   def groupByKey(name: String): Table = {
