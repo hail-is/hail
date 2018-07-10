@@ -28,8 +28,14 @@ abstract class AbstractBinaryReader {
   }
 
   def readLong(): Long =
-    (read() & 0xff) | ((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24) |
-      ((read() & 0xff) << 32) | ((read() & 0xff) << 40) | ((read() & 0xff) << 48) | ((read() & 0xff) << 56)
+    (read() & 0xff).asInstanceOf[Long] |
+  ((read() & 0xff).asInstanceOf[Long] << 8) |
+  ((read() & 0xff).asInstanceOf[Long] << 16) |
+  ((read() & 0xff).asInstanceOf[Long] << 24) |
+  ((read() & 0xff).asInstanceOf[Long] << 32) |
+  ((read() & 0xff).asInstanceOf[Long] << 40) |
+  ((read() & 0xff).asInstanceOf[Long] << 48) |
+  ((read() & 0xff).asInstanceOf[Long] << 56)
 
   def readInt(): Int =
     (read() & 0xff) | ((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24)
