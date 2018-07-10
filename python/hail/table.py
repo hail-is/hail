@@ -1226,10 +1226,12 @@ class Table(ExprContainer):
 
         Using `key` as the sole index expression is equivalent to passing all
         key fields individually:
+
         >>> table_result = table1.select(B = table2.index(table1.key).B)
 
         It is also possible to use non-key fields or expressions as the index
         expressions:
+
         >>> table_result = table1.select(B = table2.index(table1.C1 % 4).B)
         >>> table_result.show()
         +-------+-------+
