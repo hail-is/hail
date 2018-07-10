@@ -63,7 +63,6 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = MatrixColsTable(newMatrix).execute(hc).rdd.collect()
-    println(cols.mkString("\n"))
     assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, col_idx)})
   }
 
