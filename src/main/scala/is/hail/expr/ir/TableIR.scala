@@ -12,7 +12,23 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
+
 import scala.reflect.ClassTag
+
+object TableIR {
+  def read(hc: HailContext, path: String, dropRows: Boolean = false, requestedType: Option[TableType]): TableIR = {
+    val successFile = path + "/_SUCCESS"
+    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
+      fatal(s"write failed: file not found: $successFile")
+
+    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
+      case ts: TableSpec => ts
+      case _: MatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+    }
+
+    TableRead(path, spec, requestedType.getOrElse(spec.table_type), dropRows = false)
+  }
+}
 
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType

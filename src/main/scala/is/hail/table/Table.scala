@@ -56,27 +56,8 @@ object Table {
     Table(hc, df.rdd, signature, key)
   }
 
-  def read(hc: HailContext, path: String, rowFields: Set[String] = null): Table = {
-    val successFile = path + "/_SUCCESS"
-    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
-      fatal(
-        s"""cannot read table: file not found: $successFile
-           |  Common causes:
-           |    - Hail encountered an error or Spark shut down while writing
-           |    - File is an 0.1 KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
-
-    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
-      case ts: TableSpec => ts
-      case _: MatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
-    }
-
-    var typ = spec.table_type
-    if (rowFields != null)
-      typ = typ.copy(
-        rowType = typ.rowType.filterSet(rowFields)._1)
-
-    new Table(hc, TableRead(path, spec, typ, dropRows = false))
-  }
+  def read(hc: HailContext, path: String): Table =
+    new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
   def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
     keyNames: Option[java.util.ArrayList[String]], nPartitions: Option[Int]): Table = {

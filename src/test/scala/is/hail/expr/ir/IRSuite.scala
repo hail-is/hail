@@ -327,8 +327,7 @@ class IRSuite extends SparkSuite {
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),
-      ApplyBinaryPrimOp(Add(), i, j),
-      MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())),
+      MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -396,7 +395,7 @@ class IRSuite extends SparkSuite {
             TStruct("a" -> TInt32()),
             None,
             TStruct.empty()),
-          FastIndexedSeq(null, Row(5), Row(-3)),
+          FastIndexedSeq(Row(null), Row(5), Row(-3)),
           None),
         TableMapRows(read,
           MakeStruct(FastIndexedSeq(
@@ -461,7 +460,8 @@ class IRSuite extends SparkSuite {
         MatrixCollectColsByKey(read),
         MatrixAggregateColsByKey(read, newCol),
         MatrixAggregateRowsByKey(read, newRow),
-        range)
+        range,
+      MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
 
       xs.map(x => Array(x))
     } catch {
@@ -489,7 +489,6 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x)
-    println(s)
     val x2 = Parser.parse(Parser.matrix_ir, s)
     assert(x2 == x)
   }
