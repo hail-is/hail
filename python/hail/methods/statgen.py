@@ -285,11 +285,11 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
         \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
                           + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{is_female}
+                          + \\beta_3 \, \mathrm{is\_female}
                           + \\varepsilon, \quad \\varepsilon
                         \sim \mathrm{N}(0, \sigma^2)
 
-    Boolean covariates like :math:`\mathrm{is_female}` are encoded as 1 for
+    Boolean covariates like :math:`\mathrm{is\_female}` are encoded as 1 for
     ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
@@ -414,13 +414,13 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
         \mathrm{Prob}(\mathrm{is_case}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
-                            + \beta_3 \, \mathrm{is_female} + \varepsilon),
+                            + \beta_3 \, \mathrm{is\_female} + \varepsilon),
         \quad
         \varepsilon \sim \mathrm{N}(0, \sigma^2)
 
     where :math:`\mathrm{sigmoid}` is the `sigmoid function`_, the genotype
     :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
-    HomVar, and the Boolean covariate :math:`\mathrm{is_female}` is coded as
+    HomVar, and the Boolean covariate :math:`\mathrm{is\_female}` is coded as
     for ``True`` (female) and 0 for ``False`` (male). The null model sets
     :math:`\beta_1 = 0`.
 
