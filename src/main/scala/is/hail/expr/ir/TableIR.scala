@@ -7,10 +7,12 @@ import is.hail.expr.types._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
+import is.hail.table.{Ascending, SortField, TableSpec}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+
+import scala.reflect.ClassTag
 
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType
@@ -789,5 +791,56 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     })
 
     prev.copy(rvd = newRVD, typ = typ)
+  }
+}
+
+case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) extends TableIR {
+  // TableOrderBy expects an unkeyed child, so that we can better optimize by
+  // pushing these two steps around as needed
+  require(child.typ.key.isEmpty)
+
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild) = newChildren
+    TableOrderBy(newChild.asInstanceOf[TableIR], sortFields)
+  }
+
+  val typ: TableType = child.typ.copy(key = None)
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+
+    val rowType = child.typ.rowType
+    val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+      val i = rowType.fieldIdx(n)
+      val f = rowType.fields(i)
+      val fo = f.typ.ordering
+      (i, if (so == Ascending) fo else fo.reverse)
+    }
+
+    val ord: Ordering[Annotation] = new Ordering[Annotation] {
+      def compare(a: Annotation, b: Annotation): Int = {
+        var i = 0
+        while (i < sortColIndexOrd.length) {
+          val (fi, ford) = sortColIndexOrd(i)
+          val c = ford.compare(
+            a.asInstanceOf[Row].get(fi),
+            b.asInstanceOf[Row].get(fi))
+          if (c != 0) return c
+          i += 1
+        }
+
+        0
+      }
+    }
+
+    val act = implicitly[ClassTag[Annotation]]
+
+    // FIXME: uses SafeRow, very bad!!!
+    val rdd = prev.rdd.sortBy(identity[Annotation], ascending = true)(ord, act)
+    val rvd = ContextRDD.weaken[RVDContext](rdd)
+      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
+    TableValue(typ, prev.globals, new UnpartitionedRVD(rowType, rvd))
   }
 }

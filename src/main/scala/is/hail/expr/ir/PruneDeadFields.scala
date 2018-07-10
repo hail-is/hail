@@ -239,6 +239,12 @@ object PruneDeadFields {
         memoizeTableIR(child, child.typ.copy(
           rowType = unify(child.typ.rowType, minimal(child.typ).rowType, requestedType.rowType),
           globalType = requestedType.globalType), memo)
+      case TableOrderBy(child, sortFields) =>
+        memoizeTableIR(child, child.typ.copy(
+          rowType = unify(child.typ.rowType,
+            child.typ.rowType.filterSet(sortFields.map(_.field).toSet)._1,
+            requestedType.rowType),
+          globalType = requestedType.globalType), memo)
       case TableMapRows(child, newRow, newKey, preservedKeyFields) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, minimal(child.typ).copy(globalType = requestedType.globalType), rowDep), memo)

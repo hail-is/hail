@@ -5,7 +5,7 @@ import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.{AggSignature, MatrixCollectColsByKey, MatrixChooseCols, MatrixReader}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
-import is.hail.table.TableSpec
+import is.hail.table.{Ascending, Descending, SortField, TableSpec}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -785,6 +785,13 @@ object Parser extends JavaTokenParsers {
       } |
       "TableRange" ~> int32_literal ~ int32_literal ^^ { case n ~ nPartitions => ir.TableRange(n, nPartitions) } |
       "TableUnion" ~> table_ir_children ^^ { children => ir.TableUnion(children) } |
+      "TableOrderBy" ~> ir_identifiers ~ table_ir ^^ { case identifiers ~ child =>
+        ir.TableOrderBy(child, identifiers.map(i =>
+          if (i.charAt(0) == 'A')
+            SortField(i.substring(1), Ascending)
+          else
+            SortField(i.substring(1), Descending)))
+      } |
       "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) }
 
   def matrix_reader: Parser[ir.MatrixReader] = "(" ~> matrix_reader_1 <~ ")"
