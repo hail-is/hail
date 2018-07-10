@@ -28,6 +28,7 @@ object TypeCheck {
 
       case NA(t) =>
         assert(t != null)
+        assert(!t.required)
       case IsNA(v) =>
         check(v)
 
