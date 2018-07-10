@@ -389,7 +389,7 @@ class LinearMixedModel(object):
                 self._d, self._ydy, self._xdy, self._xdx = d, ydy, xdy, xdx
                 return neg_log_reml
         except LinAlgError as e:
-            raise Exception(f'linear algebra error while solving for REML estimate:\n  {e}')
+            raise Exception(f'linear algebra error while solving for REML estimate') from e
 
     @typecheck_method(log_gamma=nullable(float), bounds=tupleof(numeric), tol=float, maxiter=int)
     def fit(self, log_gamma=None, bounds=(-8.0, 8.0), tol=1e-8, maxiter=500):
