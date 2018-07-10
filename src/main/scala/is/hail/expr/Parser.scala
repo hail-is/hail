@@ -824,7 +824,7 @@ object Parser extends JavaTokenParsers {
       "MatrixRead" ~> string_literal ~ boolean_literal ~ boolean_literal ~ matrix_type_expr_opt ^^ { case path ~ dropCols ~ dropRows ~ requestedType =>
         MatrixIR.read(HailContext.get, path, dropCols, dropRows, requestedType)
       } |
-      "MatrixExplodeRows" ~> matrix_ir ~ ir_identifiers ^^ { case child ~ path => ir.MatrixExplodeRows(child, path)} |
+      "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
 

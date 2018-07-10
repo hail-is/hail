@@ -460,7 +460,8 @@ class IRSuite extends SparkSuite {
         MatrixCollectColsByKey(read),
         MatrixAggregateColsByKey(read, newCol),
         MatrixAggregateRowsByKey(read, newRow),
-        range)
+        range,
+      MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
 
       xs.map(x => Array(x))
     } catch {

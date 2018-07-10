@@ -127,7 +127,8 @@ class IRTests(unittest.TestCase):
             ir.TableRange(100, 10),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
-            ir.TableExplode(table_read, 'mset')
+            ir.TableExplode(table_read, 'mset'),
+            ir.TableOrderBy(ir.TableUnkey(table_read), [('m', 'A'), ('m', 'D')])
         ]
 
         for x in table_irs:
