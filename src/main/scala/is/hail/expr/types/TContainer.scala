@@ -149,7 +149,14 @@ abstract class TContainer extends Type {
       return c
     Code(
       c,
-      region.memset(aoff + 4L, ((length + 7) >>> 3).toL, 0.toByte))
+      a.store((length + 7) >>> 3),
+      Code.whileLoop(a > 0,
+        Code(
+          a.store(a - 1),
+          region.storeByte(aoff + 4L + a.toL, const(0))
+        )
+      )
+    )
   }
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
