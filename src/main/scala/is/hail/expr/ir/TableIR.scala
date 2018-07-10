@@ -272,7 +272,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
     if (pred == True())
       return ktv
-    else if (pred == False())
+    else if (pred == False() || pred == NA(TBoolean()))
       return ktv.copy(rvd = ktv.rvd match {
         case orvd: OrderedRVD => OrderedRVD.empty(hc.sc, orvd.typ)
         case urvd: UnpartitionedRVD => UnpartitionedRVD.empty(hc.sc, urvd.rowType)
