@@ -65,7 +65,15 @@ object Pretty {
       sb.append(" " * depth)
       sb += '('
 
-      sb.append(prettyClass(ir))
+      ir match {
+        case read: MatrixRead =>
+          read.reader match {
+            case _: MatrixNativeReader => sb.append("MatrixRead")
+            case _: MatrixRangeReader => sb.append("MatrixRange")
+          }
+        case _ =>
+          sb.append(prettyClass (ir) )
+      }
 
       ir match {
         case MakeStruct(fields) =>
@@ -190,6 +198,11 @@ object Pretty {
                   "None"
                 else
                   typ.parsableString())
+            case MatrixRead(typ, _, _, dropCols, dropRows, MatrixRangeReader(nRows, nCols, nPartitions)) =>
+              s"$nRows $nCols" + " " +
+                nPartitions.map(_.toString).getOrElse("None") + " " +
+                prettyBooleanLiteral(dropCols) + " " +
+                prettyBooleanLiteral(dropRows)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)

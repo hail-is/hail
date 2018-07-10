@@ -488,7 +488,6 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x)
-    println(s)
     val x2 = Parser.parse(Parser.matrix_ir, s)
     assert(x2 == x)
   }

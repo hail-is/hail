@@ -797,14 +797,6 @@ object Parser extends JavaTokenParsers {
       } |
       "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) }
 
-  def matrix_reader: Parser[ir.MatrixReader] = "(" ~> matrix_reader_1 <~ ")"
-
-  def matrix_reader_1: Parser[ir.MatrixReader] =
-    "MatrixReader" ~> string_literal ^^ { jsonString =>
-      import ir.MatrixReader.formats
-      JsonMethods.parse(jsonString).extract[MatrixReader]
-    }
-
   def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
 
   def matrix_ir_1: Parser[ir.MatrixIR] =
@@ -826,8 +818,8 @@ object Parser extends JavaTokenParsers {
       } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
       "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
-      "MatrixRange" ~> int32_literal ~ int32_literal ~ int32_literal_opt ^^ { case nRows ~ nCols ~ nPartitions =>
-        MatrixIR.range(HailContext.get, nRows, nCols, nPartitions)
+      "MatrixRange" ~> int32_literal ~ int32_literal ~ int32_literal_opt ~ boolean_literal ~ boolean_literal ^^ { case nRows ~ nCols ~ nPartitions ~ dropCols ~ dropRows =>
+        MatrixIR.range(HailContext.get, nRows, nCols, nPartitions, dropCols, dropRows)
       } |
       "MatrixRead" ~> string_literal ~ boolean_literal ~ boolean_literal ~ matrix_type_expr_opt ^^ { case path ~ dropCols ~ dropRows ~ requestedType =>
         MatrixIR.read(HailContext.get, path, dropCols, dropRows, requestedType)

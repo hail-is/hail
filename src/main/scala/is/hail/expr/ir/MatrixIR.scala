@@ -29,13 +29,13 @@ object MatrixIR {
     MatrixRead(requestedType.getOrElse(typ), Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec))
   }
 
-  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixIR = {
+  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
     val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
     val partCounts = partition(nRows, nPartitionsAdj)
 
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
     MatrixRead(reader.typ, Some(partCounts.map(_.toLong)), Some(nCols),
-      dropRows = false, dropCols = false, reader = reader)
+      dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
 
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
