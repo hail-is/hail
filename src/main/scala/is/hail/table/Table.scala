@@ -380,8 +380,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
         leftCount == rightCount
       } else {
-        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
-          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
+        keyBy(signature.fieldNames, sort = false).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames, sort = false).keyedRDD().groupByKey()
         ).forall { case (k, (v1, v2)) =>
           (v1, v2) match {
             case (Some(x), Some(y)) => x.size == y.size
@@ -820,7 +820,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
     require(key.isDefined)
     val orderedKTType = new OrderedRVDType(key.get.take(partitionKeys).toArray, key.get.toArray, signature)
-    assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
+    assert(hintPartitioner.forall(p => p.kType.types.sameElements(orderedKTType.kType.types)))
     OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
   }
 
@@ -853,11 +853,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
         val interval = r.getAs[Interval](rightKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
-          val pkOrd = partBc.value.pkType.ordering
+          val kOrd = partBc.value.kType.ordering
           val wrappedInterval = interval.copy(
             start = Row(interval.start),
             end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+          rangeTree.queryOverlappingValues(kOrd, wrappedInterval).map(i => (i, r))
         } else
           Iterator()
       }

@@ -94,7 +94,7 @@ case class OrderedRVDSpec(
     assert(requestedORVDType.kType == orvdType.kType)
     assert(requestedORVDType.partitionKey sameElements orvdType.partitionKey)
 
-    val rangeBoundsType = TArray(TInterval(requestedORVDType.pkType))
+    val rangeBoundsType = TArray(TInterval(requestedORVDType.kType))
     OrderedRVD(requestedORVDType,
       new OrderedRVDPartitioner(requestedORVDType.partitionKey, requestedORVDType.kType,
         JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),

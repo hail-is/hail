@@ -103,7 +103,7 @@ object JSONAnnotationImpex {
             .toList)
         case TTuple(types, _) =>
           val row = a.asInstanceOf[Row]
-          JArray(types.zipWithIndex.map { case (typ, i) => exportAnnotation(row.get(i), typ) }.toList)
+          JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i)) })
       }
     }
 
@@ -185,7 +185,7 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val a = Array.fill[Any](t.size)(null)
+          val a = Array.fill[Any](elts.length)(null)
           var i = 0
           for (jvelt <- elts) {
             a(i) = importAnnotation(jvelt, t.types(i), parent)

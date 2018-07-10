@@ -181,7 +181,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
     val rvd = if (sort) {
       def resort: OrderedRVD = {
         val orvdType = new OrderedRVDType(nPartitionKeys.map(keys.take).getOrElse(keys).toArray, keys.toArray, typ.rowType)
-        OrderedRVD.coerce(orvdType, tv.rvd, None, None)
+        OrderedRVD.coerce(orvdType, tv.rvd)
       }
 
       tv.rvd match {

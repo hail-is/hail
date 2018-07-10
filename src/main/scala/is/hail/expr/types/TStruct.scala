@@ -64,6 +64,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val size: Int = fields.length
 
+  override def truncate(newSize: Int): TStruct =
+    TStruct(fields.take(newSize), required)
+
   val missingIdx = new Array[Int](size)
   val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
@@ -105,6 +108,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def field(name: String): Field = fields(fieldIdx(name))
+
+  def toTTuple: TTuple = new TTuple(types, required)
 
   override def getOption(path: List[String]): Option[Type] =
     if (path.isEmpty)

@@ -112,6 +112,8 @@ abstract class TBaseStruct extends Type {
   def isCompatibleWith(other: TBaseStruct): Boolean =
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
+  def truncate(newSize: Int): TBaseStruct
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = {

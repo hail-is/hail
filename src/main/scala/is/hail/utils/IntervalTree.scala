@@ -3,6 +3,7 @@ package is.hail.utils
 import is.hail.annotations._
 import is.hail.check._
 import is.hail.expr.types.{TBoolean, TInterval, TStruct}
+import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
@@ -12,6 +13,20 @@ import scala.reflect.ClassTag
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(-1 <= sign && sign <= 1)
+
+  def coarsenLeft(newKeyLen: Int): IntervalEndpoint =
+    coarsen(newKeyLen, -1)
+
+  def coarsenRight(newKeyLen: Int): IntervalEndpoint =
+    coarsen(newKeyLen, 1)
+
+  private def coarsen(newKeyLen: Int, sign: Int): IntervalEndpoint = {
+    val row = point.asInstanceOf[Row]
+    if (row.size > newKeyLen)
+      IntervalEndpoint(row.truncate(newKeyLen), sign)
+    else
+      this
+  }
 }
 
 /**
@@ -107,6 +122,9 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     } else
       None
 
+  def coarsen(newKeyLen: Int): Interval =
+    Interval(left.coarsenLeft(newKeyLen), right.coarsenRight(newKeyLen))
+
   override def toString: String = (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
 
   override def equals(other: Any): Boolean = other match {
@@ -137,6 +155,9 @@ object Interval {
       Some(Interval(start, end, includesStart, includesEnd))
     else
       None
+
+  def orNone(pord: ExtendedOrdering, left: IntervalEndpoint, right: IntervalEndpoint): Option[Interval] =
+    orNone(pord, left.point, right.point, left.sign < 0, right.sign > 0)
 
   def isValid(pord: ExtendedOrdering,
     start: Any, end: Any,

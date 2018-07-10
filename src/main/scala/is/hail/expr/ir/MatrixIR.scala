@@ -1773,11 +1773,11 @@ case class MatrixAnnotateRowsTable(
             val interval = r.getAs[Interval](tableKeyIdx)
             if (interval != null) {
               val rangeTree = partBc.value.rangeTree
-              val pkOrd = partBc.value.pkType.ordering
+              val kOrd = partBc.value.kType.ordering
               val wrappedInterval = interval.copy(
                 start = Row(interval.start),
                 end = Row(interval.end))
-              rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+              rangeTree.queryOverlappingValues(kOrd, wrappedInterval).map(i => (i, r))
             } else
               Iterator()
           }
@@ -1873,7 +1873,7 @@ case class MatrixAnnotateRowsTable(
         // At this point 'joined' is sorted by the foreign key, so need to resort by row key
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
-          partitionKey = child.typ.rowPartitionKey.toArray,
+          partitionKey = Some(child.typ.rowPartitionKey.length),
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
         val oType = joined.typ.copy(partitionKey = child.typ.rowPartitionKey.toArray, key = prevRowKeys ++ Array(indexUID))
         val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)
