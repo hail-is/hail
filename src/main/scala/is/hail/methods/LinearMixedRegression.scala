@@ -294,17 +294,27 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
 
     val CdC = invDelta * CtC + CzC
 
-    val b = CdC \ Cdy
-    val s2 = invDf * (ydy - (Cdy dot b))
-    val chi2 = n * (logNullS2 - math.log(s2))
-    val p = chiSquaredTail(chi2, 1)
+    try {
+      val b = CdC \ Cdy
+      val s2 = invDf * (ydy - (Cdy dot b))
+      val chi2 = n * (logNullS2 - math.log(s2))
+      val p = chiSquaredTail(chi2, 1)
 
-    rvb.startStruct()
-    rvb.addDouble(b(0))
-    rvb.addDouble(s2)
-    rvb.addDouble(chi2)
-    rvb.addDouble(p)
-    rvb.endStruct()
+      rvb.startStruct()
+      rvb.addDouble(b(0))
+      rvb.addDouble(s2)
+      rvb.addDouble(chi2)
+      rvb.addDouble(p)
+      rvb.endStruct()
+    } catch {
+      case _: breeze.linalg.MatrixSingularException =>
+        rvb.startStruct()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.endStruct()
+    }
   }
 }
 

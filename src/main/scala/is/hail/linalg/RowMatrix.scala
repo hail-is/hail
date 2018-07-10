@@ -2,10 +2,13 @@ package is.hail.linalg
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
+import is.hail.expr.types.{TInt64, TStruct}
 import is.hail.io.InputBuffer
+import is.hail.rvd.OrderedRVDPartitioner
 import is.hail.utils._
 import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 object RowMatrix {
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =
@@ -65,7 +68,21 @@ class RowMatrix(val hc: HailContext,
   
   // length nPartitions + 1, first element 0, last element rdd2 count
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
+
+  def orderedRVDPartitioner(
+    partitionKey: Array[String] = Array("idx"),
+    kType: TStruct = TStruct("idx" -> TInt64())): OrderedRVDPartitioner = {
     
+    val partStarts = partitionStarts()
+
+    new OrderedRVDPartitioner(partitionKey, kType,
+      Array.tabulate(partStarts.length - 1) { i =>
+        val start = partStarts(i)
+        val end = partStarts(i + 1)
+        Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+      })
+  }
+  
   def toBreezeMatrix(): DenseMatrix[Double] = {
     require(_nRows.forall(_ <= Int.MaxValue), "The number of rows of this matrix should be less than or equal to " +
         s"Int.MaxValue. Currently numRows: ${ _nRows.get }")
@@ -182,7 +199,7 @@ class ReadBlocksAsRowsRDD(path: String,
     
     var inPerBlockCol: IndexedSeq[(InputBuffer, Int, Int)] = null
     var i = start
-    
+
     new Iterator[(Long, Array[Double])] {
       def hasNext: Boolean = i < end
 
