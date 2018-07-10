@@ -120,6 +120,22 @@ object Simplify {
 
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
+      // lift up NAs
+      case x@Apply(_, args) if args.exists(_.isInstanceOf[NA]) => NA(x.typ)
+      case x@ApplyComparisonOp(op, l, r) if !op.isInstanceOf[EQWithNA]
+        && !op.isInstanceOf[NEQWithNA]
+        && (l.isInstanceOf[NA] || r.isInstanceOf[NA]) => NA(x.typ)
+      case x@ApplyBinaryPrimOp(_, l, r) if l.isInstanceOf[NA] || r.isInstanceOf[NA] => NA(x.typ)
+      case x@ApplyUnaryPrimOp(_, NA(_)) => NA(x.typ)
+      case x@ArrayRef(a, i) if a.isInstanceOf[NA] || i.isInstanceOf[NA] => NA(x.typ)
+      case x@ArrayRange(start, stop, step) if start.isInstanceOf[NA]
+        || stop.isInstanceOf[NA]
+        || step.isInstanceOf[NA] => NA(x.typ)
+      case x@ToSet(NA(_)) => NA(x.typ)
+      case x@ToDict(NA(_)) => NA(x.typ)
+      case x@ToArray(NA(_)) => NA(x.typ)
+      case Cast(NA(_), t) => NA(t)
+
       // optimize TableIR
       case TableFilter(t, True()) => t
 
