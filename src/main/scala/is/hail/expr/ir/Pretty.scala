@@ -10,6 +10,10 @@ object Pretty {
   def prettyStringLiteral(s: String): String =
     "\"" + StringEscapeUtils.escapeString(s) + "\""
 
+  def prettyStrings(xs: IndexedSeq[String]): String = xs.map(prettyStringLiteral).mkString("(", " ", ")")
+
+  def prettyStringsOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyStrings).getOrElse("None")
+
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
 
@@ -31,6 +35,8 @@ object Pretty {
   def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
 
   def prettyLongs(x: IndexedSeq[Long]): String = x.mkString("(", " ", ")")
+
+  def prettyInts(x: IndexedSeq[Int]): String = x.mkString("(", " ", ")")
 
   def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
     x.map(prettyLongs).getOrElse("None")
@@ -182,6 +188,10 @@ object Pretty {
                 prettyBooleanLiteral(dropRows) + " " +
                 prettyMatrixReader(reader)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
+            case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
+            case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
+            case MatrixMapRows(_, _, newKey) =>
+              prettyStringsOpt(newKey.map(_._1)) + " " + prettyStringsOpt(newKey.map(_._2))
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head

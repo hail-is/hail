@@ -576,7 +576,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def collectColsByKey(): MatrixTable = new MatrixTable(hc, CollectColsByKey(ast))
+  def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
 
   def aggregateColsByKey(aggExpr: String): MatrixTable = {
     val ec = rowEC
@@ -1374,7 +1374,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def chooseCols(oldIndices: Array[Int]): MatrixTable = {
     require(oldIndices.forall { x => x >= 0 && x < numCols })
-    copyAST(ast = ChooseCols(ast, oldIndices))
+    copyAST(ast = MatrixChooseCols(ast, oldIndices))
   }
 
   def renameFields(oldToNewRows: java.util.HashMap[String, String],

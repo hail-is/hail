@@ -302,7 +302,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testCollectColsByKeyMemo() {
-    val ccbk = CollectColsByKey(mat)
+    val ccbk = MatrixCollectColsByKey(mat)
     checkMemo(ccbk,
       subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2"),
       Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))

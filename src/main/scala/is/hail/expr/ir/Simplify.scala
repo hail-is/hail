@@ -185,8 +185,8 @@ object Simplify {
       case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixAggregateColsByKey(child, _)) => MatrixRowsTable(child)
-      case MatrixRowsTable(ChooseCols(child, _)) => MatrixRowsTable(child)
-      case MatrixRowsTable(CollectColsByKey(child)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
       case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
         if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>

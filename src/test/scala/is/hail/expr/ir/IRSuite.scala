@@ -421,6 +421,55 @@ class IRSuite extends SparkSuite {
     }
   }
 
+  @DataProvider(name = "matrixIRs")
+  def matrixIRs(): Array[Array[MatrixIR]] = {
+    try {
+      val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+        .tir.asInstanceOf[TableRead]
+      val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        .ast.asInstanceOf[MatrixRead]
+      val range = MatrixTable.range(hc, 3, 7, None)
+        .ast.asInstanceOf[MatrixRead]
+
+      val b = True()
+
+      val newCol = MakeStruct(FastIndexedSeq(
+        "col_idx" -> GetField(Ref("sa", read.typ.colType), "col_idx"),
+        "new_f32" -> ApplyBinaryPrimOp(Add(),
+          GetField(Ref("sa", read.typ.colType), "col_f32"),
+          F32(-5.2f))))
+      val newRow = MakeStruct(FastIndexedSeq(
+        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
+        "new_f32" -> ApplyBinaryPrimOp(Add(),
+          GetField(Ref("va", read.typ.rowType), "row_f32"),
+          F32(-5.2f))))
+
+      val xs = Array[MatrixIR](
+        read,
+        MatrixFilterRows(read, b),
+        MatrixFilterCols(read, b),
+        MatrixFilterEntries(read, b),
+        MatrixChooseCols(read, Array(0, 0, 0)),
+        MatrixMapCols(read, newCol, None),
+        MatrixMapRows(read, newRow, None),
+        MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
+          "global_f32" -> ApplyBinaryPrimOp(Add(),
+            GetField(Ref("global", read.typ.globalType), "global_f32"),
+            F32(-5.2f))))),
+        MatrixCollectColsByKey(read),
+        MatrixAggregateColsByKey(read, newCol),
+        MatrixAggregateRowsByKey(read, newRow),
+        range)
+
+      xs.map(x => Array(x))
+    } catch {
+      case t: Throwable =>
+        println(t)
+        println(t.printStackTrace())
+        throw t
+    }
+  }
+
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val s = Pretty(x)
@@ -432,6 +481,14 @@ class IRSuite extends SparkSuite {
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x)
     val x2 = Parser.parse(Parser.table_ir, s)
+    assert(x2 == x)
+  }
+
+  @Test(dataProvider = "matrixIRs")
+  def testMatrixIRParser(x: MatrixIR) {
+    val s = Pretty(x)
+    println(s)
+    val x2 = Parser.parse(Parser.matrix_ir, s)
     assert(x2 == x)
   }
 }
