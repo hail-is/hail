@@ -25,7 +25,8 @@ object MatrixIR {
       case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     }
     val typ = spec.matrix_type
-    val nCols = spec.colsComponent.read(hc, path, TStruct()).count().toInt
+    val colSpec = RelationalSpec.read(hc, path + "/cols").asInstanceOf[TableSpec]
+    val nCols = colSpec.partitionCounts.sum.toInt
     MatrixRead(requestedType.getOrElse(typ), Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec))
   }
 
