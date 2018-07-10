@@ -36,8 +36,7 @@ private case class BgenSettings (
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
   private val userContigRecoding: Map[String, String],
-  skipInvalidLoci: Boolean,
-  checkPloidy: Boolean
+  skipInvalidLoci: Boolean
 ) {
   private[this] val typedRowFields = Array(
     (true, "locus" -> TLocus.schemaFromRG(rg)),
@@ -319,39 +318,16 @@ private class BgenRecordIterator(
                 .concat("'.")),
             Code._empty),
           i := 0,
-          if (settings.checkPloidy) {
-            Code(
-              Code.whileLoop(i < (settings.nSamples - 8),
-                longPloidy := reader.invoke[Long]("readLong"),
-                ((longPloidy & 0x3f3f3f3f3f3f3f3fL).cne(0x0202020202020202L)).mux(
-                  Code._fatal(
-                    const("Ploidy value must equal to 2. Found ")
-                      .concat(longPloidy.toS)
-                      .concat(" somewhere between sample ")
-                      .concat(i.toS)
-                      .concat(" and ")
-                      .concat((i + 8).toS)
-                      .concat(" at ")
-                      .concat(contig)
-                      .concat(":")
-                      .concat(position.toS)
-                      .concat(".")),
-                  Code._empty),
-                i += 8
-              ),
-              Code.whileLoop(i < settings.nSamples,
-                ploidy := reader.invoke[Int]("read"),
-                ((ploidy & 0x3f).cne(2)).mux(
-                  Code._fatal(
-                    const("Ploidy value must equal to 2. Found ")
-                      .concat(ploidy.toS)
-                      .concat(".")),
-                  Code._empty),
-                i += 1
-              ))
-          } else {
-            Code.toUnit(reader.invoke[Long, Long]("skipBytes", settings.nSamples))
-          },
+          Code.whileLoop(i < settings.nSamples,
+            ploidy := reader.invoke[Int]("read"),
+            ((ploidy & 0x3f).cne(2)).mux(
+              Code._fatal(
+                const("Ploidy value must equal to 2. Found ")
+                  .concat(ploidy.toS)
+                  .concat(".")),
+              Code._empty),
+            i += 1
+          ),
           phase := reader.invoke[Int]("read"),
           (phase.cne(0) && phase.cne(1)).mux(
             Code._fatal(

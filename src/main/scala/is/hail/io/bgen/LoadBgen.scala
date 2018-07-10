@@ -45,8 +45,7 @@ object LoadBgen {
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]],
-    checkPloidy: Boolean
+    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
     require(files.nonEmpty)
     val hadoop = hc.hadoopConf
@@ -94,8 +93,7 @@ object LoadBgen {
       RowFields(false, false, false),
       rg,
       contigRecoding,
-      skipInvalidLoci,
-      checkPloidy
+      skipInvalidLoci
     )
 
     val recordsSettings = BgenSettings(
@@ -105,8 +103,7 @@ object LoadBgen {
       RowFields(includeLid, includeRsid, includeFileRowIdx),
       rg,
       contigRecoding,
-      skipInvalidLoci,
-      checkPloidy
+      skipInvalidLoci
     )
 
     val matrixType = recordsSettings.matrixType

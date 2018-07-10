@@ -332,8 +332,7 @@ class HailContext private(val sc: SparkContext,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]],
-    checkPloidy: Boolean = true
+    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
@@ -367,8 +366,7 @@ class HailContext private(val sc: SparkContext,
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
     LoadBgen.load(this, inputs, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile,
-      checkPloidy)
+      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
   }
 
   def importGen(file: String,
