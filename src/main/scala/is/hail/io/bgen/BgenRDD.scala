@@ -114,20 +114,39 @@ private class BgenRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
     Iterator.single { (ctx: RVDContext) =>
-      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings).flatten }
+      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings) }
 }
+
+sealed trait BgenRecordIteratorState
+final case object Ready extends BgenRecordIteratorState
+final case object Consumed extends BgenRecordIteratorState
+final case object Exhausted extends BgenRecordIteratorState
 
 private class BgenRecordIterator(
   ctx: RVDContext,
   p: BgenPartition,
   settings: BgenSettings
-) extends Iterator[Option[RegionValue]] {
+) extends Iterator[RegionValue] {
   private[this] val bfis = p.makeInputStream
   private[this] var read: Boolean = false
   private[this] val rv = RegionValue(ctx.region)
+  private[this] var state: BgenRecordIteratorState = Consumed
   private[this] val rvb = ctx.rvb
 
-  def next(): Option[RegionValue] = {
+  def next(): RegionValue = {
+    if (state == Consumed)
+      advance()
+    assert(state != Exhausted)
+    state = Consumed
+    rv
+  }
+
+  private def advance(): Unit = {
+    if (!p.hasNext(bfis)) {
+      state = Exhausted
+      return
+    }
+
     val rowFieldIndex = p.advance(bfis)
 
     val varid = if (settings.rowFields.varid) {
@@ -145,6 +164,7 @@ private class BgenRecordIterator(
     val contig = bfis.readLengthAndString(2)
     val contigRecoded = settings.recodeContig(contig)
     val position = bfis.readInt()
+
     if (settings.skipInvalidLoci && !settings.rg.forall(_.isValidLocus(contigRecoded, position))) {
       val nAlleles = bfis.readShort()
       var i = 0
@@ -154,7 +174,7 @@ private class BgenRecordIterator(
       }
       val dataSize = bfis.readInt()
       bfis.skipBytes(dataSize)
-      None
+      advance()
     } else {
       rvb.start(settings.typ)
       rvb.startStruct() // record
@@ -191,7 +211,7 @@ private class BgenRecordIterator(
       rvb.endStruct()
       rv.setOffset(rvb.end())
 
-      Some(rv)
+      state = Ready
     }
   }
 
@@ -329,7 +349,10 @@ private class BgenRecordIterator(
         }
     }
 
-
-  def hasNext(): Boolean =
-    p.hasNext(bfis)
+  def hasNext(): Boolean = {
+    if (state == Consumed)
+      advance()
+    assert(state != Consumed)
+    state != Exhausted
+  }
 }
