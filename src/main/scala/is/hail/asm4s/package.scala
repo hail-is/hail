@@ -185,8 +185,6 @@ package object asm4s {
 
   implicit def toCodeBoolean(c: Code[Boolean]): CodeBoolean = new CodeBoolean(c)
 
-  implicit def toCodeShort(c: Code[Short]): CodeShort = new CodeShort(c)
-
   implicit def toCodeInt(c: Code[Int]): CodeInt = new CodeInt(c)
 
   implicit def byteToCodeInt(c: Code[Byte]): Code[Int] = new Code[Int] {
@@ -223,8 +221,6 @@ package object asm4s {
   }
 
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
-
-  implicit def toCodeShort(c: Settable[Short]): CodeShort = new CodeShort(c.load())
 
   implicit def toCodeInt(f: Settable[Int]): CodeInt = new CodeInt(f.load())
 
