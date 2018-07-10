@@ -1506,6 +1506,12 @@ def import_plink(bed, bim, fam,
 
         * `GT` (:py:data:`.tcall`) -- Genotype call (diploid, unphased).
 
+    Warning
+    -------
+    Hail will interpret the value "-9" as a valid quantitative phenotype, which
+    differs from default PLINK behavior. Use ``missing='-9'`` to interpret this
+    value as missing.
+
     Parameters
     ----------
     bed : :obj:`str`
