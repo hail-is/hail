@@ -423,7 +423,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableCountMemo() {
-    checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
+    checkMemo(TablePartitionCounts(tab), TArray(TInt64()), Array(subsetTable(tab.typ)))
   }
 
   @Test def testTableAggregateMemo() {

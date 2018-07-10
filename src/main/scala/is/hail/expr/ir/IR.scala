@@ -199,7 +199,7 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
 
 final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR { val typ: Type = TFloat64() }
 
-final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }
+final case class TablePartitionCounts(child: TableIR) extends IR { val typ: Type = TArray(TInt64()) }
 final case class TableAggregate(child: TableIR, query: IR) extends InferIR
 final case class TableWrite(
   child: TableIR,

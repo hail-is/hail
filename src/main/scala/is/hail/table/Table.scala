@@ -289,14 +289,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def fieldNames: Array[String] = fields.map(_.name)
 
-  def partitionCounts(): IndexedSeq[Long] = {
-    tir.partitionCounts match {
-      case Some(counts) => counts
-      case None => rvd.countPerPartition()
-    }
-  }
+  def partitionCounts(): IndexedSeq[Long] = tir.partitionCounts
 
-  def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
+  def count(): Long = tir.count()
 
   def forceCount(): Long = rvd.count()
 
