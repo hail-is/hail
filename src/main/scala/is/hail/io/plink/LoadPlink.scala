@@ -81,6 +81,7 @@ object LoadPlink {
           if (ffConfig.isQuantPheno)
             pheno match {
               case ffConfig.missingValue => null
+              case "-9" => null
               case numericRegex() => pheno.toDouble
               case _ => fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `${ ffConfig.missingValue }'")
             }
