@@ -59,7 +59,11 @@ object Table {
   def read(hc: HailContext, path: String, rowFields: Set[String] = null): Table = {
     val successFile = path + "/_SUCCESS"
     if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
-      fatal(s"write failed: file not found: $successFile")
+      fatal(
+        s"""cannot read table: file not found: $successFile
+           |  Common causes:
+           |    - Hail encountered an error or Spark shut down while writing
+           |    - File is an 0.1 KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
 
     val spec = (RelationalSpec.read(hc, path): @unchecked) match {
       case ts: TableSpec => ts
