@@ -21,24 +21,24 @@ Make the following changes:
 
  - Prefer
    ```scala
-def foo() { ... }
-```
+   def foo() { ... }
+   ```
    to
    ```scala
-def foo(): Unit = { ... }
-```
+   def foo(): Unit = { ... }
+   ```
    In IntelliJ, turn off Preferences > Editor > Code Style > Syntax > Other > Enforce procedure syntax for methods with Unit return type.
 
  - Prefix mutable data structures with mutable.  That is, prefer
    ```scala
-import scala.collection.mutable
-  ... mutable.ArrayBuilder[Byte] ...
-```
+   import scala.collection.mutable
+   ... mutable.ArrayBuilder[Byte] ...
+   ```
    to
    ```scala
-import scala.collection.mutable.ArrayBuilder
-  ... ArrayBuilder[Byte] ...
-```
+   import scala.collection.mutable.ArrayBuilder
+   ... ArrayBuilder[Byte] ...
+   ```
 
  - Prefer `None` to `Option.empty`. Prefer `Some(_)` to `Option(_)` when the argument will never be `null`.
 
