@@ -262,4 +262,28 @@ class AggregatorSuite extends SparkSuite {
       .aggregate("AGG.map(r => r.foo).sum()")._1
       == Seq((0 until 100).map(_ / 2.0).sum))
   }
+
+  @Test def testLinreg() {
+    val t = Table.parallelize(hc, IndexedSeq(
+      Row(null, 1d, 0.2),
+      Row(null, 1d, null),
+      Row(0.3, 1d, null),
+      Row(0.22848042, 1d, 0.2575928),
+      Row(0.09159706, 1d, -0.3445442),
+      Row(-0.43881935, 1d, 1.6590146),
+      Row(-0.99106171, 1d, -1.1688806),
+      Row(2.12823289, 1d, 0.5587043)),
+      TStruct("y" -> TFloat64(), "intercept" -> TFloat64(), "x" -> TFloat64()),
+      None,
+      None
+    )
+
+    val (aggResult, typ) = t.aggregate("AGG.map(__uid1__ => row.y).linreg(__uid2__ => [row.intercept, row.x], 2)")
+
+    assert(typ.valuesSimilar(aggResult, Row(
+      FastIndexedSeq(0.14069227, 0.32744807),
+      FastIndexedSeq(0.59410817, 0.61833778),
+      FastIndexedSeq(0.82805147, 0.63310173),
+      5L)))
+  }
 }

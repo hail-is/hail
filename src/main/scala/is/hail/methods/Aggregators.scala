@@ -2,6 +2,7 @@ package is.hail.methods
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import breeze.linalg.{DenseMatrix, DenseVector}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
@@ -10,6 +11,7 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -494,4 +496,35 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   }
 
   def copy() = new TakeByAggregator(t, f, n)
+}
+
+class LinearRegressionAggregator(var xsF: (Any) => Any, var nxs: Int) extends TypedAggregator[Any] {
+  var combiner = new LinearRegressionCombiner(nxs)
+
+  def seqOp(x: Any) = {
+    if (x != null) {
+      val y = x.asInstanceOf[Double]
+      val xs = xsF(y)
+      if (xs != null)
+        combiner.merge(y, xs.asInstanceOf[Array[Double]])
+    }
+  }
+
+  def seqOp(y: Any, xs: Any) {
+    if (y != null && xs != null) {
+      combiner.merge(y.asInstanceOf[Double], xs.asInstanceOf[IndexedSeq[Double]])
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    combiner.merge(agg2.combiner)
+  }
+
+  def result: Annotation = combiner.result()
+
+  def copy() = {
+    val lra = new LinearRegressionAggregator(xsF, nxs)
+    lra.combiner = combiner.copy()
+    lra
+  }
 }

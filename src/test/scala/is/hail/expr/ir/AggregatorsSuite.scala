@@ -621,4 +621,45 @@ class AggregatorsSuite {
       FastIndexedSeq(Row(Call2(0, 0), 4L), Row(null, null), Row(null, 2L), Row(Call2(0, 1), 0L), Row(Call2(1, 1), 1L), Row(Call2(0, 2), null)),
       FastIndexedSeq(Call2(0, 1), Call2(1, 1), null))
   }
+
+  @Test def linearRegression1xs() {
+    runAggregator(LinearRegression(),
+      TStruct("y" -> TFloat64(), "xs" -> TArray(TFloat64())),
+      FastIndexedSeq(
+        Row(null, FastIndexedSeq(-1.0)),
+        Row(0.0, null),
+        Row(null, null),
+        Row(0.22848042, FastIndexedSeq(0.2575928)),
+        Row(0.09159706, FastIndexedSeq(-0.3445442)),
+        Row(-0.43881935, FastIndexedSeq(1.6590146)),
+        Row(-0.99106171, FastIndexedSeq(-1.1688806)),
+        Row(2.12823289, FastIndexedSeq(0.5587043))),
+      Row(FastIndexedSeq(0.35676677), FastIndexedSeq(0.52953367), FastIndexedSeq(0.53740536), 5L),
+      constrArgs = FastIndexedSeq(I32(1)),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("xs", TArray(TFloat64())))
+    )
+  }
+
+  @Test def linearRegression2xs() {
+    runAggregator(LinearRegression(),
+      TStruct("y" -> TFloat64(), "xs" -> TArray(TFloat64())),
+      FastIndexedSeq(
+        Row(null, FastIndexedSeq(1, 1)),
+        Row(0.0, null),
+        Row(null, null),
+        Row(0.22848042, FastIndexedSeq(1, 0.2575928)),
+        Row(0.09159706, FastIndexedSeq(1, -0.3445442)),
+        Row(-0.43881935, FastIndexedSeq(1, 1.6590146)),
+        Row(-0.99106171, FastIndexedSeq(1, -1.1688806)),
+        Row(2.12823289, FastIndexedSeq(1, 0.5587043))),
+      Row(FastIndexedSeq(0.14069227, 0.32744807),
+        FastIndexedSeq(0.59410817, 0.61833778),
+        FastIndexedSeq(0.82805147, 0.63310173),
+        5L),
+      constrArgs = FastIndexedSeq(I32(2)),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("xs", TArray(TFloat64())))
+    )
+  }
 }

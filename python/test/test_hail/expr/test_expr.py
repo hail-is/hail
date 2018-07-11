@@ -250,6 +250,26 @@ class Tests(unittest.TestCase):
         r = table.aggregate(agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    def test_aggregators_linreg(self):
+        t = hl.Table.parallelize([
+            {"y": None, "x": 1.0},
+            {"y": 0.0, "x": None},
+            {"y": None, "x": None},
+            {"y": 0.22848042, "x": 0.2575928},
+            {"y": 0.09159706, "x": -0.3445442},
+            {"y": -0.43881935, "x": 1.6590146},
+            {"y": -0.99106171, "x": -1.1688806},
+            {"y": 2.12823289, "x": 0.5587043}
+        ], hl.tstruct(y=hl.tfloat64, x=hl.tfloat64), n_partitions=3)
+        r = t.aggregate(hl.struct(linreg=hl.agg.linreg(t.y, [1, t.x]))).linreg
+        self.assertAlmostEqual(r.beta[0], 0.14069227)
+        self.assertAlmostEqual(r.beta[1], 0.32744807)
+        self.assertAlmostEqual(r.standard_error[0], 0.59410817)
+        self.assertAlmostEqual(r.standard_error[1], 0.61833778)
+        self.assertAlmostEqual(r.p_value[0], 0.82805147)
+        self.assertAlmostEqual(r.p_value[1], 0.63310173)
+        self.assertAlmostEqual(r.n, 5)
+
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')

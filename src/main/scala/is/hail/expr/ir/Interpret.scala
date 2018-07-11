@@ -328,20 +328,23 @@ object Interpret {
         ()
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
-      case x@SeqOp(i, args, aggSig) =>
+      case x@SeqOp(i, seqOpArgs, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
           case Inbreeding() =>
-            val IndexedSeq(a, af) = args
+            val IndexedSeq(a, af) = seqOpArgs
             aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
           case TakeBy() =>
-            val IndexedSeq(a, ordering) = args
+            val IndexedSeq(a, ordering) = seqOpArgs
             aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(ordering))
           case Count() =>
-            assert(args.isEmpty)
+            assert(seqOpArgs.isEmpty)
             aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
+          case LinearRegression() =>
+            val IndexedSeq(y, xs) = seqOpArgs
+            aggregator.get.asInstanceOf[LinearRegressionAggregator].seqOp(interpret(y), interpret(xs))
           case _ =>
-            val IndexedSeq(a) = args
+            val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
@@ -435,6 +438,10 @@ object Interpret {
 
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
+          case LinearRegression() =>
+            val Seq(nxs) = constructorArgs
+            val nxsValue = interpret(nxs, Env.empty[Any], null, null).asInstanceOf[Int]
+            new LinearRegressionAggregator(null, nxsValue)
         }
         val Some((aggElements, aggElementType)) = agg
         aggElements.foreach { element =>

@@ -3,6 +3,7 @@ from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr.types import *
+from hail.utils import wrap_to_list
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -1087,3 +1088,64 @@ def info_score(gp) -> StructExpression:
     """
     t = hl.tstruct(score=hl.tfloat64, n_included=hl.tint32)
     return _agg_func('infoScore', gp, t)
+
+@typecheck(y=agg_expr(expr_float64),
+           xs=oneof(expr_float64, sequenceof(expr_float64)))
+def linreg(y, xs):
+    """Compute linear regression statistics.
+
+    Examples
+    --------
+
+    Regress HT against SEX including an intercept term (``1``):
+
+    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F']))
+    Struct(beta=[68.5, -3.5], standard_error=[4.315669125408017, 6.103277807866851],
+    p_value=[0.003945833219392291, 0.6242203110334867], n=4)
+
+    Notes
+    -----
+    This method returns a struct expression with four fields:
+
+     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Regression coefficients
+       for each predictor.
+     - `standard_error` (:class:`.tarray` of :py:data:`.tint64`): Standard error
+       estimates for each predictor.
+     - `p_value` (:class:`.tarray` of :py:data:`.tint64`): P-value for each predictor.
+     - `n` (:py:data:`.tint64`): The number of data points included in the regression.
+
+    Parameters
+    ----------
+    y : :class:`.Float64Expression`
+        Response variable.
+    xs : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Predictor variables.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Struct with fields `beta`, 'standard_error', 'p_value', and `n`.
+    """
+    xs = wrap_to_list(xs)
+    n_xs = hl.int32(len(xs))
+    xs = hl.array(xs)
+
+    uid = Env.get_uid()
+
+    ast = LambdaClassMethod('linreg', uid, y._ast, xs._ast, n_xs._ast) # FIXME: This should be _agg_func once the AST is gone
+    indices, aggregations = unify_all(y, xs, n_xs)
+
+    if aggregations:
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
+
+    _check_agg_bindings(y)
+    _check_agg_bindings(xs)
+    _check_agg_bindings(n_xs)
+
+    t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
+                   standard_error=hl.tarray(hl.tfloat64),
+                   p_value=hl.tarray(hl.tfloat64),
+                   n=hl.tint64)
+
+    return construct_expr(ast, t, Indices(source=indices.source),
+                          aggregations.push(Aggregation(y, xs)))
