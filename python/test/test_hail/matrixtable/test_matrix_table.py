@@ -818,3 +818,11 @@ class Tests(unittest.TestCase):
                                     mt.stats.homozygote_count[1]))
         rt = mt.rows()
         self.assertTrue(rt.all(rt.hw == rt.hw2))
+
+    def test_write_stage_locally(self):
+        mt = self.get_vds()
+        f = new_temp_file(suffix='mt')
+        mt.write(f, stage_locally=True)
+
+        mt2 = hl.read_matrix_table(f)
+        self.assertTrue(mt._same(mt2))

@@ -1094,7 +1094,13 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
   }
 
-  def writeRowsSplit(path: String, t: MatrixType, codecSpec: CodecSpec, partitioner: OrderedRVDPartitioner): Array[Long] = {
+  def writeRowsSplit(
+    path: String,
+    t: MatrixType,
+    codecSpec: CodecSpec,
+    partitioner: OrderedRVDPartitioner,
+    stageLocally: Boolean
+  ): Array[Long] = {
     val sc = crdd.sparkContext
     val hConf = sc.hadoopConfiguration
 
@@ -1121,12 +1127,26 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       val f = partFile(d, i, context)
       val outputMetrics = context.taskMetrics().outputMetrics
 
-      val rowsPartPath = path + "/rows/rows/parts/" + f
-      hConf.writeFile(rowsPartPath) { rowsOS =>
+      val finalRowsPartPath = path + "/rows/rows/parts/" + f
+      val finalEntriesPartPath = path + "/entries/rows/parts/" + f
+
+      val (rowsPartPath, entriesPartPath) =
+        if (stageLocally) {
+          val context = TaskContext.get
+          val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
+          val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
+          context.addTaskCompletionListener { context =>
+            hConf.delete(rowsPartPath, recursive = false)
+            hConf.delete(entriesPartPath, recursive = false)
+          }
+          (rowsPartPath, entriesPartPath)
+        } else
+          (finalRowsPartPath, finalEntriesPartPath)
+
+      val rowCount = hConf.writeFile(rowsPartPath) { rowsOS =>
         val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
         using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
 
-          val entriesPartPath = path + "/entries/rows/parts/" + f
           hConf.writeFile(entriesPartPath) { entriesOS =>
             val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
             using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
@@ -1171,11 +1191,18 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
               entriesEN.flush()
               ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
 
-              Iterator.single(f -> rowCount)
+              rowCount
             }
           }
         }
       }
+
+      if (stageLocally) {
+        hConf.copy(rowsPartPath, finalRowsPartPath)
+        hConf.copy(entriesPartPath, finalEntriesPartPath)
+      }
+
+      Iterator.single(f -> rowCount)
     }.collect()
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
