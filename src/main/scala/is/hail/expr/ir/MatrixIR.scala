@@ -453,7 +453,7 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 
     if (pred == True())
       return prev
-    else if (pred == False() || pred == NA(TBoolean()))
+    else if (pred == False())
       return prev.copy(rvd = OrderedRVD.empty(hc.sc, prev.rvd.typ))
 
     val localGlobalsType = prev.typ.globalType
