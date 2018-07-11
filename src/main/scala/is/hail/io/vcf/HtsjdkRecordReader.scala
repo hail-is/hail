@@ -116,6 +116,7 @@ object HtsjdkRecordReader {
       case (s: String, _: TFloat64) =>
         val d = s match {
           case "nan" => Double.NaN
+          case "-nan" => Double.NaN
           case "inf" => Double.PositiveInfinity
           case "-inf" => Double.NegativeInfinity
           case _ => s.toDouble
