@@ -1200,7 +1200,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         }
       } else Array.fill(prev.rvd.getNumPartitions)(Array.empty[RegionValueAggregator])
 
-
     val mapPartitionF = {(i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
       val partitionAggs = scanAggsPerPartition(i)
       val rvb = new RegionValueBuilder()
