@@ -119,11 +119,6 @@ private class BgenRDD(
           ctx, split.asInstanceOf[BgenPartition], settings)) }
 }
 
-sealed trait BgenRecordIteratorState
-final case object Ready extends BgenRecordIteratorState
-final case object Consumed extends BgenRecordIteratorState
-final case object Exhausted extends BgenRecordIteratorState
-
 private class BgenRecordStateMachine (
   ctx: RVDContext,
   p: BgenPartition,
