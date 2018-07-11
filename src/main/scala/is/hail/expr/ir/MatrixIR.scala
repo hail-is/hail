@@ -1175,28 +1175,31 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     }
 
     val scanAggsPerPartition =
-      prev.rvd.collectPerPartition { (ctx, it) =>
+      if (scanAggs.nonEmpty) {
+        prev.rvd.collectPerPartition { (ctx, it) =>
+          val globals = if (scanSeqNeedsGlobals) {
+            val rvb = new RegionValueBuilder()
+            val partRegion = ctx.freshContext.region
+            rvb.set(partRegion)
+            rvb.start(localGlobalsType)
+            rvb.addAnnotation(localGlobalsType, globalsBc.value)
+            rvb.end()
+          } else 0L
 
-        val globals = if (scanSeqNeedsGlobals) {
-          val rvb = new RegionValueBuilder()
-          val partRegion = ctx.freshContext.region
-          rvb.set(partRegion)
-          rvb.start(localGlobalsType)
-          rvb.addAnnotation(localGlobalsType, globalsBc.value)
-          rvb.end()
-        } else 0L
+          it.foreach { rv =>
+            scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
+            ctx.region.clear()
+          }
+          scanAggs
+        }.scanLeft(scanAggs) { (a1, a2) =>
+          (a1, a2).zipped.map { (agg1, agg2) =>
+            val newAgg = agg1.copy()
+            newAgg.combOp(agg2)
+            newAgg
+          }
+        }
+      } else Array.fill(prev.rvd.getNumPartitions)(Array.empty[RegionValueAggregator])
 
-        it.foreach { rv =>
-          scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
-        }
-        scanAggs
-      }.scanLeft(scanAggs) { (a1, a2) =>
-        (a1, a2).zipped.map { (agg1, agg2) =>
-          val newAgg = agg1.copy()
-          newAgg.combOp(agg2)
-          newAgg
-        }
-      }
 
     val mapPartitionF = {(i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
       val partitionAggs = scanAggsPerPartition(i)
