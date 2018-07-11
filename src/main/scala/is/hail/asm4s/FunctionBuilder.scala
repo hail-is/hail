@@ -340,9 +340,8 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
 
-    // FIXME: compile on master
-    // assert(TaskContext.get() == null,
-    //   "FunctionBuilder emission should happen on master, but happened on worker")
+    assert(TaskContext.get() == null,
+      "FunctionBuilder emission should happen on master, but happened on worker")
 
     new (() => F) with java.io.Serializable {
       @transient
