@@ -95,10 +95,6 @@ final class Region() extends NativeBase() {
     Memory.memcpy(dstOff, srcOff, n)
   }
 
-  final def memset(addr: Long, bytes: Long, value: Byte) {
-    Memory.memset(addr, bytes, value)
-  }
-
   final def loadBit(byteOff: Long, bitOff: Long): Boolean = {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0

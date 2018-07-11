@@ -167,10 +167,6 @@ public final class Memory {
         unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, null, dst, n);
     }
 
-    public static void memset(long addr, long bytes, byte value) {
-        unsafe.setMemory(addr, bytes, value);
-    }
-
     static {
         Unsafe t;
         try {
