@@ -114,7 +114,9 @@ private class BgenRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
     Iterator.single { (ctx: RVDContext) =>
-      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings) }
+      FlipbookIterator(
+        new BgenRecordStateMachine(
+          ctx, split.asInstanceOf[BgenPartition], settings)) }
 }
 
 sealed trait BgenRecordIteratorState
@@ -122,28 +124,20 @@ final case object Ready extends BgenRecordIteratorState
 final case object Consumed extends BgenRecordIteratorState
 final case object Exhausted extends BgenRecordIteratorState
 
-private class BgenRecordIterator(
+private class BgenRecordStateMachine (
   ctx: RVDContext,
   p: BgenPartition,
   settings: BgenSettings
-) extends Iterator[RegionValue] {
+) extends StateMachine[RegionValue] {
   private[this] val bfis = p.makeInputStream
-  private[this] var read: Boolean = false
-  private[this] val rv = RegionValue(ctx.region)
-  private[this] var state: BgenRecordIteratorState = Consumed
+  private[this] var rv = RegionValue(ctx.region)
   private[this] val rvb = ctx.rvb
 
-  def next(): RegionValue = {
-    if (state == Consumed)
-      advance()
-    assert(state != Exhausted)
-    state = Consumed
-    rv
-  }
-
-  private def advance(): Unit = {
+  def isValid: Boolean = rv != null
+  def value: RegionValue = rv
+  def advance() {
     if (!p.hasNext(bfis)) {
-      state = Exhausted
+      rv = null
       return
     }
 
@@ -210,8 +204,6 @@ private class BgenRecordIterator(
 
       rvb.endStruct()
       rv.setOffset(rvb.end())
-
-      state = Ready
     }
   }
 
@@ -349,10 +341,5 @@ private class BgenRecordIterator(
         }
     }
 
-  def hasNext(): Boolean = {
-    if (state == Consumed)
-      advance()
-    assert(state != Consumed)
-    state != Exhausted
-  }
+  advance() // make sure iterator is initialized in first valid state
 }
