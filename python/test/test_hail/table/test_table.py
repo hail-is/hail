@@ -5,6 +5,7 @@ import pyspark.sql
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
 
@@ -546,3 +547,10 @@ class Tests(unittest.TestCase):
         t = t.explode('a')
         self.assertEqual(set(t.collect()),
                          {hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value})
+
+    def test_write_stage_locally(self):
+        t = hl.utils.range_table(5)
+        f = new_temp_file(suffix='ht')
+        t.write(f, stage_locally=true)
+        t2 = hl.read_table(f)
+        self.assertTrue(t._same(t2))
