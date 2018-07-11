@@ -931,7 +931,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def dropCols(): MatrixTable =
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
-  def dropRows(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orvdType))
+  def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
   def explodeRows(root: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
