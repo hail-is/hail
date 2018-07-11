@@ -608,6 +608,7 @@ object Parser extends JavaTokenParsers {
   def float64_literal: Parser[Double] =
     "nan" ^^ { _ => Double.NaN } |
       "inf" ^^ { _ => Double.PositiveInfinity } |
+      "-inf" ^^ { _ => Double.NegativeInfinity } |
       "neginf" ^^ { _ => Double.NegativeInfinity } |
       """-?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ {
         _.toDouble

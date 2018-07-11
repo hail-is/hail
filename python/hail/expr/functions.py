@@ -7,6 +7,7 @@ from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
+import hail.ir as hir
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import *
 from hail.utils import LinkedList
@@ -17,7 +18,7 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations)
+    return construct_expr(hir.Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -48,7 +49,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(Literal('NA: {}'.format(t._jtype.parsableString())), t)
+    return construct_expr(hir.NA(t), t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
@@ -114,26 +115,26 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         if dtype == tint32:
             assert isinstance(x, builtins.int)
             assert tint32.min_value <= x <= tint32.max_value
-            return construct_expr(Literal('i32#{}'.format(x)), tint32)
+            return construct_expr(hir.I32(x), tint32)
         elif dtype == tint64:
             assert isinstance(x, builtins.int)
             assert tint64.min_value <= x <= tint64.max_value
-            return construct_expr(Literal('i64#{}'.format(x)), tint64)
+            return construct_expr(hir.I64(x), tint64)
         elif dtype == tfloat32:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f32#{}'.format(get_float_str(x))), tfloat32)
+            return construct_expr(hir.F32(x), tfloat32)
         elif dtype == tfloat64:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f64#{}'.format(get_float_str(x))), tfloat64)
+            return construct_expr(hir.F64(x), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
-            return construct_expr(Literal('true' if x else 'false'), tbool)
+            return construct_expr(hir.TrueIR() if x else hir.FalseIR(), tbool)
         else:
             assert dtype == tstr
             assert isinstance(x, builtins.str)
-            return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
+            return construct_expr(hir.Str(x), tstr)
     else:
-        return construct_expr(Broadcast(x, dtype), dtype)
+        return construct_expr(hir.Broadcast(x, dtype), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
@@ -196,8 +197,8 @@ def cond(condition,
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
-    return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          consequent.dtype, indices, aggregations)
+    return construct_expr(hir.If(condition._ir, consequent._ir, alternate._ir),
+                              consequent.dtype, indices, aggregations)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
@@ -320,19 +321,23 @@ def bind(f: Callable, *exprs):
     """
     args = []
     uids = []
-    asts = []
+    irs = []
 
     for expr in exprs:
         uid = Env.get_uid()
-        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations))
+        args.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uids.append(uid)
-        asts.append(expr._ast)
+        irs.append(expr._ir)
 
 
     lambda_result = to_expr(f(*args))
     indices, aggregations = unify_all(*exprs, lambda_result)
-    ast = Bind(uids, asts, lambda_result._ast)
-    return construct_expr(ast, lambda_result.dtype, indices, aggregations)
+
+    res_ir = lambda_result._ir
+    for (uid, ir) in builtins.zip(uids, irs):
+        res_ir = hir.Let(uid, ir, res_ir)
+
+    return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -670,26 +675,6 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
-@typecheck(structs=expr_array(expr_struct()),
-           identifier=str)
-def index(structs, identifier):
-    if not isinstance(structs.dtype.element_type, tstruct):
-        raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
-                        .format(structs.dtype))
-    struct_type = structs.dtype.element_type
-
-    if identifier not in struct_type:
-        raise RuntimeError("`structs' does not have a field with identifier `{}'. " \
-                           "Struct type is {}.".format(identifier, struct_type))
-
-    key_type = struct_type[identifier]
-    value_type = tstruct(**{f: t for f, t in struct_type.items() if f != identifier})
-
-    ast = StructOp('index', structs._ast, identifier)
-    return construct_expr(ast, tdict(key_type, value_type),
-                          structs._indices, structs._aggregations)
-
-
 @typecheck(contig=expr_str, pos=expr_int32,
            reference_genome=reference_genome_type)
 def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
@@ -714,9 +699,8 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     -------
     :class:`.LocusExpression`
     """
-    indices, aggregations = unify_all(contig, pos)
-    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                          tlocus(reference_genome), indices, aggregations)
+    fname = 'Locus({})'.format(reference_genome.name)
+    return _func(fname, tlocus(reference_genome), contig, pos)
 
 
 @typecheck(global_pos=expr_int64,
@@ -748,8 +732,8 @@ def locus_from_global_position(global_pos,
     -------
     :class:`.LocusExpression`
     """
-    return construct_expr(ApplyMethod('globalPosToLocus({})'.format(reference_genome.name), global_pos._ast),
-                          tlocus(reference_genome), global_pos._indices, global_pos._aggregations)
+    fname = 'globalPosToLocus({})'.format(reference_genome.name)
+    return _func(fname, tlocus(reference_genome), global_pos)
 
 
 @typecheck(s=expr_str,
@@ -779,8 +763,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     -------
     :class:`.LocusExpression`
     """
-    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
-                          s._indices, s._aggregations)
+    return _func('Locus({})'.format(reference_genome.name), tlocus(reference_genome), s)
 
 
 @typecheck(s=expr_str,
@@ -816,8 +799,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     """
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
-    return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
-                          s._indices, s._aggregations)
+    return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -956,12 +938,7 @@ def interval(start,
     if not start.dtype == end.dtype:
         raise TypeError("Type mismatch of start and end points: '{}', '{}'".format(start.dtype, end.dtype))
 
-    indices, aggregations = unify_all(start, end, includes_start, includes_end)
-
-    return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast, includes_start._ast, includes_end._ast), tinterval(start.dtype),
-        indices, aggregations)
-
+    return _func('Interval', tinterval(start.dtype), start, end, includes_start, includes_end)
 
 @typecheck(contig=expr_str, start=expr_int32,
            end=expr_int32, includes_start=expr_bool,
@@ -1000,12 +977,8 @@ def locus_interval(contig,
     -------
     :class:`.IntervalExpression`
     """
-    indices, aggregations = unify_all(contig, start, end, includes_start, includes_end)
-
-    return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name),
-                    contig._ast, start._ast, end._ast, includes_start._ast, includes_end._ast),
-        tinterval(tlocus(reference_genome)), indices, aggregations)
+    fname = 'LocusInterval({})'.format(reference_genome.name)
+    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end)
 
 
 @typecheck(s=expr_str,
@@ -1074,10 +1047,8 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     -------
     :class:`.IntervalExpression`
     """
-    return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast),
-        tinterval(tlocus(reference_genome)),
-        s._indices, s._aggregations)
+    return _func('LocusInterval({})'.format(reference_genome.name),
+                 tinterval(tlocus(reference_genome)), s)
 
 
 @typecheck(alleles=expr_int32,
@@ -1102,10 +1073,9 @@ def call(*alleles, phased=False) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    indices, aggregations = unify_all(phased, *alleles)
     if builtins.len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations)
+    return _func("Call", tcall, *alleles, phased)
 
 
 @typecheck(gt_index=expr_int32)
@@ -1127,9 +1097,7 @@ def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    gt_index = to_expr(gt_index)
-    return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), tcall, gt_index._indices,
-                          gt_index._aggregations)
+    return _func('UnphasedDiploidGtIndexCall', tcall, to_expr(gt_index))
 
 
 @typecheck(s=expr_str)
@@ -1169,8 +1137,7 @@ def parse_call(s) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    s = to_expr(s)
-    return construct_expr(ApplyMethod('Call', s._ast), tcall, s._indices, s._aggregations)
+    return _func('Call', tcall, s)
 
 
 @typecheck(expression=expr_any)
@@ -2392,7 +2359,7 @@ def filter(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`.SetExpression`
         Expression of the same type as `collection`.
     """
-    return collection._bin_lambda_method("filter", f, collection.dtype.element_type, lambda _: collection.dtype)
+    return collection.filter(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2430,7 +2397,7 @@ def any(f: Callable, collection) -> BooleanExpression:
         ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("exists", f, collection.dtype.element_type, lambda _: tbool)
+    return collection.any(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2468,7 +2435,7 @@ def all(f: Callable, collection) -> BooleanExpression:
         ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("forall", f, collection.dtype.element_type, lambda _: tbool)
+    return collection.all(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2545,7 +2512,7 @@ def flatmap(f: Callable, collection):
             raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
         return t
 
-    return collection._bin_lambda_method("flatMap", f, collection.dtype.element_type, unify_ret)
+    return collection.flatmap(f)
 
 
 @typecheck(f=func_spec(1, expr_any),
@@ -2574,9 +2541,7 @@ def group_by(f: Callable, collection) -> DictExpression:
     :class:`.DictExpression`.
         Dictionary keyed by results of `f`.
     """
-    return collection._bin_lambda_method("groupBy", f,
-                                         collection.dtype.element_type,
-                                         lambda t: tdict(t, collection.dtype))
+    return collection.group_by(f)
 
 
 @typecheck(arrays=expr_array(), fill_missing=bool)
@@ -2676,9 +2641,7 @@ def map(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`SetExpression`.
         Collection where each element has been transformed by `f`.
     """
-    return collection._bin_lambda_method("map", f,
-                                         collection.dtype.element_type,
-                                         lambda t: collection.dtype.__class__(t))
+    return collection.map(f)
 
 
 @typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
@@ -3271,12 +3234,12 @@ def sorted(collection,
                             .format(collection.dtype))
         return collection._method("sort", collection.dtype, ascending)
     else:
-        def check_f(t):
-            if not can_sort(t):
-                raise TypeError("'sort_by' expects 'key' to return type 'String' or numeric, found '{}'".format(t))
-            return collection.dtype
 
-        return collection._bin_lambda_method("sortBy", key, collection.dtype.element_type, check_f, ascending)
+        with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
+        ir = hir.ArraySort(collection._ir, ascending._ir, on_key=True)
+
+        indices, aggregations = unify_all(with_key, ascending)
+        construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
@@ -3388,7 +3351,7 @@ def float64(x) -> Float64Expression:
     if x.dtype == tfloat64:
         return x
     else:
-        return x._method("toFloat64", tfloat64)
+        return x._cast(tfloat64)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(x) -> Float32Expression:
@@ -3417,7 +3380,7 @@ def float32(x) -> Float32Expression:
     if x.dtype == tfloat32:
         return x
     else:
-        return x._method("toFloat32", tfloat32)
+        return x._cast(tfloat32)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(x) -> Int64Expression:
@@ -3446,7 +3409,7 @@ def int64(x) -> Int64Expression:
     if x.dtype == tint64:
         return x
     else:
-        return x._method("toInt64", tint64)
+        return x._cast(tint64)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
@@ -3476,7 +3439,7 @@ def int32(x) -> Int32Expression:
     if x.dtype == tint32:
         return x
     else:
-        return x._method("toInt32", tint32)
+        return x._cast(tint32)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(x) -> Int32Expression:
@@ -3924,8 +3887,8 @@ def uniroot(f: Callable, min, max):
     """
 
     new_id = Env.get_uid()
-    lambda_result = to_expr(f(construct_expr(VariableReference(new_id), hl.tfloat64)))
+    lambda_result = to_expr(f(construct_variable(new_id, hl.tfloat64)))
 
     indices, aggregations = unify_all(lambda_result, min, max)
-    ast = LambdaFunction("uniroot", new_id, lambda_result._ast, min._ast, max._ast)
-    return hl.expr.expressions.construct_expr(ast, lambda_result._type, indices, aggregations)
+    ir = hir.Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
+    return construct_expr(ir, lambda_result._type, indices, aggregations)

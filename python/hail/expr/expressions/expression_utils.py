@@ -172,13 +172,13 @@ def eval_expr_typed(expression):
 
 
 def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
-    from ..expr_ast import Select, TopLevelReference
+    from hail.ir import GetField, TopLevelReference
 
-    for ast in expr._ast.search(
-            lambda a: isinstance(a, Select)
+    for ir in expr._ir.search(
+            lambda a: isinstance(a, GetField)
                       and not a.name.startswith('__uid')
-                      and isinstance(a.parent, TopLevelReference)):
-        builder[ast.name] = ast.parent.indices
+                      and isinstance(a.o, TopLevelReference)):
+        builder[ir.name] = ir.o.indices
 
 
 def extract_refs_by_indices(exprs, indices):

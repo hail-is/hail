@@ -1,4 +1,4 @@
-package is.hail.expr
+  package is.hail.expr
 
 import is.hail.expr.ir.{AggOp, AggSignature, IR}
 import is.hail.expr.ToIRErr._

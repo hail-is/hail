@@ -93,7 +93,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
         dataset, _ = dataset._process_joins(maf)
-        maf = maf._ast.to_hql()
+        maf = str(maf._ir)
 
     return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
                                               joption(maf),
@@ -1459,9 +1459,9 @@ class SplitMulti(object):
         base, _ = self._ds._process_joins(*itertools.chain(
             self._row_fields.values(), self._entry_fields.values()))
 
-        annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
+        annotate_rows = ' '.join(['({} {})'.format(escape_id(k), str(v._ir))
                                   for k, v in self._row_fields.items()])
-        annotate_entries = ','.join(['g.`{}` = {}'.format(k, v._ast.to_hql())
+        annotate_entries = ' '.join(['({} {})'.format(escape_id(k), str(v._ir))
                                      for k, v in self._entry_fields.items()])
 
         jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(

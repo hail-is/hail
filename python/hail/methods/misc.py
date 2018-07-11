@@ -129,7 +129,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
         r = construct_expr(VariableReference('r'), wrapped_node_t)
         tie_breaker_expr = hl.int64(tie_breaker(l[0], r[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
-        tie_breaker_hql = tie_breaker_expr._ast.to_hql()
+        tie_breaker_hql = str(tie_breaker_expr._ir)
     else:
         t, _ = source._process_joins(i, j)
         tie_breaker_hql = None
