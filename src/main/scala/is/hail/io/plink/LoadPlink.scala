@@ -84,8 +84,9 @@ object LoadPlink {
               case ffConfig.missingValue => null
               case "-9" =>
                 if (!warnedAbout9) {
-                  warn(s"Interpreting value '-9' as a valid quantitative phenotype, which differs from default " +
-                    s"PLINK behavior.\n  Use 'missing=\"-9\" to interpret '-9' as a missing value.")
+                  warn(
+                    s"""Interpreting value '-9' as a valid quantitative phenotype, which differs from default PLINK behavior.
+                       |  Use missing='-9' to interpret '-9' as a missing value.""".stripMargin)
                   warnedAbout9 = true
                 }
                 -9d
