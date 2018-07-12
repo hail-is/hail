@@ -105,6 +105,6 @@ libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
 
 $(shared_library): libsimdpp-2.0-rc2 ${OBJECTS}
-	mkdir -p $(basename $(shared_library))
+	mkdir -p $(dir $(shared_library))
 	${CXX} ${LIBFLAGS} ${LIBDIRS} ${CXXFLAGS} ${OBJECTS} -o $@ 
 
