@@ -91,11 +91,11 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
-          if (file.nVariants == 0)
-            log.warn(s"BGEN file ${file.path} contains no variants")
-          else {
-            val nPartitions = math.max(1.0, (file.nVariants / maxRecordsPerPartition)).ceil.toInt
+        if (file.nVariants == 0)
+          log.warn(s"BGEN file ${file.path} contains no variants")
+        else {
+          val nPartitions = math.max(1.0, (file.nVariants / maxRecordsPerPartition)).ceil.toInt
+          using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
             includedVariantsPerFile.get(file.path) match {
               case None =>
                 val startOffsets =
