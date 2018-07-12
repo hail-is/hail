@@ -110,7 +110,7 @@ object TestUtils {
   def keyTableBoxedDoubleToMap[T](kt: Table): Map[T, IndexedSeq[java.lang.Double]] =
     kt.collect().map { r =>
       val s = r.toSeq
-      s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
+      s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toFastIndexedSeq
     }.toMap
 
   def matrixToString(A: DenseMatrix[Double], separator: String): String = {

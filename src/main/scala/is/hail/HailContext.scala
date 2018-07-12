@@ -459,7 +459,7 @@ class HailContext private(val sc: SparkContext,
     skipBlankLines: Boolean,
     forceBGZ: Boolean
   ): Table = importTables(inputs.asScala,
-    Option(keyNames).map(_.asScala.toIndexedSeq),
+    Option(keyNames).map(_.asScala.toFastIndexedSeq),
     if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap, comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 

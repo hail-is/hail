@@ -610,7 +610,7 @@ class BlockMatrixSuite extends SparkSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(::, keep.toIndexedSeq).copy
+        val filteredViaBreeze = lm(::, keep.toFastIndexedSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -631,7 +631,7 @@ class BlockMatrixSuite extends SparkSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lmt(::, keep.toIndexedSeq).copy
+        val filteredViaBreeze = lmt(::, keep.toFastIndexedSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -651,7 +651,7 @@ class BlockMatrixSuite extends SparkSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toIndexedSeq, ::).copy
+        val filteredViaBreeze = lm(keep.toFastIndexedSeq, ::).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -674,7 +674,7 @@ class BlockMatrixSuite extends SparkSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toIndexedSeq, keep.toIndexedSeq).copy
+        val filteredViaBreeze = lm(keep.toFastIndexedSeq, keep.toFastIndexedSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -699,7 +699,7 @@ class BlockMatrixSuite extends SparkSuite {
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keepRows.toIndexedSeq, keepCols.toIndexedSeq).copy
+        val filteredViaBreeze = lm(keepRows.toFastIndexedSeq, keepCols.toFastIndexedSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }

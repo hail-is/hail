@@ -56,7 +56,7 @@ object LocalLDPruneSuite {
     rvRowType.fieldByName("alleles").typ)
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
-    val gArr = gs.toIndexedSeq
+    val gArr = gs.toFastIndexedSeq
     val rvb = new RegionValueBuilder(Region())
     rvb.start(rvRowType)
     rvb.startStruct()

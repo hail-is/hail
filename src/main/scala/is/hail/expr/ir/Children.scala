@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils._
 
 object Children {
   private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -32,7 +32,7 @@ object Children {
     case ApplyComparisonOp(op, l, r) =>
       Array(l, r)
     case MakeArray(args, typ) =>
-      args.toIndexedSeq
+      args.toFastIndexedSeq
     case ArrayRef(a, i) =>
       Array(a, i)
     case ArrayLen(a) =>
@@ -62,11 +62,11 @@ object Children {
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
     case MakeStruct(fields) =>
-      fields.map(_._2).toIndexedSeq
+      fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
       Array(old)
     case InsertFields(old, fields) =>
-      (old +: fields.map(_._2)).toIndexedSeq
+      (old +: fields.map(_._2)).toFastIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
     case SeqOp(i, args, _) =>
@@ -80,7 +80,7 @@ object Children {
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>
-      types.toIndexedSeq
+      types.toFastIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
     case StringSlice(s, start, n) =>
@@ -92,11 +92,11 @@ object Children {
     case Die(message, typ) =>
       none
     case ApplyIR(_, args, _) =>
-      args.toIndexedSeq
+      args.toFastIndexedSeq
     case Apply(_, args) =>
-      args.toIndexedSeq
+      args.toFastIndexedSeq
     case ApplySpecial(_, args) =>
-      args.toIndexedSeq
+      args.toFastIndexedSeq
     case Uniroot(_, fn, min, max) =>
       FastIndexedSeq(fn, min, max)
     // from MatrixIR

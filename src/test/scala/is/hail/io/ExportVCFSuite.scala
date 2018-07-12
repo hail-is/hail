@@ -269,7 +269,7 @@ class ExportVCFSuite extends SparkSuite {
         .iterator
         .zipWithIndex
         .map { case ((k, t), i) => Field(k, t, i) }
-        .toIndexedSeq))
+        .toFastIndexedSeq))
 
   @Test def testWriteGenericFormatField() {
     val genericFormatFieldVCF: VSMSubgen = VSMSubgen.random.copy(

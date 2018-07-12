@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.utils.ArrayBuilder
+import is.hail.utils._
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -200,7 +200,7 @@ object CM {
     ) yield result)
     for (
       bindings <- availableBindings();
-      cvalues = CompilationHelp.arrayOf(bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
+      cvalues = CompilationHelp.arrayOf(bindings.map { case (_, (_, code)) => code }.toFastIndexedSeq);
       ec <- ec();
       compiledCode = cc.runWithDelayedValues((name, typ, 0) +: bindings.zipWithIndex.map { case ((name, (typ, _)), i) => (name, typ, i + 1) }.toSeq, ec);
       f <- invokePrimitive1(((vs: Array[AnyRef]) => (x: AnyRef) => compiledCode((x +: vs).to[mutable.ArrayBuffer])).asInstanceOf[AnyRef => AnyRef])(cvalues)
