@@ -94,7 +94,7 @@ class PruneSuite extends SparkSuite {
       def apply(mr: MatrixRead): MatrixValue = ???
       def partitionCounts: Option[IndexedSeq[Long]] = ???
       def columnCount: Option[Int] = ???
-      def baseType: MatrixType = ???
+      def fullType: MatrixType = ???
     })
 
   val emptyTableDep = TableType(TStruct(), None, TStruct())

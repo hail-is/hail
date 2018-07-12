@@ -823,7 +823,7 @@ object Parser extends JavaTokenParsers {
         case typ ~ dropCols ~ dropRows ~ readerStr =>
           implicit val formats = ir.MatrixReader.formats
           val reader = Serialization.read[ir.MatrixReader](readerStr)
-          ir.MatrixRead(typ.getOrElse(reader.baseType), dropCols, dropRows, reader)
+          ir.MatrixRead(typ.getOrElse(reader.fullType), dropCols, dropRows, reader)
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |

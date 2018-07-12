@@ -193,7 +193,7 @@ abstract class MatrixReader {
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
-  def baseType: MatrixType
+  def fullType: MatrixType
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
@@ -211,7 +211,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
   lazy val partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
-  val baseType = spec.matrix_type
+  val fullType = spec.matrix_type
 
   def apply(mr: MatrixRead): MatrixValue = {
     val hc = HailContext.get
@@ -309,7 +309,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
-  val baseType: MatrixType = MatrixType.fromParts(
+  val fullType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
@@ -326,22 +326,22 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   }
 
   def apply(mr: MatrixRead): MatrixValue = {
-    assert(mr.typ == baseType)
+    assert(mr.typ == fullType)
 
     val partCounts = mr.partitionCounts.get.map(_.toInt)
     val nPartitionsAdj = mr.partitionCounts.get.length
 
     val hc = HailContext.get
-    val localRVType = baseType.rvRowType
+    val localRVType = fullType.rvRowType
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val localNCols = if (mr.dropCols) 0 else nCols
 
     val rvd = if (mr.dropRows)
-      OrderedRVD.empty(hc.sc, baseType.orvdType)
+      OrderedRVD.empty(hc.sc, fullType.orvdType)
     else {
-      OrderedRVD(baseType.orvdType,
-        new OrderedRVDPartitioner(baseType.rowPartitionKey.toArray,
-          baseType.rowKeyStruct,
+      OrderedRVD(fullType.orvdType,
+        new OrderedRVDPartitioner(fullType.rowPartitionKey.toArray,
+          fullType.rowKeyStruct,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
             Interval(Row(start), Row(start + partCounts(i)), includesStart = true, includesEnd = false)
@@ -378,13 +378,13 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
           })
     }
 
-    MatrixValue(baseType,
-      BroadcastRow(Row(), baseType.globalType, hc.sc),
+    MatrixValue(fullType,
+      BroadcastRow(Row(), fullType.globalType, hc.sc),
       BroadcastIndexedSeq(
         Iterator.range(0, localNCols)
           .map(Row(_))
           .toFastIndexedSeq,
-        TArray(baseType.colType),
+        TArray(fullType.colType),
         hc.sc),
       rvd)
   }
@@ -396,7 +396,7 @@ case class MatrixRead(
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
 
-  val typ: MatrixType = requestedType.getOrElse(reader.baseType)
+  val typ: MatrixType = requestedType.getOrElse(reader.fullType)
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
