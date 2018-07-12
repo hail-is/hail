@@ -183,7 +183,7 @@ object Pretty {
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
             case MatrixRead(typ, dropCols, dropRows, reader) =>
-              (if (typ == reader.fullType) "None" else typ.parsableString()) + " " +
+              typ.getOrElse(reader.fullType).parsableString() + " " +
               prettyBooleanLiteral(dropCols) + " " +
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'

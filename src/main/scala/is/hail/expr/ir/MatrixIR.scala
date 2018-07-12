@@ -402,7 +402,7 @@ case class MatrixRead(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    MatrixRead(typ, dropCols, dropRows, reader)
+    MatrixRead(requestedType, dropCols, dropRows, reader)
   }
 
   def execute(hc: HailContext): MatrixValue = reader(this)

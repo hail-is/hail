@@ -629,8 +629,8 @@ object PruneDeadFields {
   def rebuild(mir: MatrixIR, memo: Memo[BaseType]): MatrixIR = {
     val dep = memo.lookup(mir).asInstanceOf[MatrixType]
     mir match {
-      case x@MatrixRead(typ, dropCols, dropRows, reader) =>
-        MatrixRead(dep, dropCols, dropRows, reader)
+      case x@MatrixRead(_, dropCols, dropRows, reader) =>
+        MatrixRead(Some(dep), dropCols, dropRows, reader)
       case MatrixFilterCols(child, pred) =>
         val child2 = rebuild(child, memo)
         MatrixFilterCols(child2, rebuild(pred, child2.typ, memo))
