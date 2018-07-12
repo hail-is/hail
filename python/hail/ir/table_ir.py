@@ -1,6 +1,8 @@
 import json
+
 from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id
+
 
 class MatrixRowsTable(TableIR):
     def __init__(self, child):
@@ -9,6 +11,7 @@ class MatrixRowsTable(TableIR):
 
     def __str__(self):
         return '(MatrixRowsTable {})'.format(self.child)
+
 
 class TableJoin(TableIR):
     def __init__(self, left, right, join_type):
@@ -21,6 +24,7 @@ class TableJoin(TableIR):
         return '(TableJoin {} {} {})'.format(
             escape_id(self.join_type), self.left, self.right)
 
+
 class TableUnion(TableIR):
     def __init__(self, children):
         super().__init__()
@@ -28,6 +32,7 @@ class TableUnion(TableIR):
 
     def __str__(self):
         return '(TableUnion {})'.format(' '.join([str(x) for x in self.children]))
+
 
 class TableRange(TableIR):
     def __init__(self, n, n_partitions):
@@ -37,6 +42,7 @@ class TableRange(TableIR):
 
     def __str__(self):
         return '(TableRange {} {})'.format(self.n, self.n_partitions)
+
 
 class TableMapGlobals(TableIR):
     def __init__(self, child, new_row, value):
@@ -49,6 +55,7 @@ class TableMapGlobals(TableIR):
         return '(TableMapGlobals {} {} {})'.format(
             self.value, self.child, self.new_row)
 
+
 class TableExplode(TableIR):
     def __init__(self, child, field):
         super().__init__()
@@ -57,6 +64,7 @@ class TableExplode(TableIR):
 
     def __str__(self):
         return '(TableExplode {} {})'.format(escape_id(self.field), self.child)
+
 
 class TableKeyBy(TableIR):
     def __init__(self, child, keys, n_partitions, sort):
@@ -70,6 +78,7 @@ class TableKeyBy(TableIR):
         return '(TableKeyBy ({}) {} {} {})'.format(
             ' '.join([escape_id(x) for x in self.keys]), self.n_partitions, self.sort,
             self.child)
+
 
 class TableMapRows(TableIR):
     def __init__(self, child, new_row, new_key, preserved_key_fields):
@@ -85,6 +94,7 @@ class TableMapRows(TableIR):
             self.preserved_key_fields,
             self.child, self.new_row)
 
+
 class TableUnkey(TableIR):
     def __init__(self, child):
         super().__init__()
@@ -92,6 +102,7 @@ class TableUnkey(TableIR):
 
     def __str__(self):
         return '(TableUnkey {})'.format(self.child)
+
 
 class TableRead(TableIR):
     def __init__(self, path, drop_rows, typ):
@@ -106,6 +117,7 @@ class TableRead(TableIR):
             self.drop_rows,
             self.typ)
 
+
 class TableImport(TableIR):
     def __init__(self, paths, typ, reader_options):
         super().__init__()
@@ -119,6 +131,7 @@ class TableImport(TableIR):
             self.typ._jtype.parsableString(),
             escape_str(json.dumps(self.reader_options)))
 
+
 class MatrixEntriesTable(TableIR):
     def __init__(self, child):
         super().__init__()
@@ -126,6 +139,7 @@ class MatrixEntriesTable(TableIR):
 
     def __str__(self):
         return '(MatrixEntriesTable {})'.format(self.child)
+
 
 class TableFilter(TableIR):
     def __init__(self, child, pred):
@@ -136,6 +150,7 @@ class TableFilter(TableIR):
     def __str__(self):
         return '(TableFilter {} {})'.format(self.child, self.pred)
 
+
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
         super().__init__()
@@ -145,6 +160,7 @@ class TableAggregateByKey(TableIR):
     def __str__(self):
         return '(TableAggregateByKey {} {})'.format(self.child, self.expr)
 
+
 class MatrixColsTable(TableIR):
     def __init__(self, child):
         super().__init__()
@@ -152,6 +168,7 @@ class MatrixColsTable(TableIR):
 
     def __str__(self):
         return '(MatrixColsTable {})'.format(self.child)
+
 
 class TableParallelize(TableIR):
     def __init__(self, typ, rows, n_partitions):
@@ -166,6 +183,7 @@ class TableParallelize(TableIR):
             self.rows,
             self.n_partitions)
 
+
 class TableOrderBy(TableIR):
     def __init__(self, child, sort_fields):
         super().__init__()
@@ -176,3 +194,12 @@ class TableOrderBy(TableIR):
         return '(TableOrderBy ({}) {})'.format(
             ' '.join(['{}{}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
             self.child)
+
+
+class TableDistinct(TableIR):
+    def __init__(self, child):
+        super().__init__()
+        self.child = child
+
+    def __str__(self):
+        return f'(TableDistinct {self.child})'

@@ -216,6 +216,8 @@ object Simplify {
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+
+      case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
     })
   }
 }

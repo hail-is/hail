@@ -723,6 +723,24 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 }
 
+case class TableDistinct(child: TableIR) extends TableIR {
+  require(child.typ.key.isDefined)
+
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableDistinct = {
+    val IndexedSeq(newChild) = newChildren
+    TableDistinct(newChild.asInstanceOf[TableIR])
+  }
+
+  val typ: TableType = child.typ
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+    prev.copy(rvd = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD].distinctByKey())
+  }
+}
+
 // follows key_by non-empty key
 case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   require(child.typ.keyOrEmpty.nonEmpty)

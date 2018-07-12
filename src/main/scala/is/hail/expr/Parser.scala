@@ -767,6 +767,7 @@ object Parser extends JavaTokenParsers {
       "TableKeyBy" ~> ir_identifiers ~ int32_literal_opt ~ boolean_literal ~ table_ir ^^ { case key ~ nPartKeys ~ sort ~ child =>
         ir.TableKeyBy(child, key, nPartKeys, sort)
       } |
+      "TableDistinct" ~> table_ir ^^ { t => ir.TableDistinct(t) } |
       "TableFilter" ~> table_ir ~ ir_value_expr ^^ { case child ~ pred => ir.TableFilter(child, pred) } |
       "TableRead" ~> string_literal ~ boolean_literal ~ ir_opt(table_type_expr) ^^ { case path ~ dropRows ~ typ =>
         TableIR.read(HailContext.get, path, dropRows, typ)
