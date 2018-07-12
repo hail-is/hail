@@ -1,28 +1,21 @@
-import numpy as np
-from math import log, isnan
-from hail.expr.expressions import *
-from hail.expr.expr_ast import *
-from hail.expr import aggregators
-from hail.expr.expressions import Expression
-from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, CategoricalColorMapper
-from bokeh.palettes import Category10, Spectral8
-
-
-import pandas as pd
 import json
+from math import log, isnan
+from typing import *
 
 import bokeh
-from bokeh.layouts import gridplot, row, widgetbox
-from bokeh.plotting import figure, show, output_file
-from bokeh.io import output_notebook, push_notebook, export_png
-from bokeh.models.widgets import Tabs, Panel
-from bokeh.palettes import *
+import numpy as np
+import pandas as pd
+from bokeh.layouts import gridplot
 from bokeh.models import *
-from typing import *
-from bokeh.plotting.helpers import stack
+from bokeh.palettes import Category10, Spectral8
+from bokeh.plotting import figure
+from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 
+from hail.expr import aggregators
+from hail.expr.expr_ast import *
+from hail.expr.expressions import *
+from hail.expr.expressions import Expression
 
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
@@ -64,6 +57,61 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
         legend=legend, line_color='black')
+    return p
+
+
+@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
+           bins=int, legend=nullable(str), title=nullable(str), normalize=bool, log=bool)
+def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False):
+    """Create a cumulative histogram.
+
+    Parameters
+    ----------
+    data : :class:`.Struct` or :class:`.Float64Expression`
+        Sequence of data to plot.
+    range : Tuple[float]
+        Range of x values in the histogram.
+    bins : int
+        Number of bins in the histogram.
+    legend : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+    normalize: bool
+        Whether or not the cumulative data should be normalized.
+    log: bool
+        Whether or not the y-axis should be of type log.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    if isinstance(data, Expression):
+        if data._indices.source is not None:
+            agg_f = data._aggregation_method()
+            if range is not None:
+                start = range[0]
+                end = range[1]
+            else:
+                start, end = agg_f((aggregators.min(data), aggregators.max(data)))
+            data = agg_f(aggregators.hist(data, start, end, bins))
+        else:
+            return ValueError('Invalid input')
+
+    cumulative_data = np.cumsum(data.bin_freq) + data.n_smaller
+    np.append(cumulative_data, [cumulative_data[-1] + data.n_larger])
+    num_data_points = max(cumulative_data)
+
+    if normalize:
+        cumulative_data = cumulative_data / num_data_points
+    if title is not None:
+        title = f'{title} ({num_data_points:,} data points)'
+    if log:
+        p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency',
+                   background_fill_color='#EEEEEE', y_axis_type='log')
+    else:
+        p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency', background_fill_color='#EEEEEE')
+    p.line(data.bin_edges[:-1], cumulative_data, line_color='#036564', line_width=3)
     return p
 
 
