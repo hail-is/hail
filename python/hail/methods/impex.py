@@ -1792,7 +1792,7 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome._jrep if reference_genome else None
+    rg = reference_genome.name if reference_genome else None
 
     global _cached_loadvcf
     if _cached_loadvcf is None:

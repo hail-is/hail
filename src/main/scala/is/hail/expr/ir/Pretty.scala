@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.TArray
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.table.Ascending
 import is.hail.utils._
 import is.hail.variant.RelationalSpec
@@ -45,11 +46,6 @@ object Pretty {
   def prettyIdentifiers(x: IndexedSeq[String]): String = x.map(prettyIdentifier).mkString("(", " ", ")")
 
   def prettyIdentifiersOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyIdentifiers).getOrElse("None")
-
-  def prettyMatrixReader(reader: MatrixReader): String = {
-    import MatrixReader.formats
-    s"(MatrixReader ${ prettyStringLiteral(Serialization.write(reader)) })"
-  }
 
   def apply(ir: BaseIR): String = {
     val sb = new StringBuilder

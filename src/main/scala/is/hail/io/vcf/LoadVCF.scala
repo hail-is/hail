@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
-import is.hail.io.vcf.LoadVCF.parseLines
+import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD
@@ -837,118 +837,26 @@ object LoadVCF {
     headerFile: String,
     minPartitions: Option[Int],
     dropSamples: Boolean,
-    rg: ReferenceGenome,
+    rg: String,
     contigRecoding: java.util.Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean,
     gzAsBGZ: Boolean,
     forceGZ: Boolean
-  ): MatrixTable = apply(
-    files.asScala.toArray,
-    callFields.asScala.toSet,
-    Option(headerFile),
-    minPartitions,
-    dropSamples,
-    Option(rg),
-    Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
-    arrayElementsRequired,
-    skipInvalidLoci,
-    gzAsBGZ,
-    forceGZ
-  )
-
-  def apply(files: Array[String],
-    callFields: Set[String],
-    headerFile: Option[String],
-    minPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Map[String, String] = Map.empty[String, String],
-    arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false,
-    gzAsBGZ: Boolean = false,
-    forceGZ: Boolean = false): MatrixTable = {
-    val hc = HailContext.get
-    val sc = hc.sc
-    val hConf = hc.hadoopConf
-
-    rg.foreach(_.validateContigRemap(contigRecoding))
-    rg.foreach(rg => if (!ReferenceGenome.references.contains(rg.name)) ReferenceGenome.addReference(rg))
-
-    val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
-
-    val reader = new HtsjdkRecordReader(callFields)
-
-    val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head))
-    val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
-
-    if (headerFile.isEmpty) {
-      val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
-      val header1Bc = sc.broadcast(header1)
-
-      sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
-        val hConf = confBc.value.value
-        val hd = parseHeader(reader, getHeaderLines(hConf, file), arrayElementsRequired = arrayElementsRequired)
-        val hd1 = header1Bc.value
-
-        if (hd1.sampleIds.length != hd.sampleIds.length) {
-          fatal(
-            s"""invalid sample ids: sample ids are different lengths.
-               | ${ inputs(0) } has ${ hd1.sampleIds.length } ids and
-               | ${ file } has ${ hd.sampleIds.length } ids.
-           """.stripMargin)
-        }
-
-        hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-          .zipWithIndex.foreach { case ((s1, s2), i) =>
-          if (s1 != s2) {
-            fatal(
-              s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
-                 |    ${ inputs(0) }: $s1
-                 |    $file: $s2""".stripMargin)
-          }
-        }
-
-        if (hd1.genotypeSignature != hd.genotypeSignature)
-          fatal(
-            s"""invalid genotype signature: expected signatures to be identical for all inputs.
-               |   ${ inputs(0) }: ${ hd1.genotypeSignature.toString }
-               |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
-
-        if (hd1.vaSignature != hd.vaSignature)
-          fatal(
-            s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-               |   ${ inputs(0) }: ${ hd1.vaSignature.toString }
-               |   $file: ${ hd.vaSignature.toString }""".stripMargin)
-      }
-    } else {
-      warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
-    }
-
-    val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
-
-    LoadVCF.warnDuplicates(sampleIDs)
-
-    val infoSignatureBc = sc.broadcast(infoSignature)
-    val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)
-
-    val headerLinesBc = sc.broadcast(headerLines1)
-
-    val lines = ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
-
-    val kType = TStruct("locus" -> TLocus.schemaFromRG(rg), "alleles" -> TArray(TString()))
-    val matrixType: MatrixType = MatrixType.fromParts(
-      TStruct.empty(),
-      colType = TStruct("s" -> TString()),
-      colKey = Array("s"),
-      rowType = kType ++ vaSignature,
-      rowKey = Array("locus", "alleles"),
-      rowPartitionKey = Array("locus"),
-      entryType = genotypeSignature)
-
-    val vcfReader = VCFMatrixReader(callFields, inputs, minPartitions, sampleIDs, rg.map(_.name), contigRecoding,
-      arrayElementsRequired, skipInvalidLoci, gzAsBGZ, infoFlagFieldNames, headerLines1, matrixType)
-    new MatrixTable(hc, MatrixRead(matrixType, None, Some(sampleIDs.length), dropSamples, false, vcfReader))
+  ): MatrixTable = {
+    val reader = MatrixVCFReader(
+      files.asScala.toArray,
+      callFields.asScala.toSet,
+      Option(headerFile),
+      minPartitions,
+      Option(rg),
+      Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
+      arrayElementsRequired,
+      skipInvalidLoci,
+      gzAsBGZ,
+      forceGZ
+    )
+    new MatrixTable(HailContext.get, MatrixRead(reader.matrixType, None, Some(reader.nCols), dropSamples, false, reader))
   }
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
@@ -961,24 +869,94 @@ object LoadVCF {
 }
 
 
-case class VCFMatrixReader(
+case class MatrixVCFReader(
+  files: Array[String],
   callFields: Set[String],
-  inputs: Array[String],
+  headerFile: Option[String],
   minPartitions: Option[Int],
-  sampleIDs: Array[String],
   rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
-  infoFlagFieldNames: Set[String],
-  headerLines: Array[String],
-  originalMatrixType: MatrixType
-) extends MatrixReader {
+  forceGZ: Boolean) extends MatrixReader {
 
   private val hc = HailContext.get
   private val sc = hc.sc
+  private val hConf = sc.hadoopConfiguration
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
+
+  referenceGenome.foreach(_.validateContigRemap(contigRecoding))
+
+  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
+
+  private val reader = new HtsjdkRecordReader(callFields)
+
+  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head))
+  private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
+
+  if (headerFile.isEmpty) {
+    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val header1Bc = sc.broadcast(header1)
+
+    val localReader = reader
+    val localInputs = inputs
+    val localArrayElementsRequired = arrayElementsRequired
+    sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
+      val hConf = confBc.value.value
+      val hd = parseHeader(localReader, getHeaderLines(hConf, file), arrayElementsRequired = localArrayElementsRequired)
+      val hd1 = header1Bc.value
+
+      if (hd1.sampleIds.length != hd.sampleIds.length) {
+        fatal(
+          s"""invalid sample ids: sample ids are different lengths.
+             | ${ localInputs(0) } has ${ hd1.sampleIds.length } ids and
+             | ${ file } has ${ hd.sampleIds.length } ids.
+           """.stripMargin)
+      }
+
+      hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+        .zipWithIndex.foreach { case ((s1, s2), i) =>
+        if (s1 != s2) {
+          fatal(
+            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
+               |    ${ localInputs(0) }: $s1
+               |    $file: $s2""".stripMargin)
+        }
+      }
+
+      if (hd1.genotypeSignature != hd.genotypeSignature)
+        fatal(
+          s"""invalid genotype signature: expected signatures to be identical for all inputs.
+             |   ${ localInputs(0) }: ${ hd1.genotypeSignature.toString }
+             |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
+
+      if (hd1.vaSignature != hd.vaSignature)
+        fatal(
+          s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+             |   ${ localInputs(0) }: ${ hd1.vaSignature.toString }
+             |   $file: ${ hd.vaSignature.toString }""".stripMargin)
+    }
+  } else {
+    warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
+  }
+
+  private val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
+
+  val nCols: Int = sampleIDs.length
+
+  LoadVCF.warnDuplicates(sampleIDs)
+
+  private val kType = TStruct("locus" -> TLocus.schemaFromRG(referenceGenome), "alleles" -> TArray(TString()))
+
+  val matrixType: MatrixType = MatrixType.fromParts(
+    TStruct.empty(),
+    colType = TStruct("s" -> TString()),
+    colKey = Array("s"),
+    rowType = kType ++ vaSignature,
+    rowKey = Array("locus", "alleles"),
+    rowPartitionKey = Array("locus"),
+    entryType = genotypeSignature)
 
   private lazy val lines = {
     hc.maybeGZipAsBGZip(gzAsBGZ) {
@@ -986,12 +964,12 @@ case class VCFMatrixReader(
     }
   }
 
-  private lazy val coercer = OrderedRVD.makeCoercer(originalMatrixType.orvdType,
+  private lazy val coercer = OrderedRVD.makeCoercer(matrixType.orvdType,
     parseLines(
       () => ()
     )((c, l, rvb) => ()
     )(lines,
-      originalMatrixType.rowKeyStruct,
+      matrixType.rowKeyStruct,
       referenceGenome,
       contigRecoding,
       arrayElementsRequired,
@@ -1000,10 +978,10 @@ case class VCFMatrixReader(
   def apply(mr: MatrixRead): MatrixValue = {
     val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)
     val reader = new HtsjdkRecordReader(callFields)
-    val headerLinesBc = sc.broadcast(headerLines)
+    val headerLinesBc = sc.broadcast(headerLines1)
 
     val requestedType = mr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, originalMatrixType))
+    assert(PruneDeadFields.isSupertype(requestedType, matrixType))
 
     val infoSignature = mr.typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
     val hasRSID = mr.typ.rowType.hasField("rsid")

@@ -4,8 +4,9 @@ import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
+import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, ir, ToIRSuccess, ToIRFailure}
+import is.hail.expr.{EvalContext, Parser, ToIRFailure, ToIRSuccess, ir}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen
@@ -620,8 +621,24 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false): MatrixTable = {
-    LoadVCF(Array(file), callFields, headerFile, nPartitions, dropSamples, rg,
-      contigRecoding.getOrElse(Map.empty[String, String]), arrayElementsRequired, skipInvalidLoci, forceBGZ, force)
+    rg.foreach { referenceGenome =>
+      if (!ReferenceGenome.hasReference(referenceGenome.name))
+        ReferenceGenome.addReference(referenceGenome)
+    }
+
+    val reader = MatrixVCFReader(
+      Array(file),
+      callFields,
+      headerFile,
+      nPartitions,
+      rg.map(_.name),
+      contigRecoding.getOrElse(Map.empty[String, String]),
+      arrayElementsRequired,
+      skipInvalidLoci,
+      forceBGZ,
+      force
+    )
+    new MatrixTable(HailContext.get, MatrixRead(reader.matrixType, None, Some(reader.nCols), dropSamples, false, reader))
   }
 
   def importMatrix(files: java.util.ArrayList[String],

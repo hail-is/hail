@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.{AggSignature, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd.OrderedRVDType
 import is.hail.table.{Ascending, Descending, SortField, TableSpec}
 import is.hail.utils.StringEscapeUtils._
