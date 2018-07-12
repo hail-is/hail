@@ -645,7 +645,7 @@ class AggregatorsSuite {
     runAggregator(LinearRegression(),
       TStruct("y" -> TFloat64(), "xs" -> TArray(TFloat64())),
       FastIndexedSeq(
-        Row(null, FastIndexedSeq(1, 1)),
+        Row(null, FastIndexedSeq(1, 1.0)),
         Row(0.0, null),
         Row(null, null),
         Row(0.22848042, FastIndexedSeq(1, 0.2575928)),
