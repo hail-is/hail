@@ -371,9 +371,9 @@ trait RVD {
     }.collect()
 
   def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
-    clearingRun(crdd.cmapPartitions{ (ctx, it) =>
+    crdd.cmapPartitions { (ctx, it) =>
       Iterator.single(f(ctx, it))
-    }).collect()
+    }.collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType

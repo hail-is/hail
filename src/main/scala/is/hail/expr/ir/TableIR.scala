@@ -463,6 +463,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
         val globals = rvb.end()
         it.foreach { rv =>
           scanSeqOps()(rv.region, scanAggs, globals, false, rv.offset, false)
+          ctx.region.clear()
         }
         scanAggs
       }.scanLeft(scanAggs) { (a1, a2) =>
