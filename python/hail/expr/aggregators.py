@@ -1096,7 +1096,6 @@ def linreg(y, xs):
 
     Examples
     --------
-
     Regress HT against SEX including an intercept term (``1``):
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, hl.int(table1.SEX == 'F')]))
