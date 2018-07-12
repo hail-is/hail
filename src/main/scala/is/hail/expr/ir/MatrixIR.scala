@@ -2,41 +2,25 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.{RegionValueAggregator, RegionValueCountAggregator}
+import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.expr.{Parser, TableAnnotationImpex, ir}
-import is.hail.io._
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s._
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
 
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
-    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
-      case mts: MatrixTableSpec => mts
-      case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
-    }
-    val typ = spec.matrix_type
-    val colSpec = RelationalSpec.read(hc, path + "/cols").asInstanceOf[TableSpec]
-    val nCols = colSpec.partitionCounts.sum.toInt
-    MatrixRead(requestedType.getOrElse(typ), Some(spec.partitionCounts), Some(nCols), dropCols, dropRows, MatrixNativeReader(path, spec))
+    MatrixRead(requestedType, dropCols, dropRows, MatrixNativeReader(path))
   }
 
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
-    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(hc.sc.defaultParallelism))
-    val partCounts = partition(nRows, nPartitionsAdj)
-
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    MatrixRead(reader.typ, Some(partCounts.map(_.toLong)), Some(nCols),
-      dropCols = dropCols, dropRows = dropRows, reader = reader)
+    MatrixRead(None, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
 
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
@@ -204,9 +188,31 @@ object MatrixReader {
 
 abstract class MatrixReader {
   def apply(mr: MatrixRead): MatrixValue
+
+  def columnCount: Option[Int]
+
+  def partitionCounts: Option[IndexedSeq[Long]]
+
+  def baseType: MatrixType
 }
 
-case class MatrixNativeReader(path: String, spec: MatrixTableSpec) extends MatrixReader {
+case class MatrixNativeReader(path: String) extends MatrixReader {
+
+  val spec: MatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+      case mts: MatrixTableSpec => mts
+      case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+  }
+
+  lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
+      .asInstanceOf[TableSpec]
+      .partitionCounts
+      .sum
+      .toInt)
+
+  lazy val partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+
+  val baseType = spec.matrix_type
+
   def apply(mr: MatrixRead): MatrixValue = {
     val hc = HailContext.get
 
@@ -303,7 +309,7 @@ case class MatrixNativeReader(path: String, spec: MatrixTableSpec) extends Matri
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
-  val typ: MatrixType = MatrixType.fromParts(
+  val baseType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
@@ -312,23 +318,30 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     rowType = TStruct("row_idx" -> TInt32()),
     entryType = TStruct.empty())
 
+  val columnCount: Option[Int] = Some(nCols)
+
+  lazy val partitionCounts: Option[IndexedSeq[Long]] = {
+    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+    Some(partition(nRows, nPartitionsAdj).map(_.toLong))
+  }
+
   def apply(mr: MatrixRead): MatrixValue = {
-    assert(mr.typ == typ)
+    assert(mr.typ == baseType)
 
     val partCounts = mr.partitionCounts.get.map(_.toInt)
     val nPartitionsAdj = mr.partitionCounts.get.length
 
     val hc = HailContext.get
-    val localRVType = typ.rvRowType
+    val localRVType = baseType.rvRowType
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val localNCols = if (mr.dropCols) 0 else nCols
 
     val rvd = if (mr.dropRows)
-      OrderedRVD.empty(hc.sc, typ.orvdType)
+      OrderedRVD.empty(hc.sc, baseType.orvdType)
     else {
-      OrderedRVD(typ.orvdType,
-        new OrderedRVDPartitioner(typ.rowPartitionKey.toArray,
-          typ.rowKeyStruct,
+      OrderedRVD(baseType.orvdType,
+        new OrderedRVDPartitioner(baseType.rowPartitionKey.toArray,
+          baseType.rowKeyStruct,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
             Interval(Row(start), Row(start + partCounts(i)), includesStart = true, includesEnd = false)
@@ -365,31 +378,31 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
           })
     }
 
-    MatrixValue(typ,
-      BroadcastRow(Row(), typ.globalType, hc.sc),
+    MatrixValue(baseType,
+      BroadcastRow(Row(), baseType.globalType, hc.sc),
       BroadcastIndexedSeq(
         Iterator.range(0, localNCols)
           .map(Row(_))
           .toFastIndexedSeq,
-        TArray(typ.colType),
+        TArray(baseType.colType),
         hc.sc),
       rvd)
   }
 }
 
 case class MatrixRead(
-  typ: MatrixType,
-  override val partitionCounts: Option[IndexedSeq[Long]],
-  override val columnCount: Option[Int],
+  requestedType: Option[MatrixType],
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
+
+  val typ: MatrixType = requestedType.getOrElse(reader.baseType)
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    MatrixRead(typ, partitionCounts, columnCount, dropCols, dropRows, reader)
+    MatrixRead(typ, dropCols, dropRows, reader)
   }
 
   def execute(hc: HailContext): MatrixValue = reader(this)
@@ -399,6 +412,20 @@ case class MatrixRead(
     s"columnCount = $columnCount, " +
     s"dropCols = $dropCols, " +
     s"dropRows = $dropRows)"
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = {
+    if (dropRows)
+      Some(Array.empty[Long])
+    else
+      reader.partitionCounts
+  }
+
+  override def columnCount: Option[Int] = {
+    if (dropCols)
+      Some(0)
+    else
+      reader.columnCount
+  }
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {

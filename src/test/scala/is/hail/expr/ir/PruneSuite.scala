@@ -89,9 +89,12 @@ class PruneSuite extends SparkSuite {
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TStruct("rr" -> TInt32()))),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
 
-  val mr = MatrixRead(mat.typ, None, None, false, false,
+  val mr = MatrixRead(mat.typ, false, false,
     new MatrixReader {
       def apply(mr: MatrixRead): MatrixValue = ???
+      def partitionCounts: Option[IndexedSeq[Long]] = ???
+      def columnCount: Option[Int] = ???
+      def baseType: MatrixType = ???
     })
 
   val emptyTableDep = TableType(TStruct(), None, TStruct())
