@@ -210,7 +210,7 @@ def manhattan(x, y, label=None, title=None, size=4):
     return scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
 
 
-def plot_hail_file_metadata(t_path: str) -> Optional[Union[Grid, Tabs, bokeh.plotting.Figure]]:
+def hail_metadata(t_path: str) -> Optional[Union[Grid, Tabs, bokeh.plotting.Figure]]:
     """
     Takes path to hail Table or MatrixTable (gs://bucket/path/hail.mt), outputs Grid or Tabs, respectively
     Or if an unordered Table is provided, a Figure with file sizes is output
