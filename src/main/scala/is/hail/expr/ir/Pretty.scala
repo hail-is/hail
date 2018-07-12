@@ -214,7 +214,7 @@ object Pretty {
                   "None"
                 else
                   typ.parsableString())
-            case TableWrite(_, path, overwrite, _) =>
+            case TableWrite(_, path, overwrite, _, _) =>
               if (overwrite)
                 s"${ StringEscapeUtils.escapeString(path) } overwrite"
               else

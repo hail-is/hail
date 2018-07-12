@@ -237,7 +237,7 @@ object TypeCheck {
               env.bind(n, t)
           }))
         assert(x.typ == query.typ)
-      case TableWrite(_, _, _, _) =>
+      case TableWrite(_, _, _, _, _) =>
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
     }
