@@ -203,6 +203,25 @@ def qq(pvals):
            label=oneof(nullable(str), expr_str), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int)
 def manhattan(x, y, label=None, title=None, size=4):
+    """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
+
+    Parameters
+    ----------
+    x : List[float] or :class:`.Float64Expression`
+        List of x-values to be plotted.
+    y : List[float] or :class:`.Float64Expression`
+        List of y-values to be plotted.
+    label : List[str] or :class:`.StringExpression`
+        List of labels for x and y values, usually chromosome for Manhattan plots.
+    title : str
+        Title of the plot.
+    size : int
+        Size of markers in screen space units.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
     if isinstance(y, Expression):
         y = -hail.log10(y)
     else:
