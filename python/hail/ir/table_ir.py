@@ -202,4 +202,4 @@ class TableDistinct(TableIR):
         self.child = child
 
     def __str__(self):
-        return f'(TableDistinct ({self.child}))'
+        return f'(TableDistinct {self.child})'
