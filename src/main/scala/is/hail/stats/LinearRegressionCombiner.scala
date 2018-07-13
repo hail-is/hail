@@ -21,18 +21,15 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
   assert(k > 0)
 
   var n = 0L
-  var x = DenseVector.zeros[Double](k)
+  var x = Array.fill[Double](k)(0d)
   var xtx = DenseMatrix.zeros[Double](k, k)
   var xty = DenseVector.zeros[Double](k)
   var yty = 0.0
 
   val xType = LinearRegressionCombiner.xType
 
-  def merge(y: Double, xArray: IndexedSeq[Double]) {
-    assert(k == xArray.length)
-    x = DenseVector(xArray.toArray)
-
-    n += 1
+  def merge(y: Double, x: IndexedSeq[Double]) {
+    assert(k == x.length)
 
     var j = 0
     while (j < k) {
@@ -47,6 +44,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
     }
 
     yty += y * y
+    n += 1
   }
 
   def merge(region: Region, y: Double, xOffset: Long) {
@@ -62,8 +60,6 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
       i += 1
     }
 
-    n += 1
-
     var j = 0
     while (j < k) {
       val xj = x(j)
@@ -77,6 +73,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
     }
 
     yty += y * y
+    n += 1
   }
 
   def merge(other: LinearRegressionCombiner) {
@@ -167,7 +164,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
 
   def clear() {
     n = 0
-    x = DenseVector.zeros[Double](k)
+    x = Array.fill[Double](k)(0d)
     xtx = DenseMatrix.zeros[Double](k, k)
     xty = DenseVector.zeros[Double](k)
     yty = 0.0
@@ -176,7 +173,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
   def copy(): LinearRegressionCombiner = {
     val combiner = new LinearRegressionCombiner(k)
     combiner.n = n
-    combiner.x = x.copy
+    combiner.x = x.clone()
     combiner.xtx = xtx.copy
     combiner.xty = xty.copy
     combiner.yty = yty
