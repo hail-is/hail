@@ -15,12 +15,13 @@ import org.json4s._
 
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
-    MatrixRead(requestedType, dropCols, dropRows, MatrixNativeReader(path))
+    val reader = MatrixNativeReader(path)
+    MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
   }
 
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    MatrixRead(None, dropCols = dropCols, dropRows = dropRows, reader = reader)
+    MatrixRead(reader.fullType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
 
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
@@ -391,18 +392,16 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
 }
 
 case class MatrixRead(
-  requestedType: Option[MatrixType],
+  typ: MatrixType,
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
-
-  val typ: MatrixType = requestedType.getOrElse(reader.fullType)
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
-    MatrixRead(requestedType, dropCols, dropRows, reader)
+    MatrixRead(typ, dropCols, dropRows, reader)
   }
 
   def execute(hc: HailContext): MatrixValue = reader(this)
