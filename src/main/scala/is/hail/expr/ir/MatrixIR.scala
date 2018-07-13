@@ -111,9 +111,9 @@ object MatrixIR {
             idx.map { i =>
               mv.colValues.value(i).asInstanceOf[Row]
                 .get(typ.colValueFieldIdx(f.index))
-            }.toIndexedSeq
+            }.toFastIndexedSeq
           })
-        }.toIndexedSeq)
+        }.toFastIndexedSeq)
 
       val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
         val rvb = new RegionValueBuilder()

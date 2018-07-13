@@ -175,7 +175,7 @@ object Interpret {
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
           }
 
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toIndexedSeq
+      case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toFastIndexedSeq
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, agg)
         val iValue = interpret(i, env, args, agg)
@@ -244,8 +244,8 @@ object Interpret {
           null
         else
           cValue match {
-            case s: Set[_] =>
-              s.toIndexedSeq.sorted(ordering)
+            case s: Set[Any] =>
+              s.toFastIndexedSeq.sorted(ordering)
             case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
             case a => a
           }

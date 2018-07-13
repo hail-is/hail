@@ -211,7 +211,7 @@ object BaldingNicholsModel {
 
     val sampleAnnotations: Array[Annotation] =
       if (mixture)
-        Array.tabulate(N)(i => Annotation(i, popOfSample_n(::, i).data.toIndexedSeq))
+        Array.tabulate(N)(i => Annotation(i, popOfSample_n(::, i).data.toFastIndexedSeq))
       else
         Array.tabulate(N)(i => Annotation(i, popOfSample_n(0, i).toInt))
 

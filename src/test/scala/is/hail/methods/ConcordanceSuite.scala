@@ -64,7 +64,7 @@ class ConcordanceSuite extends SparkSuite {
         .map(_.map { line =>
           val split = line.split("\\s+")
           val sample = split(0)
-          val data = (split.tail.init.map(_.toInt): IndexedSeq[Int]).grouped(5).toIndexedSeq
+          val data = (split.tail.init.map(_.toInt): IndexedSeq[Int]).grouped(5).toFastIndexedSeq
           (sample, data)
         }.value).toMap
     }
@@ -79,7 +79,7 @@ class ConcordanceSuite extends SparkSuite {
         .map(_.map { line =>
           val split = line.split("\\s+")
           val v = Variant(split(0), split(1).toInt, split(2), split(3))
-          val data = (split.drop(4).init.map(_.toInt): IndexedSeq[Int]).grouped(5).toIndexedSeq
+          val data = (split.drop(4).init.map(_.toInt): IndexedSeq[Int]).grouped(5).toFastIndexedSeq
           (v, data)
         }.value).toMap
     }

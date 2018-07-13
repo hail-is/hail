@@ -13,7 +13,7 @@ import Matchers._
 import is.hail.TestUtils
 import is.hail.TestUtils.eval
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.utils.FastSeq
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 
@@ -413,7 +413,7 @@ class CompileSuite {
       val base = Array.range(0, stop, 1)
       val rvb = new RegionValueBuilder(region)
       rvb.start(t)
-      rvb.addAnnotation(t, base.toIndexedSeq)
+      rvb.addAnnotation(t, base.toFastIndexedSeq)
       val off = rvb.end()
 
       val aoff = f(region, off, false, elt, false)
@@ -444,11 +444,11 @@ class CompileSuite {
     val rvb = new RegionValueBuilder(region)
 
     rvb.start(a1t)
-    rvb.addAnnotation(a1t, a1actual.toIndexedSeq)
+    rvb.addAnnotation(a1t, a1actual.toFastIndexedSeq)
     val off1 = rvb.end()
 
     rvb.start(a2t)
-    rvb.addAnnotation(a2t, a2actual.toIndexedSeq)
+    rvb.addAnnotation(a2t, a2actual.toFastIndexedSeq)
     val off2 = rvb.end()
 
     val aoff = f(region, off1, false, off2, false)

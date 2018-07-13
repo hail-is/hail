@@ -191,7 +191,7 @@ class OrderingSuite extends TestNGSuite {
         val actual = f(region, Seq(array)).asInstanceOf[IndexedSeq[Row]]
         val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
         val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
-        val expectedKeys = expectedMap.keys.toIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
+        val expectedKeys = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
 
         expectedKeys == actualKeys
       }
