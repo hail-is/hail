@@ -621,10 +621,12 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false): MatrixTable = {
-    rg.foreach { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name))
+    val addedReference = rg.map { referenceGenome =>
+      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
         ReferenceGenome.addReference(referenceGenome)
-    }
+        true
+      } else false
+    }.getOrElse(false)
 
     val reader = MatrixVCFReader(
       Array(file),
@@ -638,6 +640,8 @@ class HailContext private(val sc: SparkContext,
       forceBGZ,
       force
     )
+    if (addedReference)
+      ReferenceGenome.removeReference(rg.get.name)
     new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
