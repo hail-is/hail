@@ -1,3 +1,4 @@
+import json
 from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id
 
@@ -10,6 +11,7 @@ class MatrixAggregateRowsByKey(MatrixIR):
     def __str__(self):
         return '(MatrixAggregateRowsByKey {} {})'.format(self.child, self.expr)
 
+
 class MatrixRead(MatrixIR):
     def __init__(self, path, drop_cols, drop_rows):
         super().__init__()
@@ -18,8 +20,12 @@ class MatrixRead(MatrixIR):
         self.drop_rows = drop_rows
 
     def __str__(self):
-        return '(MatrixRead "{}" {} {} None)'.format(
-            self.path, self.drop_cols, self.drop_rows)
+        config = dict(
+            name='MatrixNativeReader',
+            path=self.path
+        )
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}")'
+
 
 class MatrixRange(MatrixIR):
     def __init__(self, path, n_rows, n_cols, n_partitions):
@@ -29,9 +35,13 @@ class MatrixRange(MatrixIR):
         self.n_partitions = n_partitions
 
     def __str__(self):
-        return '(MatrixRange {} {} {} False False)'.format(
-            self.n_rows, self.n_cols,
-            self.n_partitions if self.n_partitions else 'None')
+        config = dict(
+            name='MatrixRangeReader',
+            nRows=self.n_rows,
+            nCols=self.n_cols,
+            nPartitions=self.n_partitions
+        )
+        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):

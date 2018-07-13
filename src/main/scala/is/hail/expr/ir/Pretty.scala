@@ -65,15 +65,7 @@ object Pretty {
       sb.append(" " * depth)
       sb += '('
 
-      ir match {
-        case read: MatrixRead =>
-          read.reader match {
-            case _: MatrixNativeReader => sb.append("MatrixRead")
-            case _: MatrixRangeReader => sb.append("MatrixRange")
-          }
-        case _ =>
-          sb.append(prettyClass(ir) )
-      }
+      sb.append(prettyClass(ir) )
 
       ir match {
         case MakeStruct(fields) =>
@@ -190,19 +182,11 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString() + " " + prettyStringLiteral(message)
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
-            case MatrixRead(typ, _, _, dropCols, dropRows, MatrixNativeReader(path, spec)) =>
-              prettyStringLiteral(path) + " " +
-                prettyBooleanLiteral(dropCols) + " " +
-                prettyBooleanLiteral(dropRows) + " " +
-                (if (typ == spec.matrix_type)
-                  "None"
-                else
-                  typ.parsableString())
-            case MatrixRead(typ, _, _, dropCols, dropRows, MatrixRangeReader(nRows, nCols, nPartitions)) =>
-              s"$nRows $nCols" + " " +
-                nPartitions.map(_.toString).getOrElse("None") + " " +
-                prettyBooleanLiteral(dropCols) + " " +
-                prettyBooleanLiteral(dropRows)
+            case MatrixRead(typ, dropCols, dropRows, reader) =>
+              (if (typ == reader.fullType) "None" else typ.parsableString()) + " " +
+              prettyBooleanLiteral(dropCols) + " " +
+              prettyBooleanLiteral(dropRows) + " " +
+              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)

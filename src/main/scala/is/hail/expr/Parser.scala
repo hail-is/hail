@@ -10,7 +10,7 @@ import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
@@ -819,11 +819,11 @@ object Parser extends JavaTokenParsers {
       } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
       "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
-      "MatrixRange" ~> int32_literal ~ int32_literal ~ int32_literal_opt ~ boolean_literal ~ boolean_literal ^^ { case nRows ~ nCols ~ nPartitions ~ dropCols ~ dropRows =>
-        MatrixIR.range(HailContext.get, nRows, nCols, nPartitions, dropCols, dropRows)
-      } |
-      "MatrixRead" ~> string_literal ~ boolean_literal ~ boolean_literal ~ matrix_type_expr_opt ^^ { case path ~ dropCols ~ dropRows ~ requestedType =>
-        MatrixIR.read(HailContext.get, path, dropCols, dropRows, requestedType)
+      "MatrixRead" ~> matrix_type_expr_opt ~ boolean_literal ~ boolean_literal ~ string_literal ^^ {
+        case typ ~ dropCols ~ dropRows ~ readerStr =>
+          implicit val formats = ir.MatrixReader.formats
+          val reader = Serialization.read[ir.MatrixReader](readerStr)
+          ir.MatrixRead(typ.getOrElse(reader.fullType), dropCols, dropRows, reader)
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
