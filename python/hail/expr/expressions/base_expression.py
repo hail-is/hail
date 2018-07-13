@@ -260,7 +260,7 @@ def unify_types_limited(*ts):
         elif tfloat32 in type_set:
             return tfloat32
         elif tint64 in type_set:
-            return tfloat64
+            return tint64
         else:
             assert type_set == {tint32, tbool}
             return tint32
