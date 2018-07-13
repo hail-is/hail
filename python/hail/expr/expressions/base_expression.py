@@ -120,9 +120,11 @@ def _to_expr(e, dtype):
                 return hl.float64(e)
             elif dtype == tfloat32:
                 return hl.float32(e)
-            else:
-                assert dtype == tint64
+            elif dtype == tint64:
                 return hl.int64(e)
+            else:
+                assert dtype == tint32
+                return hl.int32(e)
         return e
     elif not is_compound(dtype):
         # these are not container types and cannot contain expressions if we got here
@@ -247,6 +249,7 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
 
 def unify_types_limited(*ts):
     type_set = set(ts)
+    print(type_set)
     if len(type_set) == 1:
         # only one distinct class
         return next(iter(type_set))
@@ -257,9 +260,11 @@ def unify_types_limited(*ts):
             return tfloat64
         elif tfloat32 in type_set:
             return tfloat32
+        elif tint64 in type_set:
+            return tfloat64
         else:
-            assert type_set == {tint32, tint64}
-            return tint64
+            assert type_set == {tint32, tbool}
+            return tint32
     else:
         return None
 
