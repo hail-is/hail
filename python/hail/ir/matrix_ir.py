@@ -24,7 +24,7 @@ class MatrixRead(MatrixIR):
             name='MatrixNativeReader',
             path=self.path
         )
-        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}"'
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))})"'
 
 
 class MatrixRange(MatrixIR):
@@ -41,7 +41,7 @@ class MatrixRange(MatrixIR):
             nCols=self.n_cols,
             nPartitions=self.n_partitions
         )
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}"'
+        return f'(MatrixRead None False False "{escape_str(json.dumps(config))})"'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
