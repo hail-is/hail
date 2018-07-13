@@ -266,6 +266,8 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.beta[1], 0.32744807)
         self.assertAlmostEqual(r.standard_error[0], 0.59410817)
         self.assertAlmostEqual(r.standard_error[1], 0.61833778)
+        self.assertAlmostEqual(r.t_stat[0], 0.23681254)
+        self.assertAlmostEqual(r.t_stat[1], 0.52956181)
         self.assertAlmostEqual(r.p_value[0], 0.82805147)
         self.assertAlmostEqual(r.p_value[1], 0.63310173)
         self.assertAlmostEqual(r.n, 5)

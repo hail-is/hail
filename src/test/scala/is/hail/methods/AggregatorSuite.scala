@@ -283,6 +283,7 @@ class AggregatorSuite extends SparkSuite {
     assert(typ.valuesSimilar(aggResult, Row(
       FastIndexedSeq(0.14069227, 0.32744807),
       FastIndexedSeq(0.59410817, 0.61833778),
+      FastIndexedSeq(0.23681254, 0.52956181),
       FastIndexedSeq(0.82805147, 0.63310173),
       5L)))
   }

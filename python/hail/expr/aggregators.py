@@ -1090,61 +1090,70 @@ def info_score(gp) -> StructExpression:
     return _agg_func('infoScore', gp, t)
 
 @typecheck(y=agg_expr(expr_float64),
-           xs=oneof(expr_float64, sequenceof(expr_float64)))
-def linreg(y, xs):
+           x=oneof(expr_float64, sequenceof(expr_float64)))
+def linreg(y, x):
     """Compute linear regression statistics.
 
     Examples
     --------
-    Regress HT against SEX including an intercept term (``1``):
+    Regress HT against an intercept (1) , SEX, and C1:
 
-    >>> table1.aggregate(agg.linreg(table1.HT, [1, hl.int(table1.SEX == 'F')]))
-    Struct(beta=[68.5, -3.5], standard_error=[4.315669125408017, 6.103277807866851],
-    p_value=[0.003945833219392291, 0.6242203110334867], n=4)
+    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
+    Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
+    standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
+    p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
+    n=4)
 
     Notes
     -----
-    This method returns a struct expression with four fields:
+    This aggregator returns a struct expression with four fields:
 
-     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Regression coefficients
-       for each predictor.
-     - `standard_error` (:class:`.tarray` of :py:data:`.tint64`): Standard error
-       estimates for each predictor.
-     - `p_value` (:class:`.tarray` of :py:data:`.tint64`): P-value for each predictor.
-     - `n` (:py:data:`.tint64`): The number of data points included in the regression.
+     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
+       for each predictor. Missing if ``n`` is less than the number of predictors.
+     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated standard error
+       estimate for each predictor. Missing if ``n`` is less than the number of predictors.
+     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`): t statistic for each predictor.
+       Missing if ``n`` is less than the number of predictors.
+     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
+       Missing if ``n`` is less than the number of predictors.
+     - `n` (:py:data:`.tint64`): Number of samples included in the regression. Samples that
+     are missing for ``y`` or any variable in ``x`` are not included.
 
     Parameters
     ----------
     y : :class:`.Float64Expression`
         Response variable.
-    xs : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
-        Predictor variables.
+    x : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Independent variables.
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct with fields `beta`, 'standard_error', 'p_value', and `n`.
+        Struct with fields `beta`, 'standard_error', 't_stat', 'p_value', and `n`.
     """
-    xs = wrap_to_list(xs)
-    n_xs = hl.int32(len(xs))
-    xs = hl.array(xs)
+    x = wrap_to_list(x)
+    k = hl.int32(len(x))
+    if k == 0:
+        raise ValueError("'linreg' requires at least 1 value for `x`.")
+    x = hl.array(x)
 
     uid = Env.get_uid()
 
-    ast = LambdaClassMethod('linreg', uid, y._ast, xs._ast, n_xs._ast) # FIXME: This should be _agg_func once the AST is gone
-    indices, aggregations = unify_all(y, xs, n_xs)
+    ast = LambdaClassMethod('linreg', uid, y._ast, x._ast, k._ast) # FIXME: This should be _agg_func once the AST is gone
+    indices, aggregations = unify_all(y, x, k)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     _check_agg_bindings(y)
-    _check_agg_bindings(xs)
-    _check_agg_bindings(n_xs)
+    _check_agg_bindings(x)
+    _check_agg_bindings(k)
 
     t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
                    standard_error=hl.tarray(hl.tfloat64),
+                   t_stat=hl.tarray(hl.tfloat64),
                    p_value=hl.tarray(hl.tfloat64),
                    n=hl.tint64)
 
     return construct_expr(ast, t, Indices(source=indices.source),
-                          aggregations.push(Aggregation(y, xs)))
+                          aggregations.push(Aggregation(y, x)))

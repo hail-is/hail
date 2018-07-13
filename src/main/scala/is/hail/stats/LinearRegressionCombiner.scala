@@ -10,47 +10,48 @@ object LinearRegressionCombiner {
   val typ: Type = TStruct(
     "beta" -> TArray(TFloat64()),
     "standard_error" -> TArray(TFloat64()),
+    "t_stat" -> TArray(TFloat64()),
     "p_value" -> TArray(TFloat64()),
     "n" -> TInt64())
 
-  val xsType = TArray(TFloat64())
+  val xType = TArray(TFloat64())
 }
 
-class LinearRegressionCombiner(nxs: Int) extends Serializable {
+class LinearRegressionCombiner(k: Int) extends Serializable {
   var n = 0L
-  var xs = DenseVector.zeros[Double](nxs)
-  var xtx = DenseMatrix.zeros[Double](nxs, nxs)
-  var xty = DenseVector.zeros[Double](nxs)
+  var x = DenseVector.zeros[Double](k)
+  var xtx = DenseMatrix.zeros[Double](k, k)
+  var xty = DenseVector.zeros[Double](k)
   var yty = 0.0
 
-  val xsType = LinearRegressionCombiner.xsType
+  val xType = LinearRegressionCombiner.xType
 
-  def merge(y: Double, xsArray: IndexedSeq[Double]) {
-    assert(nxs == xsArray.length)
-    xs = DenseVector(xsArray.toArray)
+  def merge(y: Double, xArray: IndexedSeq[Double]) {
+    assert(k == xArray.length)
+    x = DenseVector(xArray.toArray)
 
     n += 1
-    xtx :+= xs * xs.t
-    xty :+= xs * y
+    xtx :+= x * x.t
+    xty :+= x * y
     yty += y * y
   }
 
-  def merge(region: Region, y: Double, xsOffset: Long) {
-    val length = xsType.loadLength(region, xsOffset)
-    assert(nxs == length)
+  def merge(region: Region, y: Double, xOffset: Long) {
+    val length = xType.loadLength(region, xOffset)
+    assert(k == length)
 
     var i = 0
     while (i < length) {
-      if (xsType.isElementMissing(region, xsOffset, i))
+      if (xType.isElementMissing(region, xOffset, i))
         return
 
-      xs(i) = region.loadDouble(xsType.loadElement(region, xsOffset, i))
+      x(i) = region.loadDouble(xType.loadElement(region, xOffset, i))
       i += 1
     }
 
     n += 1
-    xtx :+= xs * xs.t
-    xty :+= xs * y
+    xtx :+= x * x.t
+    xty :+= x * y
     yty += y * y
   }
 
@@ -63,7 +64,7 @@ class LinearRegressionCombiner(nxs: Int) extends Serializable {
 
   def computeResult(): (DenseVector[Double], DenseVector[Double], DenseVector[Double]) = {
     val b = xtx \ xty
-    val rse2 = 1.0 / (n - nxs) * (yty - (xty dot b)) // residual standard error squared
+    val rse2 = (yty - (xty dot b)) / (n - k) // residual standard error squared
     val se = sqrt(rse2 * diag(inv(xtx)))
     val t = b /:/ se
     (b, se, t)
@@ -74,38 +75,44 @@ class LinearRegressionCombiner(nxs: Int) extends Serializable {
 
     rvb.startStruct()
 
-    if (n != 0) {
-      rvb.startArray(nxs) // beta
+    if (n != 0 && n > k) {
+      rvb.startArray(k) // beta
       var i = 0
-      while (i < nxs) {
+      while (i < k) {
         rvb.addDouble(b(i))
         i += 1
       }
       rvb.endArray()
-    } else
-      rvb.setMissing()
 
-    if (n != 0) {
-      rvb.startArray(nxs) // standard_error
-      var i = 0
-      while (i < nxs) {
+      rvb.startArray(k) // standard_error
+      i = 0
+      while (i < k) {
         rvb.addDouble(se(i))
         i += 1
       }
       rvb.endArray()
-    } else
-      rvb.setMissing()
 
-    if (n != 0) {
-      rvb.startArray(nxs) // p_value
-      var i = 0
-      while (i < nxs) {
-        rvb.addDouble(2 * T.cumulative(-math.abs(t(i)), n - nxs, true, false))
+      rvb.startArray(k) // t_stat
+      i = 0
+      while (i < k) {
+        rvb.addDouble(t(i))
         i += 1
       }
       rvb.endArray()
-    } else
+
+      rvb.startArray(k) // p_value
+      i = 0
+      while (i < k) {
+        rvb.addDouble(2 * T.cumulative(-math.abs(t(i)), n - k, true, false))
+        i += 1
+      }
+      rvb.endArray()
+    } else {
       rvb.setMissing()
+      rvb.setMissing()
+      rvb.setMissing()
+      rvb.setMissing()
+    }
 
     rvb.addLong(n) // n
 
@@ -118,24 +125,25 @@ class LinearRegressionCombiner(nxs: Int) extends Serializable {
     if (n != 0)
       Annotation(b.toArray: IndexedSeq[Double],
         se.toArray: IndexedSeq[Double],
-        t.map(ti => 2 * T.cumulative(-math.abs(ti), n - nxs, true, false)).toArray: IndexedSeq[Double],
+        t.toArray: IndexedSeq[Double],
+        t.map(ti => 2 * T.cumulative(-math.abs(ti), n - k, true, false)).toArray: IndexedSeq[Double],
         n)
     else
-      Annotation(null, null, null, n)
+      Annotation(null, null, null, null, n)
   }
 
   def clear() {
     n = 0
-    xs = DenseVector.zeros[Double](nxs)
-    xtx = DenseMatrix.zeros[Double](nxs, nxs)
-    xty = DenseVector.zeros[Double](nxs)
+    x = DenseVector.zeros[Double](k)
+    xtx = DenseMatrix.zeros[Double](k, k)
+    xty = DenseVector.zeros[Double](k)
     yty = 0.0
   }
 
   def copy(): LinearRegressionCombiner = {
-    val combiner = new LinearRegressionCombiner(nxs)
+    val combiner = new LinearRegressionCombiner(k)
     combiner.n = n
-    combiner.xs = xs.copy
+    combiner.x = x.copy
     combiner.xtx = xtx.copy
     combiner.xty = xty.copy
     combiner.yty = yty

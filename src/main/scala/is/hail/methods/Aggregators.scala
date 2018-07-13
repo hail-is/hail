@@ -498,21 +498,21 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class LinearRegressionAggregator(var xsF: (Any) => Any, var nxs: Int) extends TypedAggregator[Any] {
+class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggregator[Any] {
   var combiner = new LinearRegressionCombiner(nxs)
 
-  def seqOp(x: Any) = {
-    if (x != null) {
-      val y = x.asInstanceOf[Double]
-      val xs = xsF(y)
-      if (xs != null)
-        combiner.merge(y, xs.asInstanceOf[Array[Double]])
+  def seqOp(a: Any) = {
+    if (a != null) {
+      val y = a.asInstanceOf[Double]
+      val x = xF(y)
+      if (x != null)
+        combiner.merge(y, x.asInstanceOf[Array[Double]])
     }
   }
 
-  def seqOp(y: Any, xs: Any) {
-    if (y != null && xs != null) {
-      combiner.merge(y.asInstanceOf[Double], xs.asInstanceOf[IndexedSeq[Double]])
+  def seqOp(y: Any, x: Any) {
+    if (y != null && x != null) {
+      combiner.merge(y.asInstanceOf[Double], x.asInstanceOf[IndexedSeq[Double]])
     }
   }
 
@@ -523,7 +523,7 @@ class LinearRegressionAggregator(var xsF: (Any) => Any, var nxs: Int) extends Ty
   def result: Annotation = combiner.result()
 
   def copy() = {
-    val lra = new LinearRegressionAggregator(xsF, nxs)
+    val lra = new LinearRegressionAggregator(xF, nxs)
     lra.combiner = combiner.copy()
     lra
   }
