@@ -70,18 +70,19 @@ class MatrixImportVCF(MatrixIR):
         self.skip_invalid_loci = skip_invalid_loci
 
     def __str__(self):
-        config = {
-            'files': self.paths,
-            'callFields': list(self.call_fields),
-            'headerFile': self.header_file,
-            'minPartitions': self.min_partitions,
-            'rg': self.reference_genome.name if self.reference_genome else None,
-            'contigRecoding': self.contig_recoding,
-            'arrayElementsRequired': self.array_elements_required,
-            'skipInvalidLoci': self.skip_invalid_loci,
-            'gzAsBGZ': self.force_bgz,
-            'forceGZ': self.force
-        }
+        config = dict(
+            name='MatrixVCFReader',
+            files=self.paths,
+            callFields=list(self.call_fields),
+            headerFile=self.header_file,
+            minPartitions=self.min_partitions,
+            rg=self.reference_genome.name if self.reference_genome else None,
+            contigRecoding=self.contig_recoding,
+            arrayElementsRequired=self.array_elements_required,
+            skipInvalidLoci=self.skip_invalid_loci,
+            gzAsBGZ=self.force_bgz,
+            forceGZ=self.force
+        )
         return f'(MatrixImportVCF "{json.dumps(config)}" {self.drop_samples} False None)'
 
 class MatrixFilterRows(MatrixIR):

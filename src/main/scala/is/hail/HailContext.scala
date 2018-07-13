@@ -638,7 +638,7 @@ class HailContext private(val sc: SparkContext,
       forceBGZ,
       force
     )
-    new MatrixTable(HailContext.get, MatrixRead(reader.matrixType, None, Some(reader.nCols), dropSamples, false, reader))
+    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
   def importMatrix(files: java.util.ArrayList[String],

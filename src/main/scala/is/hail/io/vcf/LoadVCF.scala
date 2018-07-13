@@ -845,7 +845,7 @@ object LoadVCF {
     forceGZ: Boolean
   ): MatrixTable = {
     val reader = MatrixVCFReader(
-      files.asScala.toArray,
+      files.asScala.toFastIndexedSeq,
       callFields.asScala.toSet,
       Option(headerFile),
       minPartitions,
@@ -856,7 +856,7 @@ object LoadVCF {
       gzAsBGZ,
       forceGZ
     )
-    new MatrixTable(HailContext.get, MatrixRead(reader.matrixType, None, Some(reader.nCols), dropSamples, false, reader))
+    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
@@ -870,7 +870,7 @@ object LoadVCF {
 
 
 case class MatrixVCFReader(
-  files: Array[String],
+  files: Seq[String],
   callFields: Set[String],
   headerFile: Option[String],
   minPartitions: Option[Int],
@@ -943,13 +943,17 @@ case class MatrixVCFReader(
 
   private val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
 
-  val nCols: Int = sampleIDs.length
+  private val nCols: Int = sampleIDs.length
+
+  val columnCount: Option[Int] = Some(nCols)
+
+  val partitionCounts: Option[IndexedSeq[Long]] = None
 
   LoadVCF.warnDuplicates(sampleIDs)
 
   private val kType = TStruct("locus" -> TLocus.schemaFromRG(referenceGenome), "alleles" -> TArray(TString()))
 
-  val matrixType: MatrixType = MatrixType.fromParts(
+  val fullType: MatrixType = MatrixType.fromParts(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
@@ -964,12 +968,12 @@ case class MatrixVCFReader(
     }
   }
 
-  private lazy val coercer = OrderedRVD.makeCoercer(matrixType.orvdType,
+  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType,
     parseLines(
       () => ()
     )((c, l, rvb) => ()
     )(lines,
-      matrixType.rowKeyStruct,
+      fullType.rowKeyStruct,
       referenceGenome,
       contigRecoding,
       arrayElementsRequired,
@@ -981,7 +985,7 @@ case class MatrixVCFReader(
     val headerLinesBc = sc.broadcast(headerLines1)
 
     val requestedType = mr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, matrixType))
+    assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
     val infoSignature = mr.typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
     val hasRSID = mr.typ.rowType.hasField("rsid")
