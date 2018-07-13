@@ -1089,6 +1089,7 @@ def info_score(gp) -> StructExpression:
     t = hl.tstruct(score=hl.tfloat64, n_included=hl.tint32)
     return _agg_func('infoScore', gp, t)
 
+
 @typecheck(y=agg_expr(expr_float64),
            x=oneof(expr_float64, sequenceof(expr_float64)))
 def linreg(y, x):
