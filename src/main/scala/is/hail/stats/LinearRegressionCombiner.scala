@@ -21,7 +21,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
   assert(k > 0)
 
   var n = 0L
-  var x = Array.fill[Double](k)(0d)
+  var x = new Array[Double](k)
   var xtx = DenseMatrix.zeros[Double](k, k)
   var xty = DenseVector.zeros[Double](k)
   var yty = 0.0
@@ -164,7 +164,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
 
   def clear() {
     n = 0
-    x = Array.fill[Double](k)(0d)
+    x = new Array[Double](k)
     xtx = DenseMatrix.zeros[Double](k, k)
     xty = DenseVector.zeros[Double](k)
     yty = 0.0

@@ -1100,7 +1100,8 @@ def linreg(y, x):
     Regress HT against an intercept (1) , SEX, and C1:
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
-    Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
+    Struct(
+    beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
     standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
     t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
     p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
@@ -1108,24 +1109,25 @@ def linreg(y, x):
 
     Regress blood pressure against an intercept (1), age, height, and height squared:
 
-    >>> ds_ann = ds.annotate_rows(linreg = hl.agg.linreg(ds.pheno.blood_pressure,
-    ...                                                  [1, ds.pheno.age, ds.pheno.height,
-    ...                                                   ds.pheno.height ** 2]))
+    >>> ds_ann = ds.annotate_rows(
+    ...    linreg = hl.agg.linreg(ds.pheno.blood_pressure,
+    ...                           [1, ds.pheno.age, ds.pheno.height, ds.pheno.height ** 2]))
 
     Notes
     -----
     This aggregator returns a struct expression with five fields:
 
      - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
-       for each predictor. Missing if ``n`` is less than the number of predictors.
+       for each predictor.
      - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated standard error
-       estimate for each predictor. Missing if ``n`` is less than the number of predictors.
+       estimate for each predictor.
      - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`): t statistic for each predictor.
-       Missing if ``n`` is less than the number of predictors.
      - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
-       Missing if ``n`` is less than the number of predictors.
-     - `n` (:py:data:`.tint64`): Number of samples included in the regression. Samples that
-       are missing for ``y`` or any variable in ``x`` are not included.
+     - `n` (:py:data:`.tint64`): Number of samples included in the regression. A sample is
+       included if and only if `y` and all elements of `x` are non-missing.
+
+    The first four fields are missing if n is less than or equal to the number of predictors
+    or if the predictors are linearly dependent.
 
     Parameters
     ----------
@@ -1137,12 +1139,12 @@ def linreg(y, x):
     Returns
     -------
     :class:`.StructExpression`
-        Struct with fields `beta`, 'standard_error', 't_stat', 'p_value', and `n`.
+        Struct with fields `beta`, `standard_error`, `t_stat`, `p_value`, and `n`.
     """
     x = wrap_to_list(x)
     k = len(x)
     if k == 0:
-        raise ValueError("'linreg' requires at least 1 value for `x`.")
+        raise ValueError("'linreg' requires at least one predictor in `x`")
 
     x = hl.array(x)
     k = hl.int32(k)
