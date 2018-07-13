@@ -1,13 +1,12 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Prop}
-import is.hail.expr._
+import is.hail.check.Prop
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.testUtils._
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.SparkSuite
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -261,5 +260,56 @@ class AggregatorSuite extends SparkSuite {
     assert(kt.select("{foo : [row.idx.toFloat64()/2.0]}", None, None)
       .aggregate("AGG.map(r => r.foo).sum()")._1
       == Seq((0 until 100).map(_ / 2.0).sum))
+  }
+
+  @Test def testLinreg() {
+    val t = Table.parallelize(hc, IndexedSeq(
+      Row(null, 1d, 0.2),
+      Row(null, 1d, null),
+      Row(0.3, 1d, null),
+      Row(0.22848042, 1d, 0.2575928),
+      Row(0.09159706, 1d, -0.3445442),
+      Row(-0.43881935, 1d, 1.6590146),
+      Row(-0.99106171, 1d, -1.1688806),
+      Row(2.12823289, 1d, 0.5587043)),
+      TStruct("y" -> TFloat64(), "intercept" -> TFloat64(), "x" -> TFloat64()),
+      None,
+      None
+    )
+
+    val (aggResult, typ) = t.aggregate("AGG.map(__uid1__ => row.y).linreg(__uid2__ => [row.intercept, row.x], 2)")
+
+    val expectedResult = Row(
+      FastIndexedSeq(0.14069227, 0.32744807),
+      FastIndexedSeq(0.59410817, 0.61833778),
+      FastIndexedSeq(0.23681254, 0.52956181),
+      FastIndexedSeq(0.82805147, 0.63310173),
+      5L)
+
+    assert(typ.valuesSimilar(aggResult, expectedResult))
+
+    val mt = t.index("col_idx")
+      .annotate("row_idx" -> "1")
+      .toMatrixTable(Array("row_idx"), Array("col_idx"), Array(), Array("intercept", "y"), Array("row_idx"))
+
+    val a = mt.annotateRowsExpr("linreg" -> "AGG.map(__uid1__ => sa.y).linreg(__uid2__ => [sa.intercept, g.x], 2)")
+      .rowsTable().select("{linreg: row.linreg}", None, None).collect()(0)(0)
+
+    assert(typ.valuesSimilar(a, expectedResult))
+
+    val mtFiltered = mt
+      .annotateColsExpr("xDefined" -> "AGG.map(__uid__ => g.x).filter(x => isDefined(x)).count() == 1.toInt64()")
+      .filterColsExpr("isDefined(sa.y) && sa.xDefined")
+
+    val lr = LinearRegression(mtFiltered, Array("y"), "x", Array(), "linreg", 100)
+      .rowsTable()
+      .select("{beta: row.linreg.beta, standard_error: row.linreg.standard_error, t_stat: row.linreg.t_stat, p_value: row.linreg.p_value, n: row.linreg.n}", None, None)
+      .collect()(0)
+
+    assert(D_==(lr(0).asInstanceOf[IndexedSeq[Double]](0), expectedResult(0).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(1).asInstanceOf[IndexedSeq[Double]](0), expectedResult(1).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(2).asInstanceOf[IndexedSeq[Double]](0), expectedResult(2).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(3).asInstanceOf[IndexedSeq[Double]](0), expectedResult(3).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(lr(4) == expectedResult(4))
   }
 }

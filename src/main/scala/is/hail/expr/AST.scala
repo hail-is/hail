@@ -552,7 +552,7 @@ case class ApplyMethodAST(posn: Position, lhs: AST, method: String, args: Array[
           rx <- lhs.toAggIR(agg.get, x => ir.SeqOp(ir.I32(0), FastIndexedSeq(x, ir.Let(name, x, bodyx)), aggSig))
         } yield
           ir.ApplyAggOp(rx, FastIndexedSeq(), None, aggSig): IR
-      case (t: TAggregable, "takeBy", IndexedSeq(Lambda(_, name, body), n)) =>
+      case (t: TAggregable, "takeBy" | "linreg", IndexedSeq(Lambda(_, name, body), n)) =>
         for {
           op <- fromOption(
             this,

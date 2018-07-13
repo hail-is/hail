@@ -944,6 +944,11 @@ object FunctionRegistry {
     def typ = HistogramCombiner.schema
   })
 
+  registerLambdaAggregator[Double, (Any) => Any, Int, Any]("linreg", (xsf: (Any) => Any, n: Int) => new LinearRegressionAggregator(xsf, n)
+  )(aggregableHr(float64Hr), unaryHr(float64Hr, arrayHr(float64Hr)), int32Hr, new HailRep[Any] {
+    def typ = LinearRegressionCombiner.typ
+  })
+
   registerLambdaAggregator[Call, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf)
   )(aggregableHr(callHr), unaryHr(callHr, int32Hr), new HailRep[Any] {
       def typ = CallStats.schema

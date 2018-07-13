@@ -55,6 +55,8 @@ final case class Counter() extends AggOp { }
 // TakeBy needs lambdas
 final case class TakeBy() extends AggOp { }
 
+final case class LinearRegression() extends AggOp { }
+
 object AggOp {
 
   def get(aggSig: AggSignature): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
@@ -205,6 +207,12 @@ object AggOp {
       CodeAggregator[RegionValueInbreedingAggregator](
         RegionValueInbreedingAggregator.typ,
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
+
+    case (LinearRegression(), constArgs@Seq(_: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
+      CodeAggregator[RegionValueLinearRegressionAggregator](
+        RegionValueLinearRegressionAggregator.typ,
+        constrArgTypes = Array(classOf[Int]),
+        seqOpArgTypes = Array(classOf[Double], classOf[Long]))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
@@ -231,5 +239,6 @@ object AggOp {
     case "callStats" | "CallStats" => CallStats()
     case "inbreeding" | "Inbreeding" => Inbreeding()
     case "hardyWeinberg" | "HardyWeinberg" => HardyWeinberg()
+    case "linreg" | "LinearRegression" => LinearRegression()
   }
 }

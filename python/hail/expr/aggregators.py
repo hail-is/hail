@@ -3,6 +3,7 @@ from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.expr.expressions import *
 from hail.expr.expr_ast import *
 from hail.expr.types import *
+from hail.utils import wrap_to_list
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -1087,3 +1088,84 @@ def info_score(gp) -> StructExpression:
     """
     t = hl.tstruct(score=hl.tfloat64, n_included=hl.tint32)
     return _agg_func('infoScore', gp, t)
+
+
+@typecheck(y=agg_expr(expr_float64),
+           x=oneof(expr_float64, sequenceof(expr_float64)))
+def linreg(y, x):
+    """Compute linear regression statistics.
+
+    Examples
+    --------
+    Regress HT against an intercept (1) , SEX, and C1:
+
+    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
+    Struct(
+    beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
+    standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
+    t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
+    p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
+    n=4)
+
+    Regress blood pressure against an intercept (1), age, height, and height squared:
+
+    >>> ds_ann = ds.annotate_rows(
+    ...    linreg = hl.agg.linreg(ds.pheno.blood_pressure,
+    ...                           [1, ds.pheno.age, ds.pheno.height, ds.pheno.height ** 2]))
+
+    Notes
+    -----
+    This aggregator returns a struct expression with five fields:
+
+     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
+       for each predictor.
+     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated standard error
+       estimate for each predictor.
+     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`): t statistic for each predictor.
+     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
+     - `n` (:py:data:`.tint64`): Number of samples included in the regression. A sample is
+       included if and only if `y` and all elements of `x` are non-missing.
+
+    The first four fields are missing if n is less than or equal to the number of predictors
+    or if the predictors are linearly dependent.
+
+    Parameters
+    ----------
+    y : :class:`.Float64Expression`
+        Response variable.
+    x : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Independent variables.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Struct with fields `beta`, `standard_error`, `t_stat`, `p_value`, and `n`.
+    """
+    x = wrap_to_list(x)
+    k = len(x)
+    if k == 0:
+        raise ValueError("'linreg' requires at least one predictor in `x`")
+
+    x = hl.array(x)
+    k = hl.int32(k)
+
+    uid = Env.get_uid()
+
+    ast = LambdaClassMethod('linreg', uid, y._ast, x._ast, k._ast) # FIXME: This should be _agg_func once the AST is gone
+    indices, aggregations = unify_all(y, x, k)
+
+    if aggregations:
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
+
+    _check_agg_bindings(y)
+    _check_agg_bindings(x)
+    _check_agg_bindings(k)
+
+    t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
+                   standard_error=hl.tarray(hl.tfloat64),
+                   t_stat=hl.tarray(hl.tfloat64),
+                   p_value=hl.tarray(hl.tfloat64),
+                   n=hl.tint64)
+
+    return construct_expr(ast, t, Indices(source=indices.source),
+                          aggregations.push(Aggregation(y, x)))

@@ -120,9 +120,11 @@ def _to_expr(e, dtype):
                 return hl.float64(e)
             elif dtype == tfloat32:
                 return hl.float32(e)
-            else:
-                assert dtype == tint64
+            elif dtype == tint64:
                 return hl.int64(e)
+            else:
+                assert dtype == tint32
+                return hl.int32(e)
         return e
     elif not is_compound(dtype):
         # these are not container types and cannot contain expressions if we got here
@@ -257,9 +259,11 @@ def unify_types_limited(*ts):
             return tfloat64
         elif tfloat32 in type_set:
             return tfloat32
-        else:
-            assert type_set == {tint32, tint64}
+        elif tint64 in type_set:
             return tint64
+        else:
+            assert type_set == {tint32, tbool}
+            return tint32
     else:
         return None
 
