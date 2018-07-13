@@ -2929,6 +2929,15 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     .. include:: ../_templates/req_tvariant.rst
 
+    Examples
+    --------
+    Filter a dataset to those variants returned by ld_prune.
+
+    >>> ds = hl.split_multi_hts(dataset)
+    >>> pruned_variant_table = hl.ld_prune(ds.GT, r2=0.2, bp_window_size=500000)
+    >>> filtered_ds = ds.filter_rows(hl.is_defined(pruned_variant_table[ds.row_key]))
+
+
     Notes
     -----
     This method finds a maximal subset of variants such that the squared Pearson
