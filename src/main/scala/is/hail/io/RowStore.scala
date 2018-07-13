@@ -1090,8 +1090,8 @@ object RichContextRDDRegionValue {
 }
 
 class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) extends AnyVal {
-  def writeRows(path: String, t: TStruct, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
-    crdd.writePartitions(path, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
+  def writeRows(path: String, t: TStruct, stageLocally: Boolean, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
+    crdd.writePartitions(path, stageLocally, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
   }
 
   def writeRowsSplit(

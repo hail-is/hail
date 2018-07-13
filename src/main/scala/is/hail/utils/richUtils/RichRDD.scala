@@ -227,5 +227,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   ): (Array[String], Array[Long]) =
     ContextRDD.weaken[RVDContext](r).writePartitions(
       path,
+      false,
       (_, it, os) => write(it, os))
 }

@@ -11,6 +11,7 @@ import scala.reflect.ClassTag
 
 class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
   def writePartitions(path: String,
+    stageLocally: Boolean,
     write: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
     val sc = crdd.sparkContext
     val hadoopConf = sc.hadoopConfiguration
@@ -25,11 +26,23 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
 
     val (partFiles, partitionCounts) = crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
       val f = partFile(d, i, TaskContext.get)
-      val filename = path + "/parts/" + f
+      val finalFilename = path + "/parts/" + f
+      val filename =
+        if (stageLocally) {
+          val context = TaskContext.get
+          val partPath = hadoopConf.getTemporaryFile("file:///tmp")
+          context.addTaskCompletionListener { context =>
+            hadoopConf.delete(partPath, recursive = false)
+          }
+          partPath
+        } else
+          finalFilename
       val os = sHadoopConfBc.value.value.unsafeWriter(filename)
-      val out = Iterator.single(f -> write(ctx, it, os))
+      val count = write(ctx, it, os)
+      if (stageLocally)
+        hadoopConf.copy(filename, finalFilename)
       ctx.region.clear()
-      out
+      Iterator.single(f -> count)
     }
       .collect()
       .unzip
