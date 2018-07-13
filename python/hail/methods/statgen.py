@@ -2931,12 +2931,13 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     Examples
     --------
-    Filter a dataset to those variants returned by ld_prune.
+    Prune variants in linkage disequilibrium by filtering a dataset to those variants returned
+    by :func:`.ld_prune`. If the dataset contains multiallelic variants, the multiallelic variants
+    must be filtered out or split before being passed to :func:`.ld_prune`.
 
-    >>> ds = hl.split_multi_hts(dataset)
-    >>> pruned_variant_table = hl.ld_prune(ds.GT, r2=0.2, bp_window_size=500000)
-    >>> filtered_ds = ds.filter_rows(hl.is_defined(pruned_variant_table[ds.row_key]))
-
+    >>> biallelic_dataset = dataset.filter_rows(hl.len(dataset.alleles) == 2)
+    >>> pruned_variant_table = hl.ld_prune(biallelic_dataset.GT, r2=0.2, bp_window_size=500000)
+    >>> filtered_ds = dataset.filter_rows(hl.is_defined(pruned_variant_table[dataset.row_key]))
 
     Notes
     -----
