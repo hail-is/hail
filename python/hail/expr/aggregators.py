@@ -1125,7 +1125,7 @@ def linreg(y, x):
      - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
        Missing if ``n`` is less than the number of predictors.
      - `n` (:py:data:`.tint64`): Number of samples included in the regression. Samples that
-     are missing for ``y`` or any variable in ``x`` are not included.
+       are missing for ``y`` or any variable in ``x`` are not included.
 
     Parameters
     ----------
