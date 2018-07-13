@@ -1098,7 +1098,7 @@ def linreg(y, x):
     --------
     Regress HT against an intercept (1) , SEX, and C1:
 
-    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
+    >>> table1.aggregate(agg.linreg(table1.HT, [1, hl.int(table1.SEX == 'F'), table1.C1]))
     Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
     standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
     t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
