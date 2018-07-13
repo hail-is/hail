@@ -33,8 +33,19 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
     x = DenseVector(xArray.toArray)
 
     n += 1
-    xtx :+= x * x.t
-    xty :+= x * y
+
+    var j = 0
+    while (j < k) {
+      val xj = x(j)
+      xty(j) += y * xj
+      var i = 0
+      while (i < k) {
+        xtx(i, j) += x(i) * xj
+        i += 1
+      }
+      j += 1
+    }
+
     yty += y * y
   }
 
@@ -52,8 +63,19 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
     }
 
     n += 1
-    xtx :+= x * x.t
-    xty :+= x * y
+
+    var j = 0
+    while (j < k) {
+      val xj = x(j)
+      xty(j) += y * xj
+      var i = 0
+      while (i < k) {
+        xtx(i, j) += x(i) * xj
+        i += 1
+      }
+      j += 1
+    }
+
     yty += y * y
   }
 
