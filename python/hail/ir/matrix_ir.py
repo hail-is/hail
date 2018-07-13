@@ -24,7 +24,7 @@ class MatrixRead(MatrixIR):
             name='MatrixNativeReader',
             path=self.path
         )
-        return f'(MatrixRead {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}"'
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}"'
 
 
 class MatrixRange(MatrixIR):
