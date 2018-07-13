@@ -2108,6 +2108,9 @@ class MatrixTable(ExprContainer):
         ----------
         output : str
             Path at which to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
