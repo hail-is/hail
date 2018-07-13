@@ -551,6 +551,6 @@ class Tests(unittest.TestCase):
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(suffix='ht')
-        t.write(f, stage_locally=true)
+        t.write(f, stage_locally=True)
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))

@@ -2089,6 +2089,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(output=str,
                       overwrite=bool,
+                      stage_locally=bool,
                       _codec_spec=nullable(str))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
               _codec_spec: Optional[str] = None):
