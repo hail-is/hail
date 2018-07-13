@@ -1101,6 +1101,7 @@ def linreg(y, x):
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
     Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
     standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
+    t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
     p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
     n=4)
 
@@ -1132,10 +1133,12 @@ def linreg(y, x):
         Struct with fields `beta`, 'standard_error', 't_stat', 'p_value', and `n`.
     """
     x = wrap_to_list(x)
-    k = hl.int32(len(x))
+    k = len(x)
     if k == 0:
         raise ValueError("'linreg' requires at least 1 value for `x`.")
+
     x = hl.array(x)
+    k = hl.int32(k)
 
     uid = Env.get_uid()
 

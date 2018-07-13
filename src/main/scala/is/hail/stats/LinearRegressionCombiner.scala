@@ -18,6 +18,8 @@ object LinearRegressionCombiner {
 }
 
 class LinearRegressionCombiner(k: Int) extends Serializable {
+  assert(k > 0)
+
   var n = 0L
   var x = DenseVector.zeros[Double](k)
   var xtx = DenseMatrix.zeros[Double](k, k)
@@ -62,56 +64,62 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
     yty += other.yty
   }
 
-  def computeResult(): (DenseVector[Double], DenseVector[Double], DenseVector[Double]) = {
-    val b = xtx \ xty
-    val rse2 = (yty - (xty dot b)) / (n - k) // residual standard error squared
-    val se = sqrt(rse2 * diag(inv(xtx)))
-    val t = b /:/ se
-    (b, se, t)
+  def computeResult(): Option[(DenseVector[Double], DenseVector[Double], DenseVector[Double])] = {
+    try {
+      val b = xtx \ xty
+      val rse2 = (yty - (xty dot b)) / (n - k) // residual standard error squared
+      val se = sqrt(rse2 * diag(inv(xtx)))
+      val t = b /:/ se
+      Some((b, se, t))
+    } catch {
+      case e: breeze.linalg.MatrixSingularException => None
+      case e: breeze.linalg.NotConvergedException => None
+    }
   }
 
   def result(rvb: RegionValueBuilder) {
-    val (b, se, t) = computeResult()
+    val result = computeResult()
 
     rvb.startStruct()
 
-    if (n != 0 && n > k) {
-      rvb.startArray(k) // beta
-      var i = 0
-      while (i < k) {
-        rvb.addDouble(b(i))
-        i += 1
-      }
-      rvb.endArray()
+    result match {
+      case Some((b, se, t)) if n > k =>
+        rvb.startArray(k) // beta
+        var i = 0
+          while (i < k) {
+            rvb.addDouble(b(i))
+            i += 1
+          }
+          rvb.endArray()
 
-      rvb.startArray(k) // standard_error
-      i = 0
-      while (i < k) {
-        rvb.addDouble(se(i))
-        i += 1
-      }
-      rvb.endArray()
+          rvb.startArray(k) // standard_error
+          i = 0
+          while (i < k) {
+            rvb.addDouble(se(i))
+            i += 1
+          }
+          rvb.endArray()
 
-      rvb.startArray(k) // t_stat
-      i = 0
-      while (i < k) {
-        rvb.addDouble(t(i))
-        i += 1
-      }
-      rvb.endArray()
+          rvb.startArray(k) // t_stat
+          i = 0
+          while (i < k) {
+            rvb.addDouble(t(i))
+            i += 1
+          }
+          rvb.endArray()
 
-      rvb.startArray(k) // p_value
-      i = 0
-      while (i < k) {
-        rvb.addDouble(2 * T.cumulative(-math.abs(t(i)), n - k, true, false))
-        i += 1
-      }
-      rvb.endArray()
-    } else {
-      rvb.setMissing()
-      rvb.setMissing()
-      rvb.setMissing()
-      rvb.setMissing()
+          rvb.startArray(k) // p_value
+          i = 0
+          while (i < k) {
+            rvb.addDouble(2 * T.cumulative(-math.abs(t(i)), n - k, true, false))
+            i += 1
+          }
+          rvb.endArray()
+      case None =>
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
     }
 
     rvb.addLong(n) // n
@@ -121,15 +129,18 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
   }
 
   def result(): Annotation = {
-    val (b, se, t) = computeResult()
-    if (n != 0)
-      Annotation(b.toArray: IndexedSeq[Double],
-        se.toArray: IndexedSeq[Double],
-        t.toArray: IndexedSeq[Double],
-        t.map(ti => 2 * T.cumulative(-math.abs(ti), n - k, true, false)).toArray: IndexedSeq[Double],
-        n)
-    else
-      Annotation(null, null, null, null, n)
+    val result = computeResult()
+
+    result match {
+      case Some((b, se, t)) if n > k =>
+        Annotation(b.toArray: IndexedSeq[Double],
+          se.toArray: IndexedSeq[Double],
+          t.toArray: IndexedSeq[Double],
+          t.map(ti => 2 * T.cumulative(-math.abs(ti), n - k, true, false)).toArray: IndexedSeq[Double],
+          n)
+      case None =>
+        Annotation(null, null, null, null, n)
+    }
   }
 
   def clear() {
