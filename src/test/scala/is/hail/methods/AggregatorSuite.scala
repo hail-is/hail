@@ -280,11 +280,22 @@ class AggregatorSuite extends SparkSuite {
 
     val (aggResult, typ) = t.aggregate("AGG.map(__uid1__ => row.y).linreg(__uid2__ => [row.intercept, row.x], 2)")
 
-    assert(typ.valuesSimilar(aggResult, Row(
+    val expectedResult = Row(
       FastIndexedSeq(0.14069227, 0.32744807),
       FastIndexedSeq(0.59410817, 0.61833778),
       FastIndexedSeq(0.23681254, 0.52956181),
       FastIndexedSeq(0.82805147, 0.63310173),
-      5L)))
+      5L)
+
+    assert(typ.valuesSimilar(aggResult, expectedResult))
+
+    val mt = t.index("col_idx")
+      .annotate("row_idx" -> "1")
+      .toMatrixTable(Array("row_idx"), Array("col_idx"), Array(), Array("intercept", "y"), Array("row_idx"))
+
+    val a = mt.annotateRowsExpr("linreg" -> "AGG.map(__uid1__ => sa.y).linreg(__uid2__ => [sa.intercept, g.x], 2)")
+      .rowsTable().select("{linreg: row.linreg}", None, None).collect()(0)(0)
+
+    assert(typ.valuesSimilar(a, expectedResult))
   }
 }

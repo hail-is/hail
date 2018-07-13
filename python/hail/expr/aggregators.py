@@ -1105,9 +1105,15 @@ def linreg(y, x):
     p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
     n=4)
 
+    Regress blood pressure against an intercept (1), age, height, and height squared:
+
+    >>> ds_ann = ds.annotate_rows(linreg = hl.agg.linreg(ds.pheno.blood_pressure,
+    ...                                                  [1, ds.pheno.age, ds.pheno.height,
+    ...                                                   ds.pheno.height ** 2]))
+
     Notes
     -----
-    This aggregator returns a struct expression with four fields:
+    This aggregator returns a struct expression with five fields:
 
      - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
        for each predictor. Missing if ``n`` is less than the number of predictors.
