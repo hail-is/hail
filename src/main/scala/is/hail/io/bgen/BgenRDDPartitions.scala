@@ -91,74 +91,49 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        if (file.nVariants == 0)
-          log.warn(s"BGEN file ${file.path} contains no variants")
-        else {
-          val nPartitions = math.max(1.0, (file.nVariants / maxRecordsPerPartition)).ceil.toInt
-          using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
-            includedVariantsPerFile.get(file.path) match {
-              case None =>
-                val startOffsets =
-                  index.positionOfVariants(
-                    Array.tabulate(nPartitions)(i => i * maxRecordsPerPartition))
-                var i = 0
-                while (i < nPartitions - 1) {
-                  partitions += BgenPartitionWithoutFilter(
-                    file.path,
-                    file.compressed,
-                    i * maxRecordsPerPartition,
-                    startOffsets(i),
-                    startOffsets(i + 1),
-                    partitionIndex,
-                    sHadoopConfBc,
-                    settings
-                  )
-                  partitionIndex += 1
-                  i += 1
-                }
+        val nPartitions = math.max(1.0, file.nVariants / maxRecordsPerPartition).ceil.toInt
+        using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
+          includedVariantsPerFile.get(file.path) match {
+            case None =>
+              val startOffsets =
+                index.positionOfVariants(
+                  Array.tabulate(nPartitions)(i => i * maxRecordsPerPartition))
+              var i = 0
+              while (i < nPartitions) {
                 partitions += BgenPartitionWithoutFilter(
                   file.path,
                   file.compressed,
                   i * maxRecordsPerPartition,
                   startOffsets(i),
-                  file.fileByteSize,
+                  if (i < nPartitions - 1) startOffsets(i + 1) else file.fileByteSize,
                   partitionIndex,
                   sHadoopConfBc,
                   settings
                 )
                 partitionIndex += 1
-              case Some(variantIndices) =>
-                val startOffsets =
-                  index.positionOfVariants(variantIndices.toArray)
-                val parts = new Array[Partition](nPartitions)
-                var i = 0
-                while (i < nPartitions - 1) {
-                  val left = i * maxRecordsPerPartition
-                  val rightExclusive = (i + 1) * maxRecordsPerPartition
-                  partitions += BgenPartitionWithFilter(
-                    file.path,
-                    file.compressed,
-                    partitionIndex,
-                    startOffsets.slice(left, rightExclusive),
-                    variantIndices.slice(left, rightExclusive).toArray,
-                    sHadoopConfBc,
-                    settings
-                  )
-                  i += 1
-                  partitionIndex += 1
-                }
+                i += 1
+              }
+            case Some(variantIndices) =>
+              val startOffsets = index.positionOfVariants(variantIndices.toArray)
+              var i = 0
+              while (i < nPartitions) {
                 val left = i * maxRecordsPerPartition
+                val rightExclusive = if (i < nPartitions - 1)
+                  (i + 1) * maxRecordsPerPartition
+                else
+                  startOffsets.length
                 partitions += BgenPartitionWithFilter(
                   file.path,
                   file.compressed,
                   partitionIndex,
-                  startOffsets.slice(left, startOffsets.length),
-                  variantIndices.slice(left, variantIndices.length).toArray,
+                  startOffsets.slice(left, rightExclusive),
+                  variantIndices.slice(left, rightExclusive).toArray,
                   sHadoopConfBc,
                   settings
                 )
+                i += 1
                 partitionIndex += 1
-            }
+              }
           }
         }
         fileIndex += 1
@@ -280,7 +255,6 @@ object CompileDecoder {
     val ploidy = mb.newLocal[Int]
     val phase = mb.newLocal[Int]
     val nBitsPerProb = mb.newLocal[Int]
-    val nGenotypes = mb.newLocal[Int]
     val nExpectedBytesProbs = mb.newLocal[Int]
     val c0 = mb.newLocal[Int]
     val c1 = mb.newLocal[Int]
@@ -375,8 +349,7 @@ object CompileDecoder {
         case NoEntries =>
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
-        case EntriesWithFields(gt, gp, dosage)
-            if !(gt || gp || dosage) =>
+        case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.byteSize == 0)
           Code(
             srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
@@ -405,7 +378,7 @@ object CompileDecoder {
             nRow := reader.invoke[Int]("readInt"),
             (nRow.cne(settings.nSamples)).mux(
               Code._fatal(
-                const("row nSamples is not equal to header nSamples ")
+                const("Row nSamples is not equal to header nSamples: ")
                   .concat(nRow.toS)
                   .concat(", ")
                   .concat(settings.nSamples.toString)),
@@ -428,9 +401,9 @@ object CompileDecoder {
             maxPloidy := reader.invoke[Int]("read"),
             (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
               Code._fatal(
-                const("Hail only supports diploid genotypes. Found min ploidy equals `")
+                const("Hail only supports diploid genotypes. Found min ploidy `")
                   .concat(minPloidy.toS)
-                  .concat("' and max ploidy equals `")
+                  .concat("' and max ploidy `")
                   .concat(maxPloidy.toS)
                   .concat("'.")),
               Code._empty),
@@ -448,7 +421,7 @@ object CompileDecoder {
             phase := reader.invoke[Int]("read"),
             (phase.cne(0) && phase.cne(1)).mux(
               Code._fatal(
-                const("Value for phase must be 0 or 1. Found ")
+                const("Phase value must be 0 or 1. Found ")
                   .concat(phase.toS)
                   .concat(".")),
               Code._empty),
@@ -458,19 +431,17 @@ object CompileDecoder {
             nBitsPerProb := reader.invoke[Int]("read"),
             (nBitsPerProb < 1 || nBitsPerProb > 32).mux(
               Code._fatal(
-                const("Value for nBits must be between 1 and 32 inclusive. Found ")
+                const("nBits value must be between 1 and 32 inclusive. Found ")
                   .concat(nBitsPerProb.toS)
                   .concat(".")),
               Code._empty),
             (nBitsPerProb.cne(8)).mux(
               Code._fatal(
-                const("Only 8-bit probabilities supported, found ")
+                const("Hail only supports 8-bit probabilities, found ")
                   .concat(nBitsPerProb.toS)
                   .concat(".")),
               Code._empty),
-            nGenotypes := Code.invokeScalaObject[Int, Int](
-              BgenRDD.getClass, "triangle", nAlleles),
-            nExpectedBytesProbs := (const(settings.nSamples) * (nGenotypes - 1) * nBitsPerProb + 7) / 8,
+            nExpectedBytesProbs := (settings.nSamples * (3 - 1) * 8 + 7) / 8,
             (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
               Code._fatal(
                 const("Number of uncompressed bytes `")

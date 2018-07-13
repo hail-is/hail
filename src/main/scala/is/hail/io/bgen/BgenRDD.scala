@@ -91,10 +91,6 @@ object BgenRDD {
     input: Array[Byte],
     uncompressedSize: Int
   ): Array[Byte] = is.hail.utils.decompress(input, uncompressedSize)
-
-  private[bgen] def triangle(
-    x: Int
-  ): Int = is.hail.utils.triangle(x)
 }
 
 private class BgenRDD(
