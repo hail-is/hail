@@ -249,7 +249,6 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
 
 def unify_types_limited(*ts):
     type_set = set(ts)
-    print(type_set)
     if len(type_set) == 1:
         # only one distinct class
         return next(iter(type_set))
