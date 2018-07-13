@@ -1,13 +1,12 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Prop}
-import is.hail.expr._
+import is.hail.check.Prop
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.testUtils._
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.SparkSuite
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -297,5 +296,20 @@ class AggregatorSuite extends SparkSuite {
       .rowsTable().select("{linreg: row.linreg}", None, None).collect()(0)(0)
 
     assert(typ.valuesSimilar(a, expectedResult))
+
+    val mtFiltered = mt
+      .annotateColsExpr("xDefined" -> "AGG.map(__uid__ => g.x).filter(x => isDefined(x)).count() == 1.toInt64()")
+      .filterColsExpr("isDefined(sa.y) && sa.xDefined")
+
+    val lr = LinearRegression(mtFiltered, Array("y"), "x", Array(), "linreg", 100)
+      .rowsTable()
+      .select("{beta: row.linreg.beta, standard_error: row.linreg.standard_error, t_stat: row.linreg.t_stat, p_value: row.linreg.p_value, n: row.linreg.n}", None, None)
+      .collect()(0)
+
+    assert(D_==(lr(0).asInstanceOf[IndexedSeq[Double]](0), expectedResult(0).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(1).asInstanceOf[IndexedSeq[Double]](0), expectedResult(1).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(2).asInstanceOf[IndexedSeq[Double]](0), expectedResult(2).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(D_==(lr(3).asInstanceOf[IndexedSeq[Double]](0), expectedResult(3).asInstanceOf[IndexedSeq[Double]](1)))
+    assert(lr(4) == expectedResult(4))
   }
 }
