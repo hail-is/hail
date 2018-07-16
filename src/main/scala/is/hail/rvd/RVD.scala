@@ -435,8 +435,8 @@ trait RVD {
 
   protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec
 
-  final def write(path: String, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, codecSpec)
+  final def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, stageLocally, codecSpec)
     rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
     partitionCounts
   }

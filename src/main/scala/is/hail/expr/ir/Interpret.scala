@@ -572,10 +572,10 @@ object Interpret {
       case MatrixWrite(child, f) =>
         val mv = child.execute(HailContext.get)
         f(mv)
-      case TableWrite(child, path, overwrite, codecSpecJSONStr) =>
+      case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)
-        tableValue.write(path, overwrite, codecSpecJSONStr)
+        tableValue.write(path, overwrite, stageLocally, codecSpecJSONStr)
       case TableExport(child, path, typesFile, header, exportType) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)

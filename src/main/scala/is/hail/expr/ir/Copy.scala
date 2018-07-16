@@ -144,9 +144,9 @@ object Copy {
       case TableAggregate(_, _) =>
         val IndexedSeq(child: TableIR, query: IR) = newChildren
         TableAggregate(child, query)
-      case TableWrite(_, path, overwrite, codecSpecJSONStr) =>
+      case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableWrite(child, path, overwrite, codecSpecJSONStr)
+        TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
       case TableExport(_, path, typesFile, header, exportType) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableExport(child, path, typesFile, header, exportType)

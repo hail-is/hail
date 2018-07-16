@@ -1142,8 +1142,10 @@ class Table(ExprContainer):
 
     @typecheck_method(output=str,
                       overwrite=bool,
+                      stage_locally=bool,
                       _codec_spec=nullable(str))
-    def write(self, output, overwrite=False, _codec_spec=None):
+    def write(self, output: str, overwrite = False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None):
         """Write to disk.
 
         Examples
@@ -1159,11 +1161,14 @@ class Table(ExprContainer):
         ----------
         output : str
             Path at which to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jt.write(output, overwrite, _codec_spec)
+        self._jt.write(output, overwrite, stage_locally, _codec_spec)
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
     def show(self, n=10, width=90, truncate=None, types=True):

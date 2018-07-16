@@ -794,8 +794,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
 
-  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.TableWrite(tir, path, overwrite, codecSpecJSONStr))
+  def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
+    ir.Interpret(ir.TableWrite(tir, path, overwrite, stageLocally, codecSpecJSONStr))
   }
 
   def cache(): Table = persist("MEMORY_ONLY")

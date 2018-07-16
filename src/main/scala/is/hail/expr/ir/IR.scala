@@ -205,6 +205,7 @@ final case class TableWrite(
   child: TableIR,
   path: String,
   overwrite: Boolean = true,
+  stageLocally: Boolean = false,
   codecSpecJSONStr: String = null) extends IR {
   val typ: Type = TVoid
 }

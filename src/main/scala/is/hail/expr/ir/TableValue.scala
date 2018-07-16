@@ -54,7 +54,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     }))
   }
 
-  def write(path: String, overwrite: Boolean, codecSpecJSONStr: String) {
+  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
 
     val codecSpec =
@@ -76,7 +76,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     hc.hadoopConf.mkDir(globalsPath)
     RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = enforceOrderingRVD.write(path + "/rows", codecSpec)
+    val partitionCounts = enforceOrderingRVD.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)

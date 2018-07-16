@@ -221,11 +221,14 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
 
-  def writePartitions(path: String,
+  def writePartitions(
+    path: String,
+    stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => Long
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
     ContextRDD.weaken[RVDContext](r).writePartitions(
       path,
+      stageLocally,
       (_, it, os) => write(it, os))
 }

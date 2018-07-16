@@ -1713,8 +1713,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.MatrixWrite(ast, _.write(path, overwrite, codecSpecJSONStr)))
+  def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
+    ir.Interpret(ir.MatrixWrite(ast, _.write(path, overwrite, stageLocally, codecSpecJSONStr)))
   }
 
   def exportPlink(path: String) {
