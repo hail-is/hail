@@ -280,10 +280,10 @@ class AggregatorsSuite {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
     assertEvalsTo(
       ApplyAggOp(If(
-          ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
-          SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
-            aggSig),
-          Begin(FastSeq())),
+        ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
+        SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
+          aggSig),
+        Begin(FastSeq())),
         FastSeq(), None, aggSig),
       (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
       10.0)
@@ -661,9 +661,17 @@ class AggregatorsSuite {
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(TFloat64())))
     )
+  }
 
-  def runKeyedAggregator(op: AggOp, keyType: Type, aggType: Type, k: IndexedSeq[Any], a: IndexedSeq[Any], expected: Any,
-    args: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
+  def runKeyedAggregator(
+    op: AggOp,
+    keyType: Type,
+    aggType: Type,
+    k: IndexedSeq[Any],
+    a: IndexedSeq[Any],
+    expected: Any,
+    args: IndexedSeq[IR] = FastIndexedSeq(),
+    initOpArgs: Option[IndexedSeq[IR]] = None) {
     assert(a.length == k.length)
     val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), FastIndexedSeq(keyType, aggType))
     assertEvalsTo(ApplyAggOp(

@@ -344,11 +344,11 @@ object Interpret {
             val IndexedSeq(y, xs) = seqOpArgs
             aggregator.get.asInstanceOf[LinearRegressionAggregator].seqOp(interpret(y), interpret(xs))
           case Keyed(aggOp) =>
-            assert(args.nonEmpty)
-            def formatArgs(aggOp: AggOp, args: IndexedSeq[IR]): Row = {
+            assert(seqOpArgs.nonEmpty)
+            def formatArgs(aggOp: AggOp, seqOpArgs: IndexedSeq[IR]): Row = {
               aggOp match {
-                case Keyed(op) => Row(interpret(args.head), formatArgs(op, args.tail))
-                case _ => Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*))
+                case Keyed(op) => Row(interpret(seqOpArgs.head), formatArgs(op, seqOpArgs.tail))
+                case _ => Row(interpret(seqOpArgs.head), Row(seqOpArgs.tail.map(interpret(_)): _*))
               }
             }
             aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))

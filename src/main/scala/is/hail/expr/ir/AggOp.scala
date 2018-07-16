@@ -216,10 +216,8 @@ object AggOp {
         constrArgTypes = Array(classOf[Int]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
-    case (Keyed(op), constrArgs, initOpArgs, seqOpArgs) =>
-      assert(seqOpArgs.nonEmpty)
-      val keyType = seqOpArgs.head
-      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, seqOpArgs.drop(1)))
+    case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
+      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, childSeqOpArgs))
       codeAgg.toKeyedAggregator(keyType)
   }
 

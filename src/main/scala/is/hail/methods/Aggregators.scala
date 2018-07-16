@@ -12,6 +12,8 @@ import org.apache.spark.util.StatCounter
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
+import scala.language.implicitConversions
 
 object Aggregators {
 
@@ -525,10 +527,9 @@ class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggreg
 }
 
 class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
+  private val m = new java.util.HashMap[Any, TypedAggregator[T]]()
 
-  private val m = mutable.Map[Any, TypedAggregator[T]]()
-
-  def result = m.map { case (k, v) => (k, v.result) }.toMap
+  def result = m.asScala.map { case (k, v) => (k, v.result) }.toMap
 
   def seqOp(x: Any) {
     val cx = x.asInstanceOf[Row]
@@ -539,7 +540,11 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
   }
 
   private def seqOp(key: Any, x: Any) {
-    val agg = m.getOrElseUpdate(key, aggregator.copy())
+    var agg = m.get(key)
+    if (agg == null) {
+      agg = aggregator.copy()
+      m.put(key, agg)
+    }
     val r = x.asInstanceOf[Row]
     agg match {
       case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
@@ -553,13 +558,13 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
   }
 
   def combOp(agg2: this.type) {
-    agg2.m.foreach { case (k, v2) =>
-      m(k) = m.get(k) match {
-        case Some(v) =>
-          v.combOp(v2.asInstanceOf[v.type])
-          v
-        case None =>
-          v2
+    agg2.m.asScala.foreach { case (k, v2) =>
+      val agg = m.get(k)
+      if (agg == null)
+        m.put(k, v2)
+      else {
+        agg.combOp(v2.asInstanceOf[agg.type])
+        m.put(k, agg)
       }
     }
   }

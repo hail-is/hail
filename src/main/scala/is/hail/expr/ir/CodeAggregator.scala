@@ -35,14 +35,14 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
 
   def initOp(mb: EmitMethodBuilder, rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
-    val argTypes = initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = initOpArgTypes.get.flatMap(Array[Class[_]](_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
     Code.checkcast[Agg](rva).invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
   def seqOp(mb: EmitMethodBuilder, region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(vs.length == ms.length)
-    val argTypes = seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = seqOpArgTypes.flatMap(Array[Class[_]](_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
     Code.checkcast[Agg](rva).invoke("seqOp", Array(classOf[Region]) ++ argTypes, Array(region) ++ args)(classTag[Unit])
   }
@@ -75,20 +75,15 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
       rvAgg
     )
 
-    if (nKeys == 1) {
+    if (nKeys == 1)
       code
-    } else {
-      val nextKrva = mb.newLocal[KeyedRegionValueAggregator]
-      Code(
-        nextKrva := Code.checkcast[KeyedRegionValueAggregator](code),
-        getRVAgg(mb, nextKrva, nKeys - 1)
-      )
-    }
+    else
+      getRVAgg(mb, Code.checkcast[KeyedRegionValueAggregator](code), nKeys - 1)
   }
 
   def initOp(mb: EmitMethodBuilder, krva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
-    val argTypes = initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = initOpArgTypes.get.flatMap(Array[Class[_]](_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
     val rvAgg = getRVAgg(mb, Code.checkcast[KeyedRegionValueAggregator](krva), keys.length)
     Code.checkcast[Agg](rvAgg).invoke("initOp", argTypes, args)(classTag[Unit])
@@ -97,7 +92,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
   def getRVAggByKey(
     mb: EmitMethodBuilder,
     krvAgg: Code[KeyedRegionValueAggregator],
-    wrappedKeys: Array[Code[AnyRef]]): Code[RegionValueAggregator] = {
+    wrappedKeys: Array[Code[AnyRef]]): Code[Agg] = {
 
     val krva = mb.newLocal[KeyedRegionValueAggregator]
     val m = mb.newLocal[mutable.Map[AnyRef, RegionValueAggregator]]("m")
@@ -122,10 +117,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     if (wrappedKeys.length == 1) {
       Code.checkcast[Agg](code)
     } else {
-      val nextKrva = mb.newLocal[KeyedRegionValueAggregator]
-      Code(
-        nextKrva := Code.checkcast[KeyedRegionValueAggregator](code),
-        getRVAggByKey(mb, nextKrva, wrappedKeys.drop(1)))
+      getRVAggByKey(mb, Code.checkcast[KeyedRegionValueAggregator](code), wrappedKeys.drop(1))
     }
   }
 
@@ -153,10 +145,10 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     val rva = getRVAggByKey(mb, krvAgg, wrappedKeys)
 
     val nKeys = keys.length
-    val argTypes = classOf[Region] +: seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = classOf[Region] +: seqOpArgTypes.flatMap(Array[Class[_]](_, classOf[Boolean]))
     val args = vs.drop(nKeys).zip(ms.drop(nKeys)).flatMap { case (v, m) => Array(v, m) }
 
-    Code.checkcast[Agg](rva).invoke("seqOp", argTypes, Array(region) ++ args)(classTag[Unit])
+    rva.invoke("seqOp", argTypes, Array(region) ++ args)(classTag[Unit])
   }
 
   def toKeyedAggregator(keyType: Type): KeyedCodeAggregator[Agg] =

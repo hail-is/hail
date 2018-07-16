@@ -70,7 +70,7 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, constructorArgs, _, _) =>
+    case x@ApplyAggOp(_, constructorArgs, _, aggSig) =>
 
       def getAggregator(op: AggOp, aggSig: AggSignature): RegionValueAggregator = op match {
           case Keyed(subop) =>
@@ -101,6 +101,6 @@ object ExtractAggregators {
             Region.scoped(fb.result()()(_))
         }
 
-      getAggregator(x.op, x.aggSig)
+      getAggregator(x.op, aggSig)
   }
 }
