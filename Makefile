@@ -1,13 +1,3 @@
-build-utils:
-	docker build -t true -t gcr.io/broad-ctsa/true -f utils/Dockerfile.true utils
-	docker build -t false -t gcr.io/broad-ctsa/false -f utils/Dockerfile.false utils
-	docker build -t echo -t gcr.io/broad-ctsa/echo -f utils/Dockerfile.echo utils
-
-push-utils:
-	docker push gcr.io/broad-ctsa/true
-	docker push gcr.io/broad-ctsa/false
-	docker push gcr.io/broad-ctsa/echo
-
 build: build-batch build-test
 
 build-batch:

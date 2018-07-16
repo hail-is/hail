@@ -65,3 +65,22 @@ Forward from a local port to a port on pod:
 $ kubectl port-forward jupyter-deployment-5f54cff675-msr85 8888:8888 # <local port>:<remote port>
 ```
 
+Run container with a given hostname:
+
+$ docker run -d --rm --name spark-m -h spark-m -p 8080:8080 -p 7077:7077 spark-m
+
+List all containers, included stopped containers:
+
+$ docker ps -a
+
+Remove all stopped containers:
+
+$ docker ps -aq --no-trunc -f status=exited | xargs docker rm
+
+Run a docker container linked to another:
+
+$ docker run -d --rm --cpus 0.5 --name spark-w-0 --link spark-m spark-w -c 1 -m 2g
+
+Get IP of container:
+
+$ docker inspect <container-id> | grep IPAddress
