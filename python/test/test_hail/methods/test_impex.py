@@ -38,7 +38,7 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.vcf'))
         hl.export_vcf(mt.filter_cols((mt.s != "C1048::HG02024") & (mt.s != "HG00255")), t)
         
-        with self.assertRaisesRegex(FatalError, 'invalid sample ids'):
+        with self.assertRaisesRegex(FatalError, 'invalid sample IDs'):
             (hl.import_vcf([resource('sample.vcf'), t])
              ._force_count_rows())
 
