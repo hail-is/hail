@@ -5,6 +5,7 @@ import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.Parser
+import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -432,6 +433,7 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
+      val vcf = hc.importVCF("src/test/resources/sample.vcf").ast.asInstanceOf[MatrixRead]
 
       val b = True()
 
@@ -462,7 +464,8 @@ class IRSuite extends SparkSuite {
         MatrixAggregateColsByKey(read, newCol),
         MatrixAggregateRowsByKey(read, newRow),
         range,
-      MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
+        vcf,
+        MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
 
       xs.map(x => Array(x))
     } catch {

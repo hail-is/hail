@@ -28,7 +28,7 @@ class MatrixRead(MatrixIR):
 
 
 class MatrixRange(MatrixIR):
-    def __init__(self, path, n_rows, n_cols, n_partitions):
+    def __init__(self, n_rows, n_cols, n_partitions):
         super().__init__()
         self.n_rows = n_rows
         self.n_cols = n_cols
@@ -42,6 +42,48 @@ class MatrixRange(MatrixIR):
             nPartitions=self.n_partitions
         )
         return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
+
+class MatrixImportVCF(MatrixIR):
+    def __init__(self,
+                 paths,
+                 force,
+                 force_bgz,
+                 header_file,
+                 min_partitions,
+                 drop_samples,
+                 call_fields,
+                 reference_genome,
+                 contig_recoding,
+                 array_elements_required,
+                 skip_invalid_loci):
+        super().__init__()
+        self.paths = paths
+        self.force = force
+        self.force_bgz = force_bgz
+        self.header_file = header_file
+        self.min_partitions = min_partitions
+        self.drop_samples = drop_samples
+        self.call_fields = call_fields
+        self.reference_genome = reference_genome
+        self.contig_recoding = contig_recoding
+        self.array_elements_required = array_elements_required
+        self.skip_invalid_loci = skip_invalid_loci
+
+    def __str__(self):
+        config = dict(
+            name='MatrixVCFReader',
+            files=self.paths,
+            callFields=list(self.call_fields),
+            headerFile=self.header_file,
+            minPartitions=self.min_partitions,
+            rg=self.reference_genome.name if self.reference_genome else None,
+            contigRecoding=self.contig_recoding,
+            arrayElementsRequired=self.array_elements_required,
+            skipInvalidLoci=self.skip_invalid_loci,
+            gzAsBGZ=self.force_bgz,
+            forceGZ=self.force
+        )
+        return f'(MatrixImportVCF "{json.dumps(config)}" {self.drop_samples} False None)'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):

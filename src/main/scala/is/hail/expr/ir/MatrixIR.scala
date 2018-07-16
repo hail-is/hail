@@ -5,6 +5,9 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.types._
+import is.hail.expr.{Parser, TableAnnotationImpex, ir}
+import is.hail.io._
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
@@ -184,7 +187,7 @@ case class MatrixLiteral(
 
 object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader]))
+    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader]))
 }
 
 abstract class MatrixReader {
@@ -404,7 +407,11 @@ case class MatrixRead(
     MatrixRead(typ, dropCols, dropRows, reader)
   }
 
-  def execute(hc: HailContext): MatrixValue = reader(this)
+  def execute(hc: HailContext): MatrixValue = {
+    val mv = reader(this)
+    assert(mv.typ == typ)
+    mv
+  }
 
   override def toString: String = s"MatrixRead($typ, " +
     s"partitionCounts = $partitionCounts, " +

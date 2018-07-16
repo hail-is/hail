@@ -10,6 +10,8 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
+_cached_loadvcf = None
+
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -497,7 +499,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
     if t.row.dtype == tstruct(f0=tstr):
         if reference_genome:
-            t = t.select(interval=hl.parse_locus_interval(t['f0'], 
+            t = t.select(interval=hl.parse_locus_interval(t['f0'],
                                                           reference_genome))
         else:
             interval_regex = r"([^:]*):(\d+)\-(\d+)"
@@ -536,12 +538,12 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
                                                   skip_invalid_intervals))
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'], 
-                                                  t['f1'], 
-                                                  t['f2'], 
-                                                  True, 
-                                                  True, 
-                                                  reference_genome, 
+        t = t.select(interval=locus_interval_expr(t['f0'],
+                                                  t['f1'],
+                                                  t['f2'],
+                                                  True,
+                                                  True,
+                                                  reference_genome,
                                                   skip_invalid_intervals),
                      target=t['f4'])
 
@@ -642,28 +644,28 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     t = import_table(path, no_header=True, delimiter="\s+", impute=False,
-                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32, 
-                                                   'f2': tint32, 'f3': tstr, 
+                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32,
+                                                   'f2': tint32, 'f3': tstr,
                                                    'f4': tstr},
                      comment=["""^browser.*""", """^track.*""",
                               r"""^\w+=("[\w\d ]+"|\d+).*"""])
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'], 
-                                                  t['f1'] + 1, 
+        t = t.select(interval=locus_interval_expr(t['f0'],
+                                                  t['f1'] + 1,
                                                   t['f2'],
-                                                  True, 
-                                                  True, 
-                                                  reference_genome, 
+                                                  True,
+                                                  True,
+                                                  reference_genome,
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'], 
-                                                  t['f1'] + 1, 
+        t = t.select(interval=locus_interval_expr(t['f0'],
+                                                  t['f1'] + 1,
                                                   t['f2'],
-                                                  True, 
-                                                  True, 
-                                                  reference_genome, 
+                                                  True,
+                                                  True,
+                                                  reference_genome,
                                                   skip_invalid_intervals),
                      target=t['f3'])
 
@@ -1790,16 +1792,25 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome._jrep if reference_genome else None
+    rg = reference_genome.name if reference_genome else None
 
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+    global _cached_loadvcf
+    if _cached_loadvcf is None:
+        _cached_loadvcf = Env.hail().io.vcf.LoadVCF
 
-    jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                   joption(min_partitions), drop_samples, jset_args(call_fields),
-                                   joption(rg), joption(contig_recoding), array_elements_required,
-                                   skip_invalid_loci)
-
+    jmt = _cached_loadvcf.pyApply(
+        wrap_to_list(path),
+        wrap_to_list(call_fields),
+        header_file,
+        joption(min_partitions),
+        drop_samples,
+        rg,
+        contig_recoding,
+        array_elements_required,
+        skip_invalid_loci,
+        force_bgz,
+        force
+    )
     return MatrixTable(jmt)
 
 

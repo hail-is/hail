@@ -346,7 +346,7 @@ object PruneDeadFields {
       case MatrixRead(_, _, _, _) =>
       case MatrixLiteral(typ, value) =>
       case MatrixChooseCols(child, oldIndices) =>
-        memoizeMatrixIR(child, requestedType, memo)
+        memoizeMatrixIR(child, unify(child.typ, requestedType), memo)
       case MatrixCollectColsByKey(child) =>
         val colKeySet = requestedType.colKey.toSet
         val explodedDep = requestedType.copy(
