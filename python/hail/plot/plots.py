@@ -121,8 +121,8 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int)
-def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
+           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool)
+def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True):
     """Create a scatterplot.
 
     Parameters
@@ -141,6 +141,8 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
         Y-axis label.
     size : int
         Size of markers in screen space units.
+    legend : bool
+        Whether or not to show the legend.
 
     Returns
     -------
@@ -172,9 +174,14 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
         else:
             palette = Category10[len(factors)]
 
+        if legend:
+            leg = 'label'
+        else:
+            leg = None
+
         color_mapper = CategoricalColorMapper(factors=factors, palette=palette)
         p.circle('x', 'y', alpha=0.5, source=source, size=size,
-                 color={'field': 'label', 'transform': color_mapper}, legend='label')
+                 color={'field': 'label', 'transform': color_mapper}, legend=leg)
     else:
         p.circle(x, y, alpha=0.5, size=size)
     return p
@@ -212,7 +219,7 @@ def qq(pvals):
     return p
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), locus=nullable(expr_locus), title=nullable(str), size=int)
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), locus=nullable(expr_locus()), title=nullable(str), size=int)
 def manhattan(pvals, locus=None, title=None, size=4):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
@@ -241,7 +248,8 @@ def manhattan(pvals, locus=None, title=None, size=4):
     x = locus.global_position()
     label = locus.contig
 
-    p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
+    p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+                size=size, legend=False)
 
     starts = []
     for i in range(0, 22):
@@ -255,5 +263,7 @@ def manhattan(pvals, locus=None, title=None, size=4):
 
     p.xaxis.ticker = starts
     p.xaxis.major_label_overrides = dict(zip(starts, labels))
+    p.xaxis.major_label_orientation = 'vertical'
+    p.width = 1000
 
     return p
