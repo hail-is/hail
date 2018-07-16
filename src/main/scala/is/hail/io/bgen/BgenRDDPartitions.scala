@@ -441,7 +441,7 @@ object CompileDecoder {
                   .concat(nBitsPerProb.toS)
                   .concat(".")),
               Code._empty),
-            nExpectedBytesProbs := (settings.nSamples * (3 - 1) * 8 + 7) / 8,
+            nExpectedBytesProbs := settings.nSamples * 2,
             (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
               Code._fatal(
                 const("Number of uncompressed bytes `")
