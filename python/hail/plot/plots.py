@@ -237,17 +237,23 @@ def manhattan(pvals, locus=None, title=None, size=4):
         pvals = [log(val, 10) for val in pvals]
 
     if locus is None:
-        src = pvals._indices.source
-        x = src.locus.global_position()
-        label = src.locus.contig
-    else:
-        x = locus.global_position()
-        label = locus.contig
+        locus = pvals._indices.source.locus
+    x = locus.global_position()
+    label = locus.contig
 
     p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
 
-    p.xaxis.major_tick_line_color = None
-    p.xaxis.minor_tick_line_color = None
-    p.xaxis.major_label_text_font_size = '0pt'
+    starts = []
+    for i in range(0, 22):
+        starts.append(hail.locus(str(i + 1), 1).global_position().value)
+    starts.append(hail.locus('X', 1).global_position().value)
+
+    labels = []
+    for i in range(0, len(starts) - 1):
+        labels.append('chr' + str(i + 1))
+    labels.append('X')
+
+    p.xaxis.ticker = starts
+    p.xaxis.major_label_overrides = dict(zip(starts, labels))
 
     return p
