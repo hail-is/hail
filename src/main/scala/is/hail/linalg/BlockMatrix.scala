@@ -694,7 +694,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     result
   }
 
-  def write(uri: String, forceRowMajor: Boolean = false) {
+  def write(uri: String, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
@@ -709,7 +709,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    val (partFiles, _) = blocks.writePartitions(uri, writeBlock)
+    val (partFiles, _) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats

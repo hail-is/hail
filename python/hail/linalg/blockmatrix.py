@@ -511,8 +511,9 @@ class BlockMatrix(object):
         return self._jbm.toBreezeMatrix().apply(0, 0)
 
     @typecheck_method(path=str,
-                      force_row_major=bool)
-    def write(self, path, force_row_major=False):
+                      force_row_major=bool,
+                      stage_locally=bool)
+    def write(self, path, force_row_major=False, stage_locally=False):
         """Writes the block matrix.
 
         Parameters
@@ -523,8 +524,11 @@ class BlockMatrix(object):
             If ``True``, transform blocks in column-major format
             to row-major format before writing.
             If ``False``, write blocks in their current format.
+        stage_locally: :obj:`bool`
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
         """
-        self._jbm.write(path, force_row_major)
+        self._jbm.write(path, force_row_major, stage_locally)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,

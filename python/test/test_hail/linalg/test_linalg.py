@@ -742,3 +742,12 @@ class Tests(unittest.TestCase):
             contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
 
         self.assertEqual(res, [0, 0, 2, 2, 4, 6])
+
+    def test_stage_locally(self):
+        nd = np.arange(0, 80, dtype=float).reshape(8, 10)
+        rects = [[0, 1, 0, 1], [4, 5, 7, 8]]
+        bm_uri = new_temp_file()
+        BlockMatrix.from_numpy(nd, block_size=3).write(bm_uri, stage_locally=True)
+
+        bm = BlockMatrix.read(bm_uri)
+        self._assert_eq(nd, bm)
