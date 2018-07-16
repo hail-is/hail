@@ -107,6 +107,8 @@ profile file for your shell (e.g. ``~/.bash_profile``).
     export PYSPARK_SUBMIT_ARGS="\
       --conf spark.driver.extraClassPath=\"$HAIL_HOME/build/libs/hail-all-spark.jar\" \
       --conf spark.executor.extraClassPath=./hail-all-spark.jar \
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+      --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator
       pyspark-shell"
 
 If the previous environment variables are set correctly, an IPython shell which
@@ -127,8 +129,6 @@ extra configuration parameters specific to running Hail through ``pyspark``::
     pyspark \
       --conf spark.driver.extraClassPath=$HAIL_HOME/build/libs/hail-all-spark.jar \
       --conf spark.executor.extraClassPath=./hail-all-spark.jar \
-      --conf spark.sql.files.openCostInBytes=1099511627776 \
-      --conf spark.sql.files.maxPartitionBytes=1099511627776 \
       --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
       --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator
 
@@ -157,8 +157,6 @@ parameters to ``spark-submit``
       --py-files "$HAIL_HOME/build/distributions/hail-python.zip" \
       --conf spark.driver.extraClassPath="$HAIL_HOME/build/libs/hail-all-spark.jar" \
       --conf spark.executor.extraClassPath=./hail-all-spark.jar \
-      --conf spark.sql.files.openCostInBytes=1099511627776 \
-      --conf spark.sql.files.maxPartitionBytes=1099511627776 \
       --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
       --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
       your-hail-python-script-here.py
@@ -192,11 +190,8 @@ the same as above, except:
             --py-files build/distributions/hail-python.zip \
             --conf spark.driver.extraClassPath="build/libs/hail-all-spark.jar" \
             --conf spark.executor.extraClassPath=./hail-all-spark.jar \
-            --conf spark.sql.files.openCostInBytes=1099511627776 \
-            --conf spark.sql.files.maxPartitionBytes=1099511627776 \
             --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
-            --conf spark.hadoop.parquet.block.size=1099511627776
 
 .. _running-in-the-cloud:
 
