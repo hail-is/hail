@@ -247,18 +247,21 @@ def manhattan(pvals, locus=None, title=None, size=4):
     p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False)
 
-    starts = []
+    total_pos = 0
+    mid_points = []
     for i in range(0, 22):
-        starts.append(hail.locus(str(i + 1), 1).global_position().value)
-    starts.append(hail.locus('X', 1).global_position().value)
+        length = locus.dtype.reference_genome.lengths.get(str(i + 1))
+        mid_points.append(total_pos + length / 2)
+        total_pos += length
+    mid_points.append(total_pos + (locus.dtype.reference_genome.contig_length(str('X')) / 2))
 
     labels = []
-    for i in range(0, len(starts) - 1):
+    for i in range(0, len(mid_points) - 1):
         labels.append('chr' + str(i + 1))
     labels.append('X')
 
-    p.xaxis.ticker = starts
-    p.xaxis.major_label_overrides = dict(zip(starts, labels))
+    p.xaxis.ticker = mid_points
+    p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.xaxis.major_label_orientation = 'vertical'
     p.width = 1000
 
