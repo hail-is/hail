@@ -192,6 +192,9 @@ class LinearMixedModel(object):
       * - `h_sq`
         - float
         - :math:`\mathit{h}^2 = \frac{\sigma^2}{\sigma^2 + \tau^2}`
+      * - `h_sq_standard_error`
+        - float
+        - asymptotic estimate of standard error for :math:`\mathit{h}^2`
 
     Estimation proceeds by minimizing the function :meth:`compute_neg_log_reml`
     with respect to the parameter :math:`\log{\gamma}` governing the (log)
@@ -289,6 +292,7 @@ class LinearMixedModel(object):
         self.gamma = None
         self.log_gamma = None
         self.h_sq = None
+        self.h_sq_standard_error = None
         self.optimize_result = None
 
         self._fitted = False
@@ -323,6 +327,7 @@ class LinearMixedModel(object):
         self.gamma = None
         self.log_gamma = None
         self.h_sq = None
+        self.h_sq_standard_error = None
         self.optimize_result = None
 
     def compute_neg_log_reml(self, log_gamma, return_parameters=False):
@@ -383,10 +388,11 @@ class LinearMixedModel(object):
             tau_sq = sigma_sq / gamma
             neg_log_reml = (np.linalg.slogdet(xdx)[1] - logdet_d + self._dof * np.log(sigma_sq)) / 2
 
+            self._d, self._ydy, self._xdy, self._xdx = d, ydy, xdy, xdx  # used in fit
+
             if return_parameters:
                 return neg_log_reml, beta, sigma_sq, tau_sq
             else:
-                self._d, self._ydy, self._xdy, self._xdx = d, ydy, xdy, xdx
                 return neg_log_reml
         except LinAlgError as e:
             raise Exception(f'linear algebra error while solving for REML estimate') from e
@@ -453,6 +459,28 @@ class LinearMixedModel(object):
         self._xdx_alt[1:, 1:] = self._xdx
 
         self._fitted = True
+        self.h_sq_standard_error = self._estimate_h_sq_standard_error()
+
+    def _estimate_h_sq_standard_error(self):
+        assert self._fitted
+
+        epsilon = 1e-4  # parabolic interpolation radius
+        lg = self.log_gamma + np.array([-epsilon, 0.0, epsilon])
+        h2 = 1 / (1 + np.exp(lg))
+        nll = [self.compute_neg_log_reml(lgi) for lgi in lg]
+
+        if nll[1] > nll[0] or nll[1] > nll[2]:
+            i = 0 if nll[1] > nll[0] else 2
+            raise Exception(f'Minimum of negative log likelihood fit as {nll[1]} at log_gamma={lg[1]},'
+                            f'\n    but found smaller value of {nll[i]} at log_gamma={lg[i]}.'
+                            f'\n    Investigate by plotting the negative log likelihood function.')
+
+        # Asymptotically near MLE, nLL = a * x^2 + b * x + c with a = 1 / (2 * se^2)
+        # By Lagrange interpolation:
+        a = ((h2[2] * (nll[1] - nll[0]) + h2[1] * (nll[0] - nll[2]) + h2[0] * (nll[2] - nll[1])) /
+             ((h2[1] - h2[0]) * (h2[0] - h2[2]) * (h2[2] - h2[1])))
+
+        return 1 / np.sqrt(2 * a)
 
     @typecheck_method(pa_t_path=str,
                       a_t_path=nullable(str),
