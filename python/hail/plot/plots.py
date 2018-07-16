@@ -11,8 +11,9 @@ from hail.expr.expressions import *
 from hail.expr.expressions import Expression
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-           '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-           '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+           '#ff3333', '#339fff', '#f3ff00', '#77ba7f', '#5b2c6f', '#ff00ff', '#000080', '#808000', '#800000', '#b40f7d',
+           '#cdd1ff', '#000000', '#c8a370']
+
 
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
