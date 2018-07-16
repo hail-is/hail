@@ -1,16 +1,10 @@
-import json
 from math import log, isnan
-from typing import *
 
-import bokeh
+import itertools
 import numpy as np
-import pandas as pd
-from bokeh.layouts import gridplot
 from bokeh.models import *
 from bokeh.palettes import Category10, Spectral8
 from bokeh.plotting import figure
-from bokeh.plotting import figure
-from bokeh.transform import factor_cmap
 
 from hail.expr import aggregators
 from hail.expr.expr_ast import *
@@ -169,7 +163,16 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4):
     if label is not None:
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
-        color_mapper = CategoricalColorMapper(factors=factors, palette=Category10[len(factors)])
+
+        if len(factors) > 10:
+            colors = itertools.cycle(Category10[10])
+            palette = list()
+            for i in range(0, len(factors)):
+                palette.append(next(colors))
+        else:
+            palette = Category10[len(factors)]
+
+        color_mapper = CategoricalColorMapper(factors=factors, palette=palette)
         p.circle('x', 'y', alpha=0.5, source=source, size=size,
                  color={'field': 'label', 'transform': color_mapper}, legend='label')
     else:
@@ -209,20 +212,16 @@ def qq(pvals):
     return p
 
 
-@typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
-           label=oneof(nullable(str), expr_str), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int)
-def manhattan(x, y, label=None, title=None, size=4):
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), locus=nullable(expr_locus), title=nullable(str), size=int)
+def manhattan(pvals, locus=None, title=None, size=4):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
     ----------
-    x : List[float] or :class:`.Float64Expression`
-        List of x-values to be plotted.
-    y : List[float] or :class:`.Float64Expression`
-        List of y-values to be plotted.
-    label : List[str] or :class:`.StringExpression`
-        List of labels for x and y values, usually chromosome for Manhattan plots.
+    pvals : List[float] or :class:`.Float64Expression`
+        List of p-values to be plotted.
+    locus : :class:`.LocusExpression`
+        Locus values.
     title : str
         Title of the plot.
     size : int
@@ -232,8 +231,23 @@ def manhattan(x, y, label=None, title=None, size=4):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
-    if isinstance(y, Expression):
-        y = -hail.log10(y)
+    if isinstance(pvals, Expression):
+        pvals = -hail.log10(pvals)
     else:
-        y = [log(val, 10) for val in y]
-    return scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
+        pvals = [log(val, 10) for val in pvals]
+
+    if locus is None:
+        src = pvals._indices.source
+        x = src.locus.global_position()
+        label = src.locus.contig
+    else:
+        x = locus.global_position()
+        label = locus.contig
+
+    p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)', size=size)
+
+    p.xaxis.major_tick_line_color = None
+    p.xaxis.minor_tick_line_color = None
+    p.xaxis.major_label_text_font_size = '0pt'
+
+    return p
