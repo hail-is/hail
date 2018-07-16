@@ -745,7 +745,6 @@ class Tests(unittest.TestCase):
 
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
-        rects = [[0, 1, 0, 1], [4, 5, 7, 8]]
         bm_uri = new_temp_file()
         BlockMatrix.from_numpy(nd, block_size=3).write(bm_uri, stage_locally=True)
 
