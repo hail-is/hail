@@ -5,7 +5,6 @@ import is.hail.annotations.aggregators.{KeyedRegionValueAggregator, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 
-import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
@@ -95,22 +94,22 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     wrappedKeys: Array[Code[AnyRef]]): Code[Agg] = {
 
     val krva = mb.newLocal[KeyedRegionValueAggregator]
-    val m = mb.newLocal[mutable.Map[AnyRef, RegionValueAggregator]]("m")
+    val m = mb.newLocal[java.util.HashMap[AnyRef, RegionValueAggregator]]("m")
     val wrappedKey = mb.newLocal[AnyRef]("wrappedKey")
     val nextrva = mb.newLocal[RegionValueAggregator]
 
     val setup = Code(
       krva := krvAgg,
-      m := krva.invoke[mutable.Map[AnyRef, RegionValueAggregator]]("m"),
+      m := krva.invoke[java.util.HashMap[AnyRef, RegionValueAggregator]]("m"),
       wrappedKey := wrappedKeys.head
     )
 
     val code = Code(
       setup,
-      m.invoke[AnyRef, Boolean]("contains", wrappedKey).mux(
-        Code._empty,
-        m.invoke[AnyRef, AnyRef, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[RegionValueAggregator]("copy"))),
-      nextrva := m.invoke[AnyRef, RegionValueAggregator]("apply", wrappedKey),
+      Code.toUnit(m.invoke[AnyRef, Boolean]("containsKey", wrappedKey).mux(
+        Code._null,
+        m.invoke[AnyRef, AnyRef, AnyRef]("put", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[RegionValueAggregator]("copy")))),
+      nextrva := m.invoke[AnyRef, RegionValueAggregator]("get", wrappedKey),
       nextrva
     )
 

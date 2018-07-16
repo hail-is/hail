@@ -564,7 +564,6 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
         m.put(k, v2)
       else {
         agg.combOp(v2.asInstanceOf[agg.type])
-        m.put(k, agg)
       }
     }
   }
