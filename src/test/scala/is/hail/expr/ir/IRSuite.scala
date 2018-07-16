@@ -569,7 +569,8 @@ class IRSuite extends SparkSuite {
           Array("astruct"),
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
-        MatrixUnionRows(FastIndexedSeq(range1, range2)))
+        MatrixUnionRows(FastIndexedSeq(range1, range2)),
+        MatrixExplodeCols(read, FastIndexedSeq("col_mset")))
 
       xs.map(x => Array(x))
     } catch {

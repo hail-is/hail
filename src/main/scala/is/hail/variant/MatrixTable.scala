@@ -834,58 +834,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def explodeCols(code: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(code, Annotation.COL_HEAD)
-    val (keysType, querier) = colType.queryTyped(path)
-    val keyType = keysType match {
-      case TArray(e, _) => e
-      case TSet(e, _) => e
-    }
-    var size = 0
-    val keys = colValues.value.map { sa =>
-      val ks = querier(sa).asInstanceOf[Iterable[Any]]
-      if (ks == null)
-        Iterable.empty[Any]
-      else {
-        size += ks.size
-        ks
-      }
-    }
-
-    val (newColType, inserter) = colType.structInsert(keyType, path)
-
-    val sampleMap = new Array[Int](size)
-    val newColValues = new Array[Annotation](size)
-    val newNCols = newColValues.length
-
-    var i = 0
-    var j = 0
-    while (i < numCols) {
-      keys(i).foreach { e =>
-        sampleMap(j) = i
-        newColValues(j) = inserter(colValues.value(i), e)
-        j += 1
-      }
-      i += 1
-    }
-
-    val sampleMapBc = sparkContext.broadcast(sampleMap)
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    val fullRowType = rvRowType
-
-    insertEntries(noOp, newColType = newColType,
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(entryType, { case (_, rv, rvb) =>
-
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-      rvb.startArray(newNCols)
-      var i = 0
-      while (i < newNCols) {
-        rvb.addElement(localEntriesType, rv.region, entriesOffset, sampleMapBc.value(i))
-        i += 1
-      }
-
-      rvb.endArray()
-
-    })
+    copyAST(MatrixExplodeCols(ast, path.toFastIndexedSeq))
   }
 
   def localizeEntries(entriesFieldName: String): Table = {
@@ -934,8 +883,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobalType: TStruct = globalType,
     newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-      TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+    val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
+      newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
+    copyAST(MatrixLiteral(newValue.typ, newValue))
   }
 
   def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
@@ -944,37 +894,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newGlobalType: TStruct = globalType,
     newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    assert(!rowKey.contains(path))
-
-    val fullRowType = rvRowType
-    val localEntriesIndex = entriesIndex
-
-    val (newRVType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
-
-    val newMatrixType = matrixType.copy(rvRowType = newRVType, colType = newColType,
-      colKey = newColKey, globalType = newGlobalType)
-
-    copyMT(matrixType = newMatrixType,
-      globals = newGlobals,
-      colValues = newColValues,
-      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
-
-        val pc = makePartitionContext()
-
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newRVType)
-
-          ins(rv.region, rv.offset, rvb,
-            () => inserter(pc, rv, rvb)
-          )
-
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
+    val newValue = value.insertIntoRow(makePartitionContext, newColType, newColKey,
+      newColValues, newGlobalType, newGlobals)(typeToInsert, path, inserter)
+    copyAST(MatrixLiteral(newValue.typ, newValue))
   }
 
   /**

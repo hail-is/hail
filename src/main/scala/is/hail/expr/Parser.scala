@@ -652,6 +652,7 @@ object Parser extends JavaTokenParsers {
           ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions)
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
+      "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) } |
       "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) }

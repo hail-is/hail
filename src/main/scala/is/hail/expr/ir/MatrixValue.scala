@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.rvd._
 import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
+import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -236,5 +236,55 @@ case class MatrixValue(
             }
         }
       })
+    }
+
+    def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
+      newColKey: IndexedSeq[String] = typ.colKey,
+      newColValues: BroadcastIndexedSeq = colValues,
+      newGlobalType: TStruct = typ.globalType,
+      newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+      inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
+      insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
+        TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+    }
+
+    def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
+      newColKey: IndexedSeq[String] = typ.colKey,
+      newColValues: BroadcastIndexedSeq = colValues,
+      newGlobalType: TStruct = typ.globalType,
+      newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
+      inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
+      assert(!typ.rowKey.contains(path))
+
+      val fullRowType = typ.rvRowType
+      val localEntriesIndex = typ.entriesIdx
+
+      val (newRVType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
+
+      val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
+        colKey = newColKey, globalType = newGlobalType)
+
+      MatrixValue(
+        newMatrixType,
+        newGlobals,
+        newColValues,
+        rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+
+          val pc = makePartitionContext()
+
+          val rv2 = RegionValue()
+          val rvb = new RegionValueBuilder()
+          it.map { rv =>
+            rvb.set(rv.region)
+            rvb.start(newRVType)
+
+            ins(rv.region, rv.offset, rvb,
+              () => inserter(pc, rv, rvb)
+            )
+
+            rv2.set(rv.region, rvb.end())
+            rv2
+          }
+        })
     }
   }

@@ -447,6 +447,19 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
+      case MatrixExplodeCols(child, path) =>
+        val baseType = child.typ.colType.queryTyped(path.toList)._1
+        val fieldDep = Try(requestedType.colType.queryTyped(path.toList)._1) match {
+          case Success(t) => baseType match {
+            case ta: TArray => ta.copy(elementType = t)
+            case ts: TSet => ts.copy(elementType = t)
+          }
+          case Failure(_) => minimal(baseType)
+        }
+        val minChild = minimal(child.typ)
+        val dep = requestedType.copy(colType = unify(child.typ.colType,
+          requestedType.colType.insert(fieldDep, path.toList)._1.asInstanceOf[TStruct]))
+        memoizeMatrixIR(child, dep, memo)
     }
   }
 
