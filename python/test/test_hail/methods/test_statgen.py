@@ -1,10 +1,7 @@
 import unittest
-from math import sqrt
 from struct import unpack
 from subprocess import DEVNULL, call as syscall
-
 import numpy as np
-import pandas as pd
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1201,7 +1198,6 @@ class Tests(unittest.TestCase):
 
         # testing chrom 1 for h2, betas, p-values
         h2_fastlmm = 0.14276125
-        h2_std_error = 0.13770773  # FIXME migrate additional check
         beta_fastlmm = [0.012202061, 0.037718282, -0.033572693, 0.29171541, -0.045644170]
 
         # FastLMM p-values do not agree to high precision because FastLMM regresses
@@ -1224,7 +1220,14 @@ class Tests(unittest.TestCase):
         model.fit()
 
         assert np.isclose(model.h_sq, h2_fastlmm)
+
+        h2_std_error = 0.13770773  # hard coded having checked against plot
         assert np.isclose(model.h_sq_standard_error, h2_std_error)
+
+        h_sq_norm_lkhd = model.h_sq_normalized_lkhd()[1:-1]
+        argmax = int(100 * h2_fastlmm)
+        assert argmax <= np.argmax(h_sq_norm_lkhd) + 1 <= argmax + 1
+        assert np.isclose(np.sum(h_sq_norm_lkhd), 1.0)
 
         mt3_chr3_5var = mt_chr3.filter_rows(mt_chr3.locus.position < 2005)
         a = BlockMatrix.from_entry_expr(mt3_chr3_5var.GT.n_alt_alleles()).to_numpy().T
@@ -1284,7 +1287,6 @@ class Tests(unittest.TestCase):
 
         # testing chrom 3 for h2
         h2_fastlmm = 0.36733240
-        h2_std_error = 0.17409641  # FIXME migrate additional check
 
         g = BlockMatrix.from_entry_expr(mt_chr3.GT.n_alt_alleles()).to_numpy().T
         g_std = self._filter_and_standardize_cols(g)
@@ -1297,7 +1299,14 @@ class Tests(unittest.TestCase):
         model.fit()
 
         assert np.isclose(model.h_sq, h2_fastlmm)
+
+        h2_std_error = 0.17409641 # hard coded having checked against plot
         assert np.isclose(model.h_sq_standard_error, h2_std_error)
+
+        h_sq_norm_lkhd = model.h_sq_normalized_lkhd()[1:-1]
+        argmax = int(100 * h2_fastlmm)
+        assert argmax <= np.argmax(h_sq_norm_lkhd) + 1 <= argmax + 1
+        assert np.isclose(np.sum(h_sq_norm_lkhd), 1.0)
 
         # low rank
         l = g_std.T @ g_std
