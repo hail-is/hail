@@ -621,12 +621,12 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false): MatrixTable = {
-    val addedReference = rg.map { referenceGenome =>
+    val addedReference = rg.exists { referenceGenome =>
       if (!ReferenceGenome.hasReference(referenceGenome.name)) {
         ReferenceGenome.addReference(referenceGenome)
         true
       } else false
-    }.getOrElse(false)
+    }
 
     val reader = MatrixVCFReader(
       Array(file),

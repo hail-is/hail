@@ -1,6 +1,5 @@
 package is.hail.rvd
 
-import java.io.ByteArrayInputStream
 import java.util
 
 import is.hail.annotations._
@@ -10,15 +9,14 @@ import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
-import org.apache.commons.io.output.ByteArrayOutputStream
-import org.apache.spark.rdd.{RDD, ShuffledRDD}
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 import scala.language.existentials
+import scala.reflect.ClassTag
 
 abstract class RVDCoercer(val fullType: OrderedRVDType) {
   final def coerce(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD = {
@@ -534,12 +532,11 @@ object OrderedRVD {
       }
     }
 
-  // getKeys: RDD[RegionValue[kType]]
   def getKeys(
     typ: OrderedRVDType,
-    // rdd: RDD[RegionValue[rowType]]
     crdd: ContextRDD[RVDContext, RegionValue]
   ): ContextRDD[RVDContext, RegionValue] = {
+    // The region values in 'crdd' are of type `typ.rowType`
     val localType = typ
     crdd.cmapPartitions { (ctx, it) =>
       val wrv = WritableRegionValue(localType.kType, ctx.freshRegion)
@@ -552,16 +549,15 @@ object OrderedRVD {
 
   def getPartitionKeyInfo(
     typ: OrderedRVDType,
-    // keys: RDD[kType]
     keys: ContextRDD[RVDContext, RegionValue]
   ): Array[OrderedRVPartitionInfo] = {
-    // the region values in 'keys' are just the key type
+    // the region values in 'keys' are of typ `typ.keyType`
     val nPartitions = keys.getNumPartitions
     if (nPartitions == 0)
       return Array()
 
     val rng = new java.util.Random(1)
-    val partitionSeed = Array.tabulate[Int](nPartitions)(i => rng.nextInt())
+    val partitionSeed = Array.fill[Int](nPartitions)(rng.nextInt())
 
     val sampleSize = math.min(nPartitions * 20, 1000000)
     val samplesPerPartition = sampleSize / nPartitions
@@ -889,7 +885,7 @@ object OrderedRVD {
         assert(sortedKeyInfo(partitionIndex).sortedness >= OrderedRVPartitionInfo.TSORTED)
         (partitionIndex, (typ: OrderedRVDType) => {
           val f: Iterator[RegionValue] => Iterator[RegionValue] =
-          // In the first partition, drop elements that should go in the last if necessary
+          // In the first adjusted partition, drop elements that belong in the previous adjusted partition
             if (index == 0)
               if (bufferSize > 0 && pkOrd.equiv(min, sortedKeyInfo(adjustmentsBuffer(bufferSize - 1).head._1).max)) {
                 it: Iterator[RegionValue] =>

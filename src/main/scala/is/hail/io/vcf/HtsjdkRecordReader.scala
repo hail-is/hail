@@ -1,14 +1,9 @@
 package is.hail.io.vcf
 
-import java.util
-
 import htsjdk.variant.variantcontext.VariantContext
-import htsjdk.variant.vcf.VCFConstants
 import is.hail.annotations._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant._
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -68,13 +63,12 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     }
 
     if (infoType != null) {
-      // info
       rvb.startStruct()
       infoType.fields.foreach { f =>
         val a = vc.getAttribute(f.name)
         addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
       }
-      rvb.endStruct() // info
+      rvb.endStruct()
     }
   }
 }

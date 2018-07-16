@@ -7,7 +7,7 @@ import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -856,7 +856,7 @@ object LoadVCF {
       gzAsBGZ,
       forceGZ
     )
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
+    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, dropRows = false, reader))
   }
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
@@ -909,7 +909,7 @@ case class MatrixVCFReader(
 
       if (hd1.sampleIds.length != hd.sampleIds.length) {
         fatal(
-          s"""invalid sample ids: sample ids are different lengths.
+          s"""invalid sample IDs: expected same number of samples for all inputs.
              | ${ localInputs(0) } has ${ hd1.sampleIds.length } ids and
              | ${ file } has ${ hd.sampleIds.length } ids.
            """.stripMargin)
@@ -919,7 +919,7 @@ case class MatrixVCFReader(
         .zipWithIndex.foreach { case ((s1, s2), i) =>
         if (s1 != s2) {
           fatal(
-            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
+            s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
                |    ${ localInputs(0) }: $s1
                |    $file: $s2""".stripMargin)
         }
@@ -938,7 +938,8 @@ case class MatrixVCFReader(
              |   $file: ${ hd.vaSignature.toString }""".stripMargin)
     }
   } else {
-    warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
+    warn("Loading user-provided header file. The sample IDs, " +
+      "INFO fields, and FORMAT fields were not checked for agreement with input data.")
   }
 
   private val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
