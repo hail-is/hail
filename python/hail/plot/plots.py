@@ -3,13 +3,16 @@ from math import log, isnan
 import itertools
 import numpy as np
 from bokeh.models import *
-from bokeh.palettes import Category10, Spectral8
 from bokeh.plotting import figure
 
 from hail.expr import aggregators
 from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions import Expression
+
+palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+           '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+           '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
@@ -142,7 +145,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
     size : int
         Size of markers in screen space units.
     legend : bool
-        Whether or not to show the legend.
+        Whether or not to show the legend in the resulting figure.
 
     Returns
     -------
@@ -166,20 +169,12 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         source = ColumnDataSource(dict(x=x, y=y, label=label))
         factors = list(set(label))
 
-        if len(factors) > 10:
-            colors = itertools.cycle(Category10[10])
-            palette = list()
-            for i in range(0, len(factors)):
-                palette.append(next(colors))
-        else:
-            palette = Category10[len(factors)]
-
         if legend:
             leg = 'label'
         else:
             leg = None
 
-        color_mapper = CategoricalColorMapper(factors=factors, palette=palette)
+        color_mapper = CategoricalColorMapper(factors=factors, palette=palette[0:len(factors)])
         p.circle('x', 'y', alpha=0.5, source=source, size=size,
                  color={'field': 'label', 'transform': color_mapper}, legend=leg)
     else:
@@ -226,9 +221,9 @@ def manhattan(pvals, locus=None, title=None, size=4):
     Parameters
     ----------
     pvals : List[float] or :class:`.Float64Expression`
-        List of p-values to be plotted.
+        P-values to be plotted.
     locus : :class:`.LocusExpression`
-        Locus values.
+        Locus values to be plotted.
     title : str
         Title of the plot.
     size : int
