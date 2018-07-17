@@ -11,8 +11,6 @@ object Optimize {
     ir = Simplify(ir)
     ir = PruneDeadFields(ir)
 
-    log.info("ir: \n"+Pretty(ir))
-
     assert(ir.typ == ir0.typ, s"optimization changed type!\n  before: ${ir0.typ}\n  after:  ${ir.typ}")
 
     log.info("optimize: after:\n" + Pretty(ir))
