@@ -1,6 +1,5 @@
 from math import log, isnan
 
-import itertools
 import numpy as np
 from bokeh.models import *
 from bokeh.plotting import figure
@@ -13,7 +12,6 @@ from hail.expr.expressions import Expression
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
            '#ff3333', '#339fff', '#f3ff00', '#77ba7f', '#5b2c6f', '#ff00ff', '#000080', '#808000', '#800000', '#b40f7d',
            '#cdd1ff', '#000000', '#c8a370']
-
 
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
@@ -215,13 +213,13 @@ def qq(pvals):
     return p
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), locus=nullable(expr_locus()), title=nullable(str), size=int)
+@typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str), size=int)
 def manhattan(pvals, locus=None, title=None, size=4):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
     ----------
-    pvals : List[float] or :class:`.Float64Expression`
+    pvals : :class:`.Float64Expression`
         P-values to be plotted.
     locus : :class:`.LocusExpression`
         Locus values to be plotted.
@@ -234,10 +232,7 @@ def manhattan(pvals, locus=None, title=None, size=4):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
-    if isinstance(pvals, Expression):
-        pvals = -hail.log10(pvals)
-    else:
-        pvals = [log(val, 10) for val in pvals]
+    pvals = -hail.log10(pvals)
 
     if locus is None:
         locus = pvals._indices.source.locus
