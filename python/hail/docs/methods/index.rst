@@ -41,6 +41,7 @@ Methods
     linear_regression
     logistic_regression
     pca
+    correlation
 
 
 .. rubric:: Genetics

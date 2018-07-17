@@ -656,6 +656,45 @@ class Tests(unittest.TestCase):
         rrm = hl.realized_relationship_matrix(mt.GT).to_numpy()
         self.assertTrue(np.allclose(k, rrm))
 
+    def test_correlation_vs_hardcode(self):
+        data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
+                {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
+                {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
+                {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
+                {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
+                {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
+                {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
+                {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
+                {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
+                {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
+                {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
+                {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
+        ht = ht.transmute(**hl.parse_variant(ht.v))
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+
+        actual = hl.correlation(mt.GT.n_alt_alleles()).to_numpy()
+        expected = np.array([[1., -0.85280287, 0.42640143],
+                             [-0.85280287,  1., -0.5],
+                             [0.42640143, -0.5, 1.]])
+
+        self.assertTrue(np.allclose(actual, expected))
+
+    def test_correlation_vs_numpy(self):
+        n, m = 11, 10
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=2)
+        mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
+        mt = mt.filter_rows(mt.sd > 1e-30)
+
+        g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
+        g_std = self._filter_and_standardize_cols(g)
+        l = g_std.T @ g_std
+
+        cor = hl.correlation(mt.GT.n_alt_alleles()).to_numpy()
+
+        self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
+        self.assertTrue(np.allclose(l, cor))
+
     def test_hwe_normalized_pca(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
