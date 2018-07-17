@@ -71,11 +71,12 @@ class PruneSuite extends SparkSuite {
 
   val tab = TableLiteral(Table.parallelize(
     hc,
-    FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))))),
+    FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")),
     TStruct("1" -> TString(),
       "2" -> TArray(TStruct("2A" -> TInt32())),
       "3" -> TString(),
-      "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString())))),
+      "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
+      "5" -> TString()),
     None, None).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
 
   val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
@@ -314,6 +315,19 @@ class PruneSuite extends SparkSuite {
     checkMemo(ccbk,
       subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2"),
       Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))
+  }
+
+  @Test def testTableToMatrixTableMemo() {
+    val ttmt = TableToMatrixTable(tab,
+      rowKey = FastIndexedSeq("1"),
+      colKey = FastIndexedSeq("2"),
+      rowFields = FastIndexedSeq("5"),
+      colFields = FastIndexedSeq("4"),
+      partitionKey = FastIndexedSeq("1")
+    )
+
+    checkMemo(ttmt,
+      subsetMatrixTable(ttmt.typ, "sa.4.A"), Array(subsetTable(tab.typ, "row.1", "row.2.2A", "row.4.A")))
   }
 
   @Test def testMatrixExplodeRowsMemo() {
@@ -571,6 +585,22 @@ class PruneSuite extends SparkSuite {
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
+  }
+
+  @Test def testTableToMatrixTableRebuild() {
+    val ttmt = TableToMatrixTable(tr,
+      rowKey = FastIndexedSeq("1"),
+      colKey = FastIndexedSeq("2"),
+      rowFields = FastIndexedSeq("5"),
+      colFields = FastIndexedSeq("4"),
+      partitionKey = FastIndexedSeq("1")
+    )
+
+    checkRebuild(ttmt, subsetMatrixTable(ttmt.typ),
+      (_: BaseIR, r: BaseIR) => {
+        val ttmt = r.asInstanceOf[TableToMatrixTable]
+        ttmt.rowFields.isEmpty && ttmt.colFields.isEmpty && ttmt.typ.entryType.size == 0
+      })
   }
 
   val ts = TStruct(

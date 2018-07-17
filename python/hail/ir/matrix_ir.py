@@ -1,6 +1,6 @@
 import json
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id
+from hail.utils.java import escape_str, escape_id, parsable_strings
 
 class MatrixAggregateRowsByKey(MatrixIR):
     def __init__(self, child, expr):
@@ -184,6 +184,27 @@ class MatrixAggregateColsByKey(MatrixIR):
 
     def __str__(self):
         return '(MatrixAggregateColsByKey {} {})'.format(self.child, self.agg_ir)
+
+class TableToMatrixTable(MatrixIR):
+    def __init__(self, child, row_key, col_key, row_fields, col_fields, partition_key, n_partitions):
+        super().__init__()
+        self.child = child
+        self.row_key = row_key
+        self.col_key = col_key
+        self.row_fields = row_fields
+        self.col_fields = col_fields
+        self.partition_key = partition_key
+        self.n_partitions = n_partitions
+
+    def __str__(self):
+        return f'(TableToMatrixTable ' \
+               f'{parsable_strings(self.row_key)} ' \
+               f'{parsable_strings(self.col_key)} ' \
+               f'{parsable_strings(self.row_fields)} ' \
+               f'{parsable_strings(self.col_fields)} ' \
+               f'{parsable_strings(self.partition_key)} ' \
+               f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
+               f'{self.child})'
 
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):

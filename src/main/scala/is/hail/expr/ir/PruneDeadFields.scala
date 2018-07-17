@@ -397,6 +397,17 @@ object PruneDeadFields {
           colType = irDep.colType
         )
         memoizeMatrixIR(child, childDep, memo)
+      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+        val dependencyMap = (requestedType.rowType.fields.map(f => f.name -> f.typ) ++
+          requestedType.colType.fields.map(f => f.name -> f.typ) ++
+          requestedType.entryType.fields.map(f => f.name -> f.typ)).toMap
+        val rowDep = TStruct(child.typ.rowType.fields.flatMap { f =>
+         dependencyMap.get(f.name).map(t => f.name -> t)
+        }: _*)
+        val requestedChildType = child.typ.copy(
+          rowType = unify(child.typ.rowType, rowDep),
+          globalType = requestedType.globalType)
+        memoizeTableIR(child, requestedChildType, memo)
       case MatrixExplodeRows(child, path) =>
         val baseType = child.typ.rowType.queryTyped(path.toList)._1
         val fieldDep = Try(requestedType.rowType.queryTyped(path.toList)._1) match {
@@ -659,6 +670,17 @@ object PruneDeadFields {
       case MatrixAggregateColsByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateColsByKey(child2, rebuild(expr, child2.typ, memo))
+      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+        val child2 = rebuild(child, memo)
+        val childFieldSet = child2.typ.rowType.fieldNames.toSet
+        TableToMatrixTable(
+          child2,
+          rowKey,
+          colKey,
+          rowFields.filter(childFieldSet.contains),
+          colFields.filter(childFieldSet.contains),
+          partitionKey,
+          nPartitions)
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
