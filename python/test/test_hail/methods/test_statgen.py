@@ -1,5 +1,4 @@
 import unittest
-from struct import unpack
 from subprocess import DEVNULL, call as syscall
 import numpy as np
 
@@ -1077,7 +1076,7 @@ class Tests(unittest.TestCase):
 
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)
- 
+
         assert na_numpy.sum() <= 10
         assert na_lmm.sum() <= 10
         assert np.logical_xor(na_numpy, na_lmm).sum() <= 5
@@ -1300,7 +1299,7 @@ class Tests(unittest.TestCase):
 
         assert np.isclose(model.h_sq, h2_fastlmm)
 
-        h2_std_error = 0.17409641 # hard coded having checked against plot
+        h2_std_error = 0.17409641  # hard coded having checked against plot
         assert np.isclose(model.h_sq_standard_error, h2_std_error)
 
         h_sq_norm_lkhd = model.h_sq_normalized_lkhd()[1:-1]
