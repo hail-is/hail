@@ -698,7 +698,9 @@ object Parser extends JavaTokenParsers {
 
   def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
 
-  def ir_value_expr_1: Parser[ir.IR] =
+  def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
+
+  def ir_value_expr_1: Parser[ir.IR] = {
     "I32" ~> int32_literal ^^ { x => ir.I32(x) } |
       "I64" ~> int64_literal ^^ { x => ir.I64(x) } |
       "F32" ~> float32_literal ^^ { x => ir.F32(x) } |
@@ -713,6 +715,7 @@ object Parser extends JavaTokenParsers {
       "If" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
       "Let" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ value ~ body => ir.Let(name, value, body) } |
       "Ref" ~> type_expr ~ ir_identifier ^^ { case t ~ name => ir.Ref(name, t) } |
+      "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, null) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
       "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
@@ -748,6 +751,8 @@ object Parser extends JavaTokenParsers {
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
+  }
+
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>
     val vJSON = JsonMethods.parse(vJSONStr)
@@ -834,6 +839,17 @@ object Parser extends JavaTokenParsers {
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
 
   def parse_value_ir(s: String): IR = parse(ir_value_expr, s)
+
+  def parse_value_ir(s: String, ref_map: Map[String, (String, Type)]): IR = {
+    def add_type(node: IR): IR = node match {
+      case ir.Ref(name, null) =>
+        val (newName, typ) = ref_map(name)
+        ir.Ref(newName, typ)
+      case _ =>
+        ir.Recur(add_type)(node)
+    }
+    add_type(parse(ir_value_expr, s))
+  }
 
   def parse_table_ir(s: String): TableIR = parse(table_ir, s)
 
