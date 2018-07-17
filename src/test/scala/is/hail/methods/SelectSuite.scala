@@ -10,9 +10,9 @@ class SelectSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .annotateRowsExpr("foo" -> "AGG.count()")
 
-    val t1 = vds.selectRows("{locus: va.locus, alleles: va.alleles, AC: va.info.AC, AF: va.info.AF, foo2: AGG.count()}", None).rowsTable()
+    val t1 = vds.selectRowsAST("{locus: va.locus, alleles: va.alleles, AC: va.info.AC, AF: va.info.AF, foo2: AGG.count()}", None).rowsTable()
 
-    val t2 = vds.rowsTable().select("{locus: row.locus, alleles: row.alleles, AC: row.info.AC, AF: row.info.AF, foo2: row.foo}",
+    val t2 = vds.rowsTable().selectAST("{locus: row.locus, alleles: row.alleles, AC: row.info.AC, AF: row.info.AF, foo2: row.foo}",
       Some(FastIndexedSeq("locus", "alleles")), Some(2))
 
     assert(t1.same(t2))
@@ -21,16 +21,16 @@ class SelectSuite extends SparkSuite {
   @Test def test_key_change_typechecks() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-    vds.selectRows("{alleles: va.alleles}", Some(IndexedSeq("alleles") -> IndexedSeq())).typecheck()
+    vds.selectRowsAST("{alleles: va.alleles}", Some(IndexedSeq("alleles") -> IndexedSeq())).typecheck()
   }
 
   @Test def testCols() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .annotateColsExpr("foo" -> "AGG.count()", "bar" -> "{baz: 5}")
 
-    val t1 = vds.selectCols("{s: sa.s, baz: sa.bar.baz, foo2: AGG.count()}", None).colsTable()
+    val t1 = vds.selectColsAST("{s: sa.s, baz: sa.bar.baz, foo2: AGG.count()}", None).colsTable()
 
-    val t2 = vds.colsTable().select("{s: row.s, baz: row.bar.baz, foo2: row.foo}", Option(FastIndexedSeq("s")), Option(1))
+    val t2 = vds.colsTable().selectAST("{s: row.s, baz: row.bar.baz, foo2: row.foo}", Option(FastIndexedSeq("s")), Option(1))
 
     assert(t1.same(t2))
   }

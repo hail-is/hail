@@ -52,7 +52,7 @@ class ConcordanceSuite extends SparkSuite {
     {
       val mt = vds2.annotateRowsTable(newVariantMapping, "newVariant")
       val valueFields = mt.rowType.fieldNames.filter(!Set("locus", "alleles").contains(_)).map { n => s"`$n`: va.`$n`" }
-      mt.selectRows(s"{locus: va.newVariant.locus2, alleles: va.newVariant.alleles2, ${ valueFields.mkString(", ") }}", Some(IndexedSeq("locus"), IndexedSeq("alleles")))
+      mt.selectRowsAST(s"{locus: va.newVariant.locus2, alleles: va.newVariant.alleles2, ${ valueFields.mkString(", ") }}", Some(IndexedSeq("locus"), IndexedSeq("alleles")))
         .copy2(colValues = BroadcastIndexedSeq(newIds2.map(Annotation(_)), TArray(TStruct("s" -> TString())), sc),
       colType = TStruct("s" -> TString()))
     })

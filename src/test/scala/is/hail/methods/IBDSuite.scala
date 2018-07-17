@@ -100,7 +100,7 @@ class IBDSuite extends SparkSuite {
   object Spec extends Properties("IBD") {
     val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map { vds => vds.filterRowsExpr("va.locus.isAutosomal()") }
+      .map { vds => vds.filterRowsExprAST("va.locus.isAutosomal()") }
       .filter(vds => vds.countRows > 2 && vds.numCols >= 2)
 
     property("hail generates same result as plink 1.9") =
@@ -160,7 +160,7 @@ class IBDSuite extends SparkSuite {
   // Plink has default maf=0.01.  We try setting a different value
   @Test def ibdWithMafExpr(): Unit = {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val vds2 = vds.selectRows("annotate(va, { `dummy_maf`: 0.08 })", None)
+    val vds2 = vds.selectRowsAST("annotate(va, { `dummy_maf`: 0.08 })", None)
 
     val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("(GetField dummy_maf (Ref va))"))).collect().toMap
     val plink = runPlinkIBD(vds, maf = Some(0.08))

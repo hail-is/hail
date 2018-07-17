@@ -33,7 +33,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def annotateColsExpr(exprs: (String, String)*): MatrixTable =
-    vsm.selectCols(s"annotate(sa, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", None)
+    vsm.selectColsAST(s"annotate(sa, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", None)
 
   def annotateCols(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
     val (t, i) = vsm.insertSA(signature, List(root))
@@ -41,10 +41,10 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def annotateRowsExpr(exprs: (String, String)*): MatrixTable =
-    vsm.selectRows(s"annotate(va, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", None)
+    vsm.selectRowsAST(s"annotate(va, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})", None)
 
   def annotateEntriesExpr(exprs: (String, String)*): MatrixTable =
-    vsm.selectEntries(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
+    vsm.selectEntriesAST(s"annotate(g, {${ exprs.map { case (n, e) => s"`$n`: $e" }.mkString(",") }})")
 
   def querySA(code: String): (Type, Querier) =
     vsm.query(code, Annotation.COL_HEAD, vsm.colType)

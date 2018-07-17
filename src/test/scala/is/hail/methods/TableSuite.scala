@@ -118,7 +118,7 @@ class TableSuite extends SparkSuite {
     val kt2 = kt1.annotate("qPhen2" -> "row.qPhen.toFloat64 ** 2d",
       "NotStatus" -> """row.Status == "CASE"""",
       "X" -> "row.qPhen == 5")
-    val kt4 = kt2.select("{" + kt2.fieldNames.map(n => s"$n: row.$n").mkString(",") + "}", None, None).keyBy("qPhen", "NotStatus")
+    val kt4 = kt2.selectAST("{" + kt2.fieldNames.map(n => s"$n: row.$n").mkString(",") + "}", None, None).keyBy("qPhen", "NotStatus")
 
     val kt1columns = kt1.fieldNames.toSet
     val kt2columns = kt2.fieldNames.toSet
@@ -154,10 +154,10 @@ class TableSuite extends SparkSuite {
 
     val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
-    val kt2 = kt1.filter("row.field1 < 3", keep = true)
-    val kt3 = kt1.filter("row.field1 < 3 && row.field3 == 4", keep = true)
-    val kt4 = kt1.filter("row.field1 == 5 && row.field2 == 9 && row.field3 == 0", keep = false)
-    val kt5 = kt1.filter("row.field1 < -5 && row.field3 == 100", keep = true)
+    val kt2 = kt1.filterAST("row.field1 < 3", keep = true)
+    val kt3 = kt1.filterAST("row.field1 < 3 && row.field3 == 4", keep = true)
+    val kt4 = kt1.filterAST("row.field1 == 5 && row.field2 == 9 && row.field3 == 0", keep = false)
+    val kt5 = kt1.filterAST("row.field1 < -5 && row.field3 == 100", keep = true)
 
     assert(kt1.count == 3 && kt2.count == 2 && kt3.count == 1 && kt4.count == 2 && kt5.count == 0)
 
@@ -219,7 +219,7 @@ class TableSuite extends SparkSuite {
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(outputFile)
 
-    val noNull = ktLeft.filter("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy("Sample", "Status")
+    val noNull = ktLeft.filterAST("isDefined(row.qPhen) && isDefined(row.Status)", keep = true).keyBy("Sample", "Status")
     assert(noNull.join(noNull.rename(Map("qPhen" -> "qPhen_"), Map()), "outer").rdd.forall { r => !r.toSeq.contains(null) })
   }
 
@@ -262,7 +262,7 @@ class TableSuite extends SparkSuite {
 
     val kt1 = Table(hc, rdd, signature, Some(keyNames))
     kt1.typeCheck()
-    val kt2 = kt1.aggregateByKey(
+    val kt2 = kt1.aggregateByKeyAST(
       """{ A : AGG.map(r => r.field2.toInt64()).sum().toInt32()
         |, B : AGG.map(r => r.field2.toInt64()).sum().toInt32()
         |, C : AGG.map(r => (r.field2 + r.field3).toInt64()).sum().toInt32()
@@ -312,23 +312,23 @@ class TableSuite extends SparkSuite {
     val kt = Table(hc, rdd, signature, Some(keyNames))
     kt.typeCheck()
 
-    val select1 = kt.select("{field1: row.field1}", None, None).keyBy("field1")
+    val select1 = kt.selectAST("{field1: row.field1}", None, None).keyBy("field1")
     assert((select1.key.get sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
-    val select2 = kt.select("{Sample: row.Sample, field2: row.field2, field1: row.field1}", None, None).keyBy("Sample")
+    val select2 = kt.selectAST("{Sample: row.Sample, field2: row.field2, field1: row.field1}", None, None).keyBy("Sample")
     assert((select2.key.get sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select("{field2: row.field2, field1: row.field1, Sample: row.Sample}", None, None)
+    val select3 = kt.selectAST("{field2: row.field2, field1: row.field1, Sample: row.Sample}", None, None)
     assert(select3.key.isEmpty && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
-    val select4 = kt.select("{}", None, None)
+    val select4 = kt.selectAST("{}", None, None)
     assert(select4.key.isEmpty && (select4.fieldNames sameElements Array.empty[String]))
 
     for (select <- Array(select1, select2, select3, select4)) {
       select.export(tmpDir.createTempFile("select", "tsv"))
     }
 
-    intercept[Throwable](kt.select("{}", None, None).keyBy("Sample"))
+    intercept[Throwable](kt.selectAST("{}", None, None).keyBy("Sample"))
   }
 
   @Test def testExplode() {
@@ -366,7 +366,7 @@ class TableSuite extends SparkSuite {
       .rowsTable()
       .expandTypes()
       .flatten()
-      .select("{`info.MQRankSum`: row.`info.MQRankSum`}", None, None)
+      .selectAST("{`info.MQRankSum`: row.`info.MQRankSum`}", None, None)
       .copy2(globalSignature = TStruct.empty(), globals = BroadcastRow(Row(), TStruct.empty(), sc))
 
     val df = kt
@@ -407,7 +407,7 @@ class TableSuite extends SparkSuite {
     val statComb = localData.flatMap { ld => ld.qPhen }
       .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    val IndexedSeq(ktMean, ktStDev) = kt.aggregate(
+    val IndexedSeq(ktMean, ktStDev) = kt.aggregateAST(
       "[AGG.map(r => r.qPhen.toFloat64).stats().mean , " +
         "AGG.map(r => r.qPhen.toFloat64).stats().stdev]")._1.asInstanceOf[IndexedSeq[Double]]
 
@@ -416,7 +416,7 @@ class TableSuite extends SparkSuite {
 
     val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
 
-    val ktCounter = kt.aggregate("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
+    val ktCounter = kt.aggregateAST("AGG.map(r => r.Status).counter()")._1.asInstanceOf[Map[String, Long]]
 
     assert(ktCounter == counter)
   }
@@ -470,20 +470,20 @@ class TableSuite extends SparkSuite {
 
   @Test def testGlobalAnnotations() {
     val kt = Table.range(hc, 10)
-      .selectGlobal("annotate(global, {foo: [1,2,3]})")
+      .selectGlobalAST("annotate(global, {foo: [1,2,3]})")
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
-      .selectGlobal("annotate(global, {another: global.foo[1]})")
+      .selectGlobalAST("annotate(global, {another: global.foo[1]})")
 
-    assert(kt.filter("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
+    assert(kt.filterAST("global.dict.get(row.idx) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz" -> "global.foo").forall("row.baz == [1,2,3]"))
     assert(kt.forall("global.foo == [1,2,3]"))
     assert(kt.exists("global.dict.get(row.idx) == \"bar\""))
 
-    val gkt = kt.aggregateByKey(
+    val gkt = kt.aggregateByKeyAST(
       "{ x : AGG.map(r => global.dict.get(r.idx)).collect()[0] }",
       "x = AGG.map(r => global.dict.get(r.idx)).collect()[0]")
     assert(gkt.exists("row.x == \"bar\""))
-    assert(kt.select("{baz: global.dict.get(row.idx)}", None, None).exists("row.baz == \"bar\""))
+    assert(kt.selectAST("{baz: global.dict.get(row.idx)}", None, None).exists("row.baz == \"bar\""))
 
     val tmpPath = tmpDir.createTempFile(extension = "kt")
     kt.write(tmpPath)

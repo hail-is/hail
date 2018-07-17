@@ -409,7 +409,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     makeJSON(t, value)
   }
 
-  def aggregate(expr: String): (Any, Type) = {
+  def aggregateAST(expr: String): (Any, Type) = {
     val ec = aggEvalContext()
 
     val queryAST = Parser.parseToAST(expr, ec)
@@ -419,7 +419,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def aggregateIR(expr: String): (Any, Type) =
+  def aggregate(expr: String): (Any, Type) =
     aggregate(Parser.parse_value_ir(expr, typ.refMap))
 
   def aggregate(query: IR): (Any, Type) = {
@@ -443,7 +443,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       value))
   }
 
-  def selectGlobal(expr: String): Table = {
+  def selectGlobalAST(expr: String): Table = {
     val ec = EvalContext("global" -> globalSignature)
 
     val ast = Parser.parseToAST(expr, ec)
@@ -455,12 +455,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def selectGlobalIR(expr: String): Table = {
+  def selectGlobal(expr: String): Table = {
     val ir = Parser.parse_value_ir(expr, typ.refMap)
     new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
   }
 
-  def filter(cond: String, keep: Boolean): Table = {
+  def filterAST(cond: String, keep: Boolean): Table = {
     val ec = rowEvalContext()
     var filterAST = Parser.parseToAST(cond, ec)
     val pred = filterAST.toIROpt()
@@ -472,7 +472,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def filterIR(cond: String, keep: Boolean): Table = {
+  def filter(cond: String, keep: Boolean): Table = {
     var irPred = Parser.parse_value_ir(cond, typ.refMap)
     new Table(hc,
       TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
@@ -515,7 +515,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
     select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
-  def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+  def selectAST(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ec = rowEvalContext()
     val ast = Parser.parseToAST(expr, ec)
     assert(ast.`type`.isInstanceOf[TStruct])
@@ -526,7 +526,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def selectIR(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+  def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ir = Parser.parse_value_ir(expr, typ.refMap)
     new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
   }
@@ -575,7 +575,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, partitionKeys, nPartitions))
   }
 
-  def aggregateByKey(expr: String, oldAggExpr: String, nPartitions: Option[Int] = None): Table = {
+  def aggregateByKeyAST(expr: String, oldAggExpr: String, nPartitions: Option[Int] = None): Table = {
     val ec = aggEvalContext()
     val ast = Parser.parseToAST(expr, ec)
 
@@ -585,7 +585,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
-  def aggregateByKeyIR(expr: String, nPartitions: Option[Int] = None): Table = {
+  def aggregateByKey(expr: String): Table = {
     val x = Parser.parse_value_ir(expr, typ.refMap)
     new Table(hc, TableAggregateByKey(tir, x))
   }
