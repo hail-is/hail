@@ -134,6 +134,10 @@ def jiterable_to_list(it):
 def escape_str(s):
     return Env.jutils().escapePyString(s)
 
+def parsable_strings(strs):
+    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
+    return f"({strs})"
+
 
 _parsable_str = re.compile(r'[\w_]+')
 

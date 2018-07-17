@@ -465,6 +465,14 @@ class IRSuite extends SparkSuite {
         MatrixAggregateRowsByKey(read, newRow),
         range,
         vcf,
+        TableToMatrixTable(
+          tableRead,
+          Array("r1", "r2"),
+          Array("c1", "c2"),
+          Array("r1", "r2", "r3"),
+          Array("c1", "c2", "c3"),
+          Array("r1"),
+          None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
 
       xs.map(x => Array(x))

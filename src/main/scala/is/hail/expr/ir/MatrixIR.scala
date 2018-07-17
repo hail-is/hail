@@ -16,6 +16,8 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.json4s._
 
+import scala.collection.mutable
+
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
     val reader = MatrixNativeReader(path)
@@ -1689,6 +1691,189 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
     mv.copy(rvd = newRVD)
+  }
+}
+
+case class TableToMatrixTable(
+  child: TableIR,
+  rowKey: IndexedSeq[String],
+  colKey: IndexedSeq[String],
+  rowFields: IndexedSeq[String],
+  colFields: IndexedSeq[String],
+  partitionKey: IndexedSeq[String],
+  nPartitions: Option[Int] = None
+) extends MatrixIR {
+  // no fields used twice
+  private val fieldsUsed = mutable.Set.empty[String]
+  (rowKey ++ colKey ++ rowFields ++ colFields).foreach { f =>
+    assert(!fieldsUsed.contains(f))
+    fieldsUsed += f
+  }
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild) = newChildren
+    TableToMatrixTable(
+      newChild.asInstanceOf[TableIR],
+      rowKey,
+      colKey,
+      rowFields,
+      colFields,
+      partitionKey,
+      nPartitions
+    )
+  }
+
+
+  // need keys for rows and cols
+  assert(rowKey.nonEmpty)
+  assert(colKey.nonEmpty)
+
+  // check partition key is appropriate and not empty
+  assert(rowKey.startsWith(partitionKey))
+  assert(partitionKey.nonEmpty)
+
+  private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val entryFields = child.typ.rowType.fieldNames.filter(f => !fieldsUsed.contains(f))
+  private val entryType = TStruct(entryFields.map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+
+  val typ: MatrixType = MatrixType.fromParts(
+    child.typ.globalType,
+    colKey,
+    colType,
+    partitionKey,
+    rowKey,
+    rowType,
+    entryType)
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    val colKeyIndices = colKey.map(child.typ.rowType.fieldIdx(_)).toArray
+    val colValueIndices = colFields.map(child.typ.rowType.fieldIdx(_)).toArray
+    val localRowType = prev.typ.rowType
+    val localColData = prev.rvd.mapPartitions { it =>
+      it.map { rv =>
+        val colKey = SafeRow.selectFields(localRowType, rv)(colKeyIndices)
+        val colValues = SafeRow.selectFields(localRowType, rv)(colValueIndices)
+        colKey -> colValues
+      }
+    }.reduceByKey({ case (l, _) => l }) // poor man's distinctByKey
+      .collect()
+
+    val nCols = localColData.length
+
+    val colIndexBc = hc.sc.broadcast(localColData.zipWithIndex
+      .map { case ((k, _), i) => (k, i) }
+      .toMap)
+
+    val colDataConcat = localColData.map { case (keys, values) => Row.fromSeq(keys.toSeq ++ values.toSeq): Annotation }
+
+    // allFieldIndices has all row + entry fields
+    val allFieldIndices = rowKey.map(localRowType.fieldIdx(_)) ++
+      rowFields.map(localRowType.fieldIdx(_)) ++
+      entryFields.map(localRowType.fieldIdx(_))
+
+    // FIXME replace with field namespaces
+    val INDEX_UID = "*** COL IDX ***"
+
+    // row and entry fields, plus an integer index
+    val rowEntryStruct = rowType ++ entryType ++ TStruct(INDEX_UID -> TInt32Optional)
+
+    val rowEntryRVD = prev.rvd.mapPartitions(rowEntryStruct) { it =>
+      val ur = new UnsafeRow(localRowType)
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
+      it.map { rv =>
+        rvb.set(rv.region)
+
+        rvb.start(rowEntryStruct)
+        rvb.startStruct()
+
+        // add all non-col fields
+        var i = 0
+        while (i < allFieldIndices.length) {
+          rvb.addField(localRowType, rv, allFieldIndices(i))
+          i += 1
+        }
+
+        // look up col key, replace with int index
+        ur.set(rv)
+        val colKey = Row.fromSeq(colKeyIndices.map(ur.get))
+        val idx = colIndexBc.value(colKey)
+        rvb.addInt(idx)
+
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+
+    val ordType = new OrderedRVDType(partitionKey.toArray, rowKey.toArray ++ Array(INDEX_UID), rowEntryStruct)
+    val ordTypeNoIndex = new OrderedRVDType(partitionKey.toArray, rowKey.toArray, rowEntryStruct)
+    val ordered = OrderedRVD.coerce(ordType, rowEntryRVD)
+    val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
+    val orderedRKIndices = rowKey.map(rowEntryStruct.fieldIdx)
+    val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)
+
+    val idxIndex = rowEntryStruct.fieldIdx(INDEX_UID)
+    assert(idxIndex == rowEntryStruct.size - 1)
+
+    val newRVType = typ.rvRowType
+    val orderedRKStruct = typ.rowKeyStruct
+
+    val newRVD = ordered.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
+      val region = ctx.region
+      val rvb = ctx.rvb
+      val outRV = RegionValue(region)
+
+      OrderedRVIterator(
+        ordTypeNoIndex,
+        it,
+        ctx
+      ).staircase.map { rowIt =>
+        rvb.start(newRVType)
+        rvb.startStruct()
+        var i = 0
+        while (i < orderedRowIndices.length) {
+          rvb.addField(rowEntryStruct, rowIt.value, orderedRowIndices(i))
+          i += 1
+        }
+        rvb.startArray(nCols)
+        i = 0
+        for (rv <- rowIt) {
+          val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+          while (i < nextInt) {
+            rvb.setMissing()
+            i += 1
+          }
+          rvb.startStruct()
+          var j = 0
+          while (j < orderedEntryIndices.length) {
+            rvb.addField(rowEntryStruct, rv, orderedEntryIndices(j))
+            j += 1
+          }
+          rvb.endStruct()
+          i += 1
+        }
+        while (i < nCols) {
+          rvb.setMissing()
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+        outRV.setOffset(rvb.end())
+        outRV
+      }
+    })
+    MatrixValue(
+      typ,
+      prev.globals,
+      BroadcastIndexedSeq(colDataConcat, TArray(colType), hc.sc),
+      newRVD)
   }
 }
 

@@ -316,6 +316,19 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))
   }
 
+  @Test def testTableToMatrixTableMemo() {
+    val ttmt = TableToMatrixTable(tab,
+      rowKey = FastIndexedSeq("1"),
+      colKey = FastIndexedSeq("2"),
+      rowFields = FastIndexedSeq(),
+      colFields = FastIndexedSeq("4"),
+      partitionKey = FastIndexedSeq("1")
+    )
+
+    checkMemo(ttmt,
+      subsetMatrixTable(ttmt.typ, "sa.4.A"), Array(subsetTable(tab.typ, "row.1", "row.2.2A", "row.4.A")))
+  }
+
   @Test def testMatrixExplodeRowsMemo() {
     val mer = MatrixExplodeRows(mat, FastIndexedSeq("r3"))
     checkMemo(mer,
