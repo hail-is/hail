@@ -1657,7 +1657,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
     Examples
     --------
-    
+
     >>> grm = hl.genetic_relatedness_matrix(dataset.GT)
 
     Notes
@@ -1697,6 +1697,9 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     Note that variants for which the alternate allele frequency is zero or one are not
     normalizable, and therefore removed prior to calculating the GRM.
 
+    This method drops variants with :math:`p_j = 0` or math:`p_j = 1` before
+    computing kinship.
+
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
@@ -1710,29 +1713,20 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
         correspond to matrix table column index.
     """
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
+    check_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
-    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.select_rows(__AC=agg.sum(mt.__gt),
+                        __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
-    mt = mt.persist()
 
-    n_variants = mt.count_rows()
-    if n_variants == 0:
-        raise FatalError("Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
-    info("Computing GRM using {} variants.".format(n_variants))
-
-    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(
-        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt)))
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
-
     bm = BlockMatrix.from_entry_expr(normalized_gt)
-    mt.unpersist()
-    grm = bm.T @ bm
 
-    return grm
+    return (bm.T @ bm) / (bm.n_rows / 2.0)
 
 
 @typecheck(call_expr=expr_call)
@@ -1777,6 +1771,8 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     where RRM uses empirical variance, GRM uses expected variance under
     Hardy-Weinberg Equilibrium.
 
+    This method drops variants with zero variance before computing kinship.
+
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
@@ -1790,38 +1786,20 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
         correspond to matrix table column index.
     """
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
+    check_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
-
-    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                          __ACsq=agg.sum(mt.__gt * mt.__gt),
-                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
-
-    mt = mt.filter_rows((mt.__AC > 0) &
-                        (mt.__AC < 2 * mt.__n_called) &
-                        ((mt.__AC != mt.__n_called) |
-                        (mt.__ACsq != mt.__n_called)))
-    mt = mt.persist()
-
-    n_variants, n_samples = mt.count()
-
-    # once count_rows() adds partition_counts we can avoid annotating and filtering twice
-    if n_variants == 0:
-        raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
-    info("Computing RRM using {} variants.".format(n_variants))
-
-    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(__scaled_std_dev=hl.sqrt((mt.__ACsq + (n_samples - mt.__n_called) * mt.__mean_gt ** 2) /
-                                              n_samples - mt.__mean_gt ** 2))
+    mt = mt.select_rows(__AC=agg.sum(mt.__gt),
+                        __ACsq=agg.sum(mt.__gt * mt.__gt),
+                        __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
+                        __scaled_std_dev=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
+    mt = mt.filter_rows(mt.__scaled_std_dev > 1e-30)
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__scaled_std_dev, 0.0)
-
     bm = BlockMatrix.from_entry_expr(normalized_gt)
-    mt.unpersist()
 
-    rrm = (bm.T @ bm) / n_variants
-
-    return rrm
+    return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
 
 
 @typecheck(n_populations=int,
