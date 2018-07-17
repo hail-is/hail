@@ -40,7 +40,6 @@ Methods
 
     linear_regression
     logistic_regression
-    linear_mixed_regression
     pca
 
 

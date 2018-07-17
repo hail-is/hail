@@ -15,7 +15,6 @@ genetics
     :template: class.rst
 
     Call
-    KinshipMatrix
     Locus
     Pedigree
     ReferenceGenome
