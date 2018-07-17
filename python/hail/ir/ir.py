@@ -29,7 +29,7 @@ class I64(IR):
 
 
 class F32(IR):
-    @typecheck_method(x=float)
+    @typecheck_method(x=numeric)
     def __init__(self, x):
         super().__init__()
         self.x = x
@@ -39,7 +39,7 @@ class F32(IR):
 
 
 class F64(IR):
-    @typecheck_method(x=float)
+    @typecheck_method(x=numeric)
     def __init__(self, x):
         super().__init__()
         self.x = x
@@ -253,7 +253,7 @@ class ArraySort(IR):
         self.on_key = on_key
 
     def __str__(self):
-        return '(ArraySort {} {} {})'.format(self.on_key, self.ascending, self.a)
+        return '(ArraySort {} {} {})'.format(self.on_key, self.a, self.ascending)
 
 
 class ToSet(IR):

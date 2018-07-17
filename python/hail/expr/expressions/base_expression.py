@@ -427,7 +427,7 @@ class Expression(object):
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations = unify_all(self, other)
-        if name in {'+', '-', '*', '/', '//'} and not isinstance(ret_type, tarray):
+        if (name in {'+', '-', '*', '/', '//'}) and (ret_type in {tint32, tint64, tfloat32, tfloat64}):
             op = ApplyBinaryOp(name, self._ir, other._ir)
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             comp = ComparisonOp(name, self.dtype)
@@ -437,16 +437,11 @@ class Expression(object):
         return expressions.construct_expr(op, ret_type, indices, aggregations)
 
     def _bin_op_reverse(self, name, other, ret_type):
-        other = to_expr(other)
-        indices, aggregations = unify_all(self, other)
-        return expressions.construct_expr(ApplyBinaryOp(name, other._ir, self._ir), ret_type, indices, aggregations)
+        return to_expr(other)._bin_op(name, self, ret_type)
 
     def _field(self, name, ret_type):
         return expressions.construct_expr(GetField(self._ir, name),
                                           ret_type, self._indices, self._aggregations)
-
-    def _cast(self, ret_type):
-        return expressions.construct_expr(Cast(self._ir, ret_type), ret_type, self._indices, self._aggregations)
 
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)

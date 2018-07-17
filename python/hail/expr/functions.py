@@ -3234,12 +3234,11 @@ def sorted(collection,
                             .format(collection.dtype))
         return collection._method("sort", collection.dtype, ascending)
     else:
-
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = hir.ArraySort(collection._ir, ascending._ir, on_key=True)
+        ir = hir.ArraySort(with_key._ir, ascending._ir, on_key=True)
 
         indices, aggregations = unify_all(with_key, ascending)
-        construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
+        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
@@ -3351,7 +3350,7 @@ def float64(x) -> Float64Expression:
     if x.dtype == tfloat64:
         return x
     else:
-        return x._cast(tfloat64)
+        return x._method("toFloat64", tfloat64)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(x) -> Float32Expression:
@@ -3380,7 +3379,7 @@ def float32(x) -> Float32Expression:
     if x.dtype == tfloat32:
         return x
     else:
-        return x._cast(tfloat32)
+        return x._method("toFloat32", tfloat32)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(x) -> Int64Expression:
@@ -3409,7 +3408,7 @@ def int64(x) -> Int64Expression:
     if x.dtype == tint64:
         return x
     else:
-        return x._cast(tint64)
+        return x._method("toInt64", tint64)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
@@ -3439,7 +3438,7 @@ def int32(x) -> Int32Expression:
     if x.dtype == tint32:
         return x
     else:
-        return x._cast(tint32)
+        return x._method("toInt32", tint32)
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(x) -> Int32Expression:

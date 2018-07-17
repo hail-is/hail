@@ -56,8 +56,8 @@ class CollectionExpression(Expression):
                 raise TypeError("'exists' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
             return t
 
-        f = lambda accum, elt: accum | elt
-        return hl.array(self).fold(False, f)
+        f2 = lambda accum, elt: accum | f(elt)
+        return hl.array(self).fold(False, f2)
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def filter(self, f):
@@ -93,7 +93,7 @@ class CollectionExpression(Expression):
         def unify_ret(t):
             if t != tbool:
                 raise TypeError("'filter' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
-            return self._type
+            return hl.tarray(self._type.element_type)
 
         def transform_ir(array, name, body):
             return ArrayFilter(array, name, body)
@@ -140,6 +140,7 @@ class CollectionExpression(Expression):
             return self._type.element_type
 
         # FIXME make more efficient when we can call ArrayFold
+        print(self.dtype, self._ir)
         return hl.bind(lambda fa: hl.cond(hl.len(fa) > 0, fa[0], hl.null(self._type.element_type)),
                        hl.array(self.filter(f)))
 
@@ -184,17 +185,17 @@ class CollectionExpression(Expression):
         assert isinstance(self.dtype, tarray), self.dtype
         return array_flatmap
 
-    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any))
+    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any), unify_ret=nullable(func_spec(1, hail_type)))
     def fold(self, zero, f, unify_ret=None):
         indices, aggregations = unify_all(self, zero)
         accum_name = Env.get_uid()
         elt_name = Env.get_uid()
 
         accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
-        elt_ref = construct_variable(elt_name, self.element_type.dtype, self._indices, self._aggregations)
+        elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
         body = f(accum_ref, elt_ref)
 
-        ir = ArrayFold(self._ir, zero._ir, accum_name, elt_name, body)
+        ir = ArrayFold(self._ir, zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, body.dtype, indices, aggregations)
@@ -231,8 +232,8 @@ class CollectionExpression(Expression):
                 raise TypeError("'all' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
             return t
 
-        f = lambda accum, elt: accum & elt
-        return hl.array(self).fold(True, f)
+        f2 = lambda accum, elt: accum & f(elt)
+        return hl.array(self).fold(True, f2)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def group_by(self, f):
@@ -260,7 +261,7 @@ class CollectionExpression(Expression):
         """
 
         keyed = hl.array(self).map(lambda x: hl.tuple([f(x), x]))
-        return construct_expr(GroupByKey(keyed._ir), tdict(*keyed.element_type.types), keyed._indices, keyed._aggregations)
+        return construct_expr(GroupByKey(keyed._ir), tdict(*keyed.dtype.element_type.types), keyed._indices, keyed._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -1062,7 +1063,7 @@ class DictExpression(Expression):
         :class:`.DictExpression`
             Dictionary with transformed values.
         """
-        return hl.dict(hl.array(self).map(lambda elt: hl.struct(key=elt[0], value=f(elt[1]))))
+        return hl.dict(hl.array(self).map(lambda elt: hl.tuple([elt[0], f(elt[1])])))
 
     def size(self):
         """Returns the size of the dictionary.
@@ -2172,7 +2173,7 @@ class StringExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return self._method("matches", tbool, regex)
+        return to_expr(regex, tstr)._method("~", tbool, self)
 
 
 class CallExpression(Expression):
@@ -2753,7 +2754,7 @@ class IntervalExpression(Expression):
         -------
         :class:`.Expression`
         """
-        return self._field("end", self.dtype.point_type)
+        return self._method("end", self.dtype.point_type)
 
     @property
     def start(self):
@@ -2769,7 +2770,7 @@ class IntervalExpression(Expression):
         -------
         :class:`.Expression`
         """
-        return self._field("start", self.dtype.point_type)
+        return self._method("start", self.dtype.point_type)
 
     @property
     def includes_start(self):
@@ -2785,7 +2786,7 @@ class IntervalExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._field("includesStart", tbool)
+        return self._method("includesStart", tbool)
 
     @property
     def includes_end(self):
@@ -2801,7 +2802,7 @@ class IntervalExpression(Expression):
         -------
         :class:`.BooleanExpression`
         """
-        return self._field("includesEnd", tbool)
+        return self._method("includesEnd", tbool)
 
 
 scalars = {tbool: BooleanExpression,
