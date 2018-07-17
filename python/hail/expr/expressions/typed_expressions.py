@@ -1393,7 +1393,7 @@ class NumericExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the left side is smaller than the right side.
         """
-        return self._compare_op("<", other)
+        return self._bin_op_numeric("<", other, lambda x: tbool)
 
     @typecheck_method(other=expr_numeric)
     def __le__(self, other):
@@ -1415,7 +1415,7 @@ class NumericExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the left side is smaller than or equal to the right side.
         """
-        return self._compare_op("<=", other)
+        return self._bin_op_numeric("<=", other, lambda x: tbool)
 
     @typecheck_method(other=expr_numeric)
     def __gt__(self, other):
@@ -1437,7 +1437,7 @@ class NumericExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the left side is greater than the right side.
         """
-        return self._compare_op(">", other)
+        return self._bin_op_numeric(">", other, lambda x: tbool)
 
     @typecheck_method(other=expr_numeric)
     def __ge__(self, other):
@@ -1459,7 +1459,7 @@ class NumericExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the left side is greater than or equal to the right side.
         """
-        return self._compare_op(">=", other)
+        return self._bin_op_numeric(">=", other, lambda x: tbool)
 
     def __pos__(self):
         return self

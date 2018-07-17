@@ -424,17 +424,14 @@ class Expression(object):
     def _unary_op(self, name):
         return expressions.construct_expr(ApplyUnaryOp(name, self._ir), self._type, self._indices, self._aggregations)
 
-    def _compare_op(self, name, other):
-        other = to_expr(other)
-        indices, aggregations = unify_all(self, other)
-        op = ComparisonOp(name, self._type)
-        return expressions.construct_expr(ApplyComparisonOp(op, self._ir, other._ir), tbool, indices, aggregations)
-
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations = unify_all(self, other)
         if name in {'+', '-', '*', '/', '//'} and not isinstance(ret_type, tarray):
             op = ApplyBinaryOp(name, self._ir, other._ir)
+        elif name in {"==", "!=", "<", "<=", ">", ">="}:
+            comp = ComparisonOp(name, self.dtype)
+            op = ApplyComparisonOp(comp, self._ir, other._ir)
         else:
             op = Apply(name, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
@@ -547,7 +544,7 @@ class Expression(object):
         if not success:
             raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
                             f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._compare_op("==", right)
+        return left._bin_op("==", right, tbool)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -585,7 +582,7 @@ class Expression(object):
         if not success:
             raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
                             f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._compare_op("!=", right)
+        return left._bin_op("!=", right, tbool)
 
     def _to_table(self, name):
         source = self._indices.source

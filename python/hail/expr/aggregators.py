@@ -91,9 +91,9 @@ def _agg_func(name, aggregable, ret_type, constructor_args=(), init_op_args=None
         signature = agg_sig(aggregable, f(aggregable))
 
     ir = ApplyAggOp(seq_op._ir,
-                        list(map(get_ir, constructor_args)),
-                        None if init_op_args is None else list(map(get_ir, init_op_args)),
-                        signature)
+                    list(map(get_ir, constructor_args)),
+                    None if init_op_args is None else list(map(get_ir, init_op_args)),
+                    signature)
     indices, _ = unify_all(*args)
     return construct_expr(ir, ret_type, indices, aggregations.push(Aggregation(aggregable, *args)))
 
@@ -773,6 +773,7 @@ def explode(expr) -> Aggregable:
         Aggregable expression.
     """
     return expr._flat_map(lambda array: array)
+
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
 def filter(condition, expr) -> Aggregable:
