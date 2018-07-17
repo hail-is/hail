@@ -155,22 +155,6 @@ class RichMatrixTable(vsm: MatrixTable) {
       rowBlockSize)
   }
 
-  def lmmreg(kinshipMatrix: KinshipMatrix,
-    yExpr: String,
-    xField: String,
-    covExpr: Array[String] = Array.empty[String],
-    useML: Boolean = false,
-    rootGA: String = "lmmreg",
-    rootVA: String = "lmmreg",
-    runAssoc: Boolean = true,
-    delta: Option[Double] = None,
-    sparsityThreshold: Double = 1.0,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None): MatrixTable = {
-    LinearMixedRegression(vsm, kinshipMatrix, yExpr, xField, covExpr, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
-  }
-
   def skat(keyExpr: String,
     weightExpr: String,
     yExpr: String,

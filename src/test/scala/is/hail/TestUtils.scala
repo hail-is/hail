@@ -8,7 +8,7 @@ import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.linalg.BlockMatrix
-import is.hail.methods.{KinshipMatrix, SplitMulti}
+import is.hail.methods.SplitMulti
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -187,31 +187,6 @@ object TestUtils {
       Some(vals)
     } else
       None
-  }
-  
-  def computeRRM(hc: HailContext, vds: MatrixTable): KinshipMatrix = {
-    var mt = vds
-    mt = mt.selectEntries("{gt: g.GT.nNonRefAlleles()}")
-      .annotateRowsExpr("AC" -> "AGG.map(g => g.gt.toInt64()).sum().toInt32()",
-                        "ACsq" -> "AGG.map(g => (g.gt * g.gt).toInt64()).sum().toInt32()",
-                        "nCalled" -> "AGG.filter(g => isDefined(g.gt)).count().toInt32()")
-      .filterRowsExpr("(va.AC > 0) && (va.AC < 2 * va.nCalled) && ((va.AC != va.nCalled) || (va.ACsq != va.nCalled))")
-    
-    val (nVariants, nSamples) = mt.count()
-    require(nVariants > 0, "Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
-
-    mt = mt.annotateGlobal(nSamples.toDouble, TFloat64(), "nSamples")
-      .annotateRowsExpr("meanGT" -> "va.AC.toFloat64 / va.nCalled.toFloat64")
-    mt = mt.annotateRowsExpr("stdDev" ->
-      "((va.ACsq.toFloat64 + (global.nSamples - va.nCalled.toFloat64).toFloat64 * va.meanGT * va.meanGT) / global.nSamples - va.meanGT * va.meanGT).sqrt()")
-
-    val normalizedGT = "let norm_gt = (g.gt.toFloat64 - va.meanGT) / va.stdDev in if (isDefined(norm_gt)) norm_gt else 0.0"
-    val path = TempDir(hc.hadoopConf).createTempFile()
-    mt.selectEntries(s"{x: $normalizedGT}").writeBlockMatrix(path, "x")
-    val X = BlockMatrix.read(hc, path)
-    val rrm = X.transpose().dot(X).scalarDiv(nVariants).toIndexedRowMatrix()
-
-    KinshipMatrix(vds.hc, TString(), rrm, vds.stringSampleIds.map(s => s: Annotation).toArray, nVariants)
   }
 
   def exportPlink(mt: MatrixTable, path: String): Unit = {

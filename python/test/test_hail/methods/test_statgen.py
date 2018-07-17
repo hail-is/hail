@@ -625,184 +625,40 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[16117953].firth.beta, 0.5258, places=4)
         self.assertAlmostEqual(results[16117953].firth.p_value, 0.22562, places=4)
 
-    def test_grm(self):
-        tolerance = 0.001
+    def test_genetic_relatedness_matrix(self):
+        n, m = 100, 200
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
 
-        def load_id_file(path):
-            ids = []
-            with hl.hadoop_open(path) as f:
-                for l in f:
-                    r = l.strip().split('\t')
-                    self.assertEqual(len(r), 2)
-                    ids.append(r[1])
-            return ids
+        g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
 
-        def load_rel(ns, path):
-            rel = np.zeros((ns, ns))
-            with hl.hadoop_open(path) as f:
-                for i, l in enumerate(f):
-                    for j, n in enumerate(map(float, l.strip().split('\t'))):
-                        rel[i, j] = n
-                    self.assertEqual(j, i)
-                self.assertEqual(i, ns - 1)
-            return rel
+        col_means = np.mean(g, axis=0, keepdims=True)
+        col_filter = np.logical_and(col_means > 0, col_means < 2)
 
-        def load_grm(ns, nv, path):
-            m = np.zeros((ns, ns))
-            with utils.hadoop_open(path) as f:
-                i = 0
-                for l in f:
-                    row = l.strip().split('\t')
-                    self.assertEqual(int(row[2]), nv)
-                    m[int(row[0]) - 1, int(row[1]) - 1] = float(row[3])
-                    i += 1
+        g = g[:, np.squeeze(col_filter)]
+        col_means = col_means[col_filter]
+        col_sd_hwe = np.sqrt(col_means * (1 - col_means / 2))
+        g_std = (g - col_means) / col_sd_hwe
 
-                self.assertEqual(i, ns * (ns + 1) / 2)
-            return m
+        m1 = g_std.shape[1]
+        self.assertTrue(m1 < m)
+        k = (g_std @ g_std.T) / m1
 
-        def load_bin(ns, path):
-            m = np.zeros((ns, ns))
-            with utils.hadoop_open(path, 'rb') as f:
-                for i in range(ns):
-                    for j in range(i + 1):
-                        b = f.read(4)
-                        self.assertEqual(len(b), 4)
-                        m[i, j] = unpack('<f', bytearray(b))[0]
-                left = f.read()
-                self.assertEqual(len(left), 0)
-            return m
+        rrm = hl.genetic_relatedness_matrix(mt.GT).to_numpy()
 
-        b_file = utils.new_temp_file(prefix="plink")
-        rel_file = utils.new_temp_file(prefix="test", suffix="rel")
-        rel_id_file = utils.new_temp_file(prefix="test", suffix="rel.id")
-        grm_file = utils.new_temp_file(prefix="test", suffix="grm")
-        grm_bin_file = utils.new_temp_file(prefix="test", suffix="grm.bin")
-        grm_nbin_file = utils.new_temp_file(prefix="test", suffix="grm.N.bin")
+        self.assertTrue(np.allclose(k, rrm))
 
-        dataset = get_dataset()
-        n_samples = dataset.count_cols()
-        dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.n_alt_alleles()),
-                                        n_called=agg.count_where(hl.is_defined(dataset.GT)))
-        dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
-        dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
+    def test_realized_relationship_matrix(self):
+        n, m = 100, 200
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
 
-        hl.export_plink(dataset, b_file, ind_id=dataset.s)
+        g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
+        g_std = self._filter_and_standardize_cols(g)
+        m1 = g_std.shape[1]
+        self.assertTrue(m1 < m)
+        k = (g_std @ g_std.T) * (n / m1)
 
-        sample_ids = [row.s for row in dataset.cols().select().collect()]
-        n_variants = dataset.count_rows()
-        self.assertGreater(n_variants, 0)
-
-        grm = hl.genetic_relatedness_matrix(dataset.GT)
-        grm.export_id_file(rel_id_file)
-
-        ############
-        ### rel
-
-        p_file = utils.new_temp_file(prefix="plink")
-        syscall('''plink --bfile {} --make-rel --out {}'''
-                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
-        self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
-
-        grm.export_rel(rel_file)
-        self.assertEqual(load_id_file(rel_id_file), sample_ids)
-        self.assertTrue(np.allclose(load_rel(n_samples, p_file + ".rel"),
-                                    load_rel(n_samples, rel_file),
-                                    atol=tolerance))
-
-        ############
-        ### gcta-grm
-
-        p_file = utils.new_temp_file(prefix="plink")
-        syscall('''plink --bfile {} --make-grm-gz --out {}'''
-                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
-        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
-
-        grm.export_gcta_grm(grm_file)
-        self.assertTrue(np.allclose(load_grm(n_samples, n_variants, p_file + ".grm.gz"),
-                                    load_grm(n_samples, n_variants, grm_file),
-                                    atol=tolerance))
-
-        ############
-        ### gcta-grm-bin
-
-        p_file = utils.new_temp_file(prefix="plink")
-        syscall('''plink --bfile {} --make-grm-bin --out {}'''
-                .format(utils.uri_path(b_file), utils.uri_path(p_file)), shell=True, stdout=DEVNULL, stderr=DEVNULL)
-
-        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
-
-        grm.export_gcta_grm_bin(grm_bin_file, grm_nbin_file)
-
-        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.bin"),
-                                    load_bin(n_samples, grm_bin_file),
-                                    atol=tolerance))
-        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
-                                    load_bin(n_samples, grm_nbin_file),
-                                    atol=tolerance))
-
-    def test_block_matrix_from_numpy(self):
-        ndarray = np.matrix([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]], dtype=np.float64)
-
-        for block_size in [1, 2, 5, 1024]:
-            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
-            assert (block_matrix.n_rows == 3)
-            assert (block_matrix.n_cols == 5)
-            assert (block_matrix.to_numpy() == ndarray).all()
-
-    def test_rrm(self):
-        seed = 0
-        n1 = 100
-        m1 = 200
-        k = 3
-        fst = .9
-
-        dataset = hl.balding_nichols_model(k,
-                                           n1,
-                                           m1,
-                                           fst=(k * [fst]),
-                                           seed=seed,
-                                           n_partitions=4)
-        dataset = dataset.annotate_cols(s=hl.str(dataset.sample_idx)).key_cols_by('s')
-
-        def direct_calculation(ds):
-            ds = BlockMatrix.from_entry_expr(ds['GT'].n_alt_alleles()).to_numpy()
-
-            # filter out constant rows
-            isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
-            ds = np.array([row for row in ds if not isconst(row)])
-
-            nvariants, nsamples = ds.shape
-            sumgt = lambda r: sum([i for i in r if i >= 0])
-            sumsq = lambda r: sum([i ** 2 for i in r if i >= 0])
-
-            mean = [sumgt(row) / nsamples for row in ds]
-            stddev = [sqrt(sumsq(row) / nsamples - mean[i] ** 2)
-                      for i, row in enumerate(ds)]
-
-            mat = np.array([[(g - mean[i]) / stddev[i] for g in row] for i, row in enumerate(ds)])
-
-            rrm = (mat.T @ mat) / nvariants
-
-            return rrm
-
-        def hail_calculation(ds):
-            rrm = hl.realized_relationship_matrix(ds.GT)
-            fn = utils.new_temp_file(suffix='.tsv')
-
-            rrm.export_tsv(fn)
-            data = []
-            with open(utils.uri_path(fn)) as f:
-                f.readline()
-                for line in f:
-                    row = line.strip().split()
-                    data.append(list(map(float, row)))
-
-            return np.array(data)
-
-        manual = direct_calculation(dataset)
-        rrm = hail_calculation(dataset)
-
-        self.assertTrue(np.allclose(manual, rrm))
+        rrm = hl.realized_relationship_matrix(mt.GT).to_numpy()
+        self.assertTrue(np.allclose(k, rrm))
 
     def test_hwe_normalized_pca(self):
         mt = hl.balding_nichols_model(3, 100, 50)
@@ -1132,7 +988,7 @@ class Tests(unittest.TestCase):
                                            hl.zip_with_index(entries.prev_entries))))
 
     @staticmethod
-    def _standardize_cols(a):
+    def _filter_and_standardize_cols(a):
         a = a.copy()
         col_means = np.mean(a, axis=0, keepdims=True)
         a -= col_means
@@ -1171,7 +1027,7 @@ class Tests(unittest.TestCase):
 
         a = BlockMatrix.read(a_t_path).T.to_numpy()
         g = a[:,-n_orig_markers:]
-        g_std = self._standardize_cols(g)  # filters constant cols
+        g_std = self._filter_and_standardize_cols(g)
 
         n_markers = g_std.shape[1]
 
@@ -1264,7 +1120,7 @@ class Tests(unittest.TestCase):
 
         a = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).T.to_numpy()
         g = a[:, -n_orig_markers:]
-        g_std = self._standardize_cols(g)  # filters constant cols
+        g_std = self._filter_and_standardize_cols(g)
 
         n_markers = g_std.shape[1]
 
@@ -1358,7 +1214,7 @@ class Tests(unittest.TestCase):
         gamma_fastlmm = h2_fastlmm / (1 - h2_fastlmm)
 
         g = BlockMatrix.from_entry_expr(mt_chr1.GT.n_alt_alleles()).to_numpy().T
-        g_std = self._standardize_cols(g)
+        g_std = self._filter_and_standardize_cols(g)
 
         # full rank
         k = (g_std @ g_std.T) * (n / m)
@@ -1374,7 +1230,7 @@ class Tests(unittest.TestCase):
         a = BlockMatrix.from_entry_expr(mt3_chr3_5var.GT.n_alt_alleles()).to_numpy().T
 
         # FastLMM standardizes each variant to have mean 0 and variance 1.
-        a = self._standardize_cols(a) * np.sqrt(n)
+        a = self._filter_and_standardize_cols(a) * np.sqrt(n)
         pa = p @ a
 
         model.fit(log_gamma=np.log(gamma_fastlmm))
@@ -1431,7 +1287,7 @@ class Tests(unittest.TestCase):
         h2_std_error = 0.17409641  # FIXME migrate additional check
 
         g = BlockMatrix.from_entry_expr(mt_chr3.GT.n_alt_alleles()).to_numpy().T
-        g_std = self._standardize_cols(g)
+        g_std = self._filter_and_standardize_cols(g)
 
         # full rank
         k = (g_std @ g_std.T) * (n / m)

@@ -6,7 +6,6 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -612,523 +611,6 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names),
         root)
-
-    return MatrixTable(jmt).drop(*fields_to_drop)
-
-
-@typecheck(kinship_matrix=KinshipMatrix,
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           global_root=str,
-           row_root=str,
-           run_assoc=bool,
-           use_ml=bool,
-           delta=nullable(numeric),
-           sparsity_threshold=numeric,
-           n_eigenvectors=nullable(int),
-           dropped_variance_fraction=(nullable(float)))
-def linear_mixed_regression(kinship_matrix, y, x, covariates=[], global_root="lmmreg_global",
-                            row_root="lmmreg", run_assoc=True, use_ml=False, delta=None,
-                            sparsity_threshold=1.0, n_eigenvectors=None, dropped_variance_fraction=None) -> MatrixTable:
-    r"""Use a kinship-based linear mixed model to estimate the genetic component
-    of phenotypic variance (narrow-sense heritability) and optionally test each
-    variant for association.
-
-    **We plan to change the interface to this method in Hail 0.2 while maintaining its functionality.**
-
-    .. include:: ../_templates/req_tstring.rst
-
-    Examples
-    --------
-    Compute a :class:`.KinshipMatrix`, and use it to test variants for
-    association using a linear mixed model:
-
-    >>> lmm_ds = hl.read_matrix_table("data/example_lmmreg.vds")
-    >>> kinship_matrix = hl.realized_relationship_matrix(lmm_ds.filter_rows(lmm_ds.use_in_kinship)['GT'])
-    >>> lmm_ds = hl.linear_mixed_regression(kinship_matrix,
-    ...                                     y=lmm_ds.pheno,
-    ...                                     x=lmm_ds.GT.n_alt_alleles(),
-    ...                                     covariates=[lmm_ds.cov1, lmm_ds.cov2])
-
-    Notes
-    -----
-    Suppose the variant dataset saved at :file:`data/example_lmmreg.vds` has a
-    Boolean variant-indexed field `use_in_kinship` and numeric or Boolean
-    sample-indexed fields `pheno`, `cov1`, and `cov2`. Then the
-    :func:`.linear_mixed_regression` function in the above example will execute
-    the following four steps in order:
-
-    1) filter to samples in given kinship matrix to those for which
-       `ds.pheno`, `ds.cov`, and `ds.cov2` are all defined
-    2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
-    3) fit covariate coefficients and variance parameters in the
-       sample-covariates-only (global) model using restricted maximum
-       likelihood (`REML`_), storing results in a global field under
-       `lmmreg_global`
-    4) test each variant for association, storing results in a row-indexed
-       field under `lmmreg`
-
-    .. _REML: https://en.wikipedia.org/wiki/Restricted_maximum_likelihood
-
-    This plan can be modified as follows:
-
-    - Set `run_assoc` to :obj:`False` to not test any variants for association,
-      i.e. skip Step 5.
-    - Set `use_ml` to :obj:`True` to use maximum likelihood instead of REML in
-      Steps 4 and 5.
-    - Set the `delta` argument to manually set the value of :math:`\delta`
-      rather that fitting :math:`\delta` in Step 4.
-    - Set the `global_root` argument to change the global annotation root in
-      Step 4.
-    - Set the `row_root` argument to change the variant annotation root in
-      Step 5.
-
-    :func:`.linear_mixed_regression` adds 13 global annotations in Step 4.
-    These global annotations are stored under the prefix `global_root`, which is
-    by default ``lmmreg_global``. The prefix is not displayed in the table
-    below.
-
-    .. list-table::
-       :header-rows: 1
-
-       * - Field
-         - Type
-         - Value
-       * - `use_ml`
-         - bool
-         - true if fit by ML, false if fit by REML
-       * - `beta`
-         - dict<str, float64>
-         - map from *intercept* and the given `covariates` expressions to the
-           corresponding fit :math:`\beta` coefficients
-       * - `sigma_g_squared`
-         - float64
-         - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
-       * - `sigma_e_squared`
-         - float64
-         - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
-       * - `delta`
-         - float64
-         - fit ratio of variance component coefficients, :math:`\hat{\delta}`
-       * - `h_squared`
-         - float64
-         - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `n_eigenvectors`
-         - int32
-         - number of eigenvectors of kinship matrix used to fit model
-       * - `dropped_variance_fraction`
-         - float64
-         - specified value of `dropped_variance_fraction`
-       * - `eigenvalues`
-         - array<float64>
-         - all eigenvalues of the kinship matrix in descending order
-       * - `fit.standard_error_h_squared`
-         - float64
-         - standard error of :math:`\hat{h}^2` under asymptotic normal
-           approximation
-       * - `fit.normalized_likelihood_h_squared`
-         - array<float64>
-         - likelihood function of :math:`h^2` normalized on the discrete grid
-           ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
-           percentage ``i``.
-       * - `fit.max_log_likelihood`
-         - float64
-         - (restricted) maximum log likelihood corresponding to
-           :math:`\hat{\delta}`
-       * - `fit.log_delta_grid`
-         - array<float64>
-         - values of :math:`\mathrm{ln}(\delta)` used in the grid search
-       * - `fit.log_likelihood_values`
-         - array<float64>
-         - (restricted) log likelihood of :math:`y` given :math:`X` and
-           :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
-           :math:`\sigma_g^2`
-
-    These global annotations are also added to ``hail.log``, with the ranked
-    evals and :math:`\delta` grid with values in .tsv tabular form.  Use
-    ``grep 'linear mixed regression' hail.log`` to find the lines just above
-    each table.
-
-    If Step 5 is performed, :func:`.linear_mixed_regression` also adds four
-    linear regression row fields. These annotations are stored as `row_root`,
-    which defaults to ``lmmreg``. Once again, the prefix is not displayed in the
-    table.
-
-    +-------------------+---------+------------------------------------------------+
-    | Field             | Type    | Value                                          |
-    +===================+=========+================================================+
-    | `beta`            | float64 | fit genotype coefficient, :math:`\hat\beta_0`  |
-    +-------------------+---------+------------------------------------------------+
-    | `sigma_g_squared` | float64 | fit coefficient of genetic variance component, |
-    |                   |         | :math:`\hat{\sigma}_g^2`                       |
-    +-------------------+---------+------------------------------------------------+
-    | `chi_sq_stat`     | float64 | :math:`\chi^2` statistic of the likelihood     |
-    |                   |         | ratio test                                     |
-    +-------------------+---------+------------------------------------------------+
-    | `p_value`         | float64 | :math:`p`-value                                |
-    +-------------------+---------+------------------------------------------------+
-
-    Those variants that don't vary across the included samples (e.g., all
-    genotypes are HomRef) will have missing annotations.
-
-    **Performance**
-
-    Hail's initial version of :func:`.linear_mixed_regression` scales beyond
-    15k samples and to an essentially unbounded number of variants, making it
-    particularly well-suited to modern sequencing studies and complementary to
-    tools designed for SNP arrays. Analysts have used
-    :func:`.linear_mixed_regression` in research to compute kinship from 100k
-    common variants and test 32 million non-rare variants on 8k whole genomes in
-    about 10 minutes on `Google cloud`_.
-
-    .. _Google cloud:
-        http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80
-
-    While :func:`.linear_mixed_regression` computes the kinship matrix
-    :math:`K` using distributed matrix multiplication (Step 2), the full
-    `eigendecomposition`_ (Step 3) is currently run on a single core of master
-    using the `LAPACK routine DSYEVD`_, which we empirically find to be the most
-    performant of the four available routines; laptop performance plots showing
-    cubic complexity in :math:`n` are available `here
-    <https://github.com/hail-is/hail/pull/906>`__. On Google cloud,
-    eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for
-    8185 samples. If you see worse performance, check that LAPACK natives are
-    being properly loaded (see "BLAS and LAPACK" in Getting Started).
-
-    .. _LAPACK routine DSYEVD:
-        http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html
-
-    .. _eigendecomposition:
-        https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix
-
-    Given the eigendecomposition, fitting the global model (Step 4) takes on
-    the order of a few seconds on master. Association testing (Step 5) is fully
-    distributed by variant with per-variant time complexity that is completely
-    independent of the number of sample covariates and dominated by
-    multiplication of the genotype vector :math:`v` by the matrix of
-    eigenvectors :math:`U^T` as described below, which we accelerate with a
-    sparse representation of :math:`v`.  The matrix :math:`U^T` has size about
-    :math:`8n^2` bytes and is currently broadcast to each Spark executor. For
-    example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of
-    memory on a 16-core worker node with two 8-core executors. So for large
-    :math:`n`, we recommend using a high-memory configuration such as
-    *highmem* workers.
-
-    **Linear mixed model**
-
-    :func:`.linear_mixed_regression` estimates the genetic proportion of
-    residual phenotypic variance (narrow-sense heritability) under a
-    kinship-based linear mixed model, and then optionally tests each variant for
-    association using the likelihood ratio test. Inference is exact.
-
-    We first describe the sample-covariates-only model used to estimate
-    heritability, which we simply refer to as the *global model*. With
-    :math:`n` samples and :math:`c` sample covariates, we define:
-
-    - :math:`y = n \times 1` vector of phenotypes
-    - :math:`X = n \times c` matrix of sample covariates and intercept column
-      of ones
-    - :math:`K = n \times n` kinship matrix
-    - :math:`I = n \times n` identity matrix
-    - :math:`\beta = c \times 1` vector of covariate coefficients
-    - :math:`\sigma_g^2 =` coefficient of genetic variance component :math:`K`
-    - :math:`\sigma_e^2 =` coefficient of environmental variance component
-      :math:`I`
-    - :math:`\delta = \frac{\sigma_e^2}{\sigma_g^2} =` ratio of environmental
-      and genetic variance component coefficients
-    - :math:`h^2 = \frac{\sigma_g^2}{\sigma_g^2 + \sigma_e^2} = \frac{1}{1 + \delta} =`
-      genetic proportion of residual phenotypic variance
-
-    Under a linear mixed model, :math:`y` is sampled from the
-    :math:`n`-dimensional `multivariate normal distribution`_ with mean
-    :math:`X \beta` and variance components that are scalar multiples of
-    :math:`K` and :math:`I`:
-
-    .. math::
-
-      y \sim \mathrm{N}\left(X\beta, \sigma_g^2 K + \sigma_e^2 I\right)
-
-    .. _multivariate normal distribution:
-       https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-
-    Thus the model posits that the residuals :math:`y_i - X_{i,:}\beta` and
-    :math:`y_j - X_{j,:}\beta` have covariance :math:`\sigma_g^2 K_{ij}` and
-    approximate correlation :math:`h^2 K_{ij}`. Informally: phenotype residuals
-    are correlated as the product of overall heritability and pairwise kinship.
-    By contrast, standard (unmixed) linear regression is equivalent to fixing
-    :math:`\sigma_2` (equivalently, :math:`h^2`) at 0 above, so that all
-    phenotype residuals are independent.
-
-    **Caution:** while it is tempting to interpret :math:`h^2` as the
-    `narrow-sense heritability`_ of the phenotype alone, note that its value
-    depends not only the phenotype and genetic data, but also on the choice of
-    sample covariates.
-
-    .. _narrow-sense heritability: https://en.wikipedia.org/wiki/Heritability#Definition
-
-    **Fitting the global model**
-
-    The core algorithm is essentially a distributed implementation of the
-    spectral approach taken in `FastLMM`_. Let :math:`K = USU^T` be the
-    `eigendecomposition`_ of the real symmetric matrix :math:`K`. That is:
-
-    - :math:`U = n \times n` orthonormal matrix whose columns are the
-      eigenvectors of :math:`K`
-    - :math:`S = n \times n` diagonal matrix of eigenvalues of :math:`K` in
-      descending order. :math:`S_{ii}` is the eigenvalue of eigenvector
-      :math:`U_{:,i}`
-    - :math:`U^T = n \times n` orthonormal matrix, the transpose (and inverse)
-      of :math:`U`
-
-    .. _FastLMM: https://www.microsoft.com/en-us/research/project/fastlmm/
-
-    A bit of matrix algebra on the multivariate normal density shows that the
-    linear mixed model above is mathematically equivalent to the model
-
-    .. math::
-
-      U^Ty \sim \mathrm{N}\left(U^TX\beta, \sigma_g^2 (S + \delta I)\right)
-
-    for which the covariance is diagonal (e.g., unmixed). That is, rotating the
-    phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`)
-    in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with
-    independent residuals. For any particular value of :math:`\delta`, the
-    restricted maximum likelihood (REML) solution for the latter model can be
-    solved exactly in time complexity that is linear rather than cubic in
-    :math:`n`.  In particular, having rotated, we can run a very efficient
-    1-dimensional optimization procedure over :math:`\delta` to find the REML
-    estimate :math:`(\hat{\delta}, \hat{\beta}, \hat{\sigma}_g^2)` of the
-    triple :math:`(\delta, \beta, \sigma_g^2)`, which in turn determines
-    :math:`\hat{\sigma}_e^2` and :math:`\hat{h}^2`.
-
-    We first compute the maximum log likelihood on a :math:`\delta`-grid that
-    is uniform on the log scale, with :math:`\mathrm{ln}(\delta)` running from
-    -8 to 8 by 0.01, corresponding to :math:`h^2` decreasing from 0.9995 to
-    0.0005. If :math:`h^2` is maximized at the lower boundary then standard
-    linear regression would be more appropriate and Hail will exit; more
-    generally, consider using standard linear regression when :math:`\hat{h}^2`
-    is very small. A maximum at the upper boundary is highly suspicious and
-    will also cause Hail to exit. In any case, the log file records the table
-    of grid values for further inspection, beginning under the info line
-    containing "linear mixed regression: table of delta".
-
-    If the optimal grid point falls in the interior of the grid as expected,
-    we then use `Brent's method`_ to find the precise location of the maximum
-    over the same range, with initial guess given by the optimal grid point and
-    a tolerance on :math:`\mathrm{ln}(\delta)` of 1e-6. If this location
-    differs from the optimal grid point by more than 0.01, a warning will be
-    displayed and logged, and one would be wise to investigate by plotting the
-    values over the grid.
-
-    .. _Brent's method: https://en.wikipedia.org/wiki/Brent%27s_method
-
-    Note that :math:`h^2` is related to :math:`\mathrm{ln}(\delta)` through the
-    `sigmoid function`_. More precisely,
-
-    .. math::
-
-      h^2 = 1 - \mathrm{sigmoid}(\mathrm{ln}(\delta))
-          = \mathrm{sigmoid}(-\mathrm{ln}(\delta))
-
-    .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
-
-    Hence one can change variables to extract a high-resolution discretization
-    of the likelihood function of :math:`h^2` over :math:`[0, 1]` at the
-    corresponding REML estimators for :math:`\beta` and :math:`\sigma_g^2`, as
-    well as integrate over the normalized likelihood function using
-    `change of variables`_ and the `sigmoid differential equation`_.
-
-    .. _change of variables: https://en.wikipedia.org/wiki/Integration_by_substitution
-    .. _sigmoid differential equation: https://en.wikipedia.org/wiki/Sigmoid_function#Properties
-
-    For convenience, `lmmreg.fit.normalized_likelihood_h_squared` records the
-    the likelihood function of :math:`h^2` normalized over the discrete grid
-    :math:`0.01, 0.02, \ldots, 0.98, 0.99`. The length of the array is 101 so
-    that index ``i`` contains the likelihood at percentage ``i``. The values at
-    indices 0 and 100 are left undefined.
-
-    By the theory of maximum likelihood estimation, this normalized likelihood
-    function is approximately normally distributed near the maximum likelihood
-    estimate. So we estimate the standard error of the estimator of :math:`h^2`
-    as follows. Let :math:`x_2` be the maximum likelihood estimate of
-    :math:`h^2` and let :math:`x_ 1` and :math:`x_3` be just to the left and
-    right of :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the
-    corresponding values of the (unnormalized) log likelihood function. Setting
-    equal the leading coefficient of the unique parabola through these points
-    (as given by Lagrange interpolation) and the leading coefficient of the log
-    of the normal distribution, we have:
-
-    .. math::
-
-      \frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}
-           {(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\frac{1}{2 \sigma^2}
-
-    The standard error :math:`\hat{\sigma}` is then estimated by solving for
-    :math:`\sigma`.
-
-    Note that the mean and standard deviation of the (discretized or
-    continuous) distribution held in
-    `lmmreg.fit.normalized_likelihood_h_squared` will not coincide with
-    :math:`\hat{h}^2` and :math:`\hat{\sigma}`, since this distribution only
-    becomes normal in the infinite sample limit. One can visually assess
-    normality by plotting this distribution against a normal distribution with
-    the same mean and standard deviation, or use this distribution to
-    approximate credible intervals under a flat prior on :math:`h^2`.
-
-    **Testing each variant for association**
-
-    Fixing a single variant, we define:
-
-    - :math:`v = n \times 1` input vector, with missing values imputed as the
-      mean of the non-missing values
-    - :math:`X_v = \left[v | X \right] = n \times (1 + c)` matrix concatenating
-      :math:`v` and :math:`X`
-    - :math:`\beta_v = (\beta^0_v, \beta^1_v, \ldots, \beta^c_v) = (1 + c) \times 1`
-      vector of covariate coefficients
-
-    Fixing :math:`\delta` at the global REML estimate :math:`\hat{\delta}`, we
-    find the REML estimate :math:`(\hat{\beta}_v, \hat{\sigma}_{g, v}^2)` via
-    rotation of the model
-
-    .. math::
-
-      y \sim \mathrm{N}\left(X_v\beta_v, \sigma_{g,v}^2 (K + \hat{\delta} I)\right)
-
-    Note that the only new rotation to compute here is :math:`U^T v`.
-
-    To test the null hypothesis that the genotype coefficient :math:`\beta^0_v`
-    is zero, we consider the restricted model with parameters
-    :math:`((0, \beta^1_v, \ldots, \beta^c_v), \sigma_{g,v}^2)` within the full
-    model with parameters
-    :math:`(\beta^0_v, \beta^1_v, \ldots, \beta^c_v), \sigma_{g_v}^2)`, with
-    :math:`\delta` fixed at :math:`\hat\delta` in both. The latter fit is
-    simply that of the global model,
-    :math:`((0, \hat{\beta}^1, \ldots, \hat{\beta}^c), \hat{\sigma}_g^2)`. The
-    likelihood ratio test statistic is given by
-
-    .. math::
-
-      \chi^2 = n \, \mathrm{ln}\left(\frac{\hat{\sigma}^2_g}{\hat{\sigma}_{g,v}^2}\right)
-
-    and follows a chi-squared distribution with one degree of freedom. Here the
-    ratio :math:`\hat{\sigma}^2_g / \hat{\sigma}_{g,v}^2` captures the degree
-    to which adding the variant :math:`v` to the global model reduces the
-    residual phenotypic variance.
-
-    **Kinship Matrix**
-
-    FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can
-    be computed with :func:`.rrm`. However, any instance of
-    :class:`.KinshipMatrix` may be used, so long as
-    :meth:`~.KinshipMatrix.sample_list` contains the complete samples of the
-    caller variant dataset in the same order.
-
-    **Low-rank approximation of kinship for improved performance**
-
-    :func:`.linear_mixed_regression` can implicitly use a low-rank
-    approximation of the kinship matrix to more rapidly fit delta and the
-    statistics for each variant. The computational complexity per variant is
-    proportional to the number of eigenvectors used. This number can be
-    specified in two ways. Specify the parameter `n_eigenvectors` to use only the
-    top `n_eigenvectors` eigenvectors. Alternatively, specify
-    `dropped_variance_fraction` to use as many eigenvectors as necessary to
-    capture all but at most this fraction of the sample variance (also known as
-    the trace, or the sum of the eigenvalues). For example, setting
-    `dropped_variance_fraction` to 0.01 will use the minimal number of
-    eigenvectors to account for 99% of the sample variance. Specifying both
-    parameters will apply the more stringent (fewest eigenvectors) of the two.
-
-    **Further background**
-
-    For the history and mathematics of linear mixed models in genetics,
-    including `FastLMM`_, see `Christoph Lippert's PhD thesis
-    <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__.
-    For an investigation of various approaches to defining kinship, see
-    `Comparison of Methods to Account for Relatedness in Genome-Wide Association
-    Studies with Family-Based Data
-    <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
-
-
-    Parameters
-    ----------
-    kinship_matrix : :class:`.KinshipMatrix`
-        Kinship matrix to be used.
-    y : :class:`.Float64Expression`
-        Column-indexed response expression.
-    x : :class:`.Float64Expression`
-        Entry-indexed expression for input variable.
-    covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate expressions.
-    global_root : :obj:`str`
-        Global field root.
-    row_root : :obj:`str`
-        Row-indexed field root.
-    run_assoc : :obj:`bool`
-        If true, run association testing in addition to fitting the global model.
-    use_ml : :obj:`bool`
-        Use ML instead of REML throughout.
-    delta : :obj:`float` or :obj:`None`
-        Fixed delta value to use in the global model, overrides fitting delta.
-    sparsity_threshold : :obj:`float`
-        Genotype vector sparsity at or below which to use sparse genotype
-        vector in rotation (advanced).
-    n_eigenvectors : :obj:`int`
-        Number of eigenvectors of the kinship matrix used to fit the model.
-    dropped_variance_fraction : :obj:`float`
-        Upper bound on fraction of sample variance lost by dropping
-        eigenvectors with small eigenvalues.
-
-    Returns
-    -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in new global and (optionally) row-indexed fields.
-    """
-
-    mt = matrix_table_source('linear_mixed_regression/x', x)
-    check_entry_indexed('linear_mixed_regression/x', x)
-
-    analyze('linear_mixed_regression/y', y, mt._col_indices)
-
-    all_exprs = [y]
-    for e in covariates:
-        all_exprs.append(e)
-        analyze('linear_mixed_regression/covariates', e, mt._col_indices)
-
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
-    else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
-
-    y_field_name = '__y'
-    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
-
-    fields_to_drop.append(y_field_name)
-    fields_to_drop.extend(cov_field_names)
-
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
-
-    jmt = Env.hail().methods.LinearMixedRegression.apply(
-        mt._jvds,
-        kinship_matrix._jkm,
-        y_field_name,
-        x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        use_ml,
-        global_root,
-        row_root,
-        run_assoc,
-        joption(delta),
-        sparsity_threshold,
-        joption(n_eigenvectors),
-        joption(dropped_variance_fraction))
 
     return MatrixTable(jmt).drop(*fields_to_drop)
 
@@ -2170,7 +1652,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
 
 @typecheck(call_expr=expr_call)
-def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
+def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     """Compute the genetic relatedness matrix (GRM).
 
     Examples
@@ -2218,17 +1700,16 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call expression.
+        Entry-indexed call expression with columns corresponding
+        to samples.
 
     Returns
     -------
-    :class:`.genetics.KinshipMatrix`
-        Genetic relatedness matrix for all samples.
+    :class:`.BlockMatrix`
+        Genetic relatedness matrix for all samples. Row and column indices
+        correspond to matrix table column index.
     """
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
-    require_col_key_str(mt, 'genetic_relatedness_matrix')
-
-    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
@@ -2251,13 +1732,11 @@ def genetic_relatedness_matrix(call_expr) -> KinshipMatrix:
     mt.unpersist()
     grm = bm.T @ bm
 
-    return KinshipMatrix._from_block_matrix(grm,
-                                            col_keys,
-                                            n_variants)
+    return grm
 
 
 @typecheck(call_expr=expr_call)
-def realized_relationship_matrix(call_expr) -> KinshipMatrix:
+def realized_relationship_matrix(call_expr) -> BlockMatrix:
     """Computes the realized relationship matrix (RRM).
 
     Examples
@@ -2301,17 +1780,16 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
     Parameters
     ----------
     call_expr : :class:`.CallExpression`
-        Entry-indexed call expression.
+        Entry-indexed call expression on matrix table with columns corresponding
+        to samples.
 
     Returns
     -------
-    :class:`.genetics.KinshipMatrix`
-        Realized relationship matrix for all samples.
+    :class:`.BlockMatrix`
+        Realized relationship matrix for all samples. Row and column indices
+        correspond to matrix table column index.
     """
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
-    require_col_key_str(mt, 'realized_relationship_matrix')
-
-    col_keys = mt.cols().select()
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
 
@@ -2343,9 +1821,7 @@ def realized_relationship_matrix(call_expr) -> KinshipMatrix:
 
     rrm = (bm.T @ bm) / n_variants
 
-    return KinshipMatrix._from_block_matrix(rrm,
-                                            col_keys,
-                                            n_variants)
+    return rrm
 
 
 @typecheck(n_populations=int,
