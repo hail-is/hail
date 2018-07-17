@@ -879,9 +879,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def selectColsIR(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    val colsAST = Parser.parse_value_ir(expr, matrixType.refMap)
+    val ir = Parser.parse_value_ir(expr, matrixType.refMap)
     val newColKey = newKey.getOrElse(colKey)
-    new MatrixTable(hc, MatrixMapCols(ast, x, newKey))
+    new MatrixTable(hc, MatrixMapCols(ast, ir, newKey))
   }
 
   def selectRows(expr: String, newKey: java.util.ArrayList[java.util.ArrayList[String]]): MatrixTable = {
@@ -1354,7 +1354,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateEntriesIR(expr: String): (Annotation, Type) = {
-    val queryAST = Parser.parse_value_ir(expr, matrixType.refMap)
+    val qir = Parser.parse_value_ir(expr, matrixType.refMap)
     val et = entriesTable()
 
     val entriesRowType = et.typ.rowType

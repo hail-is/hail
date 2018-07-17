@@ -162,7 +162,7 @@ class IBDSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val vds2 = vds.selectRows("annotate(va, { `dummy_maf`: 0.08 })", None)
 
-    val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("va.dummy_maf"))).collect().toMap
+    val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("(GetField dummy_maf (Ref va))"))).collect().toMap
     val plink = runPlinkIBD(vds, maf = Some(0.08))
 
     mapSameElements(us, plink,
