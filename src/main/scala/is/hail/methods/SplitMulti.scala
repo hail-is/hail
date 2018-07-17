@@ -197,7 +197,54 @@ abstract class SplitMultiPartitionContext(
 object SplitMulti {
 
   def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
-    val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
+    val vEC = EvalContext(Map(
+      "global" -> (0, vsm.globalType),
+      "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
+      "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
+      "va" -> (3, vsm.rvRowType),
+      "aIndex" -> (4, TInt32()),
+      "wasSplit" -> (5, TBoolean())))
+
+    val gEC = EvalContext(Map(
+      "global" -> (0, vsm.globalType),
+      "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
+      "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
+      "va" -> (3, vsm.rvRowType),
+      "aIndex" -> (4, TInt32()),
+      "wasSplit" -> (5, TBoolean()),
+      "g" -> (6, vsm.entryType)))
+    val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
+
+    val rowASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
+    val entryASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
+
+    val rowIRs = rowASTs.flatMap { case (name, ast) =>
+      for (ir <- ast.toIROpt()) yield {
+        (name, ir)
+      }
+    }
+    val entryIRs = entryASTs.flatMap { case (name, ast) =>
+      for (ir <- ast.toIROpt()) yield {
+        (name, ir)
+      }
+    }
+
+    val splitmulti = new SplitMulti(vsm, rowIRs, entryIRs, keepStar, leftAligned)
+    splitmulti.split()
+  }
+
+  def IR(vsm: MatrixTable, variantExpr: Array[(String, String)], genotypeExpr: Array[(String, String)], keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
+    val refMap = Map(
+      "global" -> ("global", vsm.globalType),
+      "newLocus" -> ("newLocus", vsm.rowKeyStruct.types(0)),
+      "newAlleles" -> ("newAlleles", vsm.rowKeyStruct.types(1)),
+      "va" -> ("va", vsm.rvRowType),
+      "aIndex" -> ("aIndex", TInt32()),
+      "wasSplit" -> ("wasSplit", TBoolean()),
+      "g" -> ("g", vsm.entryType))
+
+    def extractIR(elt: (String, String)): (String, IR) = elt._1 -> Parser.parse_value_ir(elt._2, refMap)
+    val splitmulti = new SplitMulti(vsm, variantExpr.map(extractIR), genotypeExpr.map(extractIR), keepStar, leftAligned)
     splitmulti.split()
   }
 
@@ -214,41 +261,9 @@ object SplitMulti {
   }
 }
 
-class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
-  val vEC = EvalContext(Map(
-    "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
-    "va" -> (3, vsm.rvRowType),
-    "aIndex" -> (4, TInt32()),
-    "wasSplit" -> (5, TBoolean())))
-
-  val gEC = EvalContext(Map(
-    "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
-    "va" -> (3, vsm.rvRowType),
-    "aIndex" -> (4, TInt32()),
-    "wasSplit" -> (5, TBoolean()),
-    "g" -> (6, vsm.entryType)))
-  val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
-
-  val rowASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
-  val entryASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
-
-  val rowIRs = rowASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIROpt()) yield {
-      (name, ir)
-    }
-  }
-  val entryIRs = entryASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIROpt()) yield {
-      (name, ir)
-    }
-  }
+class SplitMulti(vsm: MatrixTable, rowIRs: Array[(String, IR)], entryIRs: Array[(String, IR)], keepStar: Boolean, leftAligned: Boolean) {
 
   val (newMatrixType, rowF): (MatrixType, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) = {
-    assert(rowASTs.length == rowIRs.length && entryASTs.length == entryIRs.length)
     val ir = new SplitMultiRowIR(rowIRs, entryIRs, vsm.matrixType)
     (ir.newMatrixType, ir.splitRow)
   }
