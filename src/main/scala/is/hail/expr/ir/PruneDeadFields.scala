@@ -670,6 +670,17 @@ object PruneDeadFields {
       case MatrixAggregateColsByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateColsByKey(child2, rebuild(expr, child2.typ, memo))
+      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+        val child2 = rebuild(child, memo)
+        val childFieldSet = child2.typ.rowType.fieldNames.toSet
+        TableToMatrixTable(
+          child2,
+          rowKey,
+          colKey,
+          rowFields.filter(childFieldSet.contains),
+          colFields.filter(childFieldSet.contains),
+          partitionKey,
+          nPartitions)
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
