@@ -464,9 +464,9 @@ class LinearMixedModel(object):
     def _estimate_h_sq_standard_error(self):
         assert self._fitted
 
-        epsilon = 1e-4  # parabolic interpolation radius
+        epsilon = 1e-4  # parabolic interpolation radius in log_gamma space
         lg = self.log_gamma + np.array([-epsilon, 0.0, epsilon])
-        h2 = 1 / (1 + np.exp(lg))
+        h2 = 1 / (1 + np.exp(-lg))
         nll = [self.compute_neg_log_reml(lgi) for lgi in lg]
 
         if nll[1] > nll[0] or nll[1] > nll[2]:
@@ -475,12 +475,51 @@ class LinearMixedModel(object):
                             f'\n    but found smaller value of {nll[i]} at log_gamma={lg[i]}.'
                             f'\n    Investigate by plotting the negative log likelihood function.')
 
-        # Asymptotically near MLE, nLL = a * x^2 + b * x + c with a = 1 / (2 * se^2)
+        # Asymptotically near MLE, nLL = a * h2^2 + b * h2 + c with a = 1 / (2 * se^2)
         # By Lagrange interpolation:
         a = ((h2[2] * (nll[1] - nll[0]) + h2[1] * (nll[0] - nll[2]) + h2[0] * (nll[2] - nll[1])) /
              ((h2[1] - h2[0]) * (h2[0] - h2[2]) * (h2[2] - h2[1])))
 
         return 1 / np.sqrt(2 * a)
+
+    def h_sq_normalized_lkhd(self):
+        r"""Estimate the normalized likelihood of :math:`\mathit{h}^2` over the
+        discrete grid of percentiles.
+
+        Examples
+        --------
+        Plot the estimated normalized likelihood function:
+
+        >>> import matplotlib.pyplot as plt                     # doctest: +SKIP
+        >>> plt.plot(range(101), model.h_sq_normalized_lkhd())  # doctest: +SKIP
+
+        Notes
+        -----
+        This method may be used to approximate and visualize the posterior on
+        :math:`\mathit{h}^2` under a flat prior.
+
+        The resulting ndarray ``a`` has length 101 with ``a[i]`` equal to the
+        maximum likelihood over all :math:`\beta` and :math:`\sigma^2` with
+        :math:`\mathit{h}^2` constrained to ``i / 100``. The values for
+        ``1 <= i <= 99`` are normalized to sum to 1, and ``a[0]`` and ``a[100]``
+        are set to ``nan``.
+
+        Returns
+        -------
+        :class:`ndarray` of :obj:`float64`
+            Normalized likelihood values for :math:`\mathit{h}^2`.
+        """
+        ll = np.zeros(101, dtype = np.float64)
+        ll[0], ll[100] = np.nan, np.nan
+
+        for h2 in range(1, 100):
+            gamma = h2 / (100.0 - h2)
+            ll[h2] = -self.compute_neg_log_reml(np.log(gamma))
+
+        ll -= np.max(ll[1:-1])
+        l = np.exp(ll)
+        l /= np.sum(l[1:-1])
+        return l
 
     @typecheck_method(pa_t_path=str,
                       a_t_path=nullable(str),
