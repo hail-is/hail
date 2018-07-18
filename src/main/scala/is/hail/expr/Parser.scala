@@ -658,6 +658,9 @@ object Parser extends JavaTokenParsers {
   def ir_comparison_op: Parser[ir.ComparisonOp] =
     "(" ~> ir_identifier ~ type_expr ~ type_expr <~ ")" ^^ { case x ~ t1 ~ t2 => ir.ComparisonOp.fromStringAndTypes(x, t1, t2) }
 
+  def ir_untyped_comparison_op: Parser[String] =
+    "(" ~> ir_identifier <~ ")" ^^ { x => x }
+
   def ir_agg_op: Parser[ir.AggOp] =
     ir_identifier ^^ { x => ir.AggOp.fromString(x) }
 
@@ -719,6 +722,7 @@ object Parser extends JavaTokenParsers {
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ expr_with_map ~ expr_with_map ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ expr_with_map ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
       "ApplyComparisonOp" ~> ir_comparison_op ~ expr_with_map ~ expr_with_map ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
+      "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ expr_with_map ~ expr_with_map ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
       "MakeArray" ~> type_expr ~ ir_children(ref_map) ^^ { case t ~ args => ir.MakeArray(args, t.asInstanceOf[TArray]) } |
       "ArrayRef" ~> expr_with_map  ~ expr_with_map ^^ { case a ~ i => ir.ArrayRef(a, i) } |
       "ArrayLen" ~> expr_with_map ^^ { a => ir.ArrayLen(a) } |

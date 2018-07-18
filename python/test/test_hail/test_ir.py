@@ -41,7 +41,7 @@ class IRTests(unittest.TestCase):
             ir.Ref('x', hl.tint32),
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
-            ir.ApplyComparisonOp(ir.ComparisonOp('EQ', hl.tint32), i, j),
+            ir.ApplyComparisonOp(ir.ComparisonOp('EQ'), i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
