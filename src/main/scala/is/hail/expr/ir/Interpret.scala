@@ -615,21 +615,18 @@ object Interpret {
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
           }
-          value.rvd.crdd.cmapPartitions { (ctx, it) =>
+          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
             val r = ctx.freshRegion
-            // add globals to region value
             val rvb = new RegionValueBuilder()
             rvb.set(r)
             rvb.start(localGlobalSignature)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
-
-            it.foreach { rv =>
-              val rowOffset = rv.offset
-              seqOps()(rv.region, rvAggs, globalsOffset, false, rowOffset, false)
-            }
-            Iterator.single(rvAggs)
-          }.fold(zval, combOp)
+            val seqOpsFunction = seqOps()
+            (globalsOffset, seqOpsFunction)
+          })( { case ((globalsOffset, seqOpsFunction), comb, rv) =>
+            seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
+          }, combOp)
         } else
           Array.empty[RegionValueAggregator]
 
@@ -659,8 +656,8 @@ object Interpret {
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
           "global", child.typ.globalType,
           "global", child.typ.globalType,
-          "va", child.typ.rvRowType,
           "sa", colArrayType,
+          "va", child.typ.rvRowType,
           MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) =>
@@ -702,7 +699,7 @@ object Interpret {
             rvAggs1
           }
 
-          value.rvd.crdd.cmapPartitions { (ctx, it) =>
+          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
@@ -712,12 +709,11 @@ object Interpret {
             rvb.start(localColsType)
             rvb.addAnnotation(localColsType, colValuesBc.value)
             val colsOffset = rvb.end()
-
-            it.foreach { rv =>
-              seqOps()(rv.region, rvAggs, globalsOffset, false, rv.offset, false, colsOffset, false)
-            }
-            Iterator.single(rvAggs)
-          }.fold(zval, combOp)
+            val seqOpsFunction = seqOps()
+            (globalsOffset, colsOffset, seqOpsFunction)
+          })( { case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
+            seqOpsFunction(rv.region, comb, globalsOffset, false, colsOffset, false, rv.offset, false)
+          }, combOp)
         } else
           Array.empty[RegionValueAggregator]
 
