@@ -54,53 +54,48 @@ object BgenRDDPartitions extends Logging {
       Array.empty
     } else {
       val partitions = new ArrayBuilder[Partition]()
-      var partitionIndex = 0
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         val nPartitions = fileNPartitions(fileIndex)
-        val maxRecordsPerPartition = (file.nVariants + nPartitions - 1) / nPartitions
         using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
           includedVariantsPerFile.get(file.path) match {
             case None =>
-              val startOffsets =
-                index.positionOfVariants(
-                  Array.tabulate(nPartitions)(i => i * maxRecordsPerPartition))
+              val partNVariants = partition(file.nVariants, nPartitions)
+              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+              val partFirstByteOffset = index.positionOfVariants(partFirstVariantIndex)
               var i = 0
               while (i < nPartitions) {
                 partitions += BgenPartitionWithoutFilter(
                   file.path,
                   file.compressed,
-                  i * maxRecordsPerPartition,
-                  startOffsets(i),
-                  if (i < nPartitions - 1) startOffsets(i + 1) else file.fileByteSize,
-                  partitionIndex,
+                  partFirstVariantIndex(i),
+                  partFirstByteOffset(i),
+                  if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
+                  i,
                   sHadoopConfBc,
                   settings
                 )
-                partitionIndex += 1
                 i += 1
               }
             case Some(variantIndices) =>
-              val startOffsets = index.positionOfVariants(variantIndices.toArray)
+              val partNVariants = partition(variantIndices.length, nPartitions)
+              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+              val variantIndexByteOffset = index.positionOfVariants(variantIndices.toArray)
               var i = 0
               while (i < nPartitions) {
-                val left = i * maxRecordsPerPartition
-                val rightExclusive = if (i < nPartitions - 1)
-                  (i + 1) * maxRecordsPerPartition
-                else
-                  startOffsets.length
+                var firstVariantIndex = partFirstVariantIndex(i)
+                var lastVariantIndex = firstVariantIndex + partNVariants(i)
                 partitions += BgenPartitionWithFilter(
                   file.path,
                   file.compressed,
-                  partitionIndex,
-                  startOffsets.slice(left, rightExclusive),
-                  variantIndices.slice(left, rightExclusive).toArray,
+                  i,
+                  variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
+                  variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
                   sHadoopConfBc,
                   settings
                 )
                 i += 1
-                partitionIndex += 1
               }
           }
         }
