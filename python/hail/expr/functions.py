@@ -1,9 +1,9 @@
 import builtins
 import math
+from typing import *
 
 import hail
 import hail as hl
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *

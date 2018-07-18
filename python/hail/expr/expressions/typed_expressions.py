@@ -5,7 +5,6 @@ from hail.expr.expressions import Expression, to_expr, ExpressionException, \
     unify_all, Indices, Aggregation
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
-from hail.expr.expr_ast import AST
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import *
@@ -2823,21 +2822,6 @@ typ_to_expr = {
     tstruct: StructExpression,
     ttuple: TupleExpression
 }
-
-
-@typecheck(ast=AST, type=HailType, indices=Indices, aggregations=LinkedList)
-def construct_expr_ast(ast: AST,
-                       type: HailType,
-                       indices: Indices = Indices(),
-                       aggregations: LinkedList = LinkedList(Aggregation)):
-    if isinstance(type, tarray) and is_numeric(type.element_type):
-        return ArrayNumericExpression(ast, type, indices, aggregations)
-    elif type in scalars:
-        return scalars[type](ast, type, indices, aggregations)
-    elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ast, type, indices, aggregations)
-    else:
-        raise NotImplementedError(type)
 
 
 @typecheck(ir=IR, type=nullable(HailType), indices=Indices, aggregations=LinkedList)

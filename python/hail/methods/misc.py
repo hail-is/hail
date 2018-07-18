@@ -1,5 +1,4 @@
 import hail as hl
-from hail.expr.expr_ast import VariableReference
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.matrixtable import MatrixTable

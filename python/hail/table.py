@@ -2,8 +2,9 @@ import pandas
 import pyspark
 import warnings
 
+from typing import *
+
 import hail as hl
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.types import *
 import hail.ir as hir

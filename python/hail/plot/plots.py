@@ -6,7 +6,6 @@ from bokeh.plotting import figure
 from itertools import cycle
 
 from hail.expr import aggregators
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions import Expression
 

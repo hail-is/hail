@@ -5,7 +5,6 @@ import warnings
 
 import hail
 import hail as hl
-from hail.expr.expr_ast import Select, TopLevelReference, Join
 from hail.expr.expressions import *
 from hail.expr.types import *
 import hail.ir as hir
@@ -1010,10 +1009,10 @@ class MatrixTable(ExprContainer):
         assignments = OrderedDict()
 
         for e in exprs:
-            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
+            if not e._ir.is_nested_field:
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ast, Select)
-            assignments[e._ast.name] = e
+            assert isinstance(e._ir, hir.GetField)
+            assignments[e._ir.name] = e
 
         for k, e in named_exprs.items():
             check_collisions(self._fields, k, self._global_indices)
