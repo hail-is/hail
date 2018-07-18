@@ -13,6 +13,14 @@ it and place it (without trailing newlines) in a file called `oauth-token`:
 pbpaste > oauth-token
 ```
 
+then you gotta create a file with a secret string that protects the endpoints
+that can change statuses. This isn't really important if you only run the server
+locally.
+
+```
+printf 'SOME VERY SECRET STRING THAT ONLY YOU KNOW' > secret
+```
+
 now you can start the server with
 
 ```
