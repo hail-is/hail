@@ -9,6 +9,11 @@ class NoOAuthToken(Exception):
     pass
 class NoSecret(Exception):
     pass
+class BadStatus(Exception):
+    def __init__(self, data, status_code):
+        Exception.__init__(self)
+        self.data = data
+        self.status_code = status_code
 
 app = Flask(__name__)
 
@@ -35,7 +40,9 @@ except FileNotFoundError as e:
 
 prs = {}
 
-def post_repo(url, headers={}, json=None, data=None, status_code=None):
+def post_repo(url, headers=None, json=None, data=None, status_code=None):
+    if headers is None:
+        headers = {}
     if 'Authorization' in headers:
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
@@ -47,18 +54,21 @@ def post_repo(url, headers={}, json=None, data=None, status_code=None):
         data=data
     )
     if status_code and r.status_code != status_code:
-        return jsonify({
+        raise BadStatus({
+            'method': 'post',
             'endpoint' : repo_api_url + url,
             'status_code' : r.status_code,
             'data': data,
             'json': json,
             'message': 'github error',
             'github_json': r.json()
-        }), r.status_code
+        }, r.status_code)
     else:
         return r.json()
 
-def get_repo(url, headers={}, status_code=None):
+def get_repo(url, headers=None, status_code=None):
+    if headers is None:
+        headers = {}
     if 'Authorization' in headers:
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
@@ -68,14 +78,19 @@ def get_repo(url, headers={}, status_code=None):
         headers=headers
     )
     if status_code and r.status_code != status_code:
-        return jsonify({
+        raise BadStatus({
+            'method': 'get',
             'endpoint' : repo_api_url + url,
             'status_code' : r.status_code,
             'message': 'github error',
             'github_json': r.json()
-        }), r.status_code
+        }, r.status_code)
     else:
         return r.json()
+
+@app.errorhandler(BadStatus)
+def handle_invalid_usage(error):
+    return jsonify(error.data), error.status_code
 
 ###############################################################################
 ### Endpoints
@@ -95,19 +110,9 @@ def retest(pr_number):
 
 @app.route('/pr/<pr_number>/review_status')
 def review_status(pr_number):
-    r = requests.get(
-        repo_api_url + 'pulls/' + pr_number + '/reviews',
-        headers={ 'Authorization' : 'token ' + oauth_token }
+    reviews = requests.get(
+        repo_api_url + 'pulls/' + pr_number + '/reviews'
     )
-    if r.status_code != 200:
-        return jsonify({
-            'status_code' : r.status_code,
-            'endpoint': repo_api_url + 'pulls/' + pr_number + '/reviews',
-            'message': 'github error',
-            'github_json': r.json()
-        }), r.status_code
-
-    reviews = r.json()
     latest_state_by_login = {}
     for review in reviews:
         login = review['user']['login']
@@ -172,7 +177,7 @@ def success(sha):
     if request.args.get('secret') != secret:
         return '403 Forbidden: bad secret query parameter', 403
     post_repo(
-        repo_api_url + 'statuses/' + sha,
+        'statuses/' + sha,
         json={
             'state': 'success',
             'description': 'manual override: success',
@@ -182,6 +187,14 @@ def success(sha):
     )
 
     return 'success', 200
+
+@app.route('/pr/<sha>/statuses')
+def statuses(sha):
+    json = get_repo(
+        'commits/' + sha + '/statuses',
+        status_code=200
+    )
+    return jsonify(json), 200
 
 if __name__ == '__main__':
     app.run()
