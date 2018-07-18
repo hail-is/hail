@@ -3,6 +3,7 @@ from math import log, isnan
 import numpy as np
 from bokeh.models import *
 from bokeh.plotting import figure
+from itertools import cycle
 
 from hail.expr import aggregators
 from hail.expr.expr_ast import *
@@ -162,6 +163,9 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
             y = [point[1] for point in res]
     elif isinstance(x, Expression) or isinstance(y, Expression):
         raise TypeError('Invalid input: x and y must both be either Expressions or Python Lists.')
+    else:
+        if isinstance(label, Expression):
+            label = label.collect()
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
@@ -173,7 +177,15 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         else:
             leg = None
 
-        color_mapper = CategoricalColorMapper(factors=factors, palette=palette[0:len(factors)])
+        if len(factors) > len(palette):
+            color_gen = cycle(palette)
+            colors = []
+            for i in range(0, len(factors)):
+                colors.append(next(color_gen))
+        else:
+            colors = palette[0:len(factors)]
+
+        color_mapper = CategoricalColorMapper(factors=factors, palette=colors)
         p.circle('x', 'y', alpha=0.5, source=source, size=size,
                  color={'field': 'label', 'transform': color_mapper}, legend=leg)
     else:
@@ -232,33 +244,58 @@ def manhattan(pvals, locus=None, title=None, size=4):
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
+    def get_contig_index(x, starts):
+        left = 0
+        right = len(starts) - 1
+        while left <= right:
+            mid = int((left + right) / 2)
+            if x < starts[mid]:
+                if x >= starts[mid - 1]:
+                    return mid - 1
+                right = mid
+            elif x >= starts[mid+1]:
+                left = mid + 1
+            else:
+                return mid
+
     pvals = -hail.log10(pvals)
 
     if locus is None:
         locus = pvals._indices.source.locus
-    x = locus.global_position()
-    label = locus.contig
-
-    p = scatter(x, pvals, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False)
+    res = hail.tuple([locus.global_position(), pvals]).collect()
+    x = [point[0] for point in res]
+    y = [point[1] for point in res]
 
     ref = locus.dtype.reference_genome
+    labels = ref.contigs.copy()
 
     total_pos = 0
+    start_points = []
+    for i in range(0, len(ref.contigs)):
+        start_points.append(total_pos)
+        total_pos += ref.lengths.get(ref.contigs[i])
+    start_points.append(total_pos)  # end point of all contigs
+
+    observed_contigs = set()
+    for i in range(0, len(x)):
+        contig_index = get_contig_index(x[i], start_points)
+        observed_contigs.add(ref.contigs[contig_index])
+
+    num_deleted = 0
     mid_points = []
-    for i in range(0, 22):
-        length = ref.lengths.get(str(i + 1))
-        mid = total_pos + length / 2
-        if mid % 1 == 0:
-            mid += 0.5
-        mid_points.append(mid)
-        total_pos += length
-    mid_points.append(total_pos + (ref.contig_length(str('X')) / 2))
-    if mid_points[-1] % 1 == 0:
-        mid_points[-1] += 0.5
+    for i in range(0, len(ref.contigs)):
+        if ref.contigs[i] in observed_contigs:
+            length = ref.lengths.get(ref.contigs[i])
+            mid = start_points[i] + length / 2
+            if mid % 1 == 0:
+                mid += 0.5
+            mid_points.append(mid)
+        else:
+            del labels[i - num_deleted]
+            num_deleted += 1
 
-    labels = ref.contigs[0:23]
-
+    p = scatter(x, y, label=locus.contig, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+                size=size, legend=False)
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.width = 1000
