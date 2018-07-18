@@ -138,7 +138,7 @@ class Let(IR):
 
     @property
     def bound_variables(self):
-        return {self.name} + {v for child in self.children for v in child.bound_variables}
+        return {self.name} | super().bound_variables
 
 
 class Ref(IR):

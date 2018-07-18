@@ -188,7 +188,7 @@ class GroupedTable(ExprContainer):
         base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
         new_key = hl.struct(**group_exprs)
-        keyed_t = base._select_scala(new_key.annotate(**self._parent.row_value), *base._preserved_key_pairs(new_key))
+        keyed_t = base._select_scala(self._parent.row.annotate(**new_key), *base._preserved_key_pairs(new_key))
 
         t = Table(keyed_t._jt.aggregateByKey(str(hl.struct(**named_exprs)._ir)))
         return cleanup(t)

@@ -2894,12 +2894,14 @@ class MatrixTable(ExprContainer):
 
         return cleanup(MatrixTable(base._jvds.selectRows(str(row._ir), new_key)))
 
-    @typecheck_method(key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()),
-                      pk_size=nullable(int))
-    def _select_rows_processed(self, key_struct=None, value_struct=None, pk_size=None):
-        row, new_key = self._make_row(key_struct, value_struct, pk_size)
-        return MatrixTable(self._jvds.selectRows(str(row._ir), new_key))
+    @typecheck_method(key_struct=expr_struct())
+    def _select_rows_processed(self, key_struct):
+        new_key = (list(key_struct.keys()), [])
+        keys = Env.get_uid()
+        k_ref = hir.Ref(keys, key_struct.dtype)
+        fields = [(n, hir.GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        row_ir = hir.Let(keys, key_struct._ir, hir.InsertFields(self.row._ir, fields))
+        return MatrixTable(self._jvds.selectRows(str(row_ir), new_key))
 
     def _make_row(self, key_struct, value_struct, pk_size) -> Tuple[StructExpression, Optional[Tuple[List[str], List[str]]]]:
         if key_struct is None:
@@ -2928,11 +2930,14 @@ class MatrixTable(ExprContainer):
 
         return cleanup(MatrixTable(base._jvds.selectCols(str(col._ir), new_key)))
 
-    @typecheck_method(key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()))
-    def _select_cols_processed(self, key_struct=None, value_struct=None):
-        col, new_key = self._make_col(key_struct, value_struct)
-        return MatrixTable(self._jvds.selectCols(str(col._ir), new_key))
+    @typecheck_method(key_struct=expr_struct())
+    def _select_cols_processed(self, key_struct):
+        new_key = list(key_struct.keys())
+        keys = Env.get_uid()
+        k_ref = hir.Ref(keys, key_struct.dtype)
+        fields = [(n, hir.GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        col_ir = hir.Let(keys, key_struct._ir, hir.InsertFields(self.col._ir, fields))
+        return MatrixTable(self._jvds.selectCols(str(col_ir), new_key))
 
     def _make_col(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]]]:
         if key_struct is None:

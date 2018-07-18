@@ -329,7 +329,6 @@ def bind(f: Callable, *exprs):
         uids.append(uid)
         irs.append(expr._ir)
 
-
     lambda_result = to_expr(f(*args))
     indices, aggregations = unify_all(*exprs, lambda_result)
 
