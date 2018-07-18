@@ -81,16 +81,21 @@ object PruneDeadFields {
     val matrixType = mv.typ
     val originalCols = mv.colValues
     val memo = Memo.empty[BaseType]
-    val colDep = memoizeValueIR(valueIR, valueIR.typ, memo)
+    val valueIRCopy = valueIR.deepCopy()
+    val colDep = memoizeValueIR(valueIRCopy, valueIR.typ, memo)
       .m.mapValues(_._2)
       .getOrElse("sa", if (isArray) TArray(TStruct()) else TStruct())
     log.info(s"minimized col values:\n  From: ${ matrixType.colType }\n  To: ${ colDep }")
+    val newColsType = if (isArray) colDep.asInstanceOf[TArray] else TArray(colDep)
     val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
-      upcast(Ref("values", TArray(matrixType.colType)), TArray(colDep)), Env.empty[(Any, Type)]
-        .bind("values" -> (mv.colValues.value, TArray(matrixType.colType))), FastIndexedSeq(), None)
+      upcast(Ref("values", TArray(matrixType.colType)), newColsType), Env.empty[(Any, Type)]
+        .bind("values" -> (mv.colValues.value, TArray(matrixType.colType))),
+      FastIndexedSeq(),
+      None,
+      optimize = false)
     (colDep,
-      BroadcastIndexedSeq(newIndexedSeq, TArray(colDep), mv.sparkContext),
-      rebuild(valueIR, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
+      BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.sparkContext),
+      rebuild(valueIRCopy, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
     )
   }
 

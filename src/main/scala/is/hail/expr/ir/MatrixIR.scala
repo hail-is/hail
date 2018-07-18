@@ -1064,14 +1064,13 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
     val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, newRow, isArray = true)
 
     val localGlobalsType = typ.globalType
-    val localColsType = TArray(minColType)
     val colValuesBc = minColValues.broadcast
     val globalsBc = prev.globals.broadcast
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
       "global", localGlobalsType,
       "va", prev.typ.rvRowType,
-      "sa", localColsType,
+      "sa", minColType,
       rewriteIR)
     assert(rTyp == typ.rvRowType)
 
@@ -1086,8 +1085,8 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
       val globals = rvb.end()
 
-      rvb.start(localColsType)
-      rvb.addAnnotation(localColsType, colValuesBc.value)
+      rvb.start(minColType)
+      rvb.addAnnotation(minColType, colValuesBc.value)
       val cols = rvb.end()
 
       it.map { rv =>
