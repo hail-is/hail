@@ -267,7 +267,6 @@ def manhattan(pvals, locus=None, title=None, size=4):
     y = [point[1] for point in res]
 
     ref = locus.dtype.reference_genome
-    labels = ref.contigs.copy()
 
     total_pos = 0
     start_points = []
@@ -281,6 +280,7 @@ def manhattan(pvals, locus=None, title=None, size=4):
         contig_index = get_contig_index(x[i], start_points)
         observed_contigs.add(ref.contigs[contig_index])
 
+    labels = ref.contigs.copy()
     num_deleted = 0
     mid_points = []
     for i in range(0, len(ref.contigs)):
