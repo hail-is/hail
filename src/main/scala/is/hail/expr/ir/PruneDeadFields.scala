@@ -87,7 +87,8 @@ object PruneDeadFields {
       .asInstanceOf[TStruct]
     log.info(s"minimized col values:\n  From: ${ matrixType.colType }\n  To: ${ colDep }")
     val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
-      upcast(Literal(mv.colValues.value, TArray(matrixType.colType)), TArray(colDep)))
+      upcast(Ref("values", TArray(matrixType.colType)), TArray(colDep)), Env.empty[(Any, Type)]
+        .bind("values" -> (mv.colValues.value, TArray(colDep))), FastIndexedSeq(), None)
     (colDep,
       BroadcastIndexedSeq(newIndexedSeq, TArray(colDep), mv.sparkContext),
       rebuild(valueIR, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
