@@ -885,7 +885,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("plDosage", tfloat64, pl)
+    return hl.sum(pl_to_gp(pl) * [0, 1, 2])
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)

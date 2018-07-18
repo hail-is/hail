@@ -53,23 +53,5 @@ object GenotypeFunctions extends RegistryFunctions {
           region.loadDouble(tarray.elementOffset(gp, 3, 1)) +
             region.loadDouble(tarray.elementOffset(gp, 3, 2)) * 2.0))
     }
-
-
-    registerCode("plDosage", TArray(tv("N", _ isOfType TInt32())), TFloat64()) { (mb, plOff: Code[Long]) =>
-      def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
-      val tarray = TArray(tv("N").t)
-      val pl = mb.newLocal[Long]
-      val region = getRegion(mb)
-      val len = tarray.loadLength(region, pl)
-
-      Code(
-        pl := plOff,
-        len.cne(3).mux(
-          Code._fatal(const("length of pl array must be 3, got ").concat(len.toS)),
-          Code.invokeScalaObject[Int, Int, Int, Double](Genotype.getClass, "plToDosage",
-            region.loadInt(tarray.elementOffset(pl, 3, 0)),
-            region.loadInt(tarray.elementOffset(pl, 3, 1)),
-            region.loadInt(tarray.elementOffset(pl, 3, 2)))))
-    }
   }
 }
