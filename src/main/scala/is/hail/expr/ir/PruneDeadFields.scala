@@ -81,7 +81,10 @@ object PruneDeadFields {
     val matrixType = mv.typ
     val originalCols = mv.colValues
     val memo = Memo.empty[BaseType]
-    val colDep = memoizeValueIR(valueIR, valueIR.typ, memo).m.mapValues(_._2).getOrElse("sa", TStruct()).asInstanceOf[TStruct]
+    val colDep = memoizeValueIR(valueIR, valueIR.typ, memo)
+      .m.mapValues(_._2)
+      .getOrElse("sa", TStruct())
+      .asInstanceOf[TStruct]
     log.info(s"minimized col values:\n  From: ${ matrixType.colType }\n  To: ${ colDep }")
     val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
       upcast(Literal(mv.colValues.value, TArray(matrixType.colType)), TArray(colDep)))
