@@ -59,7 +59,7 @@ String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
-sourceSets.test.runtimeClasspath += files("src/main/c/lib")
+sourceSets.test.runtimeClasspath += files("prebuilt/lib")
 
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
@@ -84,7 +84,7 @@ task nativeLibClean(type: Exec) {
 sourceSets {
     main {
         resources {
-            srcDirs "src/main/c/lib"
+            srcDirs "prebuilt/lib"
         }
     }
 }
