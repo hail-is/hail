@@ -791,7 +791,8 @@ def grep(regex, path, max_count=100):
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
            entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
-           min_partitions=nullable(int),
+           n_partitions=nullable(int),
+           block_size=nullable(int),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
@@ -800,7 +801,8 @@ def grep(regex, path, max_count=100):
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
-                min_partitions=None,
+                n_partitions=None,
+                block_size=None,
                 reference_genome='default',
                 contig_recoding=None,
                 skip_invalid_loci=False,
@@ -840,6 +842,10 @@ def import_bgen(path,
     Each BGEN file must have a corresponding index file, which can be generated
     with :func:`.index_bgen`. To load multiple files at the same time,
     use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
+
+    If n_partitions and block_size are both specified, block_size is
+    used.  If neither are specified, the default is a 128MB block
+    size.
 
     **Column Fields**
 
@@ -899,8 +905,10 @@ def import_bgen(path,
     sample_file : :obj:`str`, optional
         Sample file to read the sample ids from. If specified, the number of
         samples in the file must match the number in the BGEN file(s).
-    min_partitions : :obj:`int`, optional
+    n_partitions : :obj:`int`, optional
         Number of partitions.
+    block_size : :obj:`int`, optional
+        Block size, in MB.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
@@ -915,7 +923,11 @@ def import_bgen(path,
     Returns
     -------
     :class:`.MatrixTable`
+
     """
+
+    if n_partitions is None and block_size is None:
+        block_size = 128
 
     rg = reference_genome._jrep if reference_genome else None
 
@@ -928,7 +940,7 @@ def import_bgen(path,
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
-                                    joption(min_partitions), joption(rg), joption(contig_recoding),
+                                    joption(n_partitions), joption(block_size), joption(rg), joption(contig_recoding),
                                     skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 

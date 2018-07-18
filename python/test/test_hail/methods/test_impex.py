@@ -561,7 +561,7 @@ class BGENTests(unittest.TestCase):
                                 ['GT'],
                                 contig_recoding={'01': '1'},
                                 reference_genome=None,
-                                min_partitions=10,
+                                n_partitions=10,
                                 _row_fields=['file_row_idx'],
                                 _variants_per_file={ resource('example.8bits.bgen') : desired_variant_indexes})
         # doing the expected import_bgen second catches the case where the
@@ -581,6 +581,17 @@ class BGENTests(unittest.TestCase):
         self.assertEqual((hl.str(actual.locus.contig) + ":" + hl.str(actual.locus.position)).collect(),
                          ['1:3000', '1:4000', '1:5000', '1:7000', '1:9000',
                           '1:11000', '1:13000', '1:15000', '1:19000', '1:100001'])
+
+    # FIXME testing block_size (in MB) requires large BGEN
+    def test_n_partitions(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
+
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['dosage'],
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37',
+                              n_partitions=5)
+        self.assertEqual(bgen.n_partitions(), 5)
 
 
 class GENTests(unittest.TestCase):

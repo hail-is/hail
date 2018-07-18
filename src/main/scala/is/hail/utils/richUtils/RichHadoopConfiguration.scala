@@ -113,6 +113,15 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.toArray
   }
 
+  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+    filenames.flatMap { filename =>
+      val statuses = glob(filename)
+      if (statuses.isEmpty)
+        warn(s"`$filename' refers to no files")
+      statuses
+    }.toArray
+  }
+
   def glob(filename: String): Array[FileStatus] = {
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)

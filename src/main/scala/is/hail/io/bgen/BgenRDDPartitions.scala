@@ -43,7 +43,7 @@ object BgenRDDPartitions extends Logging {
   def apply(
     sc: SparkContext,
     files: Seq[BgenHeader],
-    minPartitions: Int,
+    fileNPartitions: Array[Int],
     includedVariantsPerFile: Map[String, Seq[Int]],
     settings: BgenSettings
   ): Array[Partition] = {
@@ -59,39 +59,13 @@ object BgenRDDPartitions extends Logging {
     if (nonEmptyFilesAfterFilter.isEmpty) {
       Array.empty
     } else {
-      val metadata = nonEmptyFilesAfterFilter(0)
-      val recordByteSizeEstimate =
-        (metadata.fileByteSize - metadata.dataStart) / metadata.nVariants
-      val minBlockSize =
-        hConf.getInt("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0)
-      var minRecordsPerPartition =
-        (minBlockSize / recordByteSizeEstimate).ceil.toInt
-      var maxRecordsPerPartition =
-        (settings.nVariants / minPartitions).floor.toInt
-      if (maxRecordsPerPartition == 0) {
-        log.warn(
-          s"""only found ${settings.nVariants} but min_partitions is
-             |$minPartitions. Actual number of partitions will be
-             |fewer.""".stripMargin)
-        maxRecordsPerPartition = 1
-      }
-      if (maxRecordsPerPartition < minRecordsPerPartition) {
-        log.warn(
-          s"""cannot satisfy requested min_partitions ($minPartitions) and
-             |min_block_size ($minBlockSize) for BGEN files ${files.map(_.path)} from which
-             |we are loading ${settings.nVariants} variants, with an average
-             |size of $recordByteSizeEstimate bytes.""".stripMargin)
-        maxRecordsPerPartition = minRecordsPerPartition
-      }
-      // FIXME: divide balls as evenly as possible into some number of buckets
-      // where each bucket has no more than maxRecordsPerPartition and no less
-      // than minRecordsPerPartition
       val partitions = new ArrayBuilder[Partition]()
       var partitionIndex = 0
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        val nPartitions = math.max(1.0, file.nVariants / maxRecordsPerPartition).ceil.toInt
+        val nPartitions = fileNPartitions(fileIndex)
+        val maxRecordsPerPartition = (file.nVariants + nPartitions - 1) / nPartitions
         using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
           includedVariantsPerFile.get(file.path) match {
             case None =>
