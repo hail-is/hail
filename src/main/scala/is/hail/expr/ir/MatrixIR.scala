@@ -7,6 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.{Parser, TableAnnotationImpex, ir}
 import is.hail.io._
+import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -188,7 +189,8 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
 
 object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader]))
+    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
+      classOf[MatrixBGENReader]))
 }
 
 abstract class MatrixReader {

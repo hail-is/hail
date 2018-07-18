@@ -337,7 +337,12 @@ class HailContext private(val sc: SparkContext,
       entryType = TStruct(typedEntryFields: _*))
 
     val reader = MatrixBGENReader(
-      files, sampleFile, nPartitions, blockSizeInMB, rg,
+      files, sampleFile, nPartitions,
+      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
+        Some(128)
+      else
+        blockSizeInMB,
+      rg,
       Option(contigRecoding).getOrElse(Map.empty[String, String]),
       skipInvalidLoci,
       includedVariantsPerUnresolvedFilePath)

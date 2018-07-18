@@ -339,7 +339,7 @@ case class MatrixBGENReader(
       contigRecoding,
       skipInvalidLoci)
     assert(mr.typ == recordsSettings.matrixType)
-    
+
     val rvd = if (mr.dropRows)
       OrderedRVD.empty(sc, requestedType.orvdType)
     else

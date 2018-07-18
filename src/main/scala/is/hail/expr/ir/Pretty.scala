@@ -189,11 +189,11 @@ object Pretty {
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
-              prettyStrings(rowKey)
-              prettyStrings(colKey)
-              prettyStrings(rowFields)
-              prettyStrings(colFields)
-              prettyStrings(partitionKey)
+              prettyStrings(rowKey) + " " +
+              prettyStrings(colKey) +  " " +
+              prettyStrings(rowFields) + " " +
+              prettyStrings(colFields) + " " +
+              prettyStrings(partitionKey) + " " +
               prettyIntOpt(nPartitions)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)

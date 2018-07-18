@@ -311,13 +311,15 @@ class IRSuite extends SparkSuite {
 
   @Test def testGroupByKey() {
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
+
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
+
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
 
     assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
   }
 
-  @DataProvider(name="compareDifferentTypes")
+  @DataProvider(name = "compareDifferentTypes")
   def compareDifferentTypesData(): Array[Array[Any]] = Array(
     Array(FastIndexedSeq(0.0, 0.0), TArray(+TFloat64()), TArray(TFloat64())),
     Array(Set(0, 1), TSet(+TInt32()), TSet(TInt32())),
@@ -328,7 +330,7 @@ class IRSuite extends SparkSuite {
     Array(Row(FastIndexedSeq("foo"), 0.0), TTuple(+TArray(TString()), +TFloat64()), TTuple(TArray(+TString()), +TFloat64()))
   )
 
-  @Test(dataProvider="compareDifferentTypes")
+  @Test(dataProvider = "compareDifferentTypes")
   def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
     assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
@@ -483,7 +485,10 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
-      val vcf = hc.importVCF("src/test/resources/sample.vcf").ast.asInstanceOf[MatrixRead]
+      val vcf = hc.importVCF("src/test/resources/sample.vcf")
+        .ast.asInstanceOf[MatrixRead]
+      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+        .ast.asInstanceOf[MatrixRead]
 
       val b = True()
 
@@ -515,13 +520,14 @@ class IRSuite extends SparkSuite {
         MatrixAggregateRowsByKey(read, newRow),
         range,
         vcf,
+        bgen,
         TableToMatrixTable(
           tableRead,
-          Array("r1", "r2"),
-          Array("c1", "c2"),
-          Array("r1", "r2", "r3"),
-          Array("c1", "c2", "c3"),
-          Array("r1"),
+          Array("astruct", "aset"),
+          Array("d", "ml"),
+          Array("mc"),
+          Array("t"),
+          Array("astruct"),
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
 
