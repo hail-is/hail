@@ -120,7 +120,7 @@ class MatrixImportBGEN(MatrixIR):
             contigRecoding=self.contig_recoding,
             skipInvalidLoci=self.skip_invalid_loci,
             includedVariantsPerUnresolvedFilePath=self.variants_per_file)
-        return f'(ReadMatrix "{json.dumps(config)}" False False None)'
+        return f'(MatrixRead "{json.dumps(config)}" False False None)'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
