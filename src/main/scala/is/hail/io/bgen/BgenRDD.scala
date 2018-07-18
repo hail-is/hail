@@ -26,7 +26,6 @@ sealed case class RowFields (
 
 case class BgenSettings(
   nSamples: Int,
-  nVariants: Int,
   entries: EntriesSetting,
   rowFields: RowFields,
   rg: Option[ReferenceGenome],

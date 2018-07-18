@@ -598,6 +598,21 @@ class BGENTests(unittest.TestCase):
                               n_partitions=5)
         self.assertEqual(bgen.n_partitions(), 5)
 
+    def test_drop(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
+
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['dosage'],
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+
+        dr = bgen.drop_rows()
+        self.assertEqual(dr._force_count_rows(), 0)
+        self.assertEqual(dr._force_count_cols(), 500)
+
+        dc = bgen.drop_cols()
+        self.assertEqual(dc._force_count_rows(), 199)
+        self.assertEqual(dc._force_count_cols(), 0)
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):

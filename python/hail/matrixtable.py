@@ -2065,6 +2065,9 @@ class MatrixTable(ExprContainer):
     def _force_count_rows(self):
         return self._jvds.forceCountRows()
 
+    def _force_count_cols(self):
+        return self._jvds.forceCountCols()
+
     def count_cols(self) -> int:
         """Count the number of columns in the matrix.
 
