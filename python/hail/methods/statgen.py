@@ -1821,8 +1821,7 @@ def correlation(entry_expr) -> BlockMatrix:
     ...         {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
     ...         {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
-    >>> ht = ht.transmute(**hl.parse_variant(ht.v))
-    >>> mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+    >>> mt = ht.to_matrix_table(['v'], ['s'])
 
     Compute genotype correlation (linkage) between all pairs of variants:
 
@@ -1888,8 +1887,8 @@ def correlation(entry_expr) -> BlockMatrix:
                         __n_called=agg.count_where(hl.is_defined(mt.__x)))
     mt = mt.select_rows(__mean=mt.__sum / mt.__n_called,
                         __scaled_std_dev=hl.sqrt(mt.__sum_sq - (mt.__sum ** 2) / mt.__n_called))
-    normalized_gt = hl.or_else((mt.__x - mt.__mean) / mt.__scaled_std_dev, 0.0)
-    bm = BlockMatrix.from_entry_expr(normalized_gt)
+    normalized_x = hl.or_else((mt.__x - mt.__mean) / mt.__scaled_std_dev, 0.0)
+    bm = BlockMatrix.from_entry_expr(normalized_x)
 
     return bm @ bm.T
 

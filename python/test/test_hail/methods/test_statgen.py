@@ -670,8 +670,7 @@ class Tests(unittest.TestCase):
                 {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
                 {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
-        ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = ht.to_matrix_table(['v'], ['s'])
 
         actual = hl.correlation(mt.GT.n_alt_alleles()).to_numpy()
         expected = np.array([[1., -0.85280287, 0.42640143],
