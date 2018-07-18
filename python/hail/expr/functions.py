@@ -900,19 +900,24 @@ def pl_to_gp(pl) -> ArrayNumericExpression:
         >>> hl.eval_expr(hl.pl_to_gp([0, 10, 100]))
         [0.9090909090082644, 0.09090909090082644, 9.090909090082645e-11]
 
+
+    Notes
+    -----
+    This function assumes a uniform prior on the possible genotypes.
+
     Parameters
     ----------
     pl : :class:`.ArrayNumericExpression` of type :py:data:`.tint32`
-        Array of Phred-scaled genotype likelihoods
+        Array of Phred-scaled genotype likelihoods.
 
     Returns
     -------
    :class:`.ArrayNumericExpression` of type :py:data:`.tfloat64`
     """
-    max_phred_in_table = 8192
+    max_phred_in_table = 2048
     phred_table = hl.literal([10 ** (-x/10.0) for x in builtins.range(max_phred_in_table)])
     gp = hl.bind(lambda pls: pls.map(lambda x: hl.cond(x >= max_phred_in_table, 10 ** (-x/10.0), phred_table[x])), pl)
-    return gp / hl.sum(gp)
+    return hl.bind(lambda gp: gp / hl.sum(gp), gp)
 
 
 @typecheck(start=expr_any, end=expr_any,
