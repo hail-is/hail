@@ -22,17 +22,11 @@ trait BgenPartition extends Partition {
   def advance(bfis: HadoopFSDataBinaryReader): Long
 
   def hasNext(bfis: HadoopFSDataBinaryReader): Boolean
-
-  def compiledNext(
-    r: Region,
-    p: BgenPartition,
-    bfis: HadoopFSDataBinaryReader,
-    settings: BgenSettings
-  ): Long
 }
 
 object BgenRDDPartitions extends Logging {
-  private case class BgenFileMetadata (
+
+  private case class BgenFileMetadata(
     file: String,
     byteFileSize: Long,
     dataByteOffset: Long,
@@ -116,7 +110,7 @@ object BgenRDDPartitions extends Logging {
     }
   }
 
-  private case class BgenPartitionWithoutFilter (
+  private case class BgenPartitionWithoutFilter(
     path: String,
     compressed: Boolean,
     firstRecordIndex: Long,
@@ -145,17 +139,9 @@ object BgenRDDPartitions extends Logging {
 
     def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
       bfis.getPosition < endByteOffset
-
-    private[this] val f = CompileDecoder(settings, this)
-    def compiledNext(
-      r: Region,
-      p: BgenPartition,
-      bfis: HadoopFSDataBinaryReader,
-      settings: BgenSettings
-    ): Long = f()(r, p, bfis, settings)
   }
 
-  private case class BgenPartitionWithFilter (
+  private case class BgenPartitionWithFilter(
     path: String,
     compressed: Boolean,
     partitionIndex: Int,
@@ -185,21 +171,12 @@ object BgenRDDPartitions extends Logging {
 
     def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
       keptVariantIndex < keptVariantIndices.length - 1
-
-    private[this] val f = CompileDecoder(settings, this)
-    def compiledNext(
-      r: Region,
-      p: BgenPartition,
-      bfis: HadoopFSDataBinaryReader,
-      settings: BgenSettings
-    ): Long = f()(r, p, bfis, settings)
   }
 }
 
 object CompileDecoder {
   def apply(
-    settings: BgenSettings,
-    p: BgenPartition
+    settings: BgenSettings
   ): () => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = new Function4Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
     val mb = fb.apply_method
@@ -339,15 +316,13 @@ object CompileDecoder {
 
         case EntriesWithFields(includeGT, includeGP, includeDosage) =>
           Code(
-            if (p.compressed) {
+            cp.invoke[Boolean]("compressed").mux(
               Code(
                 uncompressedSize := cbfis.invoke[Int]("readInt"),
                 input := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4),
                 data := Code.invokeScalaObject[Array[Byte], Int, Array[Byte]](
-                  BgenRDD.getClass, "decompress", input, uncompressedSize))
-            } else {
-              data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)
-            },
+                  BgenRDD.getClass, "decompress", input, uncompressedSize)),
+              data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)),
             reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),
             nRow := reader.invoke[Int]("readInt"),
             (nRow.cne(settings.nSamples)).mux(
