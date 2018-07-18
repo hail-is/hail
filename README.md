@@ -5,10 +5,40 @@ conda env create hail-ci -f environment.yaml
 source activate hail-ci
 pip install /path/to/batch
 ```
+
+get a [GitHub personal access token](https://github.com/settings/tokens), copy
+it and place it (without trailing newlines) in a file called `oauth-token`:
+
+```
+pbpaste > oauth-token
+```
+
 now you can start the server with
+
 ```
 python ci.py
 ```
+
+I spun up a very tiny (4USD per month) server in GCP to redirect requests to my
+local machine:
+
+```
+gcloud compute \
+  --project "broad-ctsa" \
+  ssh \
+  --zone "us-central1-f" \
+  "dk-test" \
+  --ssh-flag='-R 3000:127.0.0.1:5000' \
+  --ssh-flag='-v'
+```
+
+I already added an web hook to github to send a request to this machine's IP on
+port 3000 whenever there is a `pull_request` or `push` event on my
+`docker-build-test` repository. The latter gets me master branch change
+notifications.
+
+Any repository would work, and you can set up a webhook through the github web
+UI. Just use a port other than mine (3000)!
 
 Developer Tips
 ---
