@@ -2,10 +2,19 @@ from flask import Flask, request, jsonify
 import batch
 import requests
 
+class NoOAuthToken(Exception):
+    pass
+
 app = Flask(__name__)
 
-with open('oauth-token', 'r') as f:
-  oauth_token = f.read()
+try:
+    with open('oauth-token', 'r') as f:
+        oauth_token = f.read()
+except FileNotFoundError as e:
+    raise NoOAuthToken(
+        "working directory must contain a file called `oauth-token' "
+        "containing a valid GitHub oauth token"
+    ) from e
 
 prs = {}
 
