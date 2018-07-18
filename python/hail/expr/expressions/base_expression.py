@@ -879,9 +879,9 @@ class Aggregable(object):
         def transform_ir(agg, continuation):
             agg_uid = Env.get_uid()
             agg_ref = expressions.construct_variable(agg_uid, agg._type, agg._indices, agg._aggregations)
-            ir = Let(agg_uid, agg_ref._ir,
-                     If(Let(uid, agg._ir, pred._ir),
-                        continuation(agg)._ir,
+            ir = Let(agg_uid, agg._ir,
+                     If(Let(uid, agg_ref._ir, pred._ir),
+                        continuation(agg_ref)._ir,
                         Begin([])))
             return expressions.construct_expr(ir, self._type, self._indices, self._aggregations)
 

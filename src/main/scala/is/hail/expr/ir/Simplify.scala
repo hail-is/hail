@@ -72,7 +72,10 @@ object Simplify {
       case If(False(), _, x) => x
 
       case If(c, cnsq, altr) if cnsq == altr =>
-        If(IsNA(c), NA(cnsq.typ), cnsq)
+        if (cnsq.typ.required)
+          cnsq
+        else
+          If(IsNA(c), NA(cnsq.typ), cnsq)
 
       case Cast(x, t) if x.typ == t => x
 
