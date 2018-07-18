@@ -363,6 +363,12 @@ jacocoTestReport {
     }
 }
 
+task downloadDependencies(type: Exec) {
+    configurations.testCompile.files
+    configurations.testRuntime.files
+    commandLine 'echo', 'Downloaded all dependencies'
+}
+
 task coverage(dependsOn: jacocoTestReport)
 
 task testJar(type: Jar) {
