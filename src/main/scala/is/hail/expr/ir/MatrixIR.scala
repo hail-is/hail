@@ -1061,7 +1061,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, newRow)
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, newRow, isArray = true)
 
     val localGlobalsType = typ.globalType
     val localColsType = TArray(minColType)
