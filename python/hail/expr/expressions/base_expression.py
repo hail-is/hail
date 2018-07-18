@@ -841,7 +841,7 @@ class Aggregable(object):
         return Aggregable(self._ir,
                           mapped.dtype,
                           indices, aggregations,
-                          transformations=lambda x, cont: transform_ir(x, lambda x2: self._transformations(x2, cont)))
+                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
 
     def _flat_map(self, f):
         uid = Env.get_uid()
@@ -864,7 +864,7 @@ class Aggregable(object):
                           res_expr.dtype.element_type,
                           indices,
                           aggregations,
-                          transformations=lambda x, cont: transform_ir(x, lambda x2: self._transformations(x2, cont)))
+                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
 
     # @typecheck_method(f=func_spec(1, expressions.expr_bool))
     def _filter(self, f):
@@ -889,7 +889,7 @@ class Aggregable(object):
         return Aggregable(self._ir,
                           self.dtype,
                           indices, aggregations,
-                          transformations=lambda x, cont: transform_ir(x, lambda x2: self._transformations(x2, cont)))
+                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
 
     @property
     def dtype(self) -> HailType:
