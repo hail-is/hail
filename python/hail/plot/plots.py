@@ -262,9 +262,13 @@ def manhattan(pvals, locus=None, title=None, size=4):
 
     if locus is None:
         locus = pvals._indices.source.locus
-    res = hail.tuple([locus.global_position(), pvals]).collect()
+    res = hail.tuple([locus.global_position(), pvals, locus.contig]).collect()
     x = [point[0] for point in res]
     y = [point[1] for point in res]
+    label = [point[2] for point in res]
+
+    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+                size=size, legend=False)
 
     ref = locus.dtype.reference_genome
 
@@ -294,8 +298,6 @@ def manhattan(pvals, locus=None, title=None, size=4):
             del labels[i - num_deleted]
             num_deleted += 1
 
-    p = scatter(x, y, label=locus.contig, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False)
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.width = 1000
