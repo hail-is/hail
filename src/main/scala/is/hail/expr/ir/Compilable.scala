@@ -5,6 +5,7 @@ object Compilable {
     ir match {
       case _: TableCount => false
       case _: TableAggregate => false
+      case _: MatrixAggregate => false
       case _: TableWrite => false
       case _: TableExport  => false
       case _: MatrixWrite => false

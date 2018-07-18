@@ -610,21 +610,110 @@ object Interpret {
             initOps()(region, rvAggs, globals, false)
           }
 
-          value.rvd.aggregate[Array[RegionValueAggregator]](rvAggs)({ case (rvaggs, rv) =>
-            // add globals to region value
-            val rowOffset = rv.offset
+          val zval = rvAggs
+          val combOp = { (rvAggs1: Array[RegionValueAggregator], rvAggs2: Array[RegionValueAggregator]) =>
+            rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
+            rvAggs1
+          }
+          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+            val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
-            rvb.set(rv.region)
+            rvb.set(r)
             rvb.start(localGlobalSignature)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
+            val seqOpsFunction = seqOps()
+            (globalsOffset, seqOpsFunction)
+          })( { case ((globalsOffset, seqOpsFunction), comb, rv) =>
+            seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
+          }, combOp)
+        } else
+          Array.empty[RegionValueAggregator]
 
-            seqOps()(rv.region, rvAggs, globalsOffset, false, rowOffset, false)
-            rvAggs
-          }, { (rvAggs1, rvAggs2) =>
+        Region.scoped { region =>
+          val rvb: RegionValueBuilder = new RegionValueBuilder()
+          rvb.set(region)
+
+          rvb.start(aggResultType)
+          rvb.startStruct()
+          aggResults.foreach(_.result(rvb))
+          rvb.endStruct()
+          val aggResultsOffset = rvb.end()
+
+          rvb.start(localGlobalSignature)
+          rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+          val globalsOffset = rvb.end()
+
+          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+
+          SafeRow(coerce[TTuple](t), region, resultOffset)
+            .get(0)
+        }
+      case MatrixAggregate(child, query) =>
+        val localGlobalSignature = child.typ.globalType
+        val value = child.execute(HailContext.get)
+        val colArrayType = TArray(child.typ.colType)
+        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
+          "global", child.typ.globalType,
+          "global", child.typ.globalType,
+          "sa", colArrayType,
+          "va", child.typ.rvRowType,
+          MakeTuple(Array(query)), "AGGR",
+          (nAggs: Int, initOpIR: IR) => initOpIR,
+          (nAggs: Int, seqOpIR: IR) =>
+            ArrayFor(
+              ArrayRange(I32(0), I32(value.nCols), I32(1)),
+              "idx",
+              Let(
+                "sa",
+                ArrayRef(Ref("sa", colArrayType), Ref("idx", TInt32Optional)),
+                Let(
+                  "g",
+                  ArrayRef(GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier), Ref("idx", TInt32Optional)),
+                  seqOpIR))))
+
+        val (t, f) = Compile[Long, Long, Long](
+          "AGGR", aggResultType,
+          "global", child.typ.globalType,
+          postAggIR)
+
+        val globalsBc = value.globals.broadcast
+        val colValuesBc = value.colValues.broadcast
+        val localColsType = TArray(child.typ.colType)
+
+        val aggResults = if (rvAggs.nonEmpty) {
+          Region.scoped { region =>
+            val rvb: RegionValueBuilder = new RegionValueBuilder()
+            rvb.set(region)
+
+            rvb.start(localGlobalSignature)
+            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+            val globals = rvb.end()
+
+            initOps()(region, rvAggs, globals, false)
+          }
+
+          val zval = rvAggs
+          val combOp = { (rvAggs1: Array[RegionValueAggregator], rvAggs2: Array[RegionValueAggregator]) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
-          })
+          }
+
+          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+            val r = ctx.freshRegion
+            val rvb = new RegionValueBuilder()
+            rvb.set(r)
+            rvb.start(localGlobalSignature)
+            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
+            val globalsOffset = rvb.end()
+            rvb.start(localColsType)
+            rvb.addAnnotation(localColsType, colValuesBc.value)
+            val colsOffset = rvb.end()
+            val seqOpsFunction = seqOps()
+            (globalsOffset, colsOffset, seqOpsFunction)
+          })( { case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
+            seqOpsFunction(rv.region, comb, globalsOffset, false, colsOffset, false, rv.offset, false)
+          }, combOp)
         } else
           Array.empty[RegionValueAggregator]
 

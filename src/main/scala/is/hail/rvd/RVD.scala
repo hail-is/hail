@@ -337,6 +337,20 @@ trait RVD {
     crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
   }
 
+  def aggregateWithPartitionOp[PC, U: ClassTag](
+    zeroValue: U, makePC: RVDContext => PC
+  )(seqOp: (PC, U, RegionValue) => Unit, combOp: (U, U) => U): U = {
+    crdd.cmapPartitions[U] { (ctx, it) =>
+      val pc = makePC(ctx)
+      var comb = zeroValue
+      it.foreach { rv =>
+        seqOp(pc, comb, rv)
+        ctx.region.clear()
+      }
+      Iterator.single(comb)
+    }.fold(zeroValue, combOp)
+  }
+
   def aggregate[U: ClassTag](
     zeroValue: U
   )(seqOp: (U, RegionValue) => U,

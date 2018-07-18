@@ -183,14 +183,12 @@ object PruneDeadFields {
         Env.empty[Type]
           .bind("row", tt.rowType)
           .bind("global", tt.globalType)
-          .bind("AGG", tt.tAgg)
       case mt: MatrixType =>
         Env.empty[Type]
           .bind("global", mt.globalType)
           .bind("sa", mt.colType)
           .bind("va", mt.rvRowType)
           .bind("g", mt.entryType)
-          .bind("AGG", mt.rowEC.st("AGG")._2)
     }
   }
 
@@ -590,6 +588,10 @@ object PruneDeadFields {
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeTableIR(child, queryDep, memo)
         Env.empty[(Type, Type)]
+      case MatrixAggregate(child, query) =>
+        val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
+        memoizeMatrixIR(child, queryDep, memo)
+        Env.empty[(Type, Type)]
       case _: IR =>
         val envs = ir.children.flatMap {
           case mir: MatrixIR =>
@@ -779,6 +781,10 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         val query2 = rebuild(query, child2.typ, memo)
         TableAggregate(child2, query2)
+      case MatrixAggregate(child, query) =>
+        val child2 = rebuild(child, memo)
+        val query2 = rebuild(query, child2.typ, memo)
+        MatrixAggregate(child2, query2)
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuild(valueIR, in, memo)

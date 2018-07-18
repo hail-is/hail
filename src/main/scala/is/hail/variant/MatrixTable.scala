@@ -1298,7 +1298,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val aggregationST = Map(
       "global" -> (0, globalType),
       "g" -> (1, entryType),
-      "va" -> (2, rowType),
+      "va" -> (2, rvRowType),
       "sa" -> (3, colType))
 
     val ec = EvalContext(Map(
@@ -1309,16 +1309,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     (queryAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
       case Some(qir) =>
-        val et = entriesTable()
-
-        val entriesRowType = et.typ.rowType
-        val aggEnv = new ir.Env[ir.IR].bind(
-          "g" -> ir.SelectFields(ir.Ref("row", entriesRowType), entryType.fieldNames),
-          "va" -> ir.SelectFields(ir.Ref("row", entriesRowType), rowType.fieldNames),
-          "sa" -> ir.SelectFields(ir.Ref("row", entriesRowType), colType.fieldNames))
-
-        val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
-        et.aggregate(sqir)
+        (Interpret(MatrixAggregate(ast, qir)), qir.typ)
     }
   }
 
