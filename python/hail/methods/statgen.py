@@ -1694,9 +1694,6 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
         G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
-    Note that variants for which the alternate allele frequency is zero or one are not
-    normalizable, and therefore removed prior to calculating the GRM.
-
     This method drops variants with :math:`p_j = 0` or math:`p_j = 1` before
     computing kinship.
 
