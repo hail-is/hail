@@ -16,7 +16,7 @@ pbpaste > oauth-token
 now you can start the server with
 
 ```
-python ci.py
+python ci/ci.py
 ```
 
 I spun up a very tiny (4USD per month) server in GCP to redirect requests to my

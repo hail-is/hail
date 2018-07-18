@@ -84,7 +84,7 @@ when ready-for-merge endpoint is hit,
 
  - return json array of PRs thought to be approved and passing
 
-when approved endpoint is hit,
+when review_status endpoint is hit,
 
  - return json array of PRs thought to be approved
 

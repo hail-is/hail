@@ -2,10 +2,12 @@ from flask import Flask, request, jsonify
 import batch
 import requests
 
-repo = 'hail-is/hail/'
+repo = 'danking/docker-build-test/'
 repo_api_url = 'https://api.github.com/repos/' + repo
 
 class NoOAuthToken(Exception):
+    pass
+class NoSecret(Exception):
     pass
 
 app = Flask(__name__)
@@ -19,11 +21,64 @@ except FileNotFoundError as e:
         "containing a valid GitHub oauth token"
     ) from e
 
+try:
+    with open('secret', 'r') as f:
+        secret = f.read()
+except FileNotFoundError as e:
+    raise NoSecret(
+        "working directory must contain a file called `secret' "
+        "containing a string used to access dangerous endpoints"
+    ) from e
+
+###############################################################################
+### Global State & Setup
+
 prs = {}
 
-@app.route('/')
-def hello_world():
-    return 'Hello Bhavana!'
+def post_repo(url, headers={}, json=None, data=None, status_code=None):
+    if 'Authorization' in headers:
+        raise ValueError(
+            'Header already has Authorization? ' + str(headers))
+    headers['Authorization'] = 'token ' + oauth_token
+    r = requests.post(
+        repo_api_url + url,
+        headers=headers,
+        json=json,
+        data=data
+    )
+    if status_code and r.status_code != status_code:
+        return jsonify({
+            'endpoint' : repo_api_url + url,
+            'status_code' : r.status_code,
+            'data': data,
+            'json': json,
+            'message': 'github error',
+            'github_json': r.json()
+        }), r.status_code
+    else:
+        return r.json()
+
+def get_repo(url, headers={}, status_code=None):
+    if 'Authorization' in headers:
+        raise ValueError(
+            'Header already has Authorization? ' + str(headers))
+    headers['Authorization'] = 'token ' + oauth_token
+    r = requests.get(
+        repo_api_url + url,
+        headers=headers
+    )
+    if status_code and r.status_code != status_code:
+        return jsonify({
+            'endpoint' : repo_api_url + url,
+            'status_code' : r.status_code,
+            'message': 'github error',
+            'github_json': r.json()
+        }), r.status_code
+    else:
+        return r.json()
+
+###############################################################################
+### Endpoints
 
 @app.route('/github', methods=['POST'])
 def github():
@@ -41,11 +96,13 @@ def retest(pr_number):
 @app.route('/pr/<pr_number>/review_status')
 def review_status(pr_number):
     r = requests.get(
-        repo_api_url + '/pulls/' + pr_number + '/reviews',
-        headers={ 'access_token' : oauth_token }
+        repo_api_url + 'pulls/' + pr_number + '/reviews',
+        headers={ 'Authorization' : 'token ' + oauth_token }
     )
     if r.status_code != 200:
         return jsonify({
+            'status_code' : r.status_code,
+            'endpoint': repo_api_url + 'pulls/' + pr_number + '/reviews',
             'message': 'github error',
             'github_json': r.json()
         }), r.status_code
@@ -77,6 +134,54 @@ def review_status(pr_number):
             'state': 'PENDING',
             'reviews': latest_state_by_login
         }), 200
+
+@app.route('/pr/<sha>/fail')
+def fail(sha):
+    if request.args.get('secret') != secret:
+        return '403 Forbidden: bad secret query parameter', 403
+    post_repo(
+        'statuses/' + sha,
+        json={
+            'state': 'failure',
+            'description': 'manual override: fail',
+            'context': 'hail-ci'
+        },
+        status_code=201
+    )
+
+    return 'success', 200
+
+@app.route('/pr/<sha>/pending')
+def pending(sha):
+    if request.args.get('secret') != secret:
+        return '403 Forbidden: bad secret query parameter', 403
+    post_repo(
+        'statuses/' + sha,
+        json={
+            'state': 'pending',
+            'description': 'manual override: pending',
+            'context': 'hail-ci'
+        },
+        status_code=201
+    )
+
+    return 'success', 200
+
+@app.route('/pr/<sha>/success')
+def success(sha):
+    if request.args.get('secret') != secret:
+        return '403 Forbidden: bad secret query parameter', 403
+    post_repo(
+        repo_api_url + 'statuses/' + sha,
+        json={
+            'state': 'success',
+            'description': 'manual override: success',
+            'context': 'hail-ci'
+        },
+        status_code=201
+    )
+
+    return 'success', 200
 
 if __name__ == '__main__':
     app.run()
