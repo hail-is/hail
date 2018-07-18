@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 import batch
 import requests
 
+repo = 'hail-is/hail/'
+repo_api_url = 'https://api.github.com/repos/' + repo
+
 class NoOAuthToken(Exception):
     pass
 
@@ -38,7 +41,7 @@ def retest(pr_number):
 @app.route('/pr/<pr_number>/review_status')
 def review_status(pr_number):
     r = requests.get(
-        'https://api.github.com/repos/hail-is/hail/pulls/'+pr_number+'/reviews',
+        repo_api_url + '/pulls/' + pr_number + '/reviews',
         headers={ 'access_token' : oauth_token }
     )
     if r.status_code != 200:
