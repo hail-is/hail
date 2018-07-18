@@ -7,7 +7,7 @@ import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
-import hail.ir as hir
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import *
 from hail.utils import LinkedList
@@ -18,7 +18,7 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(hir.Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -49,7 +49,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(hir.NA(t), t)
+    return construct_expr(NA(t), t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
@@ -115,26 +115,26 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         if dtype == tint32:
             assert isinstance(x, builtins.int)
             assert tint32.min_value <= x <= tint32.max_value
-            return construct_expr(hir.I32(x), tint32)
+            return construct_expr(I32(x), tint32)
         elif dtype == tint64:
             assert isinstance(x, builtins.int)
             assert tint64.min_value <= x <= tint64.max_value
-            return construct_expr(hir.I64(x), tint64)
+            return construct_expr(I64(x), tint64)
         elif dtype == tfloat32:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(hir.F32(x), tfloat32)
+            return construct_expr(F32(x), tfloat32)
         elif dtype == tfloat64:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(hir.F64(x), tfloat64)
+            return construct_expr(F64(x), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
-            return construct_expr(hir.TrueIR() if x else hir.FalseIR(), tbool)
+            return construct_expr(TrueIR() if x else FalseIR(), tbool)
         else:
             assert dtype == tstr
             assert isinstance(x, builtins.str)
-            return construct_expr(hir.Str(x), tstr)
+            return construct_expr(Str(x), tstr)
     else:
-        return construct_expr(hir.Broadcast(x, dtype), dtype)
+        return construct_expr(Broadcast(x, dtype), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
@@ -197,7 +197,7 @@ def cond(condition,
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
-    return construct_expr(hir.If(condition._ir, consequent._ir, alternate._ir),
+    return construct_expr(If(condition._ir, consequent._ir, alternate._ir),
                               consequent.dtype, indices, aggregations)
 
 
@@ -334,7 +334,7 @@ def bind(f: Callable, *exprs):
 
     res_ir = lambda_result._ir
     for (uid, ir) in builtins.zip(uids, irs):
-        res_ir = hir.Let(uid, ir, res_ir)
+        res_ir = Let(uid, ir, res_ir)
 
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
@@ -3234,7 +3234,7 @@ def sorted(collection,
         return collection._method("sort", collection.dtype, ascending)
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = hir.ArraySort(with_key._ir, ascending._ir, on_key=True)
+        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
 
         indices, aggregations = unify_all(with_key, ascending)
         return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
@@ -3888,5 +3888,5 @@ def uniroot(f: Callable, min, max):
     lambda_result = to_expr(f(construct_variable(new_id, hl.tfloat64)))
 
     indices, aggregations = unify_all(lambda_result, min, max)
-    ir = hir.Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
+    ir = Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
     return construct_expr(ir, lambda_result._type, indices, aggregations)

@@ -7,7 +7,7 @@ import hail
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-import hail.ir as hir
+from hail.ir import *
 from hail.table import Table, ExprContainer
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
@@ -1011,7 +1011,7 @@ class MatrixTable(ExprContainer):
         for e in exprs:
             if not e._ir.is_nested_field:
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ir, hir.GetField)
+            assert isinstance(e._ir, GetField)
             assignments[e._ir.name] = e
 
         for k, e in named_exprs.items():
@@ -1790,7 +1790,7 @@ class MatrixTable(ExprContainer):
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
             root = [field_expr._ir.name]
             nested = field_expr._ir
-            while isinstance(nested, hir.GetField):
+            while isinstance(nested, GetField):
                 nested = nested.o
                 root.append(nested.name)
             root = '.'.join([escape_id(r) for r in reversed(root)])
@@ -1852,7 +1852,7 @@ class MatrixTable(ExprContainer):
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
             root = [field_expr._ir.name]
             nested = field_expr._ir
-            while isinstance(nested, hir.GetField):
+            while isinstance(nested, GetField):
                 nested = nested.o
                 root.append(nested.name)
             root = '.'.join([escape_id(r) for r in reversed(root)])
@@ -2212,7 +2212,7 @@ class MatrixTable(ExprContainer):
 
         uid = Env.get_uid()
 
-        virtual_ir = hir.GetField(hir.TopLevelReference('global', Indices()), uid)
+        virtual_ir = GetField(TopLevelReference('global', Indices()), uid)
         def joiner(obj):
             if isinstance(obj, MatrixTable):
                 joined = MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
@@ -2222,7 +2222,7 @@ class MatrixTable(ExprContainer):
             virtual_ir.o.indices = joined._global_indices
             return joined
 
-        ir = hir.Join(virtual_ir,
+        ir = Join(virtual_ir,
                       [uid],
                       [],
                       joiner)
@@ -2301,11 +2301,11 @@ class MatrixTable(ExprContainer):
                 exprs[i] is src.partition_key[i] for i in range(len(exprs)))
 
             if is_row_key or is_partition_key:
-                virtual_ir = hir.GetField(hir.TopLevelReference('va', src._row_indices), uid)
+                virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                 def joiner(left):
                     return MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                ir = hir.Join(virtual_ir,
+                ir = Join(virtual_ir,
                               uids_to_delete,
                               exprs,
                               joiner)
@@ -2443,7 +2443,7 @@ class MatrixTable(ExprContainer):
             col_uid = Env.get_uid()
             uids.append(col_uid)
 
-            virtual_ir = hir.GetField(hir.TopLevelReference('g', src._entry_indices), uid)
+            virtual_ir = GetField(TopLevelReference('g', src._entry_indices), uid)
 
             def joiner(left: MatrixTable):
                 localized = Table(self._jvds.localizeEntries(row_uid))
@@ -2454,10 +2454,10 @@ class MatrixTable(ExprContainer):
                 joined = left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
                 return joined
 
-            ir = hir.Join(virtual_ir,
-                          uids,
-                          [*row_exprs, *col_exprs],
-                          joiner)
+            ir = Join(virtual_ir,
+                      uids,
+                      [*row_exprs, *col_exprs],
+                      joiner)
             return construct_expr(ir, self.entry.dtype, indices, aggregations)
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
@@ -2479,17 +2479,17 @@ class MatrixTable(ExprContainer):
         jmt = base._jvds
         if row_exprs:
             row_key = None if len(set(self.row_key) & set(row_exprs.keys())) == 0 else self.row_key
-            row_struct = hir.InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
+            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
             jmt = jmt.selectRows(str(row_struct), row_key)
         if col_exprs:
             col_key = None if len(set(self.col_key) & set(col_exprs.keys())) == 0 else self.col_key
-            col_struct = hir.InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
+            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
             jmt = jmt.selectCols(str(col_struct), col_key)
         if entry_exprs:
-            entry_struct = hir.InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
+            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
             jmt = jmt.selectEntries(str(entry_struct))
         if global_exprs:
-            globals_struct = hir.InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()])
+            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()])
             jmt = jmt.selectGlobals(str(globals_struct))
 
         return cleanup(MatrixTable(jmt))
@@ -2897,9 +2897,9 @@ class MatrixTable(ExprContainer):
     def _select_rows_processed(self, key_struct):
         new_key = (list(key_struct.keys()), [])
         keys = Env.get_uid()
-        k_ref = hir.Ref(keys, key_struct.dtype)
-        fields = [(n, hir.GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
-        row_ir = hir.Let(keys, key_struct._ir, hir.InsertFields(self.row._ir, fields))
+        k_ref = Ref(keys, key_struct.dtype)
+        fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
         return MatrixTable(self._jvds.selectRows(str(row_ir), new_key))
 
     def _make_row(self, key_struct, value_struct, pk_size) -> Tuple[StructExpression, Optional[Tuple[List[str], List[str]]]]:
@@ -2933,9 +2933,9 @@ class MatrixTable(ExprContainer):
     def _select_cols_processed(self, key_struct):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
-        k_ref = hir.Ref(keys, key_struct.dtype)
-        fields = [(n, hir.GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
-        col_ir = hir.Let(keys, key_struct._ir, hir.InsertFields(self.col._ir, fields))
+        k_ref = Ref(keys, key_struct.dtype)
+        fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
         return MatrixTable(self._jvds.selectCols(str(col_ir), new_key))
 
     def _make_col(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]]]:

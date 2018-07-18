@@ -7,7 +7,7 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-import hail.ir as hir
+from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
@@ -410,9 +410,9 @@ class Table(ExprContainer):
 
     def _preserved_key_pairs(self, key_struct):
         def is_copy(ir, name):
-            return (isinstance(ir, hir.GetField) and
+            return (isinstance(ir, GetField) and
                     ir.name == name and
-                    isinstance(ir.o, hir.TopLevelReference) and
+                    isinstance(ir.o, TopLevelReference) and
                     ir.o.name == 'row' and
                     ir.o.indices.source is self)
         if self.key is None:
@@ -449,7 +449,7 @@ class Table(ExprContainer):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
         def replace_global_axes(ir):
-            if isinstance(ir, hir.TopLevelReference) and ir.name == 'global':
+            if isinstance(ir, TopLevelReference) and ir.name == 'global':
                 ir.typ = base._global_type
                 ir.indices = base._global_indices
                 return True
@@ -618,7 +618,8 @@ class Table(ExprContainer):
         for e in exprs:
             if not e._ir.is_nested_field:
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ir, hir.GetField)
+            assert isinstance(e._ir,
+                              GetField)
             assignments[e._ir.name] = e
 
         for k, e in named_exprs.items():
@@ -1340,12 +1341,12 @@ class Table(ExprContainer):
             else:
                 all_uids = []
 
-            virtual_ir = hir.GetField(hir.TopLevelReference('row', src._row_indices), uid)
+            virtual_ir = GetField(TopLevelReference('row', src._row_indices), uid)
 
             def joiner(left):
                 if not is_key:
                     original_key = None if left.key is None else list(left.key)
-                    left = Table(left._jt.select(str(hir.Apply('annotate',
+                    left = Table(left._jt.select(str(Apply('annotate',
                                                              left._row._ir,
                                                              hl.struct(**dict(zip(uids, exprs)))._ir)), None, None)
                                  ).key_by(*uids)
@@ -1361,10 +1362,10 @@ class Table(ExprContainer):
                 return rekeyed
 
             all_uids.append(uid)
-            ir = hir.Join(virtual_ir,
-                       all_uids,
-                       exprs,
-                       joiner)
+            ir = Join(virtual_ir,
+                      all_uids,
+                      exprs,
+                      joiner)
             return construct_expr(ir, new_schema, indices, aggregations)
         elif isinstance(src, MatrixTable):
             for e in exprs:
@@ -1383,21 +1384,21 @@ class Table(ExprContainer):
 
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
-                    virtual_ir = hir.GetField(hir.TopLevelReference('va', src._row_indices), uid)
+                    virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                     def joiner(left):
                         joined = MatrixTable(left._jvds.annotateRowsTable(
                             right._jt, uid, False))
                         return joined
 
-                    ir = hir.Join(virtual_ir,
-                                  [uid],
-                                  exprs,
-                                  joiner)
+                    ir = Join(virtual_ir,
+                              [uid],
+                              exprs,
+                              joiner)
                     return construct_expr(ir, new_schema, indices, aggregations)
                 else:
                     # use vds_key
                     uids = [Env.get_uid() for _ in range(len(exprs))]
-                    virtual_ir = hir.GetField(hir.TopLevelReference('va', src._row_indices), uid)
+                    virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                     def joiner(left):
                         from hail.expr import aggregators as agg
 
@@ -1421,26 +1422,23 @@ class Table(ExprContainer):
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
                         l = MatrixTable(jl)
-                        # key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
-                        #     '{}: {}'.format(u, e._ast.to_hql()) for u, e in
-                        #     zip(uids, exprs)))
-                        vals = hir.GetField(hir.GetField(l._rvrow._ir, uid), "values")
-                        keys = hir.Apply("get", vals, hir.MakeStruct([(u, e._ir) for u, e in zip(uids, exprs)]))
-                        select_ir = hir.InsertFields(l._row._ir, [(uid, keys)])
+                        vals = GetField(GetField(l._rvrow._ir, uid), "values")
+                        keys = Apply("get", vals, MakeStruct([(u, e._ir) for u, e in zip(uids, exprs)]))
+                        select_ir = InsertFields(l._row._ir, [(uid, keys)])
                         tdict = {"va": l._rvrow.dtype}
                         jl = jl.selectRows(select_ir.str_with_updated_types(tdict), None)
                         joined = MatrixTable(jl)
                         return joined
 
-                    ir = hir.Join(virtual_ir,
-                                  [uid],
-                                  exprs,
-                                  joiner)
+                    ir = Join(virtual_ir,
+                              [uid],
+                              exprs,
+                              joiner)
                     return construct_expr(ir, new_schema, indices, aggregations)
 
             elif indices == src._col_indices:
                 all_uids = [uid]
-                virtual_ir = hir.GetField(hir.TopLevelReference('sa', src._col_indices), uid)
+                virtual_ir = GetField(TopLevelReference('sa', src._col_indices), uid)
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
@@ -1469,10 +1467,10 @@ class Table(ExprContainer):
                                              ._jvds
                                              .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                         return result
-                ir = hir.Join(virtual_ir,
-                           all_uids,
-                           exprs,
-                           joiner)
+                ir = Join(virtual_ir,
+                          all_uids,
+                          exprs,
+                          joiner)
                 return construct_expr(ir, new_schema, indices, aggregations)
             else:
                 raise NotImplementedError()
@@ -1493,7 +1491,7 @@ class Table(ExprContainer):
         """
         uid = Env.get_uid()
 
-        global_ref = hir.TopLevelReference('global', self._global_indices)
+        global_ref = TopLevelReference('global', self._global_indices)
         def joiner(obj):
             from hail.matrixtable import MatrixTable
             joined_type = tstruct(**obj.globals.dtype, **{uid: self.globals.dtype})
@@ -1505,7 +1503,7 @@ class Table(ExprContainer):
             global_ref.indices = joined._global_indices
             return joined
 
-        ir = hir.Join(hir.GetField(global_ref, uid),
+        ir = Join(GetField(global_ref, uid),
                       [uid],
                       [],
                       joiner)
