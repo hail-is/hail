@@ -241,7 +241,7 @@ object TypeCheck {
         val aggregationST = Map(
           "global" -> (0, child.typ.globalType),
           "g" -> (1, child.typ.entryType),
-          "va" -> (2, child.typ.rowType),
+          "va" -> (2, child.typ.rvRowType),
           "sa" -> (3, child.typ.colType))
         val env = Env.empty[Type]
           .bind("global" -> child.typ.globalType)

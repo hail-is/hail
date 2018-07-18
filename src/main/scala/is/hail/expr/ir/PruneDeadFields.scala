@@ -183,14 +183,12 @@ object PruneDeadFields {
         Env.empty[Type]
           .bind("row", tt.rowType)
           .bind("global", tt.globalType)
-          .bind("AGG", tt.tAgg)
       case mt: MatrixType =>
         Env.empty[Type]
           .bind("global", mt.globalType)
           .bind("sa", mt.colType)
           .bind("va", mt.rvRowType)
           .bind("g", mt.entryType)
-          .bind("AGG", mt.rowEC.st("AGG")._2)
     }
   }
 
