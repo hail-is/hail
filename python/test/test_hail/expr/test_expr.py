@@ -197,6 +197,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True).value, 2)
 
     def test_aggregators(self):
+        a = hl.literal([1, 2], tarray(tint32))
+
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
@@ -212,6 +214,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.arr_sum, [10, 20, 0])
         self.assertEqual(r.bind_agg, 5)
         self.assertEqual(r.foo, 3)
+
+        self.assertEqual(table.aggregate(agg.array_sum(agg.filter(lambda x: True, a))), [10, 20])
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
                                       lessthan6=agg.fraction(table.idx < 6),
