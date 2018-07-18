@@ -888,18 +888,15 @@ def pl_dosage(pl) -> Float64Expression:
     return _func("plDosage", tfloat64, pl)
 
 
-@typecheck(pl=expr_array(expr_int32))
-def pl_to_gp(pl) -> ArrayNumericExpression:
+@typecheck(pl=expr_array(expr_int32), _cache_size=int)
+def pl_to_gp(pl, _cache_size=2048) -> ArrayNumericExpression:
     """
     Return the linear-scaled genotype probabilities from an array of Phred-scaled genotype likelihoods.
 
     Examples
     --------
-    .. doctest::
-
-        >>> hl.eval_expr(hl.pl_to_gp([0, 10, 100]))
-        [0.9090909090082644, 0.09090909090082644, 9.090909090082645e-11]
-
+    >>> hl.pl_to_gp([0, 10, 100]).value
+    [0.9090909090082644, 0.09090909090082644, 9.090909090082645e-11]
 
     Notes
     -----
@@ -914,9 +911,8 @@ def pl_to_gp(pl) -> ArrayNumericExpression:
     -------
    :class:`.ArrayNumericExpression` of type :py:data:`.tfloat64`
     """
-    max_phred_in_table = 2048
-    phred_table = hl.literal([10 ** (-x/10.0) for x in builtins.range(max_phred_in_table)])
-    gp = hl.bind(lambda pls: pls.map(lambda x: hl.cond(x >= max_phred_in_table, 10 ** (-x/10.0), phred_table[x])), pl)
+    phred_table = hl.literal([10 ** (-x/10.0) for x in builtins.range(_cache_size)])
+    gp = hl.bind(lambda pls: pls.map(lambda x: hl.cond(x >= _cache_size, 10 ** (-x/10.0), phred_table[x])), pl)
     return hl.bind(lambda gp: gp / hl.sum(gp), gp)
 
 

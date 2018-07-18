@@ -1717,3 +1717,9 @@ class Tests(unittest.TestCase):
         res = hl.hardy_weinberg_p(1, 2, 1).value
         self.assertAlmostEqual(res['p_hwe'], 0.65714285)
         self.assertAlmostEqual(res['r_expected_het_freq'], 0.57142857)
+
+    def test_pl_to_gp(self):
+        res = hl.pl_to_gp([0, 10, 100]).value
+        self.assertAlmostEqual(res[0], 0.9090909090082644)
+        self.assertAlmostEqual(res[1], 0.09090909090082644)
+        self.assertAlmostEqual(res[2], 9.090909090082645e-11)
