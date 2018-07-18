@@ -167,6 +167,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, U] =
     cmapPartitionsWithIndex((i, _, part) => f(i, part), preservesPartitioning)
 
+  def fold(zero: T, combOp: (T, T) => T): T = aggregate[T](zero, (_, u, t) => combOp(u, t), combOp)
+
   // FIXME: delete when region values are non-serializable
   def aggregate[U: ClassTag](
     zero: U,

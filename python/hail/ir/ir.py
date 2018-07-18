@@ -476,6 +476,15 @@ class TableAggregate(IR):
     def __str__(self):
         return '(TableAggregate {} {})'.format(self.child, self.query)
 
+class MatrixAggregate(IR):
+    def __init__(self, child, query):
+        super().__init__()
+        self.child = child
+        self.query = query
+
+    def __str__(self):
+        return '(MatrixAggregate {} {})'.format(self.child, self.query)
+
 class TableWrite(IR):
     def __init__(self, child, path, overwrite):
         super().__init__()
