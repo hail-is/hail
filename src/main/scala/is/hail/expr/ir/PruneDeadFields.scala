@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.AnnotationPathException
+import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -77,6 +77,19 @@ object PruneDeadFields {
     }
   }
 
+  def minimizeColValues(mv: MatrixValue, valueIR: IR): (Type, BroadcastIndexedSeq, IR) = {
+    val matrixType = mv.typ
+    val originalCols = mv.colValues
+    val memo = Memo.empty[BaseType]
+    val colDep = memoizeValueIR(valueIR, valueIR.typ, memo).m.mapValues(_._2).get("sa").asInstanceOf[TStruct]
+    log.info(s"minimized col values:\n  From: ${ matrixType.colType }\n  To: ${ colDep }")
+    val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
+      upcast(Literal(mv.colValues.value, TArray(matrixType.colType)), colDep))
+    (colDep,
+      BroadcastIndexedSeq(newIndexedSeq, TArray(colDep), mv.sparkContext),
+      rebuild(valueIR, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
+    )
+  }
 
   def minimal(tt: TableType): TableType = {
     val keySet = tt.key.iterator.flatten.toSet
