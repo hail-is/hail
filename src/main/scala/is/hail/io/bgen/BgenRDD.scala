@@ -24,7 +24,7 @@ sealed case class RowFields (
   fileRowIndex: Boolean
 )
 
-case class BgenSettings (
+case class BgenSettings(
   nSamples: Int,
   nVariants: Int,
   entries: EntriesSetting,

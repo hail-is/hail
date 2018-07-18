@@ -452,9 +452,10 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_bgen(resource('skip_invalid_loci.bgen'),
-                           entry_fields=[],
-                           sample_file=resource('skip_invalid_loci.sample'))
+            mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
+                                entry_fields=[],
+                                sample_file=resource('skip_invalid_loci.sample'))
+            mt._force_count_rows()
 
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}

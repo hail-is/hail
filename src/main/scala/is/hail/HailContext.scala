@@ -8,7 +8,7 @@ import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser, ToIRFailure, ToIRSuccess, ir}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
-import is.hail.io.bgen.LoadBgen
+import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
@@ -294,15 +294,6 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  private[this] def absolutePath(rel: String): String = {
-    val matches = hadoopConf.glob(rel)
-    if (matches.length != 1)
-      fatal(s"""found more than one match for variant filter path: $rel:
-                 |${matches.mkString(",")}""".stripMargin)
-    val abs = matches(0).getPath.toString
-    abs
-  }
-
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     includeGT: Boolean = true,
@@ -313,62 +304,44 @@ class HailContext private(val sc: SparkContext,
     includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
     blockSizeInMB: Option[Int] = None,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
+    rg: Option[String] = None,
+    contigRecoding: Map[String, String] = Map.empty,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
   ): MatrixTable = {
-    var statuses = hadoopConf.globAllStatuses(files)
-    statuses = statuses.flatMap { status =>
-      val file = status.getPath.toString
-      if (!file.endsWith(".bgen"))
-        warn(s"input file does not have .bgen extension: $file")
+    val referenceGenome = rg.map(ReferenceGenome.getReference)
 
-      if (hadoopConf.isDir(file))
-        hadoopConf.listStatus(file)
-          .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
-      else
-        Array(status)
-    }
+    val typedRowFields = Array(
+      (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
+      (true, "alleles" -> TArray(TString())),
+      (includeRsid, "rsid" -> TString()),
+      (includeLid, "varid" -> TString()),
+      (includeFileRowIdx, "file_row_idx" -> TInt64()))
+      .withFilter(_._1).map(_._2)
 
-    if (statuses.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
+    val typedEntryFields: Array[(String, Type)] =
+      Array(
+        (includeGT, "GT" -> TCall()),
+        (includeGP, "GP" -> +TArray(+TFloat64())),
+        (includeDosage, "dosage" -> +TFloat64()))
+        .withFilter(_._1).map(_._2)
 
-    val totalSize = statuses.map(_.getLen).sum
 
-    val inputNPartitions = (blockSizeInMB, nPartitions) match {
-      case (Some(blockSizeInMB), _) =>
-        val blockSizeInB = blockSizeInMB * 1024 * 1024
-        statuses.map { status =>
-          val size = status.getLen
-          ((size + blockSizeInB - 1) / blockSizeInB).toInt
-        }
-      case (_, Some(nParts)) =>
-        statuses.map { status =>
-          val size = status.getLen
-          ((size * nParts + totalSize - 1) / totalSize).toInt
-        }
-    }
+    val requestedType: MatrixType = MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
+      rowType = TStruct(typedRowFields: _*),
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = TStruct(typedEntryFields: _*))
 
-    val inputs = statuses.map(_.getPath.toString)
-
-    val includedVariantsPerFile = toMapIfUnique(
-      includedVariantsPerUnresolvedFilePath
-    )(absolutePath _
-    ) match {
-      case Left(duplicatedPaths) =>
-        fatal(s"""some relative paths in the import_bgen _variants_per_file
-                 |parameter have resolved to the same absolute path
-                 |$duplicatedPaths""".stripMargin)
-      case Right(m) =>
-        log.info(s"variant filters per file after path resolution is $m")
-        m
-    }
-
-    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
-
-    LoadBgen.load(this, inputs, inputNPartitions, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
+    val reader = MatrixBGENReader(
+      files, sampleFile, nPartitions, blockSizeInMB, rg,
+      Option(contigRecoding).getOrElse(Map.empty[String, String]),
+      skipInvalidLoci,
+      includedVariantsPerUnresolvedFilePath)
+    new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 
   def importGen(file: String,
@@ -671,7 +644,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = hadoopConf.globAll(files)
 
-    maybeGZipAsBGZip (forceBGZ) {
+    maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }
