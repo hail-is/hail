@@ -1329,6 +1329,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
         self.assertEqual(hl.eval_expr(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
+        fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
+        self.assertEqual(hl.eval_expr(fm), {'A','a','B','C','D'})
 
     def test_array_find(self):
         self.assertEqual(hl.eval_expr(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)

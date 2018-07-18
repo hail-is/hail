@@ -168,16 +168,18 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
         """
         expected_type, s = (tarray, 'array') if isinstance(self._type, tarray) else (tset, 'set')
+        value_type = f(construct_variable(Env.get_uid(), self.dtype.element_type)).dtype
 
-        def unify_ret(t):
-            if not isinstance(t, expected_type):
-                raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
-            return t
+        if not isinstance(value_type, expected_type):
+            raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, value_type))
+
+        def f2(x):
+            return hl.array(f(x)) if isinstance(value_type, tset) else f(x)
 
         def transform_ir(array, name, body):
             return ArrayFlatMap(array, name, body)
 
-        array_flatmap = hl.array(self)._ir_lambda_method(transform_ir, f, self.dtype.element_type, unify_ret)
+        array_flatmap = hl.array(self)._ir_lambda_method(transform_ir, f2, self.dtype.element_type, identity)
 
         if isinstance(self.dtype, tset):
             return hl.set(array_flatmap)
