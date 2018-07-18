@@ -30,9 +30,6 @@ case class BgenHeader(
 )
 
 object LoadBgen {
-  private[bgen] val includedVariantsPositionsHadoopPrefix = "__includedVariantsPositions__"
-  private[bgen] val includedVariantsIndicesHadoopPrefix = "__includedVariantsIndices__"
-
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {
     val indexFile = file + ".idx"
 
