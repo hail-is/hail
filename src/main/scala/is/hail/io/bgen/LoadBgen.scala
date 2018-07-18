@@ -34,6 +34,7 @@ object LoadBgen {
 
   def load(hc: HailContext,
     files: Array[String],
+    fileNPartitions: Array[Int],
     sampleFile: Option[String] = None,
     includeGT: Boolean,
     includeGP: Boolean,
@@ -41,7 +42,6 @@ object LoadBgen {
     includeLid: Boolean,
     includeRsid: Boolean,
     includeFileRowIdx: Boolean,
-    nPartitions: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false,
@@ -111,7 +111,7 @@ object LoadBgen {
     val fastKeys = BgenRDD(
       sc,
       fileHeaders,
-      nPartitions,
+      fileNPartitions,
       includedVariantsPerFile,
       fastKeysSettings
     )
@@ -119,7 +119,7 @@ object LoadBgen {
     val rdd2 = BgenRDD(
       sc,
       fileHeaders,
-      nPartitions,
+      fileNPartitions,
       includedVariantsPerFile,
       recordsSettings
     )

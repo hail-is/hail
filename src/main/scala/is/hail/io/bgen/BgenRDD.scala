@@ -80,12 +80,12 @@ object BgenRDD {
   def apply(
     sc: SparkContext,
     files: Seq[BgenHeader],
-    minPartitions: Option[Int],
+    fileNPartitions: Array[Int],
     includedVariantsPerFile: Map[String, Seq[Int]],
     settings: BgenSettings
   ): ContextRDD[RVDContext, RegionValue] =
     ContextRDD(
-      new BgenRDD(sc, files, minPartitions, includedVariantsPerFile, settings))
+      new BgenRDD(sc, files, fileNPartitions, includedVariantsPerFile, settings))
 
   private[bgen] def decompress(
     input: Array[Byte],
@@ -96,7 +96,7 @@ object BgenRDD {
 private class BgenRDD(
   sc: SparkContext,
   files: Seq[BgenHeader],
-  minPartitions: Option[Int],
+  fileNPartitions: Array[Int],
   includedVariantsPerFile: Map[String, Seq[Int]],
   settings: BgenSettings
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
@@ -105,7 +105,7 @@ private class BgenRDD(
   private[this] val parts = BgenRDDPartitions(
     sc,
     files,
-    minPartitions.getOrElse(defaultMinPartitions),
+    fileNPartitions,
     includedVariantsPerFile,
     settings)
 

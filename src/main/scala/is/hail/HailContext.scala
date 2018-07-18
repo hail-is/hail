@@ -294,24 +294,6 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  def importBgen(file: String,
-    sampleFile: Option[String] = None,
-    includeGT: Boolean,
-    includeGP: Boolean,
-    includeDosage: Boolean,
-    includeLid: Boolean,
-    includeRsid: Boolean,
-    includeFileRowIdx: Boolean = false,
-    nPartitions: Option[Int] = None,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false,
-    includedVariantsPerFile: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
-  ): MatrixTable = {
-    importBgens(List(file), sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding, skipInvalidLoci, includedVariantsPerFile)
-  }
-
   private[this] def absolutePath(rel: String): String = {
     val matches = hadoopConf.glob(rel)
     if (matches.length != 1)
@@ -330,23 +312,45 @@ class HailContext private(val sc: SparkContext,
     includeRsid: Boolean = true,
     includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
+    blockSizeInMB: Option[Int] = None,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false,
     includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
   ): MatrixTable = {
-
-    val inputs = hadoopConf.globAll(files).flatMap { file =>
+    var statuses = hadoopConf.globAllStatuses(files)
+    statuses = statuses.flatMap { status =>
+      val file = status.getPath.toString
       if (!file.endsWith(".bgen"))
-        warn(s"Input file does not have .bgen extension: $file")
+        warn(s"input file does not have .bgen extension: $file")
 
       if (hadoopConf.isDir(file))
         hadoopConf.listStatus(file)
-          .map(_.getPath.toString)
-          .filter(p => ".*part-[0-9]+".r.matches(p))
+          .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
       else
-        Array(file)
+        Array(status)
     }
+
+    if (statuses.isEmpty)
+      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
+
+    val totalSize = statuses.map(_.getLen).sum
+
+    val inputNPartitions = (blockSizeInMB, nPartitions) match {
+      case (Some(blockSizeInMB), _) =>
+        val blockSizeInB = blockSizeInMB * 1024 * 1024
+        statuses.map { status =>
+          val size = status.getLen
+          ((size + blockSizeInB - 1) / blockSizeInB).toInt
+        }
+      case (_, Some(nParts)) =>
+        statuses.map { status =>
+          val size = status.getLen
+          ((size * nParts + totalSize - 1) / totalSize).toInt
+        }
+    }
+
+    val inputs = statuses.map(_.getPath.toString)
 
     val includedVariantsPerFile = toMapIfUnique(
       includedVariantsPerUnresolvedFilePath
@@ -361,13 +365,10 @@ class HailContext private(val sc: SparkContext,
         m
     }
 
-    if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
     rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
 
-    LoadBgen.load(this, inputs, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      nPartitions, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
+    LoadBgen.load(this, inputs, inputNPartitions, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
+      rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
   }
 
   def importGen(file: String,
