@@ -1,3 +1,18 @@
+Getting Started Developing
+---
+```
+conda env create hail-ci -f environment.yaml
+source activate hail-ci
+pip install /path/to/batch
+```
+now you can start the server with
+```
+python ci.py
+```
+
+Developer Tips
+---
+
 https://developer.github.com/v3/repos/hooks/#list-hooks
 
 so, very confusingly, github returns 404 if you're not authenticated rather than
