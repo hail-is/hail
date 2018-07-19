@@ -678,14 +678,10 @@ class Broadcast(IR):
         self.value = value
         self.dtype = dtype
         self.uid = Env.get_uid()
-        self.global_type = 'tint32'
 
     def __str__(self):
         from hail.expr.expressions import Indices
         return str(GetField(TopLevelReference('global', Indices()), self.uid))
-
-    def set_global_type(self, t):
-        self.global_type = t
 
 
 class Join(IR):
