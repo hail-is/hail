@@ -1,7 +1,6 @@
 from typing import *
 
 from .aggsig import AggSignature
-from .comparison_op import ComparisonOp
 from .base_ir import *
 from hail.expr.types import hail_type
 from hail.typecheck.check import *
@@ -189,7 +188,7 @@ class ApplyUnaryOp(IR):
 
 
 class ApplyComparisonOp(IR):
-    @typecheck_method(op=ComparisonOp, l=IR, r=IR)
+    @typecheck_method(op=str, l=IR, r=IR)
     def __init__(self, op, l, r):
         super().__init__(l, r)
         self.op = op
@@ -197,7 +196,7 @@ class ApplyComparisonOp(IR):
         self.r = r
 
     def __str__(self):
-        return '(ApplyComparisonOp {} {} {})'.format(self.op, self.l, self.r)
+        return '(ApplyComparisonOp ({}) {} {})'.format(self.op, self.l, self.r)
 
 
 class MakeArray(IR):

@@ -430,8 +430,7 @@ class Expression(object):
         if (name in {'+', '-', '*', '/', '//'}) and (ret_type in {tint32, tint64, tfloat32, tfloat64}):
             op = ApplyBinaryOp(name, self._ir, other._ir)
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
-            comp = ComparisonOp(name)
-            op = ApplyComparisonOp(comp, self._ir, other._ir)
+            op = ApplyComparisonOp(name, self._ir, other._ir)
         else:
             op = Apply(name, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
