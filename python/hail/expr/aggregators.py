@@ -773,7 +773,7 @@ def explode(expr) -> Aggregable:
     :class:`.Aggregable`
         Aggregable expression.
     """
-    return expr._flat_map(identity)
+    return expr._flatmap(identity)
 
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
@@ -820,9 +820,9 @@ def map(f, expr) -> Aggregable:
 
 
 @typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
-def flat_map(f, expr) -> Aggregable:
+def flatmap(f, expr) -> Aggregable:
     f2 = f if callable(f) else lambda x: f
-    return expr._flat_map(f2)
+    return expr._flatmap(f2)
 
 
 @typecheck(expr=agg_expr(expr_call), prior=expr_float64)

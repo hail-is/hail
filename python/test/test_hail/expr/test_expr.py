@@ -231,10 +231,10 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_table(10)
         tests = [(agg.filter(lambda x: x > 8, agg.map(lambda x: x + 1, t.idx)), [9, 10]),
                  (agg.map(lambda x: x + 1, agg.filter(lambda x: x > 8, t.idx)), [10]),
-                 (agg.flat_map(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), agg.map(lambda x: x + 1, t.idx)), [9, 10, 10, 11]),
-                 (agg.map(lambda x: x + 1, agg.flat_map(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), t.idx)), [10, 11]),
-                 (agg.filter(lambda x: x > 8, agg.flat_map(lambda x: [x, x + 1], t.idx)), [9, 9, 10]),
-                 (agg.flat_map(lambda x: [x, x + 1], agg.filter(lambda x: x > 8, t.idx)), [9, 10])]
+                 (agg.flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), agg.map(lambda x: x + 1, t.idx)), [9, 10, 10, 11]),
+                 (agg.map(lambda x: x + 1, agg.flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), t.idx)), [10, 11]),
+                 (agg.filter(lambda x: x > 8, agg.flatmap(lambda x: [x, x + 1], t.idx)), [9, 9, 10]),
+                 (agg.flatmap(lambda x: [x, x + 1], agg.filter(lambda x: x > 8, t.idx)), [9, 10])]
 
 
         for test in tests:

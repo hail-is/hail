@@ -838,7 +838,7 @@ class Aggregable(object):
                           indices, aggregations,
                           transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
 
-    def _flat_map(self, f):
+    def _flatmap(self, f):
         uid = Env.get_uid()
         ref = expressions.construct_variable(uid, self._type,
                                              self._indices, self._aggregations)
