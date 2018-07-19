@@ -262,10 +262,11 @@ def manhattan(pvals, locus=None, title=None, size=4):
 
     if locus is None:
         locus = pvals._indices.source.locus
-    res = hail.tuple([locus.global_position(), pvals, locus.contig]).collect()
+    res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position]).collect()
     x = [point[0] for point in res]
     y = [point[1] for point in res]
     label = [point[2] for point in res]
+    variant_identifier = [str(point[2]) + ':' + str(point[3]) for point in res]
 
     p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False)
@@ -301,5 +302,11 @@ def manhattan(pvals, locus=None, title=None, size=4):
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.width = 1000
+    p.tools = [HoverTool()]
+
+    p.select_one(HoverTool).tooltips = [
+        ('variant_identifier', f"@{variant_identifier}"),
+        ('p-value', '$y'),
+    ]
 
     return p
