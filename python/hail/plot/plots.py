@@ -123,7 +123,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 
 
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
-           label=oneof(nullable(str), expr_str), title=nullable(str),
+           label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool)
 def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True):
     """Create a scatterplot.
