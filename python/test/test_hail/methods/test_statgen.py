@@ -656,7 +656,7 @@ class Tests(unittest.TestCase):
         rrm = hl.realized_relationship_matrix(mt.GT).to_numpy()
         self.assertTrue(np.allclose(k, rrm))
 
-    def test_correlation_vs_hardcode(self):
+    def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
@@ -672,14 +672,14 @@ class Tests(unittest.TestCase):
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
         mt = ht.to_matrix_table(['v'], ['s'])
 
-        actual = hl.correlation(mt.GT.n_alt_alleles()).to_numpy()
+        actual = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
         expected = np.array([[1., -0.85280287, 0.42640143],
                              [-0.85280287,  1., -0.5],
                              [0.42640143, -0.5, 1.]])
 
         self.assertTrue(np.allclose(actual, expected))
 
-    def test_correlation_vs_numpy(self):
+    def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
@@ -689,7 +689,7 @@ class Tests(unittest.TestCase):
         g_std = self._filter_and_standardize_cols(g)
         l = g_std.T @ g_std
 
-        cor = hl.correlation(mt.GT.n_alt_alleles()).to_numpy()
+        cor = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
 
         self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
         self.assertTrue(np.allclose(l, cor))

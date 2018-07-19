@@ -8,13 +8,13 @@ Statistics
 
 .. autosummary::
 
-    correlation
+    row_correlation
     linear_regression
     logistic_regression
     LinearMixedModel
     pca
 
-.. autofunction:: correlation
+.. autofunction:: row_correlation
 .. autofunction:: linear_regression
 .. autofunction:: logistic_regression
 .. autoclass:: LinearMixedModel

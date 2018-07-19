@@ -1790,22 +1790,21 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
                         __ACsq=agg.sum(mt.__gt * mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
-                        __scaled_std_dev=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
+                        __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
     mt = mt.filter_rows(mt.__scaled_std_dev > 1e-30)
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__scaled_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__centered_length, 0.0)
     bm = BlockMatrix.from_entry_expr(normalized_gt)
 
     return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
 
 
-@typecheck(entry_expr=expr_float64)
-def correlation(entry_expr) -> BlockMatrix:
+@typecheck(entry_expr=expr_float64, block_size=int)
+def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     """Computes the correlation matrix between row vectors.
 
     Examples
     --------
-
     Consider the following dataset with three variants and four samples:
 
     >>> data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
@@ -1825,7 +1824,7 @@ def correlation(entry_expr) -> BlockMatrix:
 
     Compute genotype correlation (linkage) between all pairs of variants:
 
-    >>> ld_matrix = hl.correlation(mt.GT.n_alt_alleles())
+    >>> ld_matrix = hl.row_correlation(mt.GT.n_alt_alleles())
     >>> ld_matrix.to_numpy()
     array([[ 1.        , -0.85280287,  0.42640143],
            [-0.85280287,  1.        , -0.5       ],
@@ -1837,6 +1836,23 @@ def correlation(entry_expr) -> BlockMatrix:
     array([[ 1.        , -0.85280287,  0.        ],
            [ 0.        ,  1.        , -0.5       ],
            [ 0.        ,  0.        ,  1.        ]])
+
+    Warning
+    -------
+    Rows with a constant value (i.e., zero variance) will result `nan`
+    correlation values. To avoid this, first check that all rows vary or filter
+    out constant rows (for example, with the help of :func:`.aggregators.stats`).
+
+    Warning
+    -------
+    The resulting number of matrix elements is the square of the number of rows
+    in the matrix table, so computing the full matrix may be infeasible. For
+    example, ten million rows would produce 800TB of float64 values. The
+    block-sparse representation on BlockMatrix may be used to work efficiently
+    with regions of such matrices.
+
+    To prevent excessive re-computation, be sure to write and read the (possibly
+    block-sparsified) result before multiplication by another matrix.
 
     Notes
     -----
@@ -1853,24 +1869,19 @@ def correlation(entry_expr) -> BlockMatrix:
     In particular, all values are between ``-1.0`` and ``1.0``, with
     the diagonal identically ``1.0``.
 
-    Warning
-    -------
-    Rows with a constant value (i.e., zero variance) will result `nan`
-    correlation values. To avoid this, first check that all rows vary or filter
-    out constant rows (for example, with the help of :func:`.aggregators.stats`).
-
-    Warning
-    -------
-    The resulting number of matrix elements is the square of the number of rows
-    in the matrix table, so computing the full matrix may be infeasible. For
-    example, ten million rows would produce 800TB of float64 values. The
-    block-sparse representation on BlockMatrix may be used to work efficiently
-    with regions of such matrices.
+    This convenience method creates a row-normalized block matrix with
+    :meth:`BlockMatrix.from_entry_expr` and then multiplies this block matrix
+    by its transpose. The parallelism of the former is ``n_rows / block_size``
+    while the parallelism of the latter is ``(n_rows / block_size)^2``. For
+    large matrices, consider separating these stages and using more cores for
+    the latter.
 
     Parameters
     ----------
     entry_expr : :class:`.Float64Expression`
         Entry-indexed numeric expression on matrix table.
+    block_size : :obj:`int`
+        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
     Returns
     -------
@@ -1878,18 +1889,7 @@ def correlation(entry_expr) -> BlockMatrix:
         Correlation matrix between row vectors. Row and column indices
         correspond to matrix table row index.
     """
-    mt = matrix_table_source('correlation/entry_expr', entry_expr)
-    check_entry_indexed('correlation/entry_expr', entry_expr)
-
-    mt = mt.select_entries(__x=entry_expr)
-    mt = mt.select_rows(__sum=agg.sum(mt.__x),
-                        __sum_sq=agg.sum(mt.__x * mt.__x),
-                        __n_called=agg.count_where(hl.is_defined(mt.__x)))
-    mt = mt.select_rows(__mean=mt.__sum / mt.__n_called,
-                        __scaled_std_dev=hl.sqrt(mt.__sum_sq - (mt.__sum ** 2) / mt.__n_called))
-    normalized_x = hl.or_else((mt.__x - mt.__mean) / mt.__scaled_std_dev, 0.0)
-    bm = BlockMatrix.from_entry_expr(normalized_x)
-
+    bm = BlockMatrix.from_entry_expr(entry_expr, mean_impute=True, center=True, normalize=True, block_size=block_size)
     return bm @ bm.T
 
 

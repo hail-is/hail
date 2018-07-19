@@ -1,12 +1,14 @@
+import numpy as np
+import itertools
+from enum import IntEnum
+
 import hail as hl
+import hail.expr.aggregators as agg
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
 from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
-import numpy as np
-import itertools
-from enum import IntEnum
 
 block_matrix_type = lazy()
 
@@ -332,8 +334,11 @@ class BlockMatrix(object):
 
     @classmethod
     @typecheck_method(entry_expr=expr_float64,
+                      mean_impute=bool,
+                      center=bool,
+                      normalize=bool,
                       block_size=nullable(int))
-    def from_entry_expr(cls, entry_expr, block_size=None):
+    def from_entry_expr(cls, entry_expr, mean_impute=False, center=False, normalize=False, block_size=None):
         """Creates a block matrix using a matrix table entry expression.
 
         Examples
@@ -341,32 +346,31 @@ class BlockMatrix(object):
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
 
-        Notes
-        -----
-        Do not use this method if you want to store a copy of the resulting
-        block matrix. Instead, use :meth:`write_from_entry_expr` followed by
-        :meth:`BlockMatrix.read`.
-
-        If a pipelined transformation significantly downsamples the rows of the
-        underlying matrix table, then repartitioning the matrix table ahead of
-        this method will greatly improve its performance.
-
-        The method will fail if any values are missing. To be clear, special
-        float values like ``nan`` are not missing values.
+        Warning
+        -------
+        This convenience method writes the block matrix to a temporary file and
+        then reads the file. Use :meth:`write_from_entry_expr` directly if you
+        want to store the resulting block matrix; see
+        :meth:`write_from_entry_expr` for further documentation.
 
         Parameters
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
+        mean_impute: :obj:`bool`
+            If true, set missing values to the row mean before centering or
+            normalizing. If false, missing values will raise an error.
+        center: :obj:`bool`
+            If true, subtract the row mean.
+        normalize: :obj:`bool`
+            If true and ``center=False``, divide by the row magnitude.
+            If true and ``center=True``, divide the centered value by the
+            centered row magnitude.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
-
-        Returns
-        -------
-        :class:`.BlockMatrix`
         """
         path = new_temp_file()
-        cls.write_from_entry_expr(entry_expr, path, block_size)
+        cls.write_from_entry_expr(entry_expr, path, mean_impute, center, normalize, block_size=block_size)
         return cls.read(path)
 
     @classmethod
@@ -533,8 +537,11 @@ class BlockMatrix(object):
     @staticmethod
     @typecheck(entry_expr=expr_float64,
                path=str,
+               mean_impute=bool,
+               center=bool,
+               normalize=bool,
                block_size=nullable(int))
-    def write_from_entry_expr(entry_expr, path, block_size=None):
+    def write_from_entry_expr(entry_expr, path, mean_impute=False, center=False, normalize=False, block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
         Examples
@@ -552,8 +559,29 @@ class BlockMatrix(object):
         underlying matrix table, then repartitioning the matrix table ahead of
         this method will greatly improve its performance.
 
-        The method will fail if any values are missing. To be clear, special
-        float values like ``nan`` are not missing values.
+        By default, this method will fail if any values are missing (to be clear,
+        special float values like ``nan`` are not missing values).
+
+        - Set `mean_impute` to replace missing values with the row mean before
+          possibly centering or normalizing. If all values are missing, the row
+          mean is ``nan``.
+
+        - Set `center` to shift each row to have mean zero before possibly
+          normalizing.
+
+        - Set `normalize` to normalize each row to have unit length.
+
+        To standardize each row, regarded as an empirical distribution, to have
+        mean 0 and variance 1, set `center` and `normalize` and then multiply
+        the result by ``sqrt(n_cols)``.
+
+        Warning
+        -------
+        This method opens ``n_cols / block_size`` files concurrently per task.
+        To not blow out memory when the number of columns is very large,
+        limit the Hadoop write buffer size; e.g. on GCP, set this property on
+        cluster startup (the defualt is 64MB):
+        ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
 
         Parameters
         ----------
@@ -561,6 +589,15 @@ class BlockMatrix(object):
             Entry expression for numeric matrix entries.
         path: :obj:`str`
             Path for output.
+        mean_impute: :obj:`bool`
+            If true, set missing values to the row mean before centering or
+            normalizing. If false, missing values will raise an error.
+        center: :obj:`bool`
+            If true, subtract the row mean.
+        normalize: :obj:`bool`
+            If true and ``center=False``, divide by the row magnitude.
+            If true and ``center=True``, divide the centered value by the
+            centered row magnitude.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
@@ -568,16 +605,51 @@ class BlockMatrix(object):
             block_size = BlockMatrix.default_block_size()
 
         check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
-
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
-        #  FIXME: remove once select_entries on a field is free
-        if entry_expr in mt._fields_inverse:
-            field = mt._fields_inverse[entry_expr]
-            mt._jvds.writeBlockMatrix(path, field, block_size)
+        if not (mean_impute or center or normalize):
+            #  FIXME: remove once select_entries on a field is free
+            if entry_expr in mt._fields_inverse:
+                field = mt._fields_inverse[entry_expr]
+                mt._jvds.writeBlockMatrix(path, field, block_size)
         else:
+            mt = mt.select_entries(__x=entry_expr)
+            if normalize:
+                mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
+                                    __sum=agg.sum(mt['__x']),
+                                    __sum_sq=agg.sum(mt['__x'] * mt['__x']))
+                if center:
+                    mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
+                                        __centered_length=hl.sqrt(mt['__sum_sq'] -
+                                                                  (mt['__sum'] ** 2) / mt['__count']))
+                    expr = (mt['__x'] - mt['__mean']) / mt['__centered_length']
+                    if mean_impute:
+                        expr = hl.or_else(expr, 0.0)
+                else:
+                    n_cols = mt.count_cols()
+                    mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
+                                        __length=hl.sqrt(mt['__sum_sq'] +
+                                                         (n_cols - mt['__count']) *
+                                                         ((mt['__sum'] / mt['__count']) ** 2)))
+                    expr = mt['__x']
+                    if mean_impute:
+                        expr = hl.or_else(expr, mt['__mean'])
+                    expr = expr / mt['__length']
+            else:
+                mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
+                                    __sum=agg.sum(mt['__x']))
+                mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'])
+                expr = mt['__x']
+                if center:
+                    expr = expr - mt['__mean']
+                    if mean_impute:
+                        expr = hl.or_else(expr, 0.0)
+                else:
+                    if mean_impute:
+                        expr = hl.or_else(expr, mt['__mean'])
+
             field = Env.get_uid()
-            mt.select_entries(**{field: entry_expr})._jvds.writeBlockMatrix(path, field, block_size)
+            mt.select_entries(**{field: expr})._jvds.writeBlockMatrix(path, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):

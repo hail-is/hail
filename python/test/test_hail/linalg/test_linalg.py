@@ -42,6 +42,35 @@ class Tests(unittest.TestCase):
         a4 = BlockMatrix.read(path).to_numpy()
         self._assert_eq(a1, a4)
 
+    def test_from_entry_expr_options(self):
+        def build_mt(x):
+            data = [{'v': 0, 's': 0, 'x': x[0]},
+                    {'v': 0, 's': 1, 'x': x[1]},
+                    {'v': 0, 's': 2, 'x': x[2]}]
+            ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, x: float64}'))
+            mt = ht.to_matrix_table(['v'], ['s'])
+            ids = mt.col_key[0].collect()
+            return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
+
+        def check(mt, mean_impute, center, normalize, expected):
+            actual = np.squeeze(BlockMatrix.from_entry_expr(mt.x, mean_impute, center, normalize).to_numpy())
+            assert np.allclose(actual, expected)
+
+        a = np.array([0.0, 1.0, 2.0])
+        mt = build_mt(a)
+        check(mt, False, False, False, a)
+        check(mt, False, True, False, a - 1.0)
+        check(mt, False, False, True, a / np.sqrt(5))
+        check(mt, False, True, True, (a - 1.0) / np.sqrt(2))
+
+        mt = build_mt([0.0, hl.null('float64'), 2.0])
+        with self.assertRaises(Exception):
+            BlockMatrix.from_entry_expr(mt.x)
+        check(mt, True, False, False, a)
+        check(mt, True, True, False, a - 1.0)
+        check(mt, True, False, True, a / np.sqrt(5))
+        check(mt, True, True, True, (a - 1.0) / np.sqrt(2))
+
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
