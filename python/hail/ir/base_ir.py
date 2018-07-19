@@ -32,7 +32,6 @@ class IR(BaseIR):
         return {v for child in self.children for v in child.bound_variables}
 
 
-
 class TableIR(BaseIR):
     def __init__(self):
         super().__init__()

@@ -565,17 +565,6 @@ class Die(IR):
         return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
 
 
-class ApplyIR(IR):
-    @typecheck_method(function=str, args=sequenceof(IR))
-    def __init__(self, function, args):
-        super().__init__(*args)
-        self.function = function
-        self.args = args
-
-    def __str__(self):
-        return '(ApplyIR {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
-
-
 class Apply(IR):
     @typecheck_method(function=str, args=IR)
     def __init__(self, function, *args):
@@ -585,17 +574,6 @@ class Apply(IR):
 
     def __str__(self):
         return '(Apply {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
-
-
-class ApplySpecial(IR):
-    @typecheck_method(function=str, args=sequenceof(IR))
-    def __init__(self, function, args):
-        super().__init__(*args)
-        self.function = function
-        self.args = args
-
-    def __str__(self):
-        return '(ApplySpecial {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
 
 
 class Uniroot(IR):
@@ -636,6 +614,7 @@ class TableAggregate(IR):
     def __str__(self):
         return '(TableAggregate {} {})'.format(self.child, self.query)
 
+
 class MatrixAggregate(IR):
     def __init__(self, child, query):
         super().__init__(query)
@@ -644,6 +623,7 @@ class MatrixAggregate(IR):
 
     def __str__(self):
         return '(MatrixAggregate {} {})'.format(self.child, self.query)
+
 
 class TableWrite(IR):
     @typecheck_method(child=TableIR, path=str, overwrite=bool)
@@ -706,6 +686,7 @@ class Broadcast(IR):
 
     def set_global_type(self, t):
         self.global_type = t
+
 
 class Join(IR):
     _idx = 0
