@@ -1421,14 +1421,10 @@ class Table(ExprContainer):
                         vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
-                        l = MatrixTable(jl)
-                        vals = GetField(GetField(l._rvrow._ir, uid), "values")
+                        vals = GetField(GetField(left._rvrow._ir, uid), "values")
                         keys = Apply("get", vals, MakeStruct([(u, e._ir) for u, e in zip(uids, exprs)]))
-                        select_ir = InsertFields(l._row._ir, [(uid, keys)])
-                        tdict = {"va": l._rvrow.dtype}
-                        jl = jl.selectRows(select_ir.str_with_updated_types(tdict), None)
-                        joined = MatrixTable(jl)
-                        return joined
+                        select_ir = InsertFields(left._row._ir, [(uid, keys)])
+                        return MatrixTable(jl.selectRows(select_ir, None))
 
                     ir = Join(virtual_ir,
                               [uid],

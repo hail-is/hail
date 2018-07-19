@@ -1074,7 +1074,7 @@ def call(*alleles, phased=False) -> CallExpression:
     """
     if builtins.len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
-    return _func("Call", tcall, *alleles, phased)
+    return _func('Call', tcall, *alleles, phased)
 
 
 @typecheck(gt_index=expr_int32)

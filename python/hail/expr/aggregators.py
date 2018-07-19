@@ -809,91 +809,19 @@ def filter(condition, expr) -> Aggregable:
         Aggregable expression.
     """
 
-    if callable(condition):
-        f = condition
-    else:
-        f = lambda x: condition
-
+    f = condition if callable(condition) else lambda x: condition
     return expr._filter(f)
+
 
 @typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))
 def map(f, expr) -> Aggregable:
-    """Filter records according to a predicate.
-
-    Examples
-    --------
-    Collect the `ID` field where `HT` >= 70:
-
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
-    [2, 3]
-
-    Notes
-    -----
-    This method can be used with aggregator functions to remove records from
-    aggregation.
-
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
-    Parameters
-    ----------
-    condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
-        Filter expression, or a function to evaluate for each record.
-    expr : :class:`.Expression`
-        Expression to filter.
-
-    Returns
-    -------
-    :class:`.Aggregable`
-        Aggregable expression.
-    """
-
-    if callable(f):
-        f2 = f
-    else:
-        f2 = lambda x: f
-
+    f2 = f if callable(f) else lambda x: f
     return expr._map(f2)
+
 
 @typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
 def flat_map(f, expr) -> Aggregable:
-    """Filter records according to a predicate.
-
-    Examples
-    --------
-    Collect the `ID` field where `HT` >= 70:
-
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
-    [2, 3]
-
-    Notes
-    -----
-    This method can be used with aggregator functions to remove records from
-    aggregation.
-
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
-    Parameters
-    ----------
-    condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
-        Filter expression, or a function to evaluate for each record.
-    expr : :class:`.Expression`
-        Expression to filter.
-
-    Returns
-    -------
-    :class:`.Aggregable`
-        Aggregable expression.
-    """
-
-    if callable(f):
-        f2 = f
-    else:
-        f2 = lambda x: f
-
+    f2 = f if callable(f) else lambda x: f
     return expr._flat_map(f2)
 
 

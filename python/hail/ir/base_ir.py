@@ -31,15 +31,6 @@ class IR(BaseIR):
     def bound_variables(self):
         return {v for child in self.children for v in child.bound_variables}
 
-    def str_with_updated_types(self, type_dict):
-        from ..ir import TopLevelReference
-        def update_tlr(ir):
-            if isinstance(ir, TopLevelReference):
-                if ir.name in type_dict:
-                    ir.typ = type_dict[ir.name]
-        self.search(update_tlr)
-        return str(self)
-
 
 
 class TableIR(BaseIR):
