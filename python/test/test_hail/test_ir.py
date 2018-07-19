@@ -76,9 +76,9 @@ class IRTests(unittest.TestCase):
             ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die('mumblefoo', hl.tfloat64),
-            ir.Apply('&&', [b, c]),
-            ir.Apply('toFloat64', [i]),
-            ir.Apply('isDefined', [s]),
+            ir.Apply('&&', b, c),
+            ir.Apply('toFloat64', i),
+            ir.Apply('isDefined', s),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0))
         ]
         
