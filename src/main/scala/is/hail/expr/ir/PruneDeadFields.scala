@@ -342,7 +342,7 @@ object PruneDeadFields {
         // FIXME push down into value
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _) =>
-      case MatrixLiteral(typ, value) =>
+      case MatrixLiteral(value) =>
       case MatrixChooseCols(child, oldIndices) =>
         memoizeMatrixIR(child, unify(child.typ, requestedType), memo)
       case MatrixCollectColsByKey(child) =>

@@ -169,9 +169,8 @@ abstract sealed class MatrixIR extends BaseIR {
   def execute(hc: HailContext): MatrixValue
 }
 
-case class MatrixLiteral(
-  typ: MatrixType,
-  value: MatrixValue) extends MatrixIR {
+case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
+  val typ: MatrixType = value.typ
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -179,7 +178,7 @@ case class MatrixLiteral(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
-    MatrixLiteral(typ, value)
+    MatrixLiteral(value)
   }
 
   override def columnCount: Option[Int] = Some(value.nCols)
