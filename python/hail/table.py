@@ -1411,7 +1411,7 @@ class Table(ExprContainer):
                         vals = GetField(GetField(left._rvrow._ir, uid), "values")
                         keys = Apply("get", vals, MakeStruct([(u, e._ir) for u, e in zip(uids, exprs)]))
                         select_ir = InsertFields(left._row._ir, [(uid, keys)])
-                        return MatrixTable(jl.selectRows(select_ir, None))
+                        return MatrixTable(jl.selectRows(str(select_ir), None))
 
                     ir = Join(GetField(TopLevelReference('va'), uid),
                               [uid],
