@@ -161,7 +161,16 @@ class HailType(object):
 
     @classmethod
     def _from_java(cls, jtype):
-        return hl.dtype(jtype.toString())
+        t = hl.dtype(jtype.toString())
+        t._cached_jtype = jtype
+        return t
+
+    def _add_jtype(self, jtype):
+        if self not in _interned_types:
+            self._cached_jtype = jtype
+
+    def _has_jtype(self):
+        return self._cached_jtype is not None
 
     @abc.abstractmethod
     def _typecheck(self, annotation):
@@ -445,6 +454,8 @@ class tarray(HailType):
         :class:`.HailType`
             Element type.
         """
+        if not self._element_type._has_jtype() and self._has_jtype():
+            self._element_type._add_jtype(self._jtype.elementType())
         return self._element_type
 
     def _convert_to_py(self, annotation):
@@ -523,6 +534,8 @@ class tset(HailType):
         :class:`.HailType`
             Element type.
         """
+        if not self._element_type._has_jtype() and self._has_jtype():
+            self._element_type._add_jtype(self._jtype.elementType())
         return self._element_type
 
     def _convert_to_py(self, annotation):
@@ -603,6 +616,8 @@ class tdict(HailType):
         :class:`.HailType`
             Key type.
         """
+        if not self._key_type._has_jtype() and self._has_jtype():
+            self._key_type._add_jtype(self._jtype.keyType())
         return self._key_type
 
     @property
@@ -614,6 +629,8 @@ class tdict(HailType):
         :class:`.HailType`
             Value type.
         """
+        if not self._value_type._has_jtype() and self._has_jtype():
+            self._value_type._add_jtype(self._jtype.valueType())
         return self._value_type
 
     def _convert_to_py(self, annotation):
@@ -700,6 +717,7 @@ class tstruct(HailType, Mapping):
         :obj:`tuple` of :class:`.Field`
             Struct fields.
         """
+        self._add_jtypes()
         return self._fields
 
     def _convert_to_py(self, annotation):
@@ -733,12 +751,19 @@ class tstruct(HailType, Mapping):
                 raise TypeError("type 'struct' expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
                                 type(annotation))
 
+    def _add_jtypes(self):
+        if self._has_jtype():
+            for (n, t) in self._field_types.items():
+                if not t._has_jtype():
+                    t._add_jtype(self._jtype.field(n).typ())
+        self._fields = tuple(self._field_types)
+
     @typecheck_method(item=oneof(int, str))
     def __getitem__(self, item):
-        if isinstance(item, str):
-            return self._field_types[item]
-        else:
-            self._field_types[self._fields[item]]
+        if not isinstance(item, str):
+            item = self._fields[item]
+        self._add_jtypes()
+        return self._field_types[item]
 
     def __iter__(self):
         return iter(self._field_types)
@@ -806,6 +831,10 @@ class ttuple(HailType):
         -------
         :obj:`tuple` of :class:`.HailType`
         """
+        if self._has_jtype():
+            for i, t in enumerate(self._types):
+                if not t._has_jtype():
+                    t._add_jtype(self._jtype._types().apply(i))
         return self._types
 
     def _convert_to_py(self, annotation):
@@ -1007,6 +1036,9 @@ class tinterval(HailType):
         :class:`.HailType`
             Interval point type.
         """
+        if self._has_jtype() and not self._point_type._has_jtype():
+            self._point_type._add_jtype(self._jtype.pointType())
+
         return self._point_type
 
     def _convert_to_py(self, annotation):
@@ -1141,6 +1173,7 @@ hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL
 
 _numeric_types = {tbool, tint32, tint64, tfloat32, tfloat64}
 _primitive_types = _numeric_types.union({tstr})
+_interned_types = _primitive_types.union({tcall})
 
 
 @typecheck(t=HailType)
