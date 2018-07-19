@@ -814,10 +814,6 @@ class Aggregable(object):
         self._aggregations = aggregations
         self._transformations = transformations
 
-    def get_ir(self, cont):
-        self._transformations(cont(self._ir))
-
-
     def __nonzero__(self):
         raise NotImplementedError('Truth value of an aggregable collection is undefined')
 
@@ -878,7 +874,7 @@ class Aggregable(object):
 
         def transform_ir(agg, continuation):
             agg_uid = Env.get_uid()
-            agg_ref = expressions.construct_variable(agg_uid, agg._type, agg._indices, agg._aggregations)
+            agg_ref = expressions.construct_variable(agg_uid, self._type, agg._indices, agg._aggregations)
             ir = Let(agg_uid, agg._ir,
                      If(Let(uid, agg_ref._ir, pred._ir),
                         continuation(agg_ref)._ir,

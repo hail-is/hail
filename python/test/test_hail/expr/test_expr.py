@@ -197,8 +197,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True).value, 2)
 
     def test_aggregators(self):
-        a = hl.literal([1, 2], tarray(tint32))
-
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
@@ -215,6 +213,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.bind_agg, 5)
         self.assertEqual(r.foo, 3)
 
+        a = hl.literal([1, 2], tarray(tint32))
         self.assertEqual(table.aggregate(agg.array_sum(agg.filter(lambda x: True, a))), [10, 20])
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
@@ -227,6 +226,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.gt6, 0.30)
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
+
+    def test_aggregator_maps(self):
+        t = hl.utils.range_table(10)
+        tests = [(agg.filter(lambda x: x > 8, agg.map(lambda x: x + 1, t.idx)), [9, 10]),
+                 (agg.map(lambda x: x + 1, agg.filter(lambda x: x > 8, t.idx)), [10]),
+                 (agg.flat_map(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), agg.map(lambda x: x + 1, t.idx)), [9, 10, 10, 11]),
+                 (agg.map(lambda x: x + 1, agg.flat_map(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), t.idx)), [10, 11]),
+                 (agg.filter(lambda x: x > 8, agg.flat_map(lambda x: [x, x + 1], t.idx)), [9, 9, 10]),
+                 (agg.flat_map(lambda x: [x, x + 1], agg.filter(lambda x: x > 8, t.idx)), [9, 10])]
+
+
+        for test in tests:
+            self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
+
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
