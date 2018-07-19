@@ -54,7 +54,8 @@ object GenotypeFunctions extends RegistryFunctions {
             region.loadDouble(tarray.elementOffset(gp, 3, 2)) * 2.0))
     }
 
-
+    // FIXME: remove when SkatSuite is moved to Python
+    // the pl_dosage function in Python is implemented in Python
     registerCode("plDosage", TArray(tv("N", _ isOfType TInt32())), TFloat64()) { (mb, plOff: Code[Long]) =>
       def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
       val tarray = TArray(tv("N").t)

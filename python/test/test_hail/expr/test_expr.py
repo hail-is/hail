@@ -1723,3 +1723,8 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res[0], 0.9090909090082644)
         self.assertAlmostEqual(res[1], 0.09090909090082644)
         self.assertAlmostEqual(res[2], 9.090909090082645e-11)
+
+    def test_pl_dosage(self):
+        self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]).value, 0.009900990296049406)
+        self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]).value, 0.9900990100009803)
+        self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]).value, 1.980198019704931)
