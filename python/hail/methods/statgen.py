@@ -1790,13 +1790,107 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
                         __ACsq=agg.sum(mt.__gt * mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
-                        __scaled_std_dev=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
-    mt = mt.filter_rows(mt.__scaled_std_dev > 1e-30)
+                        __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
+    mt = mt.filter_rows(mt.__centered_length > 0.1)  # truly non-zero values are at least sqrt(0.5)
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__scaled_std_dev, 0.0)
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__centered_length, 0.0)
     bm = BlockMatrix.from_entry_expr(normalized_gt)
 
     return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
+
+
+@typecheck(entry_expr=expr_float64, block_size=nullable(int))
+def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
+    """Computes the correlation matrix between row vectors.
+
+    Examples
+    --------
+    Consider the following dataset with three variants and four samples:
+
+    >>> data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
+    >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
+    >>> mt = ht.to_matrix_table(['v'], ['s'])
+
+    Compute genotype correlation (linkage) between all pairs of variants:
+
+    >>> ld_matrix = hl.row_correlation(mt.GT.n_alt_alleles())
+    >>> ld_matrix.to_numpy()
+    array([[ 1.        , -0.85280287,  0.42640143],
+           [-0.85280287,  1.        , -0.5       ],
+           [ 0.42640143, -0.5       ,  1.        ]])
+
+    Compute genotype correlation between consecutively-indexed variants:
+
+    >>> ld_matrix.sparsify_band(lower=0, upper=1).to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [ 0.        ,  1.        , -0.5       ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Warning
+    -------
+    Rows with a constant value (i.e., zero variance) will result `nan`
+    correlation values. To avoid this, first check that all rows vary or filter
+    out constant rows (for example, with the help of :func:`.aggregators.stats`).
+
+    Warning
+    -------
+    The resulting number of matrix elements is the square of the number of rows
+    in the matrix table, so computing the full matrix may be infeasible. For
+    example, ten million rows would produce 800TB of float64 values. The
+    block-sparse representation on BlockMatrix may be used to work efficiently
+    with regions of such matrices.
+
+    To prevent excessive re-computation, be sure to write and read the (possibly
+    block-sparsified) result before multiplication by another matrix.
+
+    Notes
+    -----
+    In this method, each row of entries is regarded as a vector with elements
+    defined by `entry_expr` and missing values mean-imputed per row.
+    The ``(i, j)`` element of the resulting block matrix is the correlation
+    between rows ``i`` and ``j`` (as 0-indexed by order in the matrix table;
+    see :meth:`add_row_index`).
+
+    The correlation of two vectors is defined as the
+    `Pearson correlation coeffecient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
+    between the corresponding empirical distributions of elements,
+    or equivalently as the cosine of the angle between the vectors.
+    In particular, all values are between ``-1.0`` and ``1.0``, with
+    the diagonal identically ``1.0``.
+
+    This convenience method creates a row-normalized block matrix with
+    :meth:`BlockMatrix.from_entry_expr` and then multiplies this block matrix
+    by its transpose. The parallelism of the former is ``n_rows / block_size``
+    while the parallelism of the latter is ``(n_rows / block_size)^2``. For
+    large matrices, consider separating these stages and using more cores for
+    the latter.
+
+    Parameters
+    ----------
+    entry_expr : :class:`.Float64Expression`
+        Entry-indexed numeric expression on matrix table.
+    block_size : :obj:`int`, optional
+        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
+
+    Returns
+    -------
+    :class:`.BlockMatrix`
+        Correlation matrix between row vectors. Row and column indices
+        correspond to matrix table row index.
+    """
+    bm = BlockMatrix.from_entry_expr(entry_expr, mean_impute=True, center=True, normalize=True, block_size=block_size)
+    return bm @ bm.T
 
 
 @typecheck(n_populations=int,
@@ -2498,7 +2592,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.info.mean) * locally_pruned_ds.info.centered_length_rec,
         0.0)
 
-    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
+    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
