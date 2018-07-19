@@ -124,8 +124,9 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool)
-def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True):
+           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
+           source_fields=nullable(dictof(str, anytype)))
+def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True, source_fields=None):
     """Create a scatterplot.
 
     Parameters
@@ -146,6 +147,8 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         Size of markers in screen space units.
     legend : bool
         Whether or not to show the legend in the resulting figure.
+    source : FIXME
+        Extra fields for the ColumnDataSource of the plot.
 
     Returns
     -------
@@ -169,14 +172,19 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
-        source = ColumnDataSource(dict(x=x, y=y, label=label))
-        factors = list(set(label))
+        fields = dict(x=x, y=y, label=label)
+        if source_fields is not None:
+            for key, values in source_fields.items():
+                fields[key] = values
+
+        source = ColumnDataSource(fields)
 
         if legend:
             leg = 'label'
         else:
             leg = None
 
+        factors = list(set(label))
         if len(factors) > len(palette):
             color_gen = cycle(palette)
             colors = []
@@ -225,8 +233,9 @@ def qq(pvals):
     return p
 
 
-@typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str), size=int)
-def manhattan(pvals, locus=None, title=None, size=4):
+@typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
+           size=int, hover_fields=nullable(dictof(str, sequenceof(anytype))))
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -239,6 +248,8 @@ def manhattan(pvals, locus=None, title=None, size=4):
         Title of the plot.
     size : int
         Size of markers in screen space units.
+    hover_fields: FIXME
+        Dictionary of field names and values to be shown in the HoverTool of the plot.
 
     Returns
     -------
@@ -268,8 +279,13 @@ def manhattan(pvals, locus=None, title=None, size=4):
     label = [point[2] for point in res]
     variant_identifier = [str(point[2]) + ':' + str(point[3]) for point in res]
 
+    if hover_fields is None:
+        hover_fields = {'variant_identifier': variant_identifier}
+    else:
+        hover_fields['variant_identifier'] = variant_identifier
+
     p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False)
+                size=size, legend=False, source_fields=hover_fields)
 
     ref = locus.dtype.reference_genome
 
@@ -303,10 +319,8 @@ def manhattan(pvals, locus=None, title=None, size=4):
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.width = 1000
     p.tools = [HoverTool()]
-
-    p.select_one(HoverTool).tooltips = [
-        ('variant_identifier', f"@{variant_identifier}"),
-        ('p-value', '$y'),
-    ]
+    tooltips = [(key, f"@key") for key in hover_fields]
+    tooltips.append(tuple(('p-value', "$y")))
+    p.select_one(HoverTool).tooltips = tooltips
 
     return p
