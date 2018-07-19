@@ -1280,6 +1280,19 @@ class StructExpression(Mapping, Expression):
             Struct containing specified existing fields and computed fields.
         """
 
+        name_set = set()
+        for a in fields:
+            if not a in self._fields:
+                raise KeyError("Struct has no field '{}'\n"
+                               "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
+            if a in name_set:
+                raise ExpressionException("'StructExpression.select' does not support duplicate identifiers.\n"
+                                          "    Identifier '{}' appeared more than once".format(a))
+            name_set.add(a)
+        for (n, _) in named_exprs.items():
+            if n in name_set:
+                raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(n))
+
         selected_type = tstruct(**{f:self.dtype[f] for f in fields})
         selected_expr = construct_expr(SelectFields(self._ir, fields), selected_type, self._indices, self._aggregations)
 
