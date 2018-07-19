@@ -370,7 +370,7 @@ class BlockMatrix(object):
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
         path = new_temp_file()
-        cls.write_from_entry_expr(entry_expr, path, mean_impute, center, normalize, block_size=block_size)
+        cls.write_from_entry_expr(entry_expr, path, mean_impute, center, normalize, block_size)
         return cls.read(path)
 
     @classmethod
@@ -607,11 +607,10 @@ class BlockMatrix(object):
         check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
-        if not (mean_impute or center or normalize):
+        if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
             #  FIXME: remove once select_entries on a field is free
-            if entry_expr in mt._fields_inverse:
-                field = mt._fields_inverse[entry_expr]
-                mt._jvds.writeBlockMatrix(path, field, block_size)
+            field = mt._fields_inverse[entry_expr]
+            mt._jvds.writeBlockMatrix(path, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)

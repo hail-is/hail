@@ -1791,7 +1791,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
                         __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
-    mt = mt.filter_rows(mt.__scaled_std_dev > 1e-30)
+    mt = mt.filter_rows(mt.__centered_length > 0.1)  # truly non-zero values are at least sqrt(0.5)
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__centered_length, 0.0)
     bm = BlockMatrix.from_entry_expr(normalized_gt)
@@ -1799,7 +1799,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
 
 
-@typecheck(entry_expr=expr_float64, block_size=int)
+@typecheck(entry_expr=expr_float64, block_size=nullable(int))
 def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     """Computes the correlation matrix between row vectors.
 
@@ -1880,7 +1880,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     ----------
     entry_expr : :class:`.Float64Expression`
         Entry-indexed numeric expression on matrix table.
-    block_size : :obj:`int`
+    block_size : :obj:`int`, optional
         Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
     Returns
@@ -2592,7 +2592,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.info.mean) * locally_pruned_ds.info.centered_length_rec,
         0.0)
 
-    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size)
+    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
