@@ -43,7 +43,7 @@ object Graph {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     val wrappedNodeType = TTuple(nodeType)
-    val refMap = Map("l" -> ("l", wrappedNodeType), "r" -> ("r", wrappedNodeType))
+    val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = Parser.parse_value_ir(e, refMap)

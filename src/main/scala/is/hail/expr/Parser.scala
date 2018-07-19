@@ -664,17 +664,17 @@ object Parser extends JavaTokenParsers {
   def ir_agg_op: Parser[ir.AggOp] =
     ir_identifier ^^ { x => ir.AggOp.fromString(x) }
 
-  def ir_children(ref_map: Map[String, (String, Type)] = Map.empty): Parser[IndexedSeq[ir.IR]] =
+  def ir_children(ref_map: Map[String, Type] = Map.empty): Parser[IndexedSeq[ir.IR]] =
     rep(ir_value_expr(ref_map)) ^^ { _.toFastIndexedSeq }
 
   def table_ir_children: Parser[IndexedSeq[ir.TableIR]] = rep(table_ir) ^^ {
     _.toFastIndexedSeq
   }
 
-  def ir_value_exprs(ref_map: Map[String, (String, Type)] = Map.empty): Parser[IndexedSeq[ir.IR]] =
+  def ir_value_exprs(ref_map: Map[String, Type] = Map.empty): Parser[IndexedSeq[ir.IR]] =
     "(" ~> rep(ir_value_expr(ref_map)) <~ ")" ^^ { _.toFastIndexedSeq }
 
-  def ir_value_exprs_opt(ref_map: Map[String, (String, Type)] = Map.empty): Parser[Option[IndexedSeq[ir.IR]]] =
+  def ir_value_exprs_opt(ref_map: Map[String, Type] = Map.empty): Parser[Option[IndexedSeq[ir.IR]]] =
     ir_value_exprs(ref_map) ^^ { xs => Some(xs) } |
       "None" ^^ { _ => None }
 
@@ -691,16 +691,16 @@ object Parser extends JavaTokenParsers {
       AggSignature(op, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
     }
 
-  def ir_named_value_exprs(ref_map: Map[String, (String, Type)] = Map.empty): Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr(ref_map))
+  def ir_named_value_exprs(ref_map: Map[String, Type] = Map.empty): Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr(ref_map))
 
-  def ir_named_value_expr(ref_map: Map[String, (String, Type)] = Map.empty): Parser[(String, ir.IR)] =
+  def ir_named_value_expr(ref_map: Map[String, Type] = Map.empty): Parser[(String, ir.IR)] =
     "(" ~> ir_identifier ~ ir_value_expr(ref_map) <~ ")" ^^ { case n ~ x => (n, x) }
 
   def ir_opt[T](p: Parser[T]): Parser[Option[T]] = p ^^ { Some(_) } | "None" ^^ { _ => None }
 
-  def ir_value_expr(ref_map: Map[String, (String, Type)] = Map.empty): Parser[ir.IR] = "(" ~> ir_value_expr_1(ref_map) <~ ")"
+  def ir_value_expr(ref_map: Map[String, Type] = Map.empty): Parser[ir.IR] = "(" ~> ir_value_expr_1(ref_map) <~ ")"
 
-  def ir_value_expr_1(ref_map: Map[String, (String, Type)] = Map.empty): Parser[ir.IR] = {
+  def ir_value_expr_1(ref_map: Map[String, Type] = Map.empty): Parser[ir.IR] = {
     def expr_with_map: Parser[ir.IR] = ir_value_expr(ref_map)
     "I32" ~> int32_literal ^^ { x => ir.I32(x) } |
       "I64" ~> int64_literal ^^ { x => ir.I64(x) } |
@@ -716,9 +716,7 @@ object Parser extends JavaTokenParsers {
       "If" ~> expr_with_map ~ expr_with_map ~ expr_with_map ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
       "Let" ~> ir_identifier ~ expr_with_map ~ expr_with_map ^^ { case name ~ value ~ body => ir.Let(name, value, body) } |
       "Ref" ~> type_expr ~ ir_identifier ^^ { case t ~ name => ir.Ref(name, t) } |
-      "Ref" ~> ir_identifier ^^ { id =>
-        val (name, typ) = ref_map(id)
-        ir.Ref(name, typ) } |
+      "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, ref_map(name)) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ expr_with_map ~ expr_with_map ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ expr_with_map ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
       "ApplyComparisonOp" ~> ir_comparison_op ~ expr_with_map ~ expr_with_map ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
@@ -842,9 +840,9 @@ object Parser extends JavaTokenParsers {
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
 
-  def parse_value_ir(s: String, ref_map: Map[String, (String, Type)] = Map.empty): IR = parse(ir_value_expr(ref_map), s)
+  def parse_value_ir(s: String, ref_map: Map[String, Type] = Map.empty): IR = parse(ir_value_expr(ref_map), s)
 
-  def parse_named_value_irs(s: String, ref_map: Map[String, (String, Type)] = Map.empty): Array[(String, IR)] =
+  def parse_named_value_irs(s: String, ref_map: Map[String, Type] = Map.empty): Array[(String, IR)] =
     parse(ir_named_value_exprs(ref_map), s).toArray
 
   def parse_table_ir(s: String): TableIR = parse(table_ir, s)

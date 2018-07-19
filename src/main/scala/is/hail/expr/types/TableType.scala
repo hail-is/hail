@@ -30,11 +30,9 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
     .bind("global" -> globalType)
     .bind("AGG" -> tAgg)
 
-  def refMap: Map[String, (String, Type)] = Map(
-    "global" -> ("global", globalType),
-    "row" -> ("row", rowType),
-    "AGG" -> ("row", rowType)
-  )
+  def refMap: Map[String, Type] = Map(
+    "global" -> globalType,
+    "row" -> rowType)
 
   def keyType: Option[TStruct] = key.map(key => rowType.select(key.toArray)._1)
   val keyFieldIdx: Option[Array[Int]] = key.map(_.toArray.map(rowType.fieldIdx))

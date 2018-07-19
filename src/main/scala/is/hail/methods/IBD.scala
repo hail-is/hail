@@ -345,7 +345,7 @@ object IBD {
   }
 
   private[methods] def generateComputeMaf(vds: MatrixTable, computeMafExpr: String): (RegionValue) => Double = {
-    val refMap = Map("va" -> ("va", vds.rowType))
+    val refMap = Map("va" -> vds.rowType)
     val ir = Parser.parse_value_ir(computeMafExpr, refMap)
     // The expression may need a cast to Double
     val ir1 = if (ir.typ.isInstanceOf[TFloat64]) ir else Cast(ir, TFloat64())

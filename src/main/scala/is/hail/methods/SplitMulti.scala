@@ -153,13 +153,13 @@ object SplitMulti {
 
   def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
     val refMap = Map(
-      "global" -> ("global", vsm.globalType),
-      "newLocus" -> ("newLocus", vsm.rowKeyStruct.types(0)),
-      "newAlleles" -> ("newAlleles", vsm.rowKeyStruct.types(1)),
-      "va" -> ("va", vsm.rvRowType),
-      "aIndex" -> ("aIndex", TInt32()),
-      "wasSplit" -> ("wasSplit", TBoolean()),
-      "g" -> ("g", vsm.entryType))
+      "global" -> vsm.globalType,
+      "newLocus" -> vsm.rowKeyStruct.types(0),
+      "newAlleles" -> vsm.rowKeyStruct.types(1),
+      "va" -> vsm.rvRowType,
+      "aIndex" -> TInt32(),
+      "wasSplit" -> TBoolean(),
+      "g" -> vsm.entryType)
 
     val variantIRs = Parser.parse_named_value_irs(variantExpr, refMap)
     val genotypeIRs = Parser.parse_named_value_irs(genotypeExpr, refMap)
