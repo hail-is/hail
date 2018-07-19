@@ -615,6 +615,7 @@ class TableAggregate(IR):
 
 
 class MatrixAggregate(IR):
+    @typecheck_method(child=MatrixIR, query=IR)
     def __init__(self, child, query):
         super().__init__(query)
         self.child = child
@@ -672,6 +673,7 @@ class MatrixWrite(IR):
 
 
 class Broadcast(IR):
+    @typecheck_method(value=anytype, dtype=hail_type)
     def __init__(self, value, dtype):
         super(Broadcast, self).__init__()
         self.value = value
@@ -684,11 +686,11 @@ class Broadcast(IR):
 
 class Join(IR):
     _idx = 0
-    def __init__(self,
-                 virtual_ir: IR,
-                 temp_vars: Sequence[str],
-                 join_exprs: Sequence[Any],
-                 join_func: Callable):
+    @typecheck_method(virtual_ir=IR,
+                      temp_vars=sequenceof(str),
+                      join_exprs=sequenceof(anytype),
+                      join_func=func_spec(1, anytype))
+    def __init__(self, virtual_ir, temp_vars, join_exprs, join_func):
         super(Join, self).__init__(*(e._ir for e in join_exprs))
         self.virtual_ir = virtual_ir
         self.temp_vars = temp_vars
