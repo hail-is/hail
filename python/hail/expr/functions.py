@@ -866,7 +866,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.sum(pl_to_gp(pl) * [0, 1, 2])
+    return hl.sum(pl_to_gp(pl) * [0, 1, 2], filter_na=False)
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)
@@ -2677,8 +2677,9 @@ def len(x) -> Int32Expression:
         return x._method("size", tint32)
 
 
-@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
-def max(*exprs) -> NumericExpression:
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_na=bool)
+def max(*exprs, filter_na: bool = True) -> NumericExpression:
     """Returns the maximum element of a collection or of given numeric expressions.
 
     Examples
@@ -2700,10 +2701,18 @@ def max(*exprs) -> NumericExpression:
     single iterable expression (an array or set of numeric elements), or
     variable-length arguments of numeric expressions.
 
+    Note
+    ----
+    Missing arguments / array elements are ignored if `filter_na` is ``True``.
+    If `filter_na` is ``False``, then any missing element causes the result to
+    be missing.
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
@@ -2716,22 +2725,18 @@ def max(*exprs) -> NumericExpression:
         if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._method('max', expr.dtype.element_type)
+        return expr._filter_na_method(filter_na, 'max', expr.dtype.element_type)
     else:
         if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
-        ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
-        if builtins.len(exprs) == 2:
-            return exprs[0]._method('max', ret_t, exprs[1])
-        else:
-            return max([e for e in exprs])
+        return max(hl.array(exprs), filter_na=filter_na)
 
 
-@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
-def min(*exprs) -> NumericExpression:
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_na=bool)
+def min(*exprs, filter_na: bool = True) -> NumericExpression:
     """Returns the minimum of a collection or of given numeric expressions.
 
     Examples
@@ -2753,10 +2758,18 @@ def min(*exprs) -> NumericExpression:
     single iterable expression (an array or set of numeric elements), or
     variable-length arguments of numeric expressions.
 
+    Note
+    ----
+    Missing arguments / array elements are ignored if `filter_na` is ``True``.
+    If `filter_na` is ``False``, then any missing element causes the result to
+    be missing.
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
@@ -2769,18 +2782,13 @@ def min(*exprs) -> NumericExpression:
         if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._method('min', expr.dtype.element_type)
+        return expr._filter_na_method(filter_na, 'min', expr.dtype.element_type)
     else:
         if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
-        ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
-        if builtins.len(exprs) == 2:
-            return exprs[0]._method('min', ret_t, exprs[1])
-        else:
-            return min([e for e in exprs])
+        return min(hl.array(exprs), filter_na=filter_na)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
@@ -2847,8 +2855,9 @@ def sign(x):
         return x._method('sign', x.dtype)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def mean(collection) -> Float64Expression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_na=bool)
+def mean(collection, filter_na: bool = True) -> Float64Expression:
     """Returns the mean of all values in the collection.
 
     Examples
@@ -2861,18 +2870,21 @@ def mean(collection) -> Float64Expression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_na` is ``True``. If `filter_na`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return collection._method("mean", tfloat64)
+    return collection._filter_na_method(filter_na, "mean", tfloat64)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
@@ -2903,8 +2915,9 @@ def median(collection) -> NumericExpression:
     return collection._method("median", collection.dtype.element_type)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def product(collection) -> NumericExpression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_na=bool)
+def product(collection, filter_na: bool = True) -> NumericExpression:
     """Returns the product of values in the collection.
 
     Examples
@@ -2917,22 +2930,26 @@ def product(collection) -> NumericExpression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_na` is ``True``. If `filter_na`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    return collection._method("product", collection.dtype.element_type)
+    return collection._filter_na_method(filter_na, "product", collection.dtype.element_type)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def sum(collection) -> NumericExpression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_na=bool)
+def sum(collection, filter_na: bool = True) -> NumericExpression:
     """Returns the sum of values in the collection.
 
     Examples
@@ -2945,18 +2962,21 @@ def sum(collection) -> NumericExpression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_na` is ``True``. If `filter_na`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    return collection._method("sum", collection.dtype.element_type)
+    return collection._filter_na_method(filter_na, "sum", collection.dtype.element_type)
 
 
 @typecheck(kwargs=expr_any)
@@ -3240,8 +3260,8 @@ def sorted(collection,
         return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
 
 
-@typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmin(array, unique: bool = False) -> Int32Expression:
+@typecheck(array=expr_array(expr_numeric), unique=bool, filter_na=bool)
+def argmin(array, unique: bool = False, filter_na: bool = True) -> Int32Expression:
     """Return the index of the minimum value in the array.
 
     Examples
@@ -3266,23 +3286,30 @@ def argmin(array, unique: bool = False) -> Int32Expression:
 
     If the array is empty, then the result is missing.
 
+    Note
+    ----
+    Missing elements are ignored if `filter_na` is ``True``. If `filter_na`
+    is ``False``, then any missing element causes the result to be missing.
+
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
     unique : bool
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
     if unique:
-        return array._method("uniqueMinIndex", tint32)
+        return array._filter_na_method(filter_na, "uniqueMinIndex", tint32)
     else:
-        return array._method("argmin", tint32)
+        return array._filter_na_method(filter_na, "argmin", tint32)
 
 
-@typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmax(array, unique: bool = False) -> Int32Expression:
+@typecheck(array=expr_array(expr_numeric), unique=bool, filter_na=bool)
+def argmax(array, unique: bool = False, filter_na: bool = True) -> Int32Expression:
     """Return the index of the maximum value in the array.
 
     Examples
@@ -3307,19 +3334,26 @@ def argmax(array, unique: bool = False) -> Int32Expression:
 
     If the array is empty, then the result is missing.
 
+    Note
+    ----
+    Missing elements are ignored if `filter_na` is ``True``. If `filter_na`
+    is ``False``, then any missing element causes the result to be missing.
+
     Parameters
     ----------
     array : :class:`.ArrayNumericExpression`
     unique: bool
+    filter_na : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
     if unique:
-        return array._method("uniqueMaxIndex", tint32)
+        return array._filter_na_method(filter_na, "uniqueMaxIndex", tint32)
     else:
-        return array._method("argmax", tint32)
+        return array._filter_na_method(filter_na, "argmax", tint32)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))

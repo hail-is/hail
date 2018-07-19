@@ -1777,3 +1777,28 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]).value, 0.009900990296049406)
         self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]).value, 0.9900990100009803)
         self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]).value, 1.980198019704931)
+        self.assertIsNone(hl.pl_dosage([20, hl.null('int'), 100]).value)
+
+    def test_collection_method_missingness(self):
+        a = [1, hl.null('int')]
+
+        self.assertEqual(hl.min(a).value, 1)
+        self.assertIsNone(hl.min(a, filter_na=False).value)
+
+        self.assertEqual(hl.max(a).value, 1)
+        self.assertIsNone(hl.max(a, filter_na=False).value)
+
+        self.assertEqual(hl.mean(a).value, 1)
+        self.assertIsNone(hl.mean(a, filter_na=False).value)
+
+        self.assertEqual(hl.product(a).value, 1)
+        self.assertIsNone(hl.product(a, filter_na=False).value)
+
+        self.assertEqual(hl.sum(a).value, 1)
+        self.assertIsNone(hl.sum(a, filter_na=False).value)
+
+        self.assertEqual(hl.argmax(a).value, 0)
+        self.assertIsNone(hl.argmax(a, filter_na=False).value)
+
+        self.assertEqual(hl.argmin(a).value, 0)
+        self.assertIsNone(hl.argmin(a, filter_na=False).value)
