@@ -1341,8 +1341,6 @@ class Table(ExprContainer):
             else:
                 all_uids = []
 
-            virtual_ir = GetField(TopLevelReference('row', src._row_indices), uid)
-
             def joiner(left):
                 if not is_key:
                     original_key = None if left.key is None else list(left.key)
@@ -1358,11 +1356,10 @@ class Table(ExprContainer):
                     left = Table(left._jt.intervalJoin(self._jt, uid))
                 else:
                     left = Table(left._jt.join(self.select(**{uid: self.row_value}).distinct()._jt, 'left'))
-                rekeyed = rekey_f(left)
-                return rekeyed
+                return rekey_f(left)
 
             all_uids.append(uid)
-            ir = Join(virtual_ir,
+            ir = Join(GetField(TopLevelReference('row'), uid),
                       all_uids,
                       exprs,
                       joiner)
@@ -1384,13 +1381,10 @@ class Table(ExprContainer):
 
                 if is_row_key or is_partition_key:
                     # no vds_key (way faster)
-                    virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                     def joiner(left):
-                        joined = MatrixTable(left._jvds.annotateRowsTable(
-                            right._jt, uid, False))
-                        return joined
+                        return MatrixTable(left._jvds.annotateRowsTable(right._jt, uid, False))
 
-                    ir = Join(virtual_ir,
+                    ir = Join(GetField(TopLevelReference('va'), uid),
                               [uid],
                               exprs,
                               joiner)
@@ -1398,7 +1392,6 @@ class Table(ExprContainer):
                 else:
                     # use vds_key
                     uids = [Env.get_uid() for _ in range(len(exprs))]
-                    virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                     def joiner(left):
                         from hail.expr import aggregators as agg
 
@@ -1426,7 +1419,7 @@ class Table(ExprContainer):
                         select_ir = InsertFields(left._row._ir, [(uid, keys)])
                         return MatrixTable(jl.selectRows(select_ir, None))
 
-                    ir = Join(virtual_ir,
+                    ir = Join(GetField(TopLevelReference('va'), uid),
                               [uid],
                               exprs,
                               joiner)
@@ -1434,13 +1427,11 @@ class Table(ExprContainer):
 
             elif indices == src._col_indices:
                 all_uids = [uid]
-                virtual_ir = GetField(TopLevelReference('sa', src._col_indices), uid)
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
                     def joiner(left):
-                        joined = MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
-                        return joined
+                        return MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1463,7 +1454,7 @@ class Table(ExprContainer):
                                              ._jvds
                                              .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                         return result
-                ir = Join(virtual_ir,
+                ir = Join(GetField(TopLevelReference('sa'), uid),
                           all_uids,
                           exprs,
                           joiner)
@@ -1487,19 +1478,14 @@ class Table(ExprContainer):
         """
         uid = Env.get_uid()
 
-        global_ref = TopLevelReference('global', self._global_indices)
         def joiner(obj):
             from hail.matrixtable import MatrixTable
-            joined_type = tstruct(**obj.globals.dtype, **{uid: self.globals.dtype})
             if isinstance(obj, MatrixTable):
-                joined = MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
-            else:
-                assert isinstance(obj, Table)
-                joined = Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
-            global_ref.indices = joined._global_indices
-            return joined
+                return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
+            assert isinstance(obj, Table)
+            return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        ir = Join(GetField(global_ref, uid),
+        ir = Join(GetField(TopLevelReference('global'), uid),
                       [uid],
                       [],
                       joiner)

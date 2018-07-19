@@ -154,10 +154,9 @@ class Ref(IR):
 
 
 class TopLevelReference(Ref):
-    @typecheck_method(name=str, indices=anytype)
-    def __init__(self, name, indices):
+    @typecheck_method(name=str)
+    def __init__(self, name):
         super().__init__(name, None)
-        self.indices = indices
 
     @property
     def is_nested_field(self):
@@ -680,8 +679,7 @@ class Broadcast(IR):
         self.uid = Env.get_uid()
 
     def __str__(self):
-        from hail.expr.expressions import Indices
-        return str(GetField(TopLevelReference('global', Indices()), self.uid))
+        return str(GetField(TopLevelReference('global'), self.uid))
 
 
 class Join(IR):

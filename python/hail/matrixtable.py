@@ -2212,20 +2212,17 @@ class MatrixTable(ExprContainer):
 
         uid = Env.get_uid()
 
-        virtual_ir = GetField(TopLevelReference('global', Indices()), uid)
         def joiner(obj):
             if isinstance(obj, MatrixTable):
-                joined = MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
+                return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
                 assert isinstance(obj, Table)
-                joined = Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
-            virtual_ir.o.indices = joined._global_indices
-            return joined
+                return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        ir = Join(virtual_ir,
-                      [uid],
-                      [],
-                      joiner)
+        ir = Join(GetField(TopLevelReference('global'), uid),
+                  [uid],
+                  [],
+                  joiner)
         return construct_expr(ir, self.globals.dtype)
 
     def index_rows(self, *exprs):
@@ -2301,14 +2298,13 @@ class MatrixTable(ExprContainer):
                 exprs[i] is src.partition_key[i] for i in range(len(exprs)))
 
             if is_row_key or is_partition_key:
-                virtual_ir = GetField(TopLevelReference('va', src._row_indices), uid)
                 def joiner(left):
                     return MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                ir = Join(virtual_ir,
-                              uids_to_delete,
-                              exprs,
-                              joiner)
+                ir = Join(GetField(TopLevelReference('va'), uid),
+                          uids_to_delete,
+                          exprs,
+                          joiner)
                 return construct_expr(ir, schema, indices, aggregations)
             else:
                 return self.rows().index(*exprs)
@@ -2443,18 +2439,15 @@ class MatrixTable(ExprContainer):
             col_uid = Env.get_uid()
             uids.append(col_uid)
 
-            virtual_ir = GetField(TopLevelReference('g', src._entry_indices), uid)
-
             def joiner(left: MatrixTable):
                 localized = Table(self._jvds.localizeEntries(row_uid))
                 src_cols_indexed = self.cols().add_index(col_uid)
                 src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
                 left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
-                joined = left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
-                return joined
+                return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            ir = Join(virtual_ir,
+            ir = Join(GetField(TopLevelReference('g'), uid),
                       uids,
                       [*row_exprs, *col_exprs],
                       joiner)

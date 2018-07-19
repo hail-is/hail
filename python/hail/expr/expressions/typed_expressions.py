@@ -2843,12 +2843,12 @@ def construct_expr(ir: IR,
         raise NotImplementedError(type)
 
 
-@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(sized_tupleof(str, HailType)))
+@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
 def construct_reference(name, type, indices, prefix=None):
     if prefix is not None:
-        ir = GetField(TopLevelReference(prefix[0], indices), name)
+        ir = GetField(TopLevelReference(prefix), name)
     else:
-        ir = TopLevelReference(name, indices)
+        ir = TopLevelReference(name)
     return construct_expr(ir, type, indices)
 
 @typecheck(name=str, type=HailType, indices=Indices, aggregations=LinkedList)
