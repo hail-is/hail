@@ -840,7 +840,9 @@ object Parser extends JavaTokenParsers {
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
 
-  def parse_value_ir(s: String, ref_map: Map[String, Type] = Map.empty): IR = parse(ir_value_expr(ref_map), s)
+  def parse_value_ir(s: String, ref_map: Map[String, Type]): IR = parse(ir_value_expr(ref_map), s)
+
+  def parse_value_ir(s: String): IR = parse_value_ir(s, Map.empty)
 
   def parse_named_value_irs(s: String, ref_map: Map[String, Type] = Map.empty): Array[(String, IR)] =
     parse(ir_named_value_exprs(ref_map), s).toArray
