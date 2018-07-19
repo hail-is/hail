@@ -1,4 +1,4 @@
-from collections import Mapping, Sequence
+from typing import *
 
 import hail as hl
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \

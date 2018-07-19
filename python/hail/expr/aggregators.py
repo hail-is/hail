@@ -44,7 +44,7 @@ agg_expr = AggregableChecker
 
 
 @typecheck(name=str,
-           aggregable=oneof(Aggregable, expr_any),
+           aggregable=Aggregable,
            ret_type=hail_type,
            constructor_args=sequenceof(expr_any),
            init_op_args=nullable(sequenceof(expr_any)),
@@ -773,7 +773,7 @@ def explode(expr) -> Aggregable:
     :class:`.Aggregable`
         Aggregable expression.
     """
-    return expr._flat_map(lambda array: array)
+    return expr._flat_map(identity)
 
 
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
