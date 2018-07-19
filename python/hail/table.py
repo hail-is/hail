@@ -613,8 +613,7 @@ class Table(ExprContainer):
         for e in exprs:
             if not e._ir.is_nested_field:
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ir,
-                              GetField)
+            assert isinstance(e._ir, GetField)
             assignments[e._ir.name] = e
 
         for k, e in named_exprs.items():
@@ -1481,9 +1480,9 @@ class Table(ExprContainer):
             return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
         ir = Join(GetField(TopLevelReference('global'), uid),
-                      [uid],
-                      [],
-                      joiner)
+                  [uid],
+                  [],
+                  joiner)
         return construct_expr(ir, self.globals.dtype)
 
     def _process_joins(self, *exprs):

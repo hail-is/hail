@@ -363,8 +363,6 @@ def process_joins(obj, exprs, broadcast_f):
         all_uids.extend(list(t))
         data = hail.Struct(**{b.uid: b.value for b in broadcasts})
         data_json = t._to_json(data)
-        for b in broadcasts:
-            b.set_global_type(hail.tstruct(**left.globals.dtype, **t))
         left = broadcast_f(left, data_json, t)
 
     def cleanup(table):
