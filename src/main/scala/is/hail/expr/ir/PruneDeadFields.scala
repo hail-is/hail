@@ -77,19 +77,22 @@ object PruneDeadFields {
     }
   }
 
-  def minimizeColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {
+  def pruneColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {
     val matrixType = mv.typ
-    val originalCols = mv.colValues
+    val oldColValues = mv.colValues
+    val oldColType = matrixType.colType
     val memo = Memo.empty[BaseType]
     val valueIRCopy = valueIR.deepCopy()
     val colDep = memoizeValueIR(valueIRCopy, valueIR.typ, memo)
       .m.mapValues(_._2)
       .getOrElse("sa", if (isArray) TArray(TStruct()) else TStruct())
-    log.info(s"minimized col values:\n  From: ${ matrixType.colType }\n  To: ${ colDep }")
+    if (colDep != oldColType)
+      log.info(s"pruned col values:\n  From: $oldColType\n  To: ${ colDep }")
     val newColsType = if (isArray) colDep.asInstanceOf[TArray] else TArray(colDep)
     val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
-      upcast(Ref("values", TArray(matrixType.colType)), newColsType), Env.empty[(Any, Type)]
-        .bind("values" -> (mv.colValues.value, TArray(matrixType.colType))),
+      upcast(Ref("values", TArray(oldColType)), newColsType),
+      Env.empty[(Any, Type)]
+        .bind("values" -> (mv.colValues.value, TArray(oldColType))),
       FastIndexedSeq(),
       None,
       optimize = false)

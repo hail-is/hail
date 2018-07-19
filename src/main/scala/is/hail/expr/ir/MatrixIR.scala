@@ -610,7 +610,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
     val nCols = prev.nCols
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, expr)
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, expr)
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long, Long](
       "global", child.typ.globalType,
@@ -1061,7 +1061,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, newRow, isArray = true)
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, newRow, isArray = true)
 
     val localGlobalsType = typ.globalType
     val colValuesBc = minColValues.broadcast
@@ -1129,7 +1129,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     val prev = child.execute(hc)
     assert(prev.typ == child.typ)
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(prev, newRVRow)
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, newRVRow)
 
     val localGlobalsType = prev.typ.globalType
     val localColsType = TArray(minColType)
@@ -1646,7 +1646,7 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val mv = child.execute(hc)
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.minimizeColValues(mv, pred)
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(mv, pred)
 
     val localGlobalType = child.typ.globalType
     val globalsBc = mv.globals.broadcast
