@@ -178,7 +178,8 @@ def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) 
             lambda a: isinstance(a, GetField)
                       and not a.name.startswith('__uid')
                       and isinstance(a.o, TopLevelReference)):
-        builder[ir.name] = ir.o.indices
+        src = expr._indices.source
+        builder[ir.name] = src._indices_from_ref(ir.o.name)
 
 
 def extract_refs_by_indices(exprs, indices):

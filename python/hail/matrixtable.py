@@ -397,6 +397,11 @@ class MatrixTable(ExprContainer):
         self._entry = construct_reference('g', self._entry_type,
                                           indices=self._entry_indices)
 
+        self._indices_from_ref = {'global': self._global_indices,
+                                  'va': self._row_indices,
+                                  'sa': self._col_indices,
+                                  'g': self._entry_indices}
+
         self._partition_key = hail.struct(
             **{k: self._row[k] for k in jiterable_to_list(jvds.rowPartitionKey())})
         self._row_key = hail.struct(

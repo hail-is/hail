@@ -301,6 +301,9 @@ class Table(ExprContainer):
         self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
         self._row = construct_reference('row', self._row_type, indices=self._row_indices)
 
+        self._indices_from_ref = {'global': self._global_indices,
+                                  'row': self._row_indices}
+
         opt_key = from_option(jt.key())
         if opt_key is None:
             self._key = None
@@ -409,18 +412,18 @@ class Table(ExprContainer):
         return Table(jt)
 
     def _preserved_key_pairs(self, key_struct):
-        def is_copy(ir, name):
-            return (isinstance(ir, GetField) and
+        def is_copy(ir, name, indices):
+            return (indices.source is self and
+                    isinstance(ir, GetField) and
                     ir.name == name and
                     isinstance(ir.o, TopLevelReference) and
-                    ir.o.name == 'row' and
-                    ir.o.indices.source is self)
+                    ir.o.name == 'row')
         if self.key is None:
             preserved_key_pairs = []
         else:
             preserved_key_pairs = list(map(lambda pair: (pair[1]._ir.name, pair[0]),
                                            itertools.takewhile(
-                                               lambda pair: is_copy(pair[1]._ir, pair[2]),
+                                               lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
                                                zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
         (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
         new_key = list(key_struct.keys())
@@ -448,14 +451,6 @@ class Table(ExprContainer):
     def _select_globals(self, caller, s):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
-        def replace_global_axes(ir):
-            if isinstance(ir, TopLevelReference) and ir.name == 'global':
-                ir.typ = base._global_type
-                ir.indices = base._global_indices
-                return True
-            else:
-                return False
-        s._ir.search(replace_global_axes)
         return cleanup(Table(base._jt.selectGlobal(str(s._ir))))
 
     @classmethod

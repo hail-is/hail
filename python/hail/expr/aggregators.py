@@ -100,7 +100,7 @@ def _agg_func(name, aggregable, ret_type, constructor_args=(), init_op_args=None
 
 
 def _check_agg_bindings(expr):
-    bound_references = { ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference)) }
+    bound_references = {ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference))}
     free_variables = bound_references - expr._ir.bound_variables
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
