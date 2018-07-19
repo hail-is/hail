@@ -195,7 +195,7 @@ class ApplyComparisonOp(IR):
         self.r = r
 
     def __str__(self):
-        return '(ApplyComparisonOp ({}) {} {})'.format(self.op, self.l, self.r)
+        return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), self.l, self.r)
 
 
 class MakeArray(IR):
