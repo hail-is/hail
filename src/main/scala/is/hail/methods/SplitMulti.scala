@@ -11,23 +11,6 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
-class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[String]) extends Serializable {
-  private val asts = Parser.parseAnnotationExprsToAST(expr, ec, head)
-
-  private val inserters = new Array[Inserter](asts.length)
-  val newT: TStruct = {
-    var newT = t
-    var i = 0
-    while (i < asts.length) {
-      val (newSig, ins) = newT.structInsert(asts(i)._2.`type`, List(asts(i)._1))
-      inserters(i) = ins
-      newT = newSig
-      i += 1
-    }
-    newT
-  }
-}
-
 class SplitMultiRowIR(rowIRs: Array[(String, IR)], entryIRs: Array[(String, IR)], oldMatrixType: MatrixType) {
   val oldRowIR = Ref("va", oldMatrixType.rvRowType)
   val newEntries = ArrayMap(GetField(In(3, oldMatrixType.rvRowType), MatrixType.entriesIdentifier), "g", InsertFields(Ref("g", oldMatrixType.entryType), entryIRs))
@@ -65,19 +48,17 @@ class SplitMultiPartitionContextIR(
   removeLeftAligned: Boolean,
   removeMoving: Boolean,
   verifyLeftAligned: Boolean
-) extends SplitMultiPartitionContext(
-  keepStar,
-  nSamples,
-  globalAnnotation,
-  matrixType,
-  oldRVRowType,
-  newRVRowType,
-  ctx,
-  sortAlleles,
-  removeLeftAligned,
-  removeMoving,
-  verifyLeftAligned
 ) {
+
+  val splitRegion = ctx.region
+  val locusIndex = oldRVRowType.fieldIdx("locus")
+  var fullRow = new UnsafeRow(matrixType.rvRowType)
+  var prevLocus: Locus = null
+  val rvv = new RegionValueVariant(matrixType.rvRowType)
+  val rvb = new RegionValueBuilder()
+  val splitrv = RegionValue()
+  val locusAllelesOrdering = matrixType.rowKeyStruct.ordering
+
   private val allelesType = matrixType.rowType.fieldByName("alleles").typ
   private val locusType = matrixType.rowType.fieldByName("locus").typ
   val f = rowF()
@@ -112,32 +93,6 @@ class SplitMultiPartitionContextIR(
       splitrv
     }
   }
-}
-
-abstract class SplitMultiPartitionContext(
-  keepStar: Boolean,
-  nSamples: Int,
-  globalAnnotation: Annotation,
-  matrixType: MatrixType,
-  oldRVRowType: TStruct,
-  newRVRowType: TStruct,
-  val ctx: RVDContext,
-  sortAlleles: Boolean,
-  removeLeftAligned: Boolean,
-  removeMoving: Boolean,
-  verifyLeftAligned: Boolean
-) extends Serializable {
-
-  val splitRegion = ctx.region
-  val locusIndex = oldRVRowType.fieldIdx("locus")
-  var fullRow = new UnsafeRow(matrixType.rvRowType)
-  var prevLocus: Locus = null
-  val rvv = new RegionValueVariant(matrixType.rvRowType)
-  val rvb = new RegionValueBuilder()
-  val splitrv = RegionValue()
-  val locusAllelesOrdering = matrixType.rowKeyStruct.ordering
-
-  def constructSplitRow(splitVariants: Iterator[(Locus, IndexedSeq[String], Int)], rv: RegionValue, wasSplit: Boolean): Iterator[RegionValue]
 
   def splitRow(rv: RegionValue): Iterator[RegionValue] = {
     require(!(removeMoving && verifyLeftAligned))
@@ -197,7 +152,18 @@ abstract class SplitMultiPartitionContext(
 object SplitMulti {
 
   def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
-    val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
+    val refMap = Map(
+      "global" -> ("global", vsm.globalType),
+      "newLocus" -> ("newLocus", vsm.rowKeyStruct.types(0)),
+      "newAlleles" -> ("newAlleles", vsm.rowKeyStruct.types(1)),
+      "va" -> ("va", vsm.rvRowType),
+      "aIndex" -> ("aIndex", TInt32()),
+      "wasSplit" -> ("wasSplit", TBoolean()),
+      "g" -> ("g", vsm.entryType))
+
+    val variantIRs = Parser.parse_named_value_irs(variantExpr, refMap)
+    val genotypeIRs = Parser.parse_named_value_irs(genotypeExpr, refMap)
+    val splitmulti = new SplitMulti(vsm, variantIRs, genotypeIRs, keepStar, leftAligned)
     splitmulti.split()
   }
 
@@ -214,41 +180,9 @@ object SplitMulti {
   }
 }
 
-class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
-  val vEC = EvalContext(Map(
-    "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
-    "va" -> (3, vsm.rvRowType),
-    "aIndex" -> (4, TInt32()),
-    "wasSplit" -> (5, TBoolean())))
-
-  val gEC = EvalContext(Map(
-    "global" -> (0, vsm.globalType),
-    "newLocus" -> (1, vsm.rowKeyStruct.types(0)),
-    "newAlleles" -> (2, vsm.rowKeyStruct.types(1)),
-    "va" -> (3, vsm.rvRowType),
-    "aIndex" -> (4, TInt32()),
-    "wasSplit" -> (5, TBoolean()),
-    "g" -> (6, vsm.entryType)))
-  val gAnnotator = new ExprAnnotator(gEC, vsm.entryType, genotypeExpr, Some(Annotation.ENTRY_HEAD))
-
-  val rowASTs = Parser.parseAnnotationExprsToAST(variantExpr, vEC, Some("va"))
-  val entryASTs = Parser.parseAnnotationExprsToAST(genotypeExpr, gEC, Some("g"))
-
-  val rowIRs = rowASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIROpt()) yield {
-      (name, ir)
-    }
-  }
-  val entryIRs = entryASTs.flatMap { case (name, ast) =>
-    for (ir <- ast.toIROpt()) yield {
-      (name, ir)
-    }
-  }
+class SplitMulti(vsm: MatrixTable, rowIRs: Array[(String, IR)], entryIRs: Array[(String, IR)], keepStar: Boolean, leftAligned: Boolean) {
 
   val (newMatrixType, rowF): (MatrixType, () => AsmFunction13[Region, Long, Boolean, Long, Boolean, Long, Boolean, Long, Boolean, Int, Boolean, Boolean, Boolean, Long]) = {
-    assert(rowASTs.length == rowIRs.length && entryASTs.length == entryIRs.length)
     val ir = new SplitMultiRowIR(rowIRs, entryIRs, vsm.matrixType)
     (ir.newMatrixType, ir.splitRow)
   }

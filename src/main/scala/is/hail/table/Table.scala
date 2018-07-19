@@ -422,6 +422,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
+  def aggregateIR(expr: String): (Any, Type) =
+    aggregate(Parser.parse_value_ir(expr, typ.refMap))
+
   def aggregate(query: IR): (Any, Type) = {
     val t = ir.TableAggregate(tir, query)
     (ir.Interpret(t, ir.Env.empty, FastIndexedSeq(), None), t.typ)
@@ -455,6 +458,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
   }
 
+  def selectGlobalIR(expr: String): Table = {
+    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
+  }
+
   def filter(cond: String, keep: Boolean): Table = {
     val ec = rowEvalContext()
     var filterAST = Parser.parseToAST(cond, ec)
@@ -465,6 +473,12 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep))
         )
     }
+  }
+
+  def filterIR(cond: String, keep: Boolean): Table = {
+    var irPred = Parser.parse_value_ir(cond, typ.refMap)
+    new Table(hc,
+      TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
   def head(n: Long): Table = {
@@ -513,6 +527,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(ir) =>
         new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
     }
+  }
+
+  def selectIR(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
   }
 
   def join(other: Table, joinType: String): Table =
@@ -567,6 +586,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(x) =>
         new Table(hc, TableAggregateByKey(tir, x))
     }
+  }
+
+  def aggregateByKeyIR(expr: String, nPartitions: Option[Int] = None): Table = {
+    val x = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableAggregateByKey(tir, x))
   }
 
   def expandTypes(): Table = {

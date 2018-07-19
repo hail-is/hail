@@ -79,6 +79,49 @@ object Graph {
     maximalIndependentSet(mkGraph(edges2), tieBreakerF).toSet
   }
 
+  def maximalIndependentSetIR(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
+    val edges2 = edges.map { r =>
+      val Row(x, y) = r
+      (x, y)
+    }
+
+    if (edges2.length > 400000)
+      warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
+
+    val wrappedNodeType = TTuple(nodeType)
+    val refMap = Map("l" -> ("l", wrappedNodeType), "r" -> ("r", wrappedNodeType))
+
+    val tieBreakerF = tieBreaker.map { e =>
+      val ir = Parser.parse_value_ir(e, refMap)
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
+      assert(t.isOfType(TTuple(TInt64())))
+
+      (l: Any, r: Any) => {
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder()
+          rvb.set(region)
+
+          rvb.start(wrappedNodeType)
+          rvb.startTuple()
+          rvb.addAnnotation(nodeType, l)
+          rvb.endTuple()
+          val lOffset = rvb.end()
+
+          rvb.start(wrappedNodeType)
+          rvb.startTuple()
+          rvb.addAnnotation(nodeType, r)
+          rvb.endTuple()
+          val rOffset = rvb.end()
+
+          val resultOffset = f()(region, lOffset, false, rOffset, false)
+          SafeRow(t.asInstanceOf[TBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
+        }
+      }
+    }
+
+    maximalIndependentSet(mkGraph(edges2), tieBreakerF).toSet
+  }
+
   def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
     maximalIndependentSet(mkGraph(edges))
   }

@@ -487,7 +487,7 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val s = Pretty(x)
-    val x2 = Parser.parse(Parser.ir_value_expr, s)
+    val x2 = Parser.parse(Parser.ir_value_expr(), s)
     assert(x2 == x)
   }
 
