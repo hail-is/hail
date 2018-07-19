@@ -613,33 +613,28 @@ class BlockMatrix(object):
                 field = mt._fields_inverse[entry_expr]
                 mt._jvds.writeBlockMatrix(path, field, block_size)
         else:
+            n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
+            mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
+                                __sum=agg.sum(mt['__x']),
+                                __sum_sq=agg.sum(mt['__x'] * mt['__x']))
+            mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
+                                __centered_length=hl.sqrt(mt['__sum_sq'] - 
+                                                          (mt['__sum'] ** 2) / mt['__count']),
+                                __length=hl.sqrt(mt['__sum_sq'] +
+                                                 (n_cols - mt['__count']) *
+                                                 ((mt['__sum'] / mt['__count']) ** 2)))
+            expr = mt['__x']
             if normalize:
-                mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
-                                    __sum=agg.sum(mt['__x']),
-                                    __sum_sq=agg.sum(mt['__x'] * mt['__x']))
                 if center:
-                    mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                        __centered_length=hl.sqrt(mt['__sum_sq'] -
-                                                                  (mt['__sum'] ** 2) / mt['__count']))
-                    expr = (mt['__x'] - mt['__mean']) / mt['__centered_length']
+                    expr = (expr - mt['__mean']) / mt['__centered_length']
                     if mean_impute:
                         expr = hl.or_else(expr, 0.0)
                 else:
-                    n_cols = mt.count_cols()
-                    mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                        __length=hl.sqrt(mt['__sum_sq'] +
-                                                         (n_cols - mt['__count']) *
-                                                         ((mt['__sum'] / mt['__count']) ** 2)))
-                    expr = mt['__x']
                     if mean_impute:
                         expr = hl.or_else(expr, mt['__mean'])
                     expr = expr / mt['__length']
             else:
-                mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
-                                    __sum=agg.sum(mt['__x']))
-                mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'])
-                expr = mt['__x']
                 if center:
                     expr = expr - mt['__mean']
                     if mean_impute:
