@@ -318,9 +318,11 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
     p.width = 1000
-    p.tools = [HoverTool()]
+
     tooltips = [(key, f"@key") for key in hover_fields]
     tooltips.append(tuple(('p-value', "$y")))
-    p.select_one(HoverTool).tooltips = tooltips
+    p.add_tools(HoverTool(
+        tooltips=tooltips
+    ))
 
     return p
