@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.AnnotationPathException
+import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -77,6 +77,30 @@ object PruneDeadFields {
     }
   }
 
+  def pruneColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {
+    val matrixType = mv.typ
+    val oldColValues = mv.colValues
+    val oldColType = matrixType.colType
+    val memo = Memo.empty[BaseType]
+    val valueIRCopy = valueIR.deepCopy()
+    val colDep = memoizeValueIR(valueIRCopy, valueIR.typ, memo)
+      .m.mapValues(_._2)
+      .getOrElse("sa", if (isArray) TArray(TStruct()) else TStruct())
+    if (colDep != oldColType)
+      log.info(s"pruned col values:\n  From: $oldColType\n  To: ${ colDep }")
+    val newColsType = if (isArray) colDep.asInstanceOf[TArray] else TArray(colDep)
+    val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
+      upcast(Ref("values", TArray(oldColType)), newColsType),
+      Env.empty[(Any, Type)]
+        .bind("values" -> (mv.colValues.value, TArray(oldColType))),
+      FastIndexedSeq(),
+      None,
+      optimize = false)
+    (colDep,
+      BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.sparkContext),
+      rebuild(valueIRCopy, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
+    )
+  }
 
   def minimal(tt: TableType): TableType = {
     val keySet = tt.key.iterator.flatten.toSet
