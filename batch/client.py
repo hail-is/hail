@@ -66,7 +66,7 @@ class BatchClient(object):
             url = 'http://batch'
         self.url = url
 
-    def _create_job(self, image, command, args, env, ports, attributes, batch_id, callback):
+    def _create_job(self, image, command, args, env, ports, volumes, attributes, batch_id, callback):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -77,7 +77,7 @@ class BatchClient(object):
                 'fieldRef': {'fieldPath': 'status.podIP'}
             }
         })
-        
+
         container = {
             'image': image,
             'name': 'default'
@@ -93,10 +93,14 @@ class BatchClient(object):
                 'containerPort': p,
                 'protocol': 'TCP'
             } for p in ports]
+        if volumes:
+            container['volume_mounts'] = [v['volume_mount'] for v in volumes]
         spec = {
             'containers': [container],
             'restartPolicy': 'Never'
         }
+        if volumes:
+            spec['volumes'] = [v['volume'] for v in volumes]
 
         j = api.create_job(self.url, spec, attributes, batch_id, callback)
         return Job(self, j['id'])
@@ -115,8 +119,16 @@ class BatchClient(object):
         j = api.get_job(self.url, id)
         return Job(self, j['id'])
 
-    def create_job(self, image, command=None, args=None, env=None, ports=None, attributes=None, callback=None):
-        return self._create_job(image, command, args, env, ports, attributes, None, callback)
+    def create_job(self,
+                   image,
+                   command=None,
+                   args=None,
+                   env=None,
+                   ports=None,
+                   volumes=None,
+                   attributes=None,
+                   callback=None):
+        return self._create_job(image, command, args, env, ports, volumes, attributes, None, callback)
 
     def create_batch(self, attributes=None):
         b = api.create_batch(self.url, attributes)
