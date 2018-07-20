@@ -702,7 +702,7 @@ class ArrayFor(IR):
                other.body == self.body
 
 
-class ApplyAggOp(IR):
+class BaseApplyAggOp(IR):
     @typecheck_method(a=IR,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
@@ -724,7 +724,8 @@ class ApplyAggOp(IR):
         return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
 
     def __str__(self):
-        return '(ApplyAggOp {} {} ({}) {})'.format(
+        return '({} {} {} ({}) {})'.format(
+            self.__class__.__name__,
             self.agg_sig,
             self.a,
             ' '.join([str(x) for x in self.constructor_args]),
@@ -741,6 +742,24 @@ class ApplyAggOp(IR):
                other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
                other.agg_sig == self.agg_sig
+
+
+class ApplyAggOp(BaseApplyAggOp):
+    @typecheck_method(a=IR,
+                      constructor_args=sequenceof(IR),
+                      init_op_args=nullable(sequenceof(IR)),
+                      agg_sig=AggSignature)
+    def __init__(self, a, constructor_args, init_op_args, agg_sig):
+        super().__init__(a, constructor_args, init_op_args, agg_sig)
+
+
+class ApplyScanOp(BaseApplyAggOp):
+    @typecheck_method(a=IR,
+                      constructor_args=sequenceof(IR),
+                      init_op_args=nullable(sequenceof(IR)),
+                      agg_sig=AggSignature)
+    def __init__(self, a, constructor_args, init_op_args, agg_sig):
+        super().__init__(a, constructor_args, init_op_args, agg_sig)
 
 
 class InitOp(IR):
