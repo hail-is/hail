@@ -1,0 +1,20 @@
+set -x && \
+git clone $SOURCE_REPO_URL \
+    --depth 1 \
+    --branch $SOURCE_BRANCH \
+    repo && \
+cd repo && \
+echo $(git rev-parse $SOURCE_BRANCH) && \
+git checkout $SOURCE_HASH && \
+git remote add target $TARGET_REPO_URL && \
+git fetch --depth 1 target $TARGET_BRANCH && \
+echo $(git rev-parse target/$TARGET_BRANCH) && \
+git checkout $TARGET_HASH && \
+git merge $TARGET_HASH && \
+source activate hail ; \
+GIT_STUFF_EXIT=$? ; \
+echo 'run tests here' ; \
+mkdir -p build/reports/tests/test ; \
+printf 'a test report!' > build/reports/tests/test/index.html ; \
+GRADLE_EXIT=$? ; \
+exit $(( $GRADLE_EXIT + $GIT_STUFF_EXIT ))
