@@ -41,7 +41,7 @@ synchronize_pr_2_hash_1 = {
     "base": {
       "label": "danking:master",
       "ref": "master",
-      "sha": "501b685340de72dbb7d5680e612fe32c5380dde1",
+      "sha": "da332ac1b3d1a5f2a670b0ceb964caeb8f1e36fe",
       "repo": {
         "clone_url": "https://github.com/danking/docker-build-test.git"
       }
@@ -65,7 +65,7 @@ synchronize_pr_2_hash_2 = {
     "base": {
       "label": "danking:master",
       "ref": "master",
-      "sha": "501b685340de72dbb7d5680e612fe32c5380dde1",
+      "sha": "da332ac1b3d1a5f2a670b0ceb964caeb8f1e36fe",
       "repo": {
         "clone_url": "https://github.com/danking/docker-build-test.git"
       }
