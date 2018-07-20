@@ -147,7 +147,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         Size of markers in screen space units.
     legend : bool
         Whether or not to show the legend in the resulting figure.
-    source : FIXME
+    source : Dict[str, List[Any]]
         Extra fields for the ColumnDataSource of the plot.
 
     Returns
@@ -248,7 +248,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         Title of the plot.
     size : int
         Size of markers in screen space units.
-    hover_fields: FIXME
+    hover_fields: Dict[str, List[Any]]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
 
     Returns
