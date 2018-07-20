@@ -115,3 +115,18 @@ gcloud compute \
   --ssh-flag='-R 3000:127.0.0.1:5000' \
   --ssh-flag='-v'
 ```
+
+grant a service account object creation (but not overwrite or read) to a
+particular bucket:
+
+```
+gsutil iam ch [MEMBER_TYPE]:[MEMBER_NAME]:[ROLE] gs://[BUCKET_NAME]
+# e.g.
+gsutil iam ch \
+  serviceAccount:hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com:objectCreator \
+  gs://hail-ci-0-1
+```
+
+NB: it's not `roles/storage.objectCreator`, which is the [iam role
+name](https://cloud.google.com/storage/docs/access-control/iam-roles). I'm not
+sure what's going on here :shrug:.
