@@ -125,7 +125,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
-           source_fields=nullable(dictof(str, anytype)))
+           source_fields=nullable(dictof(str, sequenceof(anytype))))
 def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True, source_fields=None):
     """Create a scatterplot.
 
@@ -234,7 +234,7 @@ def qq(pvals):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, sequenceof(anytype))))
+           size=int, hover_fields=nullable(dictof(str, expr_any)))
 def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
@@ -248,7 +248,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         Title of the plot.
     size : int
         Size of markers in screen space units.
-    hover_fields: Dict[str, List[Any]]
+    hover_fields: Dict[str, List[Any]] or Dict[str, :class:`.AnyExpression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
 
     Returns
@@ -259,7 +259,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         left = 0
         right = len(starts) - 1
         while left <= right:
-            mid = int((left + right) / 2)
+            mid = (left + right) // 2
             if x < starts[mid]:
                 if x >= starts[mid - 1]:
                     return mid - 1
@@ -273,16 +273,23 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
 
     if locus is None:
         locus = pvals._indices.source.locus
-    res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position]).collect()
+
+    if hover_fields is not None:
+        res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position, hail.struct(**hover_fields)]).collect()
+        hf_struct = [point[4] for point in res]
+
+        for key in hover_fields:
+            hover_fields[key] = [item[key] for item in hf_struct]
+    else:
+        hover_fields = {}
+        res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position]).collect()
+
     x = [point[0] for point in res]
     y = [point[1] for point in res]
     label = [point[2] for point in res]
     variant_identifier = [str(point[2]) + ':' + str(point[3]) for point in res]
 
-    if hover_fields is None:
-        hover_fields = {'variant_identifier': variant_identifier}
-    else:
-        hover_fields['variant_identifier'] = variant_identifier
+    hover_fields['variant_identifier'] = variant_identifier
 
     p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False, source_fields=hover_fields)
@@ -297,8 +304,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     start_points.append(total_pos)  # end point of all contigs
 
     observed_contigs = set()
-    for i in range(0, len(x)):
-        contig_index = get_contig_index(x[i], start_points)
+    for element in x:
+        contig_index = get_contig_index(element, start_points)
         observed_contigs.add(ref.contigs[contig_index])
 
     labels = ref.contigs.copy()
