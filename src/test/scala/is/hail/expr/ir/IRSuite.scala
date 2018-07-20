@@ -258,6 +258,52 @@ class IRSuite extends SparkSuite {
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
   }
 
+  @Test def testInsertFields() {
+    val s = TStruct("a" -> TInt64(), "b" -> TString())
+
+    assertEvalsTo(
+      InsertFields(
+        NA(s),
+        Seq()),
+      null)
+
+    assertEvalsTo(
+      InsertFields(
+        NA(s),
+        Seq("a" -> I64(5))),
+      Row(5L, null))
+
+    assertEvalsTo(
+      InsertFields(
+        NA(s),
+        Seq("c" -> F64(3.2))),
+      Row(null, null, 3.2))
+
+    assertEvalsTo(
+      InsertFields(
+        NA(s),
+        Seq("c" -> NA(TFloat64()))),
+      Row(null, null, null))
+
+    assertEvalsTo(
+      InsertFields(
+        MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
+        Seq()),
+      Row(null, "abc"))
+
+    assertEvalsTo(
+      InsertFields(
+        MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
+        Seq("a" -> I64(5))),
+      Row(5L, "abc"))
+
+    assertEvalsTo(
+      InsertFields(
+        MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
+        Seq("c" -> F64(3.2))),
+      Row(null, "abc", 3.2))
+  }
+
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)

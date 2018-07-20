@@ -183,6 +183,9 @@ object Simplify {
 
         SelectFields(s, fields.map(_._1))
 
+      case SelectFields(SelectFields(old, _), fields) =>
+        SelectFields(old, fields)
+
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
         TableUnion(children.flatMap {
