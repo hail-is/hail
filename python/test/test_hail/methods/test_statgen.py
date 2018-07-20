@@ -673,9 +673,7 @@ class Tests(unittest.TestCase):
         mt = ht.to_matrix_table(['v'], ['s'])
 
         actual = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
-        expected = np.array([[1., -0.85280287, 0.42640143],
-                             [-0.85280287,  1., -0.5],
-                             [0.42640143, -0.5, 1.]])
+        expected = [[1., -0.85280287, 0.42640143], [-0.85280287,  1., -0.5], [0.42640143, -0.5, 1.]]
 
         self.assertTrue(np.allclose(actual, expected))
 
@@ -693,6 +691,39 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
+
+    def test_ld_matrix(self):
+        data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
+                {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
+                {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
+                {'v': '1:1:A:C',       'cm': 0.1, 's': 'd', 'GT': hl.Call([1, 1])},
+                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'a', 'GT': hl.Call([0, 1])},
+                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'b', 'GT': hl.Call([1, 1])},
+                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'c', 'GT': hl.Call([0, 1])},
+                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'd', 'GT': hl.Call([0, 0])},
+                {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
+                {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
+                {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
+                {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
+        ht = ht.transmute(**hl.parse_variant(ht.v))
+        mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+
+        self.assertTrue(np.allclose(
+            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
+            [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
+
+        self.assertTrue(np.allclose(
+            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
+            [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
+
+        self.assertTrue(np.allclose(
+            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
+            [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
+
+        self.assertTrue(np.allclose(
+            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
+            [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
     def test_hwe_normalized_pca(self):
         mt = hl.balding_nichols_model(3, 100, 50)

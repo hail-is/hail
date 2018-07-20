@@ -1822,7 +1822,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
     >>> mt = ht.to_matrix_table(row_key=['v'], col_key=['s'])
 
-    Compute genotype correlation (linkage) between all pairs of variants:
+    Compute genotype correlation between all pairs of variants:
 
     >>> ld = hl.row_correlation(mt.GT.n_alt_alleles())
     >>> ld.to_numpy()
@@ -1836,24 +1836,6 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     array([[ 1.        , -0.85280287,  0.        ],
            [ 0.        ,  1.        , -0.5       ],
            [ 0.        ,  0.        ,  1.        ]])
-
-    Warning
-    -------
-    Rows with a constant value (i.e., zero variance) will result `nan`
-    correlation values. To avoid this, first check that all rows vary or filter
-    out constant rows (for example, with the help of :func:`.aggregators.stats`).
-
-    Warning
-    -------
-    The resulting number of matrix elements is the square of the number of rows
-    in the matrix table, so computing the full matrix may be infeasible. For
-    example, ten million rows would produce 800TB of float64 values. The
-    block-sparse representation on BlockMatrix may be used to work efficiently
-    with regions of such matrices, as in the second example above and
-    :meth:`ld_matrix`.
-
-    To prevent excessive re-computation, be sure to write and read the (possibly
-    block-sparsified) result before multiplication by another matrix.
 
     Notes
     -----
@@ -1877,6 +1859,24 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     blocks are computed. For large matrices, consider separating these stages
     and using more cores for the latter.
 
+    Warning
+    -------
+    Rows with a constant value (i.e., zero variance) will result `nan`
+    correlation values. To avoid this, first check that all rows vary or filter
+    out constant rows (for example, with the help of :func:`.aggregators.stats`).
+
+    Warning
+    -------
+    The resulting number of matrix elements is the square of the number of rows
+    in the matrix table, so computing the full matrix may be infeasible. For
+    example, ten million rows would produce 800TB of float64 values. The
+    block-sparse representation on BlockMatrix may be used to work efficiently
+    with regions of such matrices, as in the second example above and
+    :meth:`ld_matrix`.
+
+    To prevent excessive re-computation, be sure to write and read the (possibly
+    block-sparsified) result before multiplication by another matrix.
+
     Parameters
     ----------
     entry_expr : :class:`.Float64Expression`
@@ -1896,15 +1896,16 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
 
 @typecheck(entry_expr=expr_float64,
            locus_expr=expr_locus(),
-           radius=float,
+           radius=oneof(int, float),
            coord_expr=nullable(expr_float64),
            block_size=nullable(int))
 def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) -> BlockMatrix:
-    """Computes the windowed correlation matrix between variants.
+    """Computes the windowed correlation (linkage disequilibrium) matrix between
+    variants.
 
     Examples
     --------
-    Consider the following dataset with three variants with centimorgan
+    Consider the following dataset consisting of three variants with centimorgan
     coordinates and four samples:
 
     >>> data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
@@ -1923,10 +1924,10 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     >>> ht = ht.transmute(**hl.parse_variant(ht.v))
     >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
-    Compute genotype correlation (linkage disequilibrium) between all pairs of
-    variants on the same contig and within one megabase:
+    Compute linkage disequilibrium between all pairs of variants on the same
+    contig and within one megabase:
 
-    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1000000)
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6)
     >>> ld.to_numpy()
     array([[1., 0., 0.],
            [0., 1., 0.],
@@ -1934,7 +1935,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
 
     Within two megabases:
 
-    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2000000)
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
     >>> ld.to_numpy()
     array([[ 1.        , -0.85280287,  0.        ],
            [-0.85280287,  1.        ,  0.        ],
@@ -1957,28 +1958,18 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            [ 0.        ,  1.        ,  0.        ],
            [ 0.        ,  0.        ,  1.        ]])
 
-    Warning
-    -------
-    Variants with a constant value (i.e., zero variance) will result in `nan`
-    correlation values. To avoid this, first check that all variants vary or
-    filter out constant variants (for example, with the help of
-    :func:`.aggregators.stats`).
-
-    Warning
-    -------
-    To prevent excessive re-computation, be sure to write and read the result
-    before multiplication by another matrix.
-
     Notes
     -----
-    In this method, variants are 0-indexed by their order in the matrix table
-    (see :meth:`add_row_index`) and each variant is regarded as a vector with
-    elements defined by `entry_expr` and missing values mean-imputed within
+    In this method, variants are regarded as 0-indexed by their order in the
+    matrix table (see :meth:`add_row_index`). Each variant is regarded as a
+    vector of elements defined by `entry_expr`, typically the number of
+    alternate alleles or genotype dosage. Missing values are mean-imputed within
     variant.
 
-    If variants ``i`` and ``j`` are on the same contig and within
-    `radius` base pairs (inclusive) then the ``(i, j)`` element of the
-    resulting block matrix is their
+    The method produces a symmetric block-sparse matrix supported in a
+    neighborhood of the diagonal. If variants ``i`` and ``j`` are on the same
+    contig and within `radius` base pairs (inclusive) then the ``(i, j)``
+    element is their
     `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__.
     Otherwise, the ``(i, j)`` element is ``0.0``. In particular, all values are
     between ``-1.0`` and ``1.0``, with the diagonal identically ``1.0``.
@@ -1993,12 +1984,26 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     same source as `locus_expr`, and ascending with respect to locus
     position for each contig; otherwise the method will raise an error.
 
+    Use :meth:`row_correlation` to calculate correlation without windowing.
+
+    Warning
+    -------
+    Variants with a constant value (i.e., zero variance) will result in `nan`
+    correlation values. To avoid this, first check that all variants vary or
+    filter out constant variants (for example, with the help of
+    :func:`.aggregators.stats`).
+
     Warning
     -------
     `entry_expr` and `locus_expr` are implicitly aligned by row-index, though
     they need not be on the same source. If their sources differ in the number
-    of rows, an error will be raised; otherwise, unintended misalignment will
+    of rows, an error will be raised; otherwise, unintended misalignment may
     silently produce unexpected results.
+
+    Warning
+    -------
+    To prevent excessive re-computation, be sure to write and read the result
+    before multiplication by another matrix.
 
     Parameters
     ----------
@@ -2007,7 +2012,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     locus_expr : :class:`.LocusExpression`
         Row-indexed locus expression on a table or matrix table that is
         row-aligned with the matrix table of `entry_expr`.
-    radius: :obj:`int`
+    radius: :obj:`int` or :obj:`float`
         Radius of window for row values.
     coord_expr: :class:`.Float64Expression`, optional
         Row-indexed numeric expression for the row value on the same table or
