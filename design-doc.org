@@ -17,6 +17,13 @@
  - for first pass, I ignore custom images for each PR, we just use a single
    image
 
+ - docker image should have minimal gcloud permissions, it just needs to cp into
+   a particular bucket
+
+ - simplification: we assume everyone is merging into master, in reality I need
+   to track target branch in prs and only cancel jobs, set statuses to pending,
+   etc. when target branch changes
+
 * storing results
 Jobs should copy build results into a google storage bucket with the commit
 hash.
@@ -104,11 +111,13 @@ execute image with command:
     git fetch --depth 1 hi master && \
     git merge master && \
     source active hail && \
-    ./gradlew test --gradle-user-home /gradle-cache && \
+    ./gradlew testAll --gradle-user-home /gradle-cache ; \
+    GRADLE_EXIT=$? ; \
     gsutil cp \
         build/reports/tests/test \
-        gs://hail-ci-0-1/SOURCE_BRANCH/TIP_HASH && \
-    gsutil acl ch -r -u AllUsers:R gs://hail-ci-0-1/SOURCE_BRANCH/TIP_HASH
+        gs://hail-ci-0-1/SOURCE_BRANCH/TIP_HASH ; \
+    gsutil acl ch -r -u AllUsers:R gs://hail-ci-0-1/SOURCE_BRANCH/TIP_HASH ; \
+   exit $GRADLE_EXIT
 
 NB: the checkout of TIP_HASH. each webhook is called for a particular
 "synchronize", I want to make sure I'm building what I think I'm building
