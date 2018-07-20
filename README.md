@@ -48,6 +48,24 @@ notifications.
 Any repository would work, and you can set up a webhook through the github web
 UI. Just use a port other than mine (3000)!
 
+pr-build-script
+---
+The `pr-build-script` has access to the following shell variables:
+
+ - `SOURCE_REPO_URL` -- a URL pointing to the `.git` file of the repo containing
+   the source branch of the PR, e.g. `https://github.com/danking/hail.gt`
+
+ - `SOURCE_BRANCH` -- the name of the source branch of the PR,
+   e.g. `faster-bgen`
+
+ - `SOURCE_HASH` -- the full hash of the commit on the source branch of the PR
+   that the CI system wants built
+
+ - `TARGET_BRANCH` -- the name of the target branch of the PR, e.g. `master`
+
+ - `TARGET_HASH` -- the full hash of the commit on the target branch of the PR
+   that the CI system wants to merge into the source branch
+
 Developer Tips
 ---
 
