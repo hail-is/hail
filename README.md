@@ -160,3 +160,23 @@ gcloud auth activate-service-account \
   hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
   --key-file /secrets/hail-ci-0-1.key
 ```
+
+Batch
+---
+
+here's how you use volume specs
+
+```ipython
+In [1]: from batch.client import *
+In [2]: c = BatchClient('http://localhost:8888')
+In [3]: j = c.create_job('google/cloud-sdk:alpine',
+   ...:                  ['/bin/bash',
+   ...:                   '-c',
+   ...:                   'ls /secrets && gcloud auth activate-service-account hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com --key-file=/secrets/hail-ci-0-1.key'],
+   ...:     volumes=[{ 'volume': { 'name' : 'hail-ci-0-1-service-account-key',
+   ...:                            'secret' : { 'optional': False, 'secretName': 'hail-ci-0-1-service-account-key' }},
+   ...:                'volume_mount' : {'mountPath' : '/secrets', 'name': 'hail-ci-0-1-service-account-key', 'readOnly': True } }])
+```
+
+NB: `secretName` is camel case, matching the style used in YAML, not in
+python. Same for mountPath and friends.
