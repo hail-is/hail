@@ -211,10 +211,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
-    log.info("in Table.value: pre-opt:\n" + ir.Pretty(tir))
     val opt = ir.Optimize(tir)
-    log.info("in Table.value: post-opt:\n" + ir.Pretty(opt))
-
     opt.execute(hc)
   }
 

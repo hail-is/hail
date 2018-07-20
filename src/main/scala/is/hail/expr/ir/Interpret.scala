@@ -27,7 +27,6 @@ object Interpret {
 
     var ir = ir0.unwrap
     if (optimize) {
-      log.info("interpret: PRE-OPT\n" + Pretty(ir))
       ir = Optimize(ir)
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>

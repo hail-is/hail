@@ -734,49 +734,52 @@ private class Emit(
 
 
       case x@InsertFields(old, fields) =>
-        old.typ match {
-          case oldtype: TStruct =>
-            val codeOld = emit(old)
-            val xo = mb.newLocal[Long]
-            val xmo = mb.newLocal[Boolean]()
-            val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
-              .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
-            val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
-              .map { case (_, v) => (v.typ, emit(v)) }
-            val srvb = new StagedRegionValueBuilder(mb, x.typ)
-            present(Code(
-              srvb.start(init = true),
-              Code(
-                codeOld.setup,
-                xmo := codeOld.m,
-                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
-                Code(oldtype.fields.map { f =>
-                  updateInit.get(f.name) match {
-                    case Some((t, EmitTriplet(dov, mv, vv))) =>
-                      Code(
-                        dov,
-                        mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                        srvb.advance())
-                    case None =>
-                      Code(
-                        (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
-                          srvb.setMissing(),
-                          srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
-                        ),
-                        srvb.advance())
-                  }
-                }: _*)),
-              Code(appendInit.map { case (t, EmitTriplet(setup, mv, vv)) =>
+        if (fields.isEmpty)
+          emit(old)
+        else
+          old.typ match {
+            case oldtype: TStruct =>
+              val codeOld = emit(old)
+              val xo = mb.newLocal[Long]
+              val xmo = mb.newLocal[Boolean]()
+              val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
+                .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
+              val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
+                .map { case (_, v) => (v.typ, emit(v)) }
+              val srvb = new StagedRegionValueBuilder(mb, x.typ)
+              present(Code(
+                srvb.start(init = true),
                 Code(
-                  setup,
-                  mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                  srvb.advance())
-              }: _*),
-              srvb.offset))
-          case _ =>
-            val newIR = MakeStruct(fields)
-            emit(newIR)
-        }
+                  codeOld.setup,
+                  xmo := codeOld.m,
+                  xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
+                  Code(oldtype.fields.map { f =>
+                    updateInit.get(f.name) match {
+                      case Some((t, EmitTriplet(dov, mv, vv))) =>
+                        Code(
+                          dov,
+                          mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
+                          srvb.advance())
+                      case None =>
+                        Code(
+                          (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
+                            srvb.setMissing(),
+                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
+                          ),
+                          srvb.advance())
+                    }
+                  }: _*)),
+                Code(appendInit.map { case (t, EmitTriplet(setup, mv, vv)) =>
+                  Code(
+                    setup,
+                    mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
+                    srvb.advance())
+                }: _*),
+                srvb.offset))
+            case _ =>
+              val newIR = MakeStruct(fields)
+              emit(newIR)
+          }
 
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
@@ -937,10 +940,11 @@ private class Emit(
     }
   }
 
-  private def getAsDependentFunction[A1 : TypeInfo, R : TypeInfo](
+  private def getAsDependentFunction[A1: TypeInfo, R: TypeInfo](
     ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_], errorMsg: String
   ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
     var ids = Set[String]()
+
     def getReferenced: IR => IR = {
       case Ref(id, typ) if id == argname =>
         In(0, typ)
@@ -1001,8 +1005,8 @@ private class Emit(
             Code._fatal("Array range cannot have step size 0."),
             Code._empty[Unit]),
           llen := (step < 0).mux(
-              (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
-              (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
+            (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
+            (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
           (llen > const(Int.MaxValue.toLong)).mux(
             Code._fatal("Array range cannot have more than MAXINT elements."),
             len := (llen < 0L).mux(0L, llen).toI)

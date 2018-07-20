@@ -32,6 +32,18 @@ object Simplify {
     }
   }
 
+  private[this] def areFieldSelects(fields: Seq[(String, IR)]): Boolean = {
+    assert(fields.nonEmpty)
+    fields.head match {
+      case (_, GetField(s1, _)) =>
+        fields.forall {
+          case (f1, GetField(s2, f2)) if f1 == f2 && s1 == s2 => true
+          case _ => false
+        }
+      case _ => false
+    }
+  }
+
   def apply(ir: BaseIR): BaseIR = {
     RewriteBottomUp(ir, matchErrorToNone {
       // optimize IR
@@ -71,6 +83,13 @@ object Simplify {
       case ArrayFilter(a, _, True()) => a
 
       case Let(n, v, b) if !Mentions(b, n) => b
+
+      case Let(n, v, b) if CountMentions(b, n) == 1 =>
+        Subst(b, Env.empty[IR].bind(n, v))
+
+      case Let(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
+
+      case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
 
       case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
 
@@ -120,6 +139,9 @@ object Simplify {
 
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
+      case ApplyIR("annotate", Seq(s1, MakeStruct(Seq())), _) =>
+        s1
+
       // optimize TableIR
       case TableFilter(t, True()) => t
 
@@ -152,6 +174,12 @@ object Simplify {
       case TableCount(TableRange(n, _)) => I64(n)
 
       case TableCount(TableParallelize(_, rows, _)) => I64(rows.length)
+
+      case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
+        InsertFields(s, fields)
+
+      case SelectFields(SelectFields(old, _), fields) =>
+        SelectFields(old, fields)
 
         // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
