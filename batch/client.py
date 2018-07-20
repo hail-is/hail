@@ -94,7 +94,7 @@ class BatchClient(object):
                 'protocol': 'TCP'
             } for p in ports]
         if volumes:
-            container['volume_mounts'] = [v['volume_mount'] for v in volumes]
+            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
         spec = {
             'containers': [container],
             'restartPolicy': 'Never'
