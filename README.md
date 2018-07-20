@@ -130,3 +130,33 @@ gsutil iam ch \
 NB: it's not `roles/storage.objectCreator`, which is the [iam role
 name](https://cloud.google.com/storage/docs/access-control/iam-roles). I'm not
 sure what's going on here :shrug:.
+
+
+Secrets
+---
+
+[manual for k8s secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
+
+[design doc for k8s secrets
+API](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/auth/secrets.md)
+(different from the Docker Swarm secrets)
+
+I will add a hail-ci secret (probably a gcloud service account key) that we
+should eliminate and re-create when we get serious about this cluster.
+
+gcloud can [authorize from a service account key
+file](https://cloud.google.com/sdk/gcloud/reference/auth/activate-service-account)
+
+Create a key for the service account `hail-ci-0-1`
+```
+gcloud iam service-accounts keys create \
+  hail-ci-0-1.key \
+  --iam-account hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com
+```
+
+activate a service account from a key file:
+```
+gcloud auth activate-service-account \
+  hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
+  --key-file /secrets/hail-ci-0-1.key
+```

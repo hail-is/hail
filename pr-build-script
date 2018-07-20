@@ -17,4 +17,10 @@ echo 'run tests here' ; \
 mkdir -p build/reports/tests/test ; \
 printf 'a test report!' > build/reports/tests/test/index.html ; \
 GRADLE_EXIT=$? ; \
+gcloud auth activate-service-account \
+  hail-ci-0-1 \
+  --key-file=/secrets/hail-ci-0-1.key && \
+gsutil -m cp -r \
+  build/reports/tests/ \
+  gs://hail-ci-0-1/$TARGET_HASH/$SOURCE_HASH/ ; \
 exit $(( $GRADLE_EXIT + $GIT_STUFF_EXIT ))
