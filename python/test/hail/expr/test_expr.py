@@ -3,6 +3,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+import hail.expr.scan as scan
 from hail.expr.types import *
 from ..helpers import *
 
@@ -240,6 +241,28 @@ class Tests(unittest.TestCase):
         for test in tests:
             self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
 
+    def test_scan(self):
+        table = hl.utils.range_table(10)
+
+        t = table.select(scan_count=scan.count(),
+                         scan_count_where=scan.count_where(table.idx % 2 == 0),
+                         scan_count_where2=scan.count(scan.filter(lambda x: x % 2 == 0, table.idx)),
+                         arr_sum=scan.array_sum([1, 2, hl.null(tint32)]),
+                         bind_agg=scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                         mean=scan.mean(table.idx),
+                         foo=hl.min(3, scan.sum(table.idx)),
+                         fraction_odd=scan.fraction(table.idx % 2 == 0))
+        rows = t.collect()
+        r = hl.Struct(**{n: [i[n] for i in rows] for n in t.row.keys()})
+
+        self.assertEqual(r.scan_count, [i for i in range(10)])
+        self.assertEqual(r.scan_count_where, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.scan_count_where2, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.arr_sum, [None]+[[i*1, i*2, 0] for i in range(1, 10)])
+        self.assertEqual(r.bind_agg, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.foo, [min(sum(range(i)), 3) for i in range(10)])
+        for (x, y) in zip(r.fraction_odd, [None] + [((i + 1)//2)/i for i in range(1, 10)]):
+            self.assertAlmostEqual(x, y)
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)

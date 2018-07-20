@@ -1238,6 +1238,7 @@ class Broadcast(IR):
 
 class Join(IR):
     _idx = 0
+
     @typecheck_method(virtual_ir=IR,
                       temp_vars=sequenceof(str),
                       join_exprs=sequenceof(anytype),

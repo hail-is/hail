@@ -5,7 +5,8 @@ from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.utils import wrap_to_list
 from hail.ir import *
-from .agg_utils import agg_expr, _agg_func, _to_agg
+from .scan_utils import _scan_func as _agg_func
+from ..aggregators.agg_utils import agg_expr, _to_agg
 
 
 @typecheck(expr=agg_expr(expr_any))
@@ -579,31 +580,31 @@ def fraction(predicate) -> Float64Expression:
 
 
 @typecheck(expr=agg_expr(expr_call))
-def hardy_weinberg_test(expr) -> StructExpression:
+def hardy_weinberg(expr) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
     Test each row of a dataset:
 
-    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg_test(dataset.GT))
+    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
 
     Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hardy_weinberg_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
-    This method performs the test described in :func:`.functions.hardy_weinberg_test` based solely on
+    This method performs the test described in :func:`.functions.hardy_weinberg_p` based solely on
     the counts of homozygous reference, heterozygous, and homozygous variant calls.
 
     The resulting struct expression has two fields:
 
-    - `het_freq_hwe` (:py:data:`.tfloat64`) - Expected frequency
+    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Expected frequency
       of heterozygous calls under Hardy-Weinberg equilibrium.
 
-    - `p_value` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
+    - `p_hwe` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
@@ -626,9 +627,9 @@ def hardy_weinberg_test(expr) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `het_freq_hwe` and `p_value`.
+        Struct expression with fields `r_expected_het_freq` and `p_hwe`.
     """
-    t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
+    t = tstruct(r_expected_het_freq=tfloat64, p_hwe=tfloat64)
     return _agg_func('HardyWeinberg', expr, t)
 
 
@@ -716,13 +717,13 @@ def filter(condition, expr) -> Aggregable:
 
 
 @typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))
-def _map(f, expr) -> Aggregable:
+def map(f, expr) -> Aggregable:
     f2 = f if callable(f) else lambda x: f
     return expr._map(f2)
 
 
 @typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
-def _flatmap(f, expr) -> Aggregable:
+def flatmap(f, expr) -> Aggregable:
     f2 = f if callable(f) else lambda x: f
     return expr._flatmap(f2)
 
@@ -735,7 +736,7 @@ def inbreeding(expr, prior) -> StructExpression:
     --------
     Compute inbreeding statistics per column:
 
-    >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF[1]))
+    >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
     >>> dataset_result.cols().show()
     +----------------+--------------+-------------+------------------+------------------+
     | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
@@ -867,8 +868,8 @@ def hist(expr, start, end, bins) -> StructExpression:
     >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
     Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
            bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
-           n_smaller=0,
-           n_greater=0)
+           nLess=0,
+           nGreater=0)
 
     Notes
     -----

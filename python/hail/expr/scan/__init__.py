@@ -1,4 +1,4 @@
-from .aggregators import collect, collect_as_set, count, count_where, counter, \
+from .scan import collect, collect_as_set, count, count_where, counter, \
     any, all, take, min, max, sum, array_sum, mean, stats, product, fraction, \
     hardy_weinberg, explode, filter, inbreeding, call_stats, info_score, hist, \
     linreg
@@ -34,4 +34,4 @@ __all__ = [
     'linreg'
 ]
 
-del aggregators, agg_utils
+del scan, scan_utils
