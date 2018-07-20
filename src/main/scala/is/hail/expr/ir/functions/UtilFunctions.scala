@@ -31,13 +31,13 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("range", TInt32())(ArrayRange(I32(0), _, I32(1)))
 
-    registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, annotations) =>
-      annotations match {
+    registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, s2) =>
+      s2 match {
         case s2: MakeStruct => InsertFields(s, s2.fields)
         case s2 =>
-          val styp = coerce[TStruct](s2.typ)
-          val struct = Ref(genUID(), styp)
-          Let(struct.name, s2, InsertFields(s, styp.fieldNames.map { n => n -> GetField(struct, n) } ))
+          val s2typ = coerce[TStruct](s2.typ)
+          val s2id = genUID()
+          Let(s2id, s2, InsertFields(s, s2typ.fieldNames.map { n => n -> GetField(Ref(s2id, s2typ), n) }))
       }
     }
 

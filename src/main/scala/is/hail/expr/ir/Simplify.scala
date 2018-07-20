@@ -178,11 +178,6 @@ object Simplify {
       case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
         InsertFields(s, fields)
 
-      case MakeStruct(fields) if fields.nonEmpty && areFieldSelects(fields) =>
-        val (_, GetField(s, _)) = fields(0)
-
-        SelectFields(s, fields.map(_._1))
-
       case SelectFields(SelectFields(old, _), fields) =>
         SelectFields(old, fields)
 

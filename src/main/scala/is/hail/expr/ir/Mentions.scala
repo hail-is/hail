@@ -13,14 +13,15 @@ object CountMentions {
         else
           0
       case _ =>
-        if (Binds(x).contains(v))
-          0
-        else
-          Children(x).iterator.map {
-            case c: IR => CountMentions(c, v)
-            case _ => 0
-          }
-            .sum
+        Children(x).iterator.zipWithIndex.map {
+          case (c: IR, i) =>
+            if (Binds(x, v, i))
+              0
+            else
+              CountMentions(c, v)
+          case _ => 0
+        }
+          .sum
     }
   }
 }
