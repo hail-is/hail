@@ -7,6 +7,7 @@ REPO_API_URL = 'https://api.github.com/repos/' + REPO
 CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
 SELF_HOSTNAME = 'http://35.232.159.176:3000'
+BATCH_SERVER_URL='http://localhost:8888'
 
 class NoOAuthToken(Exception):
     pass
@@ -67,7 +68,7 @@ except FileNotFoundError as e:
 ### Global State & Setup
 
 prs = {}
-batch_client = BatchClient(url='http://localhost:8888')
+batch_client = BatchClient(url=BATCH_SERVER_URL)
 
 def post_repo(url, headers=None, json=None, data=None, status_code=None):
     if headers is None:
