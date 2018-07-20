@@ -57,6 +57,7 @@ Methods
     hwe_normalized_pca
     identity_by_descent
     impute_sex
+    ld_matrix
     ld_prune
     mendel_errors
     de_novo

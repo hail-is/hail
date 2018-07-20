@@ -1807,32 +1807,32 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     --------
     Consider the following dataset with three variants and four samples:
 
-    >>> data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
+    >>> data = [{'v': '1:1:A:C', 's': 'a', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:1:A:C', 's': 'd', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': 'b', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': 'd', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:3:C:G', 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': 'c', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:3:C:G', 's': 'd', 'GT': hl.null(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
-    >>> mt = ht.to_matrix_table(['v'], ['s'])
+    >>> mt = ht.to_matrix_table(row_key=['v'], col_key=['s'])
 
     Compute genotype correlation (linkage) between all pairs of variants:
 
-    >>> ld_matrix = hl.row_correlation(mt.GT.n_alt_alleles())
-    >>> ld_matrix.to_numpy()
+    >>> ld = hl.row_correlation(mt.GT.n_alt_alleles())
+    >>> ld.to_numpy()
     array([[ 1.        , -0.85280287,  0.42640143],
            [-0.85280287,  1.        , -0.5       ],
            [ 0.42640143, -0.5       ,  1.        ]])
 
     Compute genotype correlation between consecutively-indexed variants:
 
-    >>> ld_matrix.sparsify_band(lower=0, upper=1).to_numpy()
+    >>> ld.sparsify_band(lower=0, upper=1).to_numpy()
     array([[ 1.        , -0.85280287,  0.        ],
            [ 0.        ,  1.        , -0.5       ],
            [ 0.        ,  0.        ,  1.        ]])
@@ -1849,7 +1849,8 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     in the matrix table, so computing the full matrix may be infeasible. For
     example, ten million rows would produce 800TB of float64 values. The
     block-sparse representation on BlockMatrix may be used to work efficiently
-    with regions of such matrices.
+    with regions of such matrices, as in the second example above and
+    :meth:`ld_matrix`.
 
     To prevent excessive re-computation, be sure to write and read the (possibly
     block-sparsified) result before multiplication by another matrix.
@@ -1872,9 +1873,9 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     This convenience method creates a row-normalized block matrix with
     :meth:`BlockMatrix.from_entry_expr` and then multiplies this block matrix
     by its transpose. The parallelism of the former is ``n_rows / block_size``
-    while the parallelism of the latter is ``(n_rows / block_size)^2``. For
-    large matrices, consider separating these stages and using more cores for
-    the latter.
+    while the parallelism of the latter is ``(n_rows / block_size)^2`` if all
+    blocks are computed. For large matrices, consider separating these stages
+    and using more cores for the latter.
 
     Parameters
     ----------
@@ -1891,6 +1892,139 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     """
     bm = BlockMatrix.from_entry_expr(entry_expr, mean_impute=True, center=True, normalize=True, block_size=block_size)
     return bm @ bm.T
+
+
+@typecheck(entry_expr=expr_float64,
+           locus_expr=expr_locus(),
+           radius=float,
+           coord_expr=nullable(expr_float64),
+           block_size=nullable(int))
+def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) -> BlockMatrix:
+    """Computes the windowed correlation matrix between variants.
+
+    Examples
+    --------
+    Consider the following dataset with three variants with centimorgan
+    coordinates and four samples:
+
+    >>> data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'd', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'b', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'd', 'GT': hl.Call([0, 0])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
+    >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
+    >>> ht = ht.transmute(**hl.parse_variant(ht.v))
+    >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+
+    Compute genotype correlation (linkage disequilibrium) between all pairs of
+    variants on the same contig and within one megabase:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1000000)
+    >>> ld.to_numpy()
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+
+    Within two megabases:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2000000)
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [-0.85280287,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Within one centimorgan:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm)
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [-0.85280287,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Within one centimorgan, and only calculate the upper triangle:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm)
+    >>> ld = ld.sparsify_triangle()
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [ 0.        ,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Warning
+    -------
+    Variants with a constant value (i.e., zero variance) will result in `nan`
+    correlation values. To avoid this, first check that all variants vary or
+    filter out constant variants (for example, with the help of
+    :func:`.aggregators.stats`).
+
+    Warning
+    -------
+    To prevent excessive re-computation, be sure to write and read the result
+    before multiplication by another matrix.
+
+    Notes
+    -----
+    In this method, variants are 0-indexed by their order in the matrix table
+    (see :meth:`add_row_index`) and each variant is regarded as a vector with
+    elements defined by `entry_expr` and missing values mean-imputed within
+    variant.
+
+    If variants ``i`` and ``j`` are on the same contig and within
+    `radius` base pairs (inclusive) then the ``(i, j)`` element of the
+    resulting block matrix is their
+    `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__.
+    Otherwise, the ``(i, j)`` element is ``0.0``. In particular, all values are
+    between ``-1.0`` and ``1.0``, with the diagonal identically ``1.0``.
+
+    If the :meth:`.global_position` on `locus_expr` is not in ascending order,
+    this method will fail. Ascending order should hold for a matrix table keyed
+    by locus or variant (and the associated row table), or for a table that's
+    been ordered by `locus_expr`.
+
+    Set `coord_expr` to use a value other than position to define the windows.
+    This row-indexed numeric expression must be non-missing, non-``nan``, on the
+    same source as `locus_expr`, and ascending with respect to locus
+    position for each contig; otherwise the method will raise an error.
+
+    Warning
+    -------
+    `entry_expr` and `locus_expr` are implicitly aligned by row-index, though
+    they need not be on the same source. If their sources differ in the number
+    of rows, an error will be raised; otherwise, unintended misalignment will
+    silently produce unexpected results.
+
+    Parameters
+    ----------
+    entry_expr : :class:`.Float64Expression`
+        Entry-indexed numeric expression on matrix table.
+    locus_expr : :class:`.LocusExpression`
+        Row-indexed locus expression on a table or matrix table that is
+        row-aligned with the matrix table of `entry_expr`.
+    radius: :obj:`int`
+        Radius of window for row values.
+    coord_expr: :class:`.Float64Expression`, optional
+        Row-indexed numeric expression for the row value on the same table or
+        matrix table as `locus_expr`.
+        By default, the row value is given by the locus position.
+    block_size : :obj:`int`, optional
+        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
+
+    Returns
+    -------
+    :class:`.BlockMatrix`
+        Windowed correlation matrix between variants.
+        Row and column indices correspond to matrix table variant index.
+    """
+    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
+    ld = hl.row_correlation(entry_expr, block_size)
+    return ld.sparsify_row_intervals(starts, stops)
 
 
 @typecheck(n_populations=int,
