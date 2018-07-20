@@ -91,7 +91,7 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
         Dataset with a new column-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, name))
+    return MatrixTable(Env.hail().methods.SampleQC.apply(dataset._jvds, name))
 
 
 @typecheck(mt=MatrixTable, name=str)
