@@ -1837,6 +1837,12 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
            [ 0.        ,  1.        , -0.5       ],
            [ 0.        ,  0.        ,  1.        ]])
 
+    Warning
+    -------
+    Rows with a constant value (i.e., zero variance) will result `nan`
+    correlation values. To avoid this, first check that all rows vary or filter
+    out constant rows (for example, with the help of :func:`.aggregators.stats`).
+
     Notes
     -----
     In this method, each row of entries is regarded as a vector with elements
@@ -1849,24 +1855,23 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     `Pearson correlation coeffecient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
     between the corresponding empirical distributions of elements,
     or equivalently as the cosine of the angle between the vectors.
-    In particular, all values are between ``-1.0`` and ``1.0``, with
-    the diagonal identically ``1.0``.
 
-    This convenience method creates a row-normalized block matrix with
-    :meth:`BlockMatrix.from_entry_expr` and then multiplies this block matrix
-    by its transpose. The parallelism of the former is ``n_rows / block_size``
-    while the parallelism of the latter is ``(n_rows / block_size)^2`` if all
-    blocks are computed. For large matrices, consider separating these stages
-    and using more cores for the latter.
+    This method has two stages:
 
-    Warning
-    -------
-    Rows with a constant value (i.e., zero variance) will result `nan`
-    correlation values. To avoid this, first check that all rows vary or filter
-    out constant rows (for example, with the help of :func:`.aggregators.stats`).
+    - writing the row-normalized block matrix to a temporary file on persistent
+      disk with :meth:`BlockMatrix.from_entry_expr`. The parallelism is
+      ``n_rows / block_size``.
+
+    - reading and multiplying this block matrix by its transpose. The
+      parallelism is ``(n_rows / block_size)^2`` if all blocks are computed.
 
     Warning
     -------
+    See all warnings on :meth:`BlockMatrix.from_entry_expr`. In particular,
+    for large matrices, it may be preferable to run the two stages separately,
+    saving the row-normalized block matrix to a file on external storage with
+    :meth:`BlockMatrix.write_from_entry_expr`.
+
     The resulting number of matrix elements is the square of the number of rows
     in the matrix table, so computing the full matrix may be infeasible. For
     example, ten million rows would produce 800TB of float64 values. The
@@ -1960,19 +1965,26 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
 
     Notes
     -----
-    In this method, variants are regarded as 0-indexed by their order in the
-    matrix table (see :meth:`add_row_index`). Each variant is regarded as a
-    vector of elements defined by `entry_expr`, typically the number of
-    alternate alleles or genotype dosage. Missing values are mean-imputed within
-    variant.
+    This method applies :meth:`row_correlation` and sparsifies the result.
+    Use :meth:`row_correlation` directly to calculate correlation without
+    windowing.
+
+    Variants are 0-indexed by their order in the matrix table
+    (see :meth:`add_row_index`). Each variant is regarded as a vector of
+    elements defined by `entry_expr`, typically the number of alternate alleles
+    or genotype dosage. Missing values are mean-imputed within variant.
 
     The method produces a symmetric block-sparse matrix supported in a
     neighborhood of the diagonal. If variants ``i`` and ``j`` are on the same
     contig and within `radius` base pairs (inclusive) then the ``(i, j)``
     element is their
     `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__.
-    Otherwise, the ``(i, j)`` element is ``0.0``. In particular, all values are
-    between ``-1.0`` and ``1.0``, with the diagonal identically ``1.0``.
+    Otherwise, the ``(i, j)`` element is ``0.0``.
+
+    Rows with a constant value (i.e., zero variance) will result in `nan`
+    correlation values. To avoid this, first check that all variants vary or
+    filter out constant variants (for example, with the help of
+    :func:`.aggregators.stats`).
 
     If the :meth:`.global_position` on `locus_expr` is not in ascending order,
     this method will fail. Ascending order should hold for a matrix table keyed
@@ -1984,26 +1996,15 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     same source as `locus_expr`, and ascending with respect to locus
     position for each contig; otherwise the method will raise an error.
 
-    Use :meth:`row_correlation` to calculate correlation without windowing.
-
     Warning
     -------
-    Variants with a constant value (i.e., zero variance) will result in `nan`
-    correlation values. To avoid this, first check that all variants vary or
-    filter out constant variants (for example, with the help of
-    :func:`.aggregators.stats`).
+    See the warnings in :meth:`row_correlation`. In particular, for large
+    matrices is may be preferable to run its stages separately.
 
-    Warning
-    -------
     `entry_expr` and `locus_expr` are implicitly aligned by row-index, though
     they need not be on the same source. If their sources differ in the number
     of rows, an error will be raised; otherwise, unintended misalignment may
     silently produce unexpected results.
-
-    Warning
-    -------
-    To prevent excessive re-computation, be sure to write and read the result
-    before multiplication by another matrix.
 
     Parameters
     ----------
@@ -2652,18 +2653,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
       `keep_higher_maf` is true, then in the case of a tie for highest degree,
       the variant with lowest minor allele frequency is removed.
 
-    If you encounter a Hadoop write/replication error, consider:
-
-    - increasing the size of persistent disk, e.g. by increasing the number of
-      persistent workers or the disk size per persistent worker. The
-      locally-pruned matrix table and block matrix are stored as temporary files
-      on persistent disk.
-
-    - limiting the Hadoop write buffer size, e.g. by setting the property on
-      cluster startup: ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
-      This issue arises for very large sample size because, when writing the
-      locally-pruned block matrix, the number of concurrently open files per
-      task is ``n_samples / block_size``.
+    Warning
+    -------
+    The locally-pruned matrix table and block matrix are stored as temporary files
+    on persistent disk. See the warnings on `BlockMatrix.from_entry_expr` with
+    regard to memory and Hadoop replication errors.
 
     Parameters
     ----------
