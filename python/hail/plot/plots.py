@@ -274,22 +274,19 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     if locus is None:
         locus = pvals._indices.source.locus
 
-    if hover_fields is not None:
-        res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position, hail.struct(**hover_fields)]).collect()
-        hf_struct = [point[4] for point in res]
-
-        for key in hover_fields:
-            hover_fields[key] = [item[key] for item in hf_struct]
-    else:
+    if hover_fields is None:
         hover_fields = {}
-        res = hail.tuple([locus.global_position(), pvals, locus.contig, locus.position]).collect()
+
+    hover_fields['locus'] = hail.str(locus)
+    res = hail.tuple([locus.global_position(), pvals, locus.contig, hail.struct(**hover_fields)]).collect()
+    hf_struct = [point[3] for point in res]
+
+    for key in hover_fields:
+        hover_fields[key] = [item[key] for item in hf_struct]
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
     label = [point[2] for point in res]
-    variant_identifier = [str(point[2]) + ':' + str(point[3]) for point in res]
-
-    hover_fields['variant_identifier'] = variant_identifier
 
     p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False, source_fields=hover_fields)
