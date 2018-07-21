@@ -278,18 +278,14 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         hover_fields = {}
 
     hover_fields['locus'] = hail.str(locus)
-    res = hail.tuple([locus.global_position(), pvals, locus.contig, hail.struct(**hover_fields)]).collect()
-    hf_struct = [point[3] for point in res]
+    res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
+    hf_struct = [point[2] for point in res]
 
     for key in hover_fields:
         hover_fields[key] = [item[key] for item in hf_struct]
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
-    label = [point[2] for point in res]
-
-    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False, source_fields=hover_fields)
 
     ref = locus.dtype.reference_genome
 
@@ -301,8 +297,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     start_points.append(total_pos)  # end point of all contigs
 
     observed_contigs = set()
+    label = []
     for element in x:
         contig_index = get_contig_index(element, start_points)
+        label.append(ref.contigs[contig_index])
         observed_contigs.add(ref.contigs[contig_index])
 
     labels = ref.contigs.copy()
@@ -318,6 +316,9 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         else:
             del labels[i - num_deleted]
             num_deleted += 1
+
+    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+                size=size, legend=False, source_fields=hover_fields)
 
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
