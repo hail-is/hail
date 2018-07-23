@@ -346,12 +346,25 @@ class BlockMatrix(object):
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
 
+        Notes
+        -----
+        This convenience method writes the block matrix to a temporary file on
+        persistent disk and then reads the file. If you want to store the
+        resulting block matrix, use :meth:`write_from_entry_expr` directly to
+        avoid writing the result twice. See :meth:`write_from_entry_expr` for
+        further documentation.
+
         Warning
         -------
-        This convenience method writes the block matrix to a temporary file and
-        then reads the file. Use :meth:`write_from_entry_expr` directly if you
-        want to store the resulting block matrix; see
-        :meth:`write_from_entry_expr` for further documentation.
+        If you encounter a Hadoop write/replication error, increase the
+        number of persistent workers or the disk size per persistent worker,
+        or use :meth:`write_from_entry_expr` to write to external storage.
+
+        This method opens ``n_cols / block_size`` files concurrently per task.
+        To not blow out memory when the number of columns is very large,
+        limit the Hadoop write buffer size; e.g. on GCP, set this property on
+        cluster startup (the default is 64MB):
+        ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
 
         Parameters
         ----------
@@ -580,7 +593,7 @@ class BlockMatrix(object):
         This method opens ``n_cols / block_size`` files concurrently per task.
         To not blow out memory when the number of columns is very large,
         limit the Hadoop write buffer size; e.g. on GCP, set this property on
-        cluster startup (the defualt is 64MB):
+        cluster startup (the default is 64MB):
         ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
 
         Parameters

@@ -129,7 +129,7 @@ def locus_windows(locus_expr, radius, coord_expr=None):
 
     If the :meth:`.global_position` on `locus_expr` is not in ascending order,
     this method will fail. Ascending order should hold for a matrix table keyed
-    by locus or variant (and the associated row table), or for a table that's
+    by locus or variant (and the associated row table), or for a table that has
     been ordered by `locus_expr`.
 
     Set `coord_expr` to use a value other than position to define the windows.

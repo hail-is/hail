@@ -18,6 +18,7 @@ Genetics
     genetic_relatedness_matrix
     realized_relationship_matrix
     impute_sex
+    ld_matrix
     ld_prune
     mendel_errors
     de_novo
@@ -44,6 +45,7 @@ Genetics
 .. autofunction:: genetic_relatedness_matrix
 .. autofunction:: realized_relationship_matrix
 .. autofunction:: impute_sex
+.. autofunction:: ld_matrix
 .. autofunction:: ld_prune
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
