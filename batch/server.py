@@ -103,7 +103,11 @@ class Job(object):
         self.set_state('Complete')
 
         if self.callback:
-            requests.post(self.callback, json = self.to_json())
+            try:
+                requests.post(self.callback, json = self.to_json())
+            except requests.exceptions.RequestException as re:
+                id = self.id
+                log.warn(f'callback for job {id} failed due to an error, I will not retry. Error: {re}')
 
     def to_json(self):
         result = {
