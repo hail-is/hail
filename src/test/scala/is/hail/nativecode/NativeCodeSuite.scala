@@ -50,4 +50,90 @@ class NativeCodeSuite extends SparkSuite {
     assert(a.use_count() == 1)
   }
 
+  @Test def testNativeGlobal() = {
+    System.err.println("testNativeGlobal() ...")
+    var ret: Long = -1
+    val st = new NativeStatus()
+    val globalModule = new NativeModule("global")
+    val funcHash1 = globalModule.findLongFuncL1(st, "hailTestHash1")
+    if (st.fail) System.err.println(s"error: ${st}")
+    assert(st.ok)
+    val funcHash8 = globalModule.findLongFuncL8(st, "hailTestHash8")
+    if (st.fail) System.err.println(s"error: ${st}")
+    assert(st.ok)
+    ret = funcHash8(st, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8)
+    System.err.println(s"funcHash8 funcAddr ${funcHash8.get().toHexString} => ${ret.toHexString}")
+    assert(ret == 0x87654321L)
+    val t0 = System.currentTimeMillis()
+    var sum: Long = 0
+    val numCalls = 100*1000000
+    var countdown = numCalls
+    while (countdown > 0) {
+      sum = funcHash1(st, sum)
+      countdown -= 1
+    }
+    val t1 = System.currentTimeMillis()
+    val usecsPerCall = ((t1 - t0) * 1000.0) / numCalls
+    System.err.println(s"funcHash1() ~ ${usecsPerCall}usecs")
+    assert(usecsPerCall < 0.050)
+  }
+
+  @Test def testNativeBuild() = {
+    System.err.println("testNativeBuild() ...")
+    val sb = new StringBuilder()
+    sb.append("#include \"hail/hail.h\"\n")
+    sb.append("NAMESPACE_HAIL_MODULE_BEGIN\n")
+    sb.append("\n")
+    // A very simple function
+    sb.append("long testFunc1(NativeStatus* st, long a0) { return a0+1; }\n\n")
+    // Now declare our own NativeObj
+    sb.append("class MyObj : public NativeObj {\n")
+    sb.append("public:\n")
+    sb.append("  int val_;\n")
+    sb.append("\n")
+    sb.append("  MyObj(int val) : val_(val) { }\n")
+    sb.append("  ~MyObj() { }\n")
+    sb.append("  const char* get_class_name() { return \"MyObj\"; }\n")
+    sb.append("};\n")
+    sb.append("\n")
+    sb.append("NativeObjPtr makeMyObj(long val) {\n")
+    sb.append("  return std::make_shared<MyObj>(val);\n")
+    sb.append("}\n")
+    sb.append("\n")
+    sb.append("NAMESPACE_HAIL_MODULE_END\n")
+    val options = "-ggdb -O2"
+    val st = new NativeStatus()
+    val mod = new NativeModule(options, sb.toString(), true)
+    mod.findOrBuild(st)
+    if (st.fail)
+      System.err.println(s"error: ${st}")
+    else {
+      System.err.println("A")
+      val testFunc1 = mod.findLongFuncL1(st, "testFunc1")
+      if (st.fail)
+        System.err.println(s"error: ${st}")
+      else {
+        val ret = testFunc1(st, 6)
+        System.err.println(s"testFunc(6) returns ${ret}")
+      }
+      testFunc1.close()
+    }
+    val makeMyObj: NativePtrFuncL1 = mod.findPtrFuncL1(st, "makeMyObj")
+    if (st.fail)
+      System.err.println(s"error: ${st}")
+    assert(st.ok)
+    val myObj = new NativePtr(makeMyObj, st, 55L)
+    assert(myObj.get() != 0)
+    // Now try getting the binary
+    val key = mod.getKey()
+    val binary = mod.getBinary()
+    val workerMod = new NativeModule(key, binary)
+    val workerFunc1 = workerMod.findLongFuncL1(st, "testFunc1")
+    assert(st.ok)
+    workerFunc1.close()
+    workerMod.close()
+    st.close()
+    mod.close()
+  }
+
 }

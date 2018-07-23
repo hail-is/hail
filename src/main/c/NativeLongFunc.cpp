@@ -1,5 +1,6 @@
 // src/main/c/NativeFunc.cpp - native funcs for Scala NativeLongFunc
 #include "hail/NativePtr.h"
+#include "hail/NativeStatus.h"
 #include <cassert>
 #include <jni.h>
 
@@ -7,7 +8,7 @@ namespace hail {
 
 namespace {
 
-using NativeFunc = NativeFuncObj<long>;
+using NativeFunc = NativeFuncObj<int64_t>;
 
 NativeFunc* to_NativeFunc(JNIEnv* env, jobject thisJ) {
   // Should be a dynamic_cast, but RTTI causes trouble
@@ -16,39 +17,46 @@ NativeFunc* to_NativeFunc(JNIEnv* env, jobject thisJ) {
 
 } // end anon
 
-NATIVEMETHOD(jlong, NativeLongFuncL0, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL0, nativeApply)(
   JNIEnv* env,
-  jobject thisJ
+  jobject thisJ,
+  jlong st
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_();
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL1, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL1, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL2, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL2, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL3, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL3, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2
@@ -56,12 +64,14 @@ NATIVEMETHOD(jlong, NativeLongFuncL3, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL4, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL4, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -69,12 +79,14 @@ NATIVEMETHOD(jlong, NativeLongFuncL4, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2, a3);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2, a3);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL5, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL5, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -83,12 +95,14 @@ NATIVEMETHOD(jlong, NativeLongFuncL5, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2, a3, a4);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2, a3, a4);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL6, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL6, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -98,12 +112,14 @@ NATIVEMETHOD(jlong, NativeLongFuncL6, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2, a3, a4, a5);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2, a3, a4, a5);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL7, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL7, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -114,12 +130,14 @@ NATIVEMETHOD(jlong, NativeLongFuncL7, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2, a3, a4, a5, a6);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2, a3, a4, a5, a6);
 }
 
-NATIVEMETHOD(jlong, NativeLongFuncL8, apply)(
+NATIVEMETHOD(jlong, NativeLongFuncL8, nativeApply)(
   JNIEnv* env,
   jobject thisJ,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -131,7 +149,8 @@ NATIVEMETHOD(jlong, NativeLongFuncL8, apply)(
 ) {
   auto f = to_NativeFunc(env, thisJ);
   assert(f);
-  return f->func_(a0, a1, a2, a3, a4, a5, a6, a7);
+  auto status = reinterpret_cast<NativeStatus*>(st);
+  return f->func_(status, a0, a1, a2, a3, a4, a5, a6, a7);
 }
 
 } // end hail

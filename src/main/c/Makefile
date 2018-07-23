@@ -6,6 +6,7 @@ OBJECTS := \
   ibs.o davies.o \
   NativeCodeSuite.o \
   NativeLongFunc.o \
+  NativeModule.o \
   NativePtr.o \
   NativeStatus.o \
   Region.o
@@ -89,6 +90,7 @@ headers: $(shell /usr/bin/find ../resources/include -name "*.h")
 
 NativeCodeSuite.o: headers
 NativeLongFunc.o: headers
+NativeModule.o: headers
 NativePtr.o: headers
 NativeStatus.o: headers
 Region.o: headers
@@ -105,6 +107,6 @@ libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
 
 $(shared_library): libsimdpp-2.0-rc2 ${OBJECTS}
-	mkdir -p $(dir $(shared_library))
+	mkdir -p $(basename $(shared_library))
 	${CXX} ${LIBFLAGS} ${LIBDIRS} ${CXXFLAGS} ${OBJECTS} -o $@ 
 

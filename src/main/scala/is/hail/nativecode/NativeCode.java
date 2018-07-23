@@ -1,6 +1,9 @@
 package is.hail.nativecode;
 
 import java.io.*;
+import java.util.*;
+import java.net.URL;
+import com.sun.jna.*;
 
 class NativeCode {
   static {

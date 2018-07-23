@@ -193,12 +193,17 @@ NATIVEMETHOD(jlong, NativeBase, nativeUseCount)(
 // We have constructors corresponding to std::make_shared<T>(...)
 // with various numbers of int64_t arguments.
 
+inline NativeStatus* to_status(jlong st) {
+  return reinterpret_cast<NativeStatus*>(st);
+}
+
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL0)(
   JNIEnv* env,
   jobject thisJ,
-  jlong funcObjAddr
+  jlong funcObjAddr,
+  jlong st
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)();
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st));
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -206,9 +211,10 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL1)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -216,10 +222,11 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL2)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -227,11 +234,12 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL3)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -239,12 +247,13 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL4)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
   jlong a3
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -252,13 +261,14 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL5)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
   jlong a3,
   jlong a4
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -266,6 +276,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -273,7 +284,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   jlong a4,
   jlong a5
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -281,6 +292,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -289,7 +301,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   jlong a5,
   jlong a6
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5, a6);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -297,6 +309,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
+  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -306,7 +319,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   jlong a6,
   jlong a7
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6, a7);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5, a6, a7);
   init_NativePtr(env, thisJ, &ptr);
 }
 

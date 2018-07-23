@@ -6,9 +6,10 @@
 #include <cstdio>
 #include <string>
 
-namespace hail {
+// NativeStatus is not in the "hail" namespace, because that would complicate
+// the mangled names of functions which have a "NativeStatus*" parameter
 
-class NativeStatus : public NativeObj {
+class NativeStatus : public hail::NativeObj {
 public:
   int errno_;
   std::string msg_;
@@ -41,7 +42,5 @@ using NativeStatusPtr = std::shared_ptr<NativeStatus>;
 
 #define NATIVE_ERROR(_p, _code, _msg, ...) \
    { (_p)->set(__FILE__, __LINE__, _code, _msg, ##__VA_ARGS__); }
-
-} // end hail
 
 #endif
