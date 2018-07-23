@@ -54,6 +54,7 @@ CXXFLAGS += -O3 -march=native $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
+PREBUILT := ../../../prebuilt
 
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
@@ -118,8 +119,10 @@ ifneq ($(boot_library),)
 $(boot_library): NativeBoot.o
 	-mkdir -p $(basename $(boot_library))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) NativeBoot.o -o $@
+	cp -p $@ $(PREBUILT)/$@
 endif
 
 $(shared_library): libsimdpp-2.0-rc2 $(OBJECTS)
 	-mkdir -p $(basename $(shared_library))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(OBJECTS) -o $@ 
+	cp -p $@ $(PREBUILT)/$@
