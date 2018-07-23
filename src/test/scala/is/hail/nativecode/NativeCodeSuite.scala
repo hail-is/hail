@@ -75,7 +75,7 @@ class NativeCodeSuite extends SparkSuite {
     val t1 = System.currentTimeMillis()
     val usecsPerCall = ((t1 - t0) * 1000.0) / numCalls
     System.err.println(s"funcHash1() ~ ${usecsPerCall}usecs")
-    assert(usecsPerCall < 0.050)
+    assert(usecsPerCall < 0.2)
   }
 
   @Test def testNativeBuild() = {
@@ -96,7 +96,7 @@ class NativeCodeSuite extends SparkSuite {
     sb.append("  const char* get_class_name() { return \"MyObj\"; }\n")
     sb.append("};\n")
     sb.append("\n")
-    sb.append("NativeObjPtr makeMyObj(long val) {\n")
+    sb.append("NativeObjPtr makeMyObj(NativeStatus*, long val) {\n")
     sb.append("  return std::make_shared<MyObj>(val);\n")
     sb.append("}\n")
     sb.append("\n")

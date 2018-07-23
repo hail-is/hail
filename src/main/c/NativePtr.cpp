@@ -323,6 +323,17 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   init_NativePtr(env, thisJ, &ptr);
 }
 
+NATIVEMETHOD(jlong, NativePtr, getFieldOffset)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong fieldSize,
+  jstring fieldNameJ
+) {
+  auto obj = get_from_NativePtr(env, thisJ);
+  JString fieldName(env, fieldNameJ);
+  return(obj ? obj->get_field_offset(fieldSize, fieldName) : -1L);
+}
+
 // Test code for nativePtrFunc
 
 class TestObjA : public hail::NativeObj {
@@ -356,23 +367,23 @@ public:
   }
 };
 
-NativeObjPtr nativePtrFuncTestObjA0() {
+NativeObjPtr nativePtrFuncTestObjA0(NativeStatus*) {
   return std::make_shared<TestObjA>();
 }
 
-NativeObjPtr nativePtrFuncTestObjA1(int64_t a0) {
+NativeObjPtr nativePtrFuncTestObjA1(NativeStatus*, int64_t a0) {
   return std::make_shared<TestObjA>(a0);
 }
 
-NativeObjPtr nativePtrFuncTestObjA2(int64_t a0, int64_t a1) {
+NativeObjPtr nativePtrFuncTestObjA2(NativeStatus*, int64_t a0, int64_t a1) {
   return std::make_shared<TestObjA>(a0, a1);
 }
 
-NativeObjPtr nativePtrFuncTestObjA3(int64_t a0, int64_t a1, int64_t a2) {
+NativeObjPtr nativePtrFuncTestObjA3(NativeStatus*, int64_t a0, int64_t a1, int64_t a2) {
   return std::make_shared<TestObjA>(a0, a1, a2);
 }
 
-NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
+NativeObjPtr nativePtrFuncTestObjA4(NativeStatus*, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
   return std::make_shared<TestObjA>(a0, a1, a2, a3);
 }
 

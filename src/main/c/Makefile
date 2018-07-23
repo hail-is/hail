@@ -14,6 +14,12 @@ OBJECTS := \
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 
+ifeq ($(UNAME_S),Darwin)
+  # Linux needs a separate libboot.so so that libhail.so can be loaded
+  # with RTLD_GLOBAL.  On MacOS we only need libhail.dylib
+  OBJECTS += NativeBoot.o
+endif
+
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
   ifneq ($(TMP),)
@@ -51,17 +57,19 @@ LIBFLAGS += -fvisibility=default
 
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
-  shared_library = lib/linux-x86-64/libhail.so
+  boot_library := lib/linux-x86-64/libboot.so
+  shared_library := lib/linux-x86-64/libhail.so
   ifneq ($(filter %86,$(UNAME_P)),)
-    shared_library = lib/linux-x86/libhail.so
+    shared_library := lib/linux-x86/libhail.so
   endif
 endif
 ifeq ($(UNAME_S),Darwin)
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
-  shared_library = lib/darwin/libhail.dylib
+  boot_library :=
+  shared_library := lib/darwin/libhail.dylib
 endif
 
-all: debug $(shared_library)
+all: debug $(boot_library) $(shared_library)
 
 debug:
 	echo "make debug"
@@ -106,7 +114,12 @@ libsimdpp-2.0-rc2.tar.gz:
 libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
 
-$(shared_library): libsimdpp-2.0-rc2 ${OBJECTS}
-	mkdir -p $(basename $(shared_library))
-	${CXX} ${LIBFLAGS} ${LIBDIRS} ${CXXFLAGS} ${OBJECTS} -o $@ 
+ifneq ($(boot_library),)
+$(boot_library): NativeBoot.o
+	-mkdir -p $(basename $(boot_library))
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) NativeBoot.o -o $@
+endif
 
+$(shared_library): libsimdpp-2.0-rc2 $(OBJECTS)
+	-mkdir -p $(basename $(shared_library))
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(OBJECTS) -o $@ 

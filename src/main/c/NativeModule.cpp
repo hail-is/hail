@@ -42,10 +42,11 @@ std::string hash_two_strings(const std::string& a, const std::string& b) {
   auto hashA = std::hash<std::string>()(a);
   auto hashB = std::hash<std::string>()(b);
   hashA ^= (0x3ac5*hashB);
+  hashB &= 0xffff;
   char buf[128];
   char* out = buf;
   for (int pos = 80; (pos -= 4) >= 0;) {
-    long nibble = ((pos >= 64) ? (hashB >> (pos-64)) : (hashA >> pos)) & 0xf;
+    int64_t nibble = ((pos >= 64) ? (hashB >> (pos-64)) : (hashA >> pos)) & 0xf;
     *out++ = ((nibble < 10) ? nibble+'0' : nibble-10+'a');
   }
   *out = 0;
@@ -128,6 +129,13 @@ std::string get_java_home() {
   } else {
     return std::string(getenv_with_default("JAVA_HOME", "JAVA_HOME_undefined"));
   }
+}
+
+std::string strip_suffix(const std::string& s, const char* suffix) {
+  size_t len = s.length();
+  size_t n = strlen(suffix);
+  if ((n > len) || (strncmp(&s[len-n], suffix, n) != 0)) return s;
+  return std::string(s, 0, len-n);
 }
 
 std::string get_cxx_name() {
@@ -255,9 +263,10 @@ private:
     // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
     const char* cxxstd = (strstr(config.cxx_name_.c_str(), "clang") ? "-std=c++17" : "-std=c++11");
     fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall -Werror \\\n", cxxstd);
-    fprintf(f, "  -I%s/include \\\n", config.java_home_.c_str());
-    fprintf(f, "  -I%s/include/%s \\\n", config.java_home_.c_str(), config.java_md_.c_str());
+    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall \\\n", cxxstd);
+    auto java_include = strip_suffix(config.java_home_, "/jre") + "/include";
+    fprintf(f, "  -I%s \\\n", java_include.c_str());
+    fprintf(f, "  -I%s/%s \\\n", java_include.c_str(), config.java_md_.c_str());
     fprintf(f, "  -I%s \\\n", include_.c_str());
     bool have_oflag = (strstr(options_.c_str(), "-O") != nullptr);
     fprintf(f, "  %s%s \\\n", have_oflag ? "" : "-O3", options_.c_str());
@@ -282,20 +291,19 @@ private:
 public:
   bool try_to_start_build() {
     // Try to create the .new file
-    FILE* f = fopen(hm_new_.c_str(), "w+");
-    if (!f) {
+    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
+    if (fd < 0) {
       // We lost the race to start the build
       return false;
     }
-    fclose(f);
+    ::close(fd);
     // The .new file may look the same age as the .cpp file, but
     // the makefile is written to ignore the .new timestamp
     write_mak();
     write_cpp();
     std::stringstream ss;
-    // ss << "/usr/bin/nohup ";
     ss << "/usr/bin/make -C " << config.module_dir_ << " -f " << hm_mak_;
-    ss << " >/dev/null &";
+    ss << " 1>/dev/null 2>/dev/null &";
     int rc = system(ss.str().c_str());
     if (rc < 0) perror("system");
     return true;
@@ -402,12 +410,11 @@ bool NativeModule::try_load() {
     if (is_global_) {
       load_state_ = kPass;
     } else if (!try_wait_for_build()) {
-      fprintf(stderr, "libName %s try_wait_for_build fail\n", lib_name_.c_str());
       load_state_ = kFail;
     } else {
       auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_LAZY);
       if (!handle) {
-        fprintf(stderr, "dlopen failed: %s\n", dlerror());
+        fprintf(stderr, "ERROR: dlopen failed: %s\n", dlerror());
       }
       load_state_ = (handle ? kPass : kFail);
       if (handle) dlopen_handle_ = handle;
@@ -427,7 +434,7 @@ static std::string to_qualified_name(
   JString name(env, nameJ);
   char argTypeCodes[32];
   for (int j = 0; j < numArgs; ++j) argTypeCodes[j] = 'l';
-  argTypeCodes[numArgs] = 0;  
+  argTypeCodes[numArgs] = 0;
   char buf[512];
   if (is_global) {
     // No name-mangling for global func names
@@ -436,7 +443,7 @@ static std::string to_qualified_name(
     auto moduleName = std::string("hm_") + key;
     sprintf(buf, "_ZN4hail%lu%s%lu%sE%s%s",
       moduleName.length(), moduleName.c_str(), strlen(name), (const char*)name, 
-      is_longfunc ? "P12NativeStatus" : "", argTypeCodes);
+      "P12NativeStatus", argTypeCodes);
   }
   return std::string(buf);
 }
