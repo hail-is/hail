@@ -155,6 +155,10 @@ class VCFTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             hl.import_vcf(resource('skip_invalid_loci.vcf')).count()
 
+    def test_import_vcf_set_field_missing(self):
+        mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
+        mt.aggregate_entries(hl.agg.sum(mt.DP))
+
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
