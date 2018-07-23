@@ -10,9 +10,7 @@ from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions import Expression
 
-palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-           '#ff3333', '#339fff', '#f3ff00', '#77ba7f', '#5b2c6f', '#ff00ff', '#000080', '#808000', '#800000', '#b40f7d',
-           '#cdd1ff', '#000000', '#c8a370']
+palette = ['#d62728', '#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
@@ -147,7 +145,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         Size of markers in screen space units.
     legend : bool
         Whether or not to show the legend in the resulting figure.
-    source : Dict[str, List[Any]]
+    source_fields : Dict[str, List[Any]]
         Extra fields for the ColumnDataSource of the plot.
 
     Returns
@@ -300,7 +298,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
     label = []
     for element in x:
         contig_index = get_contig_index(element, start_points)
-        label.append(ref.contigs[contig_index])
+        label.append(str(contig_index % 2))
         observed_contigs.add(ref.contigs[contig_index])
 
     labels = ref.contigs.copy()
