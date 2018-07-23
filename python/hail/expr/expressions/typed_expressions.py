@@ -101,8 +101,9 @@ class CollectionExpression(Expression):
 
         if isinstance(self.dtype, tset):
             return hl.set(array_filter)
-        assert isinstance(self.dtype, tarray), self.dtype
-        return array_filter
+        else:
+            assert isinstance(self.dtype, tarray), self.dtype
+            return array_filter
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def find(self, f):
@@ -1295,7 +1296,10 @@ class StructExpression(Mapping, Expression):
         selected_type = tstruct(**{f:self.dtype[f] for f in fields})
         selected_expr = construct_expr(SelectFields(self._ir, fields), selected_type, self._indices, self._aggregations)
 
-        return selected_expr.annotate(**named_exprs)
+        if len(named_exprs) == 0:
+            return selected_expr
+        else:
+            return selected_expr.annotate(**named_exprs)
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
