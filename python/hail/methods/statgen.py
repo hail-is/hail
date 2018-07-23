@@ -1930,21 +1930,21 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
     Compute linkage disequilibrium between all pairs of variants on the same
-    contig and within one megabase:
+    contig and within two megabases:
 
     >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6)
-    >>> ld.to_numpy()
-    array([[1., 0., 0.],
-           [0., 1., 0.],
-           [0., 0., 1.]])
-
-    Within two megabases:
-
-    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
     >>> ld.to_numpy()
     array([[ 1.        , -0.85280287,  0.        ],
            [-0.85280287,  1.        ,  0.        ],
            [ 0.        ,  0.        ,  1.        ]])
+
+    Within one megabases:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
+    >>> ld.to_numpy()
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
 
     Within one centimorgan:
 
@@ -1965,11 +1965,14 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
 
     Notes
     -----
-    This method applies :meth:`row_correlation` and sparsifies the result.
-    Use :meth:`row_correlation` directly to calculate correlation without
-    windowing.
+    This method sparsifies the result of :meth:`row_correlation` using
+    :func:`.linalg.utils.locus_windows` and
+    :meth:`.BlockMatrix.sparsify_row_intervals`
+    in order to only compute linkage disequilibrium between nearby
+    variants. Use :meth:`row_correlation` directly to calculate correlation
+    without windowing.
 
-    Variants are 0-indexed by their order in the matrix table
+    More precisely, variants are 0-indexed by their order in the matrix table
     (see :meth:`add_row_index`). Each variant is regarded as a vector of
     elements defined by `entry_expr`, typically the number of alternate alleles
     or genotype dosage. Missing values are mean-imputed within variant.
@@ -1999,7 +2002,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     Warning
     -------
     See the warnings in :meth:`row_correlation`. In particular, for large
-    matrices is may be preferable to run its stages separately.
+    matrices it may be preferable to run its stages separately.
 
     `entry_expr` and `locus_expr` are implicitly aligned by row-index, though
     they need not be on the same source. If their sources differ in the number
