@@ -3,7 +3,8 @@ package is.hail.variant.vsm
 import is.hail.SparkSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir
+import is.hail.expr.ir.{MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
 import is.hail.table.Table
@@ -27,13 +28,13 @@ class PartitioningSuite extends SparkSuite {
   }
   
   @Test def testShuffleOnEmptyRDD() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
-    val t = new Table(hc,
-      TableLiteral(TableValue(
+    val t = TableLiteral(TableValue(
         TableType(TStruct("tidx"->TInt32()), Some(IndexedSeq("tidx")), TStruct.empty()),
         BroadcastRow(Row.empty, TStruct.empty(), sc),
-        UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32())))))
-    mt.annotateRowsTable(t, "foo").forceCountRows()
+        UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32()))))
+    val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
+    MatrixAnnotateRowsTable(ir.MatrixRead(rangeReader.fullType, false, false, rangeReader), t, "foo", None)
+      .execute(hc).rvd.count()
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {

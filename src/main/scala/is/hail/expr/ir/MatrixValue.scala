@@ -20,7 +20,7 @@ case class MatrixValue(
   colValues: BroadcastIndexedSeq,
   rvd: OrderedRVD) {
 
-    assert(rvd.typ == typ.orvdType)
+    assert(rvd.typ == typ.orvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.orvdType}")
 
     def sparkContext: SparkContext = rvd.sparkContext
 

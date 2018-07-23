@@ -1391,50 +1391,15 @@ class Table(ExprContainer):
                     expr is key_field for expr, key_field in zip(exprs, src.partition_key.values()))
 
                 if is_row_key or is_partition_key:
-                    # no vds_key (way faster)
-                    def joiner(left):
-                        return MatrixTable(left._jvds.annotateRowsTable(right._jt, uid, False))
-
-                    ir = Join(GetField(TopLevelReference('va'), uid),
-                              [uid],
-                              exprs,
-                              joiner)
-                    return construct_expr(ir, new_schema, indices, aggregations)
+                    key = None
                 else:
-                    # use vds_key
-                    uids = [Env.get_uid() for _ in range(len(exprs))]
-                    def joiner(left):
-                        from hail.expr import aggregators as agg
-
-                        rk_uids = [Env.get_uid() for _ in left.row_key]
-                        k_uid = Env.get_uid()
-
-                        # extract v, key exprs
-                        left2 = left.select_rows(**{uid: e for uid, e in zip(uids, exprs)})
-                        lrt = (left2.rows()
-                            .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
-                            .key_by(*uids))
-
-                        vt = lrt.join(right)
-                        # group uids
-                        vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
-                        vt = vt.key_by(None).drop(*uids)
-                        # group by v and index by the key exprs
-                        vt = vt.key_by(*rk_uids).collect_by_key()
-                        vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
-
-                        jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
-                        vals = GetField(GetField(left._rvrow._ir, uid), "values")
-                        keys = Apply("get", vals, MakeStruct([(u, e._ir) for u, e in zip(uids, exprs)]))
-                        select_ir = InsertFields(left._row._ir, [(uid, keys)])
-                        return MatrixTable(jl.selectRows(str(select_ir), None))
-
-                    ir = Join(GetField(TopLevelReference('va'), uid),
-                              [uid],
-                              exprs,
-                              joiner)
-                    return construct_expr(ir, new_schema, indices, aggregations)
-
+                    key = [k._ast.to_hql() for k in exprs]
+                joiner = lambda left: MatrixTable(left._jvds.annotateRowsTableIR(right._jt, uid, key))
+                ast = Join(GetField(TopLevelReference('va'), uid),
+                           [uid],
+                           exprs,
+                           joiner)
+                return construct_expr(ast, new_schema, indices, aggregations)
             elif indices == src._col_indices:
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([

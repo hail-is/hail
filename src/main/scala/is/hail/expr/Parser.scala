@@ -657,6 +657,11 @@ object Parser extends JavaTokenParsers {
         case rowKey ~ colKey ~ rowFields ~ colFields ~ partitionKey ~ nPartitions ~ child =>
           ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions)
       } |
+      "MatrixAnnotateRowsTable" ~> string_literal ~ boolean_literal ~ matrix_ir ~ table_ir ~ rep(ir_value_expr) ^^ {
+        case uid ~ hasKey ~ child ~ table ~ key =>
+          val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
+          ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
+      } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |

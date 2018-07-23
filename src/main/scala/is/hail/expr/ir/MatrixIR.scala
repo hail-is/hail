@@ -14,6 +14,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.Partitioner
 import org.apache.spark.sql.Row
 import org.json4s._
 
@@ -1703,6 +1704,180 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
     mv.copy(rvd = newRVD)
+  }
+}
+
+case class MatrixAnnotateRowsTable(
+  child: MatrixIR,
+  table: TableIR,
+  root: String,
+  key: Option[IndexedSeq[IR]]) extends MatrixIR {
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table) ++ key.getOrElse(FastIndexedSeq.empty[IR])
+
+  override def columnCount: Option[Call] = child.columnCount
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    MatrixAnnotateRowsTable(
+      newChildren(0).asInstanceOf[MatrixIR],
+      newChildren(1).asInstanceOf[TableIR],
+      root,
+      key.map { keyIRs =>
+        assert(newChildren.length == keyIRs.length + 2)
+        newChildren.drop(2).map(_.asInstanceOf[IR])
+      }
+    )
+  }
+
+  override def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+    val tv = table.execute(hc)
+    key match {
+      // annotateRowsIntervals
+      case None if child.typ.rowPartitionKey.length == 1 &&
+        table.typ.keyType.exists(k => k.size == 1 && k.types(0) == TInterval(child.typ.rowKeyStruct.types(0))) =>
+        val typOrdering = child.typ.rowKeyStruct.types(0).ordering
+
+        val typToInsert: Type = table.typ.valueType
+
+        val (newRVType, ins) = child.typ.rvRowType.unsafeStructInsert(typToInsert, List(root))
+
+        val partBc = hc.sc.broadcast(prev.rvd.partitioner)
+        val tableRowTYpe = table.typ.rowType
+        val tableKeyIdx = table.typ.keyFieldIdx.get(0)
+        val tableValueIndex = table.typ.valueFieldIdx
+        val partitionKeyedIntervals = tv.rvd.boundary.crdd
+          .flatMap { rv =>
+            val r = SafeRow(tableRowTYpe, rv)
+            val interval = r.getAs[Interval](tableKeyIdx)
+            if (interval != null) {
+              val rangeTree = partBc.value.rangeTree
+              val pkOrd = partBc.value.pkType.ordering
+              val wrappedInterval = interval.copy(
+                start = Row(interval.start),
+                end = Row(interval.end))
+              rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+            } else
+              Iterator()
+          }
+
+        val nParts = prev.rvd.getNumPartitions
+        val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
+          def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+          def numPartitions: Int = nParts
+        }).values
+
+        val rvRowType = child.typ.rvRowType
+        val pkIndex = rvRowType.fieldIdx(child.typ.rowPartitionKey(0))
+        val newMatrixType = child.typ.copy(rvRowType = newRVType)
+        val newRVD = prev.rvd.zipPartitionsPreservesPartitioning(
+          newMatrixType.orvdType,
+          zipRDD
+        ) { case (it, intervals) =>
+          val intervalAnnotations: Array[(Interval, Any)] =
+            intervals.map { r =>
+              val interval = r.getAs[Interval](tableKeyIdx)
+              (interval, Row.fromSeq(tableValueIndex.map(r.get)))
+            }.toArray
+
+          val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
+
+          val rvb = new RegionValueBuilder()
+          val rv2 = RegionValue()
+
+          it.map { rv =>
+            val ur = new UnsafeRow(rvRowType, rv)
+            val pk = ur.get(pkIndex)
+            val queries = iTree.queryValues(typOrdering, pk)
+            val value: Annotation = if (queries.isEmpty)
+              null
+            else
+              queries(0)
+
+            rvb.set(rv.region)
+            rvb.start(newRVType)
+
+            ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
+
+            rv2.set(rv.region, rvb.end())
+
+            rv2
+          }
+        }
+        prev.copy(typ = typ, rvd = newRVD)
+
+      // annotateRowsTable using non-key MT fields
+      case Some(irs) =>
+        // FIXME: here be monsters
+
+        val partitionCounts = child.partitionCounts
+        .getOrElse(
+          Optimize(
+            TableMapRows(
+              MatrixRowsTable(child),
+              MakeStruct(FastIndexedSeq()),
+              None,
+              None
+            )).execute(hc).rvd.countPerPartition().toFastIndexedSeq)
+        val prevRowKeys = child.typ.rowKey.toArray
+        val newKeyUIDs = Array.fill(irs.length)(ir.genUID())
+        val indexUID = ir.genUID()
+        val mrt = Optimize(
+          MatrixRowsTable(
+          MatrixMapRows(
+            child,
+            MakeStruct(
+              prevRowKeys.zip(
+                prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
+              ) ++ newKeyUIDs.zip(irs)),
+            None))).execute(hc)
+        val indexedRVD1 = mrt.rvd
+          .asInstanceOf[OrderedRVD]
+          .zipWithIndex(indexUID, Some(partitionCounts))
+        val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
+        val sortedTL = Optimize(
+          TableKeyBy(
+            TableFilter(tl1,
+              ApplyUnaryPrimOp(
+                Bang(),
+                newKeyUIDs
+                  .map(k => IsNA(GetField(Ref("row", mrt.typ.rowType), k)))
+                  .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
+            newKeyUIDs, None, sort = true)).execute(hc)
+
+        val left = sortedTL.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        val right = tv.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
+        val prevPartitioner = prev.rvd.partitioner
+        val indexedPartitioner = prevPartitioner.copy(
+          partitionKey = child.typ.rowPartitionKey.toArray,
+          kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
+        val oType = joined.typ.copy(partitionKey = child.typ.rowPartitionKey.toArray, key = prevRowKeys ++ Array(indexUID))
+        val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)
+
+        val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
+
+        val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
+        val joinedMT = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
+          .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
+
+        val newRVD = joinedMT.copy(orderedPartitioner = prevPartitioner)
+
+        MatrixValue(typ, prev.globals, prev.colValues, newRVD)
+
+      // annotateRowsTable using key
+      case None =>
+        assert(table.typ.keyType.isDefined)
+        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.get.types).forall { case (l, r) => l.isOfType(r) })
+        val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
+          tv.enforceOrderingRVD.asInstanceOf[OrderedRVD], root)
+        prev.copy(typ = typ, rvd = newRVD)
+    }
   }
 }
 
