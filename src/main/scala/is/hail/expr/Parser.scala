@@ -658,7 +658,10 @@ object Parser extends JavaTokenParsers {
     "(" ~> ir_identifier ~ type_expr ~ type_expr <~ ")" ^^ { case x ~ t1 ~ t2 => ir.ComparisonOp.fromStringAndTypes(x, t1, t2) }
 
   def ir_agg_op: Parser[ir.AggOp] =
-    ir_identifier ^^ { x => ir.AggOp.fromString(x) }
+    ir_keyed_agg_op | ir_identifier ^^ { x => ir.AggOp.fromString(x) }
+
+  def ir_keyed_agg_op: Parser[ir.Keyed] =
+    "Keyed(" ~> ir_agg_op <~ ")" ^^ { aggOp => ir.Keyed(aggOp) }
 
   def ir_children: Parser[IndexedSeq[ir.IR]] = rep(ir_value_expr) ^^ {
     _.toFastIndexedSeq

@@ -647,9 +647,10 @@ private class Emit(
             codeI.m.mux(
               Code._empty,
               agg.initOp(
+                mb,
                 aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+                argsv.map(_.load()),
+                argsm.map(_.load())))),
           const(false),
           Code._empty)
 
@@ -679,10 +680,11 @@ private class Emit(
             codeI.m.mux(
               Code._empty,
               agg.seqOp(
+                mb,
                 region,
                 aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+                argsv.map(_.load()),
+                argsm.map(_.load())))),
           const(false),
           Code._empty)
 

@@ -1,22 +1,19 @@
 package is.hail.methods
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-
-import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
+import scala.language.implicitConversions
 
 object Aggregators {
 
@@ -527,4 +524,49 @@ class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggreg
     lra.combiner = combiner.copy()
     lra
   }
+}
+
+class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
+  private val m = new java.util.HashMap[Any, TypedAggregator[T]]()
+
+  def result = m.asScala.map { case (k, v) => (k, v.result) }.toMap
+
+  def seqOp(x: Any) {
+    val cx = x.asInstanceOf[Row]
+    if (cx != null)
+      seqOp(cx.get(0), cx.get(1))
+    else
+      seqOp(null, null)
+  }
+
+  private def seqOp(key: Any, x: Any) {
+    var agg = m.get(key)
+    if (agg == null) {
+      agg = aggregator.copy()
+      m.put(key, agg)
+    }
+    val r = x.asInstanceOf[Row]
+    agg match {
+      case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
+      case tagg: CountAggregator => agg.seqOp(0)
+      case tagg: InbreedingAggregator =>
+        agg.asInstanceOf[InbreedingAggregator].seqOp(r.get(0), r.get(1))
+      case tagg: TakeByAggregator[_] =>
+        agg.asInstanceOf[TakeByAggregator[_]].seqOp(r.get(0), r.get(1))
+      case _ => agg.seqOp(r.get(0))
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    agg2.m.asScala.foreach { case (k, v2) =>
+      val agg = m.get(k)
+      if (agg == null)
+        m.put(k, v2)
+      else {
+        agg.combOp(v2.asInstanceOf[agg.type])
+      }
+    }
+  }
+
+  def copy() = new KeyedAggregator(aggregator.copy())
 }
