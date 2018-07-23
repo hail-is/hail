@@ -1,3 +1,95 @@
+Getting Started
+---
+
+Start a `minikube` k8s cluster and configure your `kubectl` to point at that k8s
+cluster:
+
+```
+minikube start
+```
+
+If you get a weird minikube error, try
+
+```
+minikube delete
+rm -rf ~/.minikube
+brew cask reinstall minikube # or equivalent on your OS
+minikube start
+```
+
+When you want to return to using a google k8s cluster, you can run this:
+
+```
+gcloud container clusters get-credentials CLUSTER_NAME
+```
+
+Set some environment variables so that docker images are placed in the
+`minikube` cluster's docker registry:
+
+```
+eval $(minikube docker-env)
+```
+
+Build the batch and test image
+
+```
+make build-batch build-test
+```
+
+edit the `deployment.yaml` so that the container named `batch` has
+`imagePullPolicy: Never`. This ensures that k8s does not go look for the image
+in the Google Container Registry and instead uses the local image cache (which
+you just updated when you ran `make build-batch build-test`).
+
+Give way too many privileges to the default service account so that `batch` can
+start new pods:
+
+```
+kubectl create clusterrolebinding \
+  cluster-admin-default \
+  --clusterrole cluster-admin \
+  --serviceaccount=default:default
+```
+
+Create a batch service:
+
+```
+kubectl create -f deployment.yaml
+```
+
+If you ever need to shutdown the service, execute:
+
+```
+kubectl delete -f deployment.yaml
+```
+
+Look for the newly created batch pod:
+
+```
+kubectl get pods
+```
+
+And create a port forward from the k8s cluster to your local machine (this works
+for clusters in GKE too):
+
+```
+kubectl port-forward POD_NAME 5000:5000
+```
+
+The former port is the local one and the latter port is the remote one (i.e. in
+the k8s pod). Now you can load the conda environment for testing and run the
+tests against this deployment:
+
+```
+conda env create -f environment.yaml
+conda activate hail-batch
+make test-local
+```
+
+
+
+---
+
 Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md)
  - [V1Pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Pod.md)
  - [create_namespaced_pod](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_pod)
