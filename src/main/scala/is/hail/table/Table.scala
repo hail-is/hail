@@ -817,12 +817,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
   }
-  def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    require(key.isDefined)
-    val orderedKTType = new OrderedRVDType(key.get.take(partitionKeys).toArray, key.get.toArray, signature)
-    assert(hintPartitioner.forall(p => p.kType.types.sameElements(orderedKTType.kType.types)))
-    OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
-  }
 
   def intervalJoin(other: Table, fieldName: String): Table = {
     assert(other.keySignature.exists(s => s.size == 1 && s.types(0).isInstanceOf[TInterval]))

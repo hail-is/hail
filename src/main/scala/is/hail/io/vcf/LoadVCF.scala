@@ -981,7 +981,7 @@ case class MatrixVCFReader(
       referenceGenome,
       contigRecoding,
       arrayElementsRequired,
-      skipInvalidLoci), None)
+      skipInvalidLoci))
 
   def apply(mr: MatrixRead): MatrixValue = {
     val infoFlagFieldNamesBc = sc.broadcast(infoFlagFieldNames)

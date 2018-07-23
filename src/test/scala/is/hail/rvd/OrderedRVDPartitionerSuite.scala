@@ -64,8 +64,9 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     assert(partitioner.getSafePartitionKeyRange(Row(7, 11)) == Range.inclusive(2, 2))
   }
 
-  @Test def testFixup() {
-    val partitioner = OrderedRVDPartitioner.fixup(
+  // FIXME: Add more generate tests
+  @Test def testGenerate() {
+    val partitioner = OrderedRVDPartitioner.generate(
       Array("A", "B"),
       TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32())),
       Array(

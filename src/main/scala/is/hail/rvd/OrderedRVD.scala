@@ -347,14 +347,9 @@ class OrderedRVD(
       val pki = OrderedRVD.getKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled))
       if (pki.isEmpty)
         return OrderedRVD.empty(sparkContext, typ)
-      val ranges = OrderedRVD.calculateKeyRanges(
-        typ,
-        pki,
-        shuffled.getNumPartitions)
-      OrderedRVD.shuffle(
-        typ,
-        new OrderedRVDPartitioner(typ.partitionKey, typ.kType, ranges),
-        shuffled)
+      val partitioner = OrderedRVD.calculateKeyRanges(
+        typ, pki, shuffled.getNumPartitions)
+      OrderedRVD.shuffle(typ, partitioner, shuffled)
     } else {
 
       val partSize = countPerPartition()
@@ -750,82 +745,65 @@ object OrderedRVD {
   def coerce(
     typ: OrderedRVDType,
     rvd: RVD
-  ): OrderedRVD = coerce(typ, rvd, None, None)
+  ): OrderedRVD = coerce(typ, rvd, None)
 
   def coerce(
     typ: OrderedRVDType,
     rvd: RVD,
     fastKeys: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, rvd, Some(fastKeys), None)
+  ): OrderedRVD = coerce(typ, rvd, Some(fastKeys))
 
   def coerce(
     typ: OrderedRVDType,
     rvd: RVD,
-    hintPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD = coerce(typ, rvd, None, Some(hintPartitioner))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rvd: RVD,
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
-    hintPartitioner: Option[OrderedRVDPartitioner]
-  ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys, hintPartitioner)
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
+  ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys)
 
   def coerce(
     typ: OrderedRVDType,
     rdd: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, None, None)
+  ): OrderedRVD = coerce(typ, rdd, None)
 
   def coerce(
     typ: OrderedRVDType,
     rdd: RDD[RegionValue],
     fastKeys: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys), None)
+  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys))
 
   def coerce(
     typ: OrderedRVDType,
     rdd: RDD[RegionValue],
-    hintPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD = coerce(typ, rdd, None, Some(hintPartitioner))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: RDD[RegionValue],
-    hintPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD = coerce(
-    typ,
-    rdd,
-    Some(fastKeys),
-    Some(hintPartitioner))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: Option[RDD[RegionValue]],
-    hintPartitioner: Option[OrderedRVDPartitioner]
+    fastKeys: Option[RDD[RegionValue]]
   ): OrderedRVD = coerce(
     typ,
     ContextRDD.weaken[RVDContext](rdd),
-    fastKeys.map(ContextRDD.weaken[RVDContext](_)),
-    hintPartitioner)
+    fastKeys.map(ContextRDD.weaken[RVDContext](_))
+    )
 
   def coerce(
     typ: OrderedRVDType,
     crdd: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, crdd, None, None)
+  ): OrderedRVD = coerce(typ, crdd, None)
 
   def coerce(
     typ: OrderedRVDType,
     crdd: ContextRDD[RVDContext, RegionValue],
     fastKeys: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, crdd, Some(fastKeys), None)
+  ): OrderedRVD = coerce(typ, crdd, Some(fastKeys))
+
+  def coerce(
+    typ: OrderedRVDType,
+    crdd: ContextRDD[RVDContext, RegionValue],
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
+  ): OrderedRVD = {
+    val keys = fastKeys.getOrElse(getKeys(typ, crdd))
+    makeCoercer(typ, keys).coerce(typ, crdd)
+  }
 
   def makeCoercer(
     fullType: OrderedRVDType,
     // keys: RDD[RegionValue[fullType.kType]]
-    keys: ContextRDD[RVDContext, RegionValue],
-    hintPartitioner: Option[OrderedRVDPartitioner]
+    keys: ContextRDD[RVDContext, RegionValue]
    ): RVDCoercer = {
     type CRDD = ContextRDD[RVDContext, RegionValue]
     val sc = keys.sparkContext
@@ -859,7 +837,7 @@ object OrderedRVD {
         def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
           val unfixedPartitioner = new OrderedRVDPartitioner(
             None, typ.kType, bounds)
-          val newPartitioner = OrderedRVDPartitioner.fixup(
+          val newPartitioner = OrderedRVDPartitioner.generate(
             fullType.partitionKey, fullType.kType, bounds)
           val unfixedRVD = OrderedRVD(
             typ.copy(partitionKey = typ.key),
@@ -879,7 +857,7 @@ object OrderedRVD {
         fullType.pkType,
         pkBounds
       )
-      val newPartitioner = OrderedRVDPartitioner.fixup(
+      val newPartitioner = OrderedRVDPartitioner.generate(
         fullType.partitionKey,
         fullType.pkType,
         pkBounds
@@ -901,57 +879,29 @@ object OrderedRVD {
     } else {
 
       info("Ordering unsorted dataset with network shuffle")
-      val partitioner = hintPartitioner
-        .filter(_.numPartitions >= keys.partitions.length)
-        .getOrElse(new OrderedRVDPartitioner(
-          fullType.partitionKey,
-          fullType.kType,
-          calculateKeyRanges(fullType, pkis, keys.getNumPartitions)
-        ))
+      val partitioner = calculateKeyRanges(fullType, pkis, keys.getNumPartitions)
 
       new RVDCoercer(fullType) {
-        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
-          // FIXME: Need to adjust hintPartitioner. I think partitioner left-join
-          // is the right thing here.
+        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
           shuffle(typ, partitioner, crdd)
-        }
       }
     }
   }
 
-  def coerce(
+  def calculateKeyRanges(
     typ: OrderedRVDType,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
-    hintPartitioner: Option[OrderedRVDPartitioner]
-  ): OrderedRVD = {
-    val keys = fastKeys.getOrElse(getKeys(typ, crdd))
-    val coercer = makeCoercer(typ, keys, hintPartitioner)
-    coercer.coerce(typ, crdd)
-  }
-
-  def calculateKeyRanges(typ: OrderedRVDType, pInfo: Array[OrderedRVPartitionInfo], nPartitions: Int): Array[Interval] = {
+    pInfo: Array[OrderedRVPartitionInfo],
+    nPartitions: Int
+  ): OrderedRVDPartitioner = {
     assert(nPartitions > 0)
     assert(pInfo.nonEmpty)
 
     val kord = typ.kType.ordering.toOrdering
     val min = pInfo.map(_.min).min(kord)
     val max = pInfo.map(_.max).max(kord)
-    val samples = pInfo
-      .flatMap(_.samples)
-      .sorted(typ.kType.ordering.toOrdering)
-    val keys = min +: samples :+ max
-    val truncate: Any => Any =
-      if (typ.partitionKey.length == typ.key.length)
-        { key => key }
-      else
-        { key => key.asInstanceOf[Row].truncate(typ.partitionKey.length) }
-    val step = (keys.length - 1).toDouble / nPartitions
-    val partitionEdges = Array.tabulate[Any](nPartitions + 1) { i =>
-      truncate(keys((i * step).toInt))
-    }.distinct
+    val samples = pInfo.flatMap(_.samples)
 
-    OrderedRVDPartitioner.makeRangeBoundIntervals(partitionEdges)
+    OrderedRVDPartitioner.fromSampleKeys(typ, min, max, samples, nPartitions)
   }
 
   def adjustBoundsAndShuffle(

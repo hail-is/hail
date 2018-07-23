@@ -47,6 +47,30 @@ class OrderedRVDPartitioner(
       coarsenedRangeBounds(newKeyLen)
     )
 
+  def subdivide(cutPoints: IndexedSeq[IntervalEndpoint]): OrderedRVDPartitioner = {
+    require(cutPoints.forall { case IntervalEndpoint(row, _) =>
+      kType.relaxedTypeCheck(row)
+    })
+
+    val kord = kType.ordering
+    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+    val sorted = cutPoints.map(_.coarsenRight(partitionKey.getOrElse(kType.size))).sorted(eord)
+
+    var i = 0
+    val newBounds = rangeBounds.flatMap { interval =>
+      val first = sorted.indexWhere(eord.gt(_, interval.left), i)
+      val last = sorted.indexWhere(eord.gt(_, interval.right), first)
+      val cuts = sorted.slice(first, last)
+      i = last
+      for {
+        (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
+        interval <- Interval.orNone(kord, l, r)
+      } yield interval
+    }
+
+    new OrderedRVDPartitioner(partitionKey, kType, newBounds)
+  }
+
   def range: Option[Interval] = rangeTree.root.map(_.range)
 
   def contains(index: Int, key: Any): Boolean = {
@@ -158,127 +182,75 @@ object OrderedRVDPartitioner {
     new OrderedRVDPartitioner(typ.partitionKey, typ.kType, Array.empty[Interval])
   }
 
-  // Factory for OrderedRVDPartitioner with weaker preconditions on 'rangeBounds'.
-  def fixup(
-    partitionKey: Array[String],
-    kType: TStruct,
-    rangeBounds: IndexedSeq[Interval]
-  ): OrderedRVDPartitioner = {
-    if (rangeBounds.isEmpty)
-      return new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
-
-    val kord = kType.ordering
-    val (pkType, _) = kType.select(partitionKey)
-    val pkord = pkType.ordering
-
-    require(rangeBounds.forall { case Interval(l, r, _, _) =>
-      kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
-    })
-    require {
-      val lefts = rangeBounds.map(_.left)
-      lefts.zip(lefts.tail).forall { case (l1, l2) => kord.intervalEndpointOrdering.lteq(l1, l2) }
-    }
-    require {
-      val rights = rangeBounds.map(_.right)
-      rights.zip(rights.tail).forall { case (r1, r2) => kord.intervalEndpointOrdering.lteq(r1, r2) }
-    }
-
-    val coarsenedBounds = rangeBounds.map(_.coarsen(partitionKey.length))
-    val newBounds = new ArrayBuilder[Interval]()
-    var i = 0
-    var cursor = rangeBounds.head.left
-    while (i != rangeBounds.length) {
-      val left = cursor
-      val (right, nextLeft) =
-        if (i == rangeBounds.length - 1)
-          (rangeBounds(i).right, null)
-        else if (coarsenedBounds(i).isBelow(pkord, coarsenedBounds(i + 1)))
-          (rangeBounds(i).right, rangeBounds(i + 1).left)
-        else
-          (coarsenedBounds(i).right, coarsenedBounds(i).right)
-      Interval.orNone(kord, left, right) match {
-        case None =>
-        case Some(interval) =>
-          newBounds += interval
-          cursor = nextLeft
-      }
-      i += 1
-    }
-
-    new OrderedRVDPartitioner(partitionKey, kType, newBounds.result())
-  }
-
   def generate(
     partitionKey: Array[String],
     kType: TStruct,
-    rangeBounds: IndexedSeq[Interval]
+    intervals: IndexedSeq[Interval]
   ): OrderedRVDPartitioner = {
-    require(rangeBounds.forall { case Interval(l, r, _, _) =>
+    require(intervals.forall { case Interval(l, r, _, _) =>
       kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
     })
 
-    if (rangeBounds.isEmpty)
-      return new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
-
-    val kord = kType.ordering
-    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
-
-    val chunked = union(partitionKey, kType, rangeBounds)
-    val cutPoints = rangeBounds
-      .map(_.right.coarsenRight(partitionKey.length))
-      .sorted(eord)
-
-    var i = 0
-    val newBounds = chunked.flatMap { chunk =>
-      val first = cutPoints.indexWhere(eord.gt(_, chunk.left), i)
-      val last = cutPoints.indexWhere(eord.gt(_, chunk.right), first)
-      val cuts = cutPoints.slice(first, last)
-      i = last
-      for {
-        (l, r) <- (chunk.left +: cuts) zip (cuts :+ chunk.right)
-        interval <- Interval.orNone(kord, l, r)
-      } yield interval
-    }
-
-    new OrderedRVDPartitioner(partitionKey, kType, newBounds)
+    val u = union(partitionKey, kType, intervals)
+    union(partitionKey, kType, intervals).subdivide(intervals.map(_.right))
   }
 
   private def union(
     partitionKey: Array[String],
     kType: TStruct,
     intervals: IndexedSeq[Interval]
-  ): IndexedSeq[Interval] = {
+  ): OrderedRVDPartitioner = {
     val kord = kType.ordering
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
-    if (intervals.isEmpty)
-      intervals
-    else {
-      val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
-      val pk = partitionKey.length
-      val ab = new ArrayBuilder[Interval](intervals.length)
-      var tmp = unpruned(0)
-      for (i <- unpruned.tail) {
-        if (eord.gteq(tmp.right.coarsenRight(pk), i.left.coarsenLeft(pk)))
-          tmp = tmp.hull(kord, i)
-        else {
-          ab += tmp
-          tmp = i
+    val rangeBounds: IndexedSeq[Interval] =
+      if (intervals.isEmpty)
+        intervals
+      else {
+        val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
+        val pk = partitionKey.length
+        val ab = new ArrayBuilder[Interval](intervals.length)
+        var tmp = unpruned(0)
+        for (i <- unpruned.tail) {
+          if (eord.gteq(tmp.right.coarsenRight(pk), i.left.coarsenLeft(pk)))
+            tmp = tmp.hull(kord, i)
+          else {
+            ab += tmp
+            tmp = i
+          }
         }
+        ab += tmp
+
+        ab.result()
       }
-      ab += tmp
-      ab.result()
-    }
+
+    new OrderedRVDPartitioner(partitionKey, kType, rangeBounds)
   }
 
-  // takes npartitions + 1 points and returns npartitions intervals: [a,b], (b,c], (c,d], ... (i, j]
-  def makeRangeBoundIntervals(rangeBounds: Array[Any]): Array[Interval] = {
-    var includesStart = true
-    rangeBounds.zip(rangeBounds.tail).map { case (s, e) =>
-      val i = Interval(s, e, includesStart, true)
-      includesStart = false
-      i
-    }
+  def fromSampleKeys(
+    typ: OrderedRVDType,
+    min: Any,
+    max: Any,
+    keys: IndexedSeq[Any],
+    nPartitions: Int
+  ): OrderedRVDPartitioner = {
+    require(nPartitions > 0)
+    require(typ.kType.relaxedTypeCheck(min))
+    require(typ.kType.relaxedTypeCheck(max))
+    require(keys.forall(typ.kType.relaxedTypeCheck))
+
+    val sortedKeys = keys.sorted(typ.kType.ordering.toOrdering)
+    val step = (sortedKeys.length - 1).toDouble / nPartitions
+    val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
+      IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
+    }.toFastIndexedSeq
+
+    val interval = Interval(min, max, true, true)
+    new OrderedRVDPartitioner(
+      typ.partitionKey,
+      typ.kType,
+      FastIndexedSeq(interval)
+    ).subdivide(partitionEdges)
   }
 
   def isValid(
