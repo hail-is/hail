@@ -247,7 +247,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         Title of the plot.
     size : int
         Size of markers in screen space units.
-    hover_fields: Dict[str, :class:`.Expression`]
+    hover_fields : Dict[str, :class:`.Expression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
 
     Returns
