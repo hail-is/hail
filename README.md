@@ -84,3 +84,14 @@ $ docker run -d --rm --cpus 0.5 --name spark-w-0 --link spark-m spark-w -c 1 -m 
 Get IP of container:
 
 $ docker inspect <container-id> | grep IPAddress
+
+---
+
+The following will set some environment variables so that future invocations of
+`docker build` will make images available to the minikube cluster. This allows
+you to test images without pushing them to a remote container registry.
+
+```
+eval $(minikube docker-env)
+make build-batch build-test
+```
