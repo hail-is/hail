@@ -5,4 +5,3 @@ __all__ = ['histogram',
            'scatter',
            'qq',
            'manhattan']
-
