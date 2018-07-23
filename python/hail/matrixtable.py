@@ -391,7 +391,9 @@ class MatrixTable(ExprContainer):
         self._rvrow = construct_reference('va',
                                           HailType._from_java(jvds.rvRowType()),
                                           indices=self._row_indices)
-        self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
+        self._row = construct_expr(SelectFields(self._rvrow._ir, self._row_type.keys()),
+                                   self._row_type,
+                                   indices=self._row_indices)
         self._col = construct_reference('sa', self._col_type,
                                         indices=self._col_indices)
         self._entry = construct_reference('g', self._entry_type,

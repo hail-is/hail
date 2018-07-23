@@ -139,7 +139,6 @@ class CollectionExpression(Expression):
             return self._type.element_type
 
         # FIXME make more efficient when we can call ArrayFold
-        print(self.dtype, self._ir)
         return hl.bind(lambda fa: hl.cond(hl.len(fa) > 0, fa[0], hl.null(self._type.element_type)),
                        hl.array(self.filter(f)))
 

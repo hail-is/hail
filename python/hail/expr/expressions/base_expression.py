@@ -1,3 +1,5 @@
+from typing import *
+
 import hail
 import hail as hl
 from hail.expr import expressions
@@ -222,7 +224,7 @@ def _to_expr(e, dtype):
     else:
         raise NotImplementedError(dtype)
 
-def unify_all(*exprs):
+def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
     if len(exprs) == 0:
         return Indices(), LinkedList(Aggregation)
     try:
@@ -281,7 +283,7 @@ def unify_types(*ts):
     else:
         return None
 
-def unify_exprs(*exprs: 'Expression'):
+def unify_exprs(*exprs: 'Expression') -> Tuple:
     assert len(exprs) > 0
     types = {e.dtype for e in exprs}
 
@@ -861,7 +863,6 @@ class Aggregable(object):
                           aggregations,
                           transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
 
-    # @typecheck_method(f=func_spec(1, expressions.expr_bool))
     def _filter(self, f):
         uid = Env.get_uid()
         ref = expressions.construct_variable(uid, self._type, self._indices, self._aggregations)
