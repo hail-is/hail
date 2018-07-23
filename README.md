@@ -95,3 +95,10 @@ you to test images without pushing them to a remote container registry.
 eval $(minikube docker-env)
 make build-batch build-test
 ```
+
+NB: you must also set the `imagePullPolicy` of any `container` you `kubectl
+create` to `Never` if you're using the `:latest` image tag (which is implicitly
+used if no tag is specified on the image name). Otherwise, k8s will always try
+to check if there is a newer version of the image. Even if `imagePullPolicy`
+is set to `NotIfPresent`, k8s will still check for a newer image if you use the
+`:latest` tag.
