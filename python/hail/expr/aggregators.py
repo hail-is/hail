@@ -959,8 +959,8 @@ def hist(expr, start, end, bins) -> StructExpression:
     >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
     Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
            bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
-           nLess=0,
-           nGreater=0)
+           n_smaller=0,
+           n_greater=0)
 
     Notes
     -----
