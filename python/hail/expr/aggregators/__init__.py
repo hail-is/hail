@@ -3,10 +3,6 @@ from .aggregators import collect, collect_as_set, count, count_where, counter, \
     hardy_weinberg, explode, filter, inbreeding, call_stats, info_score, hist, \
     linreg
 
-# because `aggregators` is designed to be imported as `agg` instead of with the
-# `from module import *` notation, the presence of `__all__` doesn't hide the
-# other functions imported into its namespace.
-
 __all__ = [
     'collect',
     'collect_as_set',
@@ -34,4 +30,4 @@ __all__ = [
     'linreg'
 ]
 
-del aggregators, agg_utils
+del aggregators

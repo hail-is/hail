@@ -264,6 +264,11 @@ class Tests(unittest.TestCase):
         for (x, y) in zip(r.fraction_odd, [None] + [((i + 1)//2)/i for i in range(1, 10)]):
             self.assertAlmostEqual(x, y)
 
+        table = hl.utils.range_table(10)
+        r = table.aggregate(hl.struct(x=agg.count()))
+
+        self.assertEqual(r.x, 10)
+
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
         # FIXME: add boolean when function registry is removed

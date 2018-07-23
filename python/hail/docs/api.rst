@@ -28,6 +28,7 @@ Use ``import hail as hl`` to access this functionality.
     types <types>
     functions <functions/index>
     aggregators <aggregators>
+    scan<scan>
     methods <methods/index>
     utils <utils/index>
     linalg <linalg/index>

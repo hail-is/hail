@@ -1,37 +1,24 @@
-from .scan import collect, collect_as_set, count, count_where, counter, \
-    any, all, take, min, max, sum, array_sum, mean, stats, product, fraction, \
-    hardy_weinberg, explode, filter, inbreeding, call_stats, info_score, hist, \
-    linreg
+from ...expr import aggregators
+from functools import wraps, update_wrapper
 
-# because `aggregators` is designed to be imported as `agg` instead of with the
-# `from module import *` notation, the presence of `__all__` doesn't hide the
-# other functions imported into its namespace.
 
-__all__ = [
-    'collect',
-    'collect_as_set',
-    'count',
-    'count_where',
-    'counter',
-    'any',
-    'all',
-    'take',
-    'min',
-    'max',
-    'sum',
-    'array_sum',
-    'mean',
-    'stats',
-    'product',
-    'fraction',
-    'hardy_weinberg',
-    'explode',
-    'filter',
-    'inbreeding',
-    'call_stats',
-    'info_score',
-    'hist',
-    'linreg'
-]
+def scan_decorator(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        func = getattr(f, '__wrapped__')
+        af = func.__globals__['_agg_func']
+        setattr(af, 'as_scan', True)
+        res = f(*args, **kwargs)
+        setattr(af, 'as_scan', False)
+        return res
+    update_wrapper(wrapper, f)
+    return wrapper
 
-del scan, scan_utils
+
+__all__ = [name for name in dir(aggregators) if name[0] != '_']
+
+
+for name in __all__:
+    globals()[name] = scan_decorator(getattr(aggregators, name))
+
+del scan_decorator, name, aggregators
