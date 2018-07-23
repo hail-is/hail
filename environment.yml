@@ -1,0 +1,6 @@
+name: hail-batch
+dependencies:
+- python=3.6
+- werkzeug
+- requests
+- flask
