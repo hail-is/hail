@@ -1382,23 +1382,36 @@ class SplitMulti(object):
                                                prefix='va')
 
     def _explode_matrix(self):
+        base, cleanup = self._ds._process_joins(*itertools.chain(
+            self._row_fields.values(), self._entry_fields.values()))
+        old_row = self._ds._rvrow
+
         def filter_star(index_expr):
             if self._keep_star:
                 return index_expr
             else:
                 return index_expr.filter(lambda i: old_row.alleles[i] != "*")
-        base, cleanup = self._ds._process_joins(*itertools.chain(
-            self._row_fields.values(), self._entry_fields.values()))
-        old_row = self._ds._rvrow
+
+        def maybe_error_if_moved(i, variant):
+            if self._left_aligned:
+                return (hl.case()
+                        .when(variant[0] == old_row.locus,
+                              hl.struct(alleles=variant[1],
+                                        locus=variant[0],
+                                        a_index=i,
+                                        was_split=hl.len(old_row.alleles) > 2))
+                        .or_error("Found non-left-aligned variant in SplitMulti"))
+            else:
+                return hl.struct(alleles=variant[1],
+                          locus=variant[0],
+                          a_index=i,
+                          was_split=hl.len(old_row.alleles) > 2,
+                          left_aligned=variant[0] == old_row.locus)
+
         sort_alleles = old_row.annotate(
             **{self._new_id: hl.sorted(
                 filter_star(hl.range(1, hl.len(old_row.alleles))).map(
-                    lambda i: hl.bind(lambda variant:
-                                      hl.struct(alleles=variant[1],
-                                                locus=variant[0],
-                                                a_index=i,
-                                                was_split=hl.len(old_row.alleles) > 2,
-                                                left_aligned=variant[0] == old_row.locus),
+                    lambda i: hl.bind(lambda variant: maybe_error_if_moved(i, variant),
                                       hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))))})
         jmt = base._jvds.selectRows(str(sort_alleles._ir), None)
         jmt = jmt.explodeRows("va.{}".format(escape_id(self._new_id)))
