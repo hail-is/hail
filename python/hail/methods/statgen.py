@@ -97,7 +97,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
     return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
-                                              joption(maf),
+                                              joption('__maf' if maf is not None else None),
                                               bounded,
                                               joption(min),
                                               joption(max)))
