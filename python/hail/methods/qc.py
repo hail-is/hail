@@ -22,7 +22,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     Compute sample QC metrics and remove low-quality samples:
 
     >>> dataset = hl.sample_qc(dataset, name='sample_qc')
-    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
+    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_stats.mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
 
     Notes
     -----

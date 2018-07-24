@@ -834,7 +834,7 @@ class MatrixTable(ExprContainer):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_mean > 20, dataset.GT)
+        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_stats.mean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.alleles))
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
@@ -1358,9 +1358,9 @@ class MatrixTable(ExprContainer):
         ...                                      (dataset.pheno.age > 50),
         ...                                      keep=True)
 
-        Remove columns where `sample_qc.gq_mean` is less than 20:
+        Remove columns where `sample_qc.gq_stats.mean` is less than 20:
 
-        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_mean < 20,
+        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gq_stats.mean < 20,
         ...                                      keep=False)
 
         Remove columns where `s` is found in a Python set:
