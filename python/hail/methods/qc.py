@@ -88,9 +88,9 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                        hl.allele_type(ref, alt))
 
     variant_ac = Env.get_uid()
-    allele_types = Env.get_uid()
+    variant_atypes = Env.get_uid()
     mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-                             allele_types: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
+                             variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
 
     exprs = {}
 
@@ -113,12 +113,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
     def get_allele_type(allele_idx):
-        return hl.cond(allele_idx > 0, mt[allele_types][allele_idx - 1], hl.null(hl.tstr))
+        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tstr))
 
-    allele_type_counts = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
+    exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
 
-    at_counts_uid = Env.get_uid()
-    mt = mt.annotate_cols(**{name: hl.struct(**exprs), at_counts_uid: allele_type_counts})
+    mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
 
     zero = hl.int64(0)
 
@@ -138,12 +137,12 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
         'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
         'n_singleton': mt[name].n_singleton,
-        'n_snp': mt[at_counts_uid].get("Transition", zero) + mt[at_counts_uid].get("Transversion", zero),
-        'n_insertion': mt[at_counts_uid].get("Insertion", zero),
-        'n_deletion': mt[at_counts_uid].get("Deletion", zero),
-        'n_transition': mt[at_counts_uid].get("Transition", zero),
-        'n_transversion': mt[at_counts_uid].get("Transversion", zero),
-        'n_star': mt[at_counts_uid].get("Star", zero)
+        'n_snp': mt[name].allele_type_counts.get("Transition", zero) + mt[name].allele_type_counts.get("Transversion", zero),
+        'n_insertion': mt[name].allele_type_counts.get("Insertion", zero),
+        'n_deletion': mt[name].allele_type_counts.get("Deletion", zero),
+        'n_transition': mt[name].allele_type_counts.get("Transition", zero),
+        'n_transversion': mt[name].allele_type_counts.get("Transversion", zero),
+        'n_star': mt[name].allele_type_counts.get("Star", zero)
     }
 
     mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
@@ -156,7 +155,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
     )})        
 
-    mt = mt.drop(variant_ac, allele_types, at_counts_uid)
+    mt = mt.drop(variant_ac, variant_atypes)
 
     return mt
 
