@@ -433,8 +433,9 @@ object PruneDeadFields {
           globalType = requestedType.globalType)
         memoizeTableIR(child, requestedChildType, memo)
       case MatrixExplodeRows(child, path) =>
-        val baseType = child.typ.rowType.queryTyped(path.toList)._1
-        val fieldDep = Try(requestedType.rowType.queryTyped(path.toList)._1) match {
+        def getExplodedField(typ: MatrixType): Type = typ.rowType.queryTyped(path.toList)._1
+        val baseType = getExplodedField(child.typ)
+        val fieldDep = Try(getExplodedField(requestedType)) match {
           case Success(t) => baseType match {
             case ta: TArray => ta.copy(elementType = t)
             case ts: TSet => ts.copy(elementType = t)
@@ -448,8 +449,9 @@ object PruneDeadFields {
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
       case MatrixExplodeCols(child, path) =>
-        val baseType = child.typ.colType.queryTyped(path.toList)._1
-        val fieldDep = Try(requestedType.colType.queryTyped(path.toList)._1) match {
+        def getExplodedField(typ: MatrixType): Type = typ.colType.queryTyped(path.toList)._1
+        val baseType = getExplodedField(child.typ)
+        val fieldDep = Try(getExplodedField(requestedType)) match {
           case Success(t) => baseType match {
             case ta: TArray => ta.copy(elementType = t)
             case ts: TSet => ts.copy(elementType = t)
