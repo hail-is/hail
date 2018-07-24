@@ -656,7 +656,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr})._jvds.writeBlockMatrix(path, field, block_size)
+            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
