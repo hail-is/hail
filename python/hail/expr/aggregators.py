@@ -814,13 +814,13 @@ def filter(condition, expr) -> Aggregable:
 
 
 @typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))
-def map(f, expr) -> Aggregable:
+def _map(f, expr) -> Aggregable:
     f2 = f if callable(f) else lambda x: f
     return expr._map(f2)
 
 
 @typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
-def flatmap(f, expr) -> Aggregable:
+def _flatmap(f, expr) -> Aggregable:
     f2 = f if callable(f) else lambda x: f
     return expr._flatmap(f2)
 
