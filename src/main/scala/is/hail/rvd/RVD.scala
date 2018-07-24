@@ -138,7 +138,7 @@ object RVD {
     require(rvds.length > 1)
     val first = rvds.head
     val sc = first.sparkContext
-    new UnpartitionedRVD(first.rowType,
+    UnpartitionedRVD(first.rowType,
       ContextRDD.union(sc, rvds.map(_.crdd)))
   }
 
@@ -273,20 +273,20 @@ trait RVD {
 
   def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD
 
-  def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD =
-    new UnpartitionedRVD(newRowType, crdd.map(f))
+  def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): RVD =
+    UnpartitionedRVD(newRowType, crdd.map(f))
 
-  def mapWithContext[C](newRowType: TStruct)(makeContext: () => C)(f: (C, RegionValue) => RegionValue): UnpartitionedRVD =
-    new UnpartitionedRVD(newRowType, crdd.mapPartitions { it =>
+  def mapWithContext[C](newRowType: TStruct)(makeContext: () => C)(f: (C, RegionValue) => RegionValue): RVD =
+    UnpartitionedRVD(newRowType, crdd.mapPartitions { it =>
       val c = makeContext()
       it.map { rv => f(c, rv) }
     })
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    new UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
+    UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
 
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
+    UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
     filter(p).head(1, None).collectAsBytes(codec).headOption
@@ -306,7 +306,7 @@ trait RVD {
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.map(f))
 
   def mapPartitionsWithIndex(newRowType: TStruct, f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    new UnpartitionedRVD(newRowType, crdd.cmapPartitionsWithIndex(f))
+    UnpartitionedRVD(newRowType, crdd.cmapPartitionsWithIndex(f))
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
 
@@ -319,11 +319,6 @@ trait RVD {
   def mapPartitions[T: ClassTag](
     f: (RVDContext, Iterator[RegionValue]) => Iterator[T]
   ): RDD[T] = clearingRun(crdd.cmapPartitions(f))
-
-  def constrainToOrderedPartitioner(
-    ordType: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD
 
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
@@ -464,5 +459,7 @@ trait RVD {
 
   def subsetPartitions(keep: Array[Int]): RVD
 
-  def toUnpartitionedRVD: UnpartitionedRVD
+  def toUnpartitionedRVD: RVD
+
+  def toOrderedRVD: OrderedRVD
 }

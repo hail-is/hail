@@ -1873,7 +1873,6 @@ case class MatrixAnnotateRowsTable(
         // At this point 'joined' is sorted by the foreign key, so need to resort by row key
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
-          partitionKey = Some(child.typ.rowPartitionKey.length),
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
         val oType = joined.typ.copy(partitionKey = child.typ.rowPartitionKey.toArray, key = prevRowKeys ++ Array(indexUID))
         val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)

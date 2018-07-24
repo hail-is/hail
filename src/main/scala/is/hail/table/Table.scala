@@ -164,7 +164,7 @@ object Table {
       TableValue(
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, crdd2)))
+        UnpartitionedRVD(signature, crdd2)))
     ).keyBy(key.map(_.toArray), sort)
   }
 
@@ -202,7 +202,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableValue(
         TableType(signature, key, globalSignature),
         BroadcastRow(globals, globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, crdd))))
+        UnpartitionedRVD(signature, crdd))))
 
   def typ: TableType = tir.typ
   
@@ -556,7 +556,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     copy2(
-      rvd = new UnpartitionedRVD(newRowType, rvd.crdd),
+      rvd = UnpartitionedRVD(newRowType, rvd.crdd),
       signature = newRowType)
   }
 

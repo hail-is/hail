@@ -191,6 +191,13 @@ object OrderedRVDPartitioner {
     new OrderedRVDPartitioner(typ.partitionKey, typ.kType, Array.empty[Interval])
   }
 
+  def unkeyed(numPartitions: Int): OrderedRVDPartitioner = {
+    new OrderedRVDPartitioner(
+      TStruct.empty(),
+      Array.fill(numPartitions)(Interval(Row(), Row(), true, true)),
+      0)
+  }
+
   def generate(
     partitionKey: Array[String],
     kType: TStruct,
