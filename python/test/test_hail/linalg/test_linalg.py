@@ -781,3 +781,48 @@ class Tests(unittest.TestCase):
 
         bm = BlockMatrix.read(bm_uri)
         self._assert_eq(nd, bm)
+
+    def test_svd(self):
+        def assert_same_columns_up_to_sign(a, b):
+            for j in range(a.shape[1]):
+                assert np.allclose(a[:, j], b[:, j]) or np.allclose(-a[:, j], b[:, j])
+
+        x0 = np.array([[-2.0, 0.0, 3.0],
+                       [-1.0, 2.0, 4.0]])
+        u0, s0, vt0 = np.linalg.svd(x0, full_matrices=False)
+
+        x = BlockMatrix.from_numpy(x0)
+
+        # _svd
+        u, s, vt = x.svd()
+        assert_same_columns_up_to_sign(u, u0)
+        assert np.allclose(s, s0)
+        assert_same_columns_up_to_sign(vt.T, vt0.T)
+
+        s = x.svd(compute_uv=False)
+        assert np.allclose(s, s0)
+
+        # left _svd_gramian
+        u, s, vt = x.svd(complexity_bound=0)
+        assert_same_columns_up_to_sign(u, u0)
+        assert np.allclose(s, s0)
+        assert_same_columns_up_to_sign(vt.to_numpy().T, vt0.T)
+
+        s = x.svd(compute_uv=False, complexity_bound=0)
+        assert np.allclose(s, s0)
+
+        # right _svd_gramian
+        x = BlockMatrix.from_numpy(x0.T)
+        u, s, vt = x.svd(complexity_bound=0)
+        assert_same_columns_up_to_sign(u.to_numpy(), vt0.T)
+        assert np.allclose(s, s0)
+        assert_same_columns_up_to_sign(vt.T, u0)
+
+        s = x.svd(compute_uv=False, complexity_bound=0)
+        assert np.allclose(s, s0)
+
+        # left _svd_gramian when dimensions agree
+        x = BlockMatrix.from_numpy(x0[:, :2])
+        u, s, vt = x.svd(complexity_bound=0)
+        assert isinstance(u, np.ndarray)
+        assert isinstance(vt, BlockMatrix)
