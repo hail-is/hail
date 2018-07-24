@@ -3,7 +3,6 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-import hail.expr.scan as scan
 from hail.expr.types import *
 from ..helpers import *
 
@@ -244,14 +243,14 @@ class Tests(unittest.TestCase):
     def test_scan(self):
         table = hl.utils.range_table(10)
 
-        t = table.select(scan_count=scan.count(),
-                         scan_count_where=scan.count_where(table.idx % 2 == 0),
-                         scan_count_where2=scan.count(scan.filter(lambda x: x % 2 == 0, table.idx)),
-                         arr_sum=scan.array_sum([1, 2, hl.null(tint32)]),
-                         bind_agg=scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
-                         mean=scan.mean(table.idx),
-                         foo=hl.min(3, scan.sum(table.idx)),
-                         fraction_odd=scan.fraction(table.idx % 2 == 0))
+        t = table.select(scan_count=hl.scan.count(),
+                         scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
+                         scan_count_where2=hl.scan.count(hl.scan.filter(lambda x: x % 2 == 0, table.idx)),
+                         arr_sum=hl.scan.array_sum([1, 2, hl.null(tint32)]),
+                         bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                         mean=hl.scan.mean(table.idx),
+                         foo=hl.min(3, hl.scan.sum(table.idx)),
+                         fraction_odd=hl.scan.fraction(table.idx % 2 == 0))
         rows = t.collect()
         r = hl.Struct(**{n: [i[n] for i in rows] for n in t.row.keys()})
 

@@ -34,9 +34,10 @@ from . import plot as plot
 from . import experimental as experimental
 from . import ir as ir
 from hail.expr import aggregators as agg
-from hail.expr import scan
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
+
+scan = agg.aggregators.ScanFunctions({n: getattr(agg, n) for n in agg.__all__})
 
 __all__ = [
     'init',

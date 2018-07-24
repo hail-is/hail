@@ -3,7 +3,7 @@ from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.utils import wrap_to_list
 from hail.ir import *
-
+import difflib
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -1176,3 +1176,31 @@ def linreg(y, x):
     k = hl.int32(k)
 
     return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
+
+
+class ScanFunctions(object):
+
+    def __init__(self, scope):
+        self._functions = {n: self._scan_decorator(f) for n, f in scope.items()}
+
+    def _scan_decorator(self, f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            func = getattr(f, '__wrapped__')
+            af = func.__globals__['_agg_func']
+            setattr(af, '_as_scan', True)
+            res = f(*args, **kwargs)
+            setattr(af, '_as_scan', False)
+            return res
+        update_wrapper(wrapper, f)
+        return wrapper
+
+    def __getattr__(self, field):
+        if field in self._functions:
+            return self._functions[field]
+        else:
+            field_matches = difflib.get_close_matches(field, self._scope, n=5)
+            raise LookupError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
+                field,
+                "\n    ".join(field_matches)))
+
