@@ -156,8 +156,6 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
 
-    mt.describe()
-
     mt = mt.annotate_cols(**{name: mt[name].annotate(
         r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
         r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),

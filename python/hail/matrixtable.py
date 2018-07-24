@@ -1035,7 +1035,7 @@ class MatrixTable(ExprContainer):
         Select existing fields and compute a new one:
 
         >>> dataset_result = dataset.select_rows(
-        ...    dataset.variant_qc.gq_mean,
+        ...    dataset.variant_qc.gq_stats.mean,
         ...    high_quality_cases = agg.count_where((dataset.GQ > 20) &
         ...                                         dataset.is_case))
 
@@ -1292,7 +1292,7 @@ class MatrixTable(ExprContainer):
 
         Keep rows where `variant_qc.AF` is below 1%:
 
-        >>> dataset_result = dataset.filter_rows(dataset.variant_qc.AF < 0.01, keep=True)
+        >>> dataset_result = dataset.filter_rows(dataset.variant_qc.AF[1] < 0.01, keep=True)
 
         Remove rows where `filters` is non-empty:
 

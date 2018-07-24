@@ -32,7 +32,8 @@ ds = ds.annotate_cols(is_case=True,
                                       cohort_name="cohort1"),
                       cov=hl.struct(PC1=hl.rand_norm(0, 1)),
                       cov1=hl.rand_norm(0, 1),
-                      cov2=hl.rand_norm(0, 1))
+                      cov2=hl.rand_norm(0, 1),
+                      cohort="SIGMA")
 ds = ds.annotate_globals(global_field_1=5,
                          global_field_2=10,
                          pli={'SCN1A': 0.999, 'SONIC': 0.014},
