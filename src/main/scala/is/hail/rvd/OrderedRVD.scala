@@ -829,7 +829,7 @@ object OrderedRVD {
     val intraPartitionSortedness = pkis.map(_.sortedness).min
 
     if (intraPartitionSortedness == OrderedRVPartitionInfo.KSORTED
-        && OrderedRVDPartitioner.isValid(None, fullType.kType, bounds)) {
+        && OrderedRVDPartitioner.isValid(fullType.kType, bounds)) {
 
       info("Coerced sorted dataset")
 
@@ -849,7 +849,7 @@ object OrderedRVD {
       }
 
     } else if (intraPartitionSortedness >= OrderedRVPartitionInfo.TSORTED
-        && OrderedRVDPartitioner.isValid(None, fullType.pkType, pkBounds)) {
+        && OrderedRVDPartitioner.isValid(fullType.pkType, pkBounds)) {
 
       info("Coerced almost-sorted dataset")
       val unfixedPartitioner = new OrderedRVDPartitioner(
