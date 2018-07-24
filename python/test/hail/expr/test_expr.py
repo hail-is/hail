@@ -1783,22 +1783,16 @@ class Tests(unittest.TestCase):
         a = [1, hl.null('int')]
 
         self.assertEqual(hl.min(a).value, 1)
-        self.assertIsNone(hl.min(a, filter_na=False).value)
+        self.assertIsNone(hl.min(a, filter_missing=False).value)
 
         self.assertEqual(hl.max(a).value, 1)
-        self.assertIsNone(hl.max(a, filter_na=False).value)
+        self.assertIsNone(hl.max(a, filter_missing=False).value)
 
         self.assertEqual(hl.mean(a).value, 1)
-        self.assertIsNone(hl.mean(a, filter_na=False).value)
+        self.assertIsNone(hl.mean(a, filter_missing=False).value)
 
         self.assertEqual(hl.product(a).value, 1)
-        self.assertIsNone(hl.product(a, filter_na=False).value)
+        self.assertIsNone(hl.product(a, filter_missing=False).value)
 
         self.assertEqual(hl.sum(a).value, 1)
-        self.assertIsNone(hl.sum(a, filter_na=False).value)
-
-        self.assertEqual(hl.argmax(a).value, 0)
-        self.assertIsNone(hl.argmax(a, filter_na=False).value)
-
-        self.assertEqual(hl.argmin(a).value, 0)
-        self.assertIsNone(hl.argmin(a, filter_na=False).value)
+        self.assertIsNone(hl.sum(a, filter_missing=False).value)

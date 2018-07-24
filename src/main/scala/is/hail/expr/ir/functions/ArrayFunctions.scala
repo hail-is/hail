@@ -129,29 +129,16 @@ object ArrayFunctions extends RegistryFunctions {
         val t = -coerce[TArray](a.typ).elementType
         val accum = genUID()
         val value = genUID()
-        val accumType = TStruct("hasNA" -> TBoolean(), "x" -> t)
 
-        def makeAccum(hasNA: IR, x: IR): IR =
-          MakeStruct(FastSeq("hasNA" -> hasNA, "x" -> x))
+        val aUID = genUID()
+        val aRef = Ref(aUID, a.typ)
+        val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
 
         val body = If(
-          GetField(Ref(accum, accumType), "hasNA"),
-          Ref(accum, accumType),
-          If(
-            IsNA(Ref(value, t)),
-            makeAccum(True(), NA(t)),
-            If(
-              ApplySpecial(
-                "||",
-                FastSeq(
-                  IsNA(GetField(Ref(accum, accumType), "x")),
-                  ApplyComparisonOp(op(t), Ref(value, t), GetField(Ref(accum, accumType), "x")))),
-              makeAccum(False(), Ref(value, t)),
-              Ref(accum, accumType)
-            )
-          )
-        )
-        GetField(ArrayFold(a, makeAccum(False(), NA(t)), accum, value, body), "x")
+          ApplyComparisonOp(op(t), Ref(value, t), Ref(accum, t)),
+          Ref(value, t),
+          Ref(accum, t))
+        Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
       }
     }
 

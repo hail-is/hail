@@ -22,9 +22,9 @@ class CollectionExpression(Expression):
     """
 
 
-    def _filter_na_method(self, filter_na: bool, name: str, ret_type: HailType, *args):
+    def _filter_missing_method(self, filter_missing: bool, name: str, ret_type: HailType, *args):
         collection = self
-        if filter_na:
+        if filter_missing:
             collection = self.filter(hl.is_defined)
         return collection._method(name, ret_type, *args)
 
