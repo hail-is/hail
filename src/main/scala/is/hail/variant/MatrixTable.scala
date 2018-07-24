@@ -427,10 +427,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     globals: BroadcastRow,
     colValues: BroadcastIndexedSeq,
     rvd: OrderedRVD) =
-    this(hc,
-      MatrixLiteral(
-        matrixType,
-        MatrixValue(matrixType, globals, colValues, rvd)))
+    this(hc, MatrixLiteral(MatrixValue(matrixType, globals, colValues, rvd)))
 
   def requireRowKeyVariant(method: String) {
     rowKey.zip(rowKeyTypes) match {
@@ -1006,7 +1003,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)
-    copyAST(ast = MatrixLiteral(newType, filterF(value, p)))
+    copyAST(ast = MatrixLiteral(filterF(value, p)))
   }
 
   def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {

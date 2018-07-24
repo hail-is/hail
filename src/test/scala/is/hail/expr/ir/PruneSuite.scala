@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.SparkSuite
-import is.hail.annotations.BroadcastRow
+import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.rvd.OrderedRVD
 import is.hail.table.{Ascending, SortField, Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -81,14 +82,19 @@ class PruneSuite extends SparkSuite {
 
   val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
 
-  val mat = MatrixLiteral(MatrixType.fromParts(
+  val mType = MatrixType.fromParts(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
     FastIndexedSeq("rk"),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TStruct("rr" -> TInt32()))),
-    TStruct("e1" -> TFloat64(), "e2" -> TFloat64())), null)
+    TStruct("e1" -> TFloat64(), "e2" -> TFloat64()))
+  val mat = MatrixLiteral(MatrixValue(
+    mType,
+    BroadcastRow(Row(1, 1.0), mType.globalType, sc),
+    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
+    OrderedRVD.empty(sc, mType.orvdType)))
 
   val mr = MatrixRead(mat.typ, false, false,
     new MatrixReader {
