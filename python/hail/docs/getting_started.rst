@@ -79,10 +79,17 @@ Hail will not import correctly from a normal Python interpreter, a normal IPytho
 Running on a Spark cluster
 ==========================
 
-Hail can run on any cluster that has Spark 2 installed. The Hail team publishes
-ready-to-use JARs for Google Cloud Dataproc, see
-:ref:`running-in-the-cloud`. For Cloudera specific instructions see
-:ref:`running-on-a-cloudera-cluster`.
+Hail can run on any Spark 2.2 cluster. For example,
+`Google <https://cloud.google.com/dataproc/>`_ and `Amazon
+<https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
+and exceptional scalability to thousands of cores without the overhead
+of installing and managing an on-premesis cluster.
+
+On Google Cloud Dataproc, we provide pre-built JARs and a Python package
+`cloudtools <https://github.com/Nealelab/cloudtools>`_
+to simplify running Hail, whether through an interactive Jupyter notebook or by submitting Python scripts.
+
+For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
 For all other Spark clusters, you will need to build Hail from the source code.
 
@@ -163,7 +170,7 @@ parameters to ``spark-submit``
 
 .. _running-on-a-cloudera-cluster:
 
-Running on a Cloudera Cluster
+Running on a Cloudera cluster
 =============================
 
 `These instructions
@@ -192,24 +199,6 @@ the same as above, except:
             --conf spark.executor.extraClassPath=./hail-all-spark.jar \
             --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
-
-.. _running-in-the-cloud:
-
-Running in the cloud
-====================
-
-`Google <https://cloud.google.com/dataproc/>`_ and `Amazon
-<https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
-and exceptional scalability to tens of thousands of cores without the overhead
-of installing and managing an on-prem cluster.
-
-Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
-clusters. We recommend running Hail on GCP via an interactive Jupyter notebook,
-as described in `Liam's forum post
-<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__. If
-you prefer to submit your own JARs or python files rather than use a Jupyter
-notebook, see `Laurent's forum post
-<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
 
 Building with other versions of Spark 2
 =======================================
