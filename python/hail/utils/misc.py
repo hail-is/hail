@@ -375,5 +375,5 @@ def divide_null(num, denom):
     from hail.expr.expressions.base_expression import unify_types_limited
     from hail.expr import null, cond
     typ = unify_types_limited(num, denom)
-    assert(typ is not None)
+    assert typ is not None
     return cond(denom != 0, num / denom, null(typ))

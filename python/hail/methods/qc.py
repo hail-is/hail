@@ -120,9 +120,6 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     at_counts_uid = Env.get_uid()
     mt = mt.annotate_cols(**{name: hl.struct(**exprs), at_counts_uid: allele_type_counts})
 
-    def divide_null(num, denom):
-        return hl.cond(denom != 0, hl.float64(num) / denom, hl.null(hl.tfloat64))
-
     zero = hl.int64(0)
 
     mt = mt.annotate_cols(**{name: mt[name].select(

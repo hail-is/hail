@@ -8,6 +8,7 @@ import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
+from test.test_hail.matrixtable.test_file_formats import create_all_values_datasets
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -558,33 +559,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(t._same(t2))
 
     def test_read_back_same_as_exported(self):
-        mt = hl.import_vcf(resource('tiny_m.vcf'))
-        t = hl.sample_qc(mt).cols()
-        qc_fields = {name: expr for name, expr in t.sample_qc.items()}
-        t = t.select(**qc_fields)
-
+        t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", suffix=".tsv")
         t.export(tmp_file)
-        t_read_back = hl.import_table(tmp_file, types={
-            'dp_stats': hl.tstruct(mean=hl.tfloat64, stdev=hl.tfloat64, min=hl.tfloat64, max=hl.tfloat64),
-            'gq_stats': hl.tstruct(mean=hl.tfloat64, stdev=hl.tfloat64, min=hl.tfloat64, max=hl.tfloat64),
-            'call_rate': hl.tfloat64,
-            'n_called': hl.tint64,
-            'n_not_called': hl.tint64,
-            'n_hom_ref': hl.tint64,
-            'n_het': hl.tint64,
-            'n_hom_var': hl.tint64,
-            'n_non_ref': hl.tint64,
-            'n_singleton': hl.tint64,
-            'n_snp': hl.tint64,
-            'n_insertion': hl.tint64,
-            'n_deletion': hl.tint64,
-            'n_transition': hl.tint64,
-            'n_transversion': hl.tint64,
-            'n_star': hl.tint64,
-            'r_ti_tv': hl.tfloat64,
-            'r_het_hom_var': hl.tfloat64,
-            'r_insertion_deletion': hl.tfloat64
-        }).key_by('s')
-
-        self.assertTrue(t._same(t_read_back, tolerance=1e-4, absolute=True))
+        t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
+        self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
