@@ -1,5 +1,7 @@
 from hail.typecheck import typecheck_method
-from hail.expr.expressions import unify_types, unify_types_limited, expr_any, expr_bool, ExpressionException
+from hail.expr.expressions import unify_types, unify_types_limited, expr_any, \
+    expr_bool, ExpressionException, construct_expr
+from hail import ir
 
 
 class ConditionalBuilder(object):
@@ -283,3 +285,25 @@ class CaseBuilder(ConditionalBuilder):
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
         from hail.expr.functions import null
         return self._finish(null(self._ret_type))
+
+    @typecheck_method(message=str)
+    def or_error(self, message):
+        """Finish the case statement by throwing an error with the given message.
+
+        Notes
+        -----
+        If no condition from a :meth:`.CaseBuilder.when` call is ``True``, then
+        an error is thrown.
+
+        Parameters
+        ----------
+        message : :obj:`str`
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        if len(self._cases) == 0:
+            raise ExpressionException("'or_error' cannot be called without at least one 'when' call")
+        error_expr = construct_expr(ir.Die(message, self._ret_type), self._ret_type)
+        return self._finish(error_expr)
