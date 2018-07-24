@@ -30,3 +30,4 @@ Plot functions in Hail accept data in the form of either Python objects or :clas
 .. autofunction:: scatter
 .. autofunction:: qq
 .. autofunction:: manhattan
+.. autofunction:: manhattan
