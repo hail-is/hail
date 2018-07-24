@@ -27,8 +27,9 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     Notes
     -----
 
-    This method computes summary statistics per sample from a genetic matrix and stores the results as
-    a new column-indexed field in the matrix, named based on the `name` parameter.
+    This method computes summary statistics per sample from a genetic matrix and stores
+    the results as a new column-indexed struct field in the matrix, named based on the
+    `name` parameter.
 
     If `mt` contains an entry field `DP` of type :py:data:`.tint32`, then the
     field `dp_stats` is computed. If `mt` contains an entry field `GQ` of type
