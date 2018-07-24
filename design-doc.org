@@ -12,17 +12,24 @@
  - when master changes, users will not be able to see old test failures because
    status will be set to PENDING
 
- - gotta figure out github authentication
-
  - for first pass, I ignore custom images for each PR, we just use a single
    image
 
  - docker image should have minimal gcloud permissions, it just needs to cp into
-   a particular bucket
+   a particular bucket (but the auth token I created seems to have lots of
+   privileges, not sure why)
+
+ - convert oauth-token to a secret volume
+
+ - pr builder also needs gcloud to copy logs
+
+* resolved notes
+ - gotta figure out github authentication: resolved by adding a file called
+   oauth-token which is present in the working directory of the ci server.
 
  - simplification: we assume everyone is merging into master, in reality I need
    to track target branch in prs and only cancel jobs, set statuses to pending,
-   etc. when target branch changes
+   etc. when target branch changes: this was actually pretty easy to support
 
 * storing results
 Jobs should copy build results into a google storage bucket with the commit

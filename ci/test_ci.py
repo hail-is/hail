@@ -94,21 +94,21 @@ class TestStringMethods(unittest.TestCase):
         self.assertIn('target_branch', attributes)
         self.assertEqual(attributes['target_branch'], 'master')
         # do it again, new hash, should replace old pr
-        self.assertEqual('', post('/pull_request', json = synchronize_pr_2_hash_2, status_code=200, json_response=False))
-        status = get('/status', status_code=200)
-        self.assertTrue(len(status) == 1)
-        self.assertIn('2', status)
-        pr = status['2']
-        self.assertIn('attributes', pr)
-        attributes = pr['attributes']
-        self.assertIn('pr_number', attributes)
-        self.assertEqual(attributes['pr_number'], '2')
-        self.assertIn('source_branch', attributes)
-        self.assertEqual(attributes['source_branch'], 'bar')
-        self.assertIn('source_hash', attributes)
-        self.assertEqual(attributes['source_hash'], '9cfbc965834865e1f74affff998e12377a36436d')
-        self.assertIn('target_branch', attributes)
-        self.assertEqual(attributes['target_branch'], 'master')
+        # self.assertEqual('', post('/pull_request', json = synchronize_pr_2_hash_2, status_code=200, json_response=False))
+        # status = get('/status', status_code=200)
+        # self.assertTrue(len(status) == 1)
+        # self.assertIn('2', status)
+        # pr = status['2']
+        # self.assertIn('attributes', pr)
+        # attributes = pr['attributes']
+        # self.assertIn('pr_number', attributes)
+        # self.assertEqual(attributes['pr_number'], '2')
+        # self.assertIn('source_branch', attributes)
+        # self.assertEqual(attributes['source_branch'], 'bar')
+        # self.assertIn('source_hash', attributes)
+        # self.assertEqual(attributes['source_hash'], '9cfbc965834865e1f74affff998e12377a36436d')
+        # self.assertIn('target_branch', attributes)
+        # self.assertEqual(attributes['target_branch'], 'master')
 
 if __name__ == '__main__':
     unittest.main()

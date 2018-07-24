@@ -5,5 +5,5 @@ dependencies:
 - requests
 - flask
 - pip
-
-
+- pip:
+    - google-cloud-storage

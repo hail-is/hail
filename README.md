@@ -131,6 +131,11 @@ NB: it's not `roles/storage.objectCreator`, which is the [iam role
 name](https://cloud.google.com/storage/docs/access-control/iam-roles). I'm not
 sure what's going on here :shrug:.
 
+Random Things
+---
+
+ - [Google python client library reference](https://googlecloudplatform.github.io/google-cloud-python/)
+
 
 Secrets
 ---
