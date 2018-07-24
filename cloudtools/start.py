@@ -35,9 +35,9 @@ def init_parser(parser):
     # arguments with default parameters
     parser.add_argument('--hash', default='latest', type=str,
                         help='Hail build to use for notebook initialization (default: %(default)s).')
-    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.2.0'],
+    parser.add_argument('--spark', default='2.2.0', type=str, choices=['2.0.2', '2.2.0'],
                         help='Spark version used to build Hail (default: %(default)s)')
-    parser.add_argument('--version', default='0.1', type=str, choices=['0.1', 'devel'],
+    parser.add_argument('--version', default='devel', type=str, choices=['0.1', 'devel'],
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
                         help='Master machine type (default: %(default)s).')

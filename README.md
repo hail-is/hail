@@ -10,7 +10,7 @@ These tools are written in Python and mostly function as wrappers around the `gc
 
 Prerequisites:
 - Mac OS X
-- Python 2
+- Python 2 or 3
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/quickstart-mac-os-x)
 - (Optional) Google Chrome installed in the (default) location `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
 
@@ -48,8 +48,8 @@ Job [...] finished successfully.
 ```
 where `myhailscript.py` lives on your computer in your current working directory and looks something like:
 ```
-from hail import *
-hc = HailContext()
+import hail as hl
+hl.init()
 ...
 ```
 
@@ -88,24 +88,19 @@ Select the bucket you'd like to work in, and you should see all of the files and
 
 From the notebook, you can use Hail the same way that you would in a complete job script:
 ```
-from hail import *
-hc = HailContext()
+import hail as hl
+hl.init()
 ...
 ```
 To read or write files stored in a Google bucket outside of Hail-specific commands, use Hail's `hadoop_read()` and `hadoop_write()` helper functions. For example, to read in a TSV file from Google storage to a pandas dataframe:
 ```
-from hail import *
+import hail as hl
 import pandas as pd
 
-hc = HailContext()
+hl.init()
 
-with hadoop_read('gs://mybucket/mydata.tsv') as f:
+with hl.hadoop_open('gs://mybucket/mydata.tsv', 'r') as f:
     df = pd.read_table(f)
-```
-
-where pandas was included as a package to be installed in the cluster start command:
-```
-cluster start testcluster --pkgs pandas
 ```
 
 When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they'll be saved automatically to the bucket you're working in.
@@ -179,9 +174,9 @@ optional arguments:
   --hash HASH           Hail build to use for notebook initialization
                         (default: latest).
   --spark {2.0.2,2.2.0}
-                        Spark version used to build Hail (default: 2.0.2)
+                        Spark version used to build Hail (default: 2.2.0)
   --version {0.1,devel}
-                        Hail version to use (default: 0.1).
+                        Hail version to use (default: devel).
   --master-machine-type MASTER_MACHINE_TYPE, --master MASTER_MACHINE_TYPE, -m MASTER_MACHINE_TYPE
                         Master machine type (default: n1-highmem-8).
   --master-memory-fraction MASTER_MEMORY_FRACTION
