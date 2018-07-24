@@ -79,13 +79,20 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     require_row_key_variant(mt, 'sample_qc')
 
+    from hail.expr.functions import _num_allele_type , _allele_types
+
+    allele_types = _allele_types[:]
+    allele_types.extend(['Transition', 'Transversion'])
+    allele_enum = {i: v for i, v in enumerate(allele_types)}
+    allele_ints = {v: k for k, v in allele_enum.items()}
+
     def allele_type(ref, alt):
-        return hl.bind(lambda at: hl.cond(at == 'SNP',
+        return hl.bind(lambda at: hl.cond(at == allele_ints['SNP'],
                                           hl.cond(hl.is_transition(ref, alt),
-                                                  'Transition',
-                                                  'Transversion'),
+                                                  allele_ints['Transition'],
+                                                  allele_ints['Transversion']),
                                           at),
-                       hl.allele_type(ref, alt))
+                       _num_allele_type(ref, alt))
 
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
@@ -113,7 +120,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
     def get_allele_type(allele_idx):
-        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tstr))
+        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
     exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
 
@@ -137,12 +144,13 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
         'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
         'n_singleton': mt[name].n_singleton,
-        'n_snp': mt[name].allele_type_counts.get("Transition", zero) + mt[name].allele_type_counts.get("Transversion", zero),
-        'n_insertion': mt[name].allele_type_counts.get("Insertion", zero),
-        'n_deletion': mt[name].allele_type_counts.get("Deletion", zero),
-        'n_transition': mt[name].allele_type_counts.get("Transition", zero),
-        'n_transversion': mt[name].allele_type_counts.get("Transversion", zero),
-        'n_star': mt[name].allele_type_counts.get("Star", zero)
+        'n_snp': mt[name].allele_type_counts.get(allele_ints["Transition"], zero) + \
+                 mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_insertion': mt[name].allele_type_counts.get(allele_ints["Insertion"], zero),
+        'n_deletion': mt[name].allele_type_counts.get(allele_ints["Deletion"], zero),
+        'n_transition': mt[name].allele_type_counts.get(allele_ints["Transition"], zero),
+        'n_transversion': mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_star': mt[name].allele_type_counts.get(allele_ints["Star"], zero)
     }
 
     mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
