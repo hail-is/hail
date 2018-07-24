@@ -374,6 +374,6 @@ def process_joins(obj, exprs, broadcast_f):
 def divide_null(num, denom):
     from hail.expr.expressions.base_expression import unify_types_limited
     from hail.expr import null, cond
-    typ = unify_types_limited(num, denom)
+    typ = unify_types_limited(num.dtype, denom.dtype)
     assert typ is not None
     return cond(denom != 0, num / denom, null(typ))
