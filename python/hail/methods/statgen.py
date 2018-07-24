@@ -2707,7 +2707,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     else:
         field = Env.get_uid()
         mt = mt.select_entries(**{field: call_expr})
-
+    mt = mt.select_rows().select_cols()
     mt = mt.distinct_by_row()
     locally_pruned_table_path = new_temp_file()
     (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
