@@ -855,10 +855,15 @@ class Tests(unittest.TestCase):
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
+        ds1.select_rows().select_cols().entries().show(width=200)
         ds1 = hl.split_multi_hts(ds1)
         ds2 = hl.import_vcf(resource('split_test_b.vcf'))
         df = ds1.rows()
         self.assertTrue(df.all((df.locus.position == 1180) | df.was_split))
+
+        ds1.select_rows('was_split', 'a_index').select_cols().entries().show(width=200)
+        ds2.select_rows().select_cols().entries().show(width=200)
+
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
