@@ -43,7 +43,7 @@ agg_expr = AggregableChecker
 
 class AggFunc(object):
     def __init__(self):
-        self.as_scan = False
+        self._as_scan = False
 
     @typecheck_method(name=str,
                       aggregable=Aggregable,
@@ -92,7 +92,7 @@ class AggFunc(object):
             seq_op = aggregable._transformations(aggregable, make_seq_op)
             signature = agg_sig(aggregable, f(aggregable))
 
-        if self.as_scan:
+        if self._as_scan:
             ir = ApplyScanOp(seq_op._ir,
                              list(map(get_ir, constructor_args)),
                              None if init_op_args is None else list(map(get_ir, init_op_args)),
