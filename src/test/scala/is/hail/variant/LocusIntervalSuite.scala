@@ -43,7 +43,7 @@ class LocusIntervalSuite extends SparkSuite {
 
     assert(vds.annotateRowsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
       .annotateRowsExpr("foo" -> "va.foo.map(x => x.target)")
-      .rowsTable().aggregate("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+      .rowsTable().aggregateAST("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testAnnotateIntervalsAll() {

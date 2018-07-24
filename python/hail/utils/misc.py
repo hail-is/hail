@@ -310,7 +310,7 @@ def check_keys(name, indices):
         raise ExpressionException(msg)
 
 def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
-    from hail.expr.expressions import to_expr, ExpressionException, TopLevelReference, Select
+    from hail.expr.expressions import to_expr, ExpressionException
     exprs = [to_expr(e) if not isinstance(e, str) else indices.source[e] for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     assignments = OrderedDict()
@@ -319,11 +319,11 @@ def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
         if not e._indices == indices:
             raise ExpressionException("method '{}' parameter 'exprs' expects {}-indexed fields,"
                                   " found indices {}".format(caller, list(indices.axes), list(e._indices.axes)))
-        if not e._ast.is_nested_field:
+        if not e._ir.is_nested_field:
             raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
         if protect_keys:
-            check_keys(e._ast.name, indices)
-        assignments[e._ast.name] = e
+            check_keys(e._ir.name, indices)
+        assignments[e._ir.name] = e
     for k, e in named_exprs.items():
         if protect_keys:
             check_keys(k, indices)
@@ -350,20 +350,20 @@ def process_joins(obj, exprs, broadcast_f):
     broadcasts = []
 
     for e in exprs:
-        joins = e._ast.search(lambda a: isinstance(a, hail.expr.expr_ast.Join))
+        joins = e._ir.search(lambda a: isinstance(a, hail.ir.Join))
         for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
             if j not in used_joins:
                 left = j.join_func(left)
                 all_uids.extend(j.temp_vars)
                 used_joins.add(j)
-        broadcasts.extend(e._ast.search(lambda a: isinstance(a, hail.expr.expr_ast.Broadcast)))
+        broadcasts.extend(e._ir.search(lambda a: isinstance(a, hail.ir.Broadcast)))
 
     if broadcasts:
         t = hail.tstruct(**{b.uid: b.dtype for b in broadcasts})
         all_uids.extend(list(t))
         data = hail.Struct(**{b.uid: b.value for b in broadcasts})
         data_json = t._to_json(data)
-        left = broadcast_f(left, data_json, t._jtype)
+        left = broadcast_f(left, data_json, t)
 
     def cleanup(table):
         remaining_uids = [uid for uid in all_uids if uid in table._fields]

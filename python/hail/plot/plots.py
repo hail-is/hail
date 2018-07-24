@@ -6,9 +6,10 @@ from bokeh.plotting import figure
 from itertools import cycle
 
 from hail.expr import aggregators
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions import Expression
+from hail.typecheck import *
+import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 

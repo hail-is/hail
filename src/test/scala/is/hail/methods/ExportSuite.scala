@@ -15,7 +15,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.colsTable().select(Array("{Sample: row.s",
+    vds.colsTable().selectAST(Array("{Sample: row.s",
     "call_rate: row.qc.call_rate",
     "n_called: row.qc.n_called",
     "n_not_called: row.qc.n_not_called",
@@ -80,12 +80,12 @@ class ExportSuite extends SparkSuite {
 
   @Test def testExportSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .filterColsExpr("""sa.s == "C469::HG02026"""")
+      .filterColsExprAST("""sa.s == "C469::HG02026"""")
     assert(vds.numCols == 1)
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.colsTable().select("{s: row.s}", None, None).export(f, header = false)
+    vds.colsTable().selectAST("{s: row.s}", None, None).export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -95,9 +95,9 @@ class ExportSuite extends SparkSuite {
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    vds.colsTable().select("{`S.A.M.P.L.E.ID`: row.s}", None, None).export(f)
-    vds.colsTable().select("{`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****`: row.s, ANOTHERTHING: row.s}", None, None).export(f2)
-    vds.colsTable().select("{`I have some spaces and tabs\\there`: row.s, `more weird stuff here`: row.s}", None, None).export(f3)
+    vds.colsTable().selectAST("{`S.A.M.P.L.E.ID`: row.s}", None, None).export(f)
+    vds.colsTable().selectAST("{`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****`: row.s, ANOTHERTHING: row.s}", None, None).export(f2)
+    vds.colsTable().selectAST("{`I have some spaces and tabs\\there`: row.s, `more weird stuff here`: row.s}", None, None).export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -123,7 +123,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
     vds
       .colsTable()
-      .select("{computation: 5 * (if (row.qc.call_rate < .95) 0 else 1)}", None, None)
+      .selectAST("{computation: 5 * (if (row.qc.call_rate < .95) 0 else 1)}", None, None)
       .export(f)
   }
 }

@@ -41,7 +41,7 @@ class IRTests(unittest.TestCase):
             ir.Ref('x', hl.tint32),
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
-            ir.ApplyComparisonOp(ir.ComparisonOp('EQ', hl.tint32), i, j),
+            ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
@@ -76,9 +76,9 @@ class IRTests(unittest.TestCase):
             ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die('mumblefoo', hl.tfloat64),
-            ir.Apply('&&', [b, c]),
-            ir.Apply('toFloat64', [i]),
-            ir.Apply('isDefined', [s]),
+            ir.Apply('&&', b, c),
+            ir.Apply('toFloat64', i),
+            ir.Apply('isDefined', s),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0))
         ]
         

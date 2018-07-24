@@ -344,30 +344,25 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf(vds: MatrixTable,
-    computeMafExpr: String): (RegionValue) => Double = {
-
-    val mafSymbolTable = Map("va" -> (0, vds.rowType))
-    val mafEc = EvalContext(mafSymbolTable)
-    val mafAst = Parser.parseToAST(computeMafExpr, mafEc)
+  private[methods] def generateComputeMaf(vds: MatrixTable, computeMafExpr: String): (RegionValue) => Double = {
+    val refMap = Map("va" -> vds.rowType)
+    val ir = Parser.parse_value_ir(computeMafExpr, refMap)
+    // The expression may need a cast to Double
+    val ir1 = if (ir.typ.isInstanceOf[TFloat64]) ir else Cast(ir, TFloat64())
 
     val rowKeysF = vds.rowKeysF
     val localRowType = vds.rowType
 
-    val computeMafFromRV = mafAst.toIR() match {
-      case ToIRSuccess(ir0) =>
-        // The expression may need a cast to Double
-        val ir1 = if (ir0.typ.isInstanceOf[TFloat64]) ir0 else Cast(ir0, TFloat64())
-        val (rtyp, irThunk) = ir.Compile[Long, Long, Double](
-          "va", localRowType,
-          "_dummyA", localRowType,
-          ir1
-        )
-        (rv: RegionValue) => {
-          val result: java.lang.Double = irThunk()(rv.region, rv.offset, false, 0, true)
-          result
-        }
-    }
+    val (rtyp, irThunk) = Compile[Long, Long, Double](
+      "va", localRowType,
+      "_dummyA", localRowType,
+      ir1
+    )
+
+    val computeMafFromRV = { rv: RegionValue =>
+        val result: java.lang.Double = irThunk()(rv.region, rv.offset, false, 0, true)
+        result
+      }
 
     (rv: RegionValue) => {
       val maf = computeMafFromRV(rv)

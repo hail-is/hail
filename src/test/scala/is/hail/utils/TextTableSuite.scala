@@ -96,7 +96,7 @@ class TextTableSuite extends SparkSuite {
     val tbl = TextTableReader.read(hc)(Array(file), impute = true)
     val tir = tbl.tir.asInstanceOf[TableImport]
     
-    val selectOneCol = tbl.select("{Gene: row.Gene}", None, None)
+    val selectOneCol = tbl.selectAST("{Gene: row.Gene}", None, None)
     val irSelectOneCol = new Table(hc, TableImport(
       tir.paths,
       selectOneCol.typ,
@@ -104,7 +104,7 @@ class TextTableSuite extends SparkSuite {
     ))
     assert(selectOneCol.same(irSelectOneCol))
 
-    val selectTwoCols = tbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}", None, None)
+    val selectTwoCols = tbl.selectAST("{Chromosome: row.Chromosome, Rand2: row.Rand2}", None, None)
     val irSelectTwoCols = new Table(hc, TableImport(
       tir.paths,
       selectTwoCols.typ,

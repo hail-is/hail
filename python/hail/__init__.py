@@ -32,6 +32,7 @@ from . import methods as methods
 from . import linalg as linalg
 from . import plot as plot
 from . import experimental as experimental
+from . import ir as ir
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
@@ -62,6 +63,7 @@ __all__ = [
     'linalg',
     'plot',
     'experimental',
+    'ir'
 ]
 
 __all__.extend(genetics.__all__)

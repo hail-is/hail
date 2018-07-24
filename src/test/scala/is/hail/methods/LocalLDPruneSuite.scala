@@ -324,7 +324,7 @@ class LocalLDPruneSuite extends SparkSuite {
   @Test def testNoPrune() {
     val filteredVDS = vds
       .annotateRowsExpr("__flag" -> "AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-      .filterRowsExpr("va.__flag")
+      .filterRowsExprAST("va.__flag")
     val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize = maxQueueSize)
     assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }
@@ -382,7 +382,7 @@ class LocalLDPruneSuite extends SparkSuite {
     
     val vdsAlteredSchema = vds.annotateRowsExpr("locus2"->"{va.locus}", "alleles2"->"{va.alleles}")
       .keyRowsBy(Array("locus2", "alleles2"), Array("locus2", "alleles2"))
-      .selectRows("{oldLocus: va.locus, oldAlleles: va.alleles, locus2: va.locus2, alleles2: va.alleles2}", None)
+      .selectRowsAST("{oldLocus: va.locus, oldAlleles: va.alleles, locus2: va.locus2, alleles2: va.alleles2}", None)
       .renameFields(renameKeys,emptyMap, emptyMap, emptyMap)
     
     val locallyPrunedVariantsTable = LocalLDPrune(vdsAlteredSchema, maxQueueSize = maxQueueSize)

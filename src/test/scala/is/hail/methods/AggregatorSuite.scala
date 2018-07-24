@@ -35,14 +35,14 @@ class AggregatorSuite extends SparkSuite {
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
     val ktMax = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
-      .aggregateByKey(
+      .aggregateByKeyAST(
         (0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).max()").mkString("{ ",", ", " }"),
         (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).max()").mkString(", "))
 
     assert(ktMax.collect() sameElements Array(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
     val ktMin = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
-      .aggregateByKey(
+      .aggregateByKeyAST(
         (0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).min()").mkString("{ ", ", ", " }"),
         (0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).min()").mkString(","))
 
@@ -59,7 +59,7 @@ class AggregatorSuite extends SparkSuite {
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat64(), "s10" -> TFloat64()): _*)
     
     val ktProduct = Table(hc, rdd, signature, key = Some(IndexedSeq("group")))
-      .aggregateByKey(
+      .aggregateByKeyAST(
         ((0 until 11).map(i => s"s$i : AGG.map(r => r.s$i).product()")
           :+ "empty : AGG.map(r => r.s10).filter(x => false).product()").mkString("{ ", ", ", " }"),
         ((0 until 11).map(i => s"s$i = AGG.map(r => r.s$i).product()")
@@ -120,7 +120,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testCounter() {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
-      val (r, t) = vds.aggregateRows("AGG.map(_ => va.locus.contig).counter()")
+      val (r, t) = vds.aggregateRowsAST("AGG.map(_ => va.locus.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
       val aggMap = vds.variants.map(_.asInstanceOf[Variant].contig).countByValue()
       aggMap == counterMap
@@ -189,8 +189,8 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
-      val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
-      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)")
+      val (a, _) = vds.aggregateEntriesAST("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
+      val (b, _) = vds.aggregateEntriesAST("AGG.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)")
 
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
@@ -211,8 +211,8 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
       vds.typecheck()
 
-      val (a, _) = vds.aggregateEntries("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
-      val (b, _) = vds.aggregateEntries("AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ, 10)")
+      val (a, _) = vds.aggregateEntriesAST("AGG.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])")
+      val (b, _) = vds.aggregateEntriesAST("AGG.map(g => [g.DP, g.GQ]).takeBy(x => g.GQ, 10)")
 
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
@@ -242,23 +242,23 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCollectAsSet() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
-    assert(kt.union(kt, kt).aggregate("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
+    assert(kt.aggregateAST("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
+    assert(kt.union(kt, kt).aggregateAST("AGG.map(r => r.idx).collectAsSet()")._1 == (0 until 100).toSet)
   }
 
   @Test def testArraySumInt64() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.select("{foo : [row.idx.toInt64()]}", None, None)
-      .aggregate("AGG.map(r => r.foo).sum()")._1
+    assert(kt.selectAST("{foo : [row.idx.toInt64()]}", None, None)
+      .aggregateAST("AGG.map(r => r.foo).sum()")._1
       == Seq((0 until 100).sum))
   }
 
   @Test def testArraySumFloat64() {
     val kt = Table.range(hc, 100, nPartitions = Some(10))
 
-    assert(kt.select("{foo : [row.idx.toFloat64()/2.0]}", None, None)
-      .aggregate("AGG.map(r => r.foo).sum()")._1
+    assert(kt.selectAST("{foo : [row.idx.toFloat64()/2.0]}", None, None)
+      .aggregateAST("AGG.map(r => r.foo).sum()")._1
       == Seq((0 until 100).map(_ / 2.0).sum))
   }
 
@@ -277,7 +277,7 @@ class AggregatorSuite extends SparkSuite {
       None
     )
 
-    val (aggResult, typ) = t.aggregate("AGG.map(__uid1__ => row.y).linreg(__uid2__ => [row.intercept, row.x], 2)")
+    val (aggResult, typ) = t.aggregateAST("AGG.map(__uid1__ => row.y).linreg(__uid2__ => [row.intercept, row.x], 2)")
 
     val expectedResult = Row(
       FastIndexedSeq(0.14069227, 0.32744807),
@@ -293,17 +293,17 @@ class AggregatorSuite extends SparkSuite {
       .toMatrixTable(Array("row_idx"), Array("col_idx"), Array(), Array("intercept", "y"), Array("row_idx"))
 
     val a = mt.annotateRowsExpr("linreg" -> "AGG.map(__uid1__ => sa.y).linreg(__uid2__ => [sa.intercept, g.x], 2)")
-      .rowsTable().select("{linreg: row.linreg}", None, None).collect()(0)(0)
+      .rowsTable().selectAST("{linreg: row.linreg}", None, None).collect()(0)(0)
 
     assert(typ.valuesSimilar(a, expectedResult))
 
     val mtFiltered = mt
       .annotateColsExpr("xDefined" -> "AGG.map(__uid__ => g.x).filter(x => isDefined(x)).count() == 1.toInt64()")
-      .filterColsExpr("isDefined(sa.y) && sa.xDefined")
+      .filterColsExprAST("isDefined(sa.y) && sa.xDefined")
 
     val lr = LinearRegression(mtFiltered, Array("y"), "x", Array(), "linreg", 100)
       .rowsTable()
-      .select("{beta: row.linreg.beta, standard_error: row.linreg.standard_error, t_stat: row.linreg.t_stat, p_value: row.linreg.p_value, n: row.linreg.n}", None, None)
+      .selectAST("{beta: row.linreg.beta, standard_error: row.linreg.standard_error, t_stat: row.linreg.t_stat, p_value: row.linreg.p_value, n: row.linreg.n}", None, None)
       .collect()(0)
 
     assert(D_==(lr(0).asInstanceOf[IndexedSeq[Double]](0), expectedResult(0).asInstanceOf[IndexedSeq[Double]](1)))

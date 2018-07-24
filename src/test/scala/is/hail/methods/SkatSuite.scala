@@ -134,7 +134,7 @@ class SkatSuite extends SparkSuite {
       types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")
 
     hc.importVCF("src/test/resources/sample2.vcf")
-      .filterRowsExpr("va.alleles.length() == 2")
+      .filterRowsExprAST("va.alleles.length() == 2")
       .annotateRowsTable(intervalsSkat, "gene")
       .annotateRowsTable(weightsSkat, "weight")
       .annotateRowsExpr("gene" -> "va.gene.target", "weight" -> "va.weight.weight")
@@ -181,7 +181,7 @@ class SkatSuite extends SparkSuite {
     val entryExpr = if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles().toFloat64"
 
     val vds = (if (useBN) vdsBN else vdsSkat)
-      .selectEntries(s"{x: $entryExpr}")
+      .selectEntriesAST(s"{x: $entryExpr}")
       .annotateColsExpr("Cov1" -> "sa.cov.Cov1", "Cov2" -> "sa.cov.Cov2")
 
     val hailKT = vds
@@ -239,7 +239,7 @@ class SkatSuite extends SparkSuite {
     val maxSize = 27
 
     val kt = vdsSkat
-      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
+      .selectEntriesAST("{x: g.GT.nNonRefAlleles().toFloat64}")
       .annotateRowsExpr("weight" -> "1.0")
       .skat("gene", yExpr = "pheno", xField = "x", weightExpr = "weight", maxSize = maxSize)
       
@@ -281,7 +281,7 @@ class SkatSuite extends SparkSuite {
     val v3 = Array(1, 0, 0, 1)
 
     val vds0 = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3)))
-      .selectEntries("{x: g.GT.nNonRefAlleles().toFloat64}")
+      .selectEntriesAST("{x: g.GT.nNonRefAlleles().toFloat64}")
     
     // annotations from table
     val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")

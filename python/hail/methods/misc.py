@@ -1,5 +1,4 @@
 import hail as hl
-from hail.expr.expr_ast import VariableReference
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.matrixtable import MatrixTable
@@ -125,14 +124,14 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
 
     if tie_breaker:
         wrapped_node_t = ttuple(node_t)
-        l = construct_expr(VariableReference('l'), wrapped_node_t)
-        r = construct_expr(VariableReference('r'), wrapped_node_t)
+        l = construct_variable('l', wrapped_node_t)
+        r = construct_variable('r', wrapped_node_t)
         tie_breaker_expr = hl.int64(tie_breaker(l[0], r[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
-        tie_breaker_hql = tie_breaker_expr._ast.to_hql()
+        tie_breaker_str = str(tie_breaker_expr._ir)
     else:
         t, _ = source._process_joins(i, j)
-        tie_breaker_hql = None
+        tie_breaker_str = None
 
     nodes = (t.select(node=[i, j])
              .explode('node')
@@ -140,7 +139,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
              .select())
 
     edges = t.key_by(None).select('i', 'j')
-    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_hql))
+    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_str))
 
     nt = Table(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
     nt = (nt

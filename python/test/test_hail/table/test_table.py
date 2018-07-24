@@ -117,12 +117,14 @@ class Tests(unittest.TestCase):
         results = kt.aggregate(hl.Struct(q1=agg.sum(kt.b),
                                          q2=agg.count(),
                                          q3=agg.collect(kt.e),
-                                         q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e))))
+                                         q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e)),
+                                         q5=agg.mean(agg.explode(kt.f))))
 
         self.assertEqual(results.q1, 8)
         self.assertEqual(results.q2, 3)
         self.assertEqual(set(results.q3), {"hello", "cat", "dog"})
         self.assertEqual(set(results.q4), {"hello", "cat"})
+        self.assertAlmostEqual(results.q5, 4)
 
     def test_aggregate2(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
