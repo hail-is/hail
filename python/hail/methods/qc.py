@@ -122,30 +122,39 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     zero = hl.int64(0)
 
-    mt = mt.annotate_cols(**{name: mt[name].select(
-        dp_stats=mt[name].dp_stats,
-        gq_stats=mt[name].gq_stats,
-        call_rate=hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
-        n_called=mt[name].n_called,
-        n_not_called=mt[name].n_not_called,
-        n_hom_ref=mt[name].n_hom_ref,
-        n_het=mt[name].n_het,
-        n_hom_var=mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
-        n_non_ref=mt[name].n_called - mt[name].n_hom_ref,
-        n_singleton=mt[name].n_singleton,
-        n_snp=mt[at_counts_uid].get("Transition", zero) + mt[at_counts_uid].get("Transversion", zero),
-        n_insertion=mt[at_counts_uid].get("Insertion", zero),
-        n_deletion=mt[at_counts_uid].get("Deletion", zero),
-        n_transition=mt[at_counts_uid].get("Transition", zero),
-        n_transversion=mt[at_counts_uid].get("Transversion", zero),
-        n_star=mt[at_counts_uid].get("Star", zero)
-    )})
+    select_exprs = {}
+    if 'dp_stats' in exprs:
+        select_exprs['dp_stats'] = mt[name].dp_stats
+    if 'gq_stats' in exprs:
+        select_exprs['gq_stats'] = mt[name].gq_stats
+
+    select_exprs = {
+        **select_exprs,
+        'call_rate': hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
+        'n_called': mt[name].n_called,
+        'n_not_called': mt[name].n_not_called,
+        'n_hom_ref': mt[name].n_hom_ref,
+        'n_het': mt[name].n_het,
+        'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
+        'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
+        'n_singleton': mt[name].n_singleton,
+        'n_snp': mt[at_counts_uid].get("Transition", zero) + mt[at_counts_uid].get("Transversion", zero),
+        'n_insertion': mt[at_counts_uid].get("Insertion", zero),
+        'n_deletion': mt[at_counts_uid].get("Deletion", zero),
+        'n_transition': mt[at_counts_uid].get("Transition", zero),
+        'n_transversion': mt[at_counts_uid].get("Transversion", zero),
+        'n_star': mt[at_counts_uid].get("Star", zero)
+    }
+
+    mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
+
+    mt.describe()
 
     mt = mt.annotate_cols(**{name: mt[name].annotate(
         r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
         r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),
         r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
-    )})
+    )})        
 
     mt = mt.drop(variant_ac, allele_types, at_counts_uid)
 
