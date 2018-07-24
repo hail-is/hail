@@ -72,7 +72,7 @@ object BgenRDDPartitions extends Logging {
                   partFirstVariantIndex(i),
                   partFirstByteOffset(i),
                   if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
-                  i,
+                  partitions.length,
                   sHadoopConfBc,
                   settings
                 )
@@ -89,7 +89,7 @@ object BgenRDDPartitions extends Logging {
                 partitions += BgenPartitionWithFilter(
                   file.path,
                   file.compressed,
-                  i,
+                  partitions.length,
                   variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
                   variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
                   sHadoopConfBc,

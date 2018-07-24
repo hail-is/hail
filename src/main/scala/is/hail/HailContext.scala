@@ -305,7 +305,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     blockSizeInMB: Option[Int] = None,
     rg: Option[String] = None,
-    contigRecoding: Map[String, String] = Map.empty,
+    contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
     includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
   ): MatrixTable = {
@@ -325,7 +325,6 @@ class HailContext private(val sc: SparkContext,
         (includeGP, "GP" -> +TArray(+TFloat64())),
         (includeDosage, "dosage" -> +TFloat64()))
         .withFilter(_._1).map(_._2)
-
 
     val requestedType: MatrixType = MatrixType.fromParts(
       globalType = TStruct.empty(),

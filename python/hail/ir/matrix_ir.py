@@ -115,7 +115,7 @@ class MatrixImportBGEN(MatrixIR):
             files=self.paths,
             sampleFile=self.sampleFile,
             nPartitions=self.n_partitions,
-            blockSizeInMM=self.block_size,
+            blockSizeInMB=self.block_size,
             rg=self.reference_genome.name if self.reference_genome else None,
             contigRecoding=self.contig_recoding,
             skipInvalidLoci=self.skip_invalid_loci,
