@@ -105,3 +105,14 @@ that are possible (and easy!) in this interface.
 
     9: MatrixTable<tutorials/09-matrixtable.ipynb>
 
+
+Plot Examples
+=============
+
+This notebook contains examples of how to use the plotting functions in Hail's
+:mod:`.plot` module.
+
+.. toctree::
+    :maxdepth: 2
+
+    Plotting<tutorials/plotting.ipynb>
