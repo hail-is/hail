@@ -177,6 +177,8 @@ class ReferenceGenomeSuite extends SparkSuite {
     assert(fr.lookup(Interval(Locus("a", 1), Locus("a", 5), includesStart = true, includesEnd = false)) == "AGGT")
     assert(fr.lookup(Interval(Locus("a", 20), Locus("b", 5), includesStart = false, includesEnd = false)) == "ACGTATAAT")
     assert(fr.lookup(Interval(Locus("a", 20), Locus("c", 5), includesStart = false, includesEnd = false)) == "ACGTATAATTAAATTAGCCAGGAT")
+
+    ReferenceGenome.removeReference(rg.name)
   }
 
   @Test def testSerializeOnFB() {
