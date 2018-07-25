@@ -329,6 +329,8 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     require_col_key_str(left, 'concordance, left')
     require_col_key_str(right, 'concordance, right')
+    left = left.select_rows().select_cols().select_globals().select_entries('GT')
+    right = right.select_rows().select_cols().select_globals().select_entries('GT')
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
