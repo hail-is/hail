@@ -1,3 +1,9 @@
+* todo
+ - [ ] check if merge incompatibility is stated in PR event, if so, don't bother
+       running the job
+
+ - [ ] convert oauth-token to a secret volume
+
 * notes
  - the pr system has two event sources: github and the batch system
 
@@ -18,10 +24,6 @@
  - docker image should have minimal gcloud permissions, it just needs to cp into
    a particular bucket (but the auth token I created seems to have lots of
    privileges, not sure why)
-
- - convert oauth-token to a secret volume
-
- - pr builder also needs gcloud to copy logs
 
 * resolved notes
  - gotta figure out github authentication: resolved by adding a file called

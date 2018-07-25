@@ -3,6 +3,7 @@ from batch.client import *
 import requests
 from google.cloud import storage
 import os
+import collections
 
 # REPO = 'danking/docker-build-test/' # needs trailing slash
 REPO = 'hail-is/hail/' # needs trailing slash
@@ -85,7 +86,7 @@ class Status(object):
                  pr_number,
                  job_id=None):
         assert state == 'failure' or state == 'pending' or state == 'success' or state == 'running'
-        assert review_state == 'approved' or state == 'changes_requested' or state == 'pending'
+        assert review_state == 'approved' or review_state == 'changes_requested' or review_state == 'pending', review_state
         self.state = state
         self.review_state = review_state
         self.source_sha = source_sha
@@ -103,21 +104,32 @@ class Status(object):
             'job_id': self.job_id
         }
 
-target_source_pr = {}
-source_target_pr = {}
+target_source_pr = collections.defaultdict(dict)
+source_target_pr = collections.defaultdict(dict)
 
 def update_pr_status(source_url, source_ref, target_url, target_ref, status):
     target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
     source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
 
 def get_pr_status(source_url, source_ref, target_url, target_ref):
-    x = source_target_pr[(source_url, source_ref)][(target_url, target_ref)]
-    y = target_source_pr[(target_url, target_ref)][(source_url, source_ref)]
-    assert x == y
+    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
+    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
+    assert x == y, str(x) + str(y)
     return x
 
 def pop_prs_for_target(target_url, target_ref):
-    target_source_pr.pop((target_url, target_ref))
+    prs = target_source_pr.pop((target_url, target_ref))
+    for (source_url, source_ref), status in prs:
+        x = source_target_pr[(source_url, source_ref)]
+        del x[(target_url, target_ref)]
+    return prs
+
+def pop_prs_for_target(target_url, target_ref, default):
+    prs = target_source_pr.pop((target_url, target_ref), default)
+    for (source_url, source_ref), status in prs:
+        x = source_target_pr[(source_url, source_ref)]
+        del x[(target_url, target_ref)]
+    return prs
 
 def get_pr_status_by_source(source_url, source_ref):
     return source_target_pr[(source_url, source_ref)]
@@ -129,7 +141,7 @@ batch_client = BatchClient(url=BATCH_SERVER_URL)
 
 def cancel_existing_jobs(source_url, source, target_url, target):
     old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
-    if old_status and old_status.state = 'running':
+    if old_status and old_status.state == 'running':
         id = old_status.job_id
         assert(id is not None)
         print(f'cancelling existing job {id} due to pr status update')
@@ -143,7 +155,8 @@ def status():
            'target_url': target_url,
            'target_ref': target_ref,
            'status': status.to_json()
-        } for (target_url, target_ref), status in prs.items() for (source_url, source_ref), prs in source_target_pr.items()])
+        } for ((source_url, source_ref), prs) in source_target_pr.items()
+         for ((target_url, target_ref), status) in prs.items()])
 
 ###############################################################################
 ### post and get helpers
@@ -256,7 +269,7 @@ def github_pull_request():
             f'git/refs/heads/{target_ref}',
             status_code=200
         )['object']['sha']
-        cancel_existing_jobs(source_url, source, target_url, target)
+        cancel_existing_jobs(source_url, source_sha, target_url, target)
         update_pr_status(
             source_url,
             source_ref,
@@ -284,6 +297,8 @@ def ci_build_done():
     data = request.json
     print(data)
     job_id = data['id']
+    exit_code = data['exit_code']
+    attributes = data['attributes']
     source_url = attributes['source_url']
     source_ref = attributes['source_ref']
     target_url = attributes['target_url']
@@ -291,10 +306,10 @@ def ci_build_done():
     status = get_pr_status(source_url, source_ref, target_url, target_ref)
     source_sha = attributes['source_sha']
     target_sha = attributes['target_sha']
-    if status.source_sha == source_sha and status.target_sha == target_sha:
-        exit_code = data['exit_code']
-        attributes = data['attributes']
-        pr_number = data['pr_number']
+    if status is None:
+        print(f'ignoring job for pr I did not think existed: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
+    elif status.source_sha == source_sha and status.target_sha == target_sha:
+        pr_number = attributes['pr_number']
         upload_public_gs_file_from_string(
             GCS_BUCKET,
             f'{source_sha}/{target_sha}/job-log',
@@ -312,7 +327,7 @@ def ci_build_done():
                 source_ref,
                 target_url,
                 target_ref,
-                Status('failure', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+                Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
             )
             post_repo(
                 'statuses/' + source_sha,
@@ -324,13 +339,13 @@ def ci_build_done():
                 status_code=201
             )
         else:
-            print(f'test job {job_id} failed for pr #{pr_number} with exit code {exit_code} after merge with {target_sha}')
+            print(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
             update_pr_status(
                 source_url,
                 source_ref,
                 target_url,
                 target_ref,
-                Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+                Status('failure', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
             )
             status_message = f'failing build ({exit_code}) after merge with {target_sha}'
             post_repo(
@@ -344,7 +359,14 @@ def ci_build_done():
                 status_code=201
             )
         heal()
+    else:
+        print(f'ignoring completed job that I no longer care about: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
 
+    return '', 200
+
+@app.route('/heal', methods=['POST'])
+def heal_endpoint():
+    heal()
     return '', 200
 
 def heal():
@@ -360,7 +382,7 @@ def heal():
         else:
             approved = [(source, status)
                         for source, status in prs.items()
-                        if status.state != 'failure'
+                        if status.state == 'pending'
                         and status.review_state == 'approved']
             if len(approved) != 0:
                 # pick oldest one instead
@@ -400,10 +422,10 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         env={
             'SOURCE_REPO_URL': source_url,
             'SOURCE_BRANCH': source_ref,
-            'SOURCE_SHA': source_sha,
+            'SOURCE_SHA': status.source_sha,
             'TARGET_REPO_URL': target_url,
             'TARGET_BRANCH': target_ref,
-            'TARGET_SHA': target_sha
+            'TARGET_SHA': status.target_sha
         },
         resources={
             'limits': {
@@ -433,10 +455,10 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         status_code=201
     )
     update_pr_status(
-        source_url
+        source_url,
         source_ref,
         target_url,
-        target_ref
+        target_ref,
         Status('running',
                status.review_state,
                status.source_sha,
@@ -446,26 +468,27 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
 
 @app.route('/refresh_base/<target_ref>', methods=['POST'])
 def refresh_github_state(target_ref):
-    target_url = 'https://github.com/'+REPO    # send this in json data or something
+    target_url = 'https://github.com/'+REPO[:-1]+'.git'    # send this in json data or something
     target_sha = get_repo(
-        'git/refs/heads/'+ref,
+        'git/refs/heads/'+target_ref,
         status_code=200
     )['object']['sha']
     pulls = get_repo(
-        'pulls?state=open&base=' + ref,
+        'pulls?state=open&base=' + target_ref,
         status_code=200
     )
     print(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
-    known_prs = pop_prs_for_target(target_url, target_ref)
+    known_prs = pop_prs_for_target(target_url, target_ref, {})
     for pull in pulls:
         source_url = pull['head']['repo']['clone_url']
         source_ref = pull['head']['ref']
         source_sha = pull['head']['sha']
         pr_number = str(pull['number'])
         status = known_prs.pop((source_url, source_ref), None)
-        if status.source_sha == source_sha and status.target_sha == target_sha:
-            print('no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
-        elif:
+        if status and status.source_sha == source_sha and status.target_sha == target_sha:
+            print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+        else:
+            print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
             review_status = review_status_net(pr_number)
             update_pr_status(
                 source_url,
@@ -520,6 +543,7 @@ def review_status_net(pr_number):
         'pulls/' + pr_number + '/reviews',
         status_code=200
     )
+    return review_status(reviews)
 
 def review_status(reviews):
     latest_state_by_login = {}
