@@ -225,8 +225,7 @@ class CaseBuilder(ConditionalBuilder):
         -------
         Missingness is treated similarly to :func:`.cond`. Missingness is
         **not** treated as ``False``. A `condition` that evaluates to missing
-        will return a missing result, not proceed to the next
-        :meth:`~.CaseBuilder.when` or :meth:`~.CaseBuilder.default`. Always
+        will return a missing result, not proceed to the next case. Always
         test missingness first in a :class:`.CaseBuilder`.
 
         Parameters
