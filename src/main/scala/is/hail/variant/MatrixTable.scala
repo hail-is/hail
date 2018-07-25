@@ -1040,14 +1040,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
-  def filterColsList(samples: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
-    filterColsList(samples.asScala.toSet, keep)
-
-  def filterColsList(samples: Set[Annotation], keep: Boolean = true): MatrixTable = {
-    val p = (s: Annotation, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
-    filterCols(p)
-  }
-
   def filterRowsExprAST(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var filterAST = Parser.expr.parse(filterExpr)
     filterAST.typecheck(matrixType.rowEC)
