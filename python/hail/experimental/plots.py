@@ -7,7 +7,8 @@ from bokeh.models import *
 from bokeh.palettes import Spectral8
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
-from hail.expr.expr_ast import *
+from hail.typecheck import *
+from hail.utils.hadoop_utils import *
 
 
 @typecheck(t_path=str)
@@ -28,7 +29,7 @@ def hail_metadata(t_path):
         partition_bounds = []
         parts_file = [x['path'] for x in rows_files if x['path'].endswith('parts')]
         if parts_file:
-            parts = hail.hadoop_ls(parts_file[0])
+            parts = hadoop_ls(parts_file[0])
             for i, x in enumerate(parts):
                 index = x['path'].split(f'{parts_file[0]}/part-')[1].split('-')[0]
                 if i < len(parts) - 1:
@@ -38,7 +39,7 @@ def hail_metadata(t_path):
                 file_sizes.append(x['size_bytes'])
         metadata_file = [x['path'] for x in rows_files if x['path'].endswith('metadata.json.gz')]
         if metadata_file:
-            with hail.hadoop_open(metadata_file[0], 'rb') as f:
+            with hadoop_open(metadata_file[0], 'rb') as f:
                 rows_meta = json.loads(f.read())
                 try:
                     partition_bounds = [
@@ -70,7 +71,7 @@ def hail_metadata(t_path):
         total_file_size = f'{total_file_size:.1f} {overall_scale}B'
         return total_file_size, file_sizes, scale
 
-    files = hail.hadoop_ls(t_path)
+    files = hadoop_ls(t_path)
 
     rows_file = [x['path'] for x in files if x['path'].endswith('rows')]
     entries_file = [x['path'] for x in files if x['path'].endswith('entries')]
@@ -80,19 +81,19 @@ def hail_metadata(t_path):
     if not metadata_file:
         raise FileNotFoundError('No metadata.json.gz file found.')
 
-    with hail.hadoop_open(metadata_file[0], 'rb') as f:
+    with hadoop_open(metadata_file[0], 'rb') as f:
         overall_meta = json.loads(f.read())
         rows_per_partition = overall_meta['components']['partition_counts']['counts']
 
     if not rows_file:
         raise FileNotFoundError('No rows directory found.')
-    rows_files = hail.hadoop_ls(rows_file[0])
+    rows_files = hadoop_ls(rows_file[0])
 
     data_type = 'Table'
     if entries_file:
         data_type = 'MatrixTable'
         rows_file = [x['path'] for x in rows_files if x['path'].endswith('rows')]
-        rows_files = hail.hadoop_ls(rows_file[0])
+        rows_files = hadoop_ls(rows_file[0])
     row_partition_bounds, row_file_sizes = get_rows_data(rows_files)
 
     total_file_size, row_file_sizes, row_scale = scale_file_sizes(row_file_sizes)
@@ -120,10 +121,10 @@ def hail_metadata(t_path):
     }
 
     if entries_file:
-        entries_rows_files = hail.hadoop_ls(entries_file[0])
+        entries_rows_files = hadoop_ls(entries_file[0])
         entries_rows_file = [x['path'] for x in entries_rows_files if x['path'].endswith('rows')]
         if entries_rows_file:
-            entries_files = hail.hadoop_ls(entries_rows_file[0])
+            entries_files = hadoop_ls(entries_rows_file[0])
             entry_partition_bounds, entry_file_sizes = get_rows_data(entries_files)
             total_entry_file_size, entry_file_sizes, entry_scale = scale_file_sizes(entry_file_sizes)
             all_data['entry_file_sizes'] = entry_file_sizes
