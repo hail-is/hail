@@ -52,9 +52,6 @@ class FunctionSuite extends SparkSuite {
   def emitFromFB[F >: Null : TypeInfo](fb: FunctionBuilder[F]) =
     new EmitFunctionBuilder[F](fb.parameterTypeInfo, fb.returnTypeInfo, fb.packageName)
 
-  def fromHailString(hql: String): IR =
-    Parser.parseToAST(hql, ec).toIROptNoWarning().get
-
   def toF[R: TypeInfo](ir: IR): AsmFunction1[Region, R] = {
     val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, R])
     Emit(ir, fb)

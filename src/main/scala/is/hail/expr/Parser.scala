@@ -56,28 +56,6 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parseToAST(code: String, ec: EvalContext): AST = {
-    val t = expr.parse(code)
-    t.typecheck(ec)
-    t
-  }
-
-  def parseAnnotationExprsToAST(code: String, ec: EvalContext, expectedHead: Option[String]): Array[(String, AST)] = {
-    named_exprs(annotationIdentifier)
-      .parse(code).map { case (p, ast) =>
-      ast.typecheck(ec)
-      val n = expectedHead match {
-        case Some(h) =>
-          require(p.head == h && p.length == 2)
-          p.last
-        case None =>
-          require(p.length == 1)
-          p.head
-      }
-      (n, ast)
-    }
-  }
-
   def parse[T](parser: Parser[T], code: String): T = {
     parseAll(parser, code) match {
       case Success(result, _) => result
@@ -104,13 +82,6 @@ object Parser extends JavaTokenParsers {
         case Success(result, _) => result.map(f => (f.name, f.typ)).toMap
         case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
       }
-  }
-
-  def parseIdentifierList(code: String): Array[String] = {
-    parseAll(identifierList, code) match {
-      case Success(result, _) => result
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
   }
 
   def parseAnnotationRoot(code: String, root: String): List[String] = {
@@ -179,69 +150,8 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
-    Lambda(arrow.pos, param, body)
-  } |
-    if_expr |
-    let_expr |
-    or_expr
-
-  def if_expr: Parser[AST] =
-    withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
-      IfAST(ifx.pos, cond, thenTree, elseTree)
-    }
-
-  def let_expr: Parser[AST] =
-    withPos("let") ~ rep1sep((identifier <~ "=") ~ expr, "and") ~ ("in" ~> expr) ^^ { case let ~ bindings ~ body =>
-      LetAST(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
-    }
-
-  def or_expr: Parser[AST] =
-    and_expr ~ rep(withPos("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def and_expr: Parser[AST] =
-    lt_expr ~ rep(withPos("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def lt_expr: Parser[AST] =
-    eq_expr ~ rep(withPos("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def eq_expr: Parser[AST] =
-    add_expr ~ rep(withPos("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def add_expr: Parser[AST] =
-    mul_expr ~ rep(withPos("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def mul_expr: Parser[AST] =
-    tilde_expr ~ rep(withPos("*" | "//" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def tilde_expr: Parser[AST] =
-    unary_expr ~ rep(withPos("~") ~ unary_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
   def comma_delimited_doubles: Parser[Array[Double]] =
     repsep(floatingPointNumber, ",") ^^ (_.map(_.toDouble).toArray)
-
-  def annotationExpressions: Parser[Array[(List[String], AST)]] =
-    repsep(annotationExpression, ",") ^^ {
-      _.toArray
-    }
-
-  def annotationExpression: Parser[(List[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
-    case id ~ eq ~ expr => (id, expr)
-  }
 
   def annotationIdentifier: Parser[List[String]] =
     rep1sep(identifier, ".") ^^ {
@@ -256,103 +166,6 @@ object Parser extends JavaTokenParsers {
   def tsvIdentifier: Parser[String] = backtickLiteral | """[^\s\p{Cntrl}=,]+""".r
 
   def identifier = backtickLiteral | ident
-
-  def identifierList: Parser[Array[String]] = repsep(identifier, ",") ^^ {
-    _.toArray
-  }
-
-  def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ {
-      _.toArray
-    }
-
-  def unary_expr: Parser[AST] =
-    rep(withPos("-" | "+" | "!")) ~ exponent_expr ^^ { case lst ~ rhs =>
-      lst.foldRight(rhs) { case (op, acc) =>
-        ApplyAST(op.pos, op.x, Array(acc))
-      }
-    }
-
-  def exponent_expr: Parser[AST] =
-    dot_expr ~ rep(withPos("**") ~ dot_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => ApplyAST(op.pos, op.x, Array(acc, rhs)) }
-    }
-
-  def dot_expr: Parser[AST] =
-    primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
-      | (withPos(".") ~ identifier)
-      | withPos("[") ~ expr ~ "]"
-      | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { (acc, t) =>
-        (t: @unchecked) match {
-          case (dot: Positioned[_]) ~ sym => SelectAST(dot.pos, acc, sym)
-          case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
-            ApplyMethodAST(dot.pos, acc, sym, args)
-          case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => ApplyMethodAST(lbracket.pos, acc, "[]", Array(idx))
-          case (lbracket: Positioned[_]) ~ None ~ ":" ~ None ~ "]" =>
-            ApplyMethodAST(lbracket.pos, acc, "[:]", Array())
-          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ None ~ "]" =>
-            ApplyMethodAST(lbracket.pos, acc, "[*:]", Array(idx1))
-          case (lbracket: Positioned[_]) ~ None ~ ":" ~ Some(idx2: AST) ~ "]" =>
-            ApplyMethodAST(lbracket.pos, acc, "[:*]", Array(idx2))
-          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ Some(idx2: AST) ~ "]" =>
-            ApplyMethodAST(lbracket.pos, acc, "[*:*]", Array(idx1, idx2))
-        }
-      }
-    }
-
-  def primary_expr: Parser[AST] =
-    withPos("f32#" ~> "nan") ^^ (r => Const(r.pos, Float.NaN, TFloat32())) |
-      withPos("f32#" ~> "inf") ^^ (r => Const(r.pos, Float.PositiveInfinity, TFloat32())) |
-      withPos("f32#" ~> "neginf") ^^ (r => Const(r.pos, Float.NegativeInfinity, TFloat32())) |
-      withPos("f32#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-      withPos("f32#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-      withPos("f64#" ~> "nan") ^^ (r => Const(r.pos, Double.NaN, TFloat64())) |
-      withPos("f64#" ~> "inf") ^^ (r => Const(r.pos, Double.PositiveInfinity, TFloat64())) |
-      withPos("f64#" ~> "neginf") ^^ (r => Const(r.pos, Double.NegativeInfinity, TFloat64())) |
-      withPos("f64#" ~> """-?\d+(\.\d+)?[eE][+-]?\d+""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("f64#" ~> """-?\d*(\.\d+)?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-      withPos("""-?\d*\.\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-      withPos("""-?\d+[fF]""".r) ^^ (r => Const(r.pos, r.x.toFloat, TFloat32())) |
-      withPos("""-?\d+[dD]""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("i64#" ~> wholeNumber) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |
-      withPos("i32#" ~> wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32())) |
-      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |
-      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32())) |
-      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString()) } |
-      withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
-      withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
-      withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
-      withPos(tupleDeclaration) ^^ (r => TupleConstructor(r.pos, r.x)) |
-      withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
-      withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
-      referenceGenomeDependentFunction ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ rg ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, rg, args)
-      } |
-      referenceGenomeDependentFunction ~ withPos("(") ~ (args <~ ")") ^^ {
-        case fn ~ lparen ~ args => ReferenceGenomeDependentFunction(lparen.pos, fn, ReferenceGenome.defaultReference.name, args)
-      } |
-      (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
-        case id ~ lparen ~ args =>
-          ApplyAST(lparen.pos, id, args)
-      } |
-      guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRefAST(r.pos, r.x)) |
-      "{" ~> expr <~ "}" |
-      "(" ~> expr <~ ")"
-
-  def annotationSignature: Parser[TStruct] =
-    type_fields ^^ { fields => TStruct(fields) }
-
-  def arrayDeclaration: Parser[Array[AST]] = "[" ~> repsep(expr, ",") <~ "]" ^^ (_.toArray)
-
-  def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
-
-  def tupleDeclaration: Parser[Array[AST]] = "Tuple(" ~> repsep(expr, ",") <~ ")" ^^ (_.toArray)
-
-  def structField: Parser[(String, AST)] = (identifier ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
 
   def advancePosition(pos: Position, delta: Int) = new Position {
     def line = pos.line
@@ -416,12 +229,6 @@ object Parser extends JavaTokenParsers {
   def tuplify[T, S, V](p: ~[~[T, S], V]): (T, S, V) = p match {
     case t ~ s ~ v => (t, s, v)
   }
-
-  def named_expr[T](name: Parser[T]): Parser[(T, AST)] =
-    (name <~ "=") ~ expr ^^ { case n ~ e => n -> e }
-
-  def named_exprs[T](name: Parser[T]): Parser[Array[(T, AST)]] =
-    repsep(named_expr(name), ",") ^^ (_.toArray)
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

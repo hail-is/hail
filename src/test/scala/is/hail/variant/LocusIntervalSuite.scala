@@ -18,56 +18,6 @@ class LocusIntervalSuite extends SparkSuite {
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end), true, false)
 
-  @Test def testAnnotateVariantsTable() {
-    val vds = MatrixTable.fromLegacy[Annotation](hc,
-      MatrixType.fromParts(
-        globalType = TStruct.empty(),
-        colKey = Array("s"),
-        colType = TStruct("s" -> TString()),
-        rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
-        rowType = TStruct(
-          "locus" -> TLocus(ReferenceGenome.defaultReference),
-          "alleles" -> TArray(TString())),
-        entryType = Genotype.htsGenotypeType),
-      Annotation.empty, IndexedSeq.empty[Annotation],
-      sc.parallelize(Seq((Annotation(Locus("1", 100), Array("A", "T").toFastIndexedSeq), Iterable.empty[Annotation]))))
-
-    val intervalFile = tmpDir.createTempFile("intervals")
-    hadoopConf.writeTextFile(intervalFile) { out =>
-      out.write("1\t50\t150\t+\tTHING1\n")
-      out.write("1\t50\t150\t+\tTHING2\n")
-      out.write("1\t50\t150\t+\tTHING3\n")
-      out.write("1\t50\t150\t+\tTHING4\n")
-      out.write("1\t50\t150\t+\tTHING5")
-    }
-
-    assert(vds.annotateRowsTable(IntervalList.read(hc, intervalFile), "foo", product = true)
-      .annotateRowsExpr("foo" -> "va.foo.map(x => x.target)")
-      .rowsTable().aggregateAST("AGG.map(r => r.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
-  }
-
-  @Test def testAnnotateIntervalsAll() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateRowsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
-        "annot", product = true)
-      .annotateRowsExpr("annot" -> "va.annot.map(x => x.target)")
-
-    val (t, q) = vds.queryVA("va.annot")
-    assert(t == TArray(TString()))
-
-    vds.variantRDD.foreach { case (v1, (va, gs)) =>
-      val v = v1.asInstanceOf[Variant]
-      val a = q(va).asInstanceOf[IndexedSeq[String]].toSet
-
-      if (v.start == 17348324)
-        simpleAssert(a == Set("A", "B"))
-      else if (v.start >= 17333902 && v.start <= 17370919)
-        simpleAssert(a == Set("A"))
-      else
-        simpleAssert(a == Set())
-    }
-  }
-
   @Test def testParser() {
     val xMax = rg.contigLength("X")
     val yMax = rg.contigLength("Y")
