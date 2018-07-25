@@ -1517,9 +1517,7 @@ class SplitMulti(object):
             return self._process_exprs(exploded, shuffle=False)
         left_aligned = self._filter_left_aligned(exploded, keep=True)
         moved = self._filter_left_aligned(exploded, keep=False)
-        processed = [self._process_exprs(left_aligned, shuffle=False),
-                     self._process_exprs(moved, shuffle=True)]
-        return MatrixTable(Env.hail().variant.MatrixTable.unionRows([d._jvds for d in processed], True))
+        return self._process_exprs(left_aligned, shuffle=False).union_rows(self._process_exprs(moved, shuffle=True))
 
 
 @typecheck(ds=MatrixTable,
