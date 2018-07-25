@@ -76,9 +76,67 @@ gcs_client = storage.Client(project=GCP_PROJECT)
 ###############################################################################
 ### Global State & Setup
 
-bases = {}
-prs = {}
+class Status(object):
+    def __init__(self,
+                 state,
+                 source_sha,
+                 target_sha,
+                 pr_number,
+                 job_id=None):
+        self.state = state
+        self.source_sha = source_sha
+        self.target_sha = target_sha
+        self.pr_number = pr_number
+        self.job_id = job_id
+
+    def to_json(self):
+        return {
+            'state': self.state,
+            'source_sha': self.source_sha,
+            'target_sha': self.target_sha,
+            'pr_number': self.pr_number,
+            'job_id': self.job_id
+        }
+
+target_source_pr = {}
+source_target_pr = {}
+
+def update_pr_status(source_url, source, target_url, target, status):
+    target_source_pr[(target_url, target)][(source_url, source)] = status
+    source_target_pr[(source_url, source)][(target_url, target)] = status
+
+def get_pr_status(source_url, source, target_url, target):
+    x = source_target_pr[(source_url, source)][(target_url, target)]
+    y = target_source_pr[(target_url, target)][(source_url, source)]
+    assert x == y
+    return x
+
+def get_pr_status_by_source(source_url, source):
+    return source_target_pr[(source_url, source)]
+
+def get_pr_status_by_target(target_url, target):
+    return target_source_pr[(target_url, target)]
+
 batch_client = BatchClient(url=BATCH_SERVER_URL)
+
+def cancel_existing_jobs(source, target):
+    old_status = source_target_pr.get(source, {}).get(target, None)
+    if old_status and old_status.state = 'running':
+        id = old_status.job_id
+        assert(id is not None)
+        print(f'cancelling existing job {id} due to pr status update')
+        batch_client.get_job(id).cancel()
+
+@app.route('/status')
+def status():
+    return jsonify(
+        [{ 'source': source,
+           'target': target,
+           'status': status
+        } for target, status in prs.items() for source, prs in source_target_pr.items()])
+
+###############################################################################
+### post and get helpers
 
 def post_repo(url, headers=None, json=None, data=None, status_code=None):
     if headers is None:
@@ -128,6 +186,9 @@ def get_repo(url, headers=None, status_code=None):
     else:
         return r.json()
 
+###############################################################################
+### Error Handlers
+
 @app.errorhandler(BadStatus)
 def handle_invalid_usage(error):
     print('ERROR: ' + str(error.status_code) + ': ' + str(error.data))
@@ -140,15 +201,180 @@ def handle_invalid_usage(error):
 def github_push():
     data = request.json
     print(data)
-    print('---')
-    print([pr.to_json() for pr in prs])
     ref = data['ref']
     new_sha = data['after']
-    if not ref.startswith('refs/heads/'):
-        return '', 200
-    else:
+    if ref.startswith('refs/heads/'):
         ref = ref[11:]
-        return refresh_github_state(ref, new_sha)
+        pr_statuses = get_pr_status_by_target(ref)
+        for source_ref, status in pr_statuses.items():
+            if (status.target_sha != new_sha):
+                post_repo(
+                    'statuses/' + status.source_sha,
+                    json={
+                        'state': 'pending',
+                        'description': f'build merged into {new_sha} pending',
+                        'context': CONTEXT
+                    },
+                    status_code=201
+                )
+                update_pr_status(
+                    source_ref,
+                    ref,
+                    Status('pending', status.source_sha, new_sha, status.pr_number))
+        heal()
+    else:
+        print(f'ignoring ref push {ref} because it does not start with refs/heads/')
+    return '', 200
+
+@app.route('/pull_request', methods=['POST'])
+def github_pull_request():
+    data = request.json
+    print(data)
+    action = data['action']
+    if action == 'opened' or action == 'synchronize':
+        pr_number = str(data['number'])
+        source_ref = data['pull_request']['head']['ref']
+        source_sha = data['pull_request']['head']['sha']
+        target_ref = data['pull_request']['base']['ref']
+        pr_number = str(data['number'])
+        target_sha = get_repo(
+            f'git/refs/heads/{target_ref}',
+            status_code=200
+        )['object']['sha']
+        cancel_existing_jobs(source, target)
+        update_pr_status(
+            source,
+            target,
+            Status('pending', source_sha, target_sha, pr_number)
+        )
+        post_repo(
+            'statuses/' + source_sha,
+            json={
+                'state': 'pending',
+                'description': f'build merged into {target_sha} pending',
+                'context': CONTEXT
+            },
+            status_code=201
+        )
+        heal()
+    else:
+        print(f'ignoring github pull_request event of type {action} full json: {data}')
+    return '', 200
+
+@app.route('/ci_build_done', methods=['POST'])
+def ci_build_done():
+    data = request.json
+    print(data)
+    job_id = data['id']
+    source_ref = attributes['source_ref']
+    target_ref = attributes['target_ref']
+    status = get_pr_status(source_ref, target_ref)
+    source_sha = attributes['source_sha']
+    target_sha = attributes['target_sha']
+    if status.source_sha == source_sha and status.target_sha == target_sha:
+        exit_code = data['exit_code']
+        attributes = data['attributes']
+        pr_number = data['pr_number']
+        upload_public_gs_file_from_string(
+            GCS_BUCKET,
+            f'{source_sha}/{target_sha}/job-log',
+            data['log']
+        )
+        upload_public_gs_file_from_filename(
+            GCS_BUCKET,
+            f'{source_sha}/{target_sha}/index.html',
+            'index.html'
+        )
+        if exit_code == 0:
+            print(f'test job {job_id} finished successfully for pr #{pr_number}')
+            post_repo(
+                'statuses/' + source_sha,
+                json={
+                    'state': 'success',
+                    'description': 'successful build after merge with ' + target_sha,
+                    'context': CONTEXT
+                },
+                status_code=201
+            )
+        else:
+            print(f'test job {job_id} failed for pr #{pr_number} with exit code {exit_code} after merge with {target_sha}')
+            status_message = f'failing build ({exit_code}) after merge with {target_sha}'
+            post_repo(
+                'statuses/' + source_sha,
+                json={
+                    'state': 'failure',
+                    'description': status_message,
+                    'context': CONTEXT,
+                    'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
+                },
+                status_code=201
+            )
+
+    return '', 200
+
+def heal():
+    for target, prs in target_source_pr.items():
+        for source, status in prs.items():
+            if status.state == 'pending':
+                attributes = {
+                    'pr_number': status.pr_number,
+                    'source_repo_url': status.source_url,
+                    'source_branch': status.source_ref,
+                    'source_sha': status.source_sha,
+                    'target_repo_url': status.target_url,
+                    'target_branch': status.target_ref,
+                    'target_sha': status.target_sha
+                }
+                print('creating job with attributes ' + str(attributes))
+                job=batch_client.create_job(
+                    PR_IMAGE,
+                    command=[
+                        '/bin/bash',
+                        '-c',
+                        PR_BUILD_SCRIPT],
+                    env={
+                        'SOURCE_REPO_URL': source_repo_url,
+                        'SOURCE_BRANCH': source_branch,
+                        'SOURCE_SHA': source_sha,
+                        'TARGET_REPO_URL': target_repo_url,
+                        'TARGET_BRANCH': target_branch,
+                        'TARGET_SHA': target_sha
+                    },
+                    resources={
+                        'limits': {
+                            # our k8s seems to have >250mCPU available on each node
+                            # 'cpu' : '0.5',
+                    'memory': '2048M'
+                        }
+                    },
+                    callback=SELF_HOSTNAME + '/ci_build_done',
+                    attributes=attributes,
+                    volumes=[{
+                        'volume': { 'name' : 'hail-ci-0-1-service-account-key',
+                                    'secret' : { 'optional': False,
+                                                 'secretName': 'hail-ci-0-1-service-account-key' } },
+                        'volume_mount': { 'mountPath': '/secrets',
+                                          'name': 'hail-ci-0-1-service-account-key',
+                                          'readOnly': True }
+                    }]
+                )
+                post_repo(
+                    'statuses/' + source_sha,
+                    json={
+                        'state': 'pending',
+                        'description': f'build merged into {target_sha} running {job.id}',
+                        'context': CONTEXT
+                    },
+                    status_code=201
+                )
+                update_pr_status(
+                    source,
+                    target,
+                    Status('running',
+                           status.source_sha,
+                           status.target_sha,
+                           status.pr_number,
+                           job_id=job.id))
 
 @app.route('/refresh_base/<ref>', methods=['POST'])
 def refresh_github_state(ref, new_sha=None):
@@ -174,7 +400,7 @@ def refresh_github_state(ref, new_sha=None):
                 job = pr.job
                 print('cancelling job ' + str(job.id))
                 job.cancel()
-            # FIXME: The source hash isn't necessarily in the main repo.  Do I have
+            # FIXME: The source sha isn't necessarily in the main repo.  Do I have
             # permission to slam statuses on third-party repos?
             post_repo(
                 'statuses/' + pull['head']['sha'],
@@ -200,29 +426,6 @@ def refresh_github_state(ref, new_sha=None):
             test_pr(approved_prs[0]['pull'])
         return '', 200
 
-@app.route('/pull_request', methods=['POST'])
-def github_pull_request():
-    data = request.json
-    print(data)
-    print('---')
-    print(prs)
-    action = data['action']
-    pr_number = str(data['number'])
-    if action == 'opened' or action == 'synchronize':
-        existing_pr = prs.get(pr_number, None)
-        if existing_pr is not None:
-            id = existing_pr.job.id
-            print(f'cancelling existing job {id}')
-            batch_client.get_job(id).cancel()
-        pr = data['pull_request']
-        target_ref = pr['base']['ref']
-        if target_ref not in bases:
-            update_base_ref(target_ref)
-        test_pr(pr)
-    else:
-        print('ignoring github pull_request event of type ' + action +
-              ' full json: ' + str(data))
-    return '', 200
 
 def update_base_ref(ref):
     new_sha = get_repo(
@@ -241,29 +444,29 @@ def test_pr(gh_pr_json):
     pr_number = str(gh_pr_json['number'])
     source_repo_url = gh_pr_json['head']['repo']['clone_url']
     source_branch = gh_pr_json['head']['ref']
-    source_hash = gh_pr_json['head']['sha']
+    source_sha = gh_pr_json['head']['sha']
     target_repo_url = gh_pr_json['base']['repo']['clone_url']
     target_branch = gh_pr_json['base']['ref']
-    pr_target_hash = gh_pr_json['base']['sha']
-    target_hash = bases[target_branch]
-    if target_hash != pr_target_hash:
-        print(f'target_hash {pr_target_hash} from PR is not the same as what we believe to be newest hash: {target_hash}')
+    pr_target_sha = gh_pr_json['base']['sha']
+    target_sha = bases[target_branch]
+    if target_sha != pr_target_sha:
+        print(f'target_sha {pr_target_sha} from PR is not the same as what we believe to be newest sha: {target_sha}')
     attributes = {
         'pr_number': pr_number,
         'source_repo_url': source_repo_url,
         'source_branch': source_branch,
-        'source_hash': source_hash,
+        'source_sha': source_sha,
         'target_repo_url': target_repo_url,
         'target_branch': target_branch,
-        'target_hash': target_hash
+        'target_sha': target_sha
     }
     print('creating job with attributes ' + str(attributes))
     post_repo(
-        'statuses/' + source_hash,
+        'statuses/' + source_sha,
         json={
             'state': 'pending',
-            'description': 'build merged into {target_hash} pending'.format(
-                target_hash=target_hash),
+            'description': 'build merged into {target_sha} pending'.format(
+                target_sha=target_sha),
             'context': CONTEXT
         },
         status_code=201
@@ -278,10 +481,10 @@ def test_pr(gh_pr_json):
             env={
                 'SOURCE_REPO_URL': source_repo_url,
                 'SOURCE_BRANCH': source_branch,
-                'SOURCE_HASH': source_hash,
+                'SOURCE_SHA': source_sha,
                 'TARGET_REPO_URL': target_repo_url,
                 'TARGET_BRANCH': target_branch,
-                'TARGET_HASH': target_hash
+                'TARGET_SHA': target_sha
             },
             resources={
                 'limits': {
@@ -305,55 +508,6 @@ def test_pr(gh_pr_json):
     )
     print('created PR job with id ' + str(prs[pr_number].job.id))
 
-@app.route('/ci_build_done', methods=['POST'])
-def ci_build_done():
-    data = request.json
-    print(data)
-    jobid = data['id']
-    pr_number = str(data['attributes']['pr_number'])
-    pr = prs.pop(pr_number, None)
-    if pr is None:
-        print('test job finished for pr we no longer care about: ' + str(data))
-    else:
-        exit_code = data['exit_code']
-        attributes = data['attributes']
-        source_hash = attributes['source_hash']
-        target_hash = attributes['target_hash']
-        upload_public_gs_file_from_string(
-            GCS_BUCKET,
-            f'{source_hash}/{target_hash}/job-log',
-            data['log']
-        )
-        upload_public_gs_file_from_filename(
-            GCS_BUCKET,
-            f'{source_hash}/{target_hash}/index.html',
-            'index.html'
-        )
-        if exit_code == 0:
-            print(f'test job {jobid} finished successfully for pr #{pr_number}')
-            post_repo(
-                'statuses/' + source_hash,
-                json={
-                    'state': 'success',
-                    'description': 'successful build after merge with ' + target_hash,
-                    'context': CONTEXT
-                },
-                status_code=201
-            )
-        else:
-            print(f'test job {jobid} failed for pr #{pr_number} with exit code {exit_code}')
-            status_message = f'failing build after merge with {target_hash}, exit code: {exit_code}'
-            post_repo(
-                'statuses/' + source_hash,
-                json={
-                    'state': 'failure',
-                    'description': status_message,
-                    'context': CONTEXT,
-                    'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_hash}/{target_hash}/index.html'
-                },
-                status_code=201
-            )
-    return '', 200
 
 def upload_public_gs_file_from_string(bucket, target_path, string):
     create_public_gs_file(
@@ -459,13 +613,6 @@ def mergeable(pr_number):
             'ci_success': ci_status,
             'review_status': status
         }
-
-@app.route('/status')
-def status():
-    return jsonify({
-        'bases': bases,
-        'prs': { pr_number: pr.to_json() for pr_number, pr in prs.items() }
-    }), 200
 
 ###############################################################################
 ### SHA Status Manipulation

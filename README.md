@@ -58,12 +58,12 @@ The `pr-build-script` has access to the following shell variables:
  - `SOURCE_BRANCH` -- the name of the source branch of the PR,
    e.g. `faster-bgen`
 
- - `SOURCE_HASH` -- the full hash of the commit on the source branch of the PR
+ - `SOURCE_SHA` -- the full hash of the commit on the source branch of the PR
    that the CI system wants built
 
  - `TARGET_BRANCH` -- the name of the target branch of the PR, e.g. `master`
 
- - `TARGET_HASH` -- the full hash of the commit on the target branch of the PR
+ - `TARGET_SHA` -- the full hash of the commit on the target branch of the PR
    that the CI system wants to merge into the source branch
 
 Developer Tips
