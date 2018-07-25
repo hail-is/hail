@@ -885,7 +885,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
       newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
-    copyAST(MatrixLiteral(newValue.typ, newValue))
+    copyAST(MatrixLiteral(newValue))
   }
 
   def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
@@ -896,7 +896,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     val newValue = value.insertIntoRow(makePartitionContext, newColType, newColKey,
       newColValues, newGlobalType, newGlobals)(typeToInsert, path, inserter)
-    copyAST(MatrixLiteral(newValue.typ, newValue))
+    copyAST(MatrixLiteral(newValue))
   }
 
   /**
