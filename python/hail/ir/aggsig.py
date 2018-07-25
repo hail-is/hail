@@ -14,3 +14,10 @@ class AggSignature(object):
             ('(' + ' '.join([x._jtype.parsableString() for x in self.initop_arg_types]) + ')'
              if self.initop_arg_types else 'None'),
             ' '.join([x._jtype.parsableString() for x in self.seqop_arg_types]))
+
+    def __eq__(self, other):
+        return isinstance(other, AggSignature) and \
+               self.op == other.op and \
+               self.ctor_arg_types == other.ctor_arg_types and \
+               self.initop_arg_types == other.initop_arg_types and \
+               self.seqop_arg_types == other.seqop_arg_types

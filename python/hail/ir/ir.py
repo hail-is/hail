@@ -13,8 +13,16 @@ class I32(IR):
         super().__init__()
         self.x = x
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.x)
+
     def __str__(self):
         return '(I32 {})'.format(self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, I32) and \
+               other.x == self.x
 
 
 class I64(IR):
@@ -23,8 +31,16 @@ class I64(IR):
         super().__init__()
         self.x = x
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.x)
+
     def __str__(self):
         return '(I64 {})'.format(self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, I64) and \
+               other.x == self.x
 
 
 class F32(IR):
@@ -33,8 +49,16 @@ class F32(IR):
         super().__init__()
         self.x = x
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.x)
+
     def __str__(self):
         return '(F32 {})'.format(self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, F32) and \
+               other.x == self.x
 
 
 class F64(IR):
@@ -43,8 +67,16 @@ class F64(IR):
         super().__init__()
         self.x = x
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.x)
+
     def __str__(self):
         return '(F64 {})'.format(self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, F64) and \
+               other.x == self.x
 
 
 class Str(IR):
@@ -53,32 +85,61 @@ class Str(IR):
         super().__init__()
         self.x = x
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.x)
+
     def __str__(self):
         return '(Str "{}")'.format(escape_str(self.x))
+
+    def __eq__(self, other):
+        return isinstance(other, Str) and \
+               other.x == self.x
 
 
 class FalseIR(IR):
     def __init__(self):
         super().__init__()
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance()
+
     def __str__(self):
         return '(False)'
+
+    def __eq__(self, other):
+        return isinstance(other, FalseIR)
 
 
 class TrueIR(IR):
     def __init__(self):
         super().__init__()
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance()
+
     def __str__(self):
         return '(True)'
+
+    def __eq__(self, other):
+        return isinstance(other, TrueIR)
 
 
 class Void(IR):
     def __init__(self):
         super().__init__()
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance()
+
     def __str__(self):
         return '(Void)'
+
+    def __eq__(self, other):
+        return isinstance(other, Void)
 
 
 class Cast(IR):
@@ -88,8 +149,18 @@ class Cast(IR):
         self.v = v
         self.typ = typ
 
+    @typecheck_method(v=IR)
+    def copy(self, v):
+        new_instance = self.__class__
+        return new_instance(v, self.typ)
+
     def __str__(self):
         return '(Cast {} {})'.format(self.typ._jtype.parsableString(), self.v)
+
+    def __eq__(self, other):
+        return isinstance(other, Cast) and \
+        other.v == self.v and \
+        other.typ == self.typ
 
 
 class NA(IR):
@@ -98,8 +169,16 @@ class NA(IR):
         super().__init__()
         self.typ = typ
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.typ)
+
     def __str__(self):
         return '(NA {})'.format(self.typ._jtype.parsableString())
+
+    def __eq__(self, other):
+        return isinstance(other, NA) and \
+               other.typ == self.typ
 
 
 class IsNA(IR):
@@ -108,8 +187,17 @@ class IsNA(IR):
         super().__init__(value)
         self.value = value
 
+    @typecheck_method(value=IR)
+    def copy(self, value):
+        new_instance = self.__class__
+        return new_instance(value)
+
     def __str__(self):
         return '(IsNA {})'.format(self.value)
+
+    def __eq__(self, other):
+        return isinstance(other, IsNA) and \
+               other.value == self.value
 
 
 class If(IR):
@@ -120,9 +208,19 @@ class If(IR):
         self.cnsq = cnsq
         self.altr = altr
 
+    @typecheck_method(cond=IR, cnsq=IR, altr=IR)
+    def copy(self, cond, cnsq, altr):
+        new_instance = self.__class__
+        return new_instance(cond, cnsq, altr)
+
     def __str__(self):
         return '(If {} {} {})'.format(self.cond, self.cnsq, self.altr)
 
+    def __eq__(self, other):
+        return isinstance(other, If) and \
+               other.cond == self.cond and \
+               other.cnsq == self.cnsq and \
+               other.altr == self.altr
 
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
@@ -132,12 +230,23 @@ class Let(IR):
         self.value = value
         self.body = body
 
+    @typecheck_method(value=IR, body=IR)
+    def copy(self, value, body):
+        new_instance = self.__class__
+        return new_instance(self.name, value, body)
+
     def __str__(self):
         return '(Let {} {} {})'.format(escape_id(self.name), self.value, self.body)
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, Let) and \
+               other.name == self.name and \
+               other.value == self.value and \
+               other.body == self.body
 
 
 class Ref(IR):
@@ -147,10 +256,19 @@ class Ref(IR):
         self.name = name
         self.typ = typ
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.name, self.typ)
+
     def __str__(self):
         if self.typ is None:
             return '(Ref {})'.format(escape_id(self.name))
         return '(Ref {} {})'.format(self.typ._jtype.parsableString(), escape_id(self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, Ref) and \
+               other.name == self.name and \
+               other.typ == self.typ
 
 
 class TopLevelReference(Ref):
@@ -161,6 +279,10 @@ class TopLevelReference(Ref):
     @property
     def is_nested_field(self):
         return True
+    
+    def __eq__(self, other):
+        return isinstance(other, TopLevelReference) and \
+               other.name == self.name
 
 
 class ApplyBinaryOp(IR):
@@ -171,8 +293,19 @@ class ApplyBinaryOp(IR):
         self.l = l
         self.r = r
 
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        new_instance = self.__class__
+        return new_instance(self.op, l, r)
+
     def __str__(self):
         return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(self.op), self.l, self.r)
+
+    def __eq__(self, other):
+        return isinstance(other, ApplyBinaryOp) and \
+               other.op == self.op and \
+               other.l == self.l and \
+               other.r == self.r
 
 
 class ApplyUnaryOp(IR):
@@ -182,8 +315,18 @@ class ApplyUnaryOp(IR):
         self.op = op
         self.x = x
 
+    @typecheck_method(x=IR)
+    def copy(self, x):
+        new_instance = self.__class__
+        return new_instance(self.op, x)
+
     def __str__(self):
         return '(ApplyUnaryPrimOp {} {})'.format(escape_id(self.op), self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, ApplyUnaryOp) and \
+               other.op == self.op and \
+               other.x == self.x
 
 
 class ApplyComparisonOp(IR):
@@ -194,8 +337,19 @@ class ApplyComparisonOp(IR):
         self.l = l
         self.r = r
 
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        new_instance = self.__class__
+        return new_instance(self.op, l, r)
+
     def __str__(self):
         return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), self.l, self.r)
+
+    def __eq__(self, other):
+        return isinstance(other, ApplyComparisonOp) and \
+               other.op == self.op and \
+               other.l == self.l and \
+               other.r == self.r
 
 
 class MakeArray(IR):
@@ -205,8 +359,17 @@ class MakeArray(IR):
         self.args = args
         self.typ = typ
 
+    def copy(self, *args):
+        new_instance = self.__class__
+        return new_instance(list(args), self.typ)
+
     def __str__(self):
         return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([str(x) for x in self.args]))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeArray) and \
+               other.args == self.args and \
+               other.typ == self.typ
 
 
 class ArrayRef(IR):
@@ -216,8 +379,18 @@ class ArrayRef(IR):
         self.a = a
         self.i = i
 
+    @typecheck_method(a=IR, i=IR)
+    def copy(self, a, i):
+        new_instance = self.__class__
+        return new_instance(a, i)
+
     def __str__(self):
         return '(ArrayRef {} {})'.format(self.a, self.i)
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayRef) and \
+               other.a == self.a and \
+               other.i == self.i
 
 
 class ArrayLen(IR):
@@ -225,9 +398,18 @@ class ArrayLen(IR):
     def __init__(self, a):
         super().__init__(a)
         self.a = a
-        
+
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        new_instance = self.__class__
+        return new_instance(a)
+
     def __str__(self):
         return '(ArrayLen {})'.format(self.a)
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayLen) and \
+               other.a == self.a
 
 
 class ArrayRange(IR):
@@ -238,8 +420,19 @@ class ArrayRange(IR):
         self.stop = stop
         self.step = step
 
+    @typecheck_method(start=IR, stop=IR, step=IR)
+    def copy(self, start, stop, step):
+        new_instance = self.__class__
+        return new_instance(start, stop, step)
+
     def __str__(self):
         return '(ArrayRange {} {} {})'.format(self.start, self.stop, self.step)
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayRange) and \
+               other.start == self.start and \
+               other.stop == self.stop and \
+               other.step == self.step
 
 
 class ArraySort(IR):
@@ -250,8 +443,19 @@ class ArraySort(IR):
         self.ascending = ascending
         self.on_key = on_key
 
+    @typecheck_method(a=IR, ascending=IR)
+    def copy(self, a, ascending):
+        new_instance = self.__class__
+        return new_instance(a, ascending, self.on_key)
+
     def __str__(self):
         return '(ArraySort {} {} {})'.format(self.on_key, self.a, self.ascending)
+
+    def __eq__(self, other):
+        return isinstance(other, ArraySort) and \
+               other.a == self.a and \
+               other.ascending == self.ascending and \
+               other.on_key == self.on_key
 
 
 class ToSet(IR):
@@ -260,8 +464,17 @@ class ToSet(IR):
         super().__init__(a)
         self.a = a
 
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        new_instance = self.__class__
+        return new_instance(a)
+
     def __str__(self):
         return '(ToSet {})'.format(self.a)
+
+    def __eq__(self, other):
+        return isinstance(other, ToSet) and \
+               other.a == self.a
 
 
 class ToDict(IR):
@@ -270,8 +483,17 @@ class ToDict(IR):
         super().__init__(a)
         self.a = a
 
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        new_instance = self.__class__
+        return new_instance(a)
+
     def __str__(self):
         return '(ToDict {})'.format(self.a)
+
+    def __eq__(self, other):
+        return isinstance(other, ToDict) and \
+               other.a == self.a
 
 
 class ToArray(IR):
@@ -280,8 +502,17 @@ class ToArray(IR):
         super().__init__(a)
         self.a = a
 
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        new_instance = self.__class__
+        return new_instance(a)
+
     def __str__(self):
         return '(ToArray {})'.format(self.a)
+
+    def __eq__(self, other):
+        return isinstance(other, ToArray) and \
+               other.a == self.a
 
 
 class LowerBoundOnOrderedCollection(IR):
@@ -292,8 +523,19 @@ class LowerBoundOnOrderedCollection(IR):
         self.elem = elem
         self.on_key = on_key
 
+    @typecheck_method(ordered_collection=IR, elem=IR)
+    def copy(self, ordered_collection, elem):
+        new_instance = self.__class__
+        return new_instance(ordered_collection, elem, self.on_key)
+
     def __str__(self):
         return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.on_key, self.ordered_collection, self.elem)
+
+    def __eq__(self, other):
+        return isinstance(other, LowerBoundOnOrderedCollection) and \
+               other.ordered_collection == self.ordered_collection and \
+               other.elem == self.elem and \
+               other.on_key == self.on_key
 
 
 class GroupByKey(IR):
@@ -302,8 +544,17 @@ class GroupByKey(IR):
         super().__init__(collection)
         self.collection = collection
 
+    @typecheck_method(collection=IR)
+    def copy(self, collection):
+        new_instance = self.__class__
+        return new_instance(collection)
+
     def __str__(self):
         return '(GroupByKey {})'.format(self.collection)
+
+    def __eq__(self, other):
+        return isinstance(other, GroupByKey) and \
+               other.collection == self.collection
 
 
 class ArrayMap(IR):
@@ -314,12 +565,23 @@ class ArrayMap(IR):
         self.name = name
         self.body = body
 
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        new_instance = self.__class__
+        return new_instance(a, self.name, body)
+
     def __str__(self):
         return '(ArrayMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayMap) and \
+               other.a == self.a and \
+               other.name == self.name and \
+               other.body == self.body
 
 
 class ArrayFilter(IR):
@@ -330,12 +592,23 @@ class ArrayFilter(IR):
         self.name = name
         self.body = body
 
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        new_instance = self.__class__
+        return new_instance(a, self.name, body)
+
     def __str__(self):
         return '(ArrayFilter {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayFilter) and \
+               other.a == self.a and \
+               other.name == self.name and \
+               other.body == self.body
 
 
 class ArrayFlatMap(IR):
@@ -346,12 +619,23 @@ class ArrayFlatMap(IR):
         self.name = name
         self.body = body
 
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        new_instance = self.__class__
+        return new_instance(a, self.name, body)
+
     def __str__(self):
         return '(ArrayFlatMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayFlatMap) and \
+               other.a == self.a and \
+               other.name == self.name and \
+               other.body == self.body
 
 
 class ArrayFold(IR):
@@ -364,6 +648,11 @@ class ArrayFold(IR):
         self.value_name = value_name
         self.body = body
 
+    @typecheck_method(a=IR, zero=IR, body=IR)
+    def copy(self, a, zero, body):
+        new_instance = self.__class__
+        return new_instance(a, zero, self.accum_name, self.value_name, body)
+
     def __str__(self):
         return '(ArrayFold {} {} {} {} {})'.format(
             escape_id(self.accum_name), escape_id(self.value_name), 
@@ -372,6 +661,14 @@ class ArrayFold(IR):
     @property
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayFold) and \
+               other.a == self.a and \
+               other.zero == self.zero and \
+               other.accum_name == self.accum_name and \
+               other.value_name == self.value_name and \
+               other.body == self.body
 
 
 class ArrayFor(IR):
@@ -382,12 +679,23 @@ class ArrayFor(IR):
         self.value_name = value_name
         self.body = body
 
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        new_instance = self.__class__
+        return new_instance(a, self.value_name, body)
+
     def __str__(self):
         return '(ArrayFor {} {} {})'.format(escape_id(self.value_name), self.a, self.body)
 
     @property
     def bound_variables(self):
         return {self.value_name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayFor) and \
+               other.a == self.a and \
+               other.value_name == self.value_name and \
+               other.body == self.body
 
 
 class ApplyAggOp(IR):
@@ -403,6 +711,14 @@ class ApplyAggOp(IR):
         self.init_op_args = init_op_args
         self.agg_sig = agg_sig
 
+    def copy(self, *args):
+        new_instance = self.__class__
+        n_constructor_args = len(self.constructor_args)
+        a = args[0]
+        constr_args = args[1:n_constructor_args + 1]
+        init_op_args = args[n_constructor_args + 1:]
+        return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
+
     def __str__(self):
         return '(ApplyAggOp {} {} ({}) {})'.format(
             self.agg_sig,
@@ -415,6 +731,13 @@ class ApplyAggOp(IR):
         assert all(map(lambda c: len(c.aggregations) == 0, self.children))
         return [self]
 
+    def __eq__(self, other):
+        return isinstance(other, ApplyAggOp) and \
+               other.a == self.a and \
+               other.constructor_args == self.constructor_args and \
+               other.init_op_args == self.init_op_args and \
+               other.agg_sig == self.agg_sig
+
 
 class InitOp(IR):
     @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
@@ -424,9 +747,18 @@ class InitOp(IR):
         self.args = args
         self.agg_sig = agg_sig
 
+    def copy(self, i, *args):
+        new_instance = self.__class__
+        return new_instance(i, list(args), self.agg_sig)
+
     def __str__(self):
         return '(InitOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
 
+    def __eq__(self, other):
+        return isinstance(other, InitOp) and \
+               other.i == self.i and \
+               other.args == self.args and \
+               other.agg_sig == self.agg_sig
 
 class SeqOp(IR):
     @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
@@ -436,8 +768,18 @@ class SeqOp(IR):
         self.args = args
         self.agg_sig = agg_sig
 
+    def copy(self, i, *args):
+        new_instance = self.__class__
+        return new_instance(i, list(args), self.agg_sig)
+
     def __str__(self):
         return '(SeqOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
+
+    def __eq__(self, other):
+        return isinstance(other, SeqOp) and \
+               other.i == self.i and \
+               other.args == self.args and \
+               other.agg_sig == self.agg_sig
 
 
 class Begin(IR):
@@ -446,8 +788,16 @@ class Begin(IR):
         super().__init__(*xs)
         self.xs = xs
 
+    def copy(self, *xs):
+        new_instance = self.__class__
+        return new_instance(list(xs))
+
     def __str__(self):
         return '(Begin {})'.format(' '.join([str(x) for x in self.xs]))
+
+    def __eq__(self, other):
+        return isinstance(other, Begin) \
+               and other.xs == self.xs
 
 
 class MakeStruct(IR):
@@ -456,8 +806,17 @@ class MakeStruct(IR):
         super().__init__(*[ir for (n, ir) in fields])
         self.fields = fields
 
+    def copy(self, *irs):
+        new_instance = self.__class__
+        assert len(irs) == len(self.fields)
+        return new_instance([(n, ir) for (n, _), ir in zip(self.fields, irs)])
+
     def __str__(self):
         return '(MakeStruct {})'.format(' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeStruct) \
+               and other.fields == self.fields
 
 
 class SelectFields(IR):
@@ -467,8 +826,18 @@ class SelectFields(IR):
         self.old = old
         self.fields = fields
 
+    @typecheck_method(old=IR)
+    def copy(self, old):
+        new_instance = self.__class__
+        return new_instance(old, self.fields)
+
     def __str__(self):
         return '(SelectFields ({}) {})'.format(' '.join(map(escape_id, self.fields)), self.old)
+
+    def __eq__(self, other):
+        return isinstance(other, SelectFields) and \
+               other.old == self.old and \
+               other.fields == self.fields
 
 
 class InsertFields(IR):
@@ -478,10 +847,20 @@ class InsertFields(IR):
         self.old = old
         self.fields = fields
 
+    def copy(self, *args):
+        new_instance = self.__class__
+        assert len(args) == len(self.fields) + 1
+        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])])
+
     def __str__(self):
         return '(InsertFields {} {})'.format(
             self.old,
             ' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]))
+
+    def __eq__(self, other):
+        return isinstance(other, InsertFields) and \
+               other.old == self.old and \
+               other.fields == self.fields
 
 
 class GetField(IR):
@@ -491,12 +870,22 @@ class GetField(IR):
         self.o = o
         self.name = name
 
+    @typecheck_method(o=IR)
+    def copy(self, o):
+        new_instance = self.__class__
+        return new_instance(o, self.name)
+
     def __str__(self):
         return '(GetField {} {})'.format(escape_id(self.name), self.o)
 
     @property
     def is_nested_field(self):
         return self.o.is_nested_field
+
+    def __eq__(self, other):
+        return isinstance(other, GetField) and \
+               other.o == self.o and \
+               other.name == self.name
 
 
 class MakeTuple(IR):
@@ -505,8 +894,16 @@ class MakeTuple(IR):
         super().__init__(*elements)
         self.elements = elements
 
+    def copy(self, *args):
+        new_instance = self.__class__
+        return new_instance(list(args))
+
     def __str__(self):
         return '(MakeTuple {})'.format(' '.join([str(x) for x in self.elements]))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeTuple) and \
+               other.elements == self.elements
 
 
 class GetTupleElement(IR):
@@ -516,8 +913,18 @@ class GetTupleElement(IR):
         self.o = o
         self.idx = idx
 
+    @typecheck_method(o=IR)
+    def copy(self, o):
+        new_instance = self.__class__
+        return new_instance(o, self.idx)
+
     def __str__(self):
         return '(GetTupleElement {} {})'.format(self.idx, self.o)
+
+    def __eq__(self, other):
+        return isinstance(other, GetTupleElement) and \
+               other.o == self.o and \
+               other.idx == self.idx
 
 
 class StringSlice(IR):
@@ -528,8 +935,19 @@ class StringSlice(IR):
         self.start = start
         self.end = end
 
+    @typecheck_method(s=IR, start=IR, end=IR)
+    def copy(self, s, start, end):
+        new_instance = self.__class__
+        return new_instance(s, start, end)
+
     def __str__(self):
         return '(StringSlice {} {} {})'.format(self.s, self.start, self.end)
+
+    def __eq__(self, other):
+        return isinstance(other, StringSlice) and \
+               other.s == self.s and \
+               other.start == self.start and \
+               other.end == self.end
 
 
 class StringLength(IR):
@@ -538,8 +956,17 @@ class StringLength(IR):
         super().__init__(s)
         self.s = s
 
+    @typecheck_method(s=IR)
+    def copy(self, s):
+        new_instance = self.__class__
+        return new_instance(s)
+
     def __str__(self):
         return '(StringLength {})'.format(self.s)
+
+    def __eq__(self, other):
+        return isinstance(other, StringLength) and \
+               other.s == self.s
 
 
 class In(IR):
@@ -549,8 +976,17 @@ class In(IR):
         self.i = i
         self.typ = typ
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.i, self.typ)
+
     def __str__(self):
         return '(In {} {})'.format(self.typ._jtype.parsableString(), self.i)
+
+    def __eq__(self, other):
+        return isinstance(other, In) and \
+               other.i == self.i and \
+               other.typ == self.typ
 
 
 class Die(IR):
@@ -560,8 +996,17 @@ class Die(IR):
         self.message = message
         self.typ = typ
 
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.message, self.typ)
+
     def __str__(self):
         return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
+
+    def __eq__(self, other):
+        return isinstance(other, Die) and \
+               other.message == self.message and \
+               other.typ == self.typ
 
 
 class Apply(IR):
@@ -571,8 +1016,17 @@ class Apply(IR):
         self.function = function
         self.args = args
 
+    def copy(self, *args):
+        new_instance = self.__class__
+        return new_instance(self.function, *args)
+
     def __str__(self):
         return '(Apply {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
+
+    def __eq__(self, other):
+        return isinstance(other, Apply) and \
+               other.function == self.function and \
+               other.args == self.args
 
 
 class Uniroot(IR):
@@ -584,6 +1038,11 @@ class Uniroot(IR):
         self.min = min
         self.max = max
 
+    @typecheck_method(function=IR, min=IR, max=IR)
+    def copy(self, function, min, max):
+        new_instance = self.__class__
+        return new_instance(self.argname, function, min, max)
+
     def __str__(self):
         return '(Uniroot {} {} {} {})'.format(
             escape_id(self.argname), self.function, self.min, self.max)
@@ -592,49 +1051,96 @@ class Uniroot(IR):
     def bound_variables(self):
         return {self.argname} | super().bound_variables
 
+    def __eq__(self, other):
+        return isinstance(other, Uniroot) and \
+               other.argname == self.argname and \
+               other.function == self.function and \
+               other.min == self.min and \
+               other.max == self.max
+
 
 class TableCount(IR):
     @typecheck_method(child=TableIR)
     def __init__(self, child):
-        super().__init__()
+        super().__init__(child)
         self.child = child
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child)
 
     def __str__(self):
         return '(TableCount {})'.format(self.child)
+
+    def __eq__(self, other):
+        return isinstance(other, TableCount) and \
+               other.child == self.child
 
 
 class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):
-        super().__init__(query)
+        super().__init__(child, query)
         self.child = child
         self.query = query
 
+    @typecheck_method(child=TableIR, query=IR)
+    def copy(self, child, query):
+        new_instance = self.__class__
+        return new_instance(child, query)
+
     def __str__(self):
         return '(TableAggregate {} {})'.format(self.child, self.query)
+
+    def __eq__(self, other):
+        return isinstance(other, TableAggregate) and \
+               other.child == self.child and \
+               other.query == self.query
 
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
     def __init__(self, child, query):
-        super().__init__(query)
+        super().__init__(child, query)
         self.child = child
         self.query = query
 
+    @typecheck_method(child=MatrixIR, query=IR)
+    def copy(self, child, query):
+        new_instance = self.__class__
+        return new_instance(child, query)
+
     def __str__(self):
         return '(MatrixAggregate {} {})'.format(self.child, self.query)
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixAggregate) and \
+               other.child == self.child and \
+               other.query == self.query
 
 
 class TableWrite(IR):
     @typecheck_method(child=TableIR, path=str, overwrite=bool)
     def __init__(self, child, path, overwrite):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.path = path
         self.overwrite = overwrite
 
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.path, self.overwrite)
+
     def __str__(self):
         return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, self.child)
+
+    def __eq__(self, other):
+        return isinstance(other, TableWrite) and \
+               other.child == self.child and \
+               other.path == self.path and \
+               other.overwrite == self.overwrite
 
 
 class TableExport(IR):
@@ -644,12 +1150,17 @@ class TableExport(IR):
                       header=bool,
                       export_type=hail_type)
     def __init__(self, child, path, types_file, header, export_type):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.path = path
         self.types_file = types_file
         self.header = header
         self.export_type = export_type
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.path, self.types_file, self.header, self.export_type)
 
     def __str__(self):
         return '(TableExport "{}" "{}" "{}" {} {})'.format(
@@ -659,17 +1170,35 @@ class TableExport(IR):
             self.export_type._jtype.parsableString(),
             self.child)
 
+    def __eq__(self, other):
+        return isinstance(other, TableExport) and \
+               other.child == self.child and \
+               other.path == self.path and \
+               other.types_file == self.types_file and \
+               other.header == self.header and \
+               other.export_type == self.export_type
+
 
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=str)
     def __init__(self, child, matrix_writer):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.matrix_writer = matrix_writer
+
+    @typecheck_method(child=MatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.matrix_writer)
 
     def __str__(self):
         return '(MatrixWrite {} {})'.format(
             self.matrix_writer, self.child)
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixWrite) and \
+               other.child == self.child and \
+               other.matrix_writer == self.matrix_writer
 
 
 class Broadcast(IR):
