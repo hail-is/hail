@@ -2026,17 +2026,12 @@ class BlockMatrix(object):
         n, m = self.shape
 
         if n * m * min(n, m) <= complexity_bound ** 3:
-            return _svd(self.to_numpy(), compute_uv)
+            return _svd(self.to_numpy(), full_matrices=False, compute_uv=compute_uv, overwrite_a=True)
         else:
             return self._svd_gramian(compute_uv)
 
     @typecheck_method(compute_uv=bool)
     def _svd_gramian(self, compute_uv):
-        """
-        numpy uses DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevd
-        scipy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr
-        DC (syevd) is faster but uses O(elements) memory; lwork overflows int32 for dim_a > 32766
-        """
         x = self
         n, m = x.shape
         min_dim = min(n, m)
@@ -2049,7 +2044,7 @@ class BlockMatrix(object):
              .to_numpy())
 
         if compute_uv:
-            e, w = np.linalg.eigh(a) if min_dim <= 32766 else spla.eigh(a)
+            e, w = _eigh(a)
 
             # flip singular values to descending order
             s = np.flip(np.sqrt(e), axis=0)
@@ -2063,7 +2058,7 @@ class BlockMatrix(object):
                 vt = w.T
             return u, s, vt
         else:
-            e = spla.eigvalsh(a, overwrite_a=True)
+            e = np.linalg.eigvalsh(a)
             return np.flip(np.sqrt(e), axis=0)
 
 
@@ -2137,22 +2132,30 @@ def _breeze_from_ndarray(nd):
     return _breeze_fromfile(uri, n_rows, n_cols)
 
 
-@typecheck(a=np.ndarray,
-           compute_uv=bool)
-def _svd(a, compute_uv):
+def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite=True):
     """
-    scipy supports two methods:
+    SciPy supports two Lapack algorithms:
     DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-gesdd
     GR: https://software.intel.com/en-us/mkl-developer-reference-fortran-gesvd
     DC (gesdd) is faster but uses O(elements) memory; lwork may overflow int32
     """
-    if compute_uv:
-        try:
-            return spla.svd(a, full_matrices=False, overwrite_a=True, lapack_driver='gesdd')
-        except ValueError as e:
-            if 'Too large work array required' in str(e):
-                return spla.svd(a, full_matrices=False, overwrite_a=True, lapack_driver='gesvd')
-            else:
-                raise
-    else:
-        return spla.svdvals(a, overwrite_a=True)
+    try:
+        return spla.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, overwrite_a=overwrite_a,
+                        check_finite=check_finite, lapack_driver='gesdd')
+    except ValueError as e:
+        if 'Too large work array required' in str(e):
+            return spla.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, overwrite_a=overwrite_a,
+                            check_finite=check_finite, lapack_driver='gesvd')
+        else:
+            raise
+
+
+def _eigh(a):
+    """
+    Only the lower triangle is used.
+    NumPy and SciPy apply different Lapack algorithms:
+    NumPy uses DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevd
+    SciPy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr
+    DC (syevd) is faster but uses O(elements) memory; lwork overflows int32 for dim_a > 32766
+    """
+    return np.linalg.eigh(a) if a.shape[0] <= 32766 else spla.eigh(a)
