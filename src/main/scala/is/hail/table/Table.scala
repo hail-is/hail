@@ -798,14 +798,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     sb.result()
   }
 
-  def copy(rdd: RDD[Row] = rdd,
-    signature: TStruct = signature,
-    key: Option[IndexedSeq[String]] = key,
-    globalSignature: TStruct = globalSignature,
-    newGlobals: Annotation = globals.value): Table = {
-    Table(hc, rdd, signature, key, globalSignature, newGlobals, sort = false)
-  }
-
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: Option[IndexedSeq[String]] = key,
