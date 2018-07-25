@@ -525,13 +525,10 @@ def upload_public_gs_file_from_filename(bucket, target_path, filename):
 def create_public_gs_file(bucket, target_path, upload):
     bucket = gcs_client.bucket(bucket)
     f = bucket.blob(target_path)
+    f.metadata = {'Cache-Control': 'private, max-age=0, no-transform'}
     upload(f)
     f.acl.all().grant_read()
     f.acl.save()
-    if f.metadata:
-        f.metadata['Cache-Control'] = 'private, max-age=0, no-transform'
-    else:
-        f.metadata = {'Cache-Control': 'private, max-age=0, no-transform'}
 
 @app.route('/pr/<pr_number>/review_status')
 def review_status_endpoint(pr_number):

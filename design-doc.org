@@ -4,6 +4,8 @@
 
  - [ ] convert oauth-token to a secret volume
 
+ - [ ] respond to pull_request_review events by changing review_status
+
 * notes
  - the pr system has two event sources: github and the batch system
 
