@@ -2,7 +2,6 @@ package is.hail.asm4s
 
 import java.io.PrintStream
 
-import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
@@ -874,17 +873,4 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)
-
-  // Ideally this would not use a local variable, but I need a richer way to
-  // talk about the way `Code` modifies the stack.
-  def mapNull[U >: Null](cnonnullcase: Code[T] => Code[U]): CM[Code[U]] = for (
-    (stx, x) <- CM.memoize(lhs)
-  ) yield Code(stx,
-    x.ifNull[U](Code._null[U], cnonnullcase(x)))
-
-  def mapNullM[U >: Null](cnonnullcase: Code[T] => CM[Code[U]]): CM[Code[U]] = for (
-    (stx, x) <- CM.memoize(lhs);
-    result <- cnonnullcase(x)
-  ) yield Code(stx,
-    x.ifNull[U](Code._null[U], result))
 }

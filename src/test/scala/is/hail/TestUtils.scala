@@ -188,15 +188,7 @@ object TestUtils {
     } else
       None
   }
-
-  def exportPlink(mt: MatrixTable, path: String): Unit = {
-    mt.selectColsAST("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""", Some(FastIndexedSeq()))
-      .annotateRowsExpr(
-        "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
-        "cm_position" -> "0.0")
-      .exportPlink(path)
-  }
-
+  
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))

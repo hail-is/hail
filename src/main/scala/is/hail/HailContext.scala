@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, ToIRFailure, ToIRSuccess, ir}
+import is.hail.expr.{EvalContext, Parser, ir}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.gen.LoadGen

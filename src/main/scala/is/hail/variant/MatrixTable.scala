@@ -563,32 +563,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
 
-  def aggregateColsByKeyAST(aggExpr: String): MatrixTable = {
-    val ec = rowEC
-    val aggAST = Parser.parseToAST(aggExpr, ec)
-    assert(aggAST.`type`.isInstanceOf[TStruct])
-
-    (aggAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(ir) =>
-        new MatrixTable(hc, MatrixAggregateColsByKey(ast, ir))
-    }
-  }
-
   def aggregateColsByKey(aggExpr: String): MatrixTable = {
     val aggIR = Parser.parse_value_ir(aggExpr, matrixType.refMap)
     new MatrixTable(hc, MatrixAggregateColsByKey(ast, aggIR))
-  }
-
-  def aggregateRowsByKeyAST(expr: String, oldAggExpr: String): MatrixTable = {
-    val ec = colEC
-
-    log.info(expr)
-    val rowsAST = Parser.parseToAST(expr, ec)
-
-    (rowsAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(x) =>
-        new MatrixTable(hc, MatrixAggregateRowsByKey(ast, x))
-    }
   }
 
   def aggregateRowsByKey(expr: String): MatrixTable = {
@@ -852,17 +829,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
     selectCols(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
 
-  def selectColsAST(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    val ec = colEC
-    val colsAST = Parser.parseToAST(expr, ec)
-    val newColKey = newKey.getOrElse(colKey)
-
-    (colsAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(x) =>
-        new MatrixTable(hc, MatrixMapCols(ast, x, newKey))
-    }
-  }
-
   def selectCols(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
     val ir = Parser.parse_value_ir(expr, matrixType.refMap)
     val newColKey = newKey.getOrElse(colKey)
@@ -874,32 +840,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     selectRows(expr, Option(newKey).map(k => (k.get(0).asScala.toFastIndexedSeq, k.get(1).asScala.toFastIndexedSeq)))
   }
 
-  def selectRowsAST(expr: String, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]): MatrixTable = {
-    val ec = rowEC
-
-    val rowsAST = Parser.parseToAST(expr, ec)
-
-    (rowsAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(x) =>
-        new MatrixTable(hc, MatrixMapRows(ast, x, newKey))
-    }
-  }
-
   def selectRows(expr: String, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]): MatrixTable = {
     val rowsIR = Parser.parse_value_ir(expr, matrixType.refMap)
     new MatrixTable(hc, MatrixMapRows(ast, rowsIR, newKey))
-  }
-
-  def selectEntriesAST(expr: String): MatrixTable = {
-    val ec = entryEC
-
-    val entryAST = Parser.parseToAST(expr, ec)
-    assert(entryAST.`type`.isInstanceOf[TStruct])
-
-    (entryAST.toIROpt(): @unchecked) match {
-      case Some(ir) =>
-        new MatrixTable(hc, MatrixMapEntries(ast, ir))
-    }
   }
 
   def selectEntries(expr: String): MatrixTable = {
@@ -1022,32 +965,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyAST(ast = MatrixLiteral(filterF(value, p)))
   }
 
-  def filterColsExprAST(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var filterAST = Parser.expr.parse(filterExpr)
-    filterAST.typecheck(matrixType.colEC)
-    val pred = filterAST.toIROpt(Some("AGG" -> "g"))
-    (pred: @unchecked) match {
-      case Some(irPred) =>
-        new MatrixTable(hc,
-          MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep))
-        )
-    }
-  }
-
   def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
     var irPred = Parser.parse_value_ir(filterExpr, matrixType.refMap)
     new MatrixTable(hc,
       MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep)))
-  }
-
-  def filterRowsExprAST(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var filterAST = Parser.expr.parse(filterExpr)
-    filterAST.typecheck(matrixType.rowEC)
-    (filterAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(irPred) =>
-        new MatrixTable(hc,
-          MatrixFilterRows(ast, ir.filterPredicateWithKeep(irPred, keep)))
-    }
   }
 
   def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
@@ -1311,25 +1232,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     JsonMethods.compact(jv)
   }
 
-  def aggregateEntriesAST(expr: String): (Annotation, Type) = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "g" -> (1, entryType),
-      "va" -> (2, rvRowType),
-      "sa" -> (3, colType))
-
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "AGG" -> (1, TAggregable(entryType, aggregationST))))
-
-    val queryAST = Parser.parseToAST(expr, ec)
-
-    (queryAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(qir) =>
-        (Interpret(MatrixAggregate(ast, qir)), qir.typ)
-    }
-  }
-
   def aggregateEntries(expr: String): (Annotation, Type) = {
     val qir = Parser.parse_value_ir(expr, matrixType.refMap)
     val et = entriesTable()
@@ -1350,25 +1252,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
     val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
     ct.aggregate(sqir)
-  }
-
-  def aggregateRowsAST(expr: String): (Annotation, Type) = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType))
-    val ec = EvalContext(Map(
-      "global" -> (0, globalType),
-      "AGG" -> (1, TAggregable(rvRowType, aggregationST))))
-
-    val qAST = Parser.parseToAST(expr, ec)
-
-    (qAST.toIROpt(Some("AGG" -> "g")): @unchecked) match {
-      case Some(qir) =>
-        val rt = rowsTable()
-        val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
-        val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
-        rt.aggregate(sqir)
-    }
   }
 
   def aggregateRows(expr: String): (Annotation, Type) = {
