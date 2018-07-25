@@ -33,7 +33,6 @@ class AggregableChecker(TypeChecker):
             x = coercer.check(x, caller, param)
             return _to_agg(x)
 
-
 def _to_agg(x):
     return Aggregable(x._ir, x._type, x._indices, x._aggregations)
 
@@ -1033,8 +1032,7 @@ def info_score(gp) -> StructExpression:
 
     >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> gen_mt = gen_mt.annotate_cols(is_case = hl.rand_bool(0.5))
-    >>> gen_mt = gen_mt.annotate_rows(info_score_case = hl.agg.info_score(hl.agg.filter(gen_mt.is_case, gen_mt.GP)),
-    ...                               info_score_ctrl = hl.agg.info_score(hl.agg.filter(~gen_mt.is_case, gen_mt.GP)))
+    >>> gen_mt = gen_mt.annotate_rows(info_score = hl.agg.group_by(gen_mt.is_case, hl.agg.info_score(gen_mt.GP)))
 
     Notes
     -----
@@ -1111,12 +1109,12 @@ def info_score(gp) -> StructExpression:
 
 @typecheck(y=agg_expr(expr_float64),
            x=oneof(expr_float64, sequenceof(expr_float64)))
-def linreg(y, x):
+def linreg(y, x) -> StructExpression:
     """Compute multivariate linear regression statistics.
 
     Examples
     --------
-    Regress HT against an intercept (1) , SEX, and C1:
+    Regress HT against an intercept (1), SEX, and C1:
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
     Struct(
@@ -1178,6 +1176,99 @@ def linreg(y, x):
     return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
 
 
+@typecheck(group=oneof(anytype, sequenceof(anytype)),
+           agg_expr=expr_any)
+def group_by(group, agg_expr) -> DictExpression:
+    """Compute aggregation statistics stratified by one or more groups.
+
+    Examples
+    --------
+    Compute linear regression statistics stratified by SEX:
+
+    >>> table1.aggregate(agg.group_by(table1.SEX, agg.linreg(table1.HT, table1.C1)))
+    {'F': Struct(beta=[6.153846153846154],
+                 standard_error=[0.7692307692307685],
+                 t_stat=[8.000000000000009],
+                 p_value=[0.07916684832113098],
+                 n=2),
+     'M': Struct(beta=[34.25],
+                 standard_error=[1.75],
+                 t_stat=[19.571428571428573],
+                 p_value=[0.03249975499062629],
+                 n=2)}
+
+    Compute call statistics stratified by cohort and case status:
+
+    >>> ann = ds.annotate_rows(call_stats=hl.agg.group_by([ds.pop, ds.is_case],
+    ...                                                   hl.agg.call_stats(ds.GT, ds.alleles)))
+
+    Notes
+    -----
+    The return type of :func:`.group_by` is a dictionary that is nested by the
+    number of groups specified. For example, given two grouping variables of types
+    :py:data:`.tstr` and :py:data:`.tbool` and the return type of `agg_expr` is
+    :py:data:`.tint64`, the return type of :func:`.group_by` will be a
+    :py:data:`.tdict` of :py:data:`.tstr` to a :py:data:`.tdict` of
+    :py:data:`.tbool` to :py:data:`.tint64`.
+
+    Parameters
+    ----------
+    group : :class:`.Expression` or :obj:`list` of :class:`.Expression`
+        Groups to stratify by.
+    agg_expr : :class:`.Expression`
+        Aggregation expression to compute per grouping.
+
+    Returns
+    -------
+    :class:`.DictExpression`
+    """
+    from hail.expr.expressions.base_expression import to_expr
+    group = [to_expr(g) for g in wrap_to_list(group)]
+
+    _, aggregations = unify_all(*group)
+
+    if aggregations:
+        raise ExpressionException("'group_by' does not support already-aggregated expressions as arguments to 'group'")
+
+    if not isinstance(agg_expr._ir, ApplyAggOp):
+        raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
+
+    def get_new_type_and_op(groups, typ, op):
+        if len(groups) == 0:
+            return typ, op
+        else:
+            g = groups.pop()
+            return get_new_type_and_op(groups, hl.tdict(g.dtype, typ), f'Keyed({op})')
+
+    apply_agg_op = agg_expr._ir
+    agg_sig = apply_agg_op.agg_sig
+    a = apply_agg_op.a
+
+    new_ret_type, new_op = get_new_type_and_op(group[:], agg_expr.dtype, agg_sig.op)
+
+    new_agg_sig = AggSignature(new_op,
+                               agg_sig.ctor_arg_types,
+                               agg_sig.initop_arg_types,
+                               [g.dtype for g in group] + agg_sig.seqop_arg_types)
+
+    def rewrite_a(ir):
+        if isinstance(ir, SeqOp):
+            return SeqOp(ir.i, [g._ir for g in group] + ir.args, new_agg_sig)
+        else:
+            return ir.recur(rewrite_a)
+
+    new_a = rewrite_a(a)
+
+    new_apply_agg_op = ApplyAggOp(new_a,
+                                  apply_agg_op.constructor_args,
+                                  apply_agg_op.init_op_args,
+                                  new_agg_sig)
+
+    return construct_expr(new_apply_agg_op,
+                          new_ret_type,
+                          agg_expr._indices,
+                          agg_expr._aggregations)
+
 class ScanFunctions(object):
 
     def __init__(self, scope):
@@ -1203,4 +1294,3 @@ class ScanFunctions(object):
             raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
                 field,
                 "\n    ".join(field_matches)))
-
