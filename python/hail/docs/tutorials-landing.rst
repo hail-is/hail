@@ -110,7 +110,7 @@ Plot Examples
 =============
 
 This notebook contains examples of how to use the plotting functions in Hail's
-plot module.
+:mod:`.plot` module.
 
 .. toctree::
     :maxdepth: 2
