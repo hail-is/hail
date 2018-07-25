@@ -6,8 +6,6 @@ from hail.utils.misc import plural
 from hail.typecheck import *
 from hail.utils.java import Env, jnone, jsome
 from hail.table import Table
-from hail.utils.java import info
-from hail.linalg.utils import _check_dims
 
 class LinearMixedModel(object):
     r"""Class representing a linear mixed model.
@@ -101,7 +99,7 @@ class LinearMixedModel(object):
     The class may be initialized directly or with one of two methods:
 
     - :meth:`from_kinship` takes :math:`y`, :math:`X`, and :math:`K` as ndarrays.
-      The model is always full-rank.
+      The model is always full-rank. # FIXME add max_rank option
 
     - :meth:`from_mixed_effects` takes :math:`y` and :math:`X` as ndarrays and
       :math:`Z` as an ndarray or block matrix. The model is full-rank if and
@@ -279,27 +277,23 @@ class LinearMixedModel(object):
         else:
             raise ValueError('for low-rank, set both y and x; for full-rank, do not set y or x.')
 
-        _check_dims(py, 'py', 1)
-        _check_dims(px, 'px', 2)
-        _check_dims(s, 's', 1)
+        assert py.ndim == 1
+        assert px.ndim == 2
+        assert s.ndim == 1
 
-        r = s.size
-        f = px.shape[1]
+        r, f = px.shape
+        if f == 0:
+            raise ValueError('LinearMixedModel must have at least one fixed effect.')  # could relax
 
-        if py.size != r:
-            raise ValueError("py and s must have the same size")
-        if px.shape[0] != r:
-            raise ValueError("px must have the same number of rows as the size of s")
+        assert py.size == r
+        assert s.size == r
+
         if low_rank:
-            _check_dims(y, 'y', 1)
-            _check_dims(x, 'x', 2)
+            assert y.ndim == 1
+            assert x.ndim == 2
+            assert x.shape == (y.size, f)
+            assert y.size > r
             n = y.size
-            if n <= r:
-                raise ValueError("the size of y must be larger than the size of s")
-            if x.shape[0] != n:
-                raise ValueError("x must have the same number of rows as the size of y")
-            if x.shape[1] != f:
-                raise ValueError("px and x must have the same number columns")
         else:
             n = r
 
@@ -521,10 +515,10 @@ class LinearMixedModel(object):
                 options={'xatol': tol, 'maxiter': maxiter})
 
             if self.optimize_result.success:
-                if self.optimize_result.x - bounds[0] < 0.001:
-                    raise Exception("failed to fit log_gamma: optimum within 0.001 of lower bound.")
-                elif bounds[1] - self.optimize_result.x < 0.001:
-                    raise Exception("failed to fit log_gamma: optimum within 0.001 of upper bound.")
+                if self.optimize_result.x - bounds[0] < 0.01:
+                    raise Exception("failed to fit log_gamma: optimum within 0.01 of lower bound.")
+                elif bounds[1] - self.optimize_result.x < 0.01:
+                    raise Exception("failed to fit log_gamma: optimum within 0.01 of upper bound.")
                 else:
                     self.log_gamma = self.optimize_result.x
             else:
@@ -825,78 +819,34 @@ class LinearMixedModel(object):
                       x=np.ndarray,
                       k=np.ndarray)
     def from_kinship(cls, y, x, k):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
+        """Initializes a model from a kernel (kinship) matrix.
 
         Examples
         --------
-        >>> y = np.array([0.0, 1.0, 8.0, 9.0])
-        >>> x = np.array([[1.0, 0.0],
-        ...               [1.0, 2.0],
-        ...               [1.0, 1.0],
-        ...               [1.0, 4.0]])
-        >>> k = np.array([[ 1.        , -0.8727875 ,  0.96397335,  0.94512946],
-        ...               [-0.8727875 ,  1.        , -0.93036112, -0.97320323],
-        ...               [ 0.96397335, -0.93036112,  1.        ,  0.98294169],
-        ...               [ 0.94512946, -0.97320323,  0.98294169,  1.        ]])
-        >>> model, p = hl.LinearMixedModel.from_kinship(y, x, k)
-        >>> model.fit()
-        >>> model.h_sq
-        0.2525148830695317
-
-        >>> model.s
-        array([3.83501295, 0.13540343, 0.02454114, 0.00504248])
-
-        Truncate to a rank :math:`r=2` model:
-
-        >>> r = 2
-        >>> s_r = model.s[:r]
-        >>> p_r = p[:r, :]
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
-        >>> model.fit()
-        >>> model.h_sq
-        0.25193197591429695
 
         Notes
         -----
-        This method eigendecomposes :math:`K = P^T S P` and returns
-        ``LinearMixedModel(p @ y, p @ x, s)`` and ``p``.
+        Only the lower triangle of `k` is used.
 
-        Only the lower triangle of `k` is used; symmetry is not checked.
+        Consider examining the spectrum of `k` and truncating.
 
         Parameters
         ----------
-        y: :class:`ndarray`
+        y: :class:`ndarray<float64>`
             :math:`n` vector of observations.
-        x: :class:`ndarray`
+        x: :class:`ndarray<float64>`
             :math:`n \times p` matrix of fixed effects.
-        k: :class:`ndarray`
-            :math:`n \times n` positive semi-definite kernel :math:`K`.
-
-        Returns
-        -------
-        model: :class:`LinearMixedModel`
-            Model constructed from :math:`y`, :math:`X`, and :math:`K`.
-        p: :class:`ndarray`
-            Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
+        k: :class:`ndarray<float64>`
+            :math:`n \times n` positive semi-definite kernel.
         """
-        _check_dims(y, "y", 1)
-        _check_dims(x, "x", 2)
-        _check_dims(k, "k", 2)
-
-        n = k.shape[0]
-        if k.shape[1] != n:
-            raise ValueError("from_kinship: 'k' must be a square matrix")
-        if y.shape[0] != n:
-            raise ValueError("from_kinship: 'y' and 'k' must have the same "
-                             "number of rows")
-        if x.shape[0] != n:
-            raise ValueError("from_kinship: 'x' and 'k' must have the same "
-                             "number of rows")
+        assert y.ndim == 1 and x.ndim == 2 and k.ndim == 2
+        n = y.shape[0]
+        assert n > 0 and x.shape[1] > 0
+        assert x.shape[0] == n and k.shape == (n, n)
 
         s, u = hl.linalg._eigh(k)
-        if s[0] < -1e12 * s[-1]:
-            raise Exception("from_kinship: smallest eigenvalue of 'k' is"
-                            f"negative: {s[0]}")
+        if s[0] < -1e-6:
+            raise Exception(f"from_kinship: smallest eigenvalue of 'k' is negative: {s[0]}")
 
         # flip singular values to descending order
         s = np.flip(s, axis=0)
@@ -909,10 +859,9 @@ class LinearMixedModel(object):
     @classmethod
     @typecheck_method(y=np.ndarray,
                       x=np.ndarray,
-                      z=oneof(np.ndarray, hl.linalg.BlockMatrix),
-                      max_condition_number=float)
-    def from_mixed_effects(cls, y, x, z, max_condition_number=1e-10):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
+                      z=np.ndarray)
+    def from_mixed_effects(cls, y, x, z):
+        """Initializes a model from a random effects matrix.
 
         Examples
         --------
@@ -932,67 +881,41 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        If :math:`n \leq m`, the returned model is full rank.
-
-        If :math:`n < m`, the returned model is low rank. In this case only,
-        eigenvalues less than or equal to `max_condition_number` times the top
-        eigenvalue are dropped from :math:`S`, with the corresponding
-        eigenvectors dropped from :math:`P`. This guards against precision
-        loss on left eigenvectors computed via the right gramian :math:`Z^T Z`
-        in :meth:`BlockMatrix.svd`.
-
-        In either case, one can truncate to a rank :math:`r` model as follows:
-
-        >>> s_r = model.s[:r]  # doctest: +SKIP
-        >>> p_r = p[:r, :]  # doctest: +SKIP
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
-
         No standardization is applied to `z`.
+
+        The model is full-rank if and only if :math:`n \leq m`.
+
+        In the low-rank case, eigenvalues below 1e-12 are considered to be zero
+        These eigenvalues and eigenvectors are discarded from :math:`S` and
+        :math:`P`, respectively.
 
         Warning
         -------
-        If `z` is a block matrix, then ideally `z` should be the result of
-        directly reading from disk (and possibly a transpose). This is most
-        critical if :math:`n > m`, because in this case multiplication by `z`
-        will result in all preceding transformations being repeated
-        ``n / block_size`` times, as explained in :class:`BlockMatrix`.
+        If `z` is a block matrix, then ideally `z` should have been read
+        directly from disk and possibly transposed. This is most critical if
+        :math:`n > m`, because in this case multiplication by `z` will result
+        in all preceding transformations being repeated ``n / block_size``
+        times.
 
         Parameters
         ----------
-        y: :class:`ndarray`
+        y: :class:`ndarray<float64>`
             :math:`n` vector of observations :math:`y`.
-        x: :class:`ndarray`
+        x: :class:`ndarray<float64>`
             :math:`n \times p` matrix of fixed effects :math:`X`.
-        z: :class:`ndarray` or :class:`BlockMatrix`
+        z: :class:`ndarray<float64>` or :class:`BlockMatrix`
             :math:`n \times m` matrix of random effects :math:`Z`.
-        max_condition_number: :obj:`float`
-            Maximum condition number. Must be greater than 1e-16.
-
-        Returns
-        -------
-        model: :class:`LinearMixedModel`
-            Model constructed from :math:`y`, :math:`X`, and :math:`Z`.
-        p: :class:`ndarray`
-            Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
         """
-        if max_condition_number < 1e-16:
-            raise ValueError("from_random_effects: 'max_condition_number' must "
-                             f"be at least 1e-16, found {max_condition_number}")
+        z_is_ndarray = isinstance(z, np.ndarray)
 
-        _check_dims(y, "y", 1)
-        _check_dims(x, "x", 2)
-        _check_dims(z, "z", 2)
-
+        if z_is_ndarray:
+            assert z.ndim == 2
         n, m = z.shape
+        assert n > 0 and m > 0
+        assert y.ndim == 1 and x.ndim == 2
+        assert y.shape[0] == n and x.shape[0] == n and x.shape[1] > 0
 
-        if y.shape[0] != n:
-            raise ValueError("from_mixed_effects: 'y' and 'z' must have the "
-                             "same number of rows")
-        if x.shape[0] != n:
-            raise ValueError("from_mixed_effects: 'x' and 'z' must have the "
-                             "same number of rows")
-
-        if isinstance(z, np.ndarray):
+        if z_is_ndarray:
             u, s0, _ = hl.linalg._svd(z, full_matrices=False)
             p = u.T
             py, px = p @ y, p @ x
@@ -1003,17 +926,12 @@ class LinearMixedModel(object):
 
         s = s0 ** 2
 
-        full_rank = n <= m
-        if full_rank:
+        if n <= m:
             model = LinearMixedModel(py, px, s)
         else:
-            assert np.all(np.isfinite(s))
-            r = np.searchsorted(-s, -max_condition_number * s[0])
-            if r < m:
-                info(f'from_mixed_effects: model rank reduced from {m} to {r} '
-                     f'due to ill-condition.'
-                     f'\n    Largest dropped eigenvalue was {s[r]}.')
+            r = np.searchsorted(-s, -1e-12)
             s = s[:r]
             p = p[:r, :]
             model = LinearMixedModel(py, px, s, y, x)
+
         return model, p
