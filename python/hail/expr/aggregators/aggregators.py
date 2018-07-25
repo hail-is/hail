@@ -1200,7 +1200,7 @@ class ScanFunctions(object):
             return self._functions[field]
         else:
             field_matches = difflib.get_close_matches(field, self._functions.keys(), n=5)
-            raise LookupError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
+            raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
                 field,
                 "\n    ".join(field_matches)))
 
