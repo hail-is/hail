@@ -121,26 +121,6 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
-  @Test def testQueryGenotypes() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.aggregateEntriesAST("AGG.map(g => g.GQ.toFloat64).hist(0d, 100d, 100)")
-  }
-
-  @Test def testReorderSamples() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    val origOrder = Array[Annotation]("C1046::HG02024", "C1046::HG02025", "C1046::HG02026", "C1047::HG00731", "C1047::HG00732")
-    val newOrder = Array[Annotation]("C1046::HG02026", "C1046::HG02024", "C1047::HG00732", "C1046::HG02025", "C1047::HG00731")
-
-    val filteredVds = vds.filterColsList(origOrder.map(Annotation(_)).toSet)
-      .indexCols("colIdx")
-      .annotateRowsExpr("origGenos" -> "AGG.take(5)")
-    val reorderedVds = filteredVds.reorderCols(newOrder.map(Annotation(_)))
-      .annotateRowsExpr("newGenos" -> "AGG.takeBy(g => sa.colIdx, 5)")
-
-    assert(reorderedVds.rowsTable().forall("row.origGenos == row.newGenos"))
-    assert(vds.reorderCols(vds.colKeys.toArray).same(vds))
-  }
-  
   @Test def testWriteBlockMatrix() {
     val dirname = tmpDir.createTempFile()
     
