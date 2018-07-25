@@ -1055,9 +1055,7 @@ object OrderedRVD {
           r2
         else {
           val shuffled = OrderedRVD.adjustBoundsAndShuffle(
-            r1.typ,
-            r1.partitioner,
-            r2)
+            r1.typ, r1.partitioner, r2)
           if (shuffled.partitioner.rangeBounds.isEmpty)
             r1
           else
