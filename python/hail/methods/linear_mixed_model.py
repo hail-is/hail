@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
+
+import hail as hl
 from hail.utils.misc import plural
 from hail.typecheck import *
 from hail.utils.java import Env, jnone, jsome
 from hail.table import Table
-
 
 class LinearMixedModel(object):
     r"""Class representing a linear mixed model.
@@ -95,7 +96,17 @@ class LinearMixedModel(object):
 
     **Initialization**
 
-    With full-rank initialization by :math:`(Py, PX, S)`, the following class attributes are set:
+    The class may be initialized directly or with one of two methods:
+
+    - :meth:`from_kinship` takes :math:`y`, :math:`X`, and :math:`K` as ndarrays.
+      The model is always full-rank. # FIXME add max_rank option
+
+    - :meth:`from_mixed_effects` takes :math:`y` and :math:`X` as ndarrays and
+      :math:`Z` as an ndarray or block matrix. The model is full-rank if and
+      only if :math:`n \leq m`.
+
+    Direct full-rank initialization takes :math:`Py`, :math:`PX`, and :math:`S`
+    as ndarrays. The following class attributes are set:
 
     .. list-table::
       :header-rows: 1
@@ -116,16 +127,17 @@ class LinearMixedModel(object):
         - int
         - Effective number of random effects, must equal :math:`n`
       * - `py`
-        - numpy.ndarray
+        - ndarray
         - Rotated response vector :math:`P y` with shape :math:`(n)`
       * - `px`
-        - numpy.ndarray
+        - ndarray
         - Rotated design matrix :math:`P X` with shape :math:`(n, p)`.
       * - `s`
-        - numpy.ndarray
+        - ndarray
         - Eigenvalues vector :math:`S` of :math:`K` with shape :math:`(n)`
 
-    With low-rank initialization by :math:`(P_r y, P_r X, S_r, y, X)`, the following class attributes are set:
+    Direct low-rank initialization takes :math:`P_r y`, :math:`P_r X`, :math:`S_r`,
+    :math:`y`, and :math:`X` as ndarrays. The following class attributes are set:
 
     .. list-table::
       :header-rows: 1
@@ -146,27 +158,37 @@ class LinearMixedModel(object):
         - int
         - Effective number of random effects, must be less than :math:`n`
       * - `py`
-        - numpy.ndarray
+        - ndarray
         - Projected response vector :math:`P_r y` with shape :math:`(r)`
       * - `px`
-        - numpy.ndarray
+        - ndarray
         - Projected design matrix :math:`P_r X` with shape :math:`(r, p)`
       * - `s`
-        - numpy.ndarray
+        - ndarray
         - Eigenvalues vector :math:`S_r` of :math:`K_r` with shape :math:`(r)`
       * - `y`
-        - numpy.ndarray
+        - ndarray
         - Response vector with shape :math:`(n)`
       * - `x`
-        - numpy.ndarray
+        - ndarray
         - Design matrix with shape :math:`(n, p)`
 
     **Fitting the model**
 
     :meth:`fit` uses `restricted maximum likelihood
     <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`__ (REML)
-    to estimate :math:`(\beta, \sigma^2, \tau^2)`,
-    adding the following attributes at this estimate.
+    to estimate :math:`(\beta, \sigma^2, \tau^2)`.
+
+    This is done by numerical optimization of the univariate function
+    :meth:`compute_neg_log_reml`, which itself optimizes REML constrained to a
+    fixed ratio of variance parameters. Each evaluation of
+    :meth:`compute_neg_log_reml` has computational complexity
+
+    .. math::
+
+      \mathit{O}(rp^2 + p^3)`.
+
+    :meth:`fit` adds the following attributes at this estimate.
 
     .. list-table::
       :header-rows: 1
@@ -175,7 +197,7 @@ class LinearMixedModel(object):
         - Type
         - Value
       * - `beta`
-        - numpy.ndarray
+        - ndarray
         - :math:`\beta`
       * - `sigma_sq`
         - float
@@ -194,12 +216,7 @@ class LinearMixedModel(object):
         - :math:`\mathit{h}^2 = \frac{\sigma^2}{\sigma^2 + \tau^2}`
       * - `h_sq_standard_error`
         - float
-        - asymptotic estimate of standard error for :math:`\mathit{h}^2`
-
-    Estimation proceeds by minimizing the function :meth:`compute_neg_log_reml`
-    with respect to the parameter :math:`\log{\gamma}` governing the (log)
-    ratio of the variance parameters :math:`\sigma^2` and :math:`\tau^2`. For
-    any fixed ratio, the REML estimate and log likelihood have closed-form solutions.
+        - asymptotic estimate of :math:`\mathit{h}^2` standard error
 
     **Testing alternative models**
 
@@ -210,34 +227,40 @@ class LinearMixedModel(object):
         y \sim \mathrm{N}\left(x_\star\beta_\star + X \beta, \, \sigma^2 K + \tau^2 I\right)
 
     by an additional covariate of interest :math:`x_\star` under the
-    null hypothesis that the corresponding fixed effect :math:`\beta_\star` is zero.
+    null hypothesis that the corresponding fixed effect parameter
+    :math:`\beta_\star` is zero. Similarly to initialization, full-rank testing
+    of the alternative hypothesis :math:`\beta_\star \neq 0` requires
+    :math:`P x_\star`, whereas the low-rank testing requires :math:`P_r x_\star`
+    and :math:`x_\star`.
 
-    After running :meth:`fit` to fit the null model,
-    the methods :meth:`fit_alternatives` and :meth:`fit_alternatives_numpy`
-    may be used to test the null hypothesis :math:`\beta_\star = 0` versus
-    the alternative hypothesis :math:`\beta_\star \neq 0` for
-    each :math:`n`-vector :math:`x_\star` in a collection of augmentations.
+    After running :meth:`fit` to fit the null model, one can test each of a
+    collection of alternatives using either of two implementations of the
+    likelihood ratio test:
 
-    Testing uses the likelihood ratio test with both the null and alternative models
-    constrained by the REML estimate of :math:`\log{\gamma}` under the null hypothesis.
-    The test statistic :math:`\chi^2` equals :math:`n` times the log ratio of
-    the squared residuals and follows a chi-squared distribution with one degree of freedom.
+    - :meth:`fit_alternatives_numpy` takes one or two ndarrays. It is a pure Python
+      method that evaluates alternatives serially on master.
 
-    When testing alternatives, full-rank inference only requires the vector :math:`P x_\star`,
-    whereas low-rank inference requires both :math:`P_r x_\star` and :math:`x_\star`.
+    - :meth:`fit_alternatives` takes one or two paths to block matrices. It
+      evaluates alternatives in parallel on the workers.
+
+    Per alternative, both have computational complexity
+
+    .. math::
+
+      \mathit{O}(rp + p^3).
 
     Parameters
     ----------
-    py: :class:`numpy.ndarray`
+    py: :class:`ndarray`
         Projected response vector :math:`P_r y` with shape :math:`(r)`.
-    px: :class:`numpy.ndarray`
+    px: :class:`ndarray`
         Projected design matrix :math:`P_r X` with shape :math:`(r, p)`.
-    s: :class:`numpy.ndarray`
+    s: :class:`ndarray`
         Eigenvalues vector :math:`S` with shape :math:`(r)`.
-    y: :class:`numpy.ndarray`, optional
+    y: :class:`ndarray`, optional
         Response vector with shape :math:`(n)`.
         Include for low-rank inference.
-    x: :class:`numpy.ndarray`, optional
+    x: :class:`ndarray`, optional
         Design matrix with shape :math:`(n, p)`.
         Include for low-rank inference.
     """
@@ -335,18 +358,69 @@ class LinearMixedModel(object):
         of :math:`\log{\gamma}`.
 
         This function computes the triple :math:`(\beta, \sigma^2, \tau^2)` with
-        :math:`\gamma = \frac{\sigma^2}{\tau^2}` at which the restricted likelihood
-        is maximized and returns the negative of the log of the
-        restricted likelihood at these parameters, shifted by a constant whose value is
-        independent of the input.
+        :math:`\gamma = \frac{\sigma^2}{\tau^2}` at which the restricted
+        likelihood is maximized and returns the negative of the restricted log
+        likelihood at these parameters (shifted by the constant defined below).
 
-        To compute the actual negative log REML, add
+        The implementation has complexity :math:`\mathit{O}(rp^2 + p^3)` and is
+        inspired by `FaST linear mixed models for genome-wide association studies (2011)
+        <https://www.nature.com/articles/nmeth.1681>`__.
+
+        The formulae follow from `Bayesian Inference for Variance Components Using Only Error Contrasts (1974)
+        <http://faculty.dbmi.pitt.edu/day/Bioinf2132-advanced-Bayes-and-R/previousDocuments/Bioinf2132-documents-2016/2016-11-22/Harville-1974.pdf>`__.
+        Harville derives that for fixed covariance :math:`V`, the restricted likelihood of
 
         .. math::
 
-            \frac{1}{2}\left((n - p)(1 + \log(2\pi)) - \log(\det(X^T X)\right)
+          y \sim \mathrm{N}(X \beta, \, V)
 
-        to the returned value.
+        at
+
+        .. math::
+
+          \hat\beta = (X^T V^{-1} X)^{-1} X^T V^{-1} y
+
+        is given by
+
+        .. math::
+
+          (2\pi)^{-\frac{1}{2}(n - p)}
+          \det(X^T X)^\frac{1}{2}
+          \det(V)^{-\frac{1}{2}}
+          \det(X^T V^{-1} X)^{-\frac{1}{2}}
+          e^{-\frac{1}{2}(y - X\hat\beta)^T V^{-1}(y - X\hat\beta)}.
+
+        In our case, the covariance is
+
+        .. math::
+
+          V = \sigma^2 K + \tau^2 I = \sigma^2 (K + \gamma^{-1} I)
+
+        which is determined up to scale by any fixed value of the ratio
+        :math:`\gamma`. So for input :math:`\log \gamma`, the
+        negative restricted log likelihood is minimized at
+        :math:`(\hat\beta, \hat\sigma^2)` with :math:`\hat\beta` as above and
+
+        .. math::
+
+           \hat\sigma^2 = \frac{1}{n - p}(y - X\hat\beta)^T (K + \gamma^{-1} I)^{-1}(y - X\hat\beta).
+
+        For :math:`\hat V` at this :math:`(\hat\beta, \hat\sigma^2, \gamma)`,
+        the exponent in the likelihood reduces to :math:`-\frac{1}{2}(n-p)`, so
+        the negative restricted log likelihood may be expressed as
+
+        .. math::
+
+          \frac{1}{2}\left(\log \det(\hat V) + \log\det(X^T \hat V^{-1} X)\right) + C
+
+        where
+
+        .. math::
+
+          C = \frac{1}{2}\left(n - p + (n - p)\log(2\pi) - \log\det(X^T X)\right)
+
+        only depends on :math:`X`. :meth:`compute_neg_log_reml` returns the value of
+        the first term, omitting the constant term.
 
         Parameters
         ----------
@@ -358,7 +432,7 @@ class LinearMixedModel(object):
 
         Returns
         -------
-        :obj:`float` or (:obj:`float`, :class:`numpy.ndarray`, :obj:`float`, :obj:`float`)
+        :obj:`float` or (:obj:`float`, :class:`ndarray`, :obj:`float`, :obj:`float`)
             If `return_parameters` is ``False``, returns (shifted) negative log REML.
             Otherwise, returns (shifted) negative log REML, :math:`\beta`, :math:`\sigma^2`,
             and :math:`\tau^2`.
@@ -402,10 +476,13 @@ class LinearMixedModel(object):
         r"""Find the triple :math:`(\beta, \sigma^2, \tau^2)` maximizing REML.
 
         This method sets the attributes `beta`, `sigma_sq`, `tau_sq`, `gamma`,
-        `log_gamma`, and `h_sq` as described in the top-level class documentation.
+        `log_gamma`, `h_sq`, and `h_sq_standard_error` as described in the
+        top-level class documentation.
 
         If `log_gamma` is provided, :meth:`fit` finds the REML solution
-        with :math:`\log{\gamma}` constrained to this value.
+        with :math:`\log{\gamma}` constrained to this value. In this case,
+        `h_sq_standard_error` is ``None`` since `h_sq` is not estimated.
+
         Otherwise, :meth:`fit` searches for the value of :math:`\log{\gamma}`
         that minimizes :meth:`compute_neg_log_reml`, and also sets the attribute
         `optimize_result` of type `scipy.optimize.OptimizeResult
@@ -426,9 +503,9 @@ class LinearMixedModel(object):
         if self._fitted:
             self._reset()
 
-        if log_gamma:
-            self.log_gamma = log_gamma
-        else:
+        fit_log_gamma = True if log_gamma is None else False
+
+        if fit_log_gamma:
             from scipy.optimize import minimize_scalar
 
             self.optimize_result = minimize_scalar(
@@ -440,17 +517,21 @@ class LinearMixedModel(object):
             if self.optimize_result.success:
                 if self.optimize_result.x - bounds[0] < 0.01:
                     raise Exception("failed to fit log_gamma: optimum within 0.01 of lower bound.")
-                elif bounds[1] - self.optimize_result.x < tol:
+                elif bounds[1] - self.optimize_result.x < 0.01:
                     raise Exception("failed to fit log_gamma: optimum within 0.01 of upper bound.")
                 else:
                     self.log_gamma = self.optimize_result.x
             else:
                 raise Exception(f'failed to fit log_gamma:\n  {self.optimize_result}')
+        else:
+             self.log_gamma = log_gamma
 
         _, self.beta, self.sigma_sq, self.tau_sq = self.compute_neg_log_reml(self.log_gamma, return_parameters=True)
 
         self.gamma = np.exp(self.log_gamma)
         self.h_sq = self.sigma_sq / (self.sigma_sq + self.tau_sq)
+        if fit_log_gamma:
+            self.h_sq_standard_error = self._estimate_h_sq_standard_error()
 
         self._residual_sq = self.sigma_sq * self._dof
         self._d_alt = self._d
@@ -459,11 +540,8 @@ class LinearMixedModel(object):
         self._xdx_alt[1:, 1:] = self._xdx
 
         self._fitted = True
-        self.h_sq_standard_error = self._estimate_h_sq_standard_error()
 
     def _estimate_h_sq_standard_error(self):
-        assert self._fitted
-
         epsilon = 1e-4  # parabolic interpolation radius in log_gamma space
         lg = self.log_gamma + np.array([-epsilon, 0.0, epsilon])
         h2 = 1 / (1 + np.exp(-lg))
@@ -495,7 +573,7 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        This method may be used to approximate and visualize the posterior on
+        This method may be used to visualize the approximate posterior on
         :math:`\mathit{h}^2` under a flat prior.
 
         The resulting ndarray ``a`` has length 101 with ``a[i]`` equal to the
@@ -509,7 +587,7 @@ class LinearMixedModel(object):
         :class:`ndarray` of :obj:`float64`
             Normalized likelihood values for :math:`\mathit{h}^2`.
         """
-        ll = np.zeros(101, dtype = np.float64)
+        ll = np.zeros(101, dtype=np.float64)
         ll[0], ll[100] = np.nan, np.nan
 
         for h2 in range(1, 100):
@@ -529,6 +607,21 @@ class LinearMixedModel(object):
 
         Notes
         -----
+        The alternative model is fit using REML constrained to the value of
+        :math:`\gamma` set by :meth:`fit`.
+
+        The likelihood ratio test of fixed effect parameter :math:`\beta_\star`
+        uses (non-restricted) maximum likelihood:
+
+        .. math::
+
+          \chi^2 = 2 \log\left(\frac{
+          \max_{\beta_\star, \beta, \sigma^2}\mathrm{N}(y \, | \, x_\star \beta_\star + X \beta; \sigma^2(K + \gamma^{-1}I)}
+          {\max_{\beta, \sigma^2} \mathrm{N}(y \, | \, x_\star \cdot 0 + X \beta; \sigma^2(K + \gamma^{-1}I)}\right)
+
+        The p-value is given by the tail probability under a chi-squared
+        distribution with one degree of freedom.
+
         The resulting table has the following fields:
 
         .. list-table::
@@ -623,36 +716,16 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        The resulting table has the following fields:
-
-        .. list-table::
-          :header-rows: 1
-
-          * - Field
-            - Type
-            - Value
-          * - `idx`
-            - int64
-            - Index of augmented design matrix.
-          * - `beta`
-            - float64
-            - :math:`\beta_\star`
-          * - `sigma_sq`
-            - float64
-            - :math:`\sigma^2`
-          * - `chi_sq`
-            - float64
-            - :math:`\chi^2`
-          * - `p_value`
-            - float64
-            - p-value
+        This Python-only implementation runs serially on master. See
+        the scalable implementation :meth:`fit_alternatives` for documentation
+        of the returned table.
 
         Parameters
         ----------
-        pa: :class:`numpy.ndarray`
+        pa: :class:`ndarray`
             Projected matrix :math:`P_r A` of alternatives with shape :math:`(r, m)`.
             Each column is a projected augmentation :math:`P_r x_\star` of :math:`P_r X`.
-        a: :class:`numpy.ndarray`, optional
+        a: :class:`ndarray`, optional
             Matrix :math:`A` of alternatives with shape :math:`(n, m)`.
             Each column is an augmentation :math:`x_\star` of :math:`X`.
             Required for low-rank inference.
@@ -738,5 +811,127 @@ class LinearMixedModel(object):
             f = self.f
         dof = self.n - f
         if dof <= 0:
-            raise ValueError(f"{self.n} {plural('observation', self.n)} with {f} fixed {plural('effect', f)}"
+            raise ValueError(f"{self.n} {plural('observation', self.n)} with {f} fixed {plural('effect', f)} "
                              f"implies {dof} {plural('degree', dof)} of freedom. Must be positive.")
+
+    @classmethod
+    @typecheck_method(y=np.ndarray,
+                      x=np.ndarray,
+                      k=np.ndarray)
+    def from_kinship(cls, y, x, k):
+        """Initializes a model from a kernel (kinship) matrix.
+
+        Examples
+        --------
+
+        Notes
+        -----
+        Only the lower triangle of `k` is used.
+
+        Consider examining the spectrum of `k` and truncating.
+
+        Parameters
+        ----------
+        y: :class:`ndarray<float64>`
+            :math:`n` vector of observations.
+        x: :class:`ndarray<float64>`
+            :math:`n \times p` matrix of fixed effects.
+        k: :class:`ndarray<float64>`
+            :math:`n \times n` positive semi-definite kernel.
+        """
+        assert y.ndim == 1 and x.ndim == 2 and k.ndim == 2
+        n = y.shape[0]
+        assert n > 0 and x.shape[1] > 0
+        assert x.shape[0] == n and k.shape == (n, n)
+
+        s, u = hl.linalg._eigh(k)
+        if s[0] < -1e-6:
+            raise Exception(f"from_kinship: smallest eigenvalue of 'k' is negative: {s[0]}")
+
+        # flip singular values to descending order
+        s = np.flip(s, axis=0)
+        u = np.fliplr(u)
+        p = u.T
+
+        model = LinearMixedModel(p @ y, p @ x, s)
+        return model, p
+
+    @classmethod
+    @typecheck_method(y=np.ndarray,
+                      x=np.ndarray,
+                      z=np.ndarray)
+    def from_mixed_effects(cls, y, x, z):
+        """Initializes a model from a random effects matrix.
+
+        Examples
+        --------
+        >>> y = np.array([0.0, 1.0, 8.0, 9.0])
+        >>> x = np.array([[1.0, 0.0],
+        ...               [1.0, 2.0],
+        ...               [1.0, 1.0],
+        ...               [1.0, 4.0]])
+        >>> z = np.array([[0.0, 0.0, 1.0],
+        ...               [0.0, 1.0, 2.0],
+        ...               [1.0, 2.0, 4.0],
+        ...               [2.0, 4.0, 8.0]])
+        >>> model, p = hl.LinearMixedModel.from_mixed_effects(y, x, z)
+        >>> model.fit()
+        >>> model.h_sq
+        0.38205307244271675
+
+        Notes
+        -----
+        No standardization is applied to `z`.
+
+        The model is full-rank if and only if :math:`n \leq m`.
+
+        In the low-rank case, eigenvalues below 1e-12 are considered to be zero
+        These eigenvalues and eigenvectors are discarded from :math:`S` and
+        :math:`P`, respectively.
+
+        Warning
+        -------
+        If `z` is a block matrix, then ideally `z` should have been read
+        directly from disk and possibly transposed. This is most critical if
+        :math:`n > m`, because in this case multiplication by `z` will result
+        in all preceding transformations being repeated ``n / block_size``
+        times.
+
+        Parameters
+        ----------
+        y: :class:`ndarray<float64>`
+            :math:`n` vector of observations :math:`y`.
+        x: :class:`ndarray<float64>`
+            :math:`n \times p` matrix of fixed effects :math:`X`.
+        z: :class:`ndarray<float64>` or :class:`BlockMatrix`
+            :math:`n \times m` matrix of random effects :math:`Z`.
+        """
+        z_is_ndarray = isinstance(z, np.ndarray)
+
+        if z_is_ndarray:
+            assert z.ndim == 2
+        n, m = z.shape
+        assert n > 0 and m > 0
+        assert y.ndim == 1 and x.ndim == 2
+        assert y.shape[0] == n and x.shape[0] == n and x.shape[1] > 0
+
+        if z_is_ndarray:
+            u, s0, _ = hl.linalg._svd(z, full_matrices=False)
+            p = u.T
+            py, px = p @ y, p @ x
+        else:
+            u, s0, _ = z.svd()
+            p = u.T
+            py, px = (p @ y).to_numpy(), (p @ x).to_numpy()
+
+        s = s0 ** 2
+
+        if n <= m:
+            model = LinearMixedModel(py, px, s)
+        else:
+            r = np.searchsorted(-s, -1e-12)
+            s = s[:r]
+            p = p[:r, :]
+            model = LinearMixedModel(py, px, s, y, x)
+
+        return model, p

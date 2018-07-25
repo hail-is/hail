@@ -2216,7 +2216,7 @@ def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite
 
 def _eigh(a):
     """
-    Only the lower triangle is used.
+    Only the lower triangle is used. Returns eigenvalues, eigenvectors.
     NumPy and SciPy apply different Lapack algorithms:
     NumPy uses DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevd
     SciPy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr
