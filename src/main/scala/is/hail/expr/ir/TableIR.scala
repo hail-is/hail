@@ -716,7 +716,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
 
 case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   assert(children.nonEmpty)
-  assert(children.tail.forall(_.typ.rowType == children(0).typ.rowType), s"${children(0).typ.rowType}\n  vs\n${children(1).typ.rowType}")
+  assert(children.tail.forall(_.typ.rowType == children(0).typ.rowType))
   assert(children.tail.forall(_.typ.key == children(0).typ.key))
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableUnion = {
