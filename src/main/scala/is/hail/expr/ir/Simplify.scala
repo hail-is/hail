@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
+import is.hail.expr.types.TStruct
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -139,6 +140,16 @@ object Simplify {
       case SelectFields(MakeStruct(fields), fieldNames) =>
         val makeStructFields = fields.toMap
         MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
+
+      case x@SelectFields(InsertFields(struct, insertFields), selectFields) =>
+        val selectSet = selectFields.toSet
+        val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
+        val insertSet = insertFields2.map(_._1).toSet
+        val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
+        val selectFields2 = selectFields.filter(structSet.contains)
+        val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)
+        assert(x2.typ == x.typ)
+        x2
 
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
