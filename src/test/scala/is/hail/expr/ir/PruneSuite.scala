@@ -343,6 +343,15 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "va.r2", "va.r3")))
   }
 
+  @Test def testMatrixUnionRowsMemo() {
+    checkMemo(
+      MatrixUnionRows(FastIndexedSeq(mat, mat)),
+      subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
+      Array(subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
+        subsetMatrixTable(mat.typ, "va.r2", "global.g1"))
+    )
+  }
+
   @Test def testMatrixAggregateRowsByKeyMemo() {
     val magg = MatrixAggregateRowsByKey(mat,
       matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"))

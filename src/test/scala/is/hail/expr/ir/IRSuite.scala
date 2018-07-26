@@ -524,6 +524,10 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
         .ast.asInstanceOf[MatrixRead]
+      val range1 = MatrixTable.range(hc, 20, 2, Some(3))
+        .ast.asInstanceOf[MatrixRead]
+      val range2 = MatrixTable.range(hc, 20, 2, Some(4))
+        .ast.asInstanceOf[MatrixRead]
 
       val b = True()
 
@@ -564,7 +568,8 @@ class IRSuite extends SparkSuite {
           Array("t"),
           Array("astruct"),
           None),
-        MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
+        MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
+        MatrixUnionRows(FastIndexedSeq(range1, range2)))
 
       xs.map(x => Array(x))
     } catch {
