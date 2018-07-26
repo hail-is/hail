@@ -279,7 +279,11 @@ class TopLevelReference(Ref):
     @property
     def is_nested_field(self):
         return True
-    
+
+    def copy(self):
+        new_instance = self.__class__
+        return new_instance(self.name)
+
     def __eq__(self, other):
         return isinstance(other, TopLevelReference) and \
                other.name == self.name
