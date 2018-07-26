@@ -85,6 +85,10 @@ class Status(object):
         self.pr_number = pr_number
         self.job_id = job_id
 
+    def github_state_up_to_date(self, github_state):
+        return (self.state == github_state or
+                self.state == 'running' and github_state == 'pending')
+
     def to_json(self):
         return {
             'state': self.state,
@@ -95,50 +99,58 @@ class Status(object):
             'job_id': self.job_id
         }
 
+lock = threading.Lock()
 target_source_pr = collections.defaultdict(dict)
 source_target_pr = collections.defaultdict(dict)
 
 def update_pr_status(source_url, source_ref, target_url, target_ref, status):
-    target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
-    source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
+    with lock:
+        target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
+        source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
 
 def get_pr_status(source_url, source_ref, target_url, target_ref):
-    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
-    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
-    assert x == y, str(x) + str(y)
-    return x
+    with lock:
+        x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
+        y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
+        assert x == y, str(x) + str(y)
+        return x
 
 def pop_prs_for_target(target_url, target_ref):
-    prs = target_source_pr.pop((target_url, target_ref))
-    for (source_url, source_ref), status in prs.items():
-        x = source_target_pr[(source_url, source_ref)]
-        del x[(target_url, target_ref)]
-    return prs
+    with lock:
+        prs = target_source_pr.pop((target_url, target_ref))
+        for (source_url, source_ref), status in prs.items():
+            x = source_target_pr[(source_url, source_ref)]
+            del x[(target_url, target_ref)]
+        return prs
 
 def pop_prs_for_target(target_url, target_ref, default):
-    prs = target_source_pr.pop((target_url, target_ref), None)
-    if prs is None:
-        return default
-    for (source_url, source_ref), status in prs.items():
-        x = source_target_pr[(source_url, source_ref)]
-        del x[(target_url, target_ref)]
-    return prs
+    with lock:
+        prs = target_source_pr.pop((target_url, target_ref), None)
+        if prs is None:
+            return default
+        for (source_url, source_ref), status in prs.items():
+            x = source_target_pr[(source_url, source_ref)]
+            del x[(target_url, target_ref)]
+        return prs
 
 def get_pr_status_by_source(source_url, source_ref):
-    return source_target_pr[(source_url, source_ref)]
+    with lock:
+        return source_target_pr[(source_url, source_ref)]
 
 def get_pr_status_by_target(target_url, target_ref):
-    return target_source_pr[(target_url, target_ref)]
+    with lock:
+        return target_source_pr[(target_url, target_ref)]
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
 def cancel_existing_jobs(source_url, source, target_url, target):
-    old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
-    if old_status and old_status.state == 'running':
-        id = old_status.job_id
-        assert(id is not None)
-        print(f'cancelling existing job {id} due to pr status update')
-        batch_client.get_job(id).cancel()
+    with lock:
+        old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
+        if old_status and old_status.state == 'running':
+            id = old_status.job_id
+            assert(id is not None)
+            print(f'cancelling existing job {id} due to pr status update')
+            batch_client.get_job(id).cancel()
 
 @app.route('/status')
 def status():
@@ -370,26 +382,33 @@ def heal():
             ((source_url, source_ref), status) = ready_to_merge[0]
             print(f'normally I would merge {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
         else:
-            approved = [(source, status)
-                        for source, status in prs.items()
-                        if status.state == 'pending'
-                        and status.review_state == 'approved']
-            if len(approved) != 0:
-                # pick oldest one instead
-                ((source_url, source_ref), status) = approved[0]
-                print(f'gonna test {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
-                test_pr(source_url, source_ref, target_url, target_ref, status)
+            approved_running = [(source, status)
+                                for source, status in prs.items()
+                                if status.state == 'running'
+                                and status.review_state == 'approved']
+            if len(approved_running) != 0:
+                print(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running}')
             else:
-                untested = [(source, status)
+                approved = [(source, status)
                             for source, status in prs.items()
-                            if status.state == 'pending']
-                if len(untested) != 0:
+                            if status.state == 'pending'
+                            and status.review_state == 'approved']
+                if len(approved) != 0:
                     # pick oldest one instead
-                    ((source_url, source_ref), status) = untested[0]
+                    ((source_url, source_ref), status) = approved[0]
                     print(f'gonna test {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                     test_pr(source_url, source_ref, target_url, target_ref, status)
                 else:
-                    print('all prs have up-to-date ci state')
+                    untested = [(source, status)
+                                for source, status in prs.items()
+                                if status.state == 'pending']
+                    if len(untested) != 0:
+                        # pick oldest one instead
+                        ((source_url, source_ref), status) = untested[0]
+                        print(f'gonna test {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
+                        test_pr(source_url, source_ref, target_url, target_ref, status)
+                    else:
+                        print('all prs have up-to-date ci state')
 
 def test_pr(source_url, source_ref, target_url, target_ref, status):
     assert status.state == 'pending', str(status.to_json())
@@ -498,7 +517,7 @@ def refresh_github_state():
             if (status and
                 status.source_sha == source_sha and
                 status.target_sha == target_sha and
-                status.state == latest_state and
+                status.github_state_up_to_date(latest_state) and
                 status.review_state == latest_review_state):
                 print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
             else:
@@ -612,8 +631,6 @@ def polling_event_loop():
     time.sleep(5)
     while True:
         try:
-           # making a request ensures only one thread is ever manipulating the
-           # global state
            r = requests.post('http://127.0.0.1:5000/refresh_github_state')
            r.raise_for_status()
            r = requests.post('http://127.0.0.1:5000/heal')
