@@ -136,8 +136,8 @@ def get_pr_status_by_target(target_url, target_ref):
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
-def cancel_existing_jobs(source_url, source, target_url, target):
-    old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
+def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
+    old_status = source_target_pr.get((source_url, source_ref), {}).get((target_url, target_ref), None)
     if old_status and old_status.state == 'running':
         id = old_status.job_id
         assert(id is not None)
@@ -256,7 +256,6 @@ def github_pull_request():
     data = request.json
     action = data['action']
     if action == 'opened' or action == 'synchronize':
-        pr_number = str(data['number'])
         source_url = data['pull_request']['head']['repo']['clone_url']
         source_ref = data['pull_request']['head']['ref']
         source_sha = data['pull_request']['head']['sha']
@@ -264,14 +263,10 @@ def github_pull_request():
         target_ref = data['pull_request']['base']['ref']
         pr_number = str(data['number'])
         target_sha = get_sha_for_target_ref(target_ref)
-        cancel_existing_jobs(source_url, source_sha, target_url, target_ref)
-        update_pr_status(
-            source_url,
-            source_ref,
-            target_url,
-            target_ref,
-            Status('pending', 'pending', source_sha, target_sha, pr_number)
-        )
+        review_status = review_status_net(pr_number)
+        cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
+        status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
+        update_pr_status(source_url, source_ref, target_url, target_ref, status)
         post_repo(
             'statuses/' + source_sha,
             json={
@@ -281,8 +276,9 @@ def github_pull_request():
             },
             status_code=201
         )
-        heal()
-    # add elif to update review status
+        # eagerly trigger a build (even if master has other pending PRs
+        # building) since the requester introduced new changes
+        test_pr(source_url, source_ref, target_url, target_ref, status)
     else:
         print(f'ignoring github pull_request event of type {action} full json: {data}')
     return '', 200
@@ -328,7 +324,8 @@ def ci_build_done():
                 json={
                     'state': 'success',
                     'description': 'successful build after merge with ' + target_sha,
-                    'context': CONTEXT
+                    'context': CONTEXT,
+                    'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
                 },
                 status_code=201
             )
@@ -364,7 +361,6 @@ def heal_endpoint():
     return '', 200
 
 def heal():
-    print('healing')
     for (target_url, target_ref), prs in target_source_pr.items():
         ready_to_merge = [(source, status)
                           for source, status in prs.items()
@@ -374,34 +370,79 @@ def heal():
             # pick oldest one instead
             ((source_url, source_ref), status) = ready_to_merge[0]
             print(f'normally I would merge {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
-        else:
-            approved_running = [(source, status)
-                                for source, status in prs.items()
-                                if status.state == 'running'
-                                and status.review_state == 'approved']
-            if len(approved_running) != 0:
-                print(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running}')
-            else:
-                approved = [(source, status)
+        # else:
+        approved_running = [(source, status)
                             for source, status in prs.items()
-                            if status.state == 'pending'
+                            if status.state == 'running'
                             and status.review_state == 'approved']
-                if len(approved) != 0:
-                    # pick oldest one instead
-                    ((source_url, source_ref), status) = approved[0]
-                    print(f'gonna test {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
-                    test_pr(source_url, source_ref, target_url, target_ref, status)
-                else:
-                    untested = [(source, status)
-                                for source, status in prs.items()
-                                if status.state == 'pending']
-                    if len(untested) != 0:
-                        # pick oldest one instead
-                        ((source_url, source_ref), status) = untested[0]
-                        print(f'gonna test {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
+        if len(approved_running) != 0:
+            approved_running_json = [(source, status.to_json()) for (source, status) in approved_running]
+            print(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running_json}')
+        else:
+            approved = [(source, status)
+                        for source, status in prs.items()
+                        if status.state == 'pending'
+                        and status.review_state == 'approved']
+            if len(approved) != 0:
+                # pick oldest one instead
+                ((source_url, source_ref), status) = approved[0]
+                print(f'no approved and running prs, will build: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
+                test_pr(source_url, source_ref, target_url, target_ref, status)
+            else:
+                untested = [(source, status)
+                            for source, status in prs.items()
+                            if status.state == 'pending']
+                if len(untested) != 0:
+                    print('no approved prs, will build all PRs with out of date statuses')
+                    for (source_url, source_ref), status in untested:
+                        print(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                         test_pr(source_url, source_ref, target_url, target_ref, status)
-                    else:
-                        print('all prs have up-to-date ci state')
+                else:
+                    print('all prs have up-to-date ci state')
+
+@app.route('/force_retest_pr', methods=['POST'])
+def force_retest_pr_endpoint():
+    data = request.json
+    user = data['user']
+    source_ref = data['source_ref']
+    target_repo = data['target_repo']
+    target_ref = data['target_ref']
+
+    pulls = get_github(
+        f'repos/{target_repo}/pulls?state=open&head={user}:{source_ref}&base={target_ref}',
+        status_code=200
+    )
+
+    if len(pulls) != 1:
+        return f'too many PRs found: {pulls}', 200
+
+    pull = pulls[0]
+    pr_number = str(pull['number'])
+    source_url = pull['head']['repo']['clone_url']
+    source_ref = pull['head']['ref']
+    source_sha = pull['head']['sha']
+    target_url = pull['base']['repo']['clone_url']
+    target_ref = pull['base']['ref']
+    target_sha = get_github(
+        f'repos/{target_repo}/git/refs/heads/{target_ref}',
+        status_code=200
+    )['object']['sha']
+
+    review_status = review_status_net(pr_number)
+    cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
+    status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
+    update_pr_status(source_url, source_ref, target_url, target_ref, status)
+    post_repo(
+        'statuses/' + source_sha,
+        json={
+            'state': 'pending',
+            'description': f'(MANUALLY FORCED REBUILD) build merged into {target_sha} pending',
+            'context': CONTEXT
+        },
+        status_code=201
+    )
+    test_pr(source_url, source_ref, target_url, target_ref, status)
+    return '', 200
 
 def test_pr(source_url, source_ref, target_url, target_ref, status):
     assert status.state == 'pending', str(status.to_json())
@@ -496,16 +537,7 @@ def refresh_github_state():
             pr_number = str(pull['number'])
             status = known_prs.pop((source_url, source_ref), None)
             review_status = review_status_net(pr_number)
-            statuses = get_repo(
-                'commits/' + source_sha + '/statuses',
-                status_code=200
-            )
-            my_statuses = [s for s in statuses if s['context'] == CONTEXT]
-            latest_state = 'pending'
-            if len(my_statuses) != 0:
-                latest_status = my_statuses[0]
-                if target_sha in latest_status['description']:
-                    latest_state = latest_status['state']
+            latest_state = status_state_net(source_sha, target_sha)
             latest_review_state = review_status['state']
             if (status and
                 status.source_sha == source_sha and
@@ -527,7 +559,7 @@ def refresh_github_state():
 
         if len(known_prs) != 0:
             print(f'some PRs have been invalidated by github state refresh: {known_prs}')
-            for pr in known_prs:
+            for (source_url, source_ref), status in known_prs:
                 if pr.state == 'running':
                     print(f'cancelling job {pr.job_id} for {pr.to_json()}')
                     client.get_job(pr.job_id).cancel()
@@ -569,6 +601,19 @@ def review_status_net(pr_number):
         status_code=200
     )
     return review_status(reviews)
+
+def status_state_net(source_sha, target_sha):
+    statuses = get_repo(
+        'commits/' + source_sha + '/statuses',
+        status_code=200
+    )
+    my_statuses = [s for s in statuses if s['context'] == CONTEXT]
+    latest_state = 'pending'
+    if len(my_statuses) != 0:
+        latest_status = my_statuses[0]
+        if target_sha in latest_status['description']:
+            latest_state = latest_status['state']
+    return latest_state
 
 def review_status(reviews):
     latest_state_by_login = {}
