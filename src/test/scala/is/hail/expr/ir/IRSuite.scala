@@ -442,6 +442,7 @@ class IRSuite extends SparkSuite {
           TableRange(100, 10), "inner"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
+        TableRepartition(read, 10, false),
         TableParallelize(
           TableType(
             TStruct("a" -> TInt32()),
