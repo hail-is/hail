@@ -1393,7 +1393,7 @@ class Table(ExprContainer):
                 if is_row_key or is_partition_key:
                     key = None
                 else:
-                    key = [k._ast.to_hql() for k in exprs]
+                    key = [str(k._ir) for k in exprs]
                 joiner = lambda left: MatrixTable(left._jvds.annotateRowsTableIR(right._jt, uid, key))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
