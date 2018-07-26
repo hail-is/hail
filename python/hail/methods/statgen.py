@@ -1932,7 +1932,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     Compute linkage disequilibrium between all pairs of variants on the same
     contig and within two megabases:
 
-    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6)
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
     >>> ld.to_numpy()
     array([[ 1.        , -0.85280287,  0.        ],
            [-0.85280287,  1.        ,  0.        ],
@@ -1940,7 +1940,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
 
     Within one megabases:
 
-    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6)
     >>> ld.to_numpy()
     array([[1., 0., 0.],
            [0., 1., 0.],
