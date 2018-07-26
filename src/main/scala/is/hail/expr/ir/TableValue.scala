@@ -20,6 +20,15 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
 
+  def keyedRDD(): RDD[(Row, Row)] = {
+    require(typ.key.isDefined)
+    val fieldIndices = typ.rowType.fields.map(f => f.name -> f.index).toMap
+    val keyIndices = typ.key.get.map(fieldIndices)
+    val keyIndexSet = keyIndices.toSet
+    val valueIndices = typ.rowType.fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
+  }
+
   def enforceOrderingRVD: RVD = (rvd, typ.key) match {
     case (orvd: OrderedRVD, Some(key)) =>
       assert(orvd.typ.key.startsWith(key))
