@@ -468,7 +468,6 @@ class Tests(unittest.TestCase):
         ds = ds.explode_rows(ds.info.culprit)
         ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo]['value'])
         rt = ds.rows()
-        rt.show(-1, width=10000)
         self.assertTrue(
             rt.all(hl.cond(
                 rt.info.culprit == "InbreedingCoeff",
