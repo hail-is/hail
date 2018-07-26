@@ -444,6 +444,8 @@ object PruneDeadFields {
         val dep = requestedType.copy(rvRowType = unify(child.typ.rvRowType,
           requestedType.rvRowType.insert(fieldDep, path.toList)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(child, dep, memo)
+      case MatrixUnionRows(children) =>
+        children.foreach(memoizeMatrixIR(_, requestedType, memo))
     }
   }
 

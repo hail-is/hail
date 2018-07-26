@@ -3019,6 +3019,25 @@ class MatrixTable(ExprContainer):
         elif len(datasets) == 1:
             return datasets[0]
         else:
+            error_msg = "'MatrixTable.union_rows' expects {} for all datasets to be the same. Found:    \ndataset {}: {}    \ndataset {}: {}"
+            first = datasets[0]
+            for i, next in enumerate(datasets[1:]):
+                if first.row_key.keys() != next.row_key.keys():
+                    raise ValueError(error_msg.format(
+                        "row keys", 0, first.row_key.keys(), i+1, next.row_key.keys()
+                    ))
+                if first.row.dtype != next.row.dtype:
+                    raise ValueError(error_msg.format(
+                        "row types", 0, first.row.dtype, i+1, next.row.dtype
+                    ))
+                if first.entry.dtype != next.entry.dtype:
+                    raise ValueError(error_msg.format(
+                        "entry field types", 0, first.entry.dtype, i+1, next.entry.dtype
+                    ))
+                if first.col_key.dtype != next.col_key.dtype:
+                    raise ValueError(error_msg.format(
+                        "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
+                    ))
             return MatrixTable(Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)

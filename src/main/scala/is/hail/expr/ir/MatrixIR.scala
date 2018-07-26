@@ -1940,3 +1940,35 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
       }))
   }
 }
+
+case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
+
+  require(children.length > 1)
+
+  val typ: MatrixType = children.head.typ
+
+  require(children.tail.forall(_.typ.orvdType == typ.orvdType))
+  require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+    MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
+
+  def checkColKeysSame(values: IndexedSeq[IndexedSeq[Any]]): Unit = {
+    val firstColKeys = values.head
+    var i = 1
+    values.tail.foreach { colKeys =>
+      if (firstColKeys != colKeys)
+        fatal(
+          s"""cannot combine datasets with different column identifiers or ordering
+             |  IDs in datasets[0]: @1
+             |  IDs in datasets[$i]: @2""".stripMargin, firstColKeys, colKeys)
+      i += 1
+    }
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val values = children.map(_.execute(hc))
+    checkColKeysSame(values.map(_.colValues.value))
+    values.head.copy(rvd=OrderedRVD.union(values.map(_.rvd)))
+  }
+}

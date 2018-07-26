@@ -204,6 +204,12 @@ object Simplify {
           case c => Some(c)
         })
 
+      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) =>
+        MatrixUnionRows(children.flatMap {
+          case u: MatrixUnionRows => u.children
+          case c => Some(c)
+        })
+
       // optimize MatrixIR
 
       // Equivalent rewrites for the new Filter{Cols,Rows}IR

@@ -244,10 +244,7 @@ object MatrixTable {
     unionRows(datasets.asScala.toArray)
 
   def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
-    require(datasets.length >= 2)
-    val first = datasets(0)
-    checkDatasetSchemasCompatible(datasets)
-    first.copyMT(rvd = OrderedRVD.union(datasets.map(_.rvd)))
+    new MatrixTable(datasets.head.hc, MatrixUnionRows(datasets.map(_.ast).toFastIndexedSeq))
   }
 
   def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
