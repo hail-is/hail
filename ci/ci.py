@@ -99,58 +99,50 @@ class Status(object):
             'job_id': self.job_id
         }
 
-lock = threading.Lock()
 target_source_pr = collections.defaultdict(dict)
 source_target_pr = collections.defaultdict(dict)
 
 def update_pr_status(source_url, source_ref, target_url, target_ref, status):
-    with lock:
-        target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
-        source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
+    target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
+    source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
 
 def get_pr_status(source_url, source_ref, target_url, target_ref):
-    with lock:
-        x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
-        y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
-        assert x == y, str(x) + str(y)
-        return x
+    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
+    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
+    assert x == y, str(x) + str(y)
+    return x
 
 def pop_prs_for_target(target_url, target_ref):
-    with lock:
-        prs = target_source_pr.pop((target_url, target_ref))
-        for (source_url, source_ref), status in prs.items():
-            x = source_target_pr[(source_url, source_ref)]
-            del x[(target_url, target_ref)]
-        return prs
+    prs = target_source_pr.pop((target_url, target_ref))
+    for (source_url, source_ref), status in prs.items():
+        x = source_target_pr[(source_url, source_ref)]
+        del x[(target_url, target_ref)]
+    return prs
 
 def pop_prs_for_target(target_url, target_ref, default):
-    with lock:
-        prs = target_source_pr.pop((target_url, target_ref), None)
-        if prs is None:
-            return default
-        for (source_url, source_ref), status in prs.items():
-            x = source_target_pr[(source_url, source_ref)]
-            del x[(target_url, target_ref)]
-        return prs
+    prs = target_source_pr.pop((target_url, target_ref), None)
+    if prs is None:
+        return default
+    for (source_url, source_ref), status in prs.items():
+        x = source_target_pr[(source_url, source_ref)]
+        del x[(target_url, target_ref)]
+    return prs
 
 def get_pr_status_by_source(source_url, source_ref):
-    with lock:
-        return source_target_pr[(source_url, source_ref)]
+    return source_target_pr[(source_url, source_ref)]
 
 def get_pr_status_by_target(target_url, target_ref):
-    with lock:
-        return target_source_pr[(target_url, target_ref)]
+    return target_source_pr[(target_url, target_ref)]
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
 def cancel_existing_jobs(source_url, source, target_url, target):
-    with lock:
-        old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
-        if old_status and old_status.state == 'running':
-            id = old_status.job_id
-            assert(id is not None)
-            print(f'cancelling existing job {id} due to pr status update')
-            batch_client.get_job(id).cancel()
+    old_status = source_target_pr.get((source_url, source), {}).get((target_url, target), None)
+    if old_status and old_status.state == 'running':
+        id = old_status.job_id
+        assert(id is not None)
+        print(f'cancelling existing job {id} due to pr status update')
+        batch_client.get_job(id).cancel()
 
 @app.route('/status')
 def status():
@@ -372,6 +364,7 @@ def heal_endpoint():
     return '', 200
 
 def heal():
+    print('healing')
     for (target_url, target_ref), prs in target_source_pr.items():
         ready_to_merge = [(source, status)
                           for source, status in prs.items()
@@ -520,6 +513,8 @@ def refresh_github_state():
                 status.github_state_up_to_date(latest_state) and
                 status.review_state == latest_review_state):
                 print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+                # restore pop'ed status
+                update_pr_status(source_url, source_ref, target_url, target_ref, status)
             else:
                 print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                       f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
@@ -625,7 +620,7 @@ def github_rate_limits():
 ### event loops
 
 def flask_event_loop():
-    app.run()
+    app.run(threaded=False)
 
 def polling_event_loop():
     time.sleep(5)
