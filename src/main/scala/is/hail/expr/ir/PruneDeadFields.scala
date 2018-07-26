@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq}
+import is.hail.HailContext
+import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -710,6 +711,13 @@ object PruneDeadFields {
           colFields.filter(childFieldSet.contains),
           partitionKey,
           nPartitions)
+      case MatrixUnionRows(children) =>
+        val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
+        MatrixUnionRows(children.map { child =>
+          upcast(rebuild(child, memo), requestedType,
+            upcastCols = false,
+            upcastGlobals = false)
+        } )
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -842,6 +850,32 @@ object PruneDeadFields {
           val ref = Ref(uid, ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
       }
+    }
+  }
+
+  def upcast(ir: MatrixIR, rType: MatrixType,
+    upcastRows: Boolean = true,
+    upcastCols: Boolean = true,
+    upcastGlobals: Boolean = true,
+    upcastEntries: Boolean = true): MatrixIR = {
+
+    if (ir.typ == rType || !(upcastRows || upcastCols || upcastGlobals || upcastEntries))
+      ir
+    else {
+      var mt = ir
+      if (upcastEntries && mt.typ.entryType != rType.entryType)
+        mt = MatrixMapEntries(mt, SelectFields(Ref("g", mt.typ.entryType), rType.entryType.fieldNames))
+
+      if (upcastRows && mt.typ.rowType != rType.rowType)
+        mt = MatrixMapRows(mt, SelectFields(Ref("va", mt.typ.rvRowType), rType.rvRowType.fieldNames), None)
+
+      if (upcastCols && mt.typ.colType != rType.colType)
+        mt = MatrixMapCols(mt, SelectFields(Ref("sa", mt.typ.colType), rType.colType.fieldNames), None)
+
+      if (upcastGlobals && mt.typ.globalType != rType.globalType)
+        mt = MatrixMapGlobals(mt, SelectFields(Ref("global", ir.typ.entryType), rType.entryType.fieldNames), BroadcastRow.empty(HailContext.get.sc))
+
+      mt
     }
   }
 }
