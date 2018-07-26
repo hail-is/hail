@@ -146,7 +146,7 @@ object Simplify {
         val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
         val insertSet = insertFields2.map(_._1).toSet
         val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
-        val selectFields2 = selectFields.filter(s => !insertSet.contains(s) || structSet.contains(s))
+        val selectFields2 = selectFields.filter(structSet.contains)
         val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)
         assert(x2.typ == x.typ)
         x2
