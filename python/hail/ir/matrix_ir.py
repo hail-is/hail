@@ -243,6 +243,7 @@ class TableToMatrixTable(MatrixIR):
                f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
                f'{self.child})'
 
+
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):
         super().__init__()
@@ -253,3 +254,12 @@ class MatrixExplodeRows(MatrixIR):
         return '(MatrixExplodeRows ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
+
+
+class MatrixUnionRows(MatrixIR):
+    def __init__(self, *children):
+        super().__init__()
+        self.children = children
+
+    def __str__(self):
+        return '(MatrixUnionRows {})'.format(' '.join(map(str, self.children)))
