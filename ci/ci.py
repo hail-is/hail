@@ -398,7 +398,7 @@ def heal():
                         print(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                         test_pr(source_url, source_ref, target_url, target_ref, status)
                 else:
-                    print('all prs have up-to-date ci state')
+                    print('all prs are tested or running')
 
 @app.route('/force_retest_pr', methods=['POST'])
 def force_retest_pr_endpoint():
