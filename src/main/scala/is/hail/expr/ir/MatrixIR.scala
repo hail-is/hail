@@ -1953,6 +1953,12 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
 
+  override def columnCount: Option[Int] =
+    children.map(_.columnCount).reduce { (c1, c2) =>
+      require(c1.forall { i1 => c2.forall(i1 == _) } )
+      c1.orElse(c2)
+    }
+
   def checkColKeysSame(values: IndexedSeq[IndexedSeq[Any]]): Unit = {
     val firstColKeys = values.head
     var i = 1
