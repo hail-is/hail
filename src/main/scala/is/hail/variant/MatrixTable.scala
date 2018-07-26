@@ -647,9 +647,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val key = Option(irs).map { irs =>
       irs.asScala
         .toFastIndexedSeq
-        .map(s => (Parser.parseToAST(s, rowEC).toIROpt(Some("AGG" -> "g")): @unchecked) match {
-          case Some(x) => x
-        })
+        .map(Parser.parse_value_ir(_, matrixType.refMap))
     }
     new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
   }
