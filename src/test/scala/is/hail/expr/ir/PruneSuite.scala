@@ -535,23 +535,20 @@ class PruneSuite extends SparkSuite {
       })
   }
 
-  @Test def testTableUnionRebuild() {
+  @Test def testTableUnionRebuildUnifiesRowTypes() {
     val mapExpr = InsertFields(Ref("row", tr.typ.rowType),
       FastIndexedSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
     val tfilter = TableFilter(
       TableMapRows(tr, mapExpr, None, None),
       tableRefBoolean(tr.typ, "row.2"))
-    val tmap = TableMapRows(
-      TableFilter(tr, tableRefBoolean(tr.typ, "row.2")),
-      mapExpr, None, None)
+    val tmap = TableMapRows(tr, mapExpr, None, None)
     val tunion = TableUnion(FastIndexedSeq(tfilter, tmap))
     checkRebuild(tunion, subsetTable(tunion.typ, "row.foo"),
       (_: BaseIR, rebuilt: BaseIR) => {
         val tu = rebuilt.asInstanceOf[TableUnion]
         val tf = tu.children(0)
         val tm = tu.children(1)
-        tf.typ == subsetTable(tunion.typ, "row.foo", "global.g1") &&
-          tm.typ == subsetTable(tunion.typ, "row.foo", "global.g1") &&
+        tf.typ.rowType == tm.typ.rowType &&
           tu.typ == subsetTable(tunion.typ, "row.foo", "global.g1")
       })
   }
