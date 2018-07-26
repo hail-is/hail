@@ -80,10 +80,10 @@ trait Py4jUtils {
     )
   }
 
-  private val kilo = 1024
-  private val mega = 1024 * 1024
-  private val giga = 1024 * 1024 * 1024
-  private val tera = 1024 * 1024 * 1024 * 1024
+  private val kilo: Long = 1024
+  private val mega: Long = kilo * 1024
+  private val giga: Long = mega * 1024
+  private val tera: Long = giga * 1024
 
   private def readableBytes(bytes: Long): String = {
     if (bytes < kilo)
@@ -98,7 +98,7 @@ trait Py4jUtils {
       formatDigits(bytes, tera) + "T"
   }
 
-  private def formatDigits(n: Long, factor: Int): String = {
+  private def formatDigits(n: Long, factor: Long): String = {
     (n / factor.toDouble).formatted("%.1f")
   }
 
