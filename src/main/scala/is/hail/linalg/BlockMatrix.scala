@@ -1616,6 +1616,7 @@ class WriteBlocksRDD(path: String,
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
 
+    val data = new Array[Double](blockSize)
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.foreach { pi =>
@@ -1630,8 +1631,6 @@ class WriteBlocksRDD(path: String,
             j += 1
           }
         }
-
-        val data = new Array[Double](blockSize)
 
         var i = 0
         while (it.hasNext && i < nRowsInBlock) {
