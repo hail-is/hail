@@ -4,10 +4,12 @@ import requests
 from google.cloud import storage
 import os
 import collections
+import time
+import threading
 
 # REPO = 'danking/docker-build-test/' # needs trailing slash
 REPO = 'hail-is/hail/' # needs trailing slash
-REPO_API_URL = 'https://api.github.com/repos/' + REPO
+GITHUB_URL = 'https://api.github.com/'
 CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
 SELF_HOSTNAME = 'http://35.232.159.176:3000'
@@ -16,8 +18,6 @@ GCP_PROJECT='broad-ctsa'
 GCS_BUCKET='hail-ci-0-1'
 
 class NoOAuthToken(Exception):
-    pass
-class NoSecret(Exception):
     pass
 class NoPRBuildScript(Exception):
     pass
@@ -49,15 +49,6 @@ except FileNotFoundError as e:
     raise NoOAuthToken(
         "working directory must contain a file called `oauth-token' "
         "containing a valid GitHub oauth token"
-    ) from e
-
-try:
-    with open('secret', 'r') as f:
-        secret = f.read()
-except FileNotFoundError as e:
-    raise NoSecret(
-        "working directory must contain a file called `secret' "
-        "containing a string used to access dangerous endpoints"
     ) from e
 
 try:
@@ -119,14 +110,16 @@ def get_pr_status(source_url, source_ref, target_url, target_ref):
 
 def pop_prs_for_target(target_url, target_ref):
     prs = target_source_pr.pop((target_url, target_ref))
-    for (source_url, source_ref), status in prs:
+    for (source_url, source_ref), status in prs.items():
         x = source_target_pr[(source_url, source_ref)]
         del x[(target_url, target_ref)]
     return prs
 
 def pop_prs_for_target(target_url, target_ref, default):
-    prs = target_source_pr.pop((target_url, target_ref), default)
-    for (source_url, source_ref), status in prs:
+    prs = target_source_pr.pop((target_url, target_ref), None)
+    if prs is None:
+        return default
+    for (source_url, source_ref), status in prs.items():
         x = source_target_pr[(source_url, source_ref)]
         del x[(target_url, target_ref)]
     return prs
@@ -169,7 +162,7 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
     r = requests.post(
-        REPO_API_URL + url,
+        GITHUB_URL + 'repos/' + REPO + url,
         headers=headers,
         json=json,
         data=data
@@ -177,7 +170,7 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
     if status_code and r.status_code != status_code:
         raise BadStatus({
             'method': 'post',
-            'endpoint' : REPO_API_URL + url,
+            'endpoint' : GITHUB_URL + 'repos/' + REPO + url,
             'status_code' : r.status_code,
             'data': data,
             'json': json,
@@ -188,6 +181,9 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
         return r.json()
 
 def get_repo(url, headers=None, status_code=None):
+    return get_github('repos/' + REPO + url, headers, status_code)
+
+def get_github(url, headers=None, status_code=None):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
@@ -195,13 +191,13 @@ def get_repo(url, headers=None, status_code=None):
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
     r = requests.get(
-        REPO_API_URL + url,
+        GITHUB_URL + url,
         headers=headers
     )
     if status_code and r.status_code != status_code:
         raise BadStatus({
             'method': 'get',
-            'endpoint' : REPO_API_URL + url,
+            'endpoint' : GITHUB_URL + url,
             'status_code' : r.status_code,
             'message': 'github error',
             'github_json': r.json()
@@ -214,7 +210,7 @@ def get_repo(url, headers=None, status_code=None):
 
 @app.errorhandler(BadStatus)
 def handle_invalid_usage(error):
-    print('ERROR: ' + str(error.status_code) + ': ' + str(error.data))
+    print('ERROR: ' + str(error.status_code) + ': ' + str(error.data) + '\n\nrequest json: ' + str(request.json))
     return jsonify(error.data), error.status_code
 
 ###############################################################################
@@ -223,7 +219,6 @@ def handle_invalid_usage(error):
 @app.route('/push', methods=['POST'])
 def github_push():
     data = request.json
-    print(data)
     ref = data['ref']
     new_sha = data['after']
     if ref.startswith('refs/heads/'):
@@ -255,7 +250,6 @@ def github_push():
 @app.route('/pull_request', methods=['POST'])
 def github_pull_request():
     data = request.json
-    print(data)
     action = data['action']
     if action == 'opened' or action == 'synchronize':
         pr_number = str(data['number'])
@@ -265,11 +259,8 @@ def github_pull_request():
         target_url = data['pull_request']['base']['repo']['clone_url']
         target_ref = data['pull_request']['base']['ref']
         pr_number = str(data['number'])
-        target_sha = get_repo(
-            f'git/refs/heads/{target_ref}',
-            status_code=200
-        )['object']['sha']
-        cancel_existing_jobs(source_url, source_sha, target_url, target)
+        target_sha = get_sha_for_target_ref(target_ref)
+        cancel_existing_jobs(source_url, source_sha, target_url, target_ref)
         update_pr_status(
             source_url,
             source_ref,
@@ -295,7 +286,6 @@ def github_pull_request():
 @app.route('/ci_build_done', methods=['POST'])
 def ci_build_done():
     data = request.json
-    print(data)
     job_id = data['id']
     exit_code = data['exit_code']
     attributes = data['attributes']
@@ -466,43 +456,67 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
                status.pr_number,
                job_id=job.id))
 
-@app.route('/refresh_base/<target_ref>', methods=['POST'])
-def refresh_github_state(target_ref):
-    target_url = 'https://github.com/'+REPO[:-1]+'.git'    # send this in json data or something
-    target_sha = get_repo(
-        'git/refs/heads/'+target_ref,
+def get_sha_for_target_ref(ref):
+    return get_repo(
+        'git/refs/heads/' + ref,
         status_code=200
     )['object']['sha']
+
+@app.route('/refresh_github_state', methods=['POST'])
+def refresh_github_state():
+    target_url = 'https://github.com/'+REPO[:-1]+'.git'
     pulls = get_repo(
-        'pulls?state=open&base=' + target_ref,
+        'pulls?state=open',
         status_code=200
     )
-    print(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
-    known_prs = pop_prs_for_target(target_url, target_ref, {})
+    pulls_by_target = collections.defaultdict(list)
     for pull in pulls:
-        source_url = pull['head']['repo']['clone_url']
-        source_ref = pull['head']['ref']
-        source_sha = pull['head']['sha']
-        pr_number = str(pull['number'])
-        status = known_prs.pop((source_url, source_ref), None)
-        if status and status.source_sha == source_sha and status.target_sha == target_sha:
-            print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
-        else:
-            print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+        target_ref = pull['base']['ref']
+        pulls_by_target[target_ref].append(pull)
+    for target_ref, pulls in pulls_by_target.items():
+        target_sha = get_sha_for_target_ref(target_ref)
+        print(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
+        known_prs = pop_prs_for_target(target_url, target_ref, {})
+        for pull in pulls:
+            source_url = pull['head']['repo']['clone_url']
+            source_ref = pull['head']['ref']
+            source_sha = pull['head']['sha']
+            pr_number = str(pull['number'])
+            status = known_prs.pop((source_url, source_ref), None)
             review_status = review_status_net(pr_number)
-            update_pr_status(
-                source_url,
-                source_ref,
-                target_url,
-                target_ref,
-                Status('pending', review_status['state'], source_sha, target_sha, pr_number))
+            statuses = get_repo(
+                'commits/' + source_sha + '/statuses',
+                status_code=200
+            )
+            my_statuses = [s for s in statuses if s['context'] == CONTEXT]
+            latest_state = 'pending'
+            if len(my_statuses) != 0:
+                latest_status = my_statuses[0]
+                if target_sha in latest_status['description']:
+                    latest_state = latest_status['state']
+            latest_review_state = review_status['state']
+            if (status and
+                status.source_sha == source_sha and
+                status.target_sha == target_sha and
+                status.state == latest_state and
+                status.review_state == latest_review_state):
+                print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+            else:
+                print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                      f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
+                update_pr_status(
+                    source_url,
+                    source_ref,
+                    target_url,
+                    target_ref,
+                    Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
 
-    if len(known_prs) != 0:
-        print(f'some PRs have been invalidated by github state refresh: {known_prs}')
-        for pr in known_prs:
-            if pr.state == 'running':
-                print(f'cancelling job {pr.job_id} for {pr.to_json()}')
-                client.get_job(pr.job_id).cancel()
+        if len(known_prs) != 0:
+            print(f'some PRs have been invalidated by github state refresh: {known_prs}')
+            for pr in known_prs:
+                if pr.state == 'running':
+                    print(f'cancelling job {pr.job_id} for {pr.to_json()}')
+                    client.get_job(pr.job_id).cancel()
 
     return '', 200
 
@@ -571,7 +585,7 @@ def review_status(reviews):
         }
 
 ###############################################################################
-### SHA Status Manipulation
+### SHA Statuses
 
 @app.route('/pr/<sha>/statuses')
 def statuses(sha):
@@ -581,53 +595,35 @@ def statuses(sha):
     )
     return jsonify(json), 200
 
-# @app.route('/pr/<sha>/fail')
-# def fail(sha):
-#     if request.args.get('secret') != secret:
-#         return '403 Forbidden: bad secret query parameter', 403
-#     post_repo(
-#         'statuses/' + sha,
-#         json={
-#             'state': 'failure',
-#             'description': 'manual override: fail',
-#             'context': CONTEXT
-#         },
-#         status_code=201
-#     )
+###############################################################################
+### GitHub things
 
-#     return '', 200
+@app.route('/github_rate_limits')
+def github_rate_limits():
+    return jsonify(get_github('/rate_limit')), 200
 
-# @app.route('/pr/<sha>/pending')
-# def pending(sha):
-#     if request.args.get('secret') != secret:
-#         return '403 Forbidden: bad secret query parameter', 403
-#     post_repo(
-#         'statuses/' + sha,
-#         json={
-#             'state': 'pending',
-#             'description': 'manual override: pending',
-#             'context': CONTEXT
-#         },
-#         status_code=201
-#     )
+###############################################################################
+### event loops
 
-#     return '', 200
+def flask_event_loop():
+    app.run()
 
-# @app.route('/pr/<sha>/success')
-# def success(sha):
-#     if request.args.get('secret') != secret:
-#         return '403 Forbidden: bad secret query parameter', 403
-#     post_repo(
-#         'statuses/' + sha,
-#         json={
-#             'state': 'success',
-#             'description': 'manual override: success',
-#             'context': CONTEXT
-#         },
-#         status_code=201
-#     )
-
-#     return '', 200
+def polling_event_loop():
+    time.sleep(5)
+    while True:
+        try:
+           # making a request ensures only one thread is ever manipulating the
+           # global state
+           r = requests.post('http://127.0.0.1:5000/refresh_github_state')
+           r.raise_for_status()
+           r = requests.post('http://127.0.0.1:5000/heal')
+           r.raise_for_status()
+        except Exception as e:
+            print(f'Could not poll due to exception: {e}')
+            pass
+        time.sleep(60)
 
 if __name__ == '__main__':
-    app.run()
+    poll_thread = threading.Thread(target=polling_event_loop)
+    poll_thread.start()
+    flask_event_loop()
