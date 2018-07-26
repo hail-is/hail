@@ -864,16 +864,16 @@ object PruneDeadFields {
     else {
       var mt = ir
       if (upcastEntries && mt.typ.entryType != rType.entryType)
-        mt = MatrixMapEntries(mt, SelectFields(Ref("g", mt.typ.entryType), rType.entryType.fieldNames))
+        mt = MatrixMapEntries(mt, upcast(Ref("g", mt.typ.entryType), rType.entryType))
 
       if (upcastRows && mt.typ.rowType != rType.rowType)
-        mt = MatrixMapRows(mt, SelectFields(Ref("va", mt.typ.rvRowType), rType.rvRowType.fieldNames), None)
+        mt = MatrixMapRows(mt, upcast(Ref("va", mt.typ.rvRowType), rType.rvRowType), None)
 
       if (upcastCols && mt.typ.colType != rType.colType)
-        mt = MatrixMapCols(mt, SelectFields(Ref("sa", mt.typ.colType), rType.colType.fieldNames), None)
+        mt = MatrixMapCols(mt, upcast(Ref("sa", mt.typ.colType), rType.colType), None)
 
       if (upcastGlobals && mt.typ.globalType != rType.globalType)
-        mt = MatrixMapGlobals(mt, SelectFields(Ref("global", ir.typ.entryType), rType.entryType.fieldNames), BroadcastRow.empty(HailContext.get.sc))
+        mt = MatrixMapGlobals(mt, upcast(Ref("global", ir.typ.globalType), rType.globalType), BroadcastRow.empty(HailContext.get.sc))
 
       mt
     }
