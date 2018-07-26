@@ -203,3 +203,13 @@ class TableDistinct(TableIR):
 
     def __str__(self):
         return f'(TableDistinct {self.child})'
+
+class TableRepartition(TableIR):
+    def __init__(self, child, n, shuffle):
+        super().__init__()
+        self.child = child
+        self.n = n
+        self.shuffle = shuffle
+
+    def __str__(self):
+        return f'(TableRepartition {self.n} {self.shuffle} {self.child})'

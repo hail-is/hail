@@ -628,7 +628,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
   }
 
-  def repartition(n: Int, shuffle: Boolean = true): Table = copy2(rvd = rvd.coalesce(n, shuffle))
+  def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
 
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 

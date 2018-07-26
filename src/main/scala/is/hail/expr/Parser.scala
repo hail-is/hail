@@ -593,6 +593,7 @@ object Parser extends JavaTokenParsers {
       "MatrixRowsTable" ~> matrix_ir ^^ { child => ir.MatrixRowsTable(child) } |
       "MatrixEntriesTable" ~> matrix_ir ^^ { child => ir.MatrixEntriesTable(child) } |
       "TableAggregateByKey" ~> table_ir ~ ir_value_expr() ^^ { case child ~ expr => ir.TableAggregateByKey(child, expr) } |
+      "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
       "TableJoin" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case joinType ~ left ~ right => ir.TableJoin(left, right, joinType) } |
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
         ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)

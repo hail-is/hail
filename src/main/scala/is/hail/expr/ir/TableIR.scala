@@ -305,6 +305,20 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
+case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends TableIR {
+  def typ: TableType = child.typ
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+    TableRepartition(newChildren(0).asInstanceOf[TableIR], n, shuffle)
+
+  override def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+    prev.copy(rvd = prev.rvd.coalesce(n, shuffle))
+  }
+}
+
 case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
   require(left.typ.keyType.zip(right.typ.keyType).exists { case (leftKey, rightKey) =>
     leftKey isIsomorphicTo rightKey

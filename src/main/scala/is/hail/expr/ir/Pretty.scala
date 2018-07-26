@@ -247,6 +247,7 @@ object Pretty {
                 prettyIntOpt(nPartitionKeys) + " " +
                 prettyBooleanLiteral(sort)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
+            case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
             case TableJoin(_, _, joinType) => joinType
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)

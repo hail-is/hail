@@ -125,6 +125,7 @@ class IRTests(unittest.TestCase):
                     ('foo', ir.NA(hl.tarray(hl.tint32)))]),
                 ir.Value(hl.tstruct(), {})),
             ir.TableRange(100, 10),
+            ir.TableRepartition(table_read, 10, False),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, 'mset'),
