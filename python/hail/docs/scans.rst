@@ -74,5 +74,5 @@ Scans over entry fields are currently not supported.
     Computing the result of certain aggregators, such as ``hardy_weinberg``, can
     be expensive.
 
-See the ``aggregators` `<aggregators> module for documentation on the behavior
+See the ``aggregators``<aggregators> module for documentation on the behavior
 of specific aggregators.
