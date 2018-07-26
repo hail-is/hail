@@ -990,7 +990,13 @@ object OrderedRVD {
             prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
             pkUR.set(prevPK.value)
-            assert(partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR))
+            if (!partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR)) {
+              fatal(
+                s"""OrderedRVD error! Unexpected PK in partition $i
+                   |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Invalid PK: ${ pkUR.toString() }
+                   |  Full key: ${ new UnsafeRow(typ.kType, rv).toString() }""".stripMargin)
+            }
 
             assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
             rv
