@@ -40,7 +40,7 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    ir = Optimize(ir)
+    ir = Optimize(ir, noisy = false)
 
     val env = args
       .zipWithIndex
