@@ -558,9 +558,25 @@ class Tests(unittest.TestCase):
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
+
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", suffix=".tsv")
         t.export(tmp_file)
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
+
+    def test_filter_partitions(self):
+        ht = hl.utils.range_table(23, n_partitions=8)
+        self.assertEqual(ht.n_partitions(), 8)
+        self.assertEqual(ht._filter_partitions([0, 1, 4]).n_partitions(), 3)
+        self.assertEqual(ht._filter_partitions(range(3)).n_partitions(), 3)
+        self.assertEqual(ht._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
+        self.assertTrue(
+            ht._same(hl.MatrixTable.union_rows(
+                ht._filter_partitions([0, 3, 7]),
+                ht._filter_partitions([0, 3, 7], keep=False))))
+        // ht = [0, 1, 2], [3, 4, 5], ..., [21, 22]
+        self.assertEqual(
+            ht._filter_partitions([0, 7]).idx.collect(),
+            [0, 1, 2, 21, 22])
