@@ -379,6 +379,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.case().when(hl.null(hl.tbool), 1).default(2).value, None)
         self.assertEqual(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2).value, 2)
 
+        error_case = hl.case().when(False, 1).or_error("foo")
+        self.assertRaises(hl.utils.java.FatalError, lambda: hl.eval_expr(error_case))
+
     def test_struct_ops(self):
         s = hl.struct(f1=1, f2=2, f3=3)
 
