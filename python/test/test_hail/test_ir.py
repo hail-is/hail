@@ -7,8 +7,9 @@ from .helpers import *
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
-class IRTests(unittest.TestCase):
-    def test_value_ir_parses(self):
+
+class ValueIRTests(unittest.TestCase):
+    def value_irs(self):
         b = ir.TrueIR()
         c = ir.Ref('c', hl.tbool)
         i = ir.I32(5)
@@ -21,16 +22,16 @@ class IRTests(unittest.TestCase):
         s = ir.Ref('s', hl.tstruct(x = hl.tint32, y = hl.tint64, z = hl.tfloat64))
         t = ir.Ref('t', hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64))
         call = ir.Ref('call', hl.tcall)
-        
+
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
-        
+
         call_stats_sig = ir.AggSignature('CallStats', [], [hl.tint32], [hl.tcall])
-        
+
         hist_sig = ir.AggSignature(
             'Histogram', [hl.tfloat64, hl.tfloat64, hl.tint32], None, [hl.tfloat64])
-        
+
         take_by_sig = ir.AggSignature('TakeBy', [hl.tint32], None, [hl.tfloat64, hl.tfloat64])
-        
+
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -81,11 +82,20 @@ class IRTests(unittest.TestCase):
             ir.Apply('isDefined', s),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0))
         ]
-        
-        for x in value_irs:
+
+        return value_irs
+
+    def test_parses(self):
+        for x in self.value_irs():
             Env.hail().expr.Parser.parse_value_ir(str(x))
 
-    def test_table_ir_parses(self):
+    def test_copies(self):
+        for x in self.value_irs():
+            self.assertEqual(x, x.copy(*x.children))
+
+
+class TableIRTests(unittest.TestCase):
+    def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
             'src/test/resources/backward_compatability/1.0.0/table/0.ht', False, None)
@@ -132,5 +142,8 @@ class IRTests(unittest.TestCase):
             ir.TableDistinct(table_read),
         ]
 
-        for x in table_irs:
+        return table_irs
+
+    def test_parses(self):
+        for x in self.table_irs():
             Env.hail().expr.Parser.parse_table_ir(str(x))
