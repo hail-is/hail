@@ -1,6 +1,10 @@
 package is.hail.annotations
 
+<<<<<<< HEAD
 import is.hail.expr.types._
+=======
+import is.hail.expr.types.{TArray, TBaseStruct, TStruct, Type}
+>>>>>>> TableUnion should upcast children uniformly
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
