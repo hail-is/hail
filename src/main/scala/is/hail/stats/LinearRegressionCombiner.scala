@@ -134,7 +134,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
             i += 1
           }
           rvb.endArray()
-      case None =>
+      case _ =>
         rvb.setMissing()
         rvb.setMissing()
         rvb.setMissing()
@@ -157,7 +157,7 @@ class LinearRegressionCombiner(k: Int) extends Serializable {
           t.toArray: IndexedSeq[Double],
           t.map(ti => 2 * T.cumulative(-math.abs(ti), n - k, true, false)).toArray: IndexedSeq[Double],
           n)
-      case None =>
+      case _ =>
         Annotation(null, null, null, null, n)
     }
   }
