@@ -178,68 +178,6 @@ object MatrixTable {
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 
-  def checkDatasetSchemasCompatible(datasets: Array[MatrixTable]) {
-    val first = datasets(0)
-    val vaSchema = first.rowType
-    val genotypeSchema = first.entryType
-    val rowKeySchema = first.rowKeyTypes
-    val nPartitionKeys = first.rowPartitionKey.length
-    val colKeySchema = first.colKeyTypes
-    val colKeys = first.colKeys
-
-    datasets.indices.tail.foreach { i =>
-      val vds = datasets(i)
-      val vas = vds.rowType
-      val gsig = vds.entryType
-      val vsig = vds.rowKeyTypes
-      val nrpk = vds.rowPartitionKey.length
-      val ssig = vds.colKeyTypes
-      val cks = vds.colKeys
-
-      if (!ssig.sameElements(colKeySchema)) {
-        fatal(
-          s"""cannot combine datasets with incompatible column keys
-             |  Schema in datasets[0]: @1
-             |  Schema in datasets[$i]: @2""".stripMargin,
-          colKeySchema.map(_.toString).mkString(", "),
-          ssig.map(_.toString).mkString(", ")
-        )
-      } else if (!vsig.sameElements(rowKeySchema)) {
-        fatal(
-          s"""cannot combine datasets with different row key schemata
-             |  Schema in datasets[0]: @1
-             |  Schema in datasets[$i]: @2""".stripMargin,
-          rowKeySchema.toString,
-          vsig.toString
-        )
-      } else if (nrpk != nPartitionKeys) {
-        fatal(
-          s"""cannot combine datasets with different partition keys""")
-      } else if (colKeys != cks) {
-        fatal(
-          s"""cannot combine datasets with different column identifiers or ordering
-             |  IDs in datasets[0]: @1
-             |  IDs in datasets[$i]: @2""".stripMargin, colKeys, cks)
-      } else if (vas != vaSchema) {
-        fatal(
-          s"""cannot combine datasets with different row annotation schemata
-             |  Schema in datasets[0]: @1
-             |  Schema in datasets[$i]: @2""".stripMargin,
-          vaSchema.toString,
-          vas.toString
-        )
-      } else if (gsig != genotypeSchema) {
-        fatal(
-          s"""cannot read datasets with different cell schemata
-             |  Schema in datasets[0]: @1
-             |  Schema in datasets[$i]: @2""".stripMargin,
-          genotypeSchema.toString,
-          gsig.toString
-        )
-      }
-    }
-  }
-
   def unionRows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
     unionRows(datasets.asScala.toArray)
 
