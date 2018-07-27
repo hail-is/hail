@@ -8,6 +8,7 @@ import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
+from test.test_hail.matrixtable.test_file_formats import create_all_values_datasets
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -556,3 +557,10 @@ class Tests(unittest.TestCase):
         t.write(f, stage_locally=True)
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
+
+    def test_read_back_same_as_exported(self):
+        t, _ = create_all_values_datasets()
+        tmp_file = new_temp_file(prefix="test", suffix=".tsv")
+        t.export(tmp_file)
+        t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
+        self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))

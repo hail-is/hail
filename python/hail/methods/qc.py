@@ -4,13 +4,14 @@ from pprint import pprint
 from typing import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from .misc import require_biallelic, require_row_key_variant, require_col_key_str
 
 
-@typecheck(dataset=MatrixTable, name=str)
-def sample_qc(dataset, name='sample_qc') -> MatrixTable:
+@typecheck(mt=MatrixTable, name=str)
+def sample_qc(mt, name='sample_qc') -> MatrixTable:
     """Compute per-sample metrics useful for quality control.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -21,66 +22,52 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
     Compute sample QC metrics and remove low-quality samples:
 
     >>> dataset = hl.sample_qc(dataset, name='sample_qc')
-    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
+    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_stats.mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
 
     Notes
     -----
 
-    This method computes summary statistics per sample from a genetic matrix and stores the results as
-    a new column-indexed field in the matrix, named based on the `name` parameter.
+    This method computes summary statistics per sample from a genetic matrix and stores
+    the results as a new column-indexed struct field in the matrix, named based on the
+    `name` parameter.
 
-    +--------------------------+-------+-+------------------------------------------------------+
-    | Name                     | Type    | Description                                          |
-    +==========================+=========+======================================================+
-    | ``call_rate``            | float64 | Fraction of calls non-missing                        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_hom_ref``            | int64   | Number of homozygous reference calls                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_het``                | int64   | Number of heterozygous calls                         |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_hom_var``            | int64   | Number of homozygous alternate calls                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_called``             | int64   | Sum of ``n_hom_ref`` + ``n_het`` + ``n_hom_var``     |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_not_called``         | int64   | Number of missing calls                              |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_snp``                | int64   | Number of SNP alternate alleles                      |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_insertion``          | int64   | Number of insertion alternate alleles                |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_deletion``           | int64   | Number of deletion alternate alleles                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_singleton``          | int64   | Number of private alleles                            |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_transition``         | int64   | Number of transition (A-G, C-T) alternate alleles    |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_transversion``       | int64   | Number of transversion alternate alleles             |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_star``               | int64   | Number of star (upstream deletion) alleles           |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_non_ref``            | int64   | Sum of ``n_het`` and ``n_hom_var``                   |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_ti_tv``              | float64 | Transition/Transversion ratio                        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_het_hom_var``        | float64 | Het/HomVar call ratio                                |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_insertion_deletion`` | float64 | Insertion/Deletion allele ratio                      |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``dp_mean``              | float64 | Depth mean across all calls                          |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``dp_stdev``             | float64 | Depth standard deviation across all calls            |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``gq_mean``              | float64 | The average genotype quality across all calls        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``gq_stdev``             | float64 | Genotype quality standard deviation across all calls |
-    +--------------------------+---------+------------------------------------------------------+
+    If `mt` contains an entry field `DP` of type :py:data:`.tint32`, then the
+    field `dp_stats` is computed. If `mt` contains an entry field `GQ` of type
+    :py:data:`.tint32`, then the field `gq_stats` is computed. Both `dp_stats`
+    and `gq_stats` are structs with with four fields:
 
-    Missing values ``NA`` may result from division by zero. The empirical
-    standard deviation is computed with zero degrees of freedom.
+    - `mean` (``float64``) -- Mean value.
+    - `stdev` (``float64``) -- Standard deviation (zero degrees of freedom).
+    - `min` (``int32``) -- Minimum value.
+    - `max` (``int32``) -- Maximum value.
+
+    If the dataset does not contain an entry field `GT` of type
+    :py:data:`.tcall`, then an error is raised. The following fields are always
+    computed from `GT`:
+
+    - `call_rate` (``float64``) -- Fraction of calls non-missing.
+    - `n_called` (``int64``) -- Number of non-missing calls.
+    - `n_not_called` (``int64``) -- Number of missing calls.
+    - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
+    - `n_het` (``int64``) -- Number of heterozygous calls.
+    - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
+    - `n_non_ref` (``int64``) -- Sum of ``n_het`` and ``n_hom_var``.
+    - `n_snp` (``int64``) -- Number of SNP alternate alleles.
+    - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
+    - `n_deletion` (``int64``) -- Number of deletion alternate alleles.
+    - `n_singleton` (``int64``) -- Number of private alleles.
+    - `n_transition` (``int64``) -- Number of transition (A-G, C-T) alternate alleles.
+    - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
+    - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
+    - `r_ti_tv` (``float64``) -- Transition/Transversion ratio.
+    - `r_het_hom_var (``float64``) -- Het/HomVar call ratio.
+    - `r_insertion_deletion` (``float64``) -- Insertion/Deletion allele ratio.
+
+    Missing values ``NA`` may result from division by zero.
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    mt : :class:`.MatrixTable`
         Dataset.
     name : :obj:`str`
         Name for resulting field.
@@ -91,7 +78,93 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
         Dataset with a new column-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.SampleQC.apply(dataset._jvds, name))
+    require_row_key_variant(mt, 'sample_qc')
+
+    from hail.expr.functions import _num_allele_type , _allele_types
+
+    allele_types = _allele_types[:]
+    allele_types.extend(['Transition', 'Transversion'])
+    allele_enum = {i: v for i, v in enumerate(allele_types)}
+    allele_ints = {v: k for k, v in allele_enum.items()}
+
+    def allele_type(ref, alt):
+        return hl.bind(lambda at: hl.cond(at == allele_ints['SNP'],
+                                          hl.cond(hl.is_transition(ref, alt),
+                                                  allele_ints['Transition'],
+                                                  allele_ints['Transversion']),
+                                          at),
+                       _num_allele_type(ref, alt))
+
+    variant_ac = Env.get_uid()
+    variant_atypes = Env.get_uid()
+    mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
+                             variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
+
+    exprs = {}
+
+    def has_field_of_type(name, dtype):
+        return name in mt.entry and mt[name].dtype == dtype
+
+    if has_field_of_type('DP', hl.tint32):
+        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+
+    if has_field_of_type('GQ', hl.tint32):
+        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+
+    if not has_field_of_type('GT',  hl.tcall):
+        raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
+
+    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
+    exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
+    exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+
+    def get_allele_type(allele_idx):
+        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
+
+    exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
+
+    mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
+
+    zero = hl.int64(0)
+
+    select_exprs = {}
+    if 'dp_stats' in exprs:
+        select_exprs['dp_stats'] = mt[name].dp_stats
+    if 'gq_stats' in exprs:
+        select_exprs['gq_stats'] = mt[name].gq_stats
+
+    select_exprs = {
+        **select_exprs,
+        'call_rate': hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
+        'n_called': mt[name].n_called,
+        'n_not_called': mt[name].n_not_called,
+        'n_hom_ref': mt[name].n_hom_ref,
+        'n_het': mt[name].n_het,
+        'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
+        'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
+        'n_singleton': mt[name].n_singleton,
+        'n_snp': mt[name].allele_type_counts.get(allele_ints["Transition"], zero) + \
+                 mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_insertion': mt[name].allele_type_counts.get(allele_ints["Insertion"], zero),
+        'n_deletion': mt[name].allele_type_counts.get(allele_ints["Deletion"], zero),
+        'n_transition': mt[name].allele_type_counts.get(allele_ints["Transition"], zero),
+        'n_transversion': mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_star': mt[name].allele_type_counts.get(allele_ints["Star"], zero)
+    }
+
+    mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
+
+    mt = mt.annotate_cols(**{name: mt[name].annotate(
+        r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
+        r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),
+        r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
+    )})        
+
+    mt = mt.drop(variant_ac, variant_atypes)
+
+    return mt
 
 
 @typecheck(mt=MatrixTable, name=str)

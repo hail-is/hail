@@ -833,7 +833,7 @@ def inbreeding(expr, prior) -> StructExpression:
     --------
     Compute inbreeding statistics per column:
 
-    >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
+    >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF[1]))
     >>> dataset_result.cols().show()
     +----------------+--------------+-------------+------------------+------------------+
     | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |

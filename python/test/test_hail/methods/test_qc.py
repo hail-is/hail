@@ -10,8 +10,45 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_sample_qc(self):
-        dataset = get_dataset()
-        hl.sample_qc(dataset)
+        data = [
+            {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
+            {'v': '1:2:A:T,C', 's': '1', 'GT': hl.Call([1]), 'GQ': 15, 'DP': 5},
+            {'v': '1:3:A:G,C', 's': '1', 'GT': hl.Call([2, 2]), 'GQ': 10, 'DP': 4},
+            {'v': '1:4:G:A', 's': '1', 'GT': hl.Call([0, 1]), 'GQ': None, 'DP': 5},
+            {'v': '1:5:C:CG', 's': '1', 'GT': hl.Call([1, 1]), 'GQ': 20, 'DP': 3},
+            {'v': '1:6:C:A', 's': '1', 'GT': None, 'GQ': 0, 'DP': None},
+        ]
+
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
+        ht = ht.transmute(**hl.parse_variant(ht.v))
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = hl.sample_qc(mt, 'sqc')
+        r = mt.cols().select('sqc').collect()
+
+        self.assertAlmostEqual(r[0].sqc.gq_stats.mean, 11)
+        self.assertAlmostEqual(r[0].sqc.gq_stats.stdev, 6.6332495807)
+        self.assertAlmostEqual(r[0].sqc.gq_stats.min, 0)
+        self.assertAlmostEqual(r[0].sqc.gq_stats.max, 20)
+        self.assertAlmostEqual(r[0].sqc.dp_stats.mean, 3.399999999)
+        self.assertAlmostEqual(r[0].sqc.dp_stats.stdev, 1.8547236990)
+        self.assertAlmostEqual(r[0].sqc.dp_stats.min, 0)
+        self.assertAlmostEqual(r[0].sqc.dp_stats.max, 5)
+        self.assertAlmostEqual(r[0].sqc.call_rate, 0.8333333333)
+        self.assertEqual(r[0].sqc.n_called, 5)
+        self.assertEqual(r[0].sqc.n_not_called, 1)
+        self.assertEqual(r[0].sqc.n_hom_ref, 1)
+        self.assertEqual(r[0].sqc.n_het, 1)
+        self.assertEqual(r[0].sqc.n_hom_var, 3)
+        self.assertEqual(r[0].sqc.n_insertion, 2)
+        self.assertEqual(r[0].sqc.n_deletion, 0)
+        self.assertEqual(r[0].sqc.n_singleton, 3)
+        self.assertEqual(r[0].sqc.n_transition, 1)
+        self.assertEqual(r[0].sqc.n_transversion, 3)
+        self.assertEqual(r[0].sqc.n_star, 0)
+        self.assertEqual(r[0].sqc.n_non_ref, 4)
+        self.assertAlmostEqual(r[0].sqc.r_ti_tv, 0.333333333)
+        self.assertAlmostEqual(r[0].sqc.r_het_hom_var, 0.3333333333)
+        self.assertAlmostEqual(r[0].sqc.r_insertion_deletion, None)
 
     def test_variant_qc(self):
         data = [
