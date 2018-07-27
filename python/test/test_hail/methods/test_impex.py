@@ -452,9 +452,10 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_bgen(resource('skip_invalid_loci.bgen'),
-                           entry_fields=[],
-                           sample_file=resource('skip_invalid_loci.sample'))
+            mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
+                                entry_fields=[],
+                                sample_file=resource('skip_invalid_loci.sample'))
+            mt._force_count_rows()
 
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
@@ -597,6 +598,21 @@ class BGENTests(unittest.TestCase):
                               n_partitions=5)
         self.assertEqual(bgen.n_partitions(), 5)
 
+    def test_drop(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
+
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['dosage'],
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+
+        dr = bgen.drop_rows()
+        self.assertEqual(dr._force_count_rows(), 0)
+        self.assertEqual(dr._force_count_cols(), 500)
+
+        dc = bgen.drop_cols()
+        self.assertEqual(dc._force_count_rows(), 199)
+        self.assertEqual(dc._force_count_cols(), 0)
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):

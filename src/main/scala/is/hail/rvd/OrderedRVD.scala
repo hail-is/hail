@@ -741,7 +741,6 @@ object OrderedRVD {
     fastKeys: Option[ContextRDD[RVDContext, RegionValue]],
     hintPartitioner: Option[OrderedRVDPartitioner]
   ): OrderedRVD = {
-
     val keys = fastKeys.getOrElse(getKeys(typ, crdd))
     val coercer = makeCoercer(typ, keys, hintPartitioner)
     coercer.coerce(typ, crdd)
