@@ -247,7 +247,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
 @typecheck(ds=oneof(Table, MatrixTable),
            intervals=expr_array(expr_interval(expr_any)),
            keep=bool)
-def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
+def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     """Filter rows with a list of intervals.
 
     Examples
@@ -314,7 +314,7 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
 
     if point_type == pk_type[0]:
         needs_wrapper = True
-    elif isinstance(pk_type, tstruct) and is_struct_prefix(point_type, pk_type):
+    elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, pk_type):
         needs_wrapper = False
     else:
         raise TypeError("The point type is incompatible with key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
