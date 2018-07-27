@@ -21,9 +21,12 @@ object Optimize {
     ir
   }
 
-  def apply(ir: TableIR, noisy: Boolean = true): TableIR = optimize(ir, noisy).asInstanceOf[TableIR]
+  def apply(ir: TableIR, noisy: Boolean): TableIR = optimize(ir, noisy).asInstanceOf[TableIR]
+  def apply(ir: TableIR): TableIR = optimize(ir, noisy = true).asInstanceOf[TableIR]
 
-  def apply(ir: MatrixIR, noisy: Boolean = true): MatrixIR = optimize(ir, noisy).asInstanceOf[MatrixIR]
+  def apply(ir: MatrixIR, noisy: Boolean): MatrixIR = optimize(ir, noisy).asInstanceOf[MatrixIR]
+  def apply(ir: MatrixIR): MatrixIR = optimize(ir, noisy = true).asInstanceOf[MatrixIR]
 
-  def apply(ir: IR, noisy: Boolean = true): IR = optimize(ir, noisy).asInstanceOf[IR]
+  def apply(ir: IR, noisy: Boolean): IR = optimize(ir, noisy).asInstanceOf[IR]
+  def apply(ir: IR): IR = optimize(ir, noisy = true).asInstanceOf[IR]
 }
