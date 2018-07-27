@@ -463,6 +463,10 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
                 'memory': '4G'
             }
         },
+        tolerations=[{
+            'key': 'preemptible',
+            'value': 'true'
+        }],
         callback=SELF_HOSTNAME + '/ci_build_done',
         attributes=attributes,
         volumes=[{
@@ -547,7 +551,7 @@ def refresh_github_state():
             known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
             print(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
             for (source_url, source_ref), status in known_prs.items():
-                if pr.state == 'running':
+                if status.state == 'running':
                     print(f'cancelling job {pr.job_id} for {pr.to_json()}')
                     client.get_job(pr.job_id).cancel()
 
