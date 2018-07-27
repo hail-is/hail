@@ -7,15 +7,14 @@ import collections
 import time
 import threading
 
-# REPO = 'danking/docker-build-test/' # needs trailing slash
 REPO = 'hail-is/hail/' # needs trailing slash
 GITHUB_URL = 'https://api.github.com/'
 CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
-SELF_HOSTNAME = 'http://35.232.159.176:3000'
-BATCH_SERVER_URL='http://localhost:8888'
-GCP_PROJECT='broad-ctsa'
-GCS_BUCKET='hail-ci-0-1'
+SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
+BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
+GCP_PROJECT = 'broad-ctsa'
+GCS_BUCKET = 'hail-ci-0-1'
 
 class NoOAuthToken(Exception):
     pass
@@ -26,28 +25,15 @@ class BadStatus(Exception):
         Exception.__init__(self)
         self.data = data
         self.status_code = status_code
-class PR(object):
-    def __init__(self, job, attributes):
-        self.job = job
-        self.attributes = attributes
-
-    def to_json(self):
-        return {
-            'job': {
-                'id': self.job.id,
-                'client': { 'url' : self.job.client.url }
-            },
-            'attributes': self.attributes
-        }
 
 app = Flask(__name__)
 
 try:
-    with open('oauth-token', 'r') as f:
+    with open('oauth-token/oauth-token', 'r') as f:
         oauth_token = f.read()
 except FileNotFoundError as e:
     raise NoOAuthToken(
-        "working directory must contain a file called `oauth-token' "
+        "working directory must contain `oauth-token/oauth-token' "
         "containing a valid GitHub oauth token"
     ) from e
 
@@ -62,7 +48,7 @@ except FileNotFoundError as e:
 
 # this is a bit of a hack, but makes my development life easier
 if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'secrets/hail-ci-0-1.key'
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-token/hail-ci-0-1.key'
 gcs_client = storage.Client(project=GCP_PROJECT)
 
 ###############################################################################
@@ -471,10 +457,10 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
             'TARGET_SHA': status.target_sha
         },
         resources={
-            'limits': {
+            'requests': {
                 # our k8s seems to have >250mCPU available on each node
-                # 'cpu' : '0.5',
-                'memory': '2048M'
+                'cpu' : '4',
+                'memory': '4G'
             }
         },
         callback=SELF_HOSTNAME + '/ci_build_done',
@@ -558,8 +544,9 @@ def refresh_github_state():
                     Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
 
         if len(known_prs) != 0:
-            print(f'some PRs have been invalidated by github state refresh: {known_prs}')
-            for (source_url, source_ref), status in known_prs:
+            known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
+            print(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
+            for (source_url, source_ref), status in known_prs.items():
                 if pr.state == 'running':
                     print(f'cancelling job {pr.job_id} for {pr.to_json()}')
                     client.get_job(pr.job_id).cancel()
