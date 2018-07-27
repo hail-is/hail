@@ -97,6 +97,9 @@ class Test(unittest.TestCase):
         j1 = b.create_job('alpine', ['false'])
         j2 = b.create_job('alpine', ['sleep', '1'])
         j3 = b.create_job('alpine', ['sleep', '30'])
+        jobs = self.batch.list_jobs()
+        self.assertTrue(
+            set([j.id for j in jobs]).issuperset([j1.id, j2.id, j3.id]))
         j2.wait()
         j3.cancel()
         bstatus = b.wait()
