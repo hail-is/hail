@@ -4,3 +4,8 @@ dependencies:
 - werkzeug
 - requests
 - flask
+- pip
+- pip:
+  - kubernetes
+  - cerberus
+  - requests
