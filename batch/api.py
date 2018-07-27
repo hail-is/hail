@@ -16,6 +16,11 @@ def create_job(url, spec, attributes, batch_id, callback):
     r.raise_for_status()
     return r.json()
 
+def list_jobs(url):
+    r = requests.get(url + '/jobs')
+    r.raise_for_status()
+    return r.json()
+
 def get_job(url, job_id):
     r = requests.get(url + '/jobs/{}'.format(job_id))
     r.raise_for_status()

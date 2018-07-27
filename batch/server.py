@@ -159,6 +159,10 @@ def create_job():
         pod_spec, batch_id, parameters.get('attributes'), parameters.get('callback'))
     return jsonify(job.to_json())
 
+@app.route('/jobs', methods=['GET'])
+def get_job_list():
+    return jsonify([job.to_json() for _, job in job_id_job.items()])
+
 @app.route('/jobs/<int:job_id>', methods=['GET'])
 def get_job(job_id):
     job = job_id_job.get(job_id)
