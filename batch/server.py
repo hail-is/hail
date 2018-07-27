@@ -254,8 +254,7 @@ def kube_event_loop():
         if job and not job.is_complete():
             if event_type == 'DELETE':
                 job.mark_unscheduled()
-            else:
-                assert event_type == 'ADDED' or event_type == 'MODIFIED'
+            elif event_type == 'ADDED' or event_type == 'MODIFIED':
                 if pod.status.container_statuses:
                     assert len(pod.status.container_statuses) == 1
                     container_status = pod.status.container_statuses[0]
@@ -263,6 +262,8 @@ def kube_event_loop():
 
                     if container_status.state and container_status.state.terminated:
                         job.mark_complete(pod)
+            else:
+                log.error(f'saw unexpected event_type {event_type} in {event}')
 
 kube_thread = threading.Thread(target=kube_event_loop)
 kube_thread.start()
