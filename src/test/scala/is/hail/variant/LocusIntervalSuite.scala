@@ -1,14 +1,7 @@
 package is.hail.variant
 
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations.Annotation
-import is.hail.check.{Gen, Prop}
-import is.hail.expr.types._
-import is.hail.io.annotators.IntervalList
-import is.hail.methods.FilterIntervals
 import is.hail.utils._
-import is.hail.testUtils._
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends SparkSuite {
@@ -92,13 +85,5 @@ class LocusIntervalSuite extends SparkSuite {
     val z = "[HLA-DRB1*13:02:01:5-100)"
     assert(Locus.parseInterval(z, gr38) ==
       Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100), true, false))
-  }
-
-  @Test def testFilterIntervals() {
-    val ds = hc.importVCF("src/test/resources/sample.vcf", nPartitions=Some(20))
-    val intervals = Array(Interval(Row(Locus("20", 10019093)), Row(Locus("20", 10026348)), true, true),
-      Interval(Row(Locus("20", 17705793)), Row(Locus("20", 17716416)), true, true))
-    val iTree = IntervalTree(ds.rvd.typ.pkType.ordering, intervals)
-    assert(FilterIntervals(ds, iTree, true).countRows() == 4)
   }
 }

@@ -260,7 +260,31 @@ class OrderedRVD(
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[_]): OrderedRVD = {
+  def filterIntervals(intervals: IntervalTree[_], keep: Boolean): OrderedRVD = {
+    if (keep)
+      filterToIntervals(intervals)
+    else
+      filterOutIntervals(intervals)
+  }
+
+  def filterOutIntervals(intervals: IntervalTree[_]): OrderedRVD = {
+    val intervalsBc = crdd.sparkContext.broadcast(intervals)
+    val pkType = typ.pkType
+    val pkRowFieldIdx = typ.pkRowFieldIdx
+    val rowType = typ.rowType
+
+    mapPartitionsPreservesPartitioning(typ, { (ctx, it) =>
+      val pkUR = new UnsafeRow(pkType)
+      it.filter { rv =>
+        ctx.rvb.start(pkType)
+        ctx.rvb.selectRegionValue(rowType, pkRowFieldIdx, rv)
+        pkUR.set(ctx.region, ctx.rvb.end())
+        !intervalsBc.value.contains(pkType.ordering, pkUR)
+      }
+    })
+  }
+
+  def filterToIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val pkOrdering = typ.pkType.ordering
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType
