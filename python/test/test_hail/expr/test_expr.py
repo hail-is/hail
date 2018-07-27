@@ -289,6 +289,17 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.p_value[1], 0.63310173)
         self.assertAlmostEqual(r.n, 5)
 
+    def test_aggregators_downsample(self):
+        xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        table = hl.Table.parallelize([hl.struct(x=x, y=y) for (x, y) in zip(xs, ys)])
+        r = table.aggregate(agg.downsample(table.x, table.y, 0, 10, 0, 10, 5))
+        xs = [x for (x, y) in r]
+        ys = [y for (x, y) in r]
+        expected = set([(1.0, 1.0), (3.0, 3.0), (5.0, 5.0), (7.0, 7.0), (9.0, 9.0)])
+        for point in zip(xs, ys):
+            self.assertTrue(point in expected)
+
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
