@@ -21,6 +21,6 @@ gsutil -m \
   -h "Cache-Control:private, max-age=0, no-transform" \
   cp -r \
   build/reports/tests/ \
-  gs://hail-ci-0-1/$TARGET_SHA/$SOURCE_SHA/test-report/ && \
-gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$TARGET_SHA/$SOURCE_SHA/test-report/ ; \
+  gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ && \
+gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ ; \
 exit $GRADLE_EXIT
