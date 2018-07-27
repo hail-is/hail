@@ -380,7 +380,7 @@ class OrderedRVD(
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
     require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
-      "values not sorted or not in range [0, number of partitions)")
+      "values not increasing or not in range [0, number of partitions)")
 
     val newRangeBounds = Array.tabulate(keep.length) { i =>
       if (i == 0)

@@ -902,10 +902,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(rvd = newRVD, signature = newRVType)
   }
 
-  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
+  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
     filterPartitions(parts.asScala.toArray, keep)
 
-  def filterPartitions(parts: Array[Int], keep: Boolean = true): MatrixTable = {
+  def filterPartitions(parts: Array[Int], keep: Boolean = true): Table = {
     copy2(rvd =
       rvd.subsetPartitions(
         if (keep)
