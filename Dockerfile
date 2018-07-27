@@ -1,16 +1,27 @@
 FROM continuumio/miniconda
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
-RUN mkdir batch
-COPY batch/batch batch/batch
-COPY batch/setup.py batch/
-RUN pip install ./batch
+RUN mkdir /home/hail-ci && \
+    groupadd hail-ci && \
+    useradd -g hail-ci hail-ci && \
+    chown hail-ci:hail-ci /home/hail-ci
+
+WORKDIR /batch
+COPY batch/batch batch
+COPY batch/setup.py .
+
+WORKDIR /hail-ci
 COPY environment.yml .
-RUN conda env create hail-ci -f environment.yml
+RUN conda env create -n hail-ci -f environment.yml && \
+    rm -rf /opt/conda/pkgs/*
 
-WORKDIR hail-ci
-COPY index.html pr-build-script ci ./
+COPY index.html pr-build-script ./
+COPY ci ./ci
+RUN chown -R hail-ci:hail-ci index.html pr-build-script ci
 
-RUN conda activate hail-ci
-
+USER hail-ci
+ENV PATH /opt/conda/envs/hail-ci/bin:$PATH
+RUN pip install --user /batch
+VOLUME /hail-ci/oauth-token
+VOLUME /hail-ci/gcloud-token
 ENTRYPOINT ["python", "ci/ci.py"]
