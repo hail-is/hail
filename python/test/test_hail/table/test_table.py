@@ -576,7 +576,7 @@ class Tests(unittest.TestCase):
             ht._same(hl.MatrixTable.union_rows(
                 ht._filter_partitions([0, 3, 7]),
                 ht._filter_partitions([0, 3, 7], keep=False))))
-        // ht = [0, 1, 2], [3, 4, 5], ..., [21, 22]
+        # ht = [0, 1, 2], [3, 4, 5], ..., [21, 22]
         self.assertEqual(
             ht._filter_partitions([0, 7]).idx.collect(),
             [0, 1, 2, 21, 22])
