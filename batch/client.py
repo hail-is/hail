@@ -119,7 +119,7 @@ class BatchClient(object):
         return api.get_batch(self.url, batch_id)
 
     def list_jobs(self):
-        jobs = api.list_jobs(self.url, id)
+        jobs = api.list_jobs(self.url)
         return [Job(self, j['id']) for j in jobs]
 
     def get_job(self, id):
