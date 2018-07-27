@@ -9,20 +9,20 @@ object RegionValueDownsampleAggregator {
 
   def toBoxes(x: Double, y: Double, xmin: Double, xmax: Double, ymin: Double, ymax: Double, nDivisions: Int): (Int, Int) = {
     var i = (x - xmin) / (xmax - xmin)
-    if (i > 1.0 || i < 0.0)
-      fatal(s"""Coordinate x value out of bounds: got x = $x, xmin = $xmin, xmax = $xmax""")
     if (i.toInt == 1)
       i *= nDivisions - 1
-    else
+    else if (i.toInt == 0)
       i *= nDivisions
+    else
+      fatal(s"""Coordinate x value out of bounds: got x = $x, xmin = $xmin, xmax = $xmax""")
 
     var j = (y - ymin) / (ymax - ymin)
-    if (j > 1.0 || j < 0.0)
-      fatal(s"""Coordinate y value out of bounds: got y = $y, ymin = $ymin, ymax = $ymax""")
-    else if (j.toInt == 1)
+    if (j.toInt == 1)
       j *= nDivisions - 1
-    else
+    else if (j.toInt == 0)
       j *= nDivisions
+    else
+      fatal(s"""Coordinate y value out of bounds: got y = $y, ymin = $ymin, ymax = $ymax""")
 
     (i.toInt, j.toInt)
   }
