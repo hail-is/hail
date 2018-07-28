@@ -91,5 +91,13 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     OrderedRVD.shuffle(ordType, newPartitioner, filtered)
   }
 
+  def subsetPartitions(keep: Array[Int]): UnpartitionedRVD = {
+    require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
+      "values not increasing or not in range [0, number of partitions)")
+    
+    new UnpartitionedRVD(rowType, crdd.subsetPartitions(keep))
+  }
+
   override def toUnpartitionedRVD: UnpartitionedRVD = this
 }

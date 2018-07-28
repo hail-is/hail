@@ -460,5 +460,7 @@ trait RVD {
     map(rv => SafeRow(localRowType, rv.region, rv.offset))
   }
 
+  def subsetPartitions(keep: Array[Int]): RVD
+
   def toUnpartitionedRVD: UnpartitionedRVD
 }

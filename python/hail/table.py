@@ -2618,4 +2618,8 @@ class Table(ExprContainer):
         hail.methods.misc.require_key(self, "distinct")
         return Table(self._jt.distinctByKey())
 
+    @typecheck_method(parts=sequenceof(int), keep=bool)
+    def _filter_partitions(self, parts, keep=True):
+        return Table(self._jt.filterPartitions(parts, keep))
+
 table_type.set(Table)
