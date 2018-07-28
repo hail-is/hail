@@ -1,4 +1,7 @@
+import sys
 import os
+import time
+import random
 from collections import Counter
 import logging
 import threading
@@ -60,7 +63,7 @@ class Job(object):
         self.attributes = attributes
         self.callback = callback
 
-        self.pod_template =     pod_template = kube.client.V1Pod(
+        self.pod_template = kube.client.V1Pod(
             metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id)),
             spec = pod_spec)
 
@@ -238,17 +241,40 @@ def delete_batch(batch_id):
     batch.delete()
     return jsonify({})
 
+def run_forever(target, *args, **kwargs):
+    # target should be a function
+    target_name = target.__name__
+
+    expected_retry_interval_ms = 15 * 1000 # 15s
+    while True:
+        start = time.time()
+        try:
+            log.info(f'run_forever: run target {target_name}')
+            target(*args, **kwargs)
+            log.info(f'run_forever: target {target_name} returned')
+        except:
+            log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
+        end = time.time()
+
+        run_time_ms = int((end - start) * 1000 + 0.5)
+        t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
+        if t > 0:
+            log.debug(f'run_forever: {target_name}: sleep {t}ms')
+            time.sleep(t / 1000.0)
+
 def flask_event_loop():
     app.run(debug=True, host='0.0.0.0')
 
 def kube_event_loop():
     stream = kube.watch.Watch().stream(v1.list_namespaced_pod, 'default')
     for event in stream:
-        # print(event)
         event_type = event['type']
-
         pod = event['object']
         name = pod.metadata.name
+
+        # too much
+        # log.debug(f'kube_event_loop: got event {event}')
+        log.debug(f'kube_event_loop: got event: {event_type} {pod.api_version}/{pod.kind} {name}')
 
         job = pod_name_job.get(name)
         if job and not job.is_complete():
@@ -263,13 +289,13 @@ def kube_event_loop():
                     if container_status.state and container_status.state.terminated:
                         job.mark_complete(pod)
             else:
-                log.error(f'saw unexpected event_type {event_type} in {event}')
+                log.error(f'kube_event_loop: saw unexpected event_type {event_type} in {event}')
 
-kube_thread = threading.Thread(target=kube_event_loop)
+kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
 kube_thread.start()
 
 # debug/reloader must run in main thread
 # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
 # flask_thread = threading.Thread(target=flask_event_loop)
 # flask_thread.start()
-flask_event_loop()
+run_forever(flask_event_loop)
