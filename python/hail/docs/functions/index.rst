@@ -98,6 +98,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     float64
     floor
     ceil
+    uniroot
 
 .. rubric:: Numeric collection functions
 
