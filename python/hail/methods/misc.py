@@ -1,3 +1,5 @@
+from typing import *
+
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
