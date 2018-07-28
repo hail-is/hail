@@ -19,6 +19,7 @@ public:
   std::string key_;
   bool is_global_;
   void* dlopen_handle_;
+  std::string lock_name_;
   std::string lib_name_;
   std::string new_name_;
   
@@ -33,6 +34,12 @@ public:
     return "NativeModule";
   }
   
+  void lock();
+  
+  void unlock();
+  
+  void usleep_without_lock(int64_t usecs);
+  
   bool try_wait_for_build();
   
   bool try_load();
@@ -41,11 +48,9 @@ public:
 
   void find_PtrFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
 
-private:
-  // disallow copy-construct
-  NativeModule(const NativeModule& b);
-  // disallow copy-assign
-  NativeModule& operator=(const NativeModule& b);
+  NativeModule(const NativeModule& b) = delete;
+
+  NativeModule& operator=(const NativeModule& b) = delete;
 };
 
 // Each NativeFunc or NativeMaker holds a NativeModulePtr

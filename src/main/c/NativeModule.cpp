@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -36,6 +37,9 @@ namespace {
 // File-polling interval in usecs
 const int kFilePollMicrosecs = 50000;
 
+// Timeout for compile/link of a DLL
+const int kBuildTimeoutSecs = 120;
+
 // A quick-and-dirty way to get a hash of two strings, take 80bits,
 // and produce a 20byte string of hex digits.
 std::string hash_two_strings(const std::string& a, const std::string& b) {
@@ -53,36 +57,28 @@ std::string hash_two_strings(const std::string& a, const std::string& b) {
   return std::string(buf);
 }
 
+bool file_stat(const std::string& name, struct stat* st) {
+  // Open file for reading to avoid inconsistent cached attributes
+  int fd = ::open(name.c_str(), O_RDONLY, 0666);
+  if (fd < 0) return false;
+  int rc;
+  do {
+    errno = 0;
+    rc = ::fstat(fd, st);
+  } while ((rc < 0) && (errno == EINTR));
+  ::close(fd);
+  return (rc == 0);
+}
+
 bool file_exists_and_is_recent(const std::string& name) {
   time_t now = ::time(nullptr);
   struct stat st;
-  st.st_mtime = now;
-  int rc;
-  do {
-    errno = 0;
-    rc = stat(name.c_str(), &st);
-  } while ((rc < 0) && (errno == EINTR));
-  return ((rc == 0) && (st.st_mtime+120 > now));
+  return (file_stat(name, &st) && (st.st_ctime+kBuildTimeoutSecs > now));
 }
 
 bool file_exists(const std::string& name) {
-  int rc;
   struct stat st;
-  do {
-    errno = 0;
-    rc = stat(name.c_str(), &st);
-  } while ((rc < 0) && (errno == EINTR));
-  return(rc == 0);
-}
-
-long file_size(const std::string& name) {
-  int rc;
-  struct stat st;
-  do {
-    errno = 0;
-    rc = ::stat(name.c_str(), &st);
-  } while ((rc < 0) && (errno = EINTR));
-  return((rc < 0) ? -1 : st.st_size);
+  return file_stat(name, &st);
 }
 
 std::string read_file_as_string(const std::string& name) {
@@ -177,18 +173,23 @@ public:
     cxx_name_(get_cxx_name()),
     java_home_(get_java_home()),
     java_md_(is_darwin_ ? "darwin" : "linux") {
-    
+  }
+  
+  std::string get_lock_name(const std::string& key) {
+    std::stringstream ss;
+    ss << module_dir_ << "/hm_" << key << ".lock";
+    return ss.str();
   }
   
   std::string get_lib_name(const std::string& key) {
     std:: stringstream ss;
-    ss << module_dir_ << "/hm_" << key  << ext_lib_;
+    ss << module_dir_ << "/hm_" << key << ext_lib_;
     return ss.str();
   }
   
   std::string get_new_name(const std::string& key) {
     std:: stringstream ss;
-    ss << module_dir_ << "/hm_" << key  << ext_new_;
+    ss << module_dir_ << "/hm_" << key << ext_new_;
     return ss.str();
   }
   
@@ -212,6 +213,7 @@ ModuleConfig config;
 
 class ModuleBuilder {
 private:
+  NativeModule* parent_;
   std::string options_;
   std::string source_;
   std::string include_;
@@ -224,11 +226,13 @@ private:
   
 public:
   ModuleBuilder(
+    NativeModule* parent,
     const std::string& options,
     const std::string& source,
     const std::string& include,
     const std::string& key
   ) :
+    parent_(parent),
     options_(options),
     source_(source),
     include_(include),
@@ -277,20 +281,35 @@ private:
     fprintf(f, "\n");
     // top target is the .so
     fprintf(f, "$(MODULE_SO): $(MODULE).o\n");
-    fprintf(f, "\t/bin/mv -f $(MODULE).new $@\n\n");
+    fprintf(f, "\t-[ -f $(MODULE).lockX ] || /usr/bin/touch $(MODULE).lockX ; \\\n");
+    fprintf(f, "\t  while ! /bin/ln $(MODULE).lockX $(MODULE).lock 2>/dev/null ; do sleep 0.1 ; done ; \\\n");
+    fprintf(f, "\t  /bin/ln -f $(MODULE).new $@ ; \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).new ; \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).lock\n");
+    fprintf(f, "\n");
     // build .o from .cpp
     fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err \\\n");
-    fprintf(f, "\t  || ( /bin/rm -f $(MODULE).new ; exit 1 )\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).new $(MODULE).o\n");
-    fprintf(f, "\t/bin/chmod a+rx $(MODULE).new\n");
-    fprintf(f, "\t/bin/rm -f $(MODULE).err\n\n");
+    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err && \\\n");
+    fprintf(f, "\t  $(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).tmp $(MODULE).o 2>> $(MODULE).err ; \\\n");
+    fprintf(f, "\tstatus=$$? ; \\\n");
+    fprintf(f, "\tif [ $$status -ne 0 ] || [ -z $(MODULE).tmp ]; then \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).new ; \\\n");
+    fprintf(f, "\t  echo FAIL ; exit 1 ; \\\n");
+    fprintf(f, "\tfi\n");
+    fprintf(f, "\t-[ -f $(MODULE).lockX ] || /usr/bin/touch $(MODULE).lockX ; \\\n");
+    fprintf(f, "\t  while ! /bin/ln $(MODULE).lockX $(MODULE).lock 2>/dev/null ; do sleep 0.1 ; done ; \\\n");
+    fprintf(f, "\t  /bin/ln -f $(MODULE).tmp $(MODULE).new ; \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).tmp ; \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).err ; \\\n");
+    fprintf(f, "\t  /bin/rm -f $(MODULE).lock\n");
+    fprintf(f, "\n");
     fclose(f);
   }
 
 public:
   bool try_to_start_build() {
     // Try to create the .new file
+    std::lock_guard<NativeModule> mylock(*parent_);
     int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
     if (fd < 0) {
       // We lost the race to start the build
@@ -302,8 +321,8 @@ public:
     write_mak();
     write_cpp();
     std::stringstream ss;
-    ss << "/usr/bin/make -C " << config.module_dir_ << " -f " << hm_mak_;
-    ss << " 1>/dev/null 2>/dev/null &";
+    ss << "/usr/bin/make -B -C " << config.module_dir_ << " -f " << hm_mak_;
+    ss << " 1>/dev/null &";
     int rc = system(ss.str().c_str());
     if (rc < 0) perror("system");
     return true;
@@ -321,15 +340,19 @@ NativeModule::NativeModule(
   key_(hash_two_strings(options, source)),
   is_global_(false),
   dlopen_handle_(nullptr),
+  lock_name_(config.get_lock_name(key_)),
   lib_name_(config.get_lib_name(key_)),
   new_name_(config.get_new_name(key_)) {
   // Master constructor - try to get module built in local file
   config.ensure_module_dir_exists();
-  if (!force_build && file_exists(lib_name_)) {
+  lock();
+  bool have_lib = (!force_build && file_exists(lib_name_));
+  unlock();
+  if (have_lib) {
     build_state_ = kPass;
   } else {
     // The file doesn't exist, let's start building it
-    ModuleBuilder builder(options, source, include, key_);
+    ModuleBuilder builder(this, options, source, include, key_);
     builder.try_to_start_build();
   }
 }
@@ -345,39 +368,56 @@ NativeModule::NativeModule(
   key_(key),
   is_global_(is_global),
   dlopen_handle_(nullptr),
+  lock_name_(config.get_lock_name(key_)),
   lib_name_(config.get_lib_name(key_)),
   new_name_(config.get_new_name(key_)) {
   // Worker constructor - try to get the binary written to local file
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
+  auto mylock = std::make_shared< std::lock_guard<NativeModule> >(*this);
   for (;;) {
-    if (file_exists(lib_name_) && (file_size(lib_name_) == binary_size)) {
+    struct stat lib_stat;
+    if (file_stat(lib_name_, &lib_stat) && (lib_stat.st_size == binary_size)) {
       build_state_ = kPass;
       break;
     }
     // Race to write the new file
-    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_EXCL|O_TRUNC, 0666);
+    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
     if (fd >= 0) {
       // Now we're about to write the new file
       rc = write(fd, binary, binary_size);
       assert(rc == binary_size);
-      close(fd);
+      ::close(fd);
       ::chmod(new_name_.c_str(), 0644);
-      if (!file_exists(lib_name_)) {
-        // Don't let anyone see the file until it is completely written
-        rc = ::rename(new_name_.c_str(), lib_name_.c_str());
-        build_state_ = ((rc == 0) ? kPass : kFail);
-        break;
+      struct stat st;
+      if (file_stat(lib_name_, &st)) {
+        long old_size = st.st_size;
+        if (old_size == binary_size) {
+          ::unlink(new_name_.c_str());
+          break;
+        } else if (old_size == 0) {
+          ::unlink(lib_name_.c_str());
+        } else {
+          auto old = lib_name_ + ".old";
+          ::rename(lib_name_.c_str(), old.c_str());
+        }
       }
+      // Don't let anyone see the file until it is completely written
+      rc = ::rename(new_name_.c_str(), lib_name_.c_str());
+      build_state_ = ((rc == 0) ? kPass : kFail);
+      break;
     } else {
       // Someone else is writing to new
-      while (file_exists_and_is_recent(new_name_) && !file_exists(lib_name_)) {
-        usleep(kFilePollMicrosecs);
+      while (file_exists_and_is_recent(new_name_)) {
+        usleep_without_lock(kFilePollMicrosecs);
       }
     }
   }
-  if (build_state_ == kPass) try_load();
+  mylock.reset();
+  if (build_state_ == kPass) {
+    try_load();
+  }
 }
 
 NativeModule::~NativeModule() {
@@ -386,14 +426,70 @@ NativeModule::~NativeModule() {
   }
 }
 
+// We may have many threads across many processes trying to access the shared
+// files in ~/hail_modules.  We protect the files for each module by
+// mutual exclusion based on the existence of a link hm_${key}.lock
+//
+// To achieve disaster recovery after a killed process or crash, a .lock
+// link will be ignored if it is more than 20 seconds old.  The critical
+// sections protected by the lock should be much shorter than this.
+//
+// Permission to build a new file is controlled by the existence of hm_${key}.new,
+// and has a longer timeout (120 sec) to allow for module compile time.
+//
+// The intent is that when hail is not running, it should be ok to do
+// "rm ~/hail_modules/*" to clear the cache and start again.
+
+void NativeModule::lock() {
+  auto target = (lock_name_ + std::string("X"));
+  for (;;) {
+    // Creating a link is atomic
+    errno = 0;
+    int rc = ::link(target.c_str(), lock_name_.c_str());
+    int e = errno;
+    if (rc == 0) {
+      break;
+    } else if (e == EEXIST) { // Link already existed
+      struct stat st;
+      rc = ::stat(lock_name_.c_str(), &st);
+      if ((rc == 0) && (st.st_ctime+20 < ::time(nullptr))) {
+        fprintf(stderr, "WARNING: force break old lock %s\n", lock_name_.c_str());
+        ::unlink(lock_name_.c_str());
+      }
+    } else if (e == ENOENT) { // Need to create the target
+      int fd = ::open(target.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
+      if (fd >= 0) ::close(fd);
+      continue;
+    }
+    // The link already exists
+    usleep(kFilePollMicrosecs);
+  }
+}
+
+void NativeModule::unlock() {
+  ::unlink(lock_name_.c_str());
+}
+
+void NativeModule::usleep_without_lock(int64_t usecs) {
+  unlock();
+  usleep(usecs);
+  lock();
+}
+
 bool NativeModule::try_wait_for_build() {
   if (build_state_ == kInit) {
     // The writer will rename new to lib.  If we tested exists(lib)
     // followed by exists(new) then the rename could occur between
     // the two tests. This way is safe provided that either rename is atomic,
     // or rename creates the new name before destroying the old name.
+    std::lock_guard<NativeModule> mylock(*this);
     while (file_exists_and_is_recent(new_name_)) {
-      usleep(kFilePollMicrosecs);
+      usleep_without_lock(kFilePollMicrosecs);
+    }
+    struct stat st;
+    if (file_stat(new_name_, &st) && (st.st_ctime+kBuildTimeoutSecs < time(nullptr))) {
+      fprintf(stderr, "WARNING: force break new %s\n", new_name_.c_str());
+      ::unlink(new_name_.c_str()); // timeout
     }
     build_state_ = (file_exists(lib_name_) ? kPass : kFail);
     if (build_state_ == kFail) {
@@ -402,7 +498,7 @@ bool NativeModule::try_wait_for_build() {
       fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
     }
   }
-  return(build_state_ == kPass);
+  return (build_state_ == kPass);
 }
 
 bool NativeModule::try_load() {
@@ -412,7 +508,10 @@ bool NativeModule::try_load() {
     } else if (!try_wait_for_build()) {
       load_state_ = kFail;
     } else {
-      auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_LAZY);
+      std::lock_guard<NativeModule> mylock(*this);
+      // At first this had no mutex and RTLD_LAZY, but MacOS tests crashed
+      // when two threads loaded the same .dylib.
+      auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
       if (!handle) {
         fprintf(stderr, "ERROR: dlopen failed: %s\n", dlerror());
       }
@@ -420,7 +519,7 @@ bool NativeModule::try_load() {
       if (handle) dlopen_handle_ = handle;
     }
   }
-  return(load_state_ == kPass);
+  return (load_state_ == kPass);
 }
 
 static std::string to_qualified_name(
@@ -558,9 +657,10 @@ NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   jobject thisJ
 ) {
   auto mod = to_NativeModule(env, thisJ);
+  mod->try_wait_for_build();
+  std::lock_guard<NativeModule> mylock(*mod);
   int fd = open(config.get_lib_name(mod->key_).c_str(), O_RDONLY, 0666);
   if (fd < 0) {
-    perror("open");
     return env->NewByteArray(0);
   }
   struct stat st;

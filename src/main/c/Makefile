@@ -11,8 +11,8 @@ OBJECTS := \
   NativeStatus.o \
   Region.o
 
-UNAME_S := $(shell uname -s)
-UNAME_P := $(shell uname -p)
+UNAME_S :=$(shell uname -s)
+UNAME_P :=$(shell uname -p)
 
 ifeq ($(UNAME_S),Darwin)
   # Linux needs a separate libboot.so so that libhail.so can be loaded
@@ -49,8 +49,8 @@ ifndef CXX
   endif
 endif
 
-# append existing flags so they override our flags
-CXXFLAGS += -O3 -march=native $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
+# Ignore the user's CXXFLAGS
+CXXFLAGS := -O3 -march=native $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default

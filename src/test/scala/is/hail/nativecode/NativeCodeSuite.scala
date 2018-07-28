@@ -51,18 +51,16 @@ class NativeCodeSuite extends SparkSuite {
   }
 
   @Test def testNativeGlobal() = {
-    System.err.println("testNativeGlobal() ...")
     var ret: Long = -1
     val st = new NativeStatus()
     val globalModule = new NativeModule("global")
     val funcHash1 = globalModule.findLongFuncL1(st, "hailTestHash1")
-    if (st.fail) System.err.println(s"error: ${st}")
+    if (st.fail) error(s"${st}")
     assert(st.ok)
     val funcHash8 = globalModule.findLongFuncL8(st, "hailTestHash8")
-    if (st.fail) System.err.println(s"error: ${st}")
+    if (st.fail) error(s"${st}")
     assert(st.ok)
     ret = funcHash8(st, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8)
-    System.err.println(s"funcHash8 funcAddr ${funcHash8.get().toHexString} => ${ret.toHexString}")
     assert(ret == 0x87654321L)
     val t0 = System.currentTimeMillis()
     var sum: Long = 0
@@ -74,12 +72,11 @@ class NativeCodeSuite extends SparkSuite {
     }
     val t1 = System.currentTimeMillis()
     val usecsPerCall = ((t1 - t0) * 1000.0) / numCalls
-    System.err.println(s"funcHash1() ~ ${usecsPerCall}usecs")
+    info(s"funcHash1() ~ ${usecsPerCall}usecs")
     assert(usecsPerCall < 0.2)
   }
 
   @Test def testNativeBuild() = {
-    System.err.println("testNativeBuild() ...")
     val sb = new StringBuilder()
     sb.append("#include \"hail/hail.h\"\n")
     sb.append("NAMESPACE_HAIL_MODULE_BEGIN\n")
@@ -105,22 +102,16 @@ class NativeCodeSuite extends SparkSuite {
     val st = new NativeStatus()
     val mod = new NativeModule(options, sb.toString(), true)
     mod.findOrBuild(st)
-    if (st.fail)
-      System.err.println(s"error: ${st}")
-    else {
-      System.err.println("A")
-      val testFunc1 = mod.findLongFuncL1(st, "testFunc1")
-      if (st.fail)
-        System.err.println(s"error: ${st}")
-      else {
-        val ret = testFunc1(st, 6)
-        System.err.println(s"testFunc(6) returns ${ret}")
-      }
-      testFunc1.close()
-    }
-    val makeMyObj: NativePtrFuncL1 = mod.findPtrFuncL1(st, "makeMyObj")
-    if (st.fail)
-      System.err.println(s"error: ${st}")
+    if (st.fail) error(s"${st}")
+    assert(st.ok)
+    val testFunc1 = mod.findLongFuncL1(st, "testFunc1")
+    if (st.fail) error(s"${st}")
+    assert(st.ok)
+    val ret = testFunc1(st, 6)
+    info(s"testFunc(6) returns ${ret}")
+    testFunc1.close()
+    val makeMyObj = mod.findPtrFuncL1(st, "makeMyObj")
+    if (st.fail) error(s"${st}")
     assert(st.ok)
     val myObj = new NativePtr(makeMyObj, st, 55L)
     assert(myObj.get() != 0)
@@ -129,6 +120,7 @@ class NativeCodeSuite extends SparkSuite {
     val binary = mod.getBinary()
     val workerMod = new NativeModule(key, binary)
     val workerFunc1 = workerMod.findLongFuncL1(st, "testFunc1")
+    if (st.fail) error(s"${st}")
     assert(st.ok)
     workerFunc1.close()
     workerMod.close()
