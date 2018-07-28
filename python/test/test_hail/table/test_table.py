@@ -573,7 +573,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht._filter_partitions(range(3)).n_partitions(), 3)
         self.assertEqual(ht._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
         self.assertTrue(
-            ht._same(hl.MatrixTable.union_rows(
+            ht._same(hl.Table.union(
                 ht._filter_partitions([0, 3, 7]),
                 ht._filter_partitions([0, 3, 7], keep=False))))
         # ht = [0, 1, 2], [3, 4, 5], ..., [21, 22]
