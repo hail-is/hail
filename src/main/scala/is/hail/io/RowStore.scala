@@ -1071,7 +1071,6 @@ object RichContextRDDRegionValue {
     it.foreach { rv =>
       en.writeByte(1)
       en.writeRegionValue(rv.region, rv.offset)
-      en.flush()
       ctx.region.clear()
       rowCount += 1
 
@@ -1083,8 +1082,11 @@ object RichContextRDDRegionValue {
 
     en.writeByte(0) // end
     en.flush()
+    if (outputMetrics != null) {
+      ExposedMetrics.setBytes(outputMetrics, trackedOS.bytesWritten)
+    }
     os.close()
-
+    
     rowCount
   }
 }
