@@ -4,13 +4,47 @@ import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
+import is.hail.asm4s.Code
 import is.hail.expr.Parser
+import is.hail.expr.ir.functions.RegistryFunctions
 import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
+
+object IRSuite { outer =>
+  var globalCounter: Int = 0
+
+  def incr(): Unit = {
+    globalCounter += 1
+  }
+
+  object TestFunctions extends RegistryFunctions {
+    def registerAll() {
+      registerCodeWithMissingness("incr_s", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+        EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
+          l.m,
+          l.v)
+      }
+
+      registerCodeWithMissingness("incr_m", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+        EmitTriplet(l.setup,
+          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
+          l.v)
+      }
+
+      registerCodeWithMissingness("incr_v", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+        EmitTriplet(l.setup,
+          l.m,
+          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))
+      }
+    }
+  }
+
+  TestFunctions.registerAll()
+}
 
 class IRSuite extends SparkSuite {
   @Test def testI32() {
@@ -560,5 +594,83 @@ class IRSuite extends SparkSuite {
     val s = Pretty(x)
     val x2 = Parser.parse(Parser.matrix_ir, s)
     assert(x2 == x)
+  }
+
+  @Test def testEvaluations() {
+    def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
+      val env = Env.empty[(Any, Type)]
+      val args = IndexedSeq((i, TBoolean()))
+
+      IRSuite.globalCounter = 0
+      Interpret[Any](x, env, args, None, optimize = false)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+
+      IRSuite.globalCounter = 0
+      Interpret[Any](x, env, args, None)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+
+      IRSuite.globalCounter = 0
+      eval(x, env, args, None)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+    }
+
+    def i = In(0, TBoolean())
+
+    def st = ApplySpecial("incr_s", Seq(True()))
+    def sf = ApplySpecial("incr_s", Seq(False()))
+    def sm = ApplySpecial("incr_s", Seq(NA(TBoolean())))
+
+    def mt = ApplySpecial("incr_m", Seq(True()))
+    def mf = ApplySpecial("incr_m", Seq(False()))
+    def mm = ApplySpecial("incr_m", Seq(NA(TBoolean())))
+
+    def vt = ApplySpecial("incr_v", Seq(True()))
+    def vf = ApplySpecial("incr_v", Seq(False()))
+    def vm = ApplySpecial("incr_v", Seq(NA(TBoolean())))
+
+    // baseline
+    test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
+    test(mt, true, 1); test(mf, true, 1); test(mm, true, 1)
+    test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
+
+    // if
+    // condition
+    test(If(st, i, True()), true, 1)
+    test(If(sf, i, True()), true, 1)
+    test(If(sm, i, True()), true, 1)
+
+    test(If(mt, i, True()), true, 1)
+    test(If(mf, i, True()), true, 1)
+    test(If(mm, i, True()), true, 1)
+
+    test(If(vt, i, True()), true, 1)
+    test(If(vf, i, True()), true, 1)
+    test(If(vm, i, True()), true, 0)
+
+    // consequent
+    test(If(i, st, True()), true, 1)
+    test(If(i, sf, True()), true, 1)
+    test(If(i, sm, True()), true, 1)
+
+    test(If(i, mt, True()), true, 1)
+    test(If(i, mf, True()), true, 1)
+    test(If(i, mm, True()), true, 1)
+
+    test(If(i, vt, True()), true, 1)
+    test(If(i, vf, True()), true, 1)
+    test(If(i, vm, True()), true, 0)
+
+    // alternate
+    test(If(i, True(), st), false, 1)
+    test(If(i, True(), sf), false, 1)
+    test(If(i, True(), sm), false, 1)
+
+    test(If(i, True(), mt), false, 1)
+    test(If(i, True(), mf), false, 1)
+    test(If(i, True(), mm), false, 1)
+
+    test(If(i, True(), vt), false, 1)
+    test(If(i, True(), vf), false, 1)
+    test(If(i, True(), vm), false, 0)
   }
 }

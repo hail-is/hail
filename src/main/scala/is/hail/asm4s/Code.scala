@@ -174,8 +174,11 @@ object Code {
     m.invoke(staticObj.get(), args)
   }
 
+  def invokeScalaObject[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](cls, method, Array[Class[_]](), Array[Code[_]]())
+
   def invokeScalaObject[A1, S](cls: Class[_], method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array(a1))
+    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
   def invokeScalaObject[A1, A2, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
     invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array(a1, a2))
