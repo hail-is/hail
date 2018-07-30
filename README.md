@@ -185,3 +185,9 @@ In [3]: j = c.create_job('google/cloud-sdk:alpine',
 
 NB: `secretName` is camel case, matching the style used in YAML, not in
 python. Same for mountPath and friends.
+
+External IP Addresses in GKE
+---
+https://stackoverflow.com/a/33830507/6823256
+
+we can allocate one explicitly and then specify it in the `deployment.yaml`
