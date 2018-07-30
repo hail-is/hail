@@ -9,10 +9,12 @@ object DictFunctions extends RegistryFunctions {
   def contains(dict: IR, key: IR) =
     If(IsNA(dict),
       NA(TBoolean()),
-      ApplyComparisonOp(
-        EQWithNA(key.typ),
-        GetField(ArrayRef(ToArray(dict), LowerBoundOnOrderedCollection(dict, key, onKey=true)), "key"),
-        key))
+      ArrayLen(ToArray(dict)).cne(0) &&
+        ApplyComparisonOp(
+          EQWithNA(key.typ),
+          GetField(ArrayRef(ToArray(dict), LowerBoundOnOrderedCollection(dict, key, onKey=true)), "key"),
+          key))
+
 
   def get(dict: IR, key: IR, default: IR): IR = {
     val i = Ref(genUID(), TInt32())
@@ -21,9 +23,12 @@ object DictFunctions extends RegistryFunctions {
       LowerBoundOnOrderedCollection(dict, key, onKey=true),
       If(IsNA(dict),
         NA(default.typ),
-        If(ApplyComparisonOp(EQ(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
-          GetField(ArrayRef(ToArray(dict), i), "value"),
-          default)))
+        If(ArrayLen(ToArray(dict)).ceq(0),
+          default,
+          If(ApplyComparisonOp(EQ(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
+            GetField(ArrayRef(ToArray(dict), i), "value"),
+            default))))
+
   }
 
   val tdict = TDict(tv("key"), tv("value"))

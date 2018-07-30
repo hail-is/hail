@@ -9,7 +9,7 @@ object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) =
     If(IsNA(set),
       NA(TBoolean()),
-      ApplyComparisonOp(
+      !ArrayLen(ToArray(set)).ceq(0) && ApplyComparisonOp(
         EQWithNA(elem.typ),
         ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
         elem))

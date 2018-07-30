@@ -43,6 +43,7 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("contains", s, I32(4)), false)
     assertEvalsTo(invoke("contains", s, NA(TInt32())), true)
     assertEvalsTo(invoke("contains", IRSet(3, 7), NA(TInt32())), false)
+    assert(eval(invoke("contains", IRSet(), 3)) == false)
   }
 
   @Test def remove() {
