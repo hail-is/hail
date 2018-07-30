@@ -394,9 +394,9 @@ class Table(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct(),
-                      new_keys=oneof(nullable(sequenceof(str)), exactly("default")))
+                      new_keys=oneof(exactly("default"), nullable(sequenceof(str))))
     def _select(self, caller, row, new_keys="default"):
-        if new_keys == 'default':
+        if new_keys == "default":
             new_key = list(self.key.keys()) if self.key is not None else None
             preserved_key = preserved_key_new = new_key
         elif new_keys == None:
@@ -404,6 +404,7 @@ class Table(ExprContainer):
             preserved_key_new = None
             new_key = None
         else:
+            print(new_keys)
             key_struct = hl.struct(**{name: row[name] for name in new_keys})
             preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
 
@@ -899,7 +900,7 @@ class Table(ExprContainer):
                                      protect_keys=True)
         row = self.key.annotate(**row_exprs) if self.key else hl.struct(**row_exprs)
 
-        return self._select('Table.select', **row)
+        return self._select('Table.select', row)
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
