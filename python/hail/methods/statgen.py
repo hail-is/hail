@@ -1371,61 +1371,20 @@ class SplitMulti(object):
         self._row_fields = None
 
         self._new_id = Env.get_uid()
-        old_row = self._ds._rvrow
+        self._old_row = self._ds._rvrow
 
-        self._kept_alleles = hl.range(1, hl.len(old_row.alleles))
-        if not keep_star:
-            self._kept_alleles = self._kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
-
-        def map_alleles(i):
-            def make_struct_from_minrep(variant):
-                if self._left_aligned:
-                    return (hl.case()
-                            .when(variant[0] == old_row.locus,
-                                  hl.struct(alleles=variant[1],
-                                            locus=variant[0],
-                                            a_index=i,
-                                            was_split=hl.len(old_row.alleles) > 2))
-                            .or_error("Found non-left-aligned variant in SplitMulti"))
-                else:
-                    return hl.struct(alleles=variant[1],
-                                     locus=variant[0],
-                                     a_index=i,
-                                     was_split=hl.len(old_row.alleles) > 2,
-                                     left_aligned=variant[0] == old_row.locus)
-            return hl.bind(make_struct_from_minrep,
-                           hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-
-        self._construct_new_fields = hl.sorted(self._kept_alleles.map(map_alleles))
+        tfields = {'locus': self._ds.locus.dtype,
+                   'alleles': self._ds.alleles.dtype,
+                   'a_index': hl.tint32,
+                   'was_split': hl.tbool,
+                   'left_aligned': hl.tbool}
+        if self._left_aligned:
+            del tfields['left_aligned']
 
         self._new_fields = construct_reference(self._new_id,
-                                               self._construct_new_fields.dtype.element_type,
+                                               hl.tstruct(**tfields),
                                                self._ds._row_indices,
                                                prefix='va')
-
-    def _explode_matrix(self):
-        base, cleanup = self._ds._process_joins(*itertools.chain(
-            self._row_fields.values(), self._entry_fields.values()))
-
-        sort_alleles = self._ds._rvrow.annotate(**{self._new_id: self._construct_new_fields})
-        jmt = base._jvds.selectRows(str(sort_alleles._ir), None)
-        jmt = jmt.explodeRows("va.{}".format(escape_id(self._new_id)))
-        self._cleanup = lambda mt: cleanup(mt).drop(self._new_id)
-        return jmt
-
-    def _filter_left_aligned(self, jmt, keep=True):
-        return jmt.filterRowsExpr(str(self._new_fields.left_aligned._ir), keep)
-
-    def _process_exprs(self, jmt, shuffle):
-        entry_fields = [(n, expr._ir) for n, expr in self._entry_fields.items()]
-        entry_annotations = ir.InsertFields(self._ds.entry._ir, entry_fields)
-        jmt = jmt.selectEntries(str(entry_annotations))
-
-        row_fields = [(n, expr._ir) for n, expr in self._row_fields.items()]
-        row_fields += [(name, ir.GetField(ir.GetField(ir.TopLevelReference('va'), self._new_id), name)) for name in ['locus', 'alleles']]
-        row_annotations = ir.InsertFields(self._ds._rvrow._ir, row_fields)
-        uncleaned = MatrixTable(jmt.selectRows(str(row_annotations), None if not shuffle else [['locus'], ['alleles']]))
-        return self._cleanup(uncleaned)
 
     def new_locus(self):
         """The new, split variant locus.
@@ -1472,6 +1431,10 @@ class SplitMulti(object):
         """
         if self._row_fields is None:
             self._row_fields = kwargs
+            for key in self._ds._row_key.keys():
+                if key in kwargs.keys():
+                    raise FatalError(
+                        "SplitMulti cannot manually update '{}' field.".format(key))
         else:
             raise FatalError("You may only call update_rows once")
 
@@ -1512,12 +1475,59 @@ class SplitMulti(object):
                 warn(f"SplitMulti: The following {name} {field} {word} not updated: {fds}. " \
                       "Data will be copied (unchanged) for each split variant.")
 
-        exploded = self._explode_matrix()
+        self._row_fields['locus'] = self.new_locus()
+        self._row_fields['alleles'] = self.new_alleles()
+
+        base, cleanup_joins = self._ds._process_joins(*itertools.chain(
+            self._row_fields.values(), self._entry_fields.values()))
+        def cleanup(mt):
+            return cleanup_joins(mt).drop(self._new_id)
+
+        old_row = base._rvrow
+        kept_alleles = hl.range(1, hl.len(old_row.alleles))
+        if not self._keep_star:
+            kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
+
+        def map_alleles(i):
+            def make_struct_from_minrep(variant):
+                if self._left_aligned:
+                    return (hl.case()
+                            .when(variant[0] == old_row.locus,
+                                  hl.struct(alleles=variant[1],
+                                            locus=variant[0],
+                                            a_index=i,
+                                            was_split=hl.len(old_row.alleles) > 2))
+                            .or_error("Found non-left-aligned variant in SplitMulti"))
+                else:
+                    return hl.struct(alleles=variant[1],
+                                     locus=variant[0],
+                                     a_index=i,
+                                     was_split=hl.len(old_row.alleles) > 2,
+                                     left_aligned=variant[0] == old_row.locus)
+            return hl.bind(make_struct_from_minrep,
+                        hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+
+        annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.map(map_alleles))})
+        exploded = annotated.explode_rows(annotated[self._new_id])
+
+        entry_annotations = str(self._ds.entry.annotate(**self._entry_fields)._ir)
+        row_annotations = str(self._ds._rvrow.annotate(**self._row_fields)._ir)
+
+        def process_exprs(mt, new_key_opt):
+            return MatrixTable(mt._jvds
+                               .selectEntries(entry_annotations)
+                               .selectRows(row_annotations, new_key_opt))
+
         if self._left_aligned:
-            return self._process_exprs(exploded, shuffle=False)
-        left_aligned = self._filter_left_aligned(exploded, keep=True)
-        moved = self._filter_left_aligned(exploded, keep=False)
-        return self._process_exprs(left_aligned, shuffle=False).union_rows(self._process_exprs(moved, shuffle=True))
+            return cleanup(process_exprs(exploded, None))
+        else:
+            left_aligned = process_exprs(
+                exploded.filter_rows(exploded[self._new_id]['left_aligned']),
+                None)
+            moved = process_exprs(
+                exploded.filter_rows(~exploded[self._new_id]['left_aligned']),
+                [['locus'], ['alleles']])
+        return cleanup(left_aligned.union_rows(moved))
 
 
 @typecheck(ds=MatrixTable,
