@@ -117,6 +117,6 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("contains", d, 3), true)
     assertEvalsTo(invoke("contains", d, 100), false)
     assert(eval(invoke("contains", IRDict(), 100)) == false)
-    assertEvalsTo(invoke("contains", d, na), null)
+    assertEvalsTo(invoke("contains", d, na), false)
   }
 }
