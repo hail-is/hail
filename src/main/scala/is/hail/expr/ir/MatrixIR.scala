@@ -1979,7 +1979,38 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val values = children.map(_.execute(hc))
     checkColKeysSame(values.map(_.colValues.value))
-    values.head.copy(rvd = OrderedRVD.union(values.map(_.rvd)))
+
+    val rvds = values.map(  _.rvd)
+    val first = rvds.head
+    require(rvds.tail.forall(_.partitioner.pkType == first.partitioner.pkType))
+    val ord = first.partitioner.pkType.ordering
+
+    var disjoint = Map.empty[Interval, Seq[OrderedRVD]]
+
+    var i = 0
+    while (i < rvds.length) {
+      rvds(i).partitioner.range.foreach { range =>
+        var newRange = range
+        var newRVDs = Array(rvds(i))
+        disjoint.foreach { case (interval, iRVDs) =>
+          interval.merge(ord, newRange).foreach { newInterval =>
+            disjoint -= interval
+            newRange = newInterval
+            newRVDs ++= iRVDs
+          }
+        }
+        disjoint += newRange -> newRVDs
+      }
+      i += 1
+    }
+
+    val mergedRVDs = disjoint.toArray.map {
+      case (_, Seq(rvd)) => rvd
+      case (_, rs) =>
+        OrderedRVD.union(rs)
+    }
+
+    values.head.copy(rvd = OrderedRVD.unionDisjoint(mergedRVDs))
   }
 }
 
