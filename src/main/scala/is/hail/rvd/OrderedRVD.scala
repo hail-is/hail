@@ -101,6 +101,23 @@ class OrderedRVD(
       crdd.cmapPartitions(f))
   }
 
+  def extendKeyPreservesPartitioning(newKey: Array[String]): OrderedRVD = {
+    require(newKey startsWith typ.key)
+    require(newKey.forall(typ.rowType.fieldNames.contains))
+    val orvdType = new OrderedRVDType(typ.partitionKey, newKey, typ.rowType)
+    if (OrderedRVDPartitioner.isValid(orvdType.kType, partitioner.rangeBounds))
+      copy(typ = orvdType)
+    else
+      constrainToOrderedPartitioner(orvdType, partitioner.extendKey(orvdType.kType))
+  }
+
+  def truncateKey(newKey: Array[String]): OrderedRVD = {
+    require(typ.key startsWith newKey)
+    copy(
+      typ = typ.copy(partitionKey = typ.partitionKey.take(newKey.length), key = newKey),
+      partitioner = partitioner.coarsen(newKey.length))
+  }
+
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
@@ -157,10 +174,12 @@ class OrderedRVD(
 
   override def unpersist(): OrderedRVD = this
 
+  // FIXME: don't allow to change type
   def constrainToOrderedPartitioner(
     ordType: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner
   ): OrderedRVD = {
+    // FIXME: require newPartitioner disjoint
     require(newPartitioner.kType isPrefixOf typ.kType)
 
     new OrderedRVD(
@@ -313,11 +332,12 @@ class OrderedRVD(
     }
   }
 
-  def copy(typ: OrderedRVDType = typ,
-    orderedPartitioner: OrderedRVDPartitioner = partitioner,
-    rdd: ContextRDD[RVDContext, RegionValue] = crdd): OrderedRVD = {
-    OrderedRVD(typ, orderedPartitioner, rdd)
-  }
+  def copy(
+    typ: OrderedRVDType = typ,
+    partitioner: OrderedRVDPartitioner = partitioner,
+    crdd: ContextRDD[RVDContext, RegionValue] = crdd
+  ): OrderedRVD =
+    OrderedRVD(typ, partitioner, crdd)
 
   def blockCoalesce(partitionEnds: Array[Int]): OrderedRVD = {
     assert(partitionEnds.last == partitioner.numPartitions - 1 && partitionEnds(0) >= 0)
@@ -646,6 +666,12 @@ class OrderedRVD(
 
   override def toUnpartitionedRVD: RVD =
     UnpartitionedRVD(typ.rowType, crdd)
+
+  def toOldStyleRVD: RVD =
+    if (typ.key.isEmpty)
+      toUnpartitionedRVD
+    else
+      this
 
   override def toOrderedRVD: OrderedRVD = this
 }

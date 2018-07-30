@@ -18,7 +18,7 @@ class OrderedRVDPartitioner(
     partitionKey: Array[String],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval]
-  ) = this(kType, rangeBounds, partitionKey.length - 1)
+  ) = this(kType, rangeBounds, math.max(partitionKey.length - 1, 0))
 
   def this(
     partitionKey: Option[Int],
@@ -26,11 +26,19 @@ class OrderedRVDPartitioner(
     rangeBounds: IndexedSeq[Interval]
   ) = this(kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
 
+  def this(
+    kType: TStruct,
+    rangeBounds: IndexedSeq[Interval]
+  ) = this(kType, rangeBounds, kType.size)
+
   require(rangeBounds.forall { case Interval(l, r, _, _) =>
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(OrderedRVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
+
+  def satisfiesPartitionKey(testAllowedOverlap: Int): Boolean =
+    OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
   val numPartitions: Int = rangeBounds.length
 
@@ -62,10 +70,20 @@ class OrderedRVDPartitioner(
       math.min(newKeyLen, allowedOverlap)
     )
 
-  def subdivide(cutPoints: IndexedSeq[IntervalEndpoint]): OrderedRVDPartitioner = {
+  def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
+    require(kType isPrefixOf newKType)
+    OrderedRVDPartitioner.generate(newKType.fieldNames, newKType, rangeBounds)
+  }
+
+  def subdivide(
+    cutPoints: IndexedSeq[IntervalEndpoint],
+    allowedOverlap: Int = kType.size
+  ): OrderedRVDPartitioner = {
     require(cutPoints.forall { case IntervalEndpoint(row, _) =>
       kType.relaxedTypeCheck(row)
     })
+    require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
+    require(satisfiesPartitionKey(allowedOverlap))
 
     val kord = kType.ordering
     val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
@@ -75,7 +93,7 @@ class OrderedRVDPartitioner(
     val newBounds = rangeBounds.flatMap { interval =>
       val first = sorted.indexWhere(eord.gt(_, interval.left), i)
       val last = sorted.indexWhere(eord.gt(_, interval.right), first)
-      val cuts = sorted.slice(first, last)
+      val cuts = sorted.slice(first, if (last == -1) sorted.length else last)
       i = last
       for {
         (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
@@ -213,7 +231,8 @@ object OrderedRVDPartitioner {
       kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
     })
 
-    union(kType, intervals, partitionKey.length - 1).subdivide(intervals.map(_.right))
+    val allowedOverlap = math.max(partitionKey.length - 1, 0)
+    union(kType, intervals, allowedOverlap).subdivide(intervals.map(_.right), allowedOverlap)
   }
 
   private def union(
@@ -271,7 +290,7 @@ object OrderedRVDPartitioner {
       typ.partitionKey,
       typ.kType,
       FastIndexedSeq(interval)
-    ).subdivide(partitionEdges)
+    ).subdivide(partitionEdges, math.max(typ.partitionKey.length - 1, 0))
   }
 
   def isValid(kType: TStruct, rangeBounds: IndexedSeq[Interval]): Boolean =

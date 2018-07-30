@@ -176,7 +176,7 @@ object SplitMulti {
       ordered.partitioner,
       moved)
 
-    ordered.copy(orderedPartitioner = movedRVD.partitioner).partitionSortedUnion(movedRVD)
+    ordered.copy(partitioner = movedRVD.partitioner).partitionSortedUnion(movedRVD)
   }
 }
 

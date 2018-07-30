@@ -188,7 +188,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
         case ordered: OrderedRVD =>
           if (ordered.typ.key.startsWith(keys) &&
             nPartitionKeys.getOrElse(keys.length) == ordered.typ.partitionKey.length)
-            ordered.copy(typ = ordered.typ.copy(key = keys.toArray))
+            ordered
           else resort
         case _: UnpartitionedRVD =>
           resort
