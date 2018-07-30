@@ -272,6 +272,8 @@ trait RVD {
 
   def filter(f: (RegionValue) => Boolean): RVD
 
+  def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD
+
   def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD =
     new UnpartitionedRVD(newRowType, crdd.map(f))
 
