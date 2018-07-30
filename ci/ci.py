@@ -656,7 +656,7 @@ def github_rate_limits():
 ### event loops
 
 def flask_event_loop():
-    app.run(threaded=False)
+    app.run(threaded=False, host='0.0.0.0')
 
 def polling_event_loop():
     time.sleep(5)
