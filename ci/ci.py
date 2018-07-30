@@ -6,6 +6,21 @@ import os
 import collections
 import time
 import threading
+import logging
+
+log = logging.getLogger('ci')
+log.setLevel(logging.INFO)
+fmt = logging.Formatter('%(levelname)s:%(asctime)s:%(funcName)s:%(lineno)d: %(message)s')
+
+fh = logging.FileHandler('ci.log')
+fh.setLevel(logging.INFO)
+fh.setFormatter(fmt)
+log.addHandler(fh)
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(fmt)
+log.addHandler(ch)
 
 REPO = 'hail-is/hail/' # needs trailing slash
 GITHUB_URL = 'https://api.github.com/'
@@ -13,9 +28,13 @@ CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
 SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
 BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
-REFRESH_INTERVAL = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
+REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 GCP_PROJECT = 'broad-ctsa'
 GCS_BUCKET = 'hail-ci-0-1'
+
+log.info(f'BATCH_SERVER_URL {BATCH_SERVER_URL}')
+log.info(f'SELF_HOSTNAME {SELF_HOSTNAME}')
+log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 
 class NoOAuthToken(Exception):
     pass
@@ -128,11 +147,11 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
     if old_status and old_status.state == 'running':
         id = old_status.job_id
         assert id is not None
-        print(f'cancelling existing job {id} due to pr status update')
+        log.info(f'cancelling existing job {id} due to pr status update')
         try:
             batch_client.get_job(id).cancel()
         except requests.exceptions.HTTPError as e:
-            print(f'could not cancel job {id} due to {e}')
+            log.warn(f'could not cancel job {id} due to {e}')
 
 @app.route('/status')
 def status():
@@ -204,7 +223,7 @@ def get_github(url, headers=None, status_code=None):
 
 @app.errorhandler(BadStatus)
 def handle_invalid_usage(error):
-    print('ERROR: ' + str(error.status_code) + ': ' + str(error.data) + '\n\nrequest json: ' + str(request.json))
+    log.error('ERROR: ' + str(error.status_code) + ': ' + str(error.data) + '\n\nrequest json: ' + str(request.json))
     return jsonify(error.data), error.status_code
 
 ###############################################################################
@@ -238,7 +257,7 @@ def github_push():
                     Status('pending', 'pending', status.source_sha, new_sha, status.pr_number))
         heal()
     else:
-        print(f'ignoring ref push {ref} because it does not start with refs/heads/')
+        log.info(f'ignoring ref push {ref} because it does not start with refs/heads/')
     return '', 200
 
 @app.route('/pull_request', methods=['POST'])
@@ -270,7 +289,7 @@ def github_pull_request():
         # building) since the requester introduced new changes
         test_pr(source_url, source_ref, target_url, target_ref, status)
     else:
-        print(f'ignoring github pull_request event of type {action} full json: {data}')
+        log.info(f'ignoring github pull_request event of type {action} full json: {data}')
     return '', 200
 
 @app.route('/ci_build_done', methods=['POST'])
@@ -287,7 +306,7 @@ def ci_build_done():
     source_sha = attributes['source_sha']
     target_sha = attributes['target_sha']
     if status is None:
-        print(f'ignoring job for pr I did not think existed: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
+        log.info(f'ignoring job for pr I did not think existed: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
     elif status.source_sha == source_sha and status.target_sha == target_sha:
         build_finished(attributes['pr_number'],
                        source_url,
@@ -302,7 +321,7 @@ def ci_build_done():
                        status)
         heal()
     else:
-        print(f'ignoring completed job that I no longer care about: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
+        log.info(f'ignoring completed job that I no longer care about: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
 
     return '', 200
 
@@ -314,13 +333,13 @@ def build_finished(pr_number,
                    target_ref,
                    target_sha,
                    job_id,
-                   log,
+                   job_log,
                    exit_code,
                    status):
     upload_public_gs_file_from_string(
         GCS_BUCKET,
         f'{source_sha}/{target_sha}/job-log',
-        log
+        job_log
     )
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
@@ -328,7 +347,7 @@ def build_finished(pr_number,
         'index.html'
     )
     if exit_code == 0:
-        print(f'test job {job_id} finished successfully for pr #{pr_number}')
+        log.info(f'test job {job_id} finished successfully for pr #{pr_number}')
         update_pr_status(
             source_url,
             source_ref,
@@ -347,7 +366,7 @@ def build_finished(pr_number,
             status_code=201
         )
     else:
-        print(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
+        log.info(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
         update_pr_status(
             source_url,
             source_ref,
@@ -381,7 +400,7 @@ def heal():
         if len(ready_to_merge) != 0:
             # pick oldest one instead
             ((source_url, source_ref), status) = ready_to_merge[0]
-            print(f'normally I would merge {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
+            log.info(f'normally I would merge {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
         # else:
         approved_running = [(source, status)
                             for source, status in prs.items()
@@ -389,7 +408,7 @@ def heal():
                             and status.review_state == 'approved']
         if len(approved_running) != 0:
             approved_running_json = [(source, status.to_json()) for (source, status) in approved_running]
-            print(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running_json}')
+            log.info(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running_json}')
         else:
             approved = [(source, status)
                         for source, status in prs.items()
@@ -398,19 +417,19 @@ def heal():
             if len(approved) != 0:
                 # pick oldest one instead
                 ((source_url, source_ref), status) = approved[0]
-                print(f'no approved and running prs, will build: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
+                log.info(f'no approved and running prs, will build: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                 test_pr(source_url, source_ref, target_url, target_ref, status)
             else:
                 untested = [(source, status)
                             for source, status in prs.items()
                             if status.state == 'pending']
                 if len(untested) != 0:
-                    print('no approved prs, will build all PRs with out of date statuses')
+                    log.info('no approved prs, will build all PRs with out of date statuses')
                     for (source_url, source_ref), status in untested:
-                        print(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
+                        log.info(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                         test_pr(source_url, source_ref, target_url, target_ref, status)
                 else:
-                    print('all prs are tested or running')
+                    log.info('all prs are tested or running')
 
 @app.route('/force_retest_pr', methods=['POST'])
 def force_retest_pr_endpoint():
@@ -467,7 +486,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         'target_ref': target_ref,
         'target_sha': status.target_sha
     }
-    print('creating job with attributes ' + str(attributes))
+    log.info(f'creating job with attributes {attributes}')
     job=batch_client.create_job(
         PR_IMAGE,
         command=[
@@ -503,6 +522,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
                               'readOnly': True }
         }]
     )
+    log.info(f'successfully created job {job.id} with attributes {attributes}')
     post_repo(
         'statuses/' + status.source_sha,
         json={
@@ -543,7 +563,7 @@ def refresh_github_state():
         pulls_by_target[target_ref].append(pull)
     for target_ref, pulls in pulls_by_target.items():
         target_sha = get_sha_for_target_ref(target_ref)
-        print(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
+        log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
         known_prs = pop_prs_for_target(target_url, target_ref, {})
         for pull in pulls:
             source_url = pull['head']['repo']['clone_url']
@@ -559,12 +579,12 @@ def refresh_github_state():
                 status.target_sha == target_sha and
                 status.github_state_up_to_date(latest_state) and
                 status.review_state == latest_review_state):
-                print(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+                log.info(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
                 # restore pop'ed status
                 update_pr_status(source_url, source_ref, target_url, target_ref, status)
             else:
-                print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                      f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
+                log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                         f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
                 update_pr_status(
                     source_url,
                     source_ref,
@@ -574,14 +594,14 @@ def refresh_github_state():
 
         if len(known_prs) != 0:
             known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
-            print(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
+            log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
             for (source_url, source_ref), status in known_prs.items():
                 if status.state == 'running':
-                    print(f'cancelling job {pr.job_id} for {pr.to_json()}')
+                    log.info(f'cancelling job {pr.job_id} for {pr.to_json()}')
                     try:
                         client.get_job(pr.job_id).cancel()
                     except requests.exceptions.HTTPError as e:
-                        print(f'could not cancel job {pr.id_id} due to {e}')
+                        log.info(f'could not cancel job {pr.id_id} due to {e}')
 
     return '', 200
 
@@ -589,7 +609,6 @@ def refresh_github_state():
 @app.route('/refresh_batch_state', methods=['POST'])
 def refresh_batch_state():
     jobs = batch_client.list_jobs()
-    print(jobs)
     latest_jobs = {}
     for job in jobs:
         key = (job.attributes['source_url'],
@@ -601,7 +620,6 @@ def refresh_batch_state():
         job2 = latest_jobs.get(key, None)
         if job2 is None or job2.id < job.id:
             latest_jobs[key] = job
-    print(latest_jobs)
     for job in latest_jobs.values():
         job_id = job.id
         job_status = job.status()
@@ -618,14 +636,14 @@ def refresh_batch_state():
             assert status.pr_number == pr_number, f'{status.pr_number} {pr_number}'
             if job_state == 'Complete':
                 exit_code = job_status['exit_code']
-                log = job_status['log']
+                job_log = job_status['log']
                 if exit_code == 0:
                     build_state = 'success'
                 else:
                     build_state = 'failure'
                 if status.state == 'pending' or status.state == 'running' or status.state != build_state:
-                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'to {build_state} {status.review_state} {target_sha} <- {source_sha}')
+                    log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'to {build_state} {status.review_state} {target_sha} <- {source_sha}')
                     build_finished(pr_number,
                                    source_url,
                                    source_ref,
@@ -634,16 +652,16 @@ def refresh_batch_state():
                                    target_ref,
                                    target_sha,
                                    job_id,
-                                   log,
+                                   job_log,
                                    exit_code,
                                    status)
                 else:
-                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'was {build_state} for {target_sha} <- {source_sha}')
+                    log.info(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'was {build_state} for {target_sha} <- {source_sha}')
             elif job_state == 'Cancelled':
                 if status.state != 'pending':
-                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'to pending {status.review_state} {target_sha} <- {source_sha}')
+                    log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'to pending {status.review_state} {target_sha} <- {source_sha}')
                     post_repo(
                         'statuses/' + source_sha,
                         json={
@@ -662,12 +680,12 @@ def refresh_batch_state():
                                status.pr_number,
                                job_id))
                 else:
-                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'was pending for {target_sha} <- {source_sha}')
+                    log.info(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'was pending for {target_sha} <- {source_sha}')
             else:
                 if status.state != 'running' or status.job_id != job_id:
-                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'to running {status.review_state} {target_sha} <- {source_sha}')
+                    log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'to running {status.review_state} {target_sha} <- {source_sha}')
                     assert job_state == 'Created', f'{job_state}'
                     post_repo(
                         'statuses/' + status.source_sha,
@@ -687,22 +705,21 @@ def refresh_batch_state():
                                status.pr_number,
                                job_id))
                 else:
-                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                          f'was running for {target_sha} <- {source_sha}')
+                    log.info(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                             f'was running for {target_sha} <- {source_sha}')
 
         else:
             if status is None:
-                print(f'batch has job {job_id} for {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                      f'but I am not aware of this PR')
+                log.info(f'batch has job {job_id} for unknown PR, {target_url}:{target_ref} <- {source_url}:{source_ref} ')
             else:
-                print(f'job {job_id} for {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                      f'has SHAs {target_sha} <- {source_sha}, but I expect {status.target_sha} <- {status.source_sha}')
+                log.info(f'batch has job {job_id} has unexpected SHAs for {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                         f'job SHAs: {target_sha} <- {source_sha}, my SHAs: {status.target_sha} <- {status.source_sha}')
             if job_state == 'Created':
-                print(f'will cancel undesired batch job {job_id} {job_state}')
+                log.info(f'will cancel undesired batch job {job_id}')
                 try:
                     job.cancel()
                 except requests.exceptions.HTTPError as e:
-                    print(f'could not cancel job {job_id} due to {e}')
+                    log.warn(f'could not cancel job {job_id} due to {e}')
     return '', 200
 
 def upload_public_gs_file_from_string(bucket, target_path, string):
@@ -815,9 +832,9 @@ def polling_event_loop():
            r = requests.post('http://127.0.0.1:5000/heal')
            r.raise_for_status()
         except Exception as e:
-            print(f'Could not poll due to exception: {e}')
+            log.error(f'Could not poll due to exception: {e}')
             pass
-        time.sleep(REFRESH_INTERVAL)
+        time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 if __name__ == '__main__':
     poll_thread = threading.Thread(target=polling_event_loop)
