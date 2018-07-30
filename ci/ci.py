@@ -13,6 +13,7 @@ CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
 SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
 BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
+REFRESH_INTERVAL = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 GCP_PROJECT = 'broad-ctsa'
 GCS_BUCKET = 'hail-ci-0-1'
 
@@ -92,9 +93,9 @@ def update_pr_status(source_url, source_ref, target_url, target_ref, status):
     target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
     source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
 
-def get_pr_status(source_url, source_ref, target_url, target_ref):
-    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), None)
-    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), None)
+def get_pr_status(source_url, source_ref, target_url, target_ref, default=None):
+    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), default)
+    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), default)
     assert x == y, str(x) + str(y)
     return x
 
@@ -126,7 +127,7 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
     old_status = source_target_pr.get((source_url, source_ref), {}).get((target_url, target_ref), None)
     if old_status and old_status.state == 'running':
         id = old_status.job_id
-        assert(id is not None)
+        assert id is not None
         print(f'cancelling existing job {id} due to pr status update')
         try:
             batch_client.get_job(id).cancel()
@@ -288,61 +289,83 @@ def ci_build_done():
     if status is None:
         print(f'ignoring job for pr I did not think existed: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
     elif status.source_sha == source_sha and status.target_sha == target_sha:
-        pr_number = attributes['pr_number']
-        upload_public_gs_file_from_string(
-            GCS_BUCKET,
-            f'{source_sha}/{target_sha}/job-log',
-            data['log']
-        )
-        upload_public_gs_file_from_filename(
-            GCS_BUCKET,
-            f'{source_sha}/{target_sha}/index.html',
-            'index.html'
-        )
-        if exit_code == 0:
-            print(f'test job {job_id} finished successfully for pr #{pr_number}')
-            update_pr_status(
-                source_url,
-                source_ref,
-                target_url,
-                target_ref,
-                Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
-            )
-            post_repo(
-                'statuses/' + source_sha,
-                json={
-                    'state': 'success',
-                    'description': 'successful build after merge with ' + target_sha,
-                    'context': CONTEXT,
-                    'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
-                },
-                status_code=201
-            )
-        else:
-            print(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
-            update_pr_status(
-                source_url,
-                source_ref,
-                target_url,
-                target_ref,
-                Status('failure', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
-            )
-            status_message = f'failing build ({exit_code}) after merge with {target_sha}'
-            post_repo(
-                'statuses/' + source_sha,
-                json={
-                    'state': 'failure',
-                    'description': status_message,
-                    'context': CONTEXT,
-                    'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
-                },
-                status_code=201
-            )
+        build_finished(attributes['pr_number'],
+                       source_url,
+                       source_ref,
+                       source_sha,
+                       target_url,
+                       target_ref,
+                       target_sha,
+                       job_id,
+                       data['log'],
+                       exit_code,
+                       status)
         heal()
     else:
         print(f'ignoring completed job that I no longer care about: {target_ref}:{target_sha} <- {source_ref}:{source_sha}')
 
     return '', 200
+
+def build_finished(pr_number,
+                   source_url,
+                   source_ref,
+                   source_sha,
+                   target_url,
+                   target_ref,
+                   target_sha,
+                   job_id,
+                   log,
+                   exit_code,
+                   status):
+    upload_public_gs_file_from_string(
+        GCS_BUCKET,
+        f'{source_sha}/{target_sha}/job-log',
+        log
+    )
+    upload_public_gs_file_from_filename(
+        GCS_BUCKET,
+        f'{source_sha}/{target_sha}/index.html',
+        'index.html'
+    )
+    if exit_code == 0:
+        print(f'test job {job_id} finished successfully for pr #{pr_number}')
+        update_pr_status(
+            source_url,
+            source_ref,
+            target_url,
+            target_ref,
+            Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+        )
+        post_repo(
+            'statuses/' + source_sha,
+            json={
+                'state': 'success',
+                'description': 'successful build after merge with ' + target_sha,
+                'context': CONTEXT,
+                'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
+            },
+            status_code=201
+        )
+    else:
+        print(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
+        update_pr_status(
+            source_url,
+            source_ref,
+            target_url,
+            target_ref,
+            Status('failure', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+        )
+        status_message = f'failing build ({exit_code}) after merge with {target_sha}'
+        post_repo(
+            'statuses/' + source_sha,
+            json={
+                'state': 'failure',
+                'description': status_message,
+                'context': CONTEXT,
+                'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
+            },
+            status_code=201
+        )
 
 @app.route('/heal', methods=['POST'])
 def heal_endpoint():
@@ -555,11 +578,132 @@ def refresh_github_state():
             for (source_url, source_ref), status in known_prs.items():
                 if status.state == 'running':
                     print(f'cancelling job {pr.job_id} for {pr.to_json()}')
-                    client.get_job(pr.job_id).cancel()
+                    try:
+                        client.get_job(pr.job_id).cancel()
+                    except requests.exceptions.HTTPError as e:
+                        print(f'could not cancel job {pr.id_id} due to {e}')
 
     return '', 200
 
 # FIXME: have an end point to refresh batch/jobs state, needs a jobs endpoint
+@app.route('/refresh_batch_state', methods=['POST'])
+def refresh_batch_state():
+    jobs = batch_client.list_jobs()
+    print(jobs)
+    latest_jobs = {}
+    for job in jobs:
+        key = (job.attributes['source_url'],
+               job.attributes['source_ref'],
+               job.attributes['source_sha'],
+               job.attributes['target_url'],
+               job.attributes['target_ref'],
+               job.attributes['target_sha'])
+        job2 = latest_jobs.get(key, None)
+        if job2 is None or job2.id < job.id:
+            latest_jobs[key] = job
+    print(latest_jobs)
+    for job in latest_jobs.values():
+        job_id = job.id
+        job_status = job.status()
+        job_state = job_status['state']
+        pr_number = job.attributes['pr_number']
+        source_url = job.attributes['source_url']
+        source_ref = job.attributes['source_ref']
+        source_sha = job.attributes['source_sha']
+        target_url = job.attributes['target_url']
+        target_ref = job.attributes['target_ref']
+        target_sha = job.attributes['target_sha']
+        status = get_pr_status(source_url, source_ref, target_url, target_ref)
+        if status and status.source_sha == source_sha and status.target_sha == target_sha:
+            assert status.pr_number == pr_number, f'{status.pr_number} {pr_number}'
+            if job_state == 'Complete':
+                exit_code = job_status['exit_code']
+                log = job_status['log']
+                if exit_code == 0:
+                    build_state = 'success'
+                else:
+                    build_state = 'failure'
+                if status.state == 'pending' or status.state == 'running' or status.state != build_state:
+                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'to {build_state} {status.review_state} {target_sha} <- {source_sha}')
+                    build_finished(pr_number,
+                                   source_url,
+                                   source_ref,
+                                   source_sha,
+                                   target_url,
+                                   target_ref,
+                                   target_sha,
+                                   job_id,
+                                   log,
+                                   exit_code,
+                                   status)
+                else:
+                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'was {build_state} for {target_sha} <- {source_sha}')
+            elif job_state == 'Cancelled':
+                if status.state != 'pending':
+                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'to pending {status.review_state} {target_sha} <- {source_sha}')
+                    post_repo(
+                        'statuses/' + source_sha,
+                        json={
+                            'state': 'pending',
+                            'description': f'build merged into {target_sha} pending (job {job_id} was cancelled)',
+                            'context': CONTEXT
+                        },
+                        status_code=201
+                    )
+                    update_pr_status(
+                        source_url, source_ref, target_url, target_ref,
+                        Status('pending',
+                               status.review_state,
+                               status.source_sha,
+                               status.target_sha,
+                               status.pr_number,
+                               job_id))
+                else:
+                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'was pending for {target_sha} <- {source_sha}')
+            else:
+                if status.state != 'running' or status.job_id != job_id:
+                    print(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'to running {status.review_state} {target_sha} <- {source_sha}')
+                    assert job_state == 'Created', f'{job_state}'
+                    post_repo(
+                        'statuses/' + status.source_sha,
+                        json={
+                            'state': 'pending',
+                            'description': f'build merged into {status.target_sha} running {job_id}',
+                            'context': CONTEXT
+                        },
+                        status_code=201
+                    )
+                    update_pr_status(
+                        source_url, source_ref, target_url, target_ref,
+                        Status('running',
+                               status.review_state,
+                               status.source_sha,
+                               status.target_sha,
+                               status.pr_number,
+                               job_id))
+                else:
+                    print(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                          f'was running for {target_sha} <- {source_sha}')
+
+        else:
+            if status is None:
+                print(f'batch has job {job_id} for {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                      f'but I am not aware of this PR')
+            else:
+                print(f'job {job_id} for {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                      f'has SHAs {target_sha} <- {source_sha}, but I expect {status.target_sha} <- {status.source_sha}')
+            if job_state == 'Created':
+                print(f'will cancel undesired batch job {job_id} {job_state}')
+                try:
+                    job.cancel()
+                except requests.exceptions.HTTPError as e:
+                    print(f'could not cancel job {job_id} due to {e}')
+    return '', 200
 
 def upload_public_gs_file_from_string(bucket, target_path, string):
     create_public_gs_file(
@@ -666,12 +810,14 @@ def polling_event_loop():
         try:
            r = requests.post('http://127.0.0.1:5000/refresh_github_state')
            r.raise_for_status()
+           r = requests.post('http://127.0.0.1:5000/refresh_batch_state')
+           r.raise_for_status()
            r = requests.post('http://127.0.0.1:5000/heal')
            r.raise_for_status()
         except Exception as e:
             print(f'Could not poll due to exception: {e}')
             pass
-        time.sleep(60)
+        time.sleep(REFRESH_INTERVAL)
 
 if __name__ == '__main__':
     poll_thread = threading.Thread(target=polling_event_loop)
