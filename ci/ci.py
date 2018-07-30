@@ -30,7 +30,8 @@ SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
 BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 GCP_PROJECT = 'broad-ctsa'
-GCS_BUCKET = 'hail-ci-0-1'
+VERSION = '0-1'
+GCS_BUCKET = 'hail-ci-' + VERSION
 
 log.info(f'BATCH_SERVER_URL {BATCH_SERVER_URL}')
 log.info(f'SELF_HOSTNAME {SELF_HOSTNAME}')
@@ -68,7 +69,7 @@ except FileNotFoundError as e:
 
 # this is a bit of a hack, but makes my development life easier
 if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-token/hail-ci-0-1.key'
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-token/hail-ci-' + VERSION + '.key'
 gcs_client = storage.Client(project=GCP_PROJECT)
 
 ###############################################################################
@@ -148,10 +149,7 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
         id = old_status.job_id
         assert id is not None
         log.info(f'cancelling existing job {id} due to pr status update')
-        try:
-            batch_client.get_job(id).cancel()
-        except requests.exceptions.HTTPError as e:
-            log.warn(f'could not cancel job {id} due to {e}')
+        try_to_cancel_job(batch_client.get_job(id))
 
 @app.route('/status')
 def status():
@@ -361,7 +359,7 @@ def build_finished(pr_number,
                 'state': 'success',
                 'description': 'successful build after merge with ' + target_sha,
                 'context': CONTEXT,
-                'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
+                'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
             },
             status_code=201
         )
@@ -381,7 +379,7 @@ def build_finished(pr_number,
                 'state': 'failure',
                 'description': status_message,
                 'context': CONTEXT,
-                'target_url': f'https://storage.googleapis.com/hail-ci-0-1/{source_sha}/{target_sha}/index.html'
+                'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
             },
             status_code=201
         )
@@ -484,7 +482,8 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         'source_sha': status.source_sha,
         'target_url': target_url,
         'target_ref': target_ref,
-        'target_sha': status.target_sha
+        'target_sha': status.target_sha,
+        'type': 'hail-ci-' + VERSION
     }
     log.info(f'creating job with attributes {attributes}')
     job=batch_client.create_job(
@@ -514,11 +513,11 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         callback=SELF_HOSTNAME + '/ci_build_done',
         attributes=attributes,
         volumes=[{
-            'volume': { 'name' : 'hail-ci-0-1-service-account-key',
+            'volume': { 'name' : f'hail-ci-{VERSION}-service-account-key',
                         'secret' : { 'optional': False,
-                                     'secretName': 'hail-ci-0-1-service-account-key' } },
+                                     'secretName': f'hail-ci-{VERSION}-service-account-key' } },
             'volume_mount': { 'mountPath': '/secrets',
-                              'name': 'hail-ci-0-1-service-account-key',
+                              'name': f'hail-ci-{VERSION}-service-account-key',
                               'readOnly': True }
         }]
     )
@@ -598,10 +597,7 @@ def refresh_github_state():
             for (source_url, source_ref), status in known_prs.items():
                 if status.state == 'running':
                     log.info(f'cancelling job {pr.job_id} for {pr.to_json()}')
-                    try:
-                        client.get_job(pr.job_id).cancel()
-                    except requests.exceptions.HTTPError as e:
-                        log.info(f'could not cancel job {pr.id_id} due to {e}')
+                    try_to_cancel_job(client.get_job(pr.job_id))
 
     return '', 200
 
@@ -611,15 +607,27 @@ def refresh_batch_state():
     jobs = batch_client.list_jobs()
     latest_jobs = {}
     for job in jobs:
-        key = (job.attributes['source_url'],
-               job.attributes['source_ref'],
-               job.attributes['source_sha'],
-               job.attributes['target_url'],
-               job.attributes['target_ref'],
-               job.attributes['target_sha'])
-        job2 = latest_jobs.get(key, None)
-        if job2 is None or job2.id < job.id:
-            latest_jobs[key] = job
+        t = job.attributes.get('type', None)
+        if t and t == 'hail-ci-' + VERSION:
+            key = (job.attributes['source_url'],
+                   job.attributes['source_ref'],
+                   job.attributes['source_sha'],
+                   job.attributes['target_url'],
+                   job.attributes['target_ref'],
+                   job.attributes['target_sha'])
+            job2 = latest_jobs.get(key, None)
+            if job2 is None:
+                latest_jobs[key] = job
+            else:
+                job2_state = job2.status()['state']
+                job_state = job.status()['state']
+                if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
+                    job2.id < job.id):
+                    try_to_cancel_job(job2)
+                    latest_jobs[key] = job
+                else:
+                    try_to_cancel_job(job)
+
     for job in latest_jobs.values():
         job_id = job.id
         job_status = job.status()
@@ -712,37 +720,46 @@ def refresh_batch_state():
             if status is None:
                 log.info(f'batch has job {job_id} for unknown PR, {target_url}:{target_ref} <- {source_url}:{source_ref} ')
             else:
-                log.info(f'batch has job {job_id} has unexpected SHAs for {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                log.info(f'batch has job {job_id} with unexpected SHAs for {target_url}:{target_ref} <- {source_url}:{source_ref} '
                          f'job SHAs: {target_sha} <- {source_sha}, my SHAs: {status.target_sha} <- {status.source_sha}')
             if job_state == 'Created':
                 log.info(f'will cancel undesired batch job {job_id}')
-                try:
-                    job.cancel()
-                except requests.exceptions.HTTPError as e:
-                    log.warn(f'could not cancel job {job_id} due to {e}')
+                try_to_cancel_job(job)
     return '', 200
 
-def upload_public_gs_file_from_string(bucket, target_path, string):
-    create_public_gs_file(
-        bucket,
-        target_path,
-        lambda f: f.upload_from_string(string)
-    )
+###############################################################################
+### Batch Utils
 
-def upload_public_gs_file_from_filename(bucket, target_path, filename):
-    create_public_gs_file(
-        bucket,
-        target_path,
-        lambda f: f.upload_from_filename(filename)
-    )
+def try_to_cancel_job(job):
+    try:
+        job.cancel()
+    except requests.exceptions.HTTPError as e:
+        log.warn(f'could not cancel job {job.id} due to {e}')
 
-def create_public_gs_file(bucket, target_path, upload):
-    bucket = gcs_client.bucket(bucket)
-    f = bucket.blob(target_path)
-    f.metadata = {'Cache-Control': 'private, max-age=0, no-transform'}
-    upload(f)
-    f.acl.all().grant_read()
-    f.acl.save()
+def batch_job_state_smaller_is_closer_to_complete(x, y):
+    if x == 'Complete':
+        if y == 'Complete':
+            return 0
+        else:
+            return -1
+    elif x == 'Cancelled':
+        if y == 'Cancelled':
+            return 0
+        else:
+            assert y == 'Created' or y == 'Complete', y
+            return 1
+    else:
+        assert x == 'Created', x
+        if y == 'Created':
+            return 0
+        elif y == 'Complete':
+            return 1
+        else:
+            assert y == 'Cancelled', y
+            return -1
+
+###############################################################################
+### Review Status
 
 @app.route('/pr/<pr_number>/review_status')
 def review_status_endpoint(pr_number):
@@ -814,6 +831,31 @@ def statuses(sha):
 @app.route('/github_rate_limits')
 def github_rate_limits():
     return jsonify(get_github('/rate_limit')), 200
+
+###############################################################################
+### Google Storage
+
+def upload_public_gs_file_from_string(bucket, target_path, string):
+    create_public_gs_file(
+        bucket,
+        target_path,
+        lambda f: f.upload_from_string(string)
+    )
+
+def upload_public_gs_file_from_filename(bucket, target_path, filename):
+    create_public_gs_file(
+        bucket,
+        target_path,
+        lambda f: f.upload_from_filename(filename)
+    )
+
+def create_public_gs_file(bucket, target_path, upload):
+    bucket = gcs_client.bucket(bucket)
+    f = bucket.blob(target_path)
+    f.metadata = {'Cache-Control': 'private, max-age=0, no-transform'}
+    upload(f)
+    f.acl.all().grant_read()
+    f.acl.save()
 
 ###############################################################################
 ### event loops
