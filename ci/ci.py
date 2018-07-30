@@ -128,7 +128,10 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
         id = old_status.job_id
         assert(id is not None)
         print(f'cancelling existing job {id} due to pr status update')
-        batch_client.get_job(id).cancel()
+        try:
+            batch_client.get_job(id).cancel()
+        except requests.exceptions.HTTPError as e:
+            print(f'could not cancel job {id} due to {e}')
 
 @app.route('/status')
 def status():
