@@ -272,8 +272,6 @@ def kube_event_loop():
         pod = event['object']
         name = pod.metadata.name
 
-        # too much
-        # log.debug(f'kube_event_loop: got event {event}')
         log.debug(f'kube_event_loop: got event: {event_type} {pod.api_version}/{pod.kind} {name}')
 
         job = pod_name_job.get(name)
