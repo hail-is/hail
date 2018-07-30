@@ -185,7 +185,7 @@ class Tests(unittest.TestCase):
         bad = bad.filter(~(
                 (bad.t == bad.T) &
                 (bad.u == bad.U) &
-                (hl.abs(bad.chi2 - bad.Chi2) < 0.001) &
+                (hl.abs(bad.chi_sq - bad.Chi2) < 0.001) &
                 (hl.abs(bad.p_value - bad.Pval) < 0.001)))
 
         if bad.count() != 0:

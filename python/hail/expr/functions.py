@@ -340,16 +340,16 @@ def bind(f: Callable, *exprs):
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1, c2, c3, c4) -> StructExpression:
+def chi_sq_test(c1, c2, c3, c4) -> StructExpression:
     """Performs chi-squared test of independence on a 2x2 contingency table.
 
     Examples
     --------
 
-    >>> hl.chisq(10, 10, 10, 10).value
+    >>> hl.chi_sq_test(10, 10, 10, 10).value
     Struct(p_value=1.0, odds_ratio=1.0)
 
-    >>> hl.chisq(51, 43, 22, 92).value
+    >>> hl.chi_sq_test(51, 43, 22, 92).value
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
     Notes
@@ -376,21 +376,21 @@ def chisq(c1, c2, c3, c4) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("chisq", ret_type, c1, c2, c3, c4)
+    return _func("chi_sq_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
-def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
+def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     """Performs chi-squared or Fisher's exact test of independence on a 2x2
     contingency table.
 
     Examples
     --------
 
-    >>> hl.ctt(51, 43, 22, 92, min_cell_count=22).value
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=22).value
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
-    >>> hl.ctt(51, 43, 22, 92, min_cell_count=23).value
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23).value
     Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967)
 
     Notes
@@ -420,7 +420,7 @@ def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
+    return _func("contingency_table_test", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
 @typecheck(collection=expr_oneof(expr_dict(),
@@ -584,7 +584,7 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
                        odds_ratio=tfloat64,
                        ci_95_lower=tfloat64,
                        ci_95_upper=tfloat64)
-    return _func("fet", ret_type, c1, c2, c3, c4)
+    return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
@@ -630,17 +630,17 @@ def ceil(x):
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
 
-    >>> hl.hardy_weinberg_p(250, 500, 250).value
-    Struct(r_expected_het_freq=0.5002501250625313, p_hwe=0.9747844394217698)
+    >>> hl.hardy_weinberg_test(250, 500, 250).value
+    Struct(r_expected_het_freq=0.5002501250625313, p_value_hwe=0.9747844394217698)
 
-    >>> hl.hardy_weinberg_p(37, 200, 85).value
-    Struct(r_expected_het_freq=0.48964964307448583, p_hwe=1.1337210383168987e-06)
+    >>> hl.hardy_weinberg_test(37, 200, 85).value
+    Struct(r_expected_het_freq=0.48964964307448583, p_value_hwe=1.1337210383168987e-06)
 
     Notes
     -----
@@ -670,8 +670,8 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
         (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(r_expected_het_freq=tfloat64,
-                       p_hwe=tfloat64)
-    return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
+                       p_value_hwe=tfloat64)
+    return _func("hardy_weinberg_test", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
 @typecheck(contig=expr_str, pos=expr_int32,

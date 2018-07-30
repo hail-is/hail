@@ -108,11 +108,11 @@ package object stats {
     }
   }
 
-  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_hwe" -> TFloat64())
+  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_value_hwe" -> TFloat64())
   
-  def hweTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
+  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-      fatal(s"hwe: all arguments must be non-negative, got $nHomRef, $nHet, $nHomVar")
+      fatal(s"hardy_weinberg_test: all arguments must be non-negative, got $nHomRef, $nHet, $nHomVar")
   
     val n = nHomRef + nHet + nHomVar
     val nAB = nHet
@@ -126,7 +126,7 @@ package object stats {
   
   def chisqTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = {
     if (a < 0 || b < 0 || c < 0 || d < 0)
-      fatal(s"chisq: all arguments must be non-negative, got $a, $b, $c, $d")
+      fatal(s"chi_sq_test: all arguments must be non-negative, got $a, $b, $c, $d")
 
     val ad = a * d
     val bc = (b * c).toDouble
@@ -138,7 +138,7 @@ package object stats {
   
   def contingencyTableTest(a: Int, b: Int, c: Int, d: Int, minCellCount: Int): Array[Double] = {
     if (minCellCount < 0)
-      fatal(s"ctt: 'min_cell_count' must be non-negative, found $minCellCount")
+      fatal(s"contingency_table_test: 'min_cell_count' must be non-negative, found $minCellCount")
     
     if (a >= minCellCount && b >= minCellCount && c >= minCellCount && d >= minCellCount)
       chisqTest(a, b, c, d)

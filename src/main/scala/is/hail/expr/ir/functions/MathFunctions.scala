@@ -162,7 +162,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
 
-    registerCode("fet", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
+    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, fetStruct)
       Code(
@@ -180,7 +180,7 @@ object MathFunctions extends RegistryFunctions {
       )
     }
     
-    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
+    registerCode("chi_sq_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
       Code(
@@ -194,7 +194,7 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("ctt", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
+    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
       Code(
@@ -208,11 +208,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hwe", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
+    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, hweStruct)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hweTest", nHomRef, nHet, nHomVar),
+        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),

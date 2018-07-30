@@ -124,7 +124,7 @@ object VariantQC {
     "r_heterozygosity" -> TFloat64(),
     "r_het_hom_var" -> TFloat64(),
     "r_expected_het_freq" -> TFloat64(),
-    "p_hwe" -> TFloat64())
+    "p_value_hwe" -> TFloat64())
 
   def apply(vsm: MatrixTable, root: String = "qc"): MatrixTable = {
     vsm.requireRowKeyVariant("variant_qc")
