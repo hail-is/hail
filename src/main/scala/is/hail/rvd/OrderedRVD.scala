@@ -1046,8 +1046,55 @@ object OrderedRVD {
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
     val first = rvds.head
-    OrderedRVD.coerce(
+    require(rvds.tail.forall(_.partitioner.pkType == first.partitioner.pkType))
+    val ord = first.partitioner.pkType.ordering
+
+    var disjoint = Map.empty[Interval, Seq[OrderedRVD]]
+
+    var i = 0
+    while (i < rvds.length) {
+      rvds(i).partitioner.range.foreach { range =>
+        var newRange = range
+        var newRVDs = Array(rvds(i))
+        disjoint.foreach { case (interval, iRVDs) =>
+          interval.merge(ord, newRange).foreach { newInterval =>
+            disjoint -= interval
+            newRange = newInterval
+            newRVDs ++= iRVDs
+          }
+        }
+        disjoint += newRange -> newRVDs
+      }
+      i += 1
+    }
+
+    val sorted = disjoint.toArray.sortWith { case ((i1, _), (i2, _)) =>
+      i1.isBelow(ord, i2)
+    }
+
+    val mergedRVDs = sorted.map {
+      case (_, Seq(rvd)) => rvd
+      case (_, rs) =>
+        OrderedRVD.merge(rs)
+    }
+
+    val newRangeBounds = mergedRVDs(0).partitioner.rangeBounds ++
+      mergedRVDs.tail.zip(mergedRVDs).flatMap { case (rvd1, rvd2) =>
+      val rangeBounds = rvd1.partitioner.rangeBounds
+      val i2 = rvd2.partitioner.range.get
+      Interval(i2.end, rangeBounds(0).end, !i2.includesEnd, rangeBounds(0).includesEnd) +: rangeBounds.tail
+    }
+
+    new OrderedRVD(
       first.typ,
+      first.partitioner.copy(numPartitions = newRangeBounds.length, rangeBounds = newRangeBounds),
+      ContextRDD.union(first.sparkContext, mergedRVDs.map(_.crdd)))
+  }
+
+  def merge(rvds: Seq[OrderedRVD]): OrderedRVD = {
+    require(rvds.length > 1)
+    OrderedRVD.coerce(
+      rvds.head.typ,
       RVD.union(rvds),
       None,
       None)
