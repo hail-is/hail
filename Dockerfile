@@ -17,7 +17,7 @@ RUN conda env create -n hail-ci -f environment.yml && \
 
 COPY index.html pr-build-script ./
 COPY ci ./ci
-RUN chown -R hail-ci:hail-ci index.html pr-build-script ci
+RUN chown -R hail-ci:hail-ci ./
 
 USER hail-ci
 ENV PATH /opt/conda/envs/hail-ci/bin:$PATH
