@@ -21,6 +21,7 @@ Numeric functions
     float64
     floor
     ceil
+    uniroot
 
 .. rubric:: Numeric collection functions
 
@@ -53,3 +54,4 @@ Numeric functions
 .. autofunction:: sum
 .. autofunction:: argmin
 .. autofunction:: argmax
+.. autofunction:: uniroot
