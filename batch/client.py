@@ -5,9 +5,13 @@ import requests
 import batch.api as api
 
 class Job(object):
-    def __init__(self, client, id):
+    def __init__(self, client, id, attributes=None):
+        if attributes is None:
+            attributes = {}
+
         self.client = client
         self.id = id
+        self.attributes = attributes
         self._status = None
 
     def is_complete(self):
@@ -107,7 +111,7 @@ class BatchClient(object):
             spec['tolerations'] = tolerations
 
         j = api.create_job(self.url, spec, attributes, batch_id, callback)
-        return Job(self, j['id'])
+        return Job(self, j['id'], j['attributes'])
 
     def _get_job(self, id):
         return api.get_job(self.url, id)
@@ -120,12 +124,12 @@ class BatchClient(object):
 
     def list_jobs(self):
         jobs = api.list_jobs(self.url)
-        return [Job(self, j['id']) for j in jobs]
+        return [Job(self, j['id'], j['attributes']) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = api.get_job(self.url, id)
-        return Job(self, j['id'])
+        return Job(self, j['id'], j['attributes'])
 
     def create_job(self,
                    image,
