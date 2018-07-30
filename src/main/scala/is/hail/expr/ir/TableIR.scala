@@ -52,7 +52,8 @@ case class TableLiteral(value: TableValue) extends TableIR {
 }
 
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
-  assert(PruneDeadFields.isSupertype(typ, spec.table_type))
+  assert(PruneDeadFields.isSupertype(typ, spec.table_type),
+    s"\n  original:  ${ spec.table_type }\n  requested: $typ")
 
   override def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 

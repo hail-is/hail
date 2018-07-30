@@ -1028,9 +1028,11 @@ object OrderedRVD {
 
             pkUR.set(prevPK.value)
             if (!partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR)) {
+              val shouldBeIn = partitionerBc.value.getPartitionPK(pkUR)
               fatal(
                 s"""OrderedRVD error! Unexpected PK in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Key should be in partition ${ shouldBeIn }: ${ partitionerBc.value.rangeBounds(shouldBeIn) }
                    |  Invalid PK: ${ pkUR.toString() }
                    |  Full key: ${ new UnsafeRow(typ.kType, rv).toString() }""".stripMargin)
             }
