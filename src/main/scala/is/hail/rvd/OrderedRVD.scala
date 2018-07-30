@@ -844,7 +844,7 @@ object OrderedRVD {
     val pkis = getPartitionKeyInfo(typ, getKeys(typ, crdd))
 
     if (pkis.isEmpty)
-      return OrderedRVD.empty(crdd.sparkContext, typ)
+      return OrderedRVD(typ, partitioner, crdd)
 
     val min = pkis.map(_.min).min(pkOrd)
     val max = pkis.map(_.max).max(pkOrd)
@@ -1046,29 +1046,13 @@ object OrderedRVD {
       })
   }
 
-  def union(rvds: Seq[OrderedRVD], keepPartitioner: Boolean=true): OrderedRVD = {
+  def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
     val first = rvds.head
-    if (keepPartitioner) {
-      rvds.tail.foldLeft(first){ (r1, r2) =>
-        if (r1.partitioner.rangeBounds.isEmpty)
-          r2
-        else {
-          val shuffled = OrderedRVD.adjustBoundsAndShuffle(
-            r1.typ, r1.partitioner, r2)
-          if (shuffled.partitioner.rangeBounds.isEmpty)
-            r1
-          else
-            r1.copy(orderedPartitioner=shuffled.partitioner)
-              .partitionSortedUnion(shuffled)
-        }
-      }
-    } else {
-      OrderedRVD.coerce(
-        first.typ,
-        RVD.union(rvds),
-        None,
-        None)
-    }
+    OrderedRVD.coerce(
+      first.typ,
+      RVD.union(rvds),
+      None,
+      None)
   }
 }
