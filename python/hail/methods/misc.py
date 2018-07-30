@@ -1,3 +1,5 @@
+from typing import *
+
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
@@ -244,10 +246,10 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     return MatrixTable(dataset._jvds.renameDuplicates(name))
 
 
-@typecheck(ds=MatrixTable,
+@typecheck(ds=oneof(Table, MatrixTable),
            intervals=expr_array(expr_interval(expr_any)),
            keep=bool)
-def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
+def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     """Filter rows with a list of intervals.
 
     Examples
@@ -274,13 +276,13 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
 
     Parameters
     ----------
-    ds : :class:`.MatrixTable`
-        Dataset.
+    ds : :class:`.MatrixTable` or :class:`.Table`
+        Dataset to filter.
     intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
-        Intervals to filter on. If there is only one row partition key, the
-        point type of the interval can be the type of the first partition key.
-        Otherwise, the interval point type must be a :class:`.Struct` matching
-        the row partition key schema.
+        Intervals to filter on.  The point type of the interval must
+        be a prefix of the partition key (when filtering a matrix
+        table) or the key (when filtering a table), or equal to the
+        first field of the key.
     keep : :obj:`bool`
         If ``True``, keep only rows that fall within any interval in `intervals`.
         If ``False``, keep only rows that fall outside all intervals in
@@ -288,19 +290,36 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
+
     """
 
-    n_pk = len(ds.partition_key)
-    pk_type = ds.partition_key.dtype
+    if isinstance(ds, MatrixTable):
+        n_pk = len(ds.partition_key)
+        pk_type = ds.partition_key.dtype
+    else:
+        assert isinstance(ds, Table)
+        if ds.key is None:
+            raise TypeError("cannot filter intervals of an unkeyed Table")
+        n_pk = len(ds.key)
+        pk_type = ds.key.dtype
+
     point_type = intervals.dtype.element_type.point_type
 
-    if point_type == pk_type:
-        needs_wrapper = False
-    elif n_pk == 1 and point_type == ds.partition_key[0].dtype:
+    def is_struct_prefix(partial, full):
+        if list(partial) != list(full)[:len(partial)]:
+            return False
+        for k, v in partial.items():
+            if full[k] != v:
+                return False
+        return True
+
+    if point_type == pk_type[0]:
         needs_wrapper = True
+    elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, pk_type):
+        needs_wrapper = False
     else:
-        raise TypeError("The point type does not match the row partition key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
+        raise TypeError("The point type is incompatible with key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
 
     def wrap_input(interval):
         if interval is None:
@@ -314,8 +333,13 @@ def filter_intervals(ds, intervals, keep=True) -> MatrixTable:
             return interval
 
     intervals = [wrap_input(x)._jrep for x in intervals.value]
-    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, intervals, keep)
-    return MatrixTable(jmt)
+    if isinstance(ds, MatrixTable):
+        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jvds, intervals, keep)
+        return MatrixTable(jmt)
+    else:
+        jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
+        return Table(jt)
+
 
 @typecheck(mt=MatrixTable, bp_window_size=int)
 def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
