@@ -737,7 +737,7 @@ class BaseApplyAggOp(IR):
         return [self]
 
     def __eq__(self, other):
-        return isinstance(other, ApplyAggOp) and \
+        return isinstance(other, self.__class__) and \
                other.a == self.a and \
                other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
