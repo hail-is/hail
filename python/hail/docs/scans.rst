@@ -5,13 +5,21 @@ Scans
 
 The ``scan`` module is exposed as ``hl.scan``, e.g. ``hl.scan.sum``.
 
-The functions in this module perform rolling aggregations along the desired axis;
+The functions in this module perform rolling aggregations along the rows of a
+table, or along the rows or columns of a matrix table. The value of the scan at
+a given row (or column) is the result of applying the corresponding aggregator
+to all previous rows . Scans directly over entries are not currently supported.
+
 For example, the ``count`` aggregator can be used as ``hl.scan.count`` to add an
-index along the rows of a `Table` or the rows or columns of a `MatrixTable`.
+index along the rows of a `Table` or the rows or columns of a `MatrixTable`; the
+two statements below produce identical tables:
 
-For example, to add a rolling sum of a Table field, we could do:
+    >>> ht_with_idx = ht.add_index()
+    >>> ht_with_idx = ht.annotate(idx=hl.scan.count())
 
-    >>> ht_scan = ht.select(ht.ID, ht.Z, rolling_sum=hl.scan.sum(ht.Z))
+For example, to compute a cumulative sum for a row field in a table:
+
+    >>> ht_scan = ht.select(ht.ID, ht.Z, cum_sum=hl.scan.sum(ht.Z))
     >>> ht_scan.show()
     +-------+-------+-------------+
     |    ID |     Z | rolling_sum |
@@ -24,10 +32,12 @@ For example, to add a rolling sum of a Table field, we could do:
     |     4 |     2 |          10 |
     +-------+-------+-------------+
 
-The corresponding calls on MatrixTable fields would be:
+Note that the cumulative sum is exclusive of the current row's value. On
+MatrixTables, to compute the cumulative number of non-reference genotype calls
+along the genome:
 
     >>> ds_scan = ds.select_rows(ds.variant_qc.n_non_ref,
-    ...                          rolling_sum=hl.scan.sum(ds.variant_qc.n_non_ref))
+    ...                          cum_n_non_ref=hl.scan.sum(ds.variant_qc.n_non_ref))
     >>> ds_scan.rows().show()
     +---------------+--------------+-----------+-------------+
     | locus         | alleles      | n_non_ref | rolling_sum |
@@ -46,33 +56,12 @@ The corresponding calls on MatrixTable fields would be:
     | 20:17640833   | ["A","C"]    |         3 |         224 |
     +---------------+--------------+-----------+-------------+
 
-    >>> ds_scan = ds.select_cols(ds.sample_qc.n_non_ref,
-    ...                          rolling_sum=hl.scan.sum(ds.sample_qc.n_non_ref))
-    >>> ds_scan.cols().show()
-    +----------------+-----------+-------------+
-    | s              | n_non_ref | rolling_sum |
-    +----------------+-----------+-------------+
-    | str            |     int64 |       int64 |
-    +----------------+-----------+-------------+
-    | C1046::HG02024 |         3 |           0 |
-    | C1046::HG02025 |         3 |           3 |
-    | C1046::HG02026 |         2 |           6 |
-    | C1047::HG00731 |         3 |           8 |
-    | C1047::HG00732 |         1 |          11 |
-    | C1047::HG00733 |         3 |          12 |
-    | C1048::HG02024 |         3 |          15 |
-    | C1048::HG02025 |         3 |          18 |
-    | C1048::HG02026 |         2 |          21 |
-    | C1049::HG00731 |         2 |          23 |
-    +----------------+-----------+-------------+
-
-
-Scans over entry fields are currently not supported.
+Scans over column fields can be done in a similar manner.
 
 .. DANGER::
 
     Computing the result of certain aggregators, such as ``hardy_weinberg``, can
-    be expensive.
+    be very expensive when done for every row in a scan."
 
 See the aggregators <aggregators> module for documentation on the behavior
 of specific aggregators.

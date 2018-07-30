@@ -1181,7 +1181,7 @@ def linreg(y, x):
 class ScanFunctions(object):
 
     def __init__(self, scope):
-        self._functions = {n: self._scan_decorator(f) for n, f in scope.items()}
+        self._functions = {name: self._scan_decorator(f) for name, f in scope.items()}
 
     def _scan_decorator(self, f):
         @wraps(f)

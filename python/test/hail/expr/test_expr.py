@@ -257,7 +257,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.scan_count, [i for i in range(10)])
         self.assertEqual(r.scan_count_where, [(i + 1) // 2 for i in range(10)])
         self.assertEqual(r.scan_count_where2, [(i + 1) // 2 for i in range(10)])
-        self.assertEqual(r.arr_sum, [None]+[[i*1, i*2, 0] for i in range(1, 10)])
+        self.assertEqual(r.arr_sum, [None] + [[i * 1, i * 2, 0] for i in range(1, 10)])
         self.assertEqual(r.bind_agg, [(i + 1) // 2 for i in range(10)])
         self.assertEqual(r.foo, [min(sum(range(i)), 3) for i in range(10)])
         for (x, y) in zip(r.fraction_odd, [None] + [((i + 1)//2)/i for i in range(1, 10)]):
