@@ -148,3 +148,11 @@ class TableIRTests(unittest.TestCase):
     def test_parses(self):
         for x in self.table_irs():
             Env.hail().expr.Parser.parse_table_ir(str(x))
+
+    def test_matrix_ir_parses(self):
+        matrix_irs = [
+            ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1))
+        ]
+
+        for x in matrix_irs:
+            Env.hail().expr.Parser.parse_matrix_ir(str(x))

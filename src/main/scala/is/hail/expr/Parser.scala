@@ -481,6 +481,10 @@ object Parser extends JavaTokenParsers {
     _.toFastIndexedSeq
   }
 
+  def matrix_ir_children: Parser[IndexedSeq[ir.MatrixIR]] = rep(matrix_ir) ^^ {
+    _.toFastIndexedSeq
+  }
+
   def ir_value_exprs(ref_map: Map[String, Type] = Map.empty): Parser[IndexedSeq[ir.IR]] =
     "(" ~> rep(ir_value_expr(ref_map)) <~ ")" ^^ { _.toFastIndexedSeq }
 
@@ -649,7 +653,8 @@ object Parser extends JavaTokenParsers {
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
-      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) }
+      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) } |
+      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) }
 
   def parse_value_ir(s: String, ref_map: Map[String, Type]): IR = parse(ir_value_expr(ref_map), s)
 
