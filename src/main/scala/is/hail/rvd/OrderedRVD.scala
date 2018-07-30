@@ -1067,7 +1067,7 @@ object OrderedRVD {
         new OrderedRVD(
           first.typ,
           first.partitioner.copy(numPartitions = newRangeBounds.length, rangeBounds = newRangeBounds),
-          ContextRDD.union(first.sparkContext, rvds.map(_.crdd)))
+          ContextRDD.union(first.sparkContext, sorted.map(_.crdd)))
     }
   }
 
