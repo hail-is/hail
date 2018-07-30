@@ -36,22 +36,15 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.mapPartitions(typ.rowType, { (ctx, it) =>
-      val globalRV = RegionValue()
-      val globalRVb = new RegionValueBuilder()
-      it.filter { rv =>
-        globalRVb.set(rv.region)
-        globalRVb.start(globalType)
-        globalRVb.addAnnotation(globalType, localGlobals.value)
-        globalRV.set(rv.region, globalRVb.end())
-        if (p(rv, globalRV)) {
-          true
-        } else {
-          ctx.region.clear()
-          false
-        }
-      }
-    }))
+    copy(rvd = rvd.filterWithContext[RegionValue](
+      { ctx =>
+        val globalRegion = ctx.freshRegion
+        val rvb = new RegionValueBuilder()
+        rvb.set(globalRegion)
+        rvb.start(globalType)
+        rvb.addAnnotation(globalType, localGlobals.value)
+        RegionValue(globalRegion, rvb.end())
+      }, { case (globals, rv) => p(rv, globals) }))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {

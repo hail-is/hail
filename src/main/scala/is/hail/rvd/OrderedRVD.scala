@@ -75,6 +75,20 @@ class OrderedRVD(
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
+  def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD = {
+    mapPartitionsPreservesPartitioning(typ, { (context, it) =>
+      val c = makeContext(context)
+      it.filter { rv =>
+        if (f(c, rv))
+          true
+        else {
+          rv.region.clear()
+          false
+        }
+      }
+    })
+  }
+
   def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
 
