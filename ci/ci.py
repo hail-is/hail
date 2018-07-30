@@ -596,8 +596,8 @@ def refresh_github_state():
             log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
             for (source_url, source_ref), status in known_prs.items():
                 if status.state == 'running':
-                    log.info(f'cancelling job {pr.job_id} for {pr.to_json()}')
-                    try_to_cancel_job(client.get_job(pr.job_id))
+                    log.info(f'cancelling job {status.job_id} for {status.to_json()}')
+                    try_to_cancel_job(client.get_job(status.job_id))
 
     return '', 200
 
