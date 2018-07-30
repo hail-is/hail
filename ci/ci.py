@@ -461,8 +461,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         },
         resources={
             'requests': {
-                # our k8s seems to have >250mCPU available on each node
-                'cpu' : '4',
+                'cpu' : '3.7',
                 'memory': '4G'
             }
         },
