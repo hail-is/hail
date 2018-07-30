@@ -46,6 +46,12 @@ class OrderedRVDPartitioner(
       (rangeBounds(i), i)
     })
 
+  override def equals(other: Any): Boolean = other match {
+    case that: OrderedRVDPartitioner =>
+      this.kType == that.kType && this.rangeBounds == that.rangeBounds
+    case _ => false
+  }
+
   def coarsenedRangeBounds(newKeyLen: Int): IndexedSeq[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
