@@ -107,6 +107,53 @@ class AggFunc(object):
             aggs = aggregations.push(Aggregation(aggregable, *args))
         return construct_expr(ir, ret_type, indices, aggs)
 
+    def _group_by(self, group, agg_expr):
+        if group._aggregations:
+            raise ExpressionException("'group_by' does not support an already-aggregated expression as the argument to 'group'")
+
+        if isinstance(agg_expr._ir, ApplyScanOp):
+            if not self._as_scan:
+                raise TypeError("'agg.group_by' requires a non-scan aggregation expression (agg.*) as the argument to 'agg_expr'")
+        elif isinstance(agg_expr._ir, ApplyAggOp):
+            if self._as_scan:
+                raise TypeError("'scan.group_by' requires a scan aggregation expression (scan.*) as the argument to 'agg_expr'")
+        elif not isinstance(agg_expr._ir, ApplyAggOp) and not isinstance(agg_expr._ir, ApplyScanOp):
+            raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
+
+        ir = agg_expr._ir
+        agg_sig = ir.agg_sig
+        a = ir.a
+
+        new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
+                                    agg_sig.ctor_arg_types,
+                                    agg_sig.initop_arg_types,
+                                    [group.dtype] + agg_sig.seqop_arg_types)
+
+        def rewrite_a(ir):
+            if isinstance(ir, SeqOp):
+                return SeqOp(ir.i, [group._ir] + ir.args, new_agg_sig)
+            else:
+                return ir.map_ir(rewrite_a)
+
+        new_a = rewrite_a(a)
+
+        if isinstance(agg_expr._ir, ApplyAggOp):
+            ir = ApplyAggOp(new_a,
+                            ir.constructor_args,
+                            ir.init_op_args,
+                            new_agg_sig)
+        else:
+            assert isinstance(agg_expr._ir, ApplyScanOp)
+            ir = ApplyScanOp(new_a,
+                             ir.constructor_args,
+                             ir.init_op_args,
+                             new_agg_sig)
+
+        return construct_expr(ir,
+                              hl.tdict(group.dtype, agg_expr.dtype),
+                              agg_expr._indices,
+                              agg_expr._aggregations)
+
 
 _agg_func = AggFunc()
 
@@ -1176,10 +1223,12 @@ def linreg(y, x) -> StructExpression:
     return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
 
 
-@typecheck(group=oneof(anytype, sequenceof(anytype)),
+@typecheck(group=expr_any,
            agg_expr=expr_any)
 def group_by(group, agg_expr) -> DictExpression:
     """Compute aggregation statistics stratified by one or more groups.
+
+    .. include:: _templates/experimental.rst
 
     Examples
     --------
@@ -1202,72 +1251,22 @@ def group_by(group, agg_expr) -> DictExpression:
     >>> ann = ds.annotate_rows(call_stats=hl.agg.group_by([ds.pop, ds.is_case],
     ...                                                   hl.agg.call_stats(ds.GT, ds.alleles)))
 
-    Notes
-    -----
-    The return type of :func:`.group_by` is a dictionary that is nested by the
-    number of groups specified. For example, given two grouping variables of types
-    :py:data:`.tstr` and :py:data:`.tbool` and the return type of `agg_expr` is
-    :py:data:`.tint64`, the return type of :func:`.group_by` will be a
-    :py:data:`.tdict` of :py:data:`.tstr` to a :py:data:`.tdict` of
-    :py:data:`.tbool` to :py:data:`.tint64`.
-
     Parameters
     ----------
     group : :class:`.Expression` or :obj:`list` of :class:`.Expression`
-        Groups to stratify by.
+        Group to stratify the result by.
     agg_expr : :class:`.Expression`
-        Aggregation expression to compute per grouping.
+        Aggregation or scan expression to compute per grouping.
 
     Returns
     -------
     :class:`.DictExpression`
+        Dictionary where the keys are `group` and the values are the result of computing
+        `agg_expr` for each unique value of `group`.
     """
-    from hail.expr.expressions.base_expression import to_expr
-    group = [to_expr(g) for g in wrap_to_list(group)]
 
-    _, aggregations = unify_all(*group)
+    return _agg_func._group_by(group, agg_expr)
 
-    if aggregations:
-        raise ExpressionException("'group_by' does not support already-aggregated expressions as arguments to 'group'")
-
-    if not isinstance(agg_expr._ir, ApplyAggOp):
-        raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
-
-    def get_new_type_and_op(groups, typ, op):
-        if len(groups) == 0:
-            return typ, op
-        else:
-            g = groups.pop()
-            return get_new_type_and_op(groups, hl.tdict(g.dtype, typ), f'Keyed({op})')
-
-    apply_agg_op = agg_expr._ir
-    agg_sig = apply_agg_op.agg_sig
-    a = apply_agg_op.a
-
-    new_ret_type, new_op = get_new_type_and_op(group[:], agg_expr.dtype, agg_sig.op)
-
-    new_agg_sig = AggSignature(new_op,
-                               agg_sig.ctor_arg_types,
-                               agg_sig.initop_arg_types,
-                               [g.dtype for g in group] + agg_sig.seqop_arg_types)
-
-    def rewrite_a(ir):
-        if isinstance(ir, SeqOp):
-            return SeqOp(ir.i, [g._ir for g in group] + ir.args, new_agg_sig)
-        else:
-            return ir.recur(rewrite_a)
-
-    new_a = rewrite_a(a)
-
-    new_apply_agg_op = ApplyAggOp(new_a,
-                                  apply_agg_op.constructor_args,
-                                  apply_agg_op.init_op_args,
-                                  new_agg_sig)
-
-    return construct_expr(new_apply_agg_op,
-                          new_ret_type,
-                          agg_expr._indices,
-                          agg_expr._aggregations)
 
 class ScanFunctions(object):
 

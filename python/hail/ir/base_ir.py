@@ -30,7 +30,7 @@ class IR(BaseIR):
     def copy(self, *args):
         raise NotImplementedError("IR has no copy method defined.")
 
-    def recur(self, f):
+    def map_ir(self, f):
         new_children = []
         for child in self.children:
             if isinstance(child, IR):

@@ -268,6 +268,13 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(r.x, 10)
 
+    def test_scan_group_by(self):
+        t = hl.utils.range_table(5)
+        t = t.select(group_by=hl.scan.group_by(t.idx % 2 == 0, hl.scan.count()))
+        rows = t.collect()
+        r = hl.Struct(**{n: [i[n] for i in rows] for n in t.row.keys()})
+        self.assertEqual(r.group_by, [{}, {True: 1}, {True: 1, False: 1}, {True: 2, False: 1}, {True: 2, False: 2}])
+
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
         # FIXME: add boolean when function registry is removed
@@ -354,16 +361,12 @@ class Tests(unittest.TestCase):
             {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
         ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
 
-        r = t.aggregate(hl.struct(count=hl.agg.group_by([t.cohort, t.pop], hl.agg.count_where(hl.is_defined(t.GT))),
+        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
                                   inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
 
         expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
                     'SIGMA': {'AFR': 1, 'EUR': 1},
                     'IBD': {'EUR': 1, None: 1}}
-
-        expected_inbreeding = {None: {'f_stat': -0.8518518518518517, 'n_called': 3, 'expected_homs': 2.46, 'observed_homs': 2},
-                               'SIGMA': {'f_stat': -1.777777777777777, 'n_called': 2, 'expected_homs': 1.64, 'observed_homs': 1},
-                               'IBD': {'f_stat': -1.777777777777777, 'n_called': 2, 'expected_homs': 1.64, 'observed_homs': 1}}
 
         self.assertEqual(r.count, expected_count)
 
