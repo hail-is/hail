@@ -22,6 +22,7 @@ RUN chown -R hail-ci:hail-ci index.html pr-build-script ci
 USER hail-ci
 ENV PATH /opt/conda/envs/hail-ci/bin:$PATH
 RUN pip install --user /batch
+EXPOSE 5000
 VOLUME /hail-ci/oauth-token
 VOLUME /hail-ci/gcloud-token
 ENTRYPOINT ["python", "ci/ci.py"]
