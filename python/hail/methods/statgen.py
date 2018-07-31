@@ -92,11 +92,12 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
-        dataset, _ = dataset._process_joins(maf)
-        maf = str(maf._ir)
-
+        dataset = dataset.select_rows(__maf = maf)
+    else:
+        dataset = dataset.select_rows()
+    dataset = dataset.select_cols().select_globals().select_entries('GT')
     return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
-                                              joption(maf),
+                                              joption('__maf' if maf is not None else None),
                                               bounded,
                                               joption(min),
                                               joption(max)))
