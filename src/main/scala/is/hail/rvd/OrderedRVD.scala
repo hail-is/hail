@@ -99,6 +99,9 @@ class OrderedRVD(
       crdd.cmapPartitions(f))
   }
 
+  def changeKey(newKey: Array[String]): OrderedRVD =
+    OrderedRVD.coerce(typ.copy(key = newKey), this)
+
   def extendKeyPreservesPartitioning(newKey: Array[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))

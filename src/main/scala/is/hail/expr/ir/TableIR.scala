@@ -178,26 +178,17 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val rvd = if (sort) {
-      def resort: OrderedRVD = {
-        val orvdType = new OrderedRVDType(keys.toArray, typ.rowType)
-        OrderedRVD.coerce(orvdType, tv.rvd)
-      }
-
-      tv.rvd match {
-        case ordered: OrderedRVD =>
-          if (ordered.typ.key.startsWith(keys))
-            ordered
-          else resort
-        case _: UnpartitionedRVD =>
-          resort
-      }
+    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
+    assert(sort || nPreservedFields > 0 || (orvd.typ.key.isEmpty && keys.isEmpty))
+    val rvd = if (nPreservedFields == keys.length) {
+      orvd
+    } else if (!sort) {
+      orvd.truncateKey(keys.take(nPreservedFields).toArray)
+        .extendKeyPreservesPartitioning(keys.toArray)
     } else {
-      tv.rvd match {
-        case ordered: OrderedRVD => ordered.toUnpartitionedRVD
-        case unordered: UnpartitionedRVD => unordered
-      }
-    }
+      orvd.changeKey(keys.toArray)
+    }.toOldStyleRVD
     tv.copy(typ = typ, rvd = rvd)
   }
 }
