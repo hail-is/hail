@@ -6,10 +6,10 @@ import is.hail.utils.ArrayBuilder
 
 object LeafNodeBuilder {
   def typ(keyType: Type) = TStruct(
-    "first_key_idx" -> TInt64(required = true),
-    "keys" -> TArray(TStruct(
+    "first_key_idx" -> +TInt64(),
+    "keys" -> +TArray(TStruct(
       "key" -> keyType,
-      "offset" -> TInt64(required = true)
+      "offset" -> +TInt64()
     ), required = true)
   )
 }

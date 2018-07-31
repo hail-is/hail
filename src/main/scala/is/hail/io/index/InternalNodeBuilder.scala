@@ -6,11 +6,11 @@ import is.hail.utils.ArrayBuilder
 
 object InternalNodeBuilder {
   def typ(keyType: Type) = TStruct(
-    "block_first_key_idx" -> TInt64(required = true),
-    "children" -> TArray(TStruct(
-      "child_offset" -> TInt64(required = true),
+    "block_first_key_idx" -> +TInt64(),
+    "children" -> +TArray(TStruct(
+      "child_offset" -> +TInt64(),
       "first_key" -> keyType,
-      "first_key_offset" -> TInt64(required = true)
+      "first_key_offset" -> +TInt64()
     ), required = true)
   )
 }
