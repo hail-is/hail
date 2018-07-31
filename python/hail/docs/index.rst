@@ -11,11 +11,11 @@ Contents
 .. toctree::
     :maxdepth: 2
 
-    Getting Started <getting_started>
+    Installation <installation>
     Tutorials <tutorials-landing>
     Hail Overview <overview>
     Python API <api>
-    Getting Started Developing <getting_started_developing>
+    For Software Developers <soft_dev_instructions>
     Other Resources <other_resources>
 
 ==================
