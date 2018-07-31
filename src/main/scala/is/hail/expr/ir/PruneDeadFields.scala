@@ -457,7 +457,7 @@ object PruneDeadFields {
             case ts: TSet => ts.copy(elementType = t)
           }
         } catch {
-          case e: AnnotationPathException => minimal(preExplosionFieldType )
+          case e: AnnotationPathException => minimal(preExplosionFieldType)
         }
         val dep = requestedType.copy(colType = unify(child.typ.colType,
           requestedType.colType.insert(prunedPreExplosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
