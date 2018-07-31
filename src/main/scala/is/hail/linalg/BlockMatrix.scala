@@ -694,8 +694,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     result
   }
 
-  def write(uri: String, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
+  def write(uri: String, overwrite: Boolean = false, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
     val hadoop = blocks.sparkContext.hadoopConfiguration
+
+    if (overwrite)
+      hadoop.delete(uri, recursive = true)
+    else if (hadoop.exists(uri))
+      fatal(s"file already exists: $uri")
+
     hadoop.mkDir(uri)
 
     def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {

@@ -63,7 +63,7 @@ class RowMatrixSuite extends SparkSuite {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
       partSize <- Seq(1, 2, 4, 9, 11)
     } {
-      BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).write(fname, forceRowMajor = true)
+      BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).write(fname, overwrite = true, forceRowMajor = true)
       val rowMatrix = RowMatrix.readBlockMatrix(hc, fname, Some(partSize))
       
       assert(rowMatrix.toBreezeMatrix() === lm)

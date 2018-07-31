@@ -413,7 +413,8 @@ class BlockMatrix(object):
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
         path = new_temp_file()
-        cls.write_from_entry_expr(entry_expr, path, mean_impute, center, normalize, block_size)
+        cls.write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=mean_impute,
+                                  center=center, normalize=normalize, block_size=block_size)
         return cls.read(path)
 
     @classmethod
@@ -558,15 +559,18 @@ class BlockMatrix(object):
         return self._jbm.toBreezeMatrix().apply(0, 0)
 
     @typecheck_method(path=str,
+                      overwrite=bool,
                       force_row_major=bool,
                       stage_locally=bool)
-    def write(self, path, force_row_major=False, stage_locally=False):
+    def write(self, path, overwrite=False, force_row_major=False, stage_locally=False):
         """Writes the block matrix.
 
         Parameters
         ----------
         path: :obj:`str`
             Path for output file.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
         force_row_major: :obj:`bool`
             If ``True``, transform blocks in column-major format
             to row-major format before writing.
@@ -575,16 +579,18 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        self._jbm.write(path, force_row_major, stage_locally)
+        self._jbm.write(path, overwrite, force_row_major, stage_locally)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
                path=str,
+               overwrite=bool,
                mean_impute=bool,
                center=bool,
                normalize=bool,
                block_size=nullable(int))
-    def write_from_entry_expr(entry_expr, path, mean_impute=False, center=False, normalize=False, block_size=None):
+    def write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=False,
+                              center=False, normalize=False, block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
         Examples
@@ -632,6 +638,8 @@ class BlockMatrix(object):
             Entry expression for numeric matrix entries.
         path: :obj:`str`
             Path for output.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
         mean_impute: :obj:`bool`
             If true, set missing values to the row mean before centering or
             normalizing. If false, missing values will raise an error.
@@ -653,7 +661,7 @@ class BlockMatrix(object):
         if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
             #  FIXME: remove once select_entries on a field is free
             field = mt._fields_inverse[entry_expr]
-            mt._jvds.writeBlockMatrix(path, field, block_size)
+            mt._jvds.writeBlockMatrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -686,7 +694,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, field, block_size)
+            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
@@ -1588,7 +1596,7 @@ class BlockMatrix(object):
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', force_row_major=True)
+        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', overwrite=True, force_row_major=True)
 
         Export the full matrix as a file with tab-separated values:
 
@@ -1832,7 +1840,7 @@ class BlockMatrix(object):
         >>>
         >>> (BlockMatrix.from_numpy(nd)
         ...     .sparsify_rectangles(rectangles)
-        ...     .write('output/example.bm', force_row_major=True))
+        ...     .write('output/example.bm', overwrite=True, force_row_major=True))
 
         Export the three rectangles to TSV files:
 
