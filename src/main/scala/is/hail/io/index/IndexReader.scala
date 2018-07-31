@@ -3,7 +3,7 @@ package is.hail.io.index
 import java.util
 import java.util.Map.Entry
 
-import is.hail.annotations.{Annotation, RegionValue, SafeRow}
+import is.hail.annotations.{Annotation, ExtendedOrdering, RegionValue, SafeRow}
 import is.hail.expr.Parser
 import is.hail.io._
 import is.hail.rvd.RVDContext
@@ -37,37 +37,73 @@ class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) {
     override def removeEldestEntry(eldest: Entry[Long, LeafNode]): Boolean = size() > cacheCapacity
   }
 
-  def readMetadata(metadataFile: String): IndexMetadata = {
+  private def readMetadata(metadataFile: String): IndexMetadata = {
     val jv = conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
     implicit val formats: Formats = defaultJSONFormats
     jv.extract[IndexMetadata]
   }
 
-  def readInternalNode(offset: Long): InternalNode = {
+  private def readInternalNode(offset: Long): InternalNode = {
     is.seek(offset)
     assert(internalDecoder.readByte() == 1)
     rv.setOffset(internalDecoder.readRegionValue(region))
     InternalNode(SafeRow(internalType, rv))
   }
 
-  def readLeafNode(offset: Long): LeafNode = {
+  private def readLeafNode(offset: Long): LeafNode = {
     is.seek(offset)
     assert(leafDecoder.readByte() == 0)
     rv.setOffset(leafDecoder.readRegionValue(region))
     LeafNode(SafeRow(leafType, rv))
   }
 
-  private def queryByIndex(idx: Long, depth: Int, offset: Long): LeafChild = {
+  private def queryByKey(key: Annotation, depth: Int, nodeOffset: Long, ordering: ExtendedOrdering): Option[Long] = {
+    def searchLeafNode(node: LeafNode): Option[Long] = {
+      var i = 0
+      while (i < node.keys.length) {
+        val child = node.keys(i)
+        if (ordering.equiv(key, child.key))
+          return Some(child.offset)
+        else if (ordering.lt(key, child.key))
+          return None
+        i += 1
+      }
+      None
+    }
+
     if (depth == 0) {
-      val node = readLeafNode(offset)
+      searchLeafNode(readLeafNode(nodeOffset))
+    } else {
+      val node = readInternalNode(nodeOffset)
+      var i = 0
+      var nextKey: Annotation = null
+
+      while (i < node.children.length) {
+        val child = node.children(i)
+        nextKey = if (i + 1 < node.children.length) node.children(i + 1).firstKey else null
+        if (ordering.lt(key, child.firstKey))
+          return None
+        else if (ordering.gteq(key, child.firstKey) && (nextKey == null || ordering.lt(key, nextKey)))
+          return queryByKey(key, depth - 1, child.childOffset, ordering)
+        i += 1
+      }
+      None
+    }
+  }
+
+  def queryByKey(key: Annotation): Option[Long] = {
+    val maxDepth = math.max(IndexUtils.calcDepth(nKeys, branchingFactor) - 1, 1)
+    queryByKey(key, maxDepth, metadata.rootOffset, keyType.ordering)
+  }
+
+  private def queryByIndex(idx: Long, depth: Int, nodeOffset: Long): LeafChild = {
+    if (depth == 0) {
+      val node = readLeafNode(nodeOffset)
       val localIdx = idx - node.firstKeyIndex
-
-      if (!leafCache.containsKey(node.firstKeyIndex))
-        leafCache.put(node.firstKeyIndex, node)
-
+      leafCache.put(node.firstKeyIndex, node)
       node.keys(localIdx.toInt)
     } else {
-      val node = readInternalNode(offset)
+      val node = readInternalNode(nodeOffset)
       val blockStartIdx = node.blockFirstKeyIndex
       val nKeysPerBlock = math.pow(branchingFactor, depth).toLong
       val localIdx = (idx - blockStartIdx) / nKeysPerBlock
