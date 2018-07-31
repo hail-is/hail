@@ -252,7 +252,7 @@ def github_push():
                     source_ref,
                     target_url,
                     target_ref,
-                    Status('pending', 'pending', status.source_sha, new_sha, status.pr_number))
+                    Status('pending', status.review_state, status.source_sha, new_sha, status.pr_number))
         heal()
     else:
         log.info(f'ignoring ref push {ref} because it does not start with refs/heads/')
