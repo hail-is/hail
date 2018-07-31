@@ -255,7 +255,6 @@ class MatrixExplodeRows(MatrixIR):
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
 
-
 class MatrixUnionRows(MatrixIR):
     def __init__(self, *children):
         super().__init__()
@@ -263,3 +262,14 @@ class MatrixUnionRows(MatrixIR):
 
     def __str__(self):
         return '(MatrixUnionRows {})'.format(' '.join(map(str, self.children)))
+
+class MatrixExplodeCols(MatrixIR):
+    def __init__(self, child, path):
+        super().__init__()
+        self.child = child
+        self.path = path
+
+    def __str__(self):
+        return '(MatrixExplodeCols ({}) {})'.format(
+            ' '.join([escape_id(id) for id in self.path]),
+            self.child)

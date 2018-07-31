@@ -433,17 +433,34 @@ object PruneDeadFields {
           globalType = requestedType.globalType)
         memoizeTableIR(child, requestedChildType, memo)
       case MatrixExplodeRows(child, path) =>
-        val baseType = child.typ.rowType.queryTyped(path.toList)._1
-        val fieldDep = Try(requestedType.rowType.queryTyped(path.toList)._1) match {
-          case Success(t) => baseType match {
+        def getExplodedField(typ: MatrixType): Type = typ.rowType.queryTyped(path.toList)._1
+        val preExplosionFieldType = getExplodedField(child.typ)
+        val prunedPreExlosionFieldType = try {
+          val t = getExplodedField(requestedType)
+          preExplosionFieldType match {
             case ta: TArray => ta.copy(elementType = t)
             case ts: TSet => ts.copy(elementType = t)
           }
-          case Failure(_) => minimal(baseType)
+        } catch {
+          case e: AnnotationPathException => minimal(preExplosionFieldType)
         }
-        val minChild = minimal(child.typ)
         val dep = requestedType.copy(rvRowType = unify(child.typ.rvRowType,
-          requestedType.rvRowType.insert(fieldDep, path.toList)._1.asInstanceOf[TStruct]))
+          requestedType.rvRowType.insert(prunedPreExlosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
+        memoizeMatrixIR(child, dep, memo)
+      case MatrixExplodeCols(child, path) =>
+        def getExplodedField(typ: MatrixType): Type = typ.colType.queryTyped(path.toList)._1
+        val preExplosionFieldType = getExplodedField(child.typ)
+        val prunedPreExplosionFieldType = try {
+          val t = getExplodedField(requestedType)
+          preExplosionFieldType  match {
+            case ta: TArray => ta.copy(elementType = t)
+            case ts: TSet => ts.copy(elementType = t)
+          }
+        } catch {
+          case e: AnnotationPathException => minimal(preExplosionFieldType)
+        }
+        val dep = requestedType.copy(colType = unify(child.typ.colType,
+          requestedType.colType.insert(prunedPreExplosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
