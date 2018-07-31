@@ -37,6 +37,8 @@ from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
 
+scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
+
 __all__ = [
     'init',
     'stop',
@@ -58,6 +60,7 @@ __all__ = [
     'Struct',
     'Interval',
     'agg',
+    'scan',
     'genetics',
     'methods',
     'linalg',

@@ -1,11 +1,9 @@
-import builtins
-
 import hail as hl
-from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.utils import wrap_to_list
 from hail.ir import *
+import difflib
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -43,60 +41,75 @@ def _to_agg(x):
 agg_expr = AggregableChecker
 
 
-@typecheck(name=str,
-           aggregable=Aggregable,
-           ret_type=hail_type,
-           constructor_args=sequenceof(expr_any),
-           init_op_args=nullable(sequenceof(expr_any)),
-           f=nullable(func_spec(1, expr_any)))
-def _agg_func(name, aggregable, ret_type, constructor_args=(), init_op_args=None, f=None):
-    args = constructor_args if init_op_args is None else constructor_args + init_op_args
-    indices, aggregations = unify_all(aggregable, *args)
-    if aggregations:
-        raise ExpressionException('Cannot aggregate an already-aggregated expression')
-    for a in args:
-        _check_agg_bindings(a)
-    _check_agg_bindings(aggregable)
+class AggFunc(object):
+    def __init__(self):
+        self._as_scan = False
 
-    def get_type(expr):
-        return expr.dtype
+    @typecheck_method(name=str,
+                      aggregable=Aggregable,
+                      ret_type=hail_type,
+                      constructor_args=sequenceof(expr_any),
+                      init_op_args=nullable(sequenceof(expr_any)),
+                      f=nullable(func_spec(1, expr_any)))
+    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, f=None):
+        args = constructor_args if init_op_args is None else constructor_args + init_op_args
+        indices, aggregations = unify_all(aggregable, *args)
+        if aggregations:
+            raise ExpressionException('Cannot aggregate an already-aggregated expression')
+        for a in args:
+            _check_agg_bindings(a)
+        _check_agg_bindings(aggregable)
 
-    def get_ir(expr):
-        return expr._ir
+        def get_type(expr):
+            return expr.dtype
 
-    signature = None
-    def agg_sig(*seq_op_args):
-        return AggSignature(name,
-                            list(builtins.map(get_type, constructor_args)),
-                            None if init_op_args is None else list(builtins.map(get_type, init_op_args)),
-                            list(builtins.map(get_type, seq_op_args)))
+        def get_ir(expr):
+            return expr._ir
 
-    if name == "Count":
-        def make_seq_op(agg):
-            return construct_expr(SeqOp(I32(0), [], agg_sig()), None)
-        seq_op = aggregable._transformations(aggregable, make_seq_op)
-        signature = agg_sig()
-    elif f is None:
-        def make_seq_op(agg):
-            return construct_expr(SeqOp(I32(0), [get_ir(agg)], agg_sig(aggregable)), None)
-        seq_op = aggregable._transformations(aggregable, make_seq_op)
-        signature = agg_sig(aggregable)
-    else:
-        def make_seq_op(agg):
-            uid = Env.get_uid()
-            ref = construct_variable(uid, get_type(agg), agg._indices)
-            result = f(ref)
-            body = Let(uid, get_ir(agg), get_ir(result))
-            return construct_expr(SeqOp(I32(0), [get_ir(agg), body], agg_sig(agg, result)), None)
-        seq_op = aggregable._transformations(aggregable, make_seq_op)
-        signature = agg_sig(aggregable, f(aggregable))
+        def agg_sig(*seq_op_args):
+            return AggSignature(name,
+                                list(map(get_type, constructor_args)),
+                                None if init_op_args is None else list(map(get_type, init_op_args)),
+                                list(map(get_type, seq_op_args)))
 
-    ir = ApplyAggOp(seq_op._ir,
-                    list(builtins.map(get_ir, constructor_args)),
-                    None if init_op_args is None else list(builtins.map(get_ir, init_op_args)),
-                    signature)
-    indices, _ = unify_all(*args)
-    return construct_expr(ir, ret_type, indices, aggregations.push(Aggregation(aggregable, *args)))
+        if name == "Count":
+            def make_seq_op(_):
+                return construct_expr(SeqOp(I32(0), [], agg_sig()), None)
+            seq_op = aggregable._transformations(aggregable, make_seq_op)
+            signature = agg_sig()
+        elif f is None:
+            def make_seq_op(agg):
+                return construct_expr(SeqOp(I32(0), [get_ir(agg)], agg_sig(aggregable)), None)
+            seq_op = aggregable._transformations(aggregable, make_seq_op)
+            signature = agg_sig(aggregable)
+        else:
+            def make_seq_op(agg):
+                uid = Env.get_uid()
+                ref = construct_variable(uid, get_type(agg), agg._indices)
+                result = f(ref)
+                body = Let(uid, get_ir(agg), get_ir(result))
+                return construct_expr(SeqOp(I32(0), [get_ir(agg), body], agg_sig(agg, result)), None)
+            seq_op = aggregable._transformations(aggregable, make_seq_op)
+            signature = agg_sig(aggregable, f(aggregable))
+
+        if self._as_scan:
+            ir = ApplyScanOp(seq_op._ir,
+                             list(map(get_ir, constructor_args)),
+                             None if init_op_args is None else list(map(get_ir, init_op_args)),
+                             signature)
+            indices, _ = unify_all(aggregable, *args)
+            aggs = aggregations
+        else:
+            ir = ApplyAggOp(seq_op._ir,
+                            list(map(get_ir, constructor_args)),
+                            None if init_op_args is None else list(map(get_ir, init_op_args)),
+                            signature)
+            indices, _ = unify_all(*args)
+            aggs = aggregations.push(Aggregation(aggregable, *args))
+        return construct_expr(ir, ret_type, indices, aggs)
+
+
+_agg_func = AggFunc()
 
 
 def _check_agg_bindings(expr):
@@ -1163,3 +1176,31 @@ def linreg(y, x):
     k = hl.int32(k)
 
     return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
+
+
+class ScanFunctions(object):
+
+    def __init__(self, scope):
+        self._functions = {name: self._scan_decorator(f) for name, f in scope.items()}
+
+    def _scan_decorator(self, f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            func = getattr(f, '__wrapped__')
+            af = func.__globals__['_agg_func']
+            setattr(af, '_as_scan', True)
+            res = f(*args, **kwargs)
+            setattr(af, '_as_scan', False)
+            return res
+        update_wrapper(wrapper, f)
+        return wrapper
+
+    def __getattr__(self, field):
+        if field in self._functions:
+            return self._functions[field]
+        else:
+            field_matches = difflib.get_close_matches(field, self._functions.keys(), n=5)
+            raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
+                field,
+                "\n    ".join(field_matches)))
+

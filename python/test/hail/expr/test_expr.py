@@ -240,6 +240,33 @@ class Tests(unittest.TestCase):
         for test in tests:
             self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
 
+    def test_scan(self):
+        table = hl.utils.range_table(10)
+
+        t = table.select(scan_count=hl.scan.count(),
+                         scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
+                         scan_count_where2=hl.scan.count(hl.scan.filter(lambda x: x % 2 == 0, table.idx)),
+                         arr_sum=hl.scan.array_sum([1, 2, hl.null(tint32)]),
+                         bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
+                         mean=hl.scan.mean(table.idx),
+                         foo=hl.min(3, hl.scan.sum(table.idx)),
+                         fraction_odd=hl.scan.fraction(table.idx % 2 == 0))
+        rows = t.collect()
+        r = hl.Struct(**{n: [i[n] for i in rows] for n in t.row.keys()})
+
+        self.assertEqual(r.scan_count, [i for i in range(10)])
+        self.assertEqual(r.scan_count_where, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.scan_count_where2, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.arr_sum, [None] + [[i * 1, i * 2, 0] for i in range(1, 10)])
+        self.assertEqual(r.bind_agg, [(i + 1) // 2 for i in range(10)])
+        self.assertEqual(r.foo, [min(sum(range(i)), 3) for i in range(10)])
+        for (x, y) in zip(r.fraction_odd, [None] + [((i + 1)//2)/i for i in range(1, 10)]):
+            self.assertAlmostEqual(x, y)
+
+        table = hl.utils.range_table(10)
+        r = table.aggregate(hl.struct(x=agg.count()))
+
+        self.assertEqual(r.x, 10)
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
