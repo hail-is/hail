@@ -18,3 +18,5 @@ src/main/resources/build-info.properties
 src/test/resources/example.v11.bgen.idx
 src/test/resources/example.8bits.bgen.idx
 src/test/resources/random.bgen.idx
+src/test/resources/random-*.bgen.idx
+src/test/resources/skip_invalid_loci.bgen.idx
