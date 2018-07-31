@@ -98,15 +98,14 @@ class MatrixIRSuite extends SparkSuite {
 
   @DataProvider(name="unionRowsData")
   def unionRowsData(): Array[Array[Any]] = Array(
-    Array(Array(0 -> 0, 5 -> 7)),
-    Array(Array(0 -> 1, 5 -> 7)),
-    Array(Array(0 -> 6, 5 -> 7)),
-    Array(Array(2 -> 3, 0 -> 1, 5 -> 7)),
-    Array(Array(2 -> 4, 0 -> 3, 5 -> 7)),
-    Array(Array(3 -> 6, 0 -> 1, 5 -> 7)))
+    Array(FastIndexedSeq(0 -> 1, 5 -> 7)),
+    Array(FastIndexedSeq(0 -> 6, 5 -> 7)),
+    Array(FastIndexedSeq(2 -> 3, 0 -> 1, 5 -> 7)),
+    Array(FastIndexedSeq(2 -> 4, 0 -> 3, 5 -> 7)),
+    Array(FastIndexedSeq(3 -> 6, 0 -> 1, 5 -> 7)))
 
   @Test(dataProvider = "unionRowsData")
-  def testMatrixUnionRows(ranges: Array[(Int, Int)]) {
+  def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]) {
     val expectedOrdering = ranges.flatMap{ case (start, end) =>
       Array.range(start, end)
     }.sorted
