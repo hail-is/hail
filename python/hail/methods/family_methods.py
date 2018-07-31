@@ -307,7 +307,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
     >>> tdt_table.show(2)
     +---------------+------------+-------+-------+-------------+-------------+
-    | locus         | alleles    |     t |     u |        chi2 |    p_values |
+    | locus         | alleles    |     t |     u |      chi_sq |     p_value |
     +---------------+------------+-------+-------+-------------+-------------+
     | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
     +---------------+------------+-------+-------+-------------+-------------+
@@ -392,7 +392,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
      - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Alleles.
      - `t` (:py:data:`.tint32`) -- Number of transmitted alternate alleles.
      - `u` (:py:data:`.tint32`) -- Number of untransmitted alternate alleles.
-     - `chi2` (:py:data:`.tfloat64`) -- TDT statistic.
+     - `chi_sq` (:py:data:`.tfloat64`) -- TDT statistic.
      - `p_value` (:py:data:`.tfloat64`) -- p-value.
 
     Parameters
@@ -457,8 +457,8 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     tab = tri.rows().select('counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
-    tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
-    tab = tab.annotate(p_value = hl.pchisqtail(tab.chi2, 1.0))
+    tab = tab.annotate(chi_sq = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
+    tab = tab.annotate(p_value = hl.pchisqtail(tab.chi_sq, 1.0))
 
     return tab.cache()
 

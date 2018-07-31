@@ -677,31 +677,31 @@ def fraction(predicate) -> Float64Expression:
 
 
 @typecheck(expr=agg_expr(expr_call))
-def hardy_weinberg(expr) -> StructExpression:
+def hardy_weinberg_test(expr) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
     Test each row of a dataset:
 
-    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg(dataset.GT))
+    >>> dataset_result = dataset.annotate_rows(hwe = agg.hardy_weinberg_test(dataset.GT))
 
     Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.hardy_weinberg_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
-    This method performs the test described in :func:`.functions.hardy_weinberg_p` based solely on
+    This method performs the test described in :func:`.functions.hardy_weinberg_test` based solely on
     the counts of homozygous reference, heterozygous, and homozygous variant calls.
 
     The resulting struct expression has two fields:
 
-    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Expected frequency
+    - `het_freq_hwe` (:py:data:`.tfloat64`) - Expected frequency
       of heterozygous calls under Hardy-Weinberg equilibrium.
 
-    - `p_hwe` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
+    - `p_value` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
@@ -724,9 +724,9 @@ def hardy_weinberg(expr) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `r_expected_het_freq` and `p_hwe`.
+        Struct expression with fields `het_freq_hwe` and `p_value`.
     """
-    t = tstruct(r_expected_het_freq=tfloat64, p_hwe=tfloat64)
+    t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
     return _agg_func('HardyWeinberg', expr, t)
 
 

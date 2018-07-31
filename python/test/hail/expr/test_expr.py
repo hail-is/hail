@@ -1704,12 +1704,12 @@ class Tests(unittest.TestCase):
     def test_uniroot(self):
         self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)
 
-    def test_chisq(self):
-        res = hl.chisq(0, 0, 0, 0).value
+    def test_chi_squared_test(self):
+        res = hl.chi_squared_test(0, 0, 0, 0).value
         self.assertTrue(math.isnan(res['p_value']))
         self.assertTrue(math.isnan(res['odds_ratio']))
 
-        res = hl.chisq(51, 43, 22, 92).value
+        res = hl.chi_squared_test(51, 43, 22, 92).value
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
 
@@ -1726,19 +1726,19 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['ci_95_lower'], 2.56593733)
         self.assertAlmostEqual(res['ci_95_upper'], 9.67792963)
 
-    def test_ctt(self):
-        res = hl.ctt(51, 43, 22, 92, 22).value
+    def test_contingency_table_test(self):
+        res = hl.contingency_table_test(51, 43, 22, 92, 22).value
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
 
-        res = hl.ctt(51, 43, 22, 92, 23).value
+        res = hl.contingency_table_test(51, 43, 22, 92, 23).value
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
-    def test_hardy_weinberg_p(self):
-        res = hl.hardy_weinberg_p(1, 2, 1).value
-        self.assertAlmostEqual(res['p_hwe'], 0.65714285)
-        self.assertAlmostEqual(res['r_expected_het_freq'], 0.57142857)
+    def test_hardy_weinberg_test(self):
+        res = hl.hardy_weinberg_test(1, 2, 1).value
+        self.assertAlmostEqual(res['p_value'], 0.65714285)
+        self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
 
     def test_pl_to_gp(self):
         res = hl.pl_to_gp([0, 10, 100]).value

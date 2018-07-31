@@ -213,16 +213,16 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
-    - `p_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
-      See :func:`.functions.hardy_weinberg_test` for details.
-    - `r_expected_het_freq` (``float64``) -- Expected frequency of heterozygous
+    - `het_freq_hwe` (``float64``) -- Expected frequency of heterozygous
       samples under Hardy-Weinberg equilibrium. See
-      :func:`.functions.hardy_weinberg_p` for details.
+      :func:`.functions.hardy_weinberg_test` for details.
+    - `p_value_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+      See :func:`.functions.hardy_weinberg_test` for details.
 
     Warning
     -------
-    `p_hwe` and `r_expected_het_freq` are calculated as in
-    :func:`.functions.hardy_weinberg_p`, with non-diploid calls
+    `het_freq_hwe` and `p_value_hwe` are calculated as in
+    :func:`.functions.hardy_weinberg_test`, with non-diploid calls
     (``ploidy != 2``) ignored in the counts. As this test is only
     statistically rigorous in the biallelic setting, :func:`variant_qc`
     sets both fields to missing for multiallelic variants. Consider using
@@ -274,9 +274,10 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
 
-    hwe = hl.hardy_weinberg_p(mt[name].homozygote_count[0],
-                              mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
-                              mt[name].homozygote_count[1])
+    hwe = hl.hardy_weinberg_test(mt[name].homozygote_count[0],
+                                 mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
+                                 mt[name].homozygote_count[1])
+    hwe = hwe.select(het_freq_hwe=hwe.het_freq_hwe, p_value_hwe=hwe.p_value)
     mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
                                                      call_rate=mt[name].n_called / n_samples,
                                                      n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),

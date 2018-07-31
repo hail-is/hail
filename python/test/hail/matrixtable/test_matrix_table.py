@@ -784,16 +784,16 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
-    def test_hwe(self):
+    def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
-        mt = mt.select_rows(**hl.agg.hardy_weinberg(mt.GT))
+        mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
         rt = mt.rows()
         expected = hl.Table.parallelize([
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
-                r_expected_het_freq=r,
-                p_hwe=p)
+                het_freq_hwe=r,
+                p_value=p)
             for (pos, alleles, r, p) in [
                 (1, ['A', 'G'], 0.0, 0.5),
                 (2, ['A', 'G'], 0.25, 0.5),
@@ -804,18 +804,18 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.filter(rt.locus.position != 6)._same(expected))
 
         rt6 = rt.filter(rt.locus.position == 6).collect()[0]
-        self.assertEqual(rt6['p_hwe'], 0.5)
-        self.assertTrue(math.isnan(rt6['r_expected_het_freq']))
+        self.assertEqual(rt6['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6['het_freq_hwe']))
 
-    def test_hw_p_and_agg_agree(self):
+    def test_hw_func_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_rows(
             stats=hl.agg.call_stats(mt.GT, mt.alleles),
-            hw=hl.agg.hardy_weinberg(mt.GT))
+            hw=hl.agg.hardy_weinberg_test(mt.GT))
         mt = mt.annotate_rows(
-            hw2=hl.hardy_weinberg_p(mt.stats.homozygote_count[0],
-                                    mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
-                                    mt.stats.homozygote_count[1]))
+            hw2=hl.hardy_weinberg_test(mt.stats.homozygote_count[0],
+                                       mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
+                                       mt.stats.homozygote_count[1]))
         rt = mt.rows()
         self.assertTrue(rt.all(rt.hw == rt.hw2))
 
