@@ -1376,11 +1376,7 @@ class SplitMulti(object):
 
         tfields = {'locus': self._ds.locus.dtype,
                    'alleles': self._ds.alleles.dtype,
-                   'a_index': hl.tint32,
-                   'was_split': hl.tbool,
-                   'left_aligned': hl.tbool}
-        if self._left_aligned:
-            del tfields['left_aligned']
+                   'a_index': hl.tint32}
 
         self._new_fields = construct_reference(self._new_id,
                                                hl.tstruct(**tfields),
@@ -1421,7 +1417,7 @@ class SplitMulti(object):
         -------
         :class:`.BooleanExpression`
         """
-        return self._new_fields['was_split']
+        return hl.len(self._old_row['alleles']) > 2
 
     def update_rows(self, **kwargs):
         """Set the row field updates for this SplitMulti object.
@@ -1496,15 +1492,12 @@ class SplitMulti(object):
                             .when(variant[0] == old_row.locus,
                                   hl.struct(alleles=variant[1],
                                             locus=variant[0],
-                                            a_index=i,
-                                            was_split=hl.len(old_row.alleles) > 2))
+                                            a_index=i))
                             .or_error("Found non-left-aligned variant in SplitMulti"))
                 else:
                     return hl.struct(alleles=variant[1],
                                      locus=variant[0],
-                                     a_index=i,
-                                     was_split=hl.len(old_row.alleles) > 2,
-                                     left_aligned=variant[0] == old_row.locus)
+                                     a_index=i)
             return hl.bind(make_struct_from_minrep,
                         hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
 
@@ -1523,12 +1516,12 @@ class SplitMulti(object):
             return cleanup(process_exprs(exploded, None))
         else:
             left_aligned = process_exprs(
-                exploded.filter_rows(exploded[self._new_id]['left_aligned']),
+                exploded.filter_rows(exploded[self._new_id]['locus'] == exploded['locus']),
                 None)
             moved = process_exprs(
-                exploded.filter_rows(~exploded[self._new_id]['left_aligned']),
+                exploded.filter_rows(exploded[self._new_id]['locus'] != exploded['locus']),
                 [['locus'], ['alleles']])
-        return cleanup(left_aligned.union_rows(moved))
+        return cleanup(left_aligned).union_rows(cleanup(moved))
 
 
 @typecheck(ds=MatrixTable,
