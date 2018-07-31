@@ -427,7 +427,7 @@ def heal():
                         log.info(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
                         test_pr(source_url, source_ref, target_url, target_ref, status)
                 else:
-                    log.info('all prs are tested or running')
+                    log.info('all prs are tested or running for {target_url}:{target_ref}')
 
 @app.route('/force_retest_pr', methods=['POST'])
 def force_retest_pr_endpoint():
