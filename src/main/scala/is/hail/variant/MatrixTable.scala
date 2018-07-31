@@ -1708,7 +1708,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new RowMatrix(hc, rows, numCols, Some(partStarts.last), Some(partCounts))
   }
 
-  def writeBlockMatrix(dirname: String, entryField: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
+  def writeBlockMatrix(dirname: String,
+    overwrite: Boolean = false,
+    entryField: String,
+    blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)
 
@@ -1716,6 +1719,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localNCols = numCols
 
     val hadoop = sparkContext.hadoopConfiguration
+
+    if (overwrite)
+      hadoop.delete(dirname, recursive = true)
+    else if (hadoop.exists(dirname))
+      fatal(s"file already exists: $dirname")
+
     hadoop.mkDir(dirname)
 
     // write blocks

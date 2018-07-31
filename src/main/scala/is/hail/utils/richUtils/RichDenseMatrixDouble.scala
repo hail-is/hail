@@ -109,8 +109,14 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     hc.hadoopConf.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
 
-  def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
+  def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
     val hadoop = hc.hadoopConf
+    
+    if (overwrite)
+      hadoop.delete(path, recursive = true)
+    else if (hadoop.exists(path))
+      fatal(s"file already exists: $path")    
+
     hadoop.mkDir(path)
 
     val gp = GridPartitioner(blockSize, m.rows, m.cols)

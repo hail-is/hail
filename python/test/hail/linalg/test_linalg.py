@@ -53,7 +53,10 @@ class Tests(unittest.TestCase):
             return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
 
         def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(BlockMatrix.from_entry_expr(expr, mean_impute, center, normalize).to_numpy())
+            actual = np.squeeze(BlockMatrix.from_entry_expr(expr,
+                                                            mean_impute=mean_impute,
+                                                            center=center,
+                                                            normalize=normalize).to_numpy())
             assert np.allclose(actual, expected)
 
         a = np.array([0.0, 1.0, 2.0])
@@ -72,6 +75,23 @@ class Tests(unittest.TestCase):
         check(mt.x, True, True, True, (a - 1.0) / np.sqrt(2))
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
+
+    def test_write_from_entry_expr_overwrite(self):
+        mt = hl.balding_nichols_model(1, 1, 1)
+        mt = mt.select_entries(x=mt.GT.n_alt_alleles())
+
+        path = new_temp_file()
+        BlockMatrix.write_from_entry_expr(mt.x, path)
+        self.assertRaises(FatalError, lambda: BlockMatrix.write_from_entry_expr(mt.x, path))
+
+        BlockMatrix.write_from_entry_expr(mt.x, path, overwrite=True)
+
+        # non-field expressions currently take a separate code path
+        path2 = new_temp_file()
+        BlockMatrix.write_from_entry_expr(mt.x + 1, path2)
+        self.assertRaises(FatalError, lambda: BlockMatrix.write_from_entry_expr(mt.x + 1, path2))
+
+        BlockMatrix.write_from_entry_expr(mt.x + 1, path2, overwrite=True)
 
     def test_to_from_numpy(self):
         n_rows = 10
@@ -773,6 +793,15 @@ class Tests(unittest.TestCase):
             contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
 
         self.assertEqual(res, [0, 0, 2, 2, 4, 6])
+
+    def test_write_overwrite(self):
+        path = new_temp_file()
+        bm = BlockMatrix.from_numpy(np.array([[0]]))
+
+        bm.write(path)
+        self.assertRaises(FatalError, lambda: bm.write(path))
+
+        bm.write(path, overwrite=True)
 
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
