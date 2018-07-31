@@ -316,14 +316,13 @@ def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
     assignments = OrderedDict()
 
     for e in exprs:
-        analyze(caller, e, indices, broadcast=False)
         if not e._ir.is_nested_field:
             raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
+        analyze(caller, e, indices, broadcast=False)
         if protect_keys:
             check_keys(e._ir.name, indices)
         assignments[e._ir.name] = e
     for k, e in named_exprs.items():
-        analyze(caller, e, indices)
         if protect_keys:
             check_keys(k, indices)
         check_collisions(indices.source._fields, k, indices)
