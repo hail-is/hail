@@ -404,7 +404,6 @@ class Table(ExprContainer):
             preserved_key_new = None
             new_key = None
         else:
-            print(new_keys)
             key_struct = hl.struct(**{name: row[name] for name in new_keys})
             preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
 
@@ -428,31 +427,16 @@ class Table(ExprContainer):
                     ir.name == name and
                     isinstance(ir.o, TopLevelReference) and
                     ir.o.name == 'row')
-        preserved_key_pairs = list(map(lambda pair: (pair[1]._ir.name, pair[0]),
-                                        itertools.takewhile(
-                                           lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
-                                           zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs))
+        if self.key is None:
+            preserved_key_pairs = []
+        else:
+            preserved_key_pairs = list(map(lambda pair: (pair[1]._ir.name, pair[0]),
+                                           itertools.takewhile(
+                                               lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
+                                               zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
+        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
         new_key = list(key_struct.keys())
         return preserved_key, preserved_key_new, new_key
-
-
-    def _make_row(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]], Optional[List[str]], Optional[List[str]]]:
-        if isinstance(key_struct, str):
-            assert value_struct is not None
-            preserved_key = preserved_key_new = new_key = list(self.key.keys()) if self.key is not None else None
-            row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
-        elif key_struct is not None:
-            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
-            if value_struct is None:
-                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
-            else:
-                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-        else:
-            preserved_key = preserved_key_new = new_key = None
-            row = value_struct if value_struct is not None else hl.struct()
-
-        return row, preserved_key, preserved_key_new, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
