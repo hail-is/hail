@@ -220,7 +220,7 @@ class OrderedRVDPartitioner(
 
 object OrderedRVDPartitioner {
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, Array.empty[Interval])
+    new OrderedRVDPartitioner(typ.kType, Array.empty[Interval])
   }
 
   def unkeyed(numPartitions: Int): OrderedRVDPartitioner = {
@@ -280,7 +280,8 @@ object OrderedRVDPartitioner {
     min: Any,
     max: Any,
     keys: IndexedSeq[Any],
-    nPartitions: Int
+    nPartitions: Int,
+    partitionKey: Int
   ): OrderedRVDPartitioner = {
     require(nPartitions > 0)
     require(typ.kType.relaxedTypeCheck(min))
@@ -295,10 +296,9 @@ object OrderedRVDPartitioner {
 
     val interval = Interval(min, max, true, true)
     new OrderedRVDPartitioner(
-      typ.partitionKey,
       typ.kType,
       FastIndexedSeq(interval)
-    ).subdivide(partitionEdges, math.max(typ.partitionKey.length - 1, 0))
+    ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))
   }
 
   def isValid(kType: TStruct, rangeBounds: IndexedSeq[Interval]): Boolean =

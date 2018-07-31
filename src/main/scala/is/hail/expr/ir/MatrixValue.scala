@@ -157,7 +157,7 @@ case class MatrixValue(
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       rvd.mapPartitionsPreservesPartitioning(
-        new OrderedRVDType(typ.rowPartitionKey.toArray, typ.rowKey.toArray, typ.rowType)
+        new OrderedRVDType(typ.rowKey.toArray, typ.rowType)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()

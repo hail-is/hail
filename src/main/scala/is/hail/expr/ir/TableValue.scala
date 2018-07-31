@@ -27,7 +27,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     case (orvd: OrderedRVD, None) =>
       orvd.toUnpartitionedRVD
     case (urvd: UnpartitionedRVD, Some(key)) =>
-      val orvdType = new OrderedRVDType(key.toArray, key.toArray, typ.rowType)
+      val orvdType = new OrderedRVDType(key.toArray, typ.rowType)
       OrderedRVD.coerce(orvdType, rvd)
     case (urvd: UnpartitionedRVD, None) =>
       urvd

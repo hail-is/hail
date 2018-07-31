@@ -86,13 +86,9 @@ case class MatrixType(
     TableType(resultStruct, Some(rowKey ++ colKey), globalType)
   }
 
-  def orvdType: OrderedRVDType = {
-    new OrderedRVDType(rowPartitionKey.toArray,
-      rowKey.toArray,
-      rvRowType)
-  }
+  def orvdType: OrderedRVDType = new OrderedRVDType(rowKey.toArray, rvRowType)
 
-  def rowORVDType: OrderedRVDType = new OrderedRVDType(rowPartitionKey.toArray, rowKey.toArray, rowType)
+  def rowORVDType: OrderedRVDType = new OrderedRVDType(rowKey.toArray, rowType)
 
   def colEC: EvalContext = {
     val aggregationST = Map(

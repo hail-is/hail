@@ -827,7 +827,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case ordered: OrderedRVD => ordered
       case unordered =>
         OrderedRVD.coerce(
-          new OrderedRVDType(key.get.toArray, key.get.toArray, signature),
+          new OrderedRVDType(key.get.toArray, signature),
           unordered)
     }
 
@@ -866,7 +866,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val localRVRowType = signature
     val pkIndex = signature.fieldIdx(key.get(0))
     val newTableType = typ.copy(rowType = newRVType)
-    val newOrderedRVType = new OrderedRVDType(key.get.toArray, key.get.toArray, newRVType)
+    val newOrderedRVType = new OrderedRVDType(key.get.toArray, newRVType)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD
