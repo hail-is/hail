@@ -961,6 +961,10 @@ class Table(ExprContainer):
 
         return table
 
+    @typecheck_method(output=str,
+               types_file=nullable(str),
+               header=bool,
+               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
     def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
@@ -979,13 +983,13 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        output : str
+        output : :obj:`str`
             URI at which to write exported file.
-        types_file : str or None
+        types_file : :obj:`str`, optional
             URI at which to write file containing field type information.
-        header : bool
+        header : :obj:`bool`
             Include a header in the file.
-        parallel : str or None
+        parallel : :obj:`str`, optional
             If None, a single file is produced, otherwise a
             folder of file shards is produced. If 'separate_header',
             the header file is output separately from the file shards. If
