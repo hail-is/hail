@@ -310,21 +310,20 @@ def check_keys(name, indices):
         raise ExpressionException(msg)
 
 def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
-    from hail.expr.expressions import to_expr, ExpressionException
+    from hail.expr.expressions import to_expr, ExpressionException, analyze
     exprs = [to_expr(e) if not isinstance(e, str) else indices.source[e] for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     assignments = OrderedDict()
 
     for e in exprs:
-        if not e._indices == indices:
-            raise ExpressionException("method '{}' parameter 'exprs' expects {}-indexed fields,"
-                                  " found indices {}".format(caller, list(indices.axes), list(e._indices.axes)))
+        analyze(caller, e, indices, broadcast=False)
         if not e._ir.is_nested_field:
             raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
         if protect_keys:
             check_keys(e._ir.name, indices)
         assignments[e._ir.name] = e
     for k, e in named_exprs.items():
+        analyze(caller, e, indices)
         if protect_keys:
             check_keys(k, indices)
         check_collisions(indices.source._fields, k, indices)

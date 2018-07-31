@@ -1,18 +1,12 @@
-from typing import *
-
-import hail
-import hail as hl
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.ir import *
 from hail.genetics import Locus, Call
+from hail.ir import *
 from hail.typecheck import linked_list
 from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import plural
 from .indices import *
-
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
