@@ -116,4 +116,13 @@ class IBDSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
   }
+
+  @Test def ibdWithMafExpr(): Unit = {
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds2 = vds.selectRows("( InsertFields (Ref va) (dummy_maf (F64 0.08) ) )", None)
+    val us = IBD.toRDD(IBD(vds2, mafFieldName = Some("dummy_maf"))).collect().toMap
+    val plink = runPlinkIBD(vds, maf = Some(0.08))
+    mapSameElements(us, plink,
+      (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
+  }
 }
