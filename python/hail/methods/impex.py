@@ -338,8 +338,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         output (`parallel` set to ``'separate_header'`` or
         ``'header_per_shard'``) when exporting large VCFs.
 
-    Hail exports the fields of struct `info` as INFO fields,
-    the elements of ``set<str>`` `filters` as FILTERS, and the
+    Hail exports the fields of struct `info` as INFO fields, the elements of
+    ``set<str>`` `filters` as FILTERS, the value of str `rsid` as ID, and the
     value of float64 `qual` as QUAL. No other row fields are exported.
 
     The FORMAT field is generated from the entry schema, which
