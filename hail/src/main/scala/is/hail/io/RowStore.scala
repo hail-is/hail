@@ -15,6 +15,7 @@ import java.io.{Closeable, InputStream, OutputStream, PrintWriter}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
 
 trait BufferSpec extends Serializable {
@@ -1247,5 +1248,9 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions to $path")
 
     partitionCounts
+  }
+
+  def toRows(rowType: TStruct): RDD[Row] = {
+    crdd.run.map(rv => SafeRow(rowType.physicalType, rv.region, rv.offset))
   }
 }

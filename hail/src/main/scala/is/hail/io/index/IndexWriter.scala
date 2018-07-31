@@ -51,6 +51,7 @@ class IndexWriter(
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
