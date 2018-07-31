@@ -100,6 +100,35 @@ class BlockMatrix(object):
         block matrix operand first; for ``-``, ``/``, and ``@``, first convert
         the ndarray to a block matrix using :meth:`.from_numpy`.
 
+    Warning
+    -------
+
+        Block matrix multiplication requires special care due to each block
+        of each operand being a dependency of multiple blocks in the product.
+
+        The :math:`(i, j)`-block in the product ``a @ b`` is computed by summing
+        the products of corresponding blocks in block row :math:`i` of ``a`` and
+        block column :math:`j` of ``b``. So overall, in addition to this
+        multiplication and addition, the evaluation of ``a @ b`` realizes each
+        block of ``a`` as many times as the number of block columns of ``b``
+        and realizes each block of ``b`` as many times as the number of
+        block rows of ``a``.
+
+        This becomes a performance and resilience issue whenever ``a`` or ``b``
+        is defined in terms of pending transformations (such as linear
+        algebra operations). For example, evaluating ``a @ (c @ d)`` will
+        effectively evaluate ``c @ d`` as many times as the number of block rows
+        in ``a``.
+
+        To limit re-computation, write or cache transformed block matrix
+        operands before feeding them into matrix multiplication:
+
+        >>> c = BlockMatrix.read('c.bm')      # doctest: +SKIP
+        >>> d = BlockMatrix.read('d.bm')      # doctest: +SKIP
+        >>> (c @ d).write('cd.bm')            # doctest: +SKIP
+        >>> a = BlockMatrix.read('a.bm')      # doctest: +SKIP
+        >>> e = a @ BlockMatrix.read('cd.bm') # doctest: +SKIP
+
     **Indexing and slicing**
 
     Block matrices also support NumPy-style 2-dimensional
