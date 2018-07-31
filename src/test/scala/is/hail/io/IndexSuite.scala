@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.expr.types.TString
-import is.hail.io.index._
+import is.hail.io.index.{IndexReader, IndexWriter, LeafChild}
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.utils._
 
@@ -15,7 +15,7 @@ class IndexSuite extends SparkSuite {
     "weasel", "whale", "yak", "zebra")
 
   def writeIndex(file: String, data: Array[String], attributes: Map[String, Any] = Map.empty[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
+    val iw = IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
     data.zipWithIndex.foreach { case (s, offset) =>
       iw += (s, offset)
     }
