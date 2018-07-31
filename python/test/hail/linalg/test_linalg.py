@@ -79,20 +79,23 @@ class Tests(unittest.TestCase):
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
+        bm = BlockMatrix.from_entry_expr(mt.x)
 
         path = new_temp_file()
         BlockMatrix.write_from_entry_expr(mt.x, path)
         self.assertRaises(FatalError, lambda: BlockMatrix.write_from_entry_expr(mt.x, path))
 
         BlockMatrix.write_from_entry_expr(mt.x, path, overwrite=True)
+        self._assert_eq(BlockMatrix.read(path), bm)
 
         # non-field expressions currently take a separate code path
         path2 = new_temp_file()
         BlockMatrix.write_from_entry_expr(mt.x + 1, path2)
         self.assertRaises(FatalError, lambda: BlockMatrix.write_from_entry_expr(mt.x + 1, path2))
 
-        BlockMatrix.write_from_entry_expr(mt.x + 1, path2, overwrite=True)
-
+        BlockMatrix.write_from_entry_expr(mt.x + 2, path2, overwrite=True)
+        self._assert_eq(BlockMatrix.read(path2), bm + 2)
+        
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
@@ -796,12 +799,14 @@ class Tests(unittest.TestCase):
 
     def test_write_overwrite(self):
         path = new_temp_file()
-        bm = BlockMatrix.from_numpy(np.array([[0]]))
 
+        bm = BlockMatrix.from_numpy(np.array([[0]]))
         bm.write(path)
         self.assertRaises(FatalError, lambda: bm.write(path))
 
-        bm.write(path, overwrite=True)
+        bm2 = BlockMatrix.from_numpy(np.array([[1]]))
+        bm2.write(path, overwrite=True)
+        self._assert_eq(BlockMatrix.read(path), bm2)
 
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)

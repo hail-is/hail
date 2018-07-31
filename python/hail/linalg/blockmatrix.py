@@ -1596,7 +1596,7 @@ class BlockMatrix(object):
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', force_row_major=True)
+        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', overwrite=True, force_row_major=True)
 
         Export the full matrix as a file with tab-separated values:
 
@@ -1840,7 +1840,7 @@ class BlockMatrix(object):
         >>>
         >>> (BlockMatrix.from_numpy(nd)
         ...     .sparsify_rectangles(rectangles)
-        ...     .write('output/example.bm', force_row_major=True))
+        ...     .write('output/example.bm', overwrite=True, force_row_major=True))
 
         Export the three rectangles to TSV files:
 
