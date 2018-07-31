@@ -1996,7 +1996,7 @@ class Table(ExprContainer):
 
         table = self
         if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
+            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else dict()
             new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
                                   hl.struct(**new_keys, **new_values),
