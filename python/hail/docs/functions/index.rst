@@ -125,7 +125,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
-    chi_sq_test
+    chi_squared_test
     fisher_exact_test
     contingency_table_test
     dbeta

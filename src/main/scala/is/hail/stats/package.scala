@@ -108,8 +108,8 @@ package object stats {
     }
   }
 
-  val hweStruct = TStruct("r_expected_het_freq" -> TFloat64(), "p_value_hwe" -> TFloat64())
-  
+  val hweStruct = TStruct("het_freq_hwe" -> TFloat64(), "p_value" -> TFloat64())
+
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
       fatal(s"hardy_weinberg_test: all arguments must be non-negative, got $nHomRef, $nHet, $nHomVar")
@@ -124,9 +124,9 @@ package object stats {
   
   val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   
-  def chisqTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = {
+  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = {
     if (a < 0 || b < 0 || c < 0 || d < 0)
-      fatal(s"chi_sq_test: all arguments must be non-negative, got $a, $b, $c, $d")
+      fatal(s"chi_squared_test: all arguments must be non-negative, got $a, $b, $c, $d")
 
     val ad = a * d
     val bc = (b * c).toDouble
@@ -141,7 +141,7 @@ package object stats {
       fatal(s"contingency_table_test: 'min_cell_count' must be non-negative, found $minCellCount")
     
     if (a >= minCellCount && b >= minCellCount && c >= minCellCount && d >= minCellCount)
-      chisqTest(a, b, c, d)
+      chiSquaredTest(a, b, c, d)
     else
       fisherExactTest(a, b, c, d)
   }

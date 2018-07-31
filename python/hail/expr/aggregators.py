@@ -698,10 +698,10 @@ def hardy_weinberg_test(expr) -> StructExpression:
 
     The resulting struct expression has two fields:
 
-    - `r_expected_het_freq` (:py:data:`.tfloat64`) - Expected frequency
+    - `het_freq_hwe` (:py:data:`.tfloat64`) - Expected frequency
       of heterozygous calls under Hardy-Weinberg equilibrium.
 
-    - `p_value_hwe` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
+    - `p_value` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
@@ -724,9 +724,9 @@ def hardy_weinberg_test(expr) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `r_expected_het_freq` and `p_value_hwe`.
+        Struct expression with fields `het_freq_hwe` and `p_value`.
     """
-    t = tstruct(r_expected_het_freq=tfloat64, p_value_hwe=tfloat64)
+    t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
     return _agg_func('HardyWeinberg', expr, t)
 
 

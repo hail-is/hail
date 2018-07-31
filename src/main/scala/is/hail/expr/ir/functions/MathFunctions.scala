@@ -180,11 +180,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
     
-    registerCode("chi_sq_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
+    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chisqTest", a, b, c, d),
+        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),

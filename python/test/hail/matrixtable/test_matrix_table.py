@@ -792,8 +792,8 @@ class Tests(unittest.TestCase):
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
-                r_expected_het_freq=r,
-                p_value_hwe=p)
+                het_freq_hwe=r,
+                p_value=p)
             for (pos, alleles, r, p) in [
                 (1, ['A', 'G'], 0.0, 0.5),
                 (2, ['A', 'G'], 0.25, 0.5),
@@ -804,10 +804,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.filter(rt.locus.position != 6)._same(expected))
 
         rt6 = rt.filter(rt.locus.position == 6).collect()[0]
-        self.assertEqual(rt6['p_value_hwe'], 0.5)
-        self.assertTrue(math.isnan(rt6['r_expected_het_freq']))
+        self.assertEqual(rt6['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6['het_freq_hwe']))
 
-    def test_hw_p_and_agg_agree(self):
+    def test_hw_func_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_rows(
             stats=hl.agg.call_stats(mt.GT, mt.alleles),

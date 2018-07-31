@@ -98,8 +98,8 @@ class MathFunctionsSuite extends TestNGSuite {
       null)
   }
 
-  @DataProvider(name = "chi_sq_test")
-  def chisqData(): Array[Array[Any]] = Array(
+  @DataProvider(name = "chi_squared_test")
+  def chiSquaredData(): Array[Array[Any]] = Array(
     Array(0, 0, 0, 0, Double.NaN, Double.NaN),
     Array(0, 1, 1, 1, 0.38647623077123266, 0.0),
     Array(1, 0, 1, 1, 0.38647623077123266, Double.PositiveInfinity),
@@ -109,15 +109,15 @@ class MathFunctionsSuite extends TestNGSuite {
     Array(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
   )
   
-  @Test(dataProvider = "chi_sq_test")
-  def chisqTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
-      val r = eval(invoke("chi_sq_test", a, b, c, d)).asInstanceOf[Row]
+  @Test(dataProvider = "chi_squared_test")
+  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
+      val r = eval(invoke("chi_squared_test", a, b, c, d)).asInstanceOf[Row]
       assert(D0_==(pValue, r.getDouble(0)))
       assert(D0_==(oddsRatio, r.getDouble(1)))
   }
 
   @DataProvider(name = "fisher_exact_test")
-  def fetData(): Array[Array[Any]] = Array(
+  def fisherExactData(): Array[Array[Any]] = Array(
     Array(0, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN),
     Array(10, 10, 10, 10, 1.0, 1.0, 0.243858, 4.100748),
     Array(51, 43, 22, 92, 2.1565e-7, 4.918058, 2.565937, 9.677930)
@@ -133,7 +133,7 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @DataProvider(name = "contingency_table_test")
-  def cttData(): Array[Array[Any]] = Array(
+  def contingencyTableData(): Array[Array[Any]] = Array(
     Array(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087),
     Array(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
   )
@@ -146,7 +146,7 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @DataProvider(name = "hardy_weinberg_test")
-  def hweData(): Array[Array[Any]] = Array(
+  def hardyWeinbergData(): Array[Array[Any]] = Array(
     Array(0, 0, 0, Double.NaN, 0.5),
     Array(1, 2, 1, 0.57142857, 0.65714285),
     Array(0, 1, 0, 1.0, 0.5),
@@ -154,9 +154,9 @@ class MathFunctionsSuite extends TestNGSuite {
   )
   
   @Test(dataProvider = "hardy_weinberg_test")
-  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, expectedHetFreq: Double) {
+  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double) {
     val r = eval(invoke("hardy_weinberg_test", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
-    assert(D0_==(expectedHetFreq, r.getDouble(1)))
+    assert(D0_==(hetFreq, r.getDouble(1)))
   }
 }

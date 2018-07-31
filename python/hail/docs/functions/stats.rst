@@ -4,7 +4,7 @@ Statistical functions
 
 .. autosummary::
 
-    chi_sq_test
+    chi_squared_test
     fisher_exact_test
     contingency_table_test
     dbeta
@@ -18,7 +18,7 @@ Statistical functions
     qnorm
     qpois
 
-.. autofunction:: chi_sq_test
+.. autofunction:: chi_squared_test
 .. autofunction:: fisher_exact_test
 .. autofunction:: contingency_table_test
 .. autofunction:: dbeta
