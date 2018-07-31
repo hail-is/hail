@@ -840,7 +840,9 @@ def import_bgen(path,
     must be bi-allelic.
 
     Each BGEN file must have a corresponding index file, which can be generated
-    with :func:`.index_bgen`. To load multiple files at the same time,
+    with :func:`.index_bgen`. The parameters given for `reference_genome`,
+    `contig_recoding`, and `skip_invalid_loci` must be identical as those used to
+    create the index file. To load multiple files at the same time,
     use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
     If n_partitions and block_size are both specified, block_size is
@@ -1826,8 +1828,14 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, sequenceof(str)))
-def index_bgen(path):
+@typecheck(path=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
+def index_bgen(path,
+               reference_genome='default',
+               contig_recoding=None,
+               skip_invalid_loci=False):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
@@ -1835,22 +1843,47 @@ def index_bgen(path):
 
     Example
     -------
+    Index a BGEN file, renaming contig name "01" to "1":
 
-    >>> hl.index_bgen("data/example.8bits.bgen")
+    >>> hl.index_bgen("data/example.8bits.bgen",
+    ...               contig_recoding={"01": "1"})
 
     Warning
     -------
-
     While this method parallelizes over a list of BGEN files, each file is
     indexed serially by one core. Indexing several BGEN files on a large cluster
     is a waste of resources, so indexing should generally be done once,
     separately from large analyses.
 
+    Notes
+    -----
+    The parameters given for `reference_genome`, `contig_recoding`, and
+    `skip_invalid_loci` must be identical to those used when importing the
+    BGEN file.
+
+    See Also
+    --------
+    :func:`.import_bgen`
+
+    Parameters
+    ----------
     path: :obj:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
+    rg = reference_genome.name if reference_genome else None
+
+    if contig_recoding:
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)

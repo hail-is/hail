@@ -4,9 +4,9 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.types.{TBoolean, TString, TStruct, Type}
 import is.hail.io.index.{IndexReader, IndexWriter}
-import org.testng.annotations.{DataProvider, Test}
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.testng.annotations.{DataProvider, Test}
 
 class IndexSuite extends SparkSuite {
   val strings = Array(
@@ -28,7 +28,7 @@ class IndexSuite extends SparkSuite {
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
+    val iw = IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
