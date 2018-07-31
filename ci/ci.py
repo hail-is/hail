@@ -531,6 +531,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         },
         status_code=201
     )
+    log.info(f'successfully updated github #{status.pr_number} ({status.source_sha}) about job {job.id}')
     update_pr_status(
         source_url,
         source_ref,
@@ -542,6 +543,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
                status.target_sha,
                status.pr_number,
                job_id=job.id))
+    log.info(f'successfully updated status about job {job.id}')
 
 def get_sha_for_target_ref(ref):
     return get_repo(
