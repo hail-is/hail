@@ -1,7 +1,7 @@
 from .aggregators import collect, collect_as_set, count, count_where, counter, \
     any, all, take, min, max, sum, array_sum, mean, stats, product, fraction, \
-    hardy_weinberg, explode, filter, inbreeding, call_stats, info_score, hist, \
-    linreg, _map, _flatmap
+    hardy_weinberg_test, explode, filter, inbreeding, call_stats, info_score, \
+    hist, linreg, _map, _flatmap
 
 __all__ = [
     'collect',
@@ -20,7 +20,7 @@ __all__ = [
     'stats',
     'product',
     'fraction',
-    'hardy_weinberg',
+    'hardy_weinberg_test',
     'explode',
     'filter',
     'inbreeding',
