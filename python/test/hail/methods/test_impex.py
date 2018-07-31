@@ -166,6 +166,11 @@ class VCFTests(unittest.TestCase):
         dataset_imported = hl.import_vcf('/tmp/sample.vcf')
         self.assertTrue(dataset._same(dataset_imported))
 
+        no_sample_dataset = dataset.filter_cols(False)
+        hl.export_vcf(no_sample_dataset, '/tmp/no_sample.vcf', metadata=vcf_metadata)
+        no_sample_dataset_imported = hl.import_vcf('/tmp/no_sample.vcf')
+        self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
+
         metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
