@@ -36,7 +36,7 @@ class IndexSuite extends SparkSuite {
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), annotationType, branchingFactor, attributes)
+    val iw = IndexWriter(hc.hadoopConf, file, TString(), annotationType, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }

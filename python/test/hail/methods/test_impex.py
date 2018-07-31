@@ -389,6 +389,13 @@ class PLINKTests(unittest.TestCase):
 # this routine was used to generate resources random.gen, random.sample
 # random.bgen was generated with qctool v2.0rc9:
 # qctool -g random.gen -s random.sample -bgen-bits 8 -og random.bgen
+#
+# random-a.bgen, random-b.bgen, random-c.bgen was generated as follows:
+# while read line; do echo $RANDOM $line; done < src/test/resources/random.gen | sort -n | cut -f2- -d' ' > random-shuffled.gen
+# head -n 10 random-shuffled.gen > random-a.gen; head -n 20 random-shuffled.gen | tail -n 10 > random-b.gen; tail -n 10 random-shuffled.gen > random-c.gen
+# qctool -g random-a.gen -s random.sample -og random-a.bgen -bgen-bits 8
+# qctool -g random-b.gen -s random.sample -og random-b.bgen -bgen-bits 8
+# qctool -g random-c.gen -s random.sample -og random-c.bgen -bgen-bits 8
 def generate_random_gen():
     mt = hl.utils.range_matrix_table(30, 10)
     mt = (mt.annotate_rows(locus = hl.locus('20', mt.row_idx + 1),
@@ -406,9 +413,12 @@ def generate_random_gen():
     mt = mt.filter_entries(hl.rand_bool(0.8))
     hl.export_gen(mt, 'random', precision=4)
 
+
 class BGENTests(unittest.TestCase):
     def test_import_bgen_dosage_entry(self):
-        hl.index_bgen(resource('example.8bits.bgen'))
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
@@ -418,7 +428,9 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_bgen_GT_GP_entries(self):
-        hl.index_bgen(resource('example.8bits.bgen'))
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
@@ -428,7 +440,9 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
     def test_import_bgen_no_entries(self):
-        hl.index_bgen(resource('example.8bits.bgen'))
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
@@ -439,6 +453,10 @@ class BGENTests(unittest.TestCase):
         bgen._jvds.typecheck()
 
     def test_import_bgen_no_reference(self):
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome=None)
+
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
                               contig_recoding={'01': '1'},
@@ -447,7 +465,9 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_bgen_skip_invalid_loci(self):
-        hl.index_bgen(resource('skip_invalid_loci.bgen'))
+        hl.index_bgen(resource('skip_invalid_loci.bgen'),
+                      reference_genome='GRCh37',
+                      skip_invalid_loci=True)
 
         mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                             entry_fields=[],
@@ -457,6 +477,8 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
+            hl.index_bgen(resource('skip_invalid_loci.bgen'))
+
             mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                                 entry_fields=[],
                                 sample_file=resource('skip_invalid_loci.sample'))
@@ -467,12 +489,14 @@ class BGENTests(unittest.TestCase):
 
         sample_file = resource('example.sample')
         genmt = hl.import_gen(resource('example.gen'), sample_file,
-                              contig_recoding=recoding)
+                              contig_recoding=recoding,
+                              reference_genome="GRCh37")
 
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file)
+        hl.index_bgen(bgen_file, contig_recoding=recoding,
+                      reference_genome="GRCh37")
         bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file,
-                            contig_recoding=recoding)
+                            contig_recoding=recoding, reference_genome="GRCh37")
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
@@ -497,7 +521,8 @@ class BGENTests(unittest.TestCase):
 
         sample_file = resource('example.sample')
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file)
+        hl.index_bgen(bgen_file,
+                      contig_recoding=recoding)
 
         bgenmt = hl.import_bgen(bgen_file, ['GP', 'dosage'], sample_file,
                                 contig_recoding=recoding)
@@ -508,6 +533,10 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     def test_import_bgen_row_fields(self):
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
+
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'],
                                             contig_recoding={'01': '1'},
@@ -549,52 +578,54 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
-    def test_import_bgen_row_fields(self):
-        mt = hl.import_bgen(resource('example.8bits.bgen'),
-                            entry_fields=['dosage'],
-                            contig_recoding={'01': '1'},
-                            reference_genome='GRCh37',
-                            _row_fields=['rsid', 'file_row_idx'])
-        self.assertEqual(mt.file_row_idx.take(10), [99, 0, 100, 1, 101, 2, 102, 3, 103, 4])
-
-        # the rsids are numbered 2 to 200 and corresond to the order of the
-        # variants in the file (the loci are out of order in this file)
-        #
-        # the rsids look like: "RSID_99"
-        rsids = mt.rsid.collect()
-        self.assertEqual(mt.file_row_idx.collect(),
-                         [int(rsid[5:]) - 2 for rsid in rsids])
-
     def test_import_bgen_variant_filtering(self):
-        desired_variant_indexes = [1,2,3,5,7,9,11,13,17,198]
-        actual = hl.import_bgen(resource('example.8bits.bgen'),
+        bgen_file = resource('example.8bits.bgen')
+
+        hl.index_bgen(bgen_file,
+                      contig_recoding={'01': '1'})
+
+        alleles = ['A', 'G']
+        desired_variants = hl.Table.parallelize([
+            {'locus': hl.Locus('1', 2000), 'alleles': alleles},
+            {'locus': hl.Locus('1', 2001), 'alleles': alleles},
+            {'locus': hl.Locus('1', 4000), 'alleles': alleles},
+            {'locus': hl.Locus('1', 10000), 'alleles': alleles},
+            {'locus': hl.Locus('1', 100001), 'alleles': alleles}
+        ], schema=hl.tstruct(locus=hl.tlocus(), alleles=hl.tarray(hl.tstr)),
+            key=['locus', 'alleles'])
+
+        mt = hl.import_bgen(bgen_file,
+                            [],
+                            contig_recoding={'01': '1'},
+                            n_partitions=10,
+                            _row_fields=['file_row_idx'])
+
+        filtered_rows = mt.filter_rows(hl.is_defined(desired_variants[mt.row_key])).rows()
+        filtered_rows = filtered_rows.key_by()
+        desired_variant_indexes = filtered_rows.select(filtered_rows.file_row_idx).collect()
+        desired_variant_indexes = [r.file_row_idx for r in desired_variant_indexes]
+        assert(len(desired_variant_indexes) == 6)  # 1:10000 is duplicated in the file
+
+        actual = hl.import_bgen(bgen_file,
                                 ['GT'],
                                 contig_recoding={'01': '1'},
-                                reference_genome=None,
                                 n_partitions=10,
-                                _row_fields=['file_row_idx'],
-                                _variants_per_file={ resource('example.8bits.bgen') : desired_variant_indexes})
-        # doing the expected import_bgen second catches the case where the
-        # hadoop configuraiton is polluted with old data from the
-        # _variants_per_file
-        everything = hl.import_bgen(resource('example.8bits.bgen'),
+                                _variants_per_file={bgen_file: desired_variant_indexes})
+
+        everything = hl.import_bgen(bgen_file,
                                     ['GT'],
-                                    contig_recoding={'01': '1'},
-                                    reference_genome=None,
-                                    _row_fields=['file_row_idx'])
+                                    contig_recoding={'01': '1'})
         self.assertEqual(everything.count(), (199, 500))
 
-        expected = everything.filter_rows(
-            hl.set(desired_variant_indexes).contains(hl.int32(everything.file_row_idx)))
+        expected = everything.filter_rows(hl.is_defined(desired_variants[everything.row_key]))
 
         self.assertTrue(expected._same(actual))
-        self.assertEqual((hl.str(actual.locus.contig) + ":" + hl.str(actual.locus.position)).collect(),
-                         ['1:3000', '1:4000', '1:5000', '1:7000', '1:9000',
-                          '1:11000', '1:13000', '1:15000', '1:19000', '1:100001'])
 
     # FIXME testing block_size (in MB) requires large BGEN
     def test_n_partitions(self):
-        hl.index_bgen(resource('example.8bits.bgen'))
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
@@ -604,7 +635,9 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.n_partitions(), 5)
 
     def test_drop(self):
-        hl.index_bgen(resource('example.8bits.bgen'))
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
 
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
@@ -618,6 +651,44 @@ class BGENTests(unittest.TestCase):
         dc = bgen.drop_cols()
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
+
+    def test_multiple_files(self):
+        sample_file = resource('random.sample')
+        genmt = hl.import_gen(resource('random.gen'), sample_file)
+
+        bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
+        self.assertTrue(
+            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+
+    def test_multiple_files_file_row_idx(self):
+        bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
+        hl.index_bgen(bgen_file)
+
+        alleles = ['A', 'G']
+        desired_variants = hl.Table.parallelize([
+            {'locus': hl.Locus('20', 11), 'alleles': alleles},
+            {'locus': hl.Locus('20', 13), 'alleles': alleles},
+            {'locus': hl.Locus('20', 29), 'alleles': alleles},
+            {'locus': hl.Locus('20', 28), 'alleles': alleles},
+            {'locus': hl.Locus('20', 1), 'alleles': alleles},
+            {'locus': hl.Locus('20', 12), 'alleles': alleles}
+        ], schema=hl.tstruct(locus=hl.tlocus(), alleles=hl.tarray(hl.tstr)),
+            key=['locus', 'alleles'])
+
+        mt = hl.import_bgen(bgen_file,
+                            [],
+                            n_partitions=10,
+                            _row_fields=['file_row_idx'])
+
+        filtered_rows = mt.filter_rows(hl.is_defined(desired_variants[mt.row_key])).rows()
+        filtered_rows = filtered_rows.key_by()
+        desired_variant_indexes = filtered_rows.select(position=filtered_rows.locus.position,
+                                                       file_row_idx=filtered_rows.file_row_idx).collect()
+        desired_variant_indexes = dict([(r.position, r.file_row_idx) for r in desired_variant_indexes])
+        self.assertTrue(desired_variant_indexes == {11: 3, 13: 4, 29: 9, 28: 8, 1: 0, 12: 5})
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
