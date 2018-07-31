@@ -149,7 +149,7 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
         id = old_status.job_id
         assert id is not None
         log.info(f'cancelling existing job {id} due to pr status update')
-        try_to_cancel_job(batch_client.get_job(id))
+        try_to_cancel_job_by_id(id)
 
 @app.route('/status')
 def status():
@@ -597,7 +597,7 @@ def refresh_github_state():
             for (source_url, source_ref), status in known_prs.items():
                 if status.state == 'running':
                     log.info(f'cancelling job {status.job_id} for {status.to_json()}')
-                    try_to_cancel_job(client.get_job(status.job_id))
+                    try_to_cancel_job_by_id(status.job_id)
 
     return '', 200
 
@@ -729,6 +729,13 @@ def refresh_batch_state():
 
 ###############################################################################
 ### Batch Utils
+
+def try_to_cancel_job_by_id(id):
+    try:
+        job = batch_client.get_job(id)
+        try_to_cancel_job(job)
+    except requests.exceptions.HTTPError as e:
+        log.warn(f'while trying to cancel a job, could not get job {job.id} due to {e}')
 
 def try_to_cancel_job(job):
     try:
