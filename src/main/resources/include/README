@@ -1,15 +1,10 @@
 
 Hail dynamically-generated C++ code needs to #include various header
 files declaring Hail-specific classes and functions.  To allow this the
-relevant header files must be part of the Hail release, and must be
-accessible in a known directory.
+relevant header files are included as a resource, and the dynamic-compile
+system figures out how to access them from the resource tree.
 
-The initial design is that the header files are under ${HAIL_HOME}/include,
-and the build of dynamic-generated code will automatically get the value
-of ${HAIL_HOME}, and provide it as -I${HAIL_HOME}/include in the
-dynamic-build process.
-
-The code under src/main/c will also refer to the same copy of the header
+The code under src/main/c also refers to the same copy of the header
 files, to guarantee consistency.
 
 To avoid possible collisions with non-hail header files, we put everything
@@ -20,4 +15,3 @@ from dynamically-generated code, their header directories can also go in this
 include/ directory, as siblings of include/hail.  But note that such library
 code must also be accessible on all nodes of the cluster, possibly by linking
 into libhail.so.
- 
