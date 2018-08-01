@@ -1982,11 +1982,14 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
     val rvds = values.map(_.rvd)
     val first = rvds.head
     require(rvds.tail.forall(_.partitioner.pkType == first.partitioner.pkType))
-    val nonEmpty = rvds.filter(_.partitioner.range.isDefined)
-    if (nonEmpty.isEmpty)
-      values.head
-    else
-      values.head.copy(rvd = OrderedRVD.union(nonEmpty))
+    rvds.filter(_.partitioner.range.isDefined) match {
+      case IndexedSeq() =>
+        values.head
+      case IndexedSeq(rvd) =>
+        values.head.copy(rvd = rvd)
+      case nonEmpty =>
+        values.head.copy(rvd = OrderedRVD.union(nonEmpty))
+    }
   }
 }
 
