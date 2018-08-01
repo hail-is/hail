@@ -166,6 +166,22 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
+  def getOrComputePartitionCounts(): IndexedSeq[Long] = {
+    partitionCounts
+      .getOrElse(
+        Optimize(
+          TableMapRows(
+            MatrixRowsTable(this),
+            MakeStruct(FastIndexedSeq()),
+            None,
+            None
+          ))
+          .execute(HailContext.get)
+          .rvd
+          .countPerPartition()
+          .toFastIndexedSeq)
+  }
+
   def columnCount: Option[Int] = None
 
   def execute(hc: HailContext): MatrixValue
@@ -1815,18 +1831,14 @@ case class MatrixAnnotateRowsTable(
       case Some(irs) =>
         // FIXME: here be monsters
 
-        val partitionCounts = child.partitionCounts
-        .getOrElse(
-          Optimize(
-            TableMapRows(
-              MatrixRowsTable(child),
-              MakeStruct(FastIndexedSeq()),
-              None,
-              None
-            )).execute(hc).rvd.countPerPartition().toFastIndexedSeq)
+        // used to zipWithIndex in multiple places
+        val partitionCounts = child.getOrComputePartitionCounts()
+
         val prevRowKeys = child.typ.rowKey.toArray
         val newKeyUIDs = Array.fill(irs.length)(ir.genUID())
         val indexUID = ir.genUID()
+
+        // has matrix row key and foreign join key
         val mrt = Optimize(
           MatrixRowsTable(
           MatrixMapRows(
@@ -1840,6 +1852,8 @@ case class MatrixAnnotateRowsTable(
           .asInstanceOf[OrderedRVD]
           .zipWithIndex(indexUID, Some(partitionCounts))
         val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
+
+        // ordered by foreign key, filtered to remove null keys
         val sortedTL = Optimize(
           TableKeyBy(
             TableFilter(tl1,
@@ -1854,6 +1868,9 @@ case class MatrixAnnotateRowsTable(
         val right = tv.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
         val prevPartitioner = prev.rvd.partitioner
+
+        // At this point 'joined' is sorted by the foreign key, so need to resort by row key
+        // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
           partitionKey = child.typ.rowPartitionKey.toArray,
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
@@ -1863,11 +1880,12 @@ case class MatrixAnnotateRowsTable(
         val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
 
         val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
+        // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
         val joinedMT = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
           .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
 
+        // cast partitioner back
         val newRVD = joinedMT.copy(orderedPartitioner = prevPartitioner)
-
         MatrixValue(typ, prev.globals, prev.colValues, newRVD)
 
       // annotateRowsTable using key

@@ -463,7 +463,8 @@ object PruneDeadFields {
             val tableDep = table.typ.copy(rowType = unify(
               table.typ.rowType,
               FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
-              FastIndexedSeq(struct): _*))
+              FastIndexedSeq(struct): _*),
+              globalType = minimal(table.typ.globalType))
             memoizeTableIR(table,tableDep, memo)
             val keyDep = unify(child.typ,
               key.map(_.map(ir => memoizeAndGetDep(ir, ir.typ, child.typ, memo)))

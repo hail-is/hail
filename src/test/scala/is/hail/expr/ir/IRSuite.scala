@@ -555,7 +555,6 @@ class IRSuite extends SparkSuite {
     try {
       val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
         .tir.asInstanceOf[TableRead]
-      println(tableRead.typ.rowType)
       val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)

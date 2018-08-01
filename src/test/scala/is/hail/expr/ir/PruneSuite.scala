@@ -327,6 +327,18 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "global.g1", "va.r3", "sa.c3"), null))
   }
 
+  @Test def testMatrixAnnotateRowsTableMemo() {
+    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
+    checkMemo(mart, subsetMatrixTable(mart.typ,"va.foo.r3", "va.r3"),
+      Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
+
+    val mart2 = MatrixAnnotateRowsTable(mat, tl, "foo",
+      Some(FastIndexedSeq(GetField(GetField(Ref("va", mat.typ.rvRowType), "r2"), "x"))))
+    checkMemo(mart2, subsetMatrixTable(mart2.typ,"va.foo.r3", "va.r3"),
+      Array(subsetMatrixTable(mat.typ, "va.r3", "va.r2.x"), subsetTable(tl.typ, "row.r3"), null))
+  }
+
   @Test def testCollectColsByKeyMemo() {
     val ccbk = MatrixCollectColsByKey(mat)
     checkMemo(ccbk,
@@ -642,6 +654,15 @@ class PruneSuite extends SparkSuite {
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
+  }
+
+  @Test def testMatrixAnnotateRowsTableRebuild() {
+    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
+    checkRebuild(mart, subsetMatrixTable(mart.typ),
+      (_: BaseIR, r: BaseIR) => {
+        r.isInstanceOf[MatrixLiteral]
+      })
   }
 
   @Test def testTableToMatrixTableRebuild() {
