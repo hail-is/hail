@@ -1979,10 +1979,14 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val values = children.map(_.execute(hc))
     checkColKeysSame(values.map(_.colValues.value))
-    val rvds = values.map(  _.rvd)
+    val rvds = values.map(_.rvd)
     val first = rvds.head
     require(rvds.tail.forall(_.partitioner.pkType == first.partitioner.pkType))
-    values.head.copy(rvd = OrderedRVD.union(rvds))
+    val nonEmpty = rvds.filter(_.partitioner.range.isDefined)
+    if (nonEmpty.isEmpty)
+      values.head
+    else
+      values.head.copy(rvd = OrderedRVD.union(nonEmpty))
   }
 }
 
