@@ -290,7 +290,10 @@ class CollectionExpression(Expression):
         """
 
         def transform_ir(array, name, body):
-            return ArrayMap(array, name, body)
+            a = ArrayMap(array, name, body)
+            if isinstance(self.dtype, tset):
+                a = ToSet(a)
+            return a
 
         array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
 

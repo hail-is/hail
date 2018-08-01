@@ -771,8 +771,6 @@ class Expression(object):
         """
         uid = Env.get_uid()
         t = self._to_table(uid)
-        t = t._select("collect", hl.struct(**{uid: t[uid]}))
-        assert t[uid].dtype == self.dtype
         return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), None).collect()]
 
     @property
