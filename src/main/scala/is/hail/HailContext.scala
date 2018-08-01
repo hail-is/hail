@@ -39,7 +39,7 @@ object HailContext {
 
   private var theContext: HailContext = _
 
-  def get: HailContext = theContext
+  def get: HailContext = synchronized { theContext }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -140,6 +140,25 @@ object HailContext {
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
+  def getOrCreate(sc: SparkContext = null,
+    appName: String = "Hail",
+    master: Option[String] = None,
+    local: String = "local[*]",
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    minBlockSize: Long = 1L,
+    branchingFactor: Int = 50,
+    tmpDir: String = "/tmp"): HailContext = synchronized {
+
+    if (get != null) {
+      get
+    } else {
+      apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
+        tmpDir)
+    }
+  }
+
   def apply(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -149,7 +168,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = {
+    tmpDir: String = "/tmp"): HailContext = synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r

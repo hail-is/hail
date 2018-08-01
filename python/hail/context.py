@@ -8,6 +8,7 @@ from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 
 import sys
+from threading import RLock
 
 
 class HailContext(object):
@@ -107,6 +108,27 @@ class HailContext(object):
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None
+
+@typecheck(sc=nullable(SparkContext),
+           app_name=str,
+           master=nullable(str),
+           local=str,
+           log=str,
+           quiet=bool,
+           append=bool,
+           min_block_size=int,
+           branching_factor=int,
+           tmp_dir=str,
+           default_reference=enumeration('GRCh37', 'GRCh38'))
+def get_or_create(sc=None, app_name='Hail', master=None, local='local[*]',
+         log='hail.log', quiet=False, append=False,
+         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+         default_reference='GRCh37'):
+    if Env._hc:
+        return Env.hc()
+    else:
+        return init(sc, app_name, master, local, log, quiet, append, min_block_size,
+                    branching_factor, tmp-dir, default_reference)
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
