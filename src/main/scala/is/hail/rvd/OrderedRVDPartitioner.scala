@@ -200,6 +200,11 @@ object OrderedRVDPartitioner {
   // resulting partition only comes from one partition per original partitioner.
   def mergePartitioners(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner): OrderedRVDPartitioner = {
     require(p1.pkType == p2.pkType)
+    if (p1.range.isEmpty)
+      return p2
+    if (p2.range.isEmpty)
+      return p1
+
     val ord = p1.kType.ordering
     def cmp(p1: (Any, Boolean), p2: (Any, Boolean)): Int = {
       val c = ord.compare(p1._1, p2._1)

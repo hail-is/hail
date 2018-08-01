@@ -1046,34 +1046,6 @@ object OrderedRVD {
       })
   }
 
-  def unionDisjoint(disjoint: Seq[OrderedRVD]): OrderedRVD = {
-    require(disjoint.nonEmpty)
-    disjoint.filter(_.partitioner.range.isDefined) match {
-      case Seq() => disjoint.head
-      case Seq(rvd) => rvd
-      case rvds =>
-        val first = rvds.head
-        val ord = first.partitioner.pkType.ordering
-        val sorted = rvds.toArray.sortWith { (r1, r2) =>
-          r1.partitioner.range.get.isBelow(ord, r2.partitioner.range.get)
-        }
-
-        val newRangeBounds = sorted.map(_.partitioner.rangeBounds)
-          .reduceLeft { (rb1, rb2) =>
-            val start = rb1.last.end
-            val includesStart = !rb1.last.includesEnd
-            val end = rb2.head.end
-            val includesEnd = rb2.head.includesEnd
-            (rb1 :+ Interval(start, end, includesStart, includesEnd)) ++ rb2.tail
-          }
-
-        new OrderedRVD(
-          first.typ,
-          first.partitioner.copy(numPartitions = newRangeBounds.length, rangeBounds = newRangeBounds),
-          ContextRDD.union(first.sparkContext, sorted.map(_.crdd)))
-    }
-  }
-
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
     rvds.reduce(_.orderedMerge(_))

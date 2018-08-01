@@ -173,7 +173,10 @@ object MatrixTable {
   }
 
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable =
-    new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
+    if (nRows == 0) {
+      new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions, dropRows=true))
+    } else
+      new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
