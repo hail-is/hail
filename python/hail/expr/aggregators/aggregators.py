@@ -1024,11 +1024,11 @@ def downsample(x, y, n_divisions=500) -> ArrayExpression:
 
     Parameters
     ---------
-    x : :class:`.Float64Expression`
+    x : :class:`.NumericExpression`
         X-values to be downsampled.
-    y : :class:`.Float64Expression`
+    y : :class:`.NumericExpression`
         Y-Values to be downsampled.
-    n_divisions : int
+    n_divisions : :obj:`int`
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
 
     Returns
@@ -1036,7 +1036,6 @@ def downsample(x, y, n_divisions=500) -> ArrayExpression:
     :class:`.ArrayExpression`
         Expression for downsampled coordinate points (x, y).
     """
-    analyze('downsample', x, y._indices)
     return _agg_func('downsample', _to_agg(hl.tuple([x, y])), tarray(ttuple(tfloat64, tfloat64)), constructor_args=[n_divisions])
 
 

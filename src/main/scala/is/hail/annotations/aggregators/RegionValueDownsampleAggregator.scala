@@ -13,18 +13,18 @@ class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggreg
 
   var combiner: DownsampleCombiner = new DownsampleCombiner(nDivisions)
 
-  def seqOp(r: Region, offset: Long, missing: Boolean) {
+  def seqOp(r: Region, offset: Long, missing: Boolean) = {
     if (!missing) {
       val row = UnsafeRow.read(TTuple(Array(TFloat64(), TFloat64())), r, offset).asInstanceOf[UnsafeRow]
       combiner.merge(row.getDouble(0), row.getDouble(1))
     }
   }
   
-  def combOp(agg2: RegionValueAggregator)= combiner.merge(agg2.asInstanceOf[RegionValueDownsampleAggregator].combiner)
+  def combOp(agg2: RegionValueAggregator) = combiner.merge(agg2.asInstanceOf[RegionValueDownsampleAggregator].combiner)
 
   def result(rvb: RegionValueBuilder) {
     rvb.startArray(combiner.binsToCoords.size)
-    combiner.binsToCoords.iterator.foreach { case (_, (x, y)) =>
+    combiner.binsToCoords.foreach { case (_, (x, y)) =>
       rvb.startTuple()
       rvb.addDouble(x)
       rvb.addDouble(y)
@@ -41,5 +41,5 @@ class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggreg
     rva
   }
 
-  def clear()= combiner.clear()
+  def clear() = combiner.clear()
 }

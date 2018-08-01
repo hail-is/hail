@@ -29,7 +29,7 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
     (i, j)
   }
 
-  def buildFactor(coord: Double, lower: Double, upper: Double, factor: Int=0): Int = {
+  def buildFactor(coord: Double, lower: Double, upper: Double, factor: Int = 0): Int = {
     if (coord < lower || coord > upper)
       buildFactor(coord, lower - (upper - lower), upper + (upper - lower), factor + 1)
     else
@@ -65,7 +65,7 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
           top += yDist
         })
 
-        binsToCoords = collapse(binsToCoords, nDivisions, math.max(xFactor, yFactor), collapseX=true, collapseY=true)
+        binsToCoords = collapse(binsToCoords, nDivisions, math.max(xFactor, yFactor), collapseX = true, collapseY = true)
       } else if (xFactor > 1) {
         0.until(xFactor).foreach(_ => {
           val xDist = right - left
@@ -73,7 +73,7 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
           right += xDist
         })
 
-        binsToCoords = collapse(binsToCoords, nDivisions, xFactor, collapseX=true, collapseY=false)
+        binsToCoords = collapse(binsToCoords, nDivisions, xFactor, collapseX = true, collapseY = false)
       } else if (yFactor > 1) {
         0.until(yFactor).foreach(_ => {
           val yDist = top - bottom
@@ -81,7 +81,7 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
           top += yDist
         })
 
-        binsToCoords = collapse(binsToCoords, nDivisions, yFactor, collapseX=false, collapseY=true)
+        binsToCoords = collapse(binsToCoords, nDivisions, yFactor, collapseX = false, collapseY = true)
       }
 
       binsToCoords += (toBinCoords(x, y, left, right, bottom, top, nDivisions) -> (x, y))
