@@ -119,7 +119,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
     checkJoinCompatability(right)
     require(this.typ.rowType == right.typ.rowType)
 
-    val newPartitioner = OrderedRVDPartitioner.mergePartitioners(Array(this.rvd.partitioner, right.rvd.partitioner))
+    val newPartitioner = OrderedRVDPartitioner.mergePartitioners(this.rvd.partitioner, right.rvd.partitioner)
     val repartitionedLeft =
       this.rvd.constrainToOrderedPartitioner(this.typ, newPartitioner)
     val repartitionedRight =
