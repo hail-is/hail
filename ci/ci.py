@@ -24,9 +24,15 @@ ch.setLevel(logging.INFO)
 ch.setFormatter(fmt)
 log.addHandler(ch)
 
-INITIAL_WATCHED_REPOS = os.environ['WATCHED_REPOS']
+try:
+    INITIAL_WATCHED_REPOS = json.loads(os.environ['WATCHED_REPOS'])
+except Exception as e:
+    raise ValueError(
+        'environment variable WATCHED_REPOS should be a json array of repos as '
+        f'strings e.g. ["hail-is/hail"], but was: `{os.environ.get("WATCHED_REPOS", None)}`',
+    ) from e
 assert isinstance(INITIAL_WATCHED_REPOS, list), INITIAL_WATCHED_REPOS
-assert all(isinstance(repo, int) for repo in INITIAL_WATCHED_REPOS), INITIAL_WATCHED_REPOS
+assert all(isinstance(repo, str) for repo in INITIAL_WATCHED_REPOS), INITIAL_WATCHED_REPOS
 GITHUB_URL = 'https://api.github.com/'
 CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
@@ -180,7 +186,7 @@ def remove_watched_repo(repo):
     return jsonify(watched_repos)
 
 @app.route('/status/watched_repos/<repo>/add', methods=['POST'])
-def remove_watched_repo(repo):
+def add_watched_repo(repo):
     watched_repos = [r for r in watched_repos if r != repo]
     watched_repos.append(repo)
     return jsonify(watched_repos)
@@ -271,7 +277,7 @@ def github_push():
         for (source_url, source_ref), status in pr_statuses.items():
             if (status.target_sha != new_sha):
                 post_repo(
-                    repo_from_url(target_url)
+                    repo_from_url(target_url),
                     'statuses/' + status.source_sha,
                     json={
                         'state': 'pending',
