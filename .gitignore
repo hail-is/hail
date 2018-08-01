@@ -1,2 +1,6 @@
 *~
 oauth-token
+proxy.log
+proxy.pid
+batch-proxy.log
+batch-proxy.pid

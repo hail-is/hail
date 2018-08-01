@@ -1,52 +1,58 @@
 Getting Started Developing
 ---
+
+If you've never worked on this before, setup your conda environment:
+
 ```
-conda env create hail-ci -f environment.yaml
-source activate hail-ci
-pip install /path/to/batch
+make setup-conda-env
+```
+
+If you've pulled and the conda env changed:
+
+```
+make update-conda-env
 ```
 
 get a [GitHub personal access token](https://github.com/settings/tokens), copy
 it and place it (without trailing newlines) in a file called `oauth-token`:
 
 ```
-pbpaste > oauth-token
+pbpaste > oauth-token/oauth-token
 ```
 
-then you gotta create a file with a secret string that protects the endpoints
-that can change statuses. This isn't really important if you only run the server
-locally.
+To talk to the batch server in our k8s cluster and to receive notifications from
+github, you'll need to start proxies to each, respectively. The following
+command sets up a proxy to the batch server from your local port `8888`. If a
+proxy was previously created by this command, it kills it.
 
 ```
-printf 'SOME VERY SECRET STRING THAT ONLY YOU KNOW' > secret
+make restart-batch-proxy
 ```
 
-now you can start the server with
+For `batch` and GitHub to contact your local instance, you need a proxy open to
+the outside world. I spun up a very tiny (4USD per month) server in GCP to
+redirect requests to my local machine. The following command will open a proxy
+from `$HAIL_CI_REMOTE_PORT` to your local `5000` port (the default one for
+`ci.py`). I use port 3000 on the remote server, so please choose another one for
+yourself :).
 
 ```
-python ci/ci.py
+HAIL_CI_REMOTE_PORT=3001 make restart-proxy
 ```
 
-I spun up a very tiny (4USD per month) server in GCP to redirect requests to my
-local machine:
+Webhooks can be configured in the Settings tab of a repo on GitHub.
+
+Now you can start a local version of the hail-ci server:
 
 ```
-gcloud compute \
-  --project "broad-ctsa" \
-  ssh \
-  --zone "us-central1-f" \
-  "dk-test" \
-  --ssh-flag='-R 3000:127.0.0.1:5000' \
-  --ssh-flag='-v'
+HAIL_CI_REMOTE_PORT=3001 make run
 ```
 
-I already added an web hook to github to send a request to this machine's IP on
-port 3000 whenever there is a `pull_request` or `push` event on my
-`docker-build-test` repository. The latter gets me master branch change
-notifications.
+And if you want to cleanly restart fresh:
 
-Any repository would work, and you can set up a webhook through the github web
-UI. Just use a port other than mine (3000)!
+```
+HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
+```
 
 pr-build-script
 ---
