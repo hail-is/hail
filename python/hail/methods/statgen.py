@@ -1372,11 +1372,11 @@ class SplitMulti(object):
         self._row_fields = None
 
         self._new_id = Env.get_uid()
-        self._old_row = self._ds._rvrow
 
         tfields = {'locus': self._ds.locus.dtype,
                    'alleles': self._ds.alleles.dtype,
-                   'a_index': hl.tint32}
+                   'a_index': hl.tint32,
+                   'was_split': hl.tbool}
 
         self._new_fields = construct_reference(self._new_id,
                                                hl.tstruct(**tfields),
@@ -1417,7 +1417,7 @@ class SplitMulti(object):
         -------
         :class:`.BooleanExpression`
         """
-        return hl.len(self._old_row['alleles']) > 2
+        return self._new_fields['was_split']
 
     def update_rows(self, **kwargs):
         """Set the row field updates for this SplitMulti object.
@@ -1485,43 +1485,45 @@ class SplitMulti(object):
         if not self._keep_star:
             kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
 
-        def map_alleles(i):
-            def make_struct_from_minrep(variant):
-                if self._left_aligned:
-                    return (hl.case()
-                            .when(variant[0] == old_row.locus,
-                                  hl.struct(alleles=variant[1],
-                                            locus=variant[0],
-                                            a_index=i))
-                            .or_error("Found non-left-aligned variant in SplitMulti"))
-                else:
-                    return hl.struct(alleles=variant[1],
-                                     locus=variant[0],
-                                     a_index=i)
-            return hl.bind(make_struct_from_minrep,
-                        hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-
-        annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.map(map_alleles))})
-        exploded = annotated.explode_rows(annotated[self._new_id])
+        def make_struct_from_minrep(variant, i):
+            return hl.struct(alleles=variant[1],
+                             locus=variant[0],
+                             a_index=i,
+                             was_split=hl.len(old_row.alleles) > 2)
 
         entry_annotations = str(self._ds.entry.annotate(**self._entry_fields)._ir)
         row_annotations = str(self._ds._rvrow.annotate(**self._row_fields)._ir)
-
         def process_exprs(mt, new_key_opt):
             return MatrixTable(mt._jvds
                                .selectEntries(entry_annotations)
                                .selectRows(row_annotations, new_key_opt))
 
         if self._left_aligned:
-            return cleanup(process_exprs(exploded, None))
+            def map_alleles(i):
+                def throw_error_on_moved(v):
+                    return (hl.case()
+                            .when(v[0] == old_row.locus, make_struct_from_minrep(v, i))
+                            .or_error("Found non-left-aligned variant in SplitMulti"))
+                return hl.bind(throw_error_on_moved, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+            annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.map(map_alleles))})
+            return cleanup(process_exprs(annotated.explode_rows(annotated[self._new_id]), None))
         else:
-            left_aligned = process_exprs(
-                exploded.filter_rows(exploded[self._new_id]['locus'] == exploded['locus']),
-                None)
-            moved = process_exprs(
-                exploded.filter_rows(exploded[self._new_id]['locus'] != exploded['locus']),
-                [['locus'], ['alleles']])
-        return cleanup(left_aligned).union_rows(cleanup(moved))
+            def left_aligned():
+                def flatmap_alleles(i):
+                    def struct_or_empty(v):
+                        return hl.case().when(v[0] == base['locus'], hl.array([make_struct_from_minrep(v, i)])).or_missing()
+                    return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+                annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.flatmap(flatmap_alleles))})
+                return process_exprs(annotated.explode_rows(self._new_id), None)
+
+            def moved():
+                def flatmap_alleles(i):
+                    def struct_or_empty(v):
+                        return hl.case().when(v[0] != base['locus'], hl.array([make_struct_from_minrep(v, i)])).or_missing()
+                    return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+                annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.flatmap(flatmap_alleles))})
+                return process_exprs(annotated.explode_rows(self._new_id), [['locus'], ['alleles']])
+        return cleanup(left_aligned()).union_rows(cleanup(moved()))
 
 
 @typecheck(ds=MatrixTable,
