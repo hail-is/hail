@@ -393,10 +393,19 @@ class Table(ExprContainer):
         return self._jt.forceCount()
 
     @typecheck_method(caller=str,
-                      key_struct=oneof(nullable(expr_struct()), exactly("default")),
-                      value_struct=nullable(expr_struct()))
-    def _select(self, caller, key_struct="default", value_struct=None):
-        row, preserved_key, preserved_key_new, new_key = self._make_row(key_struct, value_struct)
+                      row=expr_struct(),
+                      new_keys=oneof(exactly("default"), nullable(sequenceof(str))))
+    def _select(self, caller, row, new_keys="default"):
+        if new_keys == "default":
+            new_key = list(self.key.keys()) if self.key is not None else None
+            preserved_key = preserved_key_new = new_key
+        elif new_keys == None:
+            preserved_key = None
+            preserved_key_new = None
+            new_key = None
+        else:
+            key_struct = hl.struct(**{name: row[name] for name in new_keys})
+            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
 
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
@@ -428,24 +437,6 @@ class Table(ExprContainer):
         (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
         new_key = list(key_struct.keys())
         return preserved_key, preserved_key_new, new_key
-
-
-    def _make_row(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]], Optional[List[str]], Optional[List[str]]]:
-        if isinstance(key_struct, str):
-            assert value_struct is not None
-            preserved_key = preserved_key_new = new_key = list(self.key.keys()) if self.key is not None else None
-            row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
-        elif key_struct is not None:
-            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
-            if value_struct is None:
-                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
-            else:
-                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-        else:
-            preserved_key = preserved_key_new = new_key = None
-            row = value_struct if value_struct is not None else hl.struct()
-
-        return row, preserved_key, preserved_key_new, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
@@ -539,7 +530,8 @@ class Table(ExprContainer):
                                           protect_keys=False)
 
         return self._select("Table.key_by",
-                            key_struct=hl.struct(**key_fields))
+                            self.row.annotate(**key_fields),
+                            new_keys=list(key_fields.keys()))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
@@ -720,7 +712,7 @@ class Table(ExprContainer):
         if self.key is not None:
             fields_referenced -= set(self.key)
 
-        return self._select(caller, value_struct=self.row_value.annotate(**e).drop(*fields_referenced))
+        return self._select(caller, self.row.annotate(**e).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -749,7 +741,7 @@ class Table(ExprContainer):
         """
         caller = "Table.annotate"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select(caller, value_struct=self.row_value.annotate(**e))
+        return self._select(caller, self.row.annotate(**e))
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
@@ -887,10 +879,12 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified fields.
         """
-        row = get_select_exprs('Table.select',
-                               exprs, named_exprs, self._row_indices,
-                               protect_keys=True)
-        return self._select('Table.select', value_struct=hl.struct(**row))
+        row_exprs = get_select_exprs('Table.select',
+                                     exprs, named_exprs, self._row_indices,
+                                     protect_keys=True)
+        row = self.key.annotate(**row_exprs) if self.key else hl.struct(**row_exprs)
+
+        return self._select('Table.select', row)
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
@@ -957,7 +951,7 @@ class Table(ExprContainer):
                 check_keys(f, self._row_indices)
             row_fields = set(table.row)
             to_drop = [f for f in fields_to_drop if f in row_fields]
-            table = table._select('drop', 'default', table.row_value.drop(*to_drop))
+            table = table._select('drop', table.row.drop(*to_drop))
 
         return table
 
@@ -2006,11 +2000,11 @@ class Table(ExprContainer):
 
         table = self
         if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
+            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else dict()
             new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
-                                  key_struct=hl.struct(**new_keys) if new_keys else "default",
-                                  value_struct=hl.struct(**new_values))
+                                  hl.struct(**new_keys, **new_values),
+                                  new_keys=list(new_keys.keys()) if new_keys else "default")
         if global_map:
             table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
         return table
