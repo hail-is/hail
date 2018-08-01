@@ -351,6 +351,9 @@ object Interpret {
               }
             }
             aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
+          case Downsample() =>
+            val IndexedSeq(x, y) = seqOpArgs
+            aggregator.get.asInstanceOf[DownsampleAggregator].seqOp(interpret(x), interpret(y))
           case _ =>
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
@@ -453,9 +456,11 @@ object Interpret {
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
           case Downsample() =>
+            assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64()))
+
             val Seq(nDivisions) = constructorArgs
             val nDivisionsValue = interpret(nDivisions, Env.empty[Any], null, null).asInstanceOf[Int]
-            new DownsampleAggregator(nDivisionsValue)
+            new DownsampleAggregator(nDivisionsValue, null)
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)

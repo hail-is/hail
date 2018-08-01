@@ -571,24 +571,27 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
   def copy() = new KeyedAggregator(aggregator.copy())
 }
 
-class DownsampleAggregator(nDivisions: Int) extends TypedAggregator[IndexedSeq[Row]] {
+class DownsampleAggregator(nDivisions: Int, getY: Any => Any) extends TypedAggregator[IndexedSeq[Row]] {
   require(nDivisions > 0)
 
   var _state = new DownsampleCombiner(nDivisions)
 
   def result: IndexedSeq[Row] = _state.toRes
 
-  def seqOp(x: Any) {
-    if (x != null) {
-      val r = x.asInstanceOf[Row]
-      val xcoord = r.getDouble(0)
-      val ycoord = r.getDouble(1)
+  def seqOp(x: Any, y: Any) = {
+    if (x != null && y != null)
+      _state.merge(x.asInstanceOf[Double], y.asInstanceOf[Double])
+  }
 
-      _state.merge(xcoord, ycoord)
+  def seqOp(x: Any) = {
+    if (x != null) {
+      val y = getY(x)
+      if (y != null)
+        _state.merge(x.asInstanceOf[Double], y.asInstanceOf[Double])
     }
   }
 
   def combOp(agg2: this.type) = _state.merge(agg2._state)
 
-  def copy() = new DownsampleAggregator(nDivisions)
+  def copy() = new DownsampleAggregator(nDivisions, getY)
 }

@@ -795,9 +795,12 @@ class AggregatorsSuite {
   }
 
   @Test def downsample() {
-    runAggregator(Downsample(), TTuple(TFloat64(), TFloat64()),
+    runAggregator(Downsample(),
+      TStruct("x" -> TFloat64(), "y" -> TFloat64()),
       FastIndexedSeq(Row(1500.0, 1500.0), Row(5500.0, 5500.0), Row(5600.0, 5600.0), Row(9200.0, 9200.0), Row(9400.0, 9400.0), Row(0.0, 10000.0)),
       FastIndexedSeq(Row(1500.0, 1500.0), Row(5600.0, 5600.0), Row(9400.0, 9400.0), Row(0.0, 10000.0)),
-      FastIndexedSeq(10))
+      FastIndexedSeq(10),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64())))
   }
 }

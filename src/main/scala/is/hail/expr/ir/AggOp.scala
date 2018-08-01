@@ -201,11 +201,11 @@ object AggOp {
         constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]),
         seqOpArgTypes = Array(classOf[Double]))
 
-    case (Downsample(), constArgs@Seq(_: TInt32), None, Seq(TTuple(Seq(TFloat64(_), TFloat64(_)), _))) =>
+    case (Downsample(), constArgs@Seq(_: TInt32), None, seqOpArgs@Seq(_: TFloat64, _: TFloat64)) =>
       CodeAggregator[RegionValueDownsampleAggregator](
         RegionValueDownsampleAggregator.typ,
         constrArgTypes = Array(classOf[Int]),
-        seqOpArgTypes = Array(classOf[Long]))
+        seqOpArgTypes = Array(classOf[Double], classOf[Double]))
 
     case (CallStats(), Seq(), initOpArgs@Some(Seq(_: TInt32)), Seq(_: TCall)) =>
       CodeAggregator[RegionValueCallStatsAggregator](
