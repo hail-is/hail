@@ -121,14 +121,13 @@ def phase_by_transmission(
         )
 
         return (
-            hl.cond(
+            hl.or_missing(
                 hl.is_defined(combinations) & (hl.len(combinations) == 1),
                 hl.array([
                     hl.call(father_call[combinations[0].f], mother_call[combinations[0].m], phased=True),
                     hl.cond(father_call.is_haploid(), hl.call(father_call[0], phased=True), phase_parent_call(father_call, combinations[0].f)),
                     phase_parent_call(mother_call, combinations[0].m)
-                ]),
-                hl.null(hl.tarray(hl.tcall))
+                ])
             )
         )
 
@@ -148,14 +147,13 @@ def phase_by_transmission(
         """
 
         transmitted_allele = hl.zip_with_index(hl.array([mother_call[0], mother_call[1]])).find(lambda m: m[1] == proband_call[0])
-        return hl.cond(
+        return hl.or_missing(
             hl.is_defined(transmitted_allele),
             hl.array([
                 hl.call(proband_call[0], phased=True),
                 hl.or_missing(father_call.is_haploid(), hl.call(father_call[0], phased=True)),
                 phase_parent_call(mother_call, transmitted_allele[0])
-            ]),
-            hl.null(hl.tarray(hl.tcall))
+            ])
         )
 
     def phase_y_nonpar(
@@ -170,14 +168,13 @@ def phase_by_transmission(
         :return: Array containing: phased proband call, phased father call, phased mother call
         :rtype: ArrayExpression
         """
-        return hl.cond(
+        return hl.or_missing(
             proband_call.is_haploid() & father_call.is_haploid() & (father_call[0] == proband_call[0]),
             hl.array([
                 hl.call(proband_call[0], phased=True),
                 hl.call(father_call[0], phased=True),
                 hl.null(hl.tcall)
-            ]),
-            hl.null(hl.tarray(hl.tcall))
+            ])
         )
 
     return (
@@ -185,7 +182,7 @@ def phase_by_transmission(
             .when(locus.in_x_nonpar() & proband_call.is_haploid(), phase_haploid_proband_x_nonpar(proband_call, father_call, mother_call))
             .when(locus.in_y_nonpar(), phase_y_nonpar(proband_call, father_call))
             .when(proband_call.is_diploid(), phase_diploid_proband(locus, alleles, proband_call, father_call, mother_call))
-            .default(hl.null(hl.tarray(hl.tcall)))
+            .or_missing()
     )
 
 
@@ -263,7 +260,17 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s']) -> hl.M
     """
 
     Splits a trio MatrixTable back into a sample MatrixTable.
-    It assumes that the input MatrixTable schema
+    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of `hail.methods.trio_matrix`)
+    In particular, it should have the following entry schema:
+    * proband_entry
+    * father_entry
+    * mother_entry
+    And the following column schema:
+    * proband
+    * father
+    * mother
+
+    Note that all other entry and column fields will be dropped.
 
     :param MatrixTable tm: Input trio MatrixTable
     :param list of str col_keys: Column keys for the sample MatrixTable
