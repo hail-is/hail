@@ -99,7 +99,7 @@ class LinearMixedModel(object):
     The class may be initialized directly or with one of two methods:
 
     - :meth:`from_kinship` takes :math:`y`, :math:`X`, and :math:`K` as ndarrays.
-      The model is always full-rank. # FIXME add max_rank option
+      The model is always full-rank.
 
     - :meth:`from_mixed_effects` takes :math:`y` and :math:`X` as ndarrays and
       :math:`Z` as an ndarray or block matrix. The model is full-rank if and
@@ -859,8 +859,9 @@ class LinearMixedModel(object):
     @classmethod
     @typecheck_method(y=np.ndarray,
                       x=np.ndarray,
-                      z=np.ndarray)
-    def from_mixed_effects(cls, y, x, z):
+                      z=np.ndarray,
+                      as_zero=float)
+    def from_mixed_effects(cls, y, x, z, as_zero=1e-6):
         """Initializes a model from a random effects matrix.
 
         Examples
@@ -881,21 +882,21 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        No standardization is applied to `z`.
-
         The model is full-rank if and only if :math:`n \leq m`.
 
-        In the low-rank case, eigenvalues below 1e-12 are considered to be zero
-        These eigenvalues and eigenvectors are discarded from :math:`S` and
-        :math:`P`, respectively.
+        In the low-rank case only (:math:`n < m`), eigenvalues less than or
+        equal to `as_zero` are dropped from :math:`S`, with the corresponding
+        eigenvectors dropped from :math:`P`.
+
+        No standardization is applied to `z`.
 
         Warning
         -------
-        If `z` is a block matrix, then ideally `z` should have been read
-        directly from disk and possibly transposed. This is most critical if
-        :math:`n > m`, because in this case multiplication by `z` will result
-        in all preceding transformations being repeated ``n / block_size``
-        times.
+        If `z` is a block matrix, then ideally `z` should be the result of
+        directly reading from disk (and possibly a transpose). This is most
+        critical if :math:`n > m`, because in this case multiplication by `z`
+        will result in all preceding transformations being repeated
+        ``n / block_size`` times, as explained in :class:`BlockMatrix`.
 
         Parameters
         ----------
@@ -905,12 +906,17 @@ class LinearMixedModel(object):
             :math:`n \times p` matrix of fixed effects :math:`X`.
         z: :class:`ndarray<float64>` or :class:`BlockMatrix`
             :math:`n \times m` matrix of random effects :math:`Z`.
+        as_zero: :obj:`float`
+            Eigenvalue threshold for truncation in the low-rank case.
         """
+        assert as_zero > 0
+
         z_is_ndarray = isinstance(z, np.ndarray)
 
         if z_is_ndarray:
             assert z.ndim == 2
         n, m = z.shape
+
         assert n > 0 and m > 0
         assert y.ndim == 1 and x.ndim == 2
         assert y.shape[0] == n and x.shape[0] == n and x.shape[1] > 0
@@ -926,10 +932,12 @@ class LinearMixedModel(object):
 
         s = s0 ** 2
 
-        if n <= m:
+        full_rank = n <= m
+        if full_rank:
             model = LinearMixedModel(py, px, s)
         else:
-            r = np.searchsorted(-s, -1e-12)
+            assert np.all(np.isfinite(s))
+            r = np.searchsorted(-s, -as_zero)
             s = s[:r]
             p = p[:r, :]
             model = LinearMixedModel(py, px, s, y, x)
