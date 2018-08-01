@@ -22,8 +22,9 @@ class IndexSuite extends SparkSuite {
   @Test(dataProvider = "elements")
   def writeReadGivesSameAsInput(data: Array[String]) {
     val file = tmpDir.createTempFile("test", "idx")
+    val attributes = Map("foo" -> true, "bar" -> 5)
 
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2)
+    val iw = new IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
     data.zipWithIndex.foreach { case (s, offset) =>
       iw += (s, offset)
     }
@@ -32,6 +33,7 @@ class IndexSuite extends SparkSuite {
     assert(hc.hadoopConf.getFileSize(file) != 0)
 
     val ir = new IndexReader(hc.hadoopConf, file)
+    assert(ir.attributes == attributes)
     data.zipWithIndex.foreach { case (s, i) =>
       assert(ir.queryByIndex(i).key == s)
       assert(ir.queryByKey(s).contains(i))

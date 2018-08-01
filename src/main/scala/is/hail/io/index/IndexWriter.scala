@@ -15,14 +15,16 @@ case class IndexMetadata(
   keyType: String,
   nKeys: Long,
   indexPath: String,
-  rootOffset: Long
+  rootOffset: Long,
+  attributes: Map[String, Any]
 )
 
 class IndexWriter(
   conf: Configuration,
   path: String,
   keyType: Type,
-  branchingFactor: Int = 1024) {
+  branchingFactor: Int = 1024,
+  attributes: Map[String, Any] = Map.empty[String, Any]) {
 
   private var elementIdx = 0L
   private var rootOffset = 0L
@@ -139,7 +141,7 @@ class IndexWriter(
 
   private def writeMetadata() = {
     conf.writeTextFile(path + "/metadata.json.gz") { out =>
-      val metadata = IndexMetadata(1, branchingFactor, keyType._toPretty, elementIdx, path, rootOffset)
+      val metadata = IndexMetadata(1, branchingFactor, keyType._toPretty, elementIdx, path, rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)
     }

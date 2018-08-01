@@ -21,6 +21,7 @@ class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) {
   private val metadata = readMetadata(path + "/metadata.json.gz")
   val branchingFactor = metadata.branchingFactor
   val nKeys = metadata.nKeys
+  val attributes = metadata.attributes
 
   val keyType = Parser.parseType(metadata.keyType)
   val leafType = LeafNodeBuilder.typ(keyType)
