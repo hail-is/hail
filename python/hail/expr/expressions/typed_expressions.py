@@ -262,7 +262,8 @@ class CollectionExpression(Expression):
         """
 
         keyed = hl.array(self).map(lambda x: hl.tuple([f(x), x]))
-        return construct_expr(GroupByKey(keyed._ir), tdict(*keyed.dtype.element_type.types), keyed._indices, keyed._aggregations)
+        types = keyed.dtype.element_type.types
+        return construct_expr(GroupByKey(keyed._ir), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
