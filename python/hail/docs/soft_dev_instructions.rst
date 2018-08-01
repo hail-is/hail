@@ -144,9 +144,9 @@ To execute all Hail tests, run:
 Contributing
 ~~~~~~~~~~~~
 
-Chat with the dev team on our [Zulip chatroom](https://hail.zulipchat.com) if you
-have an idea for a contribution. We can help you determine if your project is a good
-candidate for merging.
+Chat with the dev team on our `Zulip chatroom <https://hail.zulipchat.com>`_ if
+you have an idea for a contribution. We can help you determine if your
+project is a good candidate for merging.
 
 Keep in mind the following principles when submitting a pull request:
 
@@ -154,3 +154,7 @@ Keep in mind the following principles when submitting a pull request:
 - Before submitting your PR, you should rebase onto the latest master.
 - PRs must pass all tests before being merged. See the section above on `Running the tests`_ locally.
 - PRs require a review before being merged. We will assign someone from our dev team to review your PR.
+- Code in PRs should be formatted according to the style in ``code_style.xml``.
+  This file can be loaded into Intellij to automatically format your code.
+- When you make a PR, include a short message that describes the purpose of the
+  PR and any necessary context for the changes you are making.
