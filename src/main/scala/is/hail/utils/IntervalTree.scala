@@ -10,59 +10,56 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: Boolean) extends Serializable {
+case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
+  require(-1 <= sign && sign <= 1)
+}
 
-  def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    val compareStart = pord.compare(position, start)
-    if (compareStart > 0 || (compareStart == 0 && includesStart)) {
-      val compareEnd = pord.compare(position, end)
-      compareEnd < 0 || (compareEnd == 0 && includesEnd)
-    } else
-      false
-  }
+/**
+  * 'Interval' has an implicit precondition that there exists a Hail type
+  * 't: Type' such that either
+  * - 't: TBaseStruct', and 't.relaxedTypeCheck(left)', 't.relaxedTypeCheck(right),
+  *   and 't.ordering.intervalEndpointOrdering.lt(left, right)', or
+  * - 't.typeCheck(left)', 't.typeCheck(right)', and 't.ordering.lt(left, right)'
+  *
+  * Moreover, every method on 'Interval' taking a 'pord' has an implicit
+  * precondition, that there exists a Hail type 't: Type' such that 'pord' was
+  * constructed by 't.ordering', and either
+  * - 't: TBaseStruct' and 't.relaxedTypeCheck(x)', or
+  * - 't.typeCheck(x)',
+  * where 'x' is each of 'left', 'right', 'p', 'other.left', and 'other.right'
+  * as appropriate. In the case 't: TBaseStruct', 't' could be replaced by any
+  * 't2' such that 't.isPrefixOf(t2)' without changing the behavior.
+  */
+case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: Boolean) extends Serializable {
+  val (left, right) = Interval.toIntervalEndpoints(start, end, includesStart, includesEnd)
+
+  private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
+
+  def contains(pord: ExtendedOrdering, p: Any): Boolean =
+    ext(pord).lt(left, p) && ext(pord).gt(right, p)
 
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
-    other.definitelyEmpty(pord) || ({
-      val cstart = pord.compare(this.start, other.start)
-      cstart < 0 || (cstart == 0 && (!other.includesStart || this.includesStart))
-    } && {
-      val cend = pord.compare(this.end, other.end)
-      cend > 0 || (cend == 0 && (!other.includesEnd || this.includesEnd))
-    })
+    ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
 
-  def mayOverlap(pord: ExtendedOrdering, other: Interval): Boolean = {
-    !definitelyDisjoint(pord, other)
-  }
+  def mayOverlap(pord: ExtendedOrdering, other: Interval): Boolean =
+    ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)
 
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
-    definitelyEmpty(pord) || {
-      val c = pord.compare(p, start)
-      c < 0 || (c == 0 && !includesStart)
-    }
+    ext(pord).gt(left, p)
 
   def isBelowPosition(pord: ExtendedOrdering, p: Any): Boolean =
-    definitelyEmpty(pord) || {
-      val c = pord.compare(p, end)
-      c > 0 || (c == 0 && !includesEnd)
-    }
+    ext(pord).lt(right, p)
 
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
-    definitelyEmpty(pord) || other.definitelyEmpty(pord) ||
-      isBelow(pord, other) || isAbove(pord, other)
+    !mayOverlap(pord, other)
 
-  private var _emptyDefined: Boolean = false
-  private var _empty: Boolean = false
-
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = {
-    if (!_emptyDefined) {
-      _empty = if (includesStart && includesEnd) pord.gt(start, end) else pord.gteq(start, end)
-      _emptyDefined = true
-    }
-    _empty
-  }
+  def definitelyEmpty(pord: ExtendedOrdering): Boolean = false
 
   def copy(start: Any = start, end: Any = end, includesStart: Boolean = includesStart, includesEnd: Boolean = includesEnd): Interval =
     Interval(start, end, includesStart, includesEnd)
+
+  def extendLeft(newLeft: IntervalEndpoint): Interval = Interval(newLeft, right)
+  def extendRight(newRight: IntervalEndpoint): Interval = Interval(left, newRight)
 
   def toJSON(f: (Any) => JValue): JValue =
     JObject("start" -> f(start),
@@ -71,56 +68,70 @@ case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: B
       "includeEnd" -> TBoolean().toJSON(includesEnd))
 
   def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =
-    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
-      val c = pord.compare(this.end, other.start)
-      c < 0 || (c == 0 && (!this.includesEnd || !other.includesStart))
-    }
+    ext(pord).lteq(this.right, other.left)
 
   def isAbove(pord: ExtendedOrdering, other: Interval): Boolean =
-    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || {
-      val c = pord.compare(this.start, other.end)
-      c > 0 || (c == 0 && (!this.includesStart || !other.includesEnd))
-    }
+    ext(pord).gteq(this.left, other.right)
+
+  def abutts(pord: ExtendedOrdering, other: Interval): Boolean =
+    ext(pord).equiv(this.left, other.right) || ext(pord).equiv(this.right, other.left)
 
   def canMergeWith(pord: ExtendedOrdering, other: Interval): Boolean =
-    this.definitelyEmpty(pord) || other.definitelyEmpty(pord) || ({
-      val c = pord.compare(this.start, other.end)
-      c < 0 || (c == 0 && (this.includesStart || other.includesEnd))
-    } && {
-      val c = pord.compare(this.end, other.start)
-      c > 0 || (c == 0 && (this.includesEnd || other.includesStart))
-    })
+    ext(pord).lteq(this.left, other.right) && ext(pord).gteq(this.right, other.left)
 
-  def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] = {
-    if (canMergeWith(pord, other)) {
-      if (other.definitelyEmpty(pord))
-        Some(this)
-      else if (this.definitelyEmpty(pord))
-        Some(other)
-      else {
-        val min = Interval.ordering(pord, startPrimary = true).min(this, other).asInstanceOf[Interval]
-        val max = Interval.ordering(pord, startPrimary = false).max(this, other).asInstanceOf[Interval]
-        Some(Interval(min.start, max.end, min.includesStart, max.includesEnd))
-      }
+  def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] =
+    if (canMergeWith(pord, other))
+      Some(hull(pord, other))
+    else
+      None
+
+  def hull(pord: ExtendedOrdering, other: Interval): Interval =
+    Interval(
+      ext(pord).min(this.left, other.left).asInstanceOf[IntervalEndpoint],
+      ext(pord).max(this.right, other.right).asInstanceOf[IntervalEndpoint])
+
+  def intersect(pord: ExtendedOrdering, other: Interval): Option[Interval] =
+    if (mayOverlap(pord, other)) {
+      Some(Interval(
+        ext(pord).max(this.left, other.left).asInstanceOf[IntervalEndpoint],
+        ext(pord).min(this.right, other.right).asInstanceOf[IntervalEndpoint]))
     } else
       None
-  }
-
-  def intersect(pord: ExtendedOrdering, other: Interval): Interval = {
-    if (mayOverlap(pord, other)) {
-      val s = Interval.ordering(pord, startPrimary = true).max(this, other).asInstanceOf[Interval]
-      val e = Interval.ordering(pord, startPrimary = false).min(this, other).asInstanceOf[Interval]
-      Interval(s.start, e.end, s.includesStart, e.includesEnd)
-    } else
-      Interval(start, start, false, false)
-  }
 
   override def toString: String = (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
 }
 
 object Interval {
+  def apply(left: IntervalEndpoint, right: IntervalEndpoint): Interval =
+    new Interval(left.point, right.point, left.sign < 0, right.sign > 0)
+
+  def orNone(pord: ExtendedOrdering,
+    start: Any, end: Any,
+    includesStart: Boolean, includesEnd: Boolean
+  ): Option[Interval] =
+    if (isValid(pord, start, end, includesStart, includesEnd))
+      Some(Interval(start, end, includesStart, includesEnd))
+    else
+      None
+
+  def isValid(pord: ExtendedOrdering,
+    start: Any, end: Any,
+    includesStart: Boolean, includesEnd: Boolean
+  ): Boolean = {
+    val (left, right) = toIntervalEndpoints(start, end, includesStart, includesEnd)
+    pord.intervalEndpointOrdering.lt(left, right)
+  }
+
+  def toIntervalEndpoints(
+    start: Any, end: Any,
+    includesStart: Boolean, includesEnd: Boolean
+  ): (IntervalEndpoint, IntervalEndpoint) =
+    (IntervalEndpoint(start, if (includesStart) -1 else 1),
+      IntervalEndpoint(end, if (includesEnd) 1 else -1))
+
   def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
     Gen.zip(pgen, pgen, Gen.coin(), Gen.coin())
+      .filter { case (x, y, s, e) => !pord.equiv(x, y) || (s && e) }
       .map { case (x, y, s, e) =>
         if (pord.lt(x, y))
           Interval(x, y, s, e)
@@ -129,32 +140,24 @@ object Interval {
       }
 
   def ordering(pord: ExtendedOrdering, startPrimary: Boolean): ExtendedOrdering = new ExtendedOrdering {
-    private def compareStart(x: Interval, y: Interval, missingGreatest: Boolean, next: (Interval, Interval) => Int): Int = {
-      val c = pord.compare(x.start, y.start, missingGreatest)
-      if (c != 0)
-        c
-      else if (x.includesStart != y.includesStart)
-        if (x.includesStart) -1 else 1
-      else next(x, y)
+    private def compareStart(x: Interval, y: Interval, missingGreatest: Boolean): Int = {
+      val c = pord.intervalEndpointOrdering.compare(x.left, y.left, missingGreatest)
+      if (c != 0) c else pord.intervalEndpointOrdering.compare(x.right, y.right, missingGreatest)
     }
 
-    private def compareEnd(x: Interval, y: Interval, missingGreatest: Boolean, next: (Interval, Interval) => Int): Int = {
-      val c = pord.compare(x.end, y.end, missingGreatest)
-      if (c != 0)
-        c
-      else if (x.includesEnd != y.includesEnd)
-        if (x.includesEnd) 1 else -1
-      else next(x, y)
+    private def compareEnd(x: Interval, y: Interval, missingGreatest: Boolean): Int = {
+      val c = pord.intervalEndpointOrdering.compare(x.right, y.right, missingGreatest)
+      if (c != 0) c else pord.intervalEndpointOrdering.compare(x.left, y.left, missingGreatest)
     }
 
-    def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
+    override def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]
 
       if (startPrimary)
-        compareStart(xi, yi, missingGreatest, compareEnd(_, _, missingGreatest, (_, _) => 0))
+        compareStart(xi, yi, missingGreatest)
       else
-        compareEnd(xi, yi, missingGreatest, compareStart(_, _, missingGreatest, (_, _) => 0))
+        compareEnd(xi, yi, missingGreatest)
     }
   }
 
@@ -168,7 +171,7 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
   Traversable[(Interval, U)] with Serializable {
   override def size: Int = root.map(_.size).getOrElse(0)
 
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = root.forall(_.definitelyEmpty(pord))
+  def definitelyEmpty(pord: ExtendedOrdering): Boolean = root.isEmpty
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = root.exists(_.contains(pord, position))
 
@@ -211,12 +214,6 @@ object IntervalTree {
     val sorted = if (intervals.nonEmpty) {
       val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
       var i = 0
-      while (unpruned(i).definitelyEmpty(pord)) {
-        i += 1
-        if (i == unpruned.length) {
-          return new IntervalTree[Unit](None)
-        }
-      }
       val ab = new ArrayBuilder[Interval](intervals.length)
       var tmp = unpruned(i)
       while (i < unpruned.length) {
@@ -274,12 +271,6 @@ case class IntervalTreeNode[U](i: Interval,
 
   override val size: Int =
     left.map(_.size).getOrElse(0) + right.map(_.size).getOrElse(0) + 1
-
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = {
-    left.forall(_.definitelyEmpty(pord)) &&
-      i.definitelyEmpty(pord) &&
-      right.forall(_.definitelyEmpty(pord))
-  }
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
     range.contains(pord, position) &&

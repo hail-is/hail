@@ -99,8 +99,8 @@ object ExtendedOrdering {
     }
 
   def rowOrdering(fieldOrd: Array[ExtendedOrdering]): ExtendedOrdering =
-    new ExtendedOrdering {
-      def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
+    new ExtendedOrdering { outer =>
+      override def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]
 
@@ -116,14 +116,32 @@ object ExtendedOrdering {
         // equal
         0
       }
+
+      override lazy val intervalEndpointOrdering = new IntervalEndpointOrdering {
+        override def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int, missingGreatest: Boolean): Int = {
+          val xpp = xp.asInstanceOf[Row]
+          val ypp = yp.asInstanceOf[Row]
+          val l = fieldOrd.length
+
+          val c = outer.compare(xpp, ypp, missingGreatest)
+          if (c != 0 || (l < xpp.length && l < ypp.length))
+            c
+          else {
+            val cl = xpp.length compare ypp.length
+            if (cl == 0) xs compare ys
+            else if (cl < 0) xs
+            else -ys
+          }
+        }
+      }
     }
 }
 
 abstract class ExtendedOrdering extends Serializable {
   outer =>
-  
+
   type T = Any
-  
+
   def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int
 
   def ltNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = compareNonnull(x, y, missingGreatest) < 0
@@ -218,7 +236,7 @@ abstract class ExtendedOrdering extends Serializable {
         gteqNonnull(x, y, missingGreatest)
     }
   }
-  
+
   def equiv(x: T, y: T, missingGreatest: Boolean): Boolean = {
     if (y == null) {
       if (x == null)
@@ -325,6 +343,30 @@ abstract class ExtendedOrdering extends Serializable {
 
     override def min(x: T, y: T): T = outer.min(x, y, missingGreatest)
 
-    override def max(x: T, y: T): T = outer.max(x, y, missingGreatest)    
+    override def max(x: T, y: T): T = outer.max(x, y, missingGreatest)
+  }
+
+  lazy val intervalEndpointOrdering: IntervalEndpointOrdering =
+    new IntervalEndpointOrdering {
+      override def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int, missingGreatest: Boolean): Int = {
+        val c = outer.compare(xp, yp, missingGreatest)
+        if (c != 0)
+          c
+        else {
+          xs compare ys
+        }
+      }
+    }
+}
+
+abstract class IntervalEndpointOrdering extends ExtendedOrdering {
+  def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int, missingGreatest: Boolean): Int
+
+  override def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
+    val xp = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].point else x
+    val xs = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].sign else 0
+    val yp = if (y.isInstanceOf[IntervalEndpoint]) y.asInstanceOf[IntervalEndpoint].point else y
+    val ys = if (y.isInstanceOf[IntervalEndpoint]) y.asInstanceOf[IntervalEndpoint].sign else 0
+    compareIntervalEndpoints(xp, xs, yp, ys, missingGreatest)
   }
 }
