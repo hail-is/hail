@@ -7,6 +7,7 @@ import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
+from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
@@ -1309,6 +1310,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
+
 class SplitMulti(object):
     """Split multiallelic variants.
 
@@ -1362,11 +1364,28 @@ class SplitMulti(object):
         -------
         :class:`.SplitMulti`
         """
+        require_row_key_variant(ds, "SplitMulti")
         self._ds = ds
         self._keep_star = keep_star
         self._left_aligned = left_aligned
         self._entry_fields = None
         self._row_fields = None
+
+        self._new_id = Env.get_uid()
+        self._old_row = self._ds._rvrow
+
+        tfields = {'locus': self._ds.locus.dtype,
+                   'alleles': self._ds.alleles.dtype,
+                   'a_index': hl.tint32,
+                   'was_split': hl.tbool,
+                   'left_aligned': hl.tbool}
+        if self._left_aligned:
+            del tfields['left_aligned']
+
+        self._new_fields = construct_reference(self._new_id,
+                                               hl.tstruct(**tfields),
+                                               self._ds._row_indices,
+                                               prefix='va')
 
     def new_locus(self):
         """The new, split variant locus.
@@ -1375,8 +1394,7 @@ class SplitMulti(object):
         -------
         :class:`.LocusExpression`
         """
-        return construct_reference(
-            "newLocus", type=self._ds.locus.dtype, indices=self._ds._row_indices)
+        return self._new_fields['locus']
 
     def new_alleles(self):
         """The new, split variant alleles.
@@ -1385,8 +1403,7 @@ class SplitMulti(object):
         -------
         :class:`.ArrayStringExpression`
         """
-        return construct_reference(
-            "newAlleles", type=tarray(tstr), indices=self._ds._row_indices)
+        return self._new_fields['alleles']
 
     def a_index(self):
         """The index of the input allele to the output variant.
@@ -1395,8 +1412,7 @@ class SplitMulti(object):
         -------
         :class:`.Expression` of type :py:data:`.tint32`
         """
-        return construct_reference(
-            "aIndex", type=tint32, indices=self._ds._row_indices)
+        return self._new_fields['a_index']
 
     def was_split(self):
         """``True`` if the original variant was multiallelic.
@@ -1405,8 +1421,7 @@ class SplitMulti(object):
         -------
         :class:`.BooleanExpression`
         """
-        return construct_reference(
-            "wasSplit", type=tbool, indices=self._ds._row_indices)
+        return self._new_fields['was_split']
 
     def update_rows(self, **kwargs):
         """Set the row field updates for this SplitMulti object.
@@ -1417,6 +1432,10 @@ class SplitMulti(object):
         """
         if self._row_fields is None:
             self._row_fields = kwargs
+            for key in self._ds._row_key.keys():
+                if key in kwargs.keys():
+                    raise FatalError(
+                        "SplitMulti cannot manually update '{}' field.".format(key))
         else:
             raise FatalError("You may only call update_rows once")
 
@@ -1457,21 +1476,59 @@ class SplitMulti(object):
                 warn(f"SplitMulti: The following {name} {field} {word} not updated: {fds}. " \
                       "Data will be copied (unchanged) for each split variant.")
 
-        base, _ = self._ds._process_joins(*itertools.chain(
+        self._row_fields['locus'] = self.new_locus()
+        self._row_fields['alleles'] = self.new_alleles()
+
+        base, cleanup_joins = self._ds._process_joins(*itertools.chain(
             self._row_fields.values(), self._entry_fields.values()))
+        def cleanup(mt):
+            return cleanup_joins(mt).drop(self._new_id)
 
-        annotate_rows = ' '.join(['({} {})'.format(escape_id(k), str(v._ir))
-                                  for k, v in self._row_fields.items()])
-        annotate_entries = ' '.join(['({} {})'.format(escape_id(k), str(v._ir))
-                                     for k, v in self._entry_fields.items()])
+        old_row = base._rvrow
+        kept_alleles = hl.range(1, hl.len(old_row.alleles))
+        if not self._keep_star:
+            kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
 
-        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
-            self._ds._jvds,
-            annotate_rows,
-            annotate_entries,
-            self._keep_star,
-            self._left_aligned)
-        return MatrixTable(jvds)
+        def map_alleles(i):
+            def make_struct_from_minrep(variant):
+                if self._left_aligned:
+                    return (hl.case()
+                            .when(variant[0] == old_row.locus,
+                                  hl.struct(alleles=variant[1],
+                                            locus=variant[0],
+                                            a_index=i,
+                                            was_split=hl.len(old_row.alleles) > 2))
+                            .or_error("Found non-left-aligned variant in SplitMulti"))
+                else:
+                    return hl.struct(alleles=variant[1],
+                                     locus=variant[0],
+                                     a_index=i,
+                                     was_split=hl.len(old_row.alleles) > 2,
+                                     left_aligned=variant[0] == old_row.locus)
+            return hl.bind(make_struct_from_minrep,
+                        hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+
+        annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.map(map_alleles))})
+        exploded = annotated.explode_rows(annotated[self._new_id])
+
+        entry_annotations = str(self._ds.entry.annotate(**self._entry_fields)._ir)
+        row_annotations = str(self._ds._rvrow.annotate(**self._row_fields)._ir)
+
+        def process_exprs(mt, new_key_opt):
+            return MatrixTable(mt._jvds
+                               .selectEntries(entry_annotations)
+                               .selectRows(row_annotations, new_key_opt))
+
+        if self._left_aligned:
+            return cleanup(process_exprs(exploded, None))
+        else:
+            left_aligned = process_exprs(
+                exploded.filter_rows(exploded[self._new_id]['left_aligned']),
+                None)
+            moved = process_exprs(
+                exploded.filter_rows(~exploded[self._new_id]['left_aligned']),
+                [['locus'], ['alleles']])
+        return cleanup(left_aligned.union_rows(moved))
 
 
 @typecheck(ds=MatrixTable,

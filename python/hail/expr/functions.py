@@ -3224,13 +3224,7 @@ def sorted(collection,
     """
     ascending = ~reverse
 
-    def can_sort(t):
-        return t == tstr or is_numeric(t)
-
     if key is None:
-        if not can_sort(collection.dtype.element_type):
-            raise TypeError("'sorted' expects an array with element type 'String' or numeric, found '{}'"
-                            .format(collection.dtype))
         return collection._method("sort", collection.dtype, ascending)
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
