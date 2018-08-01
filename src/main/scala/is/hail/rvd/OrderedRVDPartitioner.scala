@@ -195,4 +195,31 @@ object OrderedRVDPartitioner {
       i
     }
   }
+
+  // takes range bounds from n partitioners and splits them such that each
+  // resulting partition only comes from one partition per original partitioner.
+  def mergePartitioners(partitioners: Array[OrderedRVDPartitioner]): OrderedRVDPartitioner = {
+    require(partitioners.nonEmpty)
+    if (partitioners.length == 1)
+      return partitioners.head
+    val first = partitioners.head
+    require(partitioners.tail.forall(_.pkType == first.pkType))
+    val ord = first.kType.ordering
+    val iOrd = first.pkIntervalType.ordering
+    val bounds = partitioners.flatMap { p =>
+      p.rangeBounds.flatMap { interval =>
+        FastIndexedSeq(interval.start -> interval.includesStart, interval.end -> !interval.includesEnd)
+      }
+    }.sortWith { case ((p1, i1), (p2, i2)) =>
+        ord.lt(p1, p2) || (ord.equiv(p1, p2) && (i1 && !i2))
+    }
+
+    bounds(bounds.length-1) = (bounds(bounds.length-1)._1, false)
+
+    val newBounds = bounds.zip(bounds.tail).map { case ((p1, i1), (p2, i2)) =>
+      Interval(p1, p2, i1, !i2)
+    }
+
+    first.copy(numPartitions = newBounds.length, rangeBounds = newBounds)
+  }
 }

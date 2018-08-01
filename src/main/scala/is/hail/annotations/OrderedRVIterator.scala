@@ -124,4 +124,11 @@ case class OrderedRVIterator(
       this.t.kComp(other.t).compare
     )
   }
+
+  def merge(other: OrderedRVIterator): Iterator[RegionValue] = {
+    iterator.toFlipbookIterator.merge(
+      other.iterator.toFlipbookIterator,
+      this.t.kComp(other.t).compare
+    )
+  }
 }

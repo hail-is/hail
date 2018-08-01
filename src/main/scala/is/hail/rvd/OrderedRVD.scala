@@ -164,6 +164,9 @@ class OrderedRVD(
   def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())
 
+  def orderedMerge(right: OrderedRVD): OrderedRVD =
+    keyBy().orderedMerge(right.keyBy())
+
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
     assert(partitioner == rdd2.partitioner)
@@ -1073,10 +1076,6 @@ object OrderedRVD {
 
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
-    OrderedRVD.coerce(
-      rvds.head.typ,
-      RVD.union(rvds),
-      None,
-      None)
+    rvds.reduce(_.orderedMerge(_))
   }
 }
