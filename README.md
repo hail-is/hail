@@ -31,14 +31,22 @@ make restart-batch-proxy
 
 For `batch` and GitHub to contact your local instance, you need a proxy open to
 the outside world. I spun up a very tiny (4USD per month) server in GCP to
-redirect requests to my local machine. The following command will open a proxy
-from `$HAIL_CI_REMOTE_PORT` to your local `5000` port (the default one for
-`ci.py`). I use port 3000 on the remote server, so please choose another one for
-yourself :).
+redirect requests to my local machine. The following commands will poke a hole
+in the firewall and open a proxy from `$HAIL_CI_REMOTE_PORT` to your local
+`5000` port (the default one for `ci.py`). I use port 3000 on the remote server,
+so please choose another one for yourself :). The `firewall-rules create` need
+only be run once. Be sure to pick a unique name!
 
 ```
+gcloud compute firewall-rules create \
+  SOME_UNIQUE_NAME_FOR_THIS_RULE \
+  --allow tcp:3001 \
+  --source-tags=dk-test \
+  --source-ranges=0.0.0.0/0 \
+  --description="for testing pr builder"
 HAIL_CI_REMOTE_PORT=3001 make restart-proxy
 ```
+
 
 Webhooks can be configured in the Settings tab of a repo on GitHub.
 
