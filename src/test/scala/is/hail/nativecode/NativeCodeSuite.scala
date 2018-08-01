@@ -59,6 +59,17 @@ class NativeCodeSuite extends SparkSuite {
     assert(st.ok, st.toString())
     val ret = funcHash8(st, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8)
     assert(ret == 0x87654321L)
+    st.close()
+    globalModule.close()
+    funcHash1.close()
+    funcHash8.close() 
+  }
+
+  @Test def testNativeCallSpeed() = {
+    val st = new NativeStatus()
+    val globalModule = new NativeModule("global")
+    val funcHash1 = globalModule.findLongFuncL1(st, "hailTestHash1")
+    assert(st.ok, st.toString())
     val t0 = System.currentTimeMillis()
     var sum: Long = 0
     val numCalls = 100*1000000
@@ -70,6 +81,9 @@ class NativeCodeSuite extends SparkSuite {
     val t1 = System.currentTimeMillis()
     val usecsPerJniCall = ((t1 - t0) * 1000.0) / numCalls
     assert(usecsPerJniCall < 0.2)
+    st.close()
+    globalModule.close()
+    funcHash1.close()
   }
 
   @Test def testNativeBuild() = {
@@ -95,7 +109,8 @@ class NativeCodeSuite extends SparkSuite {
       |}
       |
       |NAMESPACE_HAIL_MODULE_END
-      |""").stripMargin
+      |""".stripMargin
+    )
     val options = "-ggdb -O2"
     val st = new NativeStatus()
     val mod = new NativeModule(options, sb.toString(), true)
@@ -112,13 +127,13 @@ class NativeCodeSuite extends SparkSuite {
     // Now try getting the binary
     val key = mod.getKey()
     val binary = mod.getBinary()
+    mod.close()
     val workerMod = new NativeModule(key, binary)
     val workerFunc1 = workerMod.findLongFuncL1(st, "testFunc1")
     assert(st.ok, st.toString())
     workerFunc1.close()
     workerMod.close()
     st.close()
-    mod.close()
   }
 
 }
