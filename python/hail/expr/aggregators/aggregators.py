@@ -1027,14 +1027,15 @@ def downsample(x, y, n_divisions=500) -> ArrayExpression:
     x : :class:`.NumericExpression`
         X-values to be downsampled.
     y : :class:`.NumericExpression`
-        Y-Values to be downsampled.
+        Y-values to be downsampled.
     n_divisions : :obj:`int`
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
 
     Returns
     -------
     :class:`.ArrayExpression`
-        Expression for downsampled coordinate points (x, y).
+        Expression for downsampled coordinate points (x, y). The element type of the array is
+        :py:data:`.ttuple` of :py:data:`.tfloat64` and :py:data:`.tfloat64`
     """
     return _agg_func('downsample', _to_agg(x), tarray(ttuple(tfloat64, tfloat64)), constructor_args=[n_divisions], f=lambda v: y)
 

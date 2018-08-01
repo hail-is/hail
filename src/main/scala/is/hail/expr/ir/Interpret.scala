@@ -457,7 +457,6 @@ object Interpret {
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
           case Downsample() =>
             assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64()))
-
             val Seq(nDivisions) = constructorArgs
             val nDivisionsValue = interpret(nDivisions, Env.empty[Any], null, null).asInstanceOf[Int]
             new DownsampleAggregator(nDivisionsValue, null)
