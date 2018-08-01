@@ -631,7 +631,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
                 args,
                 aggSig)
             case _ =>
-              ir.Recur(rewrite)(x)
+              ir.MapIR(rewrite)(x)
           }
         }
 
@@ -651,7 +651,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
                   i),
                 args, aggSig)
             case _ =>
-              ir.Recur(rewrite)(x)
+              ir.MapIR(rewrite)(x)
           }
         }
 
@@ -859,7 +859,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
               args,
               aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -884,7 +884,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
                 i),
               args, aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -1374,7 +1374,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
               args,
               aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -1407,7 +1407,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
                 i),
               args, aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 

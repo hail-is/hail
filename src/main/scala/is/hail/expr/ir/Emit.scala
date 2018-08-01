@@ -953,7 +953,7 @@ private class Emit(
       case node@Ref(id, _) if env.lookupOption(id).isDefined =>
         ids += id
         node
-      case node => Recur(getReferenced)(node)
+      case node => MapIR(getReferenced)(node)
     }
 
     val f = fb.newDependentFunction[Region, A1, Boolean, R]

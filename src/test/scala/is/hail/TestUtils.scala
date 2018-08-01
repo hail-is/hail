@@ -220,7 +220,7 @@ object TestUtils {
         case In(i, t) =>
           GetTupleElement(Ref(argsVar, argsType), i)
         case _ =>
-          Recur(rewrite)(x)
+          MapIR(rewrite)(x)
       }
     }
 
