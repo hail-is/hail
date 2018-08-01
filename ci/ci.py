@@ -256,7 +256,7 @@ def handle_invalid_usage(error):
 ###############################################################################
 ### Endpoints
 
-clone_url_to_repo = re.compile('https://github.com/([^/])/([^/]).git')
+clone_url_to_repo = re.compile('https://github.com/([^/]+)/([^/]+).git')
 def repo_from_url(url):
     m = clone_url_to_repo.match(url)
     assert m and m.lastindex and m.lastindex == 2, f'{m} {url}'
@@ -660,7 +660,8 @@ def refresh_batch_state():
     latest_jobs = {}
     for job in jobs:
         t = job.attributes.get('type', None)
-        if t and t == 'hail-ci-' + VERSION:
+        repo = repo_from_url(job.attributes['target_url'])
+        if t and t == 'hail-ci-' + VERSION and repo in watched_repos:
             key = (job.attributes['source_url'],
                    job.attributes['source_ref'],
                    job.attributes['source_sha'],
