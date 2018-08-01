@@ -13,10 +13,10 @@ case class OrderedRVIterator(
 
   def restrictToPKInterval(interval: Interval): Iterator[RegionValue] = {
     val ur = new UnsafeRow(t.rowType)
-    val pk = new KeyedRow(ur, t.pkRowFieldIdx)
+    val pk = new KeyedRow(ur, t.kRowFieldIdx)
     iterator.filter { rv => {
       ur.set(rv)
-      val keep = interval.contains(t.pkType.ordering, pk)
+      val keep = interval.contains(t.kType.ordering, pk)
       if (!keep)
         ctx.region.clear()
       keep

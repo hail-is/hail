@@ -1007,7 +1007,7 @@ object OrderedRVD {
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
         val prevK = WritableRegionValue(typ.kType, ctx.freshRegion)
         val prevPK = WritableRegionValue(typ.pkType, ctx.freshRegion)
-        val pkUR = new UnsafeRow(typ.pkType)
+        val kUR = new UnsafeRow(typ.kType)
 
         new Iterator[RegionValue] {
           var first = true
@@ -1026,15 +1026,14 @@ object OrderedRVD {
             prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
             prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
-            pkUR.set(prevPK.value)
-            if (!partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR)) {
-              val shouldBeIn = partitionerBc.value.getPartitionPK(pkUR)
+            kUR.set(prevK.value)
+            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR)) {
+              val shouldBeIn = partitionerBc.value.getPartition(kUR)
               fatal(
-                s"""OrderedRVD error! Unexpected PK in partition $i
+                s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
                    |  Key should be in partition ${ shouldBeIn }: ${ partitionerBc.value.rangeBounds(shouldBeIn) }
-                   |  Invalid PK: ${ pkUR.toString() }
-                   |  Full key: ${ new UnsafeRow(typ.kType, rv).toString() }""".stripMargin)
+                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
             }
 
             assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
