@@ -3,15 +3,14 @@ git clone $SOURCE_REPO_URL \
     --branch $SOURCE_BRANCH \
     repo && \
 cd repo && \
+echo $(git rev-parse $SOURCE_BRANCH) && \
+git checkout $SOURCE_SHA && \
 git remote add target $TARGET_REPO_URL && \
 git fetch target $TARGET_BRANCH && \
 echo $(git rev-parse target/$TARGET_BRANCH) && \
-echo $(git rev-parse $SOURCE_BRANCH) && \
-[[ $( git rev-parse $SOURCE_BRANCH ) == $SOURCE_SHA ]] && \
-[[ $( git rev-parse target/$TARGET_BRANCH ) == $TARGET_SHA ]] && \
 git config --global user.email hail-ci-pr-builder@hail.is && \
 git config --global user.name "Hail CI PR Builder" && \
-git rebase $TARGET_BRANCH $SOURCE_BRANCH && \
+git merge $TARGET_SHA && \
 source activate hail && \
 GRADLE_OPTS=-Xmx2048m ./gradlew testAll --gradle-user-home /gradle-cache ; \
 GRADLE_EXIT=$? ; \
@@ -24,7 +23,4 @@ gsutil -m \
   build/reports/tests/ \
   gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ && \
 gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ ; \
-git bundle bundle $SOURCE_BRANCH ; \
-gsutil -h "Cache-Control: private, max-age=0, no-transform" \
-  cp bundle gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/bundle ; \
 exit $GRADLE_EXIT
