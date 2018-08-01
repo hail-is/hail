@@ -1,12 +1,14 @@
-from flask import Flask, request, jsonify
 from batch.client import *
-import requests
+from flask import Flask, request, jsonify
 from google.cloud import storage
-import os
 import collections
-import time
-import threading
+import json
 import logging
+import os
+import re
+import requests
+import threading
+import time
 
 log = logging.getLogger('ci')
 log.setLevel(logging.INFO)
@@ -22,7 +24,9 @@ ch.setLevel(logging.INFO)
 ch.setFormatter(fmt)
 log.addHandler(ch)
 
-REPO = 'hail-is/hail/' # needs trailing slash
+INITIAL_WATCHED_REPOS = os.environ['WATCHED_REPOS']
+assert isinstance(INITIAL_WATCHED_REPOS, list), INITIAL_WATCHED_REPOS
+assert all(isinstance(repo, int) for repo in INITIAL_WATCHED_REPOS), INITIAL_WATCHED_REPOS
 GITHUB_URL = 'https://api.github.com/'
 CONTEXT = 'hail-ci'
 PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
@@ -33,6 +37,7 @@ GCP_PROJECT = 'broad-ctsa'
 VERSION = '0-1'
 GCS_BUCKET = 'hail-ci-' + VERSION
 
+log.info(f'INITIAL_WATCHED_REPOS {INITIAL_WATCHED_REPOS}')
 log.info(f'BATCH_SERVER_URL {BATCH_SERVER_URL}')
 log.info(f'SELF_HOSTNAME {SELF_HOSTNAME}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
@@ -106,6 +111,7 @@ class Status(object):
             'job_id': self.job_id
         }
 
+watched_repos = INITIAL_WATCHED_REPOS
 target_source_pr = collections.defaultdict(dict)
 source_target_pr = collections.defaultdict(dict)
 
@@ -153,19 +159,36 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
 
 @app.route('/status')
 def status():
-    return jsonify(
-        [{ 'source_url': source_url,
+    return jsonify({
+        'watched_repos': watched_repos,
+        'prs': [{ 'source_url': source_url,
            'source_ref': source_ref,
            'target_url': target_url,
            'target_ref': target_ref,
            'status': status.to_json()
         } for ((source_url, source_ref), prs) in source_target_pr.items()
-         for ((target_url, target_ref), status) in prs.items()])
+         for ((target_url, target_ref), status) in prs.items()]
+    })
+
+@app.route('/status/watched_repos')
+def get_watched_repos():
+    return jsonify(watched_repos)
+
+@app.route('/status/watched_repos/<repo>/remove', methods=['POST'])
+def remove_watched_repo(repo):
+    watched_repos = [r for r in watched_repos if r != repo]
+    return jsonify(watched_repos)
+
+@app.route('/status/watched_repos/<repo>/add', methods=['POST'])
+def remove_watched_repo(repo):
+    watched_repos = [r for r in watched_repos if r != repo]
+    watched_repos.append(repo)
+    return jsonify(watched_repos)
 
 ###############################################################################
 ### post and get helpers
 
-def post_repo(url, headers=None, json=None, data=None, status_code=None):
+def post_repo(repo, url, headers=None, json=None, data=None, status_code=None):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
@@ -173,7 +196,7 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
     r = requests.post(
-        GITHUB_URL + 'repos/' + REPO + url,
+        f'{GITHUB_URL}repos/{repo}/{url}',
         headers=headers,
         json=json,
         data=data
@@ -181,7 +204,7 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
     if status_code and r.status_code != status_code:
         raise BadStatus({
             'method': 'post',
-            'endpoint' : GITHUB_URL + 'repos/' + REPO + url,
+            'endpoint' : f'{GITHUB_URL}repos/{repo}/{url}',
             'status_code' : r.status_code,
             'data': data,
             'json': json,
@@ -191,8 +214,8 @@ def post_repo(url, headers=None, json=None, data=None, status_code=None):
     else:
         return r.json()
 
-def get_repo(url, headers=None, status_code=None):
-    return get_github('repos/' + REPO + url, headers, status_code)
+def get_repo(repo, url, headers=None, status_code=None):
+    return get_github(f'repos/{repo}/{url}', headers, status_code)
 
 def get_github(url, headers=None, status_code=None):
     if headers is None:
@@ -202,13 +225,13 @@ def get_github(url, headers=None, status_code=None):
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
     r = requests.get(
-        GITHUB_URL + url,
+        f'{GITHUB_URL}{url}',
         headers=headers
     )
     if status_code and r.status_code != status_code:
         raise BadStatus({
             'method': 'get',
-            'endpoint' : GITHUB_URL + url,
+            'endpoint' : f'{GITHUB_URL}{url}',
             'status_code' : r.status_code,
             'message': 'github error',
             'github_json': r.json()
@@ -227,6 +250,15 @@ def handle_invalid_usage(error):
 ###############################################################################
 ### Endpoints
 
+clone_url_to_repo = re.compile('https://github.com/([^/])/([^/]).git')
+def repo_from_url(url):
+    m = clone_url_to_repo.match(url)
+    assert m and m.lastindex and m.lastindex == 2, f'{m} {url}'
+    return m[0] + '/' + m[1]
+
+def url_from_repo(repo):
+    return f'https://github.com/{repo}.git'
+
 @app.route('/push', methods=['POST'])
 def github_push():
     data = request.json
@@ -239,6 +271,7 @@ def github_push():
         for (source_url, source_ref), status in pr_statuses.items():
             if (status.target_sha != new_sha):
                 post_repo(
+                    repo_from_url(target_url)
                     'statuses/' + status.source_sha,
                     json={
                         'state': 'pending',
@@ -270,11 +303,12 @@ def github_pull_request():
         target_ref = data['pull_request']['base']['ref']
         pr_number = str(data['number'])
         target_sha = get_sha_for_target_ref(target_ref)
-        review_status = review_status_net(pr_number)
+        review_status = review_status_net(repo_from_url(target_url), pr_number)
         cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
         status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
         update_pr_status(source_url, source_ref, target_url, target_ref, status)
         post_repo(
+            repo_from_url(target_url),
             'statuses/' + source_sha,
             json={
                 'state': 'pending',
@@ -354,6 +388,7 @@ def build_finished(pr_number,
             Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
         )
         post_repo(
+            repo_from_url(target_url),
             'statuses/' + source_sha,
             json={
                 'state': 'success',
@@ -374,6 +409,7 @@ def build_finished(pr_number,
         )
         status_message = f'failing build ({exit_code}) after merge with {target_sha}'
         post_repo(
+            repo_from_url(target_url),
             'statuses/' + source_sha,
             json={
                 'state': 'failure',
@@ -457,11 +493,12 @@ def force_retest_pr_endpoint():
         status_code=200
     )['object']['sha']
 
-    review_status = review_status_net(pr_number)
+    review_status = review_status_net(repo_from_url(target_url), pr_number)
     cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
     status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
     update_pr_status(source_url, source_ref, target_url, target_ref, status)
     post_repo(
+        repo_from_url(target_url),
         'statuses/' + source_sha,
         json={
             'state': 'pending',
@@ -523,6 +560,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
     )
     log.info(f'successfully created job {job.id} with attributes {attributes}')
     post_repo(
+        repo_from_url(target_url),
         'statuses/' + status.source_sha,
         json={
             'state': 'pending',
@@ -545,61 +583,67 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
                job_id=job.id))
     log.info(f'successfully updated status about job {job.id}')
 
-def get_sha_for_target_ref(ref):
+def get_sha_for_target_ref(url, ref):
     return get_repo(
+        repo_from_url(url),
         'git/refs/heads/' + ref,
         status_code=200
     )['object']['sha']
 
 @app.route('/refresh_github_state', methods=['POST'])
 def refresh_github_state():
-    target_url = 'https://github.com/'+REPO[:-1]+'.git'
-    pulls = get_repo(
-        'pulls?state=open',
-        status_code=200
-    )
-    pulls_by_target = collections.defaultdict(list)
-    for pull in pulls:
-        target_ref = pull['base']['ref']
-        pulls_by_target[target_ref].append(pull)
-    for target_ref, pulls in pulls_by_target.items():
-        target_sha = get_sha_for_target_ref(target_ref)
-        log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
-        known_prs = pop_prs_for_target(target_url, target_ref, {})
-        for pull in pulls:
-            source_url = pull['head']['repo']['clone_url']
-            source_ref = pull['head']['ref']
-            source_sha = pull['head']['sha']
-            pr_number = str(pull['number'])
-            status = known_prs.pop((source_url, source_ref), None)
-            review_status = review_status_net(pr_number)
-            latest_state = status_state_net(source_sha, target_sha)
-            latest_review_state = review_status['state']
-            if (status and
-                status.source_sha == source_sha and
-                status.target_sha == target_sha and
-                status.github_state_up_to_date(latest_state) and
-                status.review_state == latest_review_state):
-                log.info(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
-                # restore pop'ed status
-                update_pr_status(source_url, source_ref, target_url, target_ref, status)
-            else:
-                log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                         f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
-                update_pr_status(
-                    source_url,
-                    source_ref,
-                    target_url,
-                    target_ref,
-                    Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
+    for repo in watched_repos:
+        try:
+            target_url = url_from_repo(repo)
+            pulls = get_repo(
+                repo_from_url(target_url),
+                'pulls?state=open',
+                status_code=200
+            )
+            pulls_by_target = collections.defaultdict(list)
+            for pull in pulls:
+                target_ref = pull['base']['ref']
+                pulls_by_target[target_ref].append(pull)
+            for target_ref, pulls in pulls_by_target.items():
+                target_sha = get_sha_for_target_ref(target_url, target_ref)
+                log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
+                known_prs = pop_prs_for_target(target_url, target_ref, {})
+                for pull in pulls:
+                    source_url = pull['head']['repo']['clone_url']
+                    source_ref = pull['head']['ref']
+                    source_sha = pull['head']['sha']
+                    pr_number = str(pull['number'])
+                    status = known_prs.pop((source_url, source_ref), None)
+                    review_status = review_status_net(repo_from_url(target_url), pr_number)
+                    latest_state = status_state_net(repo_from_url(source_url), source_sha, target_sha)
+                    latest_review_state = review_status['state']
+                    if (status and
+                        status.source_sha == source_sha and
+                        status.target_sha == target_sha and
+                        status.github_state_up_to_date(latest_state) and
+                        status.review_state == latest_review_state):
+                        log.info(f'no change to knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref}')
+                        # restore pop'ed status
+                        update_pr_status(source_url, source_ref, target_url, target_ref, status)
+                    else:
+                        log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                                 f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
+                        update_pr_status(
+                            source_url,
+                            source_ref,
+                            target_url,
+                            target_ref,
+                            Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
 
-        if len(known_prs) != 0:
-            known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
-            log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
-            for (source_url, source_ref), status in known_prs.items():
-                if status.state == 'running':
-                    log.info(f'cancelling job {status.job_id} for {status.to_json()}')
-                    try_to_cancel_job_by_id(status.job_id)
+                if len(known_prs) != 0:
+                    known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
+                    log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
+                    for (source_url, source_ref), status in known_prs.items():
+                        if status.state == 'running':
+                            log.info(f'cancelling job {status.job_id} for {status.to_json()}')
+                            try_to_cancel_job_by_id(status.job_id)
+        except Exception as e:
+            log.error(f'could not refresh state from {repo} due to {e}')
 
     return '', 200
 
@@ -673,6 +717,7 @@ def refresh_batch_state():
                     log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                              f'to pending {status.review_state} {target_sha} <- {source_sha}')
                     post_repo(
+                        repo_from_url(target_url),
                         'statuses/' + source_sha,
                         json={
                             'state': 'pending',
@@ -698,6 +743,7 @@ def refresh_batch_state():
                              f'to running {status.review_state} {target_sha} <- {source_sha}')
                     assert job_state == 'Created', f'{job_state}'
                     post_repo(
+                        repo_from_url(target_url),
                         'statuses/' + status.source_sha,
                         json={
                             'state': 'pending',
@@ -770,20 +816,22 @@ def batch_job_state_smaller_is_closer_to_complete(x, y):
 ###############################################################################
 ### Review Status
 
-@app.route('/pr/<pr_number>/review_status')
-def review_status_endpoint(pr_number):
-    status = review_status_net(pr_number)
+@app.route('/pr/<user>/<repo>/<pr_number>/review_status')
+def review_status_endpoint(user, repo, pr_number):
+    status = review_status_net(f'{user}/{repo}', pr_number)
     return jsonify(status), 200
 
-def review_status_net(pr_number):
+def review_status_net(repo, pr_number):
     reviews = get_repo(
+        repo,
         'pulls/' + pr_number + '/reviews',
         status_code=200
     )
     return review_status(reviews)
 
-def status_state_net(source_sha, target_sha):
+def status_state_net(source_repo, source_sha, target_sha):
     statuses = get_repo(
+        source_repo,
         'commits/' + source_sha + '/statuses',
         status_code=200
     )
@@ -826,9 +874,10 @@ def review_status(reviews):
 ###############################################################################
 ### SHA Statuses
 
-@app.route('/pr/<sha>/statuses')
-def statuses(sha):
+@app.route('/pr/<user>/<repo>/<sha>/statuses')
+def statuses(user, repo, sha):
     json = get_repo(
+        f'{user}/{repo}',
         'commits/' + sha + '/statuses',
         status_code=200
     )

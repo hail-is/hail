@@ -20,6 +20,8 @@ spec:
               value: http://hail-ci
             - name: BATCH_SERVER_URL
               value: http://batch
+            - name: REPOS
+              value: '["hail-is/hail"]'
           ports:
             - containerPort: 5000
           volumeMounts:
