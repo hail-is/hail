@@ -274,6 +274,8 @@ object Simplify {
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+      case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
+        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
     })
   }
 }

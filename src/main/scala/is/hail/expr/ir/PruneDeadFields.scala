@@ -282,6 +282,12 @@ object PruneDeadFields {
         val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         memoizeTableIR(child, child.typ.copy(rowType = unify(child.typ.rowType, aggDep.rowType),
           globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) =>
+        val keyDep = memoizeAndGetDep(newKey, newKey.typ, child.typ, memo)
+        val exprDep = memoizeAndGetDep(expr, requestedType.valueType, child.typ, memo)
+        memoizeTableIR(child,
+          unify(child.typ, keyDep, exprDep, minimal(child.typ).copy(globalType = requestedType.globalType)),
+          memo)
       case MatrixColsTable(child) =>
         val minChild = minimal(child.typ)
         val mtDep = minChild.copy(
@@ -659,6 +665,11 @@ object PruneDeadFields {
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
+      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        val child2 = rebuild(child, memo)
+        val expr2 = rebuild(expr, child2.typ, memo)
+        val newKey2 = rebuild(newKey, child2.typ, memo)
+        TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)

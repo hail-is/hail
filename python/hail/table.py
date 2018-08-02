@@ -104,6 +104,7 @@ class GroupedTable(ExprContainer):
         self._groups = groups
         self._parent = parent
         self._npartitions = None
+        self._buffer_size = 50
 
         self._copy_fields_from(parent)
 
@@ -142,6 +143,24 @@ class GroupedTable(ExprContainer):
             Same grouped table with a partition hint.
         """
         self._npartitions = n
+        return self
+
+    def _set_buffer_size(self, n: int) -> 'GroupedTable':
+        """Set the map-side combiner buffer size (in rows).
+
+        Parameters
+        ----------
+        n : int
+            Buffer size.
+
+        Returns
+        -------
+        :class:`.GroupedTable`
+            Same grouped table with a buffer size.
+        """
+        if n <= 0:
+            raise ValueError(n)
+        self._buffer_size = n
         return self
 
     @typecheck_method(named_exprs=expr_any)
@@ -188,11 +207,11 @@ class GroupedTable(ExprContainer):
 
         base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        new_key = hl.struct(**group_exprs)
-        keyed_t = base._select_scala(self._parent.row.annotate(**new_key), *base._preserved_key_pairs(new_key))
-
-        t = Table(keyed_t._jt.aggregateByKey(str(hl.struct(**named_exprs)._ir)))
-        return cleanup(t)
+        return Table(base._jt.keyByAndAggregate(
+            str(hl.struct(**named_exprs)._ir),
+            str(hl.struct(**group_exprs)._ir),
+            joption(self._npartitions),
+            self._buffer_size))
 
 
 class Table(ExprContainer):
@@ -1407,8 +1426,7 @@ class Table(ExprContainer):
                         vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
                         vt = vt.key_by(None).drop(*uids)
                         # group by v and index by the key exprs
-                        vt = (vt.group_by(*rk_uids)
-                            .aggregate(values=agg.collect(vt.row.drop(*rk_uids))))
+                        vt = vt.key_by(*rk_uids).collect_by_key()
                         vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)

@@ -151,6 +151,23 @@ class TableFilter(TableIR):
         return '(TableFilter {} {})'.format(self.child, self.pred)
 
 
+class TableKeyByAndAggregate(TableIR):
+    def __init__(self, child, expr, new_key, n_partitions, buffer_size):
+        super().__init__()
+        self.child = child
+        self.expr = expr
+        self.new_key = new_key
+        self.n_partitions = n_partitions
+        self.buffer_size = buffer_size
+
+    def __str__(self):
+        return '(TableKeyByAndAggregate {} {} {} {} {})'.format(self.n_partitions,
+                                                                self.buffer_size,
+                                                                self.child,
+                                                                self.expr,
+                                                                self.new_key)
+
+
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
         super().__init__()

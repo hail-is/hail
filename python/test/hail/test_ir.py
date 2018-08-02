@@ -114,6 +114,11 @@ class TableIRTests(unittest.TestCase):
             ir.TableAggregateByKey(
                 table_read,
                 ir.MakeStruct([('a', ir.I32(5))])),
+            ir.TableKeyByAndAggregate(
+                table_read,
+                ir.MakeStruct([('a', ir.I32(5))]),
+                ir.MakeStruct([('b', ir.I32(5))]),
+                1, 2),
             ir.TableJoin(
                 table_read,
                 ir.TableRange(100, 10), 'inner'),
