@@ -390,7 +390,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       }
     }
     val sm = new MergeStateMachine
-      sm.advance()
+    sm.advance()
     FlipbookIterator(sm)
   }
 

@@ -199,7 +199,7 @@ object OrderedRVDPartitioner {
   // takes range bounds from n partitioners and splits them such that each
   // resulting partition only comes from one partition per original partitioner.
   def mergePartitioners(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner): OrderedRVDPartitioner = {
-    require(p1.pkType == p2.pkType)
+    require(p1.kType == p2.kType)
     if (p1.range.isEmpty)
       return p2
     if (p2.range.isEmpty)

@@ -1981,7 +1981,7 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
     checkColKeysSame(values.map(_.colValues.value))
     val rvds = values.map(_.rvd)
     val first = rvds.head
-    require(rvds.tail.forall(_.partitioner.pkType == first.partitioner.pkType))
+    require(rvds.tail.forall(_.partitioner.kType == first.partitioner.kType))
     rvds.filter(_.partitioner.range.isDefined) match {
       case IndexedSeq() =>
         values.head

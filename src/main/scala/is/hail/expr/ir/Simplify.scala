@@ -210,6 +210,10 @@ object Simplify {
           case c => Some(c)
         })
 
+      // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
+//      case MatrixRowsTable(MatrixUnionRows(children)) =>
+//        TableUnion(children.map(MatrixRowsTable))
+
       case MatrixColsTable(MatrixUnionRows(children)) =>
         MatrixColsTable(children(0))
 
