@@ -8,7 +8,6 @@ from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 
 import sys
-from threading import RLock
 
 
 class HailContext(object):
@@ -22,15 +21,12 @@ class HailContext(object):
                       min_block_size=int,
                       branching_factor=int,
                       tmp_dir=nullable(str),
-                      default_reference=str)
+                      default_reference=str,
+                      allow_existing=bool)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37"):
-
-        if Env._hc:
-            raise FatalError('Hail has already been initialized, restart session '
-                             'or stop Hail to change configuration.')
+                 default_reference="GRCh37", allow_existing=False):
 
         SparkContext._ensure_initialized()
 
@@ -39,6 +35,14 @@ class HailContext(object):
 
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
+
+        if allow_existing:
+            creation_func = self._hail.HailContext.getOrCreate
+        elif Env._hc:
+            raise FatalError('Hail has already been initialized, restart session '
+                             'or stop Hail to change configuration.')
+        else:
+            creation_func = self._hail.HailContext.apply
 
         Env._jvm = self._jvm
         Env._gateway = self._gateway
@@ -49,7 +53,7 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        self._jhc = self._hail.HailContext.apply(
+        self._jhc = creation_func(
             jsc, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir)
 
@@ -119,32 +123,12 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'))
-def get_or_create(sc=None, app_name='Hail', master=None, local='local[*]',
-         log='hail.log', quiet=False, append=False,
-         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-         default_reference='GRCh37'):
-    if Env._hc:
-        return Env.hc()
-    else:
-        return init(sc, app_name, master, local, log, quiet, append, min_block_size,
-                    branching_factor, tmp-dir, default_reference)
-
-@typecheck(sc=nullable(SparkContext),
-           app_name=str,
-           master=nullable(str),
-           local=str,
-           log=str,
-           quiet=bool,
-           append=bool,
-           min_block_size=int,
-           branching_factor=int,
-           tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'))
+           default_reference=enumeration('GRCh37', 'GRCh38'),
+           allow_existing=bool)
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37'):
+             default_reference='GRCh37', allow_existing=False):
     """Initialize Hail and Spark.
 
     Parameters
@@ -177,7 +161,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference)
+                default_reference, allow_existing)
 
 def stop():
     """Stop the currently running Hail session."""
