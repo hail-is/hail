@@ -844,6 +844,12 @@ case class TableKeyByAndAggregate(
       "global", child.typ.globalType,
       postAggIR)
 
+    val init = makeInit()
+    Region.scoped { r =>
+      val globalsOffset = prev.globals.toRegion(r)
+      init(r, rvAggs, globalsOffset, false)
+    }
+
     val nAggs = rvAggs.length
 
     assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
@@ -871,44 +877,37 @@ case class TableKeyByAndAggregate(
       aggs1
     }
 
-    val rdd = try {
-      prev.rvd
-        .boundary
-        .mapPartitions { (ctx, it) =>
-          val rvb = new RegionValueBuilder()
-          val partRegion = ctx.freshContext.region
+    val rdd = prev.rvd
+      .boundary
+      .mapPartitions { (ctx, it) =>
+        val rvb = new RegionValueBuilder()
+        val partRegion = ctx.freshContext.region
 
-          rvb.set(partRegion)
-          rvb.start(globalsType)
-          rvb.addAnnotation(globalsType, globalsBc.value)
-          val globals = rvb.end()
-          val init = makeInit()
-          init(partRegion, rvAggs, globals, false)
+        rvb.set(partRegion)
+        rvb.start(globalsType)
+        rvb.addAnnotation(globalsType, globalsBc.value)
+        val globals = rvb.end()
 
-          val makeKey = {
-            val f = makeKeyF()
-            rv: RegionValue => {
-              val keyOff = f(rv.region, rv.offset, false, globals, false)
-              SafeRow.read(localKeyType, rv.region, keyOff).asInstanceOf[Row]
-            }
+        val makeKey = {
+          val f = makeKeyF()
+          rv: RegionValue => {
+            val keyOff = f(rv.region, rv.offset, false, globals, false)
+            SafeRow.read(localKeyType, rv.region, keyOff).asInstanceOf[Row]
           }
-          val sequence = {
-            val f = makeSeq()
-            (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
-              f(rv.region, rvAggs, globals, false, rv.offset, false)
-            }
+        }
+        val sequence = {
+          val f = makeSeq()
+          (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
+            f(rv.region, rvAggs, globals, false, rv.offset, false)
           }
-          new BufferedAggregatorIterator[RegionValue, Array[RegionValueAggregator], Row](
-            it,
-            () => rvAggs.map(_.copy()),
-            makeKey,
-            sequence,
-            localBufferSize)
-        }.reduceByKey(combOp, nPartitions.getOrElse(prev.rvd.getNumPartitions))
-    } catch {
-      // support empty tables
-      case u: UnsupportedOperationException => hc.sc.emptyRDD[(Row, Array[RegionValueAggregator])]
-    }
+        }
+        new BufferedAggregatorIterator[RegionValue, Array[RegionValueAggregator], Row](
+          it,
+          () => rvAggs.map(_.copy()),
+          makeKey,
+          sequence,
+          localBufferSize)
+      }.aggregateByKey(rvAggs, nPartitions.getOrElse(prev.rvd.getNumPartitions))(combOp, combOp)
 
     val crdd = ContextRDD.weaken(rdd).cmapPartitions(
       { (ctx, it) =>

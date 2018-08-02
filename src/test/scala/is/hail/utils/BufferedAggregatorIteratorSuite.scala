@@ -23,11 +23,11 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite {
   @Test def test() {
     Prop.forAll(
       Gen.zip(
-        Gen.buildableOf[Array](Gen.zip(Gen.choose(1, 5), Gen.posInt)),
+        Gen.buildableOf[IndexedSeq](Gen.zip(Gen.choose(1, 5), Gen.choose(1, 10))),
         Gen.choose(1, 5))
     ) { case (arr, bufferSize) =>
-      val buffAgg = arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2.toLong).sum }
-      val complex = {
+      val simple = arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2.toLong).sum }
+      val buffAgg = {
         new BufferedAggregatorIterator[(Int, Int), SumAgg, Int](
           arr.iterator,
           () => new SumAgg(),
@@ -38,7 +38,7 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite {
           .groupBy(_._1)
           .mapValues(sums => sums.map(_._2).fold(new SumAgg()){ case (s1, s2) => s1.comb(s2)}.x)
       }
-      buffAgg == complex
+      simple == buffAgg
     }.check()
   }
 }
