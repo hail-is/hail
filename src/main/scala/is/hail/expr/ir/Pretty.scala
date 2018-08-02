@@ -252,6 +252,8 @@ object Pretty {
             case TableJoin(_, _, joinType) => joinType
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
+            case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
+              prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, field) => field
             case TableParallelize(typ, rows, nPartitions) =>
               val valueType = TArray(typ.rowType)

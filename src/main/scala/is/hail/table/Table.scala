@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue}
+import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.methods.Aggregators
@@ -528,6 +528,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     nPartitions: Option[Int] = None
   ): MatrixTable = {
     new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, partitionKeys, nPartitions))
+  }
+
+  def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
+    new Table(hc, TableKeyByAndAggregate(tir,
+      Parser.parse_value_ir(expr, typ.refMap),
+      Parser.parse_value_ir(key, typ.refMap),
+      nPartitions,
+      bufferSize
+    ))
   }
 
   def aggregateByKey(expr: String): Table = {

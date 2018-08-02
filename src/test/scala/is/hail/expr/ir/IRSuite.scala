@@ -474,6 +474,8 @@ class IRSuite extends SparkSuite {
         TableAggregateByKey(read,
           MakeStruct(FastIndexedSeq(
             "a" -> I32(5)))),
+        TableKeyByAndAggregate(read,
+          NA(TStruct()), NA(TStruct()), Some(1), 2),
         TableJoin(read,
           TableRange(100, 10), "inner"),
         MatrixEntriesTable(mtRead),

@@ -255,6 +255,17 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2")))
   }
 
+  @Test def testTableKeyByAndAggregateMemo() {
+    val tka = TableKeyByAndAggregate(tab,
+      tableRefStruct(tab.typ, "row.2"),
+      MakeStruct(FastSeq("bar" -> tableRefBoolean(tab.typ, "row.3"))),
+      None,
+      1)
+
+    checkMemo(tka, subsetTable(tka.typ, "row.foo"), Array(subsetTable(tab.typ, "row.2", "row.3"), null, null))
+    checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3"), null, null))
+  }
+
   @Test def testTableUnionMemo() {
     checkMemo(
       TableUnion(FastIndexedSeq(tab, tab)),

@@ -191,6 +191,14 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_group_aggregate_by_key(self):
+        ht = hl.utils.range_table(100, n_partitions=10)
+
+        r1 = ht.group_by(k = ht.idx % 5)._set_buffer_size(3).aggregate(n = hl.agg.count())
+        r2 = ht.group_by(k = ht.idx // 20)._set_buffer_size(3).aggregate(n = hl.agg.count())
+        assert r1.all(r1.n == 20)
+        assert r2.all(r2.n == 20)
+
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
