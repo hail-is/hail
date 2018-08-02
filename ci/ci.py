@@ -54,7 +54,7 @@ class NoPRBuildScript(Exception):
     pass
 class BadStatus(Exception):
     def __init__(self, data, status_code):
-        Exception.__init__(self)
+        Exception.__init__(self, str(data))
         self.data = data
         self.status_code = status_code
 
@@ -96,6 +96,8 @@ class Status(object):
                  job_id=None):
         assert state == 'failure' or state == 'pending' or state == 'success' or state == 'running'
         assert review_state == 'approved' or review_state == 'changes_requested' or review_state == 'pending', review_state
+        if state == 'pending':
+            assert job_id is None
         self.state = state
         self.review_state = review_state
         self.source_sha = source_sha
@@ -118,21 +120,25 @@ class Status(object):
         }
 
 watched_repos = INITIAL_WATCHED_REPOS
-target_source_pr = collections.defaultdict(dict)
-source_target_pr = collections.defaultdict(dict)
+target_source_pr = {}
+source_target_pr = {}
 
 def update_pr_status(source_url, source_ref, target_url, target_ref, status):
+    if (target_url, target_ref) not in target_source_pr:
+        target_source_pr[(target_url, target_ref)] = {}
+    if (source_url, source_ref) not in source_target_pr:
+        source_target_pr[(source_url, source_ref)] = {}
     target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
     source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
 
 def get_pr_status(source_url, source_ref, target_url, target_ref, default=None):
-    x = source_target_pr[(source_url, source_ref)].get((target_url, target_ref), default)
-    y = target_source_pr[(target_url, target_ref)].get((source_url, source_ref), default)
+    x = source_target_pr.get((source_url, source_ref), {}).get((target_url, target_ref), default)
+    y = target_source_pr.get((target_url, target_ref), {}).get((source_url, source_ref), default)
     assert x == y, str(x) + str(y)
     return x
 
 def pop_prs_for_target(target_url, target_ref):
-    prs = target_source_pr.pop((target_url, target_ref))
+    prs = target_source_pr.pop((target_url, target_ref), {})
     for (source_url, source_ref), status in prs.items():
         x = source_target_pr[(source_url, source_ref)]
         del x[(target_url, target_ref)]
@@ -148,10 +154,10 @@ def pop_prs_for_target(target_url, target_ref, default):
     return prs
 
 def get_pr_status_by_source(source_url, source_ref):
-    return source_target_pr[(source_url, source_ref)]
+    return source_target_pr.get((source_url, source_ref), {})
 
 def get_pr_status_by_target(target_url, target_ref):
-    return target_source_pr[(target_url, target_ref)]
+    return target_source_pr.get((target_url, target_ref), {})
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
@@ -250,7 +256,7 @@ def get_github(url, headers=None, status_code=None):
 
 @app.errorhandler(BadStatus)
 def handle_invalid_usage(error):
-    log.error('ERROR: ' + str(error.status_code) + ': ' + str(error.data) + '\n\nrequest json: ' + str(request.json))
+    log.exception('bad status found when making request')
     return jsonify(error.data), error.status_code
 
 ###############################################################################
@@ -260,7 +266,7 @@ clone_url_to_repo = re.compile('https://github.com/([^/]+)/([^/]+).git')
 def repo_from_url(url):
     m = clone_url_to_repo.match(url)
     assert m and m.lastindex and m.lastindex == 2, f'{m} {url}'
-    return m[0] + '/' + m[1]
+    return m[1] + '/' + m[2]
 
 def url_from_repo(repo):
     return f'https://github.com/{repo}.git'
@@ -308,7 +314,7 @@ def github_pull_request():
         target_url = data['pull_request']['base']['repo']['clone_url']
         target_ref = data['pull_request']['base']['ref']
         pr_number = str(data['number'])
-        target_sha = get_sha_for_target_ref(target_ref)
+        target_sha = get_sha_for_target_ref(target_url, target_ref)
         review_status = review_status_net(repo_from_url(target_url), pr_number)
         cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
         status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
@@ -640,7 +646,6 @@ def refresh_github_state():
                             target_url,
                             target_ref,
                             Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
-
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
                     log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
@@ -929,7 +934,7 @@ def flask_event_loop():
     app.run(threaded=False, host='0.0.0.0')
 
 def polling_event_loop():
-    time.sleep(5)
+    time.sleep(1)
     while True:
         try:
            r = requests.post('http://127.0.0.1:5000/refresh_github_state')
