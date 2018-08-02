@@ -53,7 +53,7 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        self._jhc = self._hail.HailContext.getOrCreate(
+        self._jhc = creation_func(
             jsc, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir)
 
