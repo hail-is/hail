@@ -399,7 +399,7 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val oldSignature = ht.typ.rowType
+    val localRowType = ht.typ.rowType
     val localBlockSize = blockSize
 
     val rowKeyOrd = ht.typ.keyType.get.ordering
@@ -415,7 +415,7 @@ object Nirvana {
         if (path.orNull != null)
           env.put("PATH", path.get)
 
-        val rvv = new RegionValueVariant(oldSignature)
+        val rvv = new RegionValueVariant(localRowType)
 
         it.map { rv =>
           rvv.setRegion(rv)
@@ -425,7 +425,7 @@ object Nirvana {
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
               printContext,
-              printElement(oldSignature),
+              printElement(localRowType),
               _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
@@ -450,7 +450,7 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val nirvanaORVDType = prev.typ.copy(rowType = oldSignature ++ TStruct("nirvana" -> nirvanaSignature))
+    val nirvanaORVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaORVDType.rowType
 

@@ -677,9 +677,9 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     annotations = Table(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
 
     if isinstance(dataset, MatrixTable):
-        return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})
+        return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})
     else:
-        return dataset.annotate(**{name: annotations[dataset.key].nirvana})
+        return dataset.annotate(**{name: annotations[dataset.key].vep})
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
