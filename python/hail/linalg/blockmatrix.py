@@ -2028,10 +2028,10 @@ class BlockMatrix(object):
 
         If the rank is not known ahead, examining the relative sizes of the
         trailing singular values should reveal where the spectrum switches from
-        non-zero to "zero" eigenvalues, The corresponding singular vectors
-        should be sliced away **before** an action which realizes the block-matrix-side
-        singular vectors. Zero eigenvalues 1e-16 times the largest
-        eigenvalue.
+        non-zero to "zero" eigenvalues.  With 64-bit floating point, zero
+        eigenvalues are typically about 1e-16 times the largest eigenvalue.
+        The corresponding singular vectors should be sliced away **before** an
+        action which realizes the block-matrix-side singular vectors.
 
         :meth:`svd` sets the singular values corresponding to negative
         eigenvalues to exactly ``0.0``.
@@ -2096,7 +2096,6 @@ class BlockMatrix(object):
 
         if compute_uv:
             e, w = _eigh(a)
-            print(e)
             for i in range(np.searchsorted(e, 0.0)):
                 e[i] = 0
 
