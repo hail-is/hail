@@ -1031,7 +1031,7 @@ object OrderedRVD {
 
             kUR.set(prevK.value)
             if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR)) {
-              val shouldBeIn = partitionerBc.value.getPartition(kUR)
+              val shouldBeIn = partitionerBc.value.getPartitionPK(kUR)
               fatal(
                 s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
