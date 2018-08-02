@@ -26,7 +26,9 @@ Genetics Methods
 .. autosummary::
 
     ld_score
+    filtering_allele_frequency
     hail_metadata
 
 .. autofunction:: ld_score
 .. autofunction:: hail_metadata
+.. autofunction:: filtering_allele_frequency
