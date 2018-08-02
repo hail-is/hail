@@ -18,7 +18,7 @@ object ExtractAggregators {
       x match {
         case SeqOp(_, args, aggSig) =>
           SeqOp(I32(i), args, aggSig)
-        case _ => Recur(rewrite)(x)
+        case _ => MapIR(rewrite)(x)
       }
     }
 
@@ -65,7 +65,7 @@ object ExtractAggregators {
         ab += IRAgg(ref, x)
 
         GetField(ref, (ab.length - 1).toString)
-      case _ => Recur(extract)(ir)
+      case _ => MapIR(extract)(ir)
     }
   }
 

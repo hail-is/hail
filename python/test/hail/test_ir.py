@@ -59,6 +59,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayFor(a, 'v', ir.Void()),
             ir.ApplyAggOp(ir.I32(0), [], None, collect_sig),
+            ir.ApplyScanOp(ir.I32(0), [], None, collect_sig),
             ir.ApplyAggOp(
                 ir.F64(-2.11), [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, hist_sig),
             ir.ApplyAggOp(call, [], [ir.I32(2)], call_stats_sig),

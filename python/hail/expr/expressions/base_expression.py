@@ -1,18 +1,12 @@
-from typing import *
-
-import hail
-import hail as hl
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.ir import *
 from hail.genetics import Locus, Call
+from hail.ir import *
 from hail.typecheck import linked_list
 from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import plural
 from .indices import *
-
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
@@ -589,13 +583,13 @@ class Expression(object):
             # scalar expression
             df = Env.dummy_table()
             df = df.select(**{name: self})
-            return df
+            to_return = df
         elif len(axes) == 0:
             uid = Env.get_uid()
             source = source.select_globals(**{uid: self})
             df = Env.dummy_table()
             df = df.select(**{name: source.index_globals()[uid]})
-            return df
+            to_return = df
         elif len(axes) == 1:
             if isinstance(source, hail.Table):
                 df = source
@@ -609,7 +603,7 @@ class Expression(object):
                         df = df.rename({field_name: name})
                 else:
                     df = df.select(**{name: self})
-                return df.select_globals()
+                to_return = df.select_globals()
             else:
                 assert isinstance(source, hail.MatrixTable)
                 if self._indices == source._row_indices:
@@ -622,7 +616,7 @@ class Expression(object):
                         m = m.rename({field_name: name})
                     else:
                         m = source.select_rows(**{name: self})
-                    return m.rows().select_globals()
+                    to_return = m.rows().select_globals()
                 else:
                     field_name = source._fields_inverse.get(self)
                     if field_name is not None:
@@ -633,12 +627,17 @@ class Expression(object):
                         m = m.rename({field_name: name})
                     else:
                         m = source.select_cols(**{name: self})
-                    return m.cols().select_globals()
+                    to_return = m.cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self}).select_rows().select_cols()
-            return source.entries().select_globals()
+            to_return = source.entries().select_globals()
+        assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
+                                                    f'  Actual:    {self.dtype}\n' \
+                                                    f'  Should be: {to_return[name].dtype}'
+        return to_return
+
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
     def show(self, n=10, width=90, truncate=None, types=True):
@@ -766,7 +765,7 @@ class Expression(object):
         """
         uid = Env.get_uid()
         t = self._to_table(uid)
-        return [r[uid] for r in t._select("collect", None, hl.struct(**{uid: t[uid]})).collect()]
+        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), None).collect()]
 
     @property
     def value(self):

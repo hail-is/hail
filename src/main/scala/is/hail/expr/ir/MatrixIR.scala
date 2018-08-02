@@ -631,7 +631,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
                 args,
                 aggSig)
             case _ =>
-              ir.Recur(rewrite)(x)
+              ir.MapIR(rewrite)(x)
           }
         }
 
@@ -651,7 +651,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
                   i),
                 args, aggSig)
             case _ =>
-              ir.Recur(rewrite)(x)
+              ir.MapIR(rewrite)(x)
           }
         }
 
@@ -859,7 +859,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
               args,
               aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -884,7 +884,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, aggIR: IR) extends MatrixIR
                 i),
               args, aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -1374,7 +1374,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
               args,
               aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -1407,7 +1407,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
                 i),
               args, aggSig)
           case _ =>
-            ir.Recur(rewrite)(x)
+            ir.MapIR(rewrite)(x)
         }
       }
 
@@ -1979,7 +1979,17 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val values = children.map(_.execute(hc))
     checkColKeysSame(values.map(_.colValues.value))
-    values.head.copy(rvd = OrderedRVD.union(values.map(_.rvd)))
+    val rvds = values.map(_.rvd)
+    val first = rvds.head
+    require(rvds.tail.forall(_.partitioner.kType == first.partitioner.kType))
+    rvds.filter(_.partitioner.range.isDefined) match {
+      case IndexedSeq() =>
+        values.head
+      case IndexedSeq(rvd) =>
+        values.head.copy(rvd = rvd)
+      case nonEmpty =>
+        values.head.copy(rvd = OrderedRVD.union(nonEmpty))
+    }
   }
 }
 

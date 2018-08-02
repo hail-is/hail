@@ -176,7 +176,7 @@ object CompileWithAggregators {
   def liftScan(ir: IR): IR = ir match {
     case ApplyScanOp(a, b, c, d) =>
       ApplyAggOp(a, b, c, d)
-    case x => Recur(liftScan)(x)
+    case x => MapIR(liftScan)(x)
   }
 
   def compileAggIRs[

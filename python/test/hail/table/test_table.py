@@ -380,11 +380,11 @@ class Tests(unittest.TestCase):
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
 
         ktd = kt.drop('idx')
-        self.assertEqual(list(ktd.row), ['foo', 'sq', 'bar'])
+        self.assertEqual(set(ktd.row), {'foo', 'sq', 'bar'})
         ktd = ktd.key_by(None).drop('foo')
         self.assertEqual(ktd.key, None)
 
-        self.assertEqual(list(kt.drop(kt['idx']).row), ['foo', 'sq', 'bar'])
+        self.assertEqual(set(kt.drop(kt['idx']).row), {'foo', 'sq', 'bar'})
 
         d = kt.key_by(None).drop(*list(kt.row))
         self.assertEqual(list(d.row), [])

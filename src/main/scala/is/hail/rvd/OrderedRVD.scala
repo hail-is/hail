@@ -164,6 +164,9 @@ class OrderedRVD(
   def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())
 
+  def orderedMerge(right: OrderedRVD): OrderedRVD =
+    keyBy().orderedMerge(right.keyBy())
+
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
     assert(partitioner == rdd2.partitioner)
@@ -1007,7 +1010,7 @@ object OrderedRVD {
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
         val prevK = WritableRegionValue(typ.kType, ctx.freshRegion)
         val prevPK = WritableRegionValue(typ.pkType, ctx.freshRegion)
-        val pkUR = new UnsafeRow(typ.pkType)
+        val kUR = new UnsafeRow(typ.kType)
 
         new Iterator[RegionValue] {
           var first = true
@@ -1026,13 +1029,14 @@ object OrderedRVD {
             prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
             prevPK.setSelect(localType.rowType, localType.pkRowFieldIdx, rv)
 
-            pkUR.set(prevPK.value)
-            if (!partitionerBc.value.rangeBounds(i).contains(localType.pkType.ordering, pkUR)) {
+            kUR.set(prevK.value)
+            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR)) {
+              val shouldBeIn = partitionerBc.value.getPartition(kUR)
               fatal(
-                s"""OrderedRVD error! Unexpected PK in partition $i
+                s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
-                   |  Invalid PK: ${ pkUR.toString() }
-                   |  Full key: ${ new UnsafeRow(typ.kType, rv).toString() }""".stripMargin)
+                   |  Key should be in partition ${ shouldBeIn }: ${ partitionerBc.value.rangeBounds(shouldBeIn) }
+                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
             }
 
             assert(localType.pkRowOrd.compare(prevPK.value, rv) == 0)
@@ -1044,11 +1048,6 @@ object OrderedRVD {
 
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
-    val first = rvds.head
-    OrderedRVD.coerce(
-      first.typ,
-      RVD.union(rvds),
-      None,
-      None)
+    rvds.reduce(_.orderedMerge(_))
   }
 }

@@ -114,4 +114,26 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
         .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))
     }
   }
+
+  def orderedMerge(right: KeyedOrderedRVD): OrderedRVD = {
+    checkJoinCompatability(right)
+    require(this.typ.rowType == right.typ.rowType)
+
+    val newPartitioner = OrderedRVDPartitioner.mergePartitioners(this.rvd.partitioner, right.rvd.partitioner)
+    val repartitionedLeft =
+      this.rvd.constrainToOrderedPartitioner(this.typ, newPartitioner)
+    val repartitionedRight =
+      right.rvd.constrainToOrderedPartitioner(right.typ, newPartitioner)
+    val leftType = this.typ
+    val rightType = right.typ
+    repartitionedLeft.zipPartitions(
+      this.typ,
+      newPartitioner,
+      repartitionedRight,
+      preservesPartitioning = true
+    ) { (ctx, leftIt, rightIt) =>
+      OrderedRVIterator(leftType, leftIt, ctx)
+        .merge(OrderedRVIterator(rightType, rightIt, ctx))
+    }
+  }
 }

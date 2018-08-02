@@ -654,7 +654,8 @@ class MatrixTable(ExprContainer):
                                 keys, named_keys, self._col_indices,
                                 protect_keys=False)
         return self._select_cols("MatrixTable.key_cols_by",
-                                 key_struct=hl.struct(**key_fields))
+                                 self.col.annotate(**key_fields),
+                                 new_key=list(key_fields.keys()))
 
     def _key_rows_by(self, caller, pk_dict, rest_of_keys_dict):
 
@@ -663,8 +664,9 @@ class MatrixTable(ExprContainer):
                 raise ValueError("cannot have two row key fields with the same name: '{}'".format(k))
 
         key_fields = dict(pk_dict, **rest_of_keys_dict)
+        row = self._row.annotate(**key_fields)
 
-        return self._select_rows(caller, key_struct=hl.struct(**key_fields), pk_size=len(pk_dict))
+        return self._select_rows(caller, row, list(key_fields.keys()), pk_size=len(pk_dict))
 
     @typecheck_method(partition_key=oneof(str, sequenceof(str)),
                       keys=oneof(str, Expression),
@@ -875,7 +877,7 @@ class MatrixTable(ExprContainer):
 
         caller = "MatrixTable.annotate_rows"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select_rows(caller, value_struct=self.row_value.annotate(**e))
+        return self._select_rows(caller, self.row.annotate(**e))
 
     def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
@@ -921,7 +923,7 @@ class MatrixTable(ExprContainer):
         """
         caller = "MatrixTable.annotate_cols"
         e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        return self._select_cols(caller, value_struct=self.col_value.annotate(**e))
+        return self._select_cols(caller, self.col.annotate(**e))
 
     def annotate_entries(self, **named_exprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
@@ -1076,7 +1078,7 @@ class MatrixTable(ExprContainer):
         row = get_select_exprs("MatrixTable.select_rows",
                                      exprs, named_exprs, self._row_indices,
                                      protect_keys=True)
-        return self._select_rows('MatrixTable.select_rows', value_struct=hl.struct(**row))
+        return self._select_rows('MatrixTable.select_rows', self.row_key.annotate(**row))
 
     def select_cols(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing column fields or create new fields by name, dropping the rest.
@@ -1123,7 +1125,7 @@ class MatrixTable(ExprContainer):
         col = get_select_exprs("MatrixTable.select_cols",
                                      exprs, named_exprs, self._col_indices,
                                      protect_keys=True)
-        return self._select_cols('MatrixTable.select_cols', value_struct=hl.struct(**col))
+        return self._select_cols('MatrixTable.select_cols', self.col_key.annotate(**col))
 
     def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
@@ -1241,11 +1243,11 @@ class MatrixTable(ExprContainer):
 
         row_fields = [check_key(field, list(self.row_key)) for field in fields_to_drop if self._fields[field]._indices == self._row_indices]
         if row_fields:
-            m = m._select_rows("MatrixTable.drop", value_struct=m.row_value.drop(*row_fields))
+            m = m._select_rows("MatrixTable.drop", row=m.row.drop(*row_fields))
 
         col_fields = [check_key(field, list(self.col_key)) for field in fields_to_drop if self._fields[field]._indices == self._col_indices]
         if col_fields:
-            m = m._select_cols("MatrixTable.drop", value_struct=m.col_value.drop(*col_fields))
+            m = m._select_cols("MatrixTable.drop", m.col.drop(*col_fields))
 
         entry_fields = [field for field in fields_to_drop if self._fields[field]._indices == self._entry_indices]
         if entry_fields:
@@ -1337,7 +1339,7 @@ class MatrixTable(ExprContainer):
 
         if expr._aggregations:
             bool_uid = Env.get_uid()
-            mt = self._select_rows(caller, value_struct=self.row_value.annotate(**{bool_uid: expr}))
+            mt = self._select_rows(caller, self.row.annotate(**{bool_uid: expr}))
             return mt.filter_rows(mt[bool_uid], keep).drop(bool_uid)
 
         base, cleanup = self._process_joins(expr)
@@ -1410,7 +1412,7 @@ class MatrixTable(ExprContainer):
 
         if expr._aggregations:
             bool_uid = Env.get_uid()
-            mt = self._select_cols(caller, value_struct=self.col_value.annotate(**{bool_uid: expr}))
+            mt = self._select_cols(caller, self.col.annotate(**{bool_uid: expr}))
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
 
         base, cleanup = self._process_joins(expr)
@@ -1540,8 +1542,7 @@ class MatrixTable(ExprContainer):
         fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
         fields_referenced -= set(self.row_key)
 
-        return self._select_rows(caller,
-                                 value_struct=self.row_value.annotate(**named_exprs).drop(*fields_referenced))
+        return self._select_rows(caller, self.row.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
@@ -1581,7 +1582,7 @@ class MatrixTable(ExprContainer):
         fields_referenced -= set(self.col_key)
 
         return self._select_cols(caller,
-                                 value_struct=self.col_value.annotate(**named_exprs).drop(*fields_referenced))
+                                 self.col.annotate(**named_exprs).drop(*fields_referenced))
 
     def transmute_entries(self, **named_exprs):
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
@@ -2883,14 +2884,16 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(base._jvds.selectEntries(str(s._ir))))
 
     @typecheck_method(caller=str,
-                      key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()),
+                      row=expr_struct(),
+                      new_key=nullable(sequenceof(str)),
                       pk_size=nullable(int))
-    def _select_rows(self, caller, key_struct=None, value_struct=None, pk_size=None):
-        row, new_key = self._make_row(key_struct, value_struct, pk_size)
-
+    def _select_rows(self, caller, row, new_key=None, pk_size=None):
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
+        if new_key is not None:
+            if pk_size is None:
+                pk_size = len(new_key)
+            new_key = [new_key[:pk_size], new_key[pk_size:]]
 
         return cleanup(MatrixTable(base._jvds.selectRows(str(row._ir), new_key)))
 
@@ -2903,31 +2906,12 @@ class MatrixTable(ExprContainer):
         row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
         return MatrixTable(self._jvds.selectRows(str(row_ir), new_key))
 
-    def _make_row(self, key_struct, value_struct, pk_size) -> Tuple[StructExpression, Optional[Tuple[List[str], List[str]]]]:
-        if key_struct is None:
-            assert value_struct is not None
-            new_key = None
-            row = hl.bind(lambda v: self.row_key.annotate(**v), value_struct)
-        else:
-            if pk_size is None:
-                pk_size = len(key_struct)
-            key_names = list(key_struct.keys())
-            new_key = (key_names[:pk_size], key_names[pk_size:])
-            if value_struct is None:
-                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
-            else:
-                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-        return row, new_key
-
     @typecheck_method(caller=str,
-                      key_struct=nullable(expr_struct()),
-                      value_struct=nullable(expr_struct()))
-    def _select_cols(self, caller, key_struct=None, value_struct=None):
-        col, new_key = self._make_col(key_struct, value_struct)
-
+                      col=expr_struct(),
+                      new_key=nullable(sequenceof(str)))
+    def _select_cols(self, caller, col, new_key=None):
         analyze(caller, col, self._col_indices, {self._row_axis})
         base, cleanup = self._process_joins(col)
-
         return cleanup(MatrixTable(base._jvds.selectCols(str(col._ir), new_key)))
 
     @typecheck_method(key_struct=expr_struct())
@@ -2938,19 +2922,6 @@ class MatrixTable(ExprContainer):
         fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
         col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
         return MatrixTable(self._jvds.selectCols(str(col_ir), new_key))
-
-    def _make_col(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]]]:
-        if key_struct is None:
-            assert value_struct is not None
-            new_key = None
-            col = hl.bind(lambda v: self.col_key.annotate(**v), value_struct)
-        else:
-            new_key = list(key_struct.keys())
-            if value_struct is None:
-                col = hl.bind(lambda k: self.col.annotate(**k), key_struct)
-            else:
-                col = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
-        return col, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'MatrixTable':
