@@ -1,22 +1,9 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
-import is.hail.io.annotators.IntervalList
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.stats.RegressionUtils._
 import is.hail.utils._
-import is.hail.testUtils._
-import is.hail.variant._
-import is.hail.stats.vdsFromCallMatrix
 import breeze.linalg._
-import breeze.numerics.sigmoid
-import is.hail.expr.types._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-
-import scala.sys.process._
-import scala.language.postfixOps
 
 case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])
 
