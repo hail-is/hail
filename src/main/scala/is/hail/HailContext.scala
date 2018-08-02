@@ -140,6 +140,12 @@ object HailContext {
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
+  /**
+   * If a HailContext has already been initialized, this function returns it regardless of the
+   * parameters with which it was initialized.
+   *
+   * Otherwise, it initializes and returns a new HailContext.
+   */
   def getOrCreate(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
