@@ -25,7 +25,7 @@ def filtering_allele_frequency(ac, an, ci) -> Float64Expression:
     it can be applied to any disease of interest by comparing with a
     user-defined disease-specific maximum credible AF.
 
-    For more details, see: `Whiffin et al., 2017 <https://www.nature.com/articles/gim201726>`
+    For more details, see: `Whiffin et al., 2017 <https://www.nature.com/articles/gim201726>`__
 
     Parameters
     ----------
