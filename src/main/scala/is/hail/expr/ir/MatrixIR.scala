@@ -1900,40 +1900,40 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   private val rvRowType = child.typ.rvRowType
 
-  val oldRow = Ref("va", rvRowType)
-  val explodeRefs: Array[Ref] = Array.fill[Ref](path.length)(oldRow)
-  var length: IR = GetField(oldRow, path(0))
-  var i = 0
-  while (i < path.length - 1) {
-    explodeRefs(i+1) = Ref(genUID(), explodeRefs(i).typ.asInstanceOf[TStruct].field(path(i)).typ)
-    length = GetField(length, path(i+1))
-    i += 1
+  val length: IR = {
+    val lenUID = genUID()
+    Let(lenUID,
+      ArrayLen(
+        ToArray(
+          path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
+            GetField(struct, field)))),
+      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
   }
 
-  val lRef = Ref(genUID(), TInt32())
-  length = Let(lRef.name, ArrayLen(ToArray(length)), If(IsNA(lRef), 0, lRef))
   val idx = Ref(genUID(), TInt32())
+  val newRVRow: InsertFields = {
+    val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
+      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
 
-  i = explodeRefs.length - 1
-  def ref = explodeRefs(i)
-  def field = path(i)
-  var explodedIR: IR = InsertFields(ref, FastIndexedSeq(field -> ArrayRef(ToArray(GetField(ref, field)), idx)))
-  while (i > 0) {
-    i -= 1
-    explodedIR = InsertFields(ref, FastIndexedSeq(field -> Let(explodeRefs(i+1).name, GetField(ref, field), explodedIR)))
+    path.zip(refs).zipWithIndex.foldRight[IR](idx) {
+      case (((field, ref), i), arg) =>
+        InsertFields(ref, FastIndexedSeq(field ->
+          (if (i == refs.length - 1)
+            ArrayRef(ToArray(GetField(ref, field)), arg)
+          else
+            Let(refs(i+1).name, GetField(ref, field), arg))))
+    }.asInstanceOf[InsertFields]
   }
 
-  val typ: MatrixType = child.typ.copy(rvRowType = explodedIR.typ.asInstanceOf[TStruct])
+  val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
-    val (_, l) = Compile[Long, Int](
-      "va", rvRowType,
-      length)
+    val (_, l) = Compile[Long, Int]("va", rvRowType, length)
     val (t, f) = Compile[Long, Int, Long](
       "va", rvRowType,
       idx.name, TInt32(),
-      explodedIR)
+      newRVRow)
     assert(t == typ.rvRowType)
 
     MatrixValue(typ,
