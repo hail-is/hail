@@ -276,6 +276,11 @@ object Simplify {
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
         TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
+        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
+        TableAggregateByKey(child, expr)
+      case TableAggregateByKey(TableKeyBy(child, keys, _, _), expr) =>
+        TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
     })
   }
 }
