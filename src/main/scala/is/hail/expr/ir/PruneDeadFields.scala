@@ -329,6 +329,12 @@ object PruneDeadFields {
               memo)
           case None => memoizeTableIR(child, requestedType, memo)
         }
+      case LocalizeEntries(child, fieldName) =>
+        val minChild = minimal(child.typ)
+        val childDep = minChild.copy(
+          globalType = requestedType.globalType,
+          rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType))
+        memoizeMatrixIR(child, childDep, memo)
     }
   }
 

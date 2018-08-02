@@ -267,6 +267,7 @@ object Pretty {
                   JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
+            case LocalizeEntries(_, name) => name
             case _ => ""
           }
 

@@ -1145,3 +1145,22 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     TableValue(typ, prev.globals, new UnpartitionedRVD(rowType, rvd))
   }
 }
+
+case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends TableIR {
+  private val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
+  private val newRowType = child.typ.rvRowType.rename(m)
+
+  def typ: TableType = TableType(newRowType, Some(child.typ.rowKey), child.typ.globalType)
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild) = newChildren
+    LocalizeEntries(child.asInstanceOf[MatrixIR], entriesFieldName)
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+
+    TableValue(typ, prev.globals, prev.rvd.updateType(prev.rvd.typ.copy(rowType = newRowType)))
+  }
+}

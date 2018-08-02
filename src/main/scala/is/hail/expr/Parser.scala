@@ -620,7 +620,10 @@ object Parser extends JavaTokenParsers {
           else
             SortField(i.substring(1), Descending)))
       } |
-      "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) }
+      "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) } |
+      "LocalizeEntries" ~> identifier ~ matrix_ir ^^ { case field ~ child =>
+        ir.LocalizeEntries(child, field)
+      }
 
   def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
 
