@@ -3305,7 +3305,7 @@ def argmin(array, unique: bool = False) -> Int32Expression:
         return array._method("argmin", tint32)
 
 
-@typecheck(array=expr_array(expr_numeric), unique=bool, filter_missing=bool)
+@typecheck(array=expr_array(expr_numeric), unique=bool)
 def argmax(array, unique: bool = False) -> Int32Expression:
     """Return the index of the maximum value in the array.
 
