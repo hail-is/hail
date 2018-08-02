@@ -621,7 +621,7 @@ object Parser extends JavaTokenParsers {
             SortField(i.substring(1), Descending)))
       } |
       "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) } |
-      "LocalizeEntries" ~> identifier ~ matrix_ir ^^ { case field ~ child =>
+      "LocalizeEntries" ~> string_literal ~ matrix_ir ^^ { case field ~ child =>
         ir.LocalizeEntries(child, field)
       }
 
