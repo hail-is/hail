@@ -17,16 +17,17 @@ def phase_by_transmission(
         father_call: hl.expr.CallExpression,
         mother_call: hl.expr.CallExpression
 ) -> hl.expr.ArrayExpression:
-    """
-    Phases genotype calls in a trio based allele transmission.
+    """Phases genotype calls in a trio based allele transmission.
 
+    Notes
+    -----
     In the phased calls returned, the order is as follows:
-    * Proband: father_allele | mother_allele
-    * Parents: transmitted_allele | untransmitted_allele
+    - Proband: father_allele | mother_allele
+    - Parents: transmitted_allele | untransmitted_allele
 
     Phasing of sex chromosomes:
-    Sex chromosomes of male individuals should be haploid to be phased correctly.
-    If `proband_call` is diploid on non-par regions of the sex chromosomes, it is assumed to be female.
+    - Sex chromosomes of male individuals should be haploid to be phased correctly.
+    - If `proband_call` is diploid on non-par regions of the sex chromosomes, it is assumed to be female.
 
     Returns `NA` when genotype calls cannot be phased.
     The following genotype calls combinations cannot be phased by transmission:
@@ -40,14 +41,27 @@ def phase_by_transmission(
     1. All mother genotype calls non-PAR region of Y
     2. Diploid father genotype calls on non-PAR region of X for a male proband (proband and mother are still phased as father doesn't participate in allele transmission)
 
-    :param LocusExpression locus: Locus in the trio MatrixTable
-    :param ArrayExpression alleles: Alleles in the trio MatrixTable
-    :param CallExpression proband_call: Input proband genotype call
-    :param CallExpression father_call: Input father genotype call
-    :param CallExpression mother_call: Input mother genotype call
-    :return: Array containing: phased proband call, phased father call, phased mother call
-    :rtype: ArrayExpression
-    """
+    Note
+    ----
+    :meth:`.experimental.phase_trio_matrix_by_transmission` provides a convenience wrapper for phasing a trio matrix.
+
+    Parameters
+    ----------
+    locus : :class:`.LocusExpression`
+        Expression for the locus in the trio matrix
+    alleles : :class:`.ArrayExpression`
+        Expression for the alleles in the trio matrix
+    proband_call : :class:`.CallExpression`
+        Expression for the proband call in the trio matrix
+    father_call : :class:`.CallExpression`
+        Expression for the father call in the trio matrix
+    mother_call : :class:`.CallExpression`
+        Expression for the mother call in the trio matrix
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Array containing: [phased proband call, phased father call, phased mother call]"""
 
     def call_to_one_hot_alleles_array(call: hl.expr.CallExpression, alleles: hl.expr.ArrayExpression) -> hl.expr.ArrayExpression:
         """
@@ -190,43 +204,54 @@ def phase_by_transmission(
            call_field=str,
            phased_call_field=str)
 def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT') -> hl.MatrixTable:
-    """
-        Adds a phased genoype entry to a trio MatrixTable based allele transmission in the trio.
-        Uses only a `Call` field to phase and only phases when all 3 members of the trio are present and have a call.
+    """Adds a phased genoype entry to a trio MatrixTable based allele transmission in the trio.
 
-        In the phased genotypes, the order is as follows:
-        * Proband: father_allele | mother_allele
-        * Parents: transmitted_allele | untransmitted_allele
+    Example
+    -------
+    >>> # Create a trio matrix
+    >>> pedigree = hl.Pedigree.read('data/case_control_study.fam')
+    >>> trio_dataset = hl.trio_matrix(dataset, pedigree, complete_trios=True)
 
-        Phasing of sex chromosomes:
-        Sex chromosomes of male individuals should be haploid to be phased correctly.
-        If a proband is diploid on non-par regions of the sex chromosomes, it is assumed to be female.
+    >>> # Phase trios by transmission
+    >>> phased_trio_dataset = phase_trio_matrix_by_transmission(trio_dataset)
 
-        Genotypes that cannot be phased are set to `NA`.
-        The following genotype calls combinations cannot be phased by transmission (all trio members phased calls set to missing):
-        1. One of the calls in the trio is missing
-        2. The proband genotype cannot be obtained from the parents alleles (Mendelian violation)
-        3. All individuals of the trio are heterozygous for the same two alleles
-        4. Father is diploid on non-PAR region of X or Y
-        5. Proband is diploid on non-PAR region of Y
+    Notes
+    -----
+    Uses only a `Call` field to phase and only phases when all 3 members of the trio are present and have a call.
 
-        In addition, individual phased genotype calls are returned as missing in the following situations:
-        1. All mother genotype calls non-PAR region of Y
-        2. Diploid father genotype calls on non-PAR region of X for a male proband (proband and mother are still phased as father doesn't participate in allele transmission)
+    In the phased genotypes, the order is as follows:
+    - Proband: father_allele | mother_allele
+    - Parents: transmitted_allele | untransmitted_allele
 
+    Phasing of sex chromosomes:
+    - Sex chromosomes of male individuals should be haploid to be phased correctly.
+    - If a proband is diploid on non-par regions of the sex chromosomes, it is assumed to be female.
 
-        Typical usage:
-        ```
-            trio_matrix = hl.trio_matrix(mt, ped)
-            phased_trio_matrix = phase_trio_matrix_by_transmission(trio_matrix)
-        ```
+    Genotypes that cannot be phased are set to `NA`.
+    The following genotype calls combinations cannot be phased by transmission (all trio members phased calls set to missing):
+    1. One of the calls in the trio is missing
+    2. The proband genotype cannot be obtained from the parents alleles (Mendelian violation)
+    3. All individuals of the trio are heterozygous for the same two alleles
+    4. Father is diploid on non-PAR region of X or Y
+    5. Proband is diploid on non-PAR region of Y
 
-        :param MatrixTable tm: Trio MatrixTable (entries should be a Struct with `proband_entry`, `mother_entry` and `father_entry` present)
-        :param str call_field: genotype field name to phase
-        :param str phased_call_field: name for the phased genotype field
-        :return: trio MatrixTable entry with additional phased genotype field for each individual
-        :rtype: MatrixTable
-        """
+    In addition, individual phased genotype calls are returned as missing in the following situations:
+    1. All mother genotype calls non-PAR region of Y
+    2. Diploid father genotype calls on non-PAR region of X for a male proband (proband and mother are still phased as father doesn't participate in allele transmission)
+
+    Parameters
+    ----------
+    tm : :class:`.MatrixTable`
+        Trio MatrixTable (entries have to be a Struct with `proband_entry`, `mother_entry` and `father_entry` present)
+    call_field : str
+        genotype field name in the matrix entries to use for phasing
+    phased_call_field : str
+        name for the phased genotype field in the matrix entries
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Trio MatrixTable entry with additional phased genotype field for each individual"""
 
     tm = tm.annotate_entries(
         __phased_GT=phase_by_transmission(
@@ -257,26 +282,46 @@ def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT'
 @typecheck(tm=MatrixTable,
            col_keys=sequenceof(str))
 def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s']) -> hl.MatrixTable:
-    """
+    """Splits a trio MatrixTable back into a sample MatrixTable.
 
-    Splits a trio MatrixTable back into a sample MatrixTable.
-    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of `hail.methods.trio_matrix`)
+    Example
+    -------
+    >>> # Create a trio matrix from a sample matrix
+    >>> pedigree = hl.Pedigree.read('data/case_control_study.fam')
+    >>> trio_dataset = hl.trio_matrix(dataset, pedigree, complete_trios=True)
+
+    >>> # Explode trio matrix back into a sample matrix
+    >>> exploded_trio_dataset = explode_trio_matrix(trio_dataset)
+
+    Notes
+    -----
+    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of :meth:`.methods.trio_matrix`)
     In particular, it should have the following entry schema:
-    * proband_entry
-    * father_entry
-    * mother_entry
+    - proband_entry
+    - father_entry
+    - mother_entry
     And the following column schema:
-    * proband
-    * father
-    * mother
+    - proband
+    - father
+    - mother
 
-    Note that all other entry and column fields will be dropped.
+    Note
+    ----
+    The only entries kept are `proband_entry`, `father_entry` and `mother_entry` are dropped.
+    The only columns kepy are `proband`, `father` and `mother`
 
-    :param MatrixTable tm: Input trio MatrixTable
-    :param list of str col_keys: Column keys for the sample MatrixTable
-    :return: Sample MatrixTable
-    :rtype: MatrixTable
-    """
+    Parameters
+    ----------
+    tm : :class:`.MatrixTable`
+        Trio MatrixTable (entries have to be a Struct with `proband_entry`, `mother_entry` and `father_entry` present)
+    call_field : :obj:`list` of str
+        Column key(s) for the resulting sample MatrixTable
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Sample MatrixTable"""
+
     tm = tm.select_entries(
         __trio_entries=hl.array([tm.proband_entry, tm.father_entry, tm.mother_entry])
     )
