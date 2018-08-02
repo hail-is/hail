@@ -537,23 +537,6 @@ def exp(x) -> Float64Expression:
     return _func("exp", tfloat64, x)
 
 
-@typecheck(ac=expr_int32, an=expr_int32, ci=expr_float64)
-def faf(ac, an, ci) -> Float64Expression:
-    """Computes frequency filter for `ac` and `an` with confidence `ci`.
-
-    Parameters
-    ----------
-    ac : int or :class:`.Expression` of type :py:data:`.tint32`
-    an : int or :class:`.Expression` of type :py:data:`.tint32`
-    ci : float or :class:`.Expression` of type :py:data:`.tfloat64`
-
-    Returns
-    -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
-    """
-    return _func("faf", tfloat64, ac, an, ci)
-
-
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     """Calculates the p-value, odds ratio, and 95% confidence interval using

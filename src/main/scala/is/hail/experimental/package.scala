@@ -14,7 +14,7 @@ package object experimental {
     }
   }
 
-  def calcFreqFilter(ac: Int, an: Int, ci: Double = .95, lower: Double = 1e-10, upper: Double = 2, tol: Double = 1e-7, precision: Double = 1e-6): Double = {
+  def calcFilterAlleleFreq(ac: Int, an: Int, ci: Double = .95, lower: Double = 1e-10, upper: Double = 2, tol: Double = 1e-7, precision: Double = 1e-6): Double = {
     if (ac <= 0 || an == 0) {
       0.0
     } else {
@@ -22,13 +22,13 @@ package object experimental {
       val root = uniroot(f, lower, upper, tol)
       val rounder = 1d / (precision / 100d)
       var max_af = math.round(root.getOrElse(0.0) * rounder) / rounder
-      while(findMaxAC(max_af, an) < ac) {
+      while (findMaxAC(max_af, an) < ac) {
         max_af += precision
       }
       max_af - precision
     }
   }
 
-  def calcFreqFilter(ac: Int, an: Int, ci: Double): Double = calcFreqFilter(ac, an, ci, lower = 1e-10, upper = 2, tol = 1e-7, precision = 1e-6)
+  def calcFilterAlleleFreq(ac: Int, an: Int, ci: Double): Double = calcFreqFilter(ac, an, ci, lower = 1e-10, upper = 2, tol = 1e-7, precision = 1e-6)
 
 }
