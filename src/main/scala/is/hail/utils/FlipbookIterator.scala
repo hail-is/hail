@@ -160,7 +160,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       }
     )
 
-  private[this] trait ValidityCachingStateMachine[A] extends StateMachine[A] {
+  private[this] trait ValidityCachingStateMachine extends StateMachine[A] {
     private[this] var _isValid: Boolean = _
     final def isValid = _isValid
     final def refreshValidity: Unit =
@@ -173,7 +173,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
     ord.setBottom()
-    val stepSM = new ValidityCachingStateMachine[A] {
+    val stepSM = new ValidityCachingStateMachine {
       def value: A = self.value
       def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
       def advance() = {
@@ -358,6 +358,42 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       buffer.iterator.toFlipbookIterator.map(rElem =>
         result.set(lElem, rElem)))
   }
+
+  def merge(
+    that: FlipbookIterator[A],
+    ord: (A, A) => Int): FlipbookIterator[A] = {
+    val left = self.toStagingIterator
+    val right = that.toStagingIterator
+    class MergeStateMachine extends StateMachine[A] {
+      var value: A = _
+      var isValid = true
+      def advance() {
+        left.stage()
+        right.stage()
+        val c = {
+          if (left.isValid) {
+            if (right.isValid)
+              ord(left.value, right.value)
+            else
+              -1
+          } else if (right.isValid)
+            1
+          else {
+            isValid = false
+            return
+          }
+        }
+        if (c <= 0)
+          value = left.consume()
+        else
+          value = right.consume()
+      }
+    }
+    val sm = new MergeStateMachine
+    sm.advance()
+    FlipbookIterator(sm)
+  }
+
 
   def sameElementsUsing[B](that: Iterator[B], eq: (A, B) => Boolean): Boolean = {
     while (this.hasNext && that.hasNext)
