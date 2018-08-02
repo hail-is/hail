@@ -1903,10 +1903,9 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   val length: IR = {
     val lenUID = genUID()
     Let(lenUID,
-      ArrayLen(
-        ToArray(
-          path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
-            GetField(struct, field)))),
+      ArrayLen(ToArray(
+        path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
+          GetField(struct, field)))),
       If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
   }
 
@@ -1945,10 +1944,18 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
         val lenF = l()
         val rowF = f()
         it.flatMap { rv =>
-          val length = lenF(rv.region, rv.offset, false)
-          Array.range(0, length).iterator.map { i =>
-            rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
-            rv2
+          val len = lenF(rv.region, rv.offset, false)
+          if (len == 0)
+            Iterator()
+          else
+            new Iterator[RegionValue] {
+              private[this] var i = 0
+              def hasNext(): Boolean = i < len
+              def next(): RegionValue = {
+                rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+                i += 1
+                rv2
+              }
           }
         }
       }))
