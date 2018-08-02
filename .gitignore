@@ -1,4 +1,8 @@
 *~
+*.pyc
+*.err
+*.pid
+*.log
 oauth-token
 proxy.log
 proxy.pid
