@@ -29,6 +29,6 @@ package object experimental {
     }
   }
 
-  def calcFilterAlleleFreq(ac: Int, an: Int, ci: Double): Double = calcFreqFilter(ac, an, ci, lower = 1e-10, upper = 2, tol = 1e-7, precision = 1e-6)
+  def calcFilterAlleleFreq(ac: Int, an: Int, ci: Double): Double = calcFilterAlleleFreq(ac, an, ci, lower = 1e-10, upper = 2, tol = 1e-7, precision = 1e-6)
 
 }
