@@ -2,6 +2,10 @@ package is.hail.utils
 
 import java.util
 
+object BufferedAggregatorIterator {
+  val loadFactor: Float = 0.75f
+}
+
 class BufferedAggregatorIterator[T, U, K](
   it: Iterator[T],
   makeComb: () => U,
@@ -15,7 +19,10 @@ class BufferedAggregatorIterator[T, U, K](
   private var remainder: Iterator[(K, U)] = Iterator.empty
 
   // TODO: use a heavy hitters buffer here
-  private val buffer = new util.LinkedHashMap[K, U](bufferSize, 0.75f, true) {
+  private val buffer = new util.LinkedHashMap[K, U](
+    (bufferSize / BufferedAggregatorIterator.loadFactor).toInt,
+    BufferedAggregatorIterator.loadFactor,
+    true) {
     override def removeEldestEntry(eldest: util.Map.Entry[K, U]): Boolean = {
       if (size() > bufferSize) {
         popped = eldest
@@ -33,13 +40,14 @@ class BufferedAggregatorIterator[T, U, K](
       throw new NoSuchElementException
     while (fb.isValid) {
       val value = fb.value
-      fb.advance()
       val key = makeKey(value)
-      if (buffer.containsKey(key))
+      if (buffer.containsKey(key)) {
         sequence(value, buffer.get(key))
-      else {
+        fb.advance()
+      } else {
         val agg = makeComb()
         sequence(value, agg)
+        fb.advance()
         buffer.put(key, agg)
         if (popped != null) {
           val cp = popped
