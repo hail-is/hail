@@ -237,7 +237,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> MatrixTable:
+def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixTable:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -354,7 +354,6 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
                                          **dict(zip(cov_field_names, covariates))),
                           entry_exprs=entry_expr)
 
-
     jm = Env.hail().methods.LinearRegression.apply(
         mt._jvds,
         jarray(Env.jvm().java.lang.String, y_field_names),
@@ -379,7 +378,7 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str)
-def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable:
+def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -631,7 +630,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates=(), logistic=False,
+def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.

@@ -1,13 +1,8 @@
 package is.hail.testUtils
 
 import is.hail.annotations._
-import is.hail.expr.ir
-import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser}
-import is.hail.methods._
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable}
+import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -57,34 +52,5 @@ class RichMatrixTable(vsm: MatrixTable) {
     val newToOld = newIds.map(oldIndex)
 
     vsm.chooseCols(newToOld)
-  }
-
-  def linreg(yExpr: Array[String],
-    xField: String,
-    covExpr: Array[String] = Array.empty[String],
-    root: String = "linreg",
-    rowBlockSize: Int = 16): MatrixTable = {
-    val vsmAnnot = vsm.annotateColsExpr(
-      yExpr.zipWithIndex.map { case (e, i) => s"__y$i" -> e } ++
-      covExpr.zipWithIndex.map { case (e, i) => s"__cov$i" -> e }: _*
-    )
-    LinearRegression(vsmAnnot,
-      yExpr.indices.map(i => s"__y$i").toArray,
-      xField,
-      covExpr.indices.map(i => s"__cov$i").toArray,
-      root,
-      rowBlockSize)
-  }
-
-  def skat(keyExpr: String,
-    weightExpr: String,
-    yExpr: String,
-    xField: String,
-    covExpr: Array[String] = Array.empty[String],
-    logistic: Boolean = false,
-    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
-    accuracy: Double = 1e-6,
-    iterations: Int = 10000): Table = {
-    Skat(vsm, keyExpr, weightExpr, yExpr, xField, covExpr, logistic, maxSize, accuracy, iterations)
   }
 }
