@@ -22,11 +22,11 @@ class HailContext(object):
                       branching_factor=int,
                       tmp_dir=nullable(str),
                       default_reference=str,
-                      allow_existing=bool)
+                      idempotent=bool)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37", allow_existing=False):
+                 default_reference="GRCh37", idempotent=False):
 
         SparkContext._ensure_initialized()
 
@@ -36,7 +36,7 @@ class HailContext(object):
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
 
-        if allow_existing:
+        if idempotent:
             creation_func = self._hail.HailContext.getOrCreate
         elif Env._hc:
             raise FatalError('Hail has already been initialized, restart session '
@@ -53,7 +53,7 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        self._jhc = creation_func(
+        self._jhc = self._hail.HailContext.getOrCreate(
             jsc, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir)
 
@@ -124,11 +124,11 @@ class HailContext(object):
            branching_factor=int,
            tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'),
-           allow_existing=bool)
+           idempotent=bool)
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37', allow_existing=False):
+             default_reference='GRCh37', idempotent=False):
     """Initialize Hail and Spark.
 
     Parameters
@@ -158,10 +158,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         file path.
     default_reference : :obj:`str`
         Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
+    idempotent : :obj:`bool`
+        If True, calling this function is a no-op if Hail has already been initialized.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference, allow_existing)
+                default_reference, idempotent)
 
 def stop():
     """Stop the currently running Hail session."""
