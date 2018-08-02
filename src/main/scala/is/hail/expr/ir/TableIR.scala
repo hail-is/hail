@@ -306,13 +306,35 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
+case class TableHead(child: TableIR, n: Long) extends TableIR {
+  require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
+  def typ: TableType = child.typ
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableHead(newChild, n)
+  }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] =
+    child.partitionCounts.map(getHeadPartitionCounts(_, n))
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+    prev.copy(rvd = prev.rvd.head(n, child.partitionCounts))
+  }
+}
+
 case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends TableIR {
   def typ: TableType = child.typ
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
-    TableRepartition(newChildren(0).asInstanceOf[TableIR], n, shuffle)
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableRepartition(newChild, n, shuffle)
+  }
 
   override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)

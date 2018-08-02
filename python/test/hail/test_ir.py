@@ -145,6 +145,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, 'mset'),
+            ir.TableHead(table_read, 10),
             ir.TableOrderBy(ir.TableUnkey(table_read), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
             ir.LocalizeEntries(matrix_read, '__entries')

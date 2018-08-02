@@ -241,14 +241,13 @@ trait RVD {
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
     stabilize(crdd, codec).run
 
-  def head(n: Long): RVD
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): RVD
 
-  final def takeAsBytes(n: Int, codec: CodecSpec): Array[Array[Byte]] =
-    head(n).encodedRDD(codec).collect()
+  final def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = encodedRDD(codec).collect()
 
-  final def take(n: Int, codec: CodecSpec): Array[Row] = {
+  final def collect(codec: CodecSpec): Array[Row] = {
     val dec = codec.buildDecoder(rowType, rowType)
-    val encodedData = takeAsBytes(n, codec)
+    val encodedData = collectAsBytes(codec)
     Region.scoped { region =>
       encodedData.iterator
         .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
@@ -290,7 +289,7 @@ trait RVD {
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
-    filter(p).takeAsBytes(1, codec).headOption
+    filter(p).head(1, None).collectAsBytes(codec).headOption
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(

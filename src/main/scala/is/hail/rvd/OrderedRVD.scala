@@ -335,13 +335,13 @@ class OrderedRVD(
     }
   }
 
-  def head(n: Long): OrderedRVD = {
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): OrderedRVD = {
     require(n >= 0)
 
     if (n == 0)
       return OrderedRVD.empty(sparkContext, typ)
 
-    val newRDD = crdd.head(n)
+    val newRDD = crdd.head(n, partitionCounts)
     val newNParts = newRDD.getNumPartitions
     assert(newNParts >= 0)
 

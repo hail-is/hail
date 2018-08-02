@@ -412,46 +412,59 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     }, preservesPartitioning = true)
   }
 
-  def head(n: Long): ContextRDD[C, T] = {
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
     require(n >= 0)
 
-    val sc = sparkContext
-    val nPartitions = getNumPartitions
-
-    var partScanned = 0
-    var nLeft = n
-    var idxLast = -1
-    var nLast = 0L
-    var numPartsToTry = 1L
-
-    while (nLeft > 0 && partScanned < nPartitions) {
-      val nSeen = n - nLeft
-
-      if (partScanned > 0) {
-        // If we didn't find any rows after the previous iteration, quadruple and retry.
-        // Otherwise, interpolate the number of partitions we need to try, but overestimate
-        // it by 50%. We also cap the estimation in the end.
-        if (nSeen == 0) {
-          numPartsToTry = partScanned * 4
-        } else {
-          // the left side of max is >=1 whenever partsScanned >= 2
-          numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
-          numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+    val (idxLast, nLast) = partitionCounts match {
+      case Some(pcs) =>
+        val newPartitionCounts = getHeadPartitionCounts(pcs, n)
+        if (newPartitionCounts == pcs)
+          return this
+        else {
+          val lastIdx = newPartitionCounts.length - 1
+          lastIdx -> newPartitionCounts(lastIdx)
         }
-      }
+      case None =>
+        val sc = sparkContext
+        val nPartitions = getNumPartitions
 
-      val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
-      val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
+        var partScanned = 0
+        var nLeft = n
+        var idxLast = -1
+        var nLast = 0L
+        var numPartsToTry = 1L
 
-      p.zip(counts).foreach { case (idx, c) =>
-        if (nLeft > 0) {
-          idxLast = idx
-          nLast = if (c < nLeft) c else nLeft
-          nLeft -= nLast
+        while (nLeft > 0 && partScanned < nPartitions) {
+          val nSeen = n - nLeft
+
+          if (partScanned > 0) {
+            // If we didn't find any rows after the previous iteration, quadruple and retry.
+            // Otherwise, interpolate the number of partitions we need to try, but overestimate
+            // it by 50%. We also cap the estimation in the end.
+            if (nSeen == 0) {
+              numPartsToTry = partScanned * 4
+            } else {
+              // the left side of max is >=1 whenever partsScanned >= 2
+              numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
+              numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+            }
+          }
+
+          val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
+          val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
+
+          p.zip(counts).foreach { case (idx, c) =>
+            if (nLeft > 0) {
+              idxLast = idx
+              nLast = if (c < nLeft) c else nLeft
+              nLeft -= nLast
+            }
+          }
+
+          partScanned += p.size
         }
-      }
 
-      partScanned += p.size
+        idxLast -> nLast
     }
 
     mapPartitionsWithIndex({ case (i, it) =>

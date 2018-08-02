@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.{TInt32, TStruct}
+import is.hail.table.{Ascending, SortField}
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -273,6 +274,38 @@ object Simplify {
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+
+      case TableHead(x@TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
+        TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
+      case TableHead(TableRepartition(child, nPar, shuffle), n) =>
+        TableRepartition(TableHead(child, n), nPar, shuffle)
+      case TableHead(tr@TableRange(nRows, nPar), n) =>
+        if (n < nRows)
+          TableRange(n.toInt, (nPar * nRows.toFloat / n).toInt)
+        else
+          tr
+      case TableHead(x@TableMapGlobals(child, newRow, value), n) =>
+        TableMapGlobals(TableHead(child, n), newRow, value)
+      case TableHead(TableOrderBy(child, sortFields), n)
+        if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
+        // n < 256 is arbitrary for memory concerns
+        // this rule is awesome
+        val uid = genUID()
+        val row = Ref("row", child.typ.rowType)
+        val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
+        val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
+        val te = TableExplode(
+          TableKeyByAndAggregate(child,
+            MakeStruct(Seq(
+              "row" -> ApplyAggOp(
+                SeqOp(I32(0), Array(row, keyStruct), aggSig),
+                FastIndexedSeq(I32(n.toInt)),
+                None,
+                AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))))),
+            MakeStruct(Seq()), // aggregate to one row
+            Some(1), 1),
+          "row")
+        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>

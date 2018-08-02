@@ -600,6 +600,7 @@ object Parser extends JavaTokenParsers {
       "TableKeyByAndAggregate" ~> int32_literal_opt ~ int32_literal ~ table_ir ~ ir_value_expr() ~ ir_value_expr() ^^ {
         case nPartitions ~ bufferSize ~ child ~ expr ~ newKey => ir.TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) } |
       "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
+      "TableHead" ~> int64_literal ~ table_ir ^^ { case n ~ child => ir.TableHead(child, n) } |
       "TableJoin" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case joinType ~ left ~ right => ir.TableJoin(left, right, joinType) } |
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
         ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)

@@ -226,6 +226,7 @@ object PruneDeadFields {
       case TableImport(paths, typ, readerOpts) =>
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)
+      case TableHead(child, _) => memoizeTableIR(child, requestedType, memo)
       case x@TableJoin(left, right, _) =>
         val leftDep = left.typ.copy(
           rowType = TStruct(left.typ.rowType.required, left.typ.rowType.fieldNames.flatMap(f =>

@@ -201,6 +201,16 @@ class TableParallelize(TableIR):
             self.n_partitions)
 
 
+class TableHead(TableIR):
+    def __init__(self, child, n):
+        super().__init__()
+        self.child = child
+        self.n = n
+
+    def __str__(self):
+        return f'(TableHead {self.n} {self.child})'
+
+
 class TableOrderBy(TableIR):
     def __init__(self, child, sort_fields):
         super().__init__()
