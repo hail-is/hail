@@ -588,3 +588,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             ht._filter_partitions([0, 7]).idx.collect(),
             [0, 1, 2, 21, 22])
+
+    def test_localize_entries(self):
+        ref_schema = hl.tstruct(row_idx=hl.tint32,
+                                __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
+        ref_data = [{'row_idx': i, '__entries': [{'v': i+j} for j in range(6)]}
+                    for i in range(8)]
+        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        mt = hl.utils.range_matrix_table(8, 6)
+        mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
+        t = mt._localize_entries('__entries')
+        self.assertTrue(t._same(ref_tab))
