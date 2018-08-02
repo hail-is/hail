@@ -135,7 +135,30 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
 
-    def test_linear_regression_with_two_cov(self):
+    def test_linear_regression_without_intercept(self):        
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
+                                  x=mt.GT.n_alt_alleles(),
+                                  covariates=[])
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        self.assertAlmostEqual(results[1].beta, 1.5, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
+        self.assertAlmostEqual(results[1].t_stat, 1.290994, places=6)
+        self.assertAlmostEqual(results[1].p_value, 0.25317, places=6)
+
+    # comparing to R:
+    # y = c(1, 1, 2, 2, 2, 2)
+    # x = c(0, 1, 0, 0, 0, 1)
+    # c1 = c(0, 2, 1, -2, -2, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3)
+    # df = data.frame(y, x, c1, c2)
+    # fit <- lm(y ~ x + c1 + c2, data=df)
+    # summary(fit)["coefficients"]
+    def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -176,7 +199,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.isnan(results[9].standard_error))
         self.assertTrue(np.isnan(results[10].standard_error))
 
-    def test_linear_regression_with_two_cov_pl(self):
+    def test_linear_regression_pl(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -208,7 +231,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
         self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-    def test_linear_regression_with_two_cov_dosage(self):
+    def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -239,34 +262,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
         self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
         self.assertTrue(np.isnan(results[6].standard_error))
-
-    def test_linear_regression_with_no_cov(self):  # FIXME does no covariates work?
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
-
-        mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=mt.GT.n_alt_alleles())
-
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
-
-        self.assertAlmostEqual(results[1].beta, -0.25, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 0.4841229, places=6)
-        self.assertAlmostEqual(results[1].t_stat, -0.5163978, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.63281250, places=6)
-
-        self.assertAlmostEqual(results[2].beta, -0.250000, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 0.2602082, places=6)
-        self.assertAlmostEqual(results[2].t_stat, -0.9607689, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.391075888, places=6)
-
-        self.assertTrue(np.isnan(results[6].standard_error))
-        self.assertTrue(np.isnan(results[7].standard_error))
-        self.assertTrue(np.isnan(results[8].standard_error))
-        self.assertTrue(np.isnan(results[9].standard_error))
-        self.assertTrue(np.isnan(results[10].standard_error))
 
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -359,7 +354,18 @@ class Tests(unittest.TestCase):
                                                      eq(mt.multi.beta[1], mt.multi.beta[0]) &
                                                      eq(mt.multi.y_transpose_x[1], mt.multi.y_transpose_x[0]))))
 
-    def test_logistic_regression_wald_test_two_cov(self):
+    # comparing to R:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # logfit <- glm(y ~ x + c1 + c2, family=binomial(link="logit"))
+    # waldtest <- coef(summary(logfit))
+    # beta <- waldtest["x", "Estimate"]
+    # se <- waldtest["x", "Std. Error"]
+    # zstat <- waldtest["x", "z value"]
+    # pval <- waldtest["x", "Pr(>|z|)"]
+    def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -395,7 +401,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    def test_logistic_regression_wald_test_two_cov_pl(self):
+    def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -431,7 +437,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    def test_logistic_regression_wald_two_cov_dosage(self):
+    def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -468,7 +474,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    def test_logistic_regression_lrt_two_cov(self):
+    def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -502,7 +508,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    def test_logistic_regression_score_two_cov(self):
+    def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -992,6 +998,20 @@ class Tests(unittest.TestCase):
                                             hl.cond(ds.pheno == 2.0,
                                                     True,
                                                     hl.null(hl.tbool))))
+
+        hl.skat(key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=ds.GT.n_alt_alleles(),
+                covariates=[],
+                logistic=False).count()
+
+        hl.skat(key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=ds.GT.n_alt_alleles(),
+                covariates=[],
+                logistic=True).count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
