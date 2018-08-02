@@ -1,7 +1,7 @@
 package is.hail.experimental
 
 import is.hail.expr.types._
-import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.ir.functions._
 
 object ExperimentalFunctions extends RegistryFunctions {
 
