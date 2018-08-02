@@ -20,7 +20,7 @@ class BufferedAggregatorIterator[T, U, K](
 
   // TODO: use a heavy hitters buffer here
   private val buffer = new util.LinkedHashMap[K, U](
-    (bufferSize / BufferedAggregatorIterator.loadFactor).toInt,
+    (bufferSize / BufferedAggregatorIterator.loadFactor).toInt + 1,
     BufferedAggregatorIterator.loadFactor,
     true) {
     override def removeEldestEntry(eldest: util.Map.Entry[K, U]): Boolean = {
