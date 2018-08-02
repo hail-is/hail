@@ -40,7 +40,8 @@ COPY gradle gradle
 RUN mkdir -p /gradle-cache
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
 COPY python/hail/dev-environment.yml python/hail/dev-environment.yml
-RUN conda env create hail -f ./python/hail/dev-environment.yml
+RUN conda env create hail -f ./python/hail/dev-environment.yml && \
+    rm -rf /opt/conda/pkgs/*
 
 # this seems easier than getting the keys right for apt
 #
