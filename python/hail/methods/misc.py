@@ -204,8 +204,10 @@ def require_key(table, method):
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
-    dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
-    return dataset
+    return dataset._select_rows(method,
+                                hl.case()
+                                .when(dataset.alleles.length() == 2, dataset._rvrow)
+                                .or_error(f"'{method}' expects biallelic variants ('alleles' field has length 2)"))
 
 
 @typecheck(dataset=MatrixTable, name=str)
