@@ -4,6 +4,7 @@
 hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 hail-ci-build-image:
 	docker build . -t hail-pr-builder:${GIT_SHA} -f Dockerfile.pr-builder
+	echo hail-pr-builder:${GIT_SHA} > hail-ci-build-image
 
 push-hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 push-hail-ci-build-image: hail-ci-build-image
