@@ -5,7 +5,7 @@ from hail.matrixtable import MatrixTable
 from typing import List
 
 
-@typecheck(locus=expr_locus,
+@typecheck(locus=expr_locus(),
            alleles=expr_array(expr_str),
            proband_call=expr_call,
            father_call=expr_call,
