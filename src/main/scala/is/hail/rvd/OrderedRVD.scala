@@ -1048,11 +1048,6 @@ object OrderedRVD {
 
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
-    val first = rvds.head
-    OrderedRVD.coerce(
-      first.typ,
-      RVD.union(rvds),
-      None,
-      None)
+    rvds.reduce(_.orderedMerge(_))
   }
 }
