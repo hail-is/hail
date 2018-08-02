@@ -4,3 +4,4 @@ proxy.log
 proxy.pid
 batch-proxy.log
 batch-proxy.pid
+__pycache__
