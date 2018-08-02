@@ -1,21 +1,31 @@
-.. _sec-getting_started:
+.. _sec-installation:
 
 ===============
-Getting Started
+Installing Hail
 ===============
+
+Requirements
+------------
 
 You'll need:
 
-- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
-  Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
-- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
 
------------------------------------------------------
+  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+
+- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_
+
+Installation
+------------
+
 Running Hail locally with a pre-compiled distribution
------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. include:: distLinks.rst
+
+A pre-compiled distribution will be suitable for most users. If you'd like to use Hail with a different version of
+Spark, see `Building your own JAR`_.
 
 Unzip the distribution after you download it. Next, edit and copy the below bash
 commands to set up the Hail environment variables. You may want to add the
@@ -76,8 +86,26 @@ In the future, if you want to run:
 
 Hail will not import correctly from a normal Python interpreter, a normal IPython interpreter, nor a normal Jupyter Notebook.
 
+
+Building your own Jar
+~~~~~~~~~~~~~~~~~~~~~
+
+To use Hail with other Hail versions of Spark 2, you'll need to build your own JAR instead of using a pre-compiled
+distribution. To build against a different version, such as Spark 2.3.0, run the following command inside the directory
+where Hail is located:
+
+    .. code-block:: text
+
+      ./gradlew -Dspark.version=2.3.0 shadowJar
+
+The Spark version in this command should match whichever version of Spark you would like to build against.
+
+The ``SPARK_HOME`` environment variable should point to an installation of the desired version of Spark, such as *spark-2.3.0-bin-hadoop2.7*
+
+The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
+
 Running on a Spark cluster
-==========================
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hail can run on any Spark 2.2 cluster. For example,
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon
@@ -170,8 +198,9 @@ parameters to ``spark-submit``
 
 .. _running-on-a-cloudera-cluster:
 
+
 Running on a Cloudera cluster
-=============================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 `These instructions
 <https://www.cloudera.com/documentation/spark2/latest/topics/spark2_installing.html>`_
@@ -200,26 +229,13 @@ the same as above, except:
             --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
 
-Building with other versions of Spark 2
-=======================================
 
-Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.3.0, modify the above
-instructions as follows:
+Common Installation Issues
+--------------------------
 
- - Set the Spark version in the gradle command
 
-   .. code-block:: text
-
-      ./gradlew -Dspark.version=2.3.0 shadowJar
-
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.3.0-bin-hadoop2.7*
-
- - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
-
----------------
 BLAS and LAPACK
----------------
+~~~~~~~~~~~~~~~
 
 Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run
 
@@ -235,3 +251,4 @@ If natives are not found, ``hail.log`` will contain the warnings
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
 
 See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.
+
