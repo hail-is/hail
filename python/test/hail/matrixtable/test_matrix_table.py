@@ -196,6 +196,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.annotate_rows(x=hl.empty_array('int')).explode_rows('x').count_rows(), 0)
         self.assertEqual(mt.annotate_rows(x=hl.null('array<int>')).explode_rows('x').count_rows(), 0)
         self.assertEqual(mt.annotate_rows(x=hl.range(0, mt.row_idx)).explode_rows('x').count_rows(), 6)
+        mt = mt.annotate_rows(x=hl.struct(y=hl.range(0, mt.row_idx)))
+        self.assertEqual(mt.explode_rows(mt.x.y).count_rows(), 6)
 
     def test_explode_cols(self):
         mt = hl.utils.range_matrix_table(4, 4)
