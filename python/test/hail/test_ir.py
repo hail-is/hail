@@ -147,6 +147,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableExplode(table_read, 'mset'),
             ir.TableOrderBy(ir.TableUnkey(table_read), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
+            ir.LocalizeEntries(matrix_read, '__entries')
         ]
 
         return table_irs

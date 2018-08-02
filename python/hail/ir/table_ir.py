@@ -230,3 +230,12 @@ class TableRepartition(TableIR):
 
     def __str__(self):
         return f'(TableRepartition {self.n} {self.shuffle} {self.child})'
+
+class LocalizeEntries(TableIR):
+    def __init__(self, child, entry_field_name):
+        super().__init__()
+        self.child = child
+        self.entry_field_name = entry_field_name
+
+    def __str__(self):
+        return f'(LocalizeEntries {escape_id(self.entry_field_name)} {self.child})'
