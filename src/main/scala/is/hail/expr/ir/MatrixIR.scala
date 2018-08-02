@@ -2079,3 +2079,90 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
       })
   }
 }
+
+/**
+ * This is inteded to be an inverse to LocalizeEntries on a MatrixTable
+ *
+ * Some notes on semantics,
+ * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
+ * `entryFieldName` must refer to an array of structs field in `rowsEntries`
+ * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
+ * all array elements must be the same length, though individual array items may be missing.
+ */
+case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName: String) extends MatrixIR {
+  private val m = Map(entryFieldName -> MatrixType.entriesIdentifier)
+  private val entryFieldIdx = rowsEntries.typ.rowType.fieldIdx(entryFieldName)
+  private val entryFieldType = rowsEntries.typ.rowType.types(entryFieldIdx)
+  private val newRowType = rowsEntries.typ.rowType.rename(m)
+
+  entryFieldType match {
+    case TArray(TStruct(_, _), _) => {}
+    case _ => fatal(s"expected entry field to be an array of structs, found ${ entryFieldType }")
+  }
+
+  val typ: MatrixType = MatrixType(
+      rowsEntries.typ.globalType,
+      cols.typ.keyOrEmpty,
+      cols.typ.rowType,
+      rowsEntries.typ.keyOrEmpty,
+      rowsEntries.typ.keyOrEmpty,
+      newRowType
+    )
+
+  def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): UnlocalizeEntries = {
+    assert(newChildren.length == 2)
+    UnlocalizeEntries(
+      newChildren(0).asInstanceOf[TableIR],
+      newChildren(1).asInstanceOf[TableIR],
+      entryFieldName
+    )
+  }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = rowsEntries.partitionCounts
+
+  def execute(hc: HailContext): MatrixValue = {
+    val rowtab = rowsEntries.execute(hc)
+    val coltab = cols.execute(hc)
+
+    val localColType = coltab.typ.rowType
+    val localColData: Array[Annotation] = coltab.rvd.mapPartitions { it =>
+      it.map { rv => SafeRow(localColType, rv.region, rv.offset) : Annotation }
+    }.collect
+
+    val field = GetField(Ref("row", rowtab.typ.rowType), entryFieldName)
+    val (_, lenF) = ir.Compile[Long, Int]("row", rowtab.typ.rowType,
+      ir.ArrayLen(field))
+
+    val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
+      ir.IsNA(field))
+
+    var rowOrvd = rowtab.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    // this is the check that all arrays have the same length and are present
+    rowOrvd.mapPartitions { it =>
+      it.map { rv =>
+        if (missingF()(rv.region, rv.offset, false)) {
+          fatal("missing entry") // FIXME(cdv) error message
+        }
+        val l = lenF()(rv.region, rv.offset, false)
+        if (l != localColData.length) {
+          fatal(s"entry wrong size, was ${l}, should be ${localColData.length}") // FIXME error message
+        }
+        ()
+      }
+    }.fold(())((_, _) => ())
+    val newOrvd = rowOrvd.updateType(rowOrvd.typ.copy(rowType = newRowType))
+
+    MatrixValue(
+      typ,
+      rowtab.globals,
+      BroadcastIndexedSeq(
+        localColData,
+        TArray(coltab.typ.rowType),
+        hc.sc
+      ),
+      newOrvd
+    )
+  }
+}

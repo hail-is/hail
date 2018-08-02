@@ -157,8 +157,14 @@ class TableIRTests(unittest.TestCase):
             Env.hail().expr.Parser.parse_table_ir(str(x))
 
     def test_matrix_ir_parses(self):
+        matrix_read = ir.MatrixRead(
+            'src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt', False, False)
         matrix_irs = [
-            ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1))
+            ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
+            ir.UnlocalizeEntries(
+                ir.LocalizeEntries(matrix_read, '__entries'),
+                ir.MatrixColsTable(matrix_read),
+                '__entries')
         ]
 
         for x in matrix_irs:

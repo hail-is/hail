@@ -573,7 +573,13 @@ class IRSuite extends SparkSuite {
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
-        MatrixExplodeCols(read, FastIndexedSeq("col_mset")))
+        MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
+        UnlocalizeEntries(
+          LocalizeEntries(read, "all of the entries"),
+          MatrixColsTable(read),
+          "all of the entries"
+        )
+      )
 
       xs.map(x => Array(x))
     } catch {
