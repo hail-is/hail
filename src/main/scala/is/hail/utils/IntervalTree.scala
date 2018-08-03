@@ -15,15 +15,23 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
 }
 
 /**
-  * 'Interval' has an implicit precondition that there exists a Hail type
-  * 't: Type' such that either
+  * 'Interval' has an implicit precondition that 'start' and 'end' either have
+  * the same type, or are of compatible 'TBaseStruct' types, i.e. their types
+  * agree on all fields up to the min of their lengths. Moreover, it assumes
+  * that the interval is well formed, as coded in 'Interval.isValid', roughly
+  * meaning that start is less than end. Each method assumes that the 'pord'
+  * parameter is compatible with the endpoints, and with 'p' or the endpoints
+  * of 'other'.
+  *
+  * Precisely, 'Interval' assumes that there exists a Hail type 't: Type' such
+  * that either
   * - 't: TBaseStruct', and 't.relaxedTypeCheck(left)', 't.relaxedTypeCheck(right),
   *   and 't.ordering.intervalEndpointOrdering.lt(left, right)', or
   * - 't.typeCheck(left)', 't.typeCheck(right)', and 't.ordering.lt(left, right)'
   *
-  * Moreover, every method on 'Interval' taking a 'pord' has an implicit
-  * precondition, that there exists a Hail type 't: Type' such that 'pord' was
-  * constructed by 't.ordering', and either
+  * Moreover, every method on 'Interval' taking a 'pord' has the precondition
+  * that there exists a Hail type 't: Type' such that 'pord' was constructed by
+  * 't.ordering', and either
   * - 't: TBaseStruct' and 't.relaxedTypeCheck(x)', or
   * - 't.typeCheck(x)',
   * where 'x' is each of 'left', 'right', 'p', 'other.left', and 'other.right'
@@ -52,8 +60,6 @@ case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: B
 
   def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
     !mayOverlap(pord, other)
-
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = false
 
   def copy(start: Any = start, end: Any = end, includesStart: Boolean = includesStart, includesEnd: Boolean = includesEnd): Interval =
     Interval(start, end, includesStart, includesEnd)
@@ -140,24 +146,17 @@ object Interval {
       }
 
   def ordering(pord: ExtendedOrdering, startPrimary: Boolean): ExtendedOrdering = new ExtendedOrdering {
-    private def compareStart(x: Interval, y: Interval, missingGreatest: Boolean): Int = {
-      val c = pord.intervalEndpointOrdering.compare(x.left, y.left, missingGreatest)
-      if (c != 0) c else pord.intervalEndpointOrdering.compare(x.right, y.right, missingGreatest)
-    }
-
-    private def compareEnd(x: Interval, y: Interval, missingGreatest: Boolean): Int = {
-      val c = pord.intervalEndpointOrdering.compare(x.right, y.right, missingGreatest)
-      if (c != 0) c else pord.intervalEndpointOrdering.compare(x.left, y.left, missingGreatest)
-    }
-
     override def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]
 
-      if (startPrimary)
-        compareStart(xi, yi, missingGreatest)
-      else
-        compareEnd(xi, yi, missingGreatest)
+      if (startPrimary) {
+        val c = pord.intervalEndpointOrdering.compare(xi.left, yi.left, missingGreatest)
+        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.right, yi.right, missingGreatest)
+      } else {
+        val c = pord.intervalEndpointOrdering.compare(xi.right, yi.right, missingGreatest)
+        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.left, yi.left, missingGreatest)
+      }
     }
   }
 
