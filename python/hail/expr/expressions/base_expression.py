@@ -218,6 +218,7 @@ def _to_expr(e, dtype):
     else:
         raise NotImplementedError(dtype)
 
+
 def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
     if len(exprs) == 0:
         return Indices(), LinkedList(Aggregation)

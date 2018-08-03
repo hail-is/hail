@@ -50,9 +50,11 @@ class AggFunc(object):
                       ret_type=hail_type,
                       constructor_args=sequenceof(expr_any),
                       init_op_args=nullable(sequenceof(expr_any)),
-                      f=nullable(func_spec(1, expr_any)))
-    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, f=None):
+                      seq_op_args=nullable(sequenceof(oneof(expr_any, func_spec(1, expr_any)))))
+    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, seq_op_args=None):
         args = constructor_args if init_op_args is None else constructor_args + init_op_args
+        if seq_op_args is None:
+            seq_op_args = [lambda x: x]
         indices, aggregations = unify_all(aggregable, *args)
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
@@ -60,37 +62,32 @@ class AggFunc(object):
             _check_agg_bindings(a)
         _check_agg_bindings(aggregable)
 
+        uid = Env.get_uid()
+
         def get_type(expr):
             return expr.dtype
 
         def get_ir(expr):
             return expr._ir
 
-        def agg_sig(*seq_op_args):
+        def apply_seq_ops(seq_op_args, agg):
+            ref = construct_variable(uid, get_type(agg), agg._indices)
+            return [x(ref) if callable(x) else x for x in seq_op_args]
+
+        def agg_sig(applied_seq_ops):
             return AggSignature(name,
                                 list(map(get_type, constructor_args)),
                                 None if init_op_args is None else list(map(get_type, init_op_args)),
-                                list(map(get_type, seq_op_args)))
+                                list(map(get_type, applied_seq_ops)))
 
-        if name == "Count":
-            def make_seq_op(_):
-                return construct_expr(SeqOp(I32(0), [], agg_sig()), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig()
-        elif f is None:
-            def make_seq_op(agg):
-                return construct_expr(SeqOp(I32(0), [get_ir(agg)], agg_sig(aggregable)), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig(aggregable)
-        else:
-            def make_seq_op(agg):
-                uid = Env.get_uid()
-                ref = construct_variable(uid, get_type(agg), agg._indices)
-                result = f(ref)
-                body = Let(uid, get_ir(agg), get_ir(result))
-                return construct_expr(SeqOp(I32(0), [get_ir(agg), body], agg_sig(agg, result)), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig(aggregable, f(aggregable))
+        def make_seq_op(agg):
+            applied_seq_ops = apply_seq_ops(seq_op_args, agg)
+            return construct_expr(
+                Let(uid, get_ir(agg), SeqOp(I32(0), [get_ir(x) for x in applied_seq_ops], agg_sig(applied_seq_ops))), None)
+
+        seq_op = aggregable._transformations(aggregable, make_seq_op)
+        applied_seq_ops = apply_seq_ops(seq_op_args, aggregable)
+        signature = agg_sig(applied_seq_ops)
 
         if self._as_scan:
             ir = ApplyScanOp(seq_op._ir,
@@ -265,9 +262,9 @@ def count(expr=None) -> Int64Expression:
         Total number of records.
     """
     if expr is not None:
-        return _agg_func('Count', expr, tint64)
+        return _agg_func('Count', expr, tint64, seq_op_args=())
     else:
-        return _agg_func('Count', _to_agg(hl.int32(0)), tint64)
+        return _agg_func('Count', _to_agg(hl.int32(0)), tint64, seq_op_args=())
 
 
 @typecheck(condition=expr_bool)
@@ -293,7 +290,7 @@ def count_where(condition) -> Int64Expression:
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('Count', filter(condition, 0), tint64)
+    return _agg_func('Count', filter(condition, 0), tint64, seq_op_args=())
 
 
 @typecheck(condition=agg_expr(expr_bool))
@@ -470,10 +467,8 @@ def take(expr, n, ordering=None) -> ArrayExpression:
     n = to_expr(n)
     if ordering is None:
         return _agg_func('Take', expr, tarray(expr.dtype), [n])
-    elif callable(ordering):
-        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], f=ordering)
     else:
-        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], f=lambda x: ordering)
+        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], seq_op_args=[lambda expr: expr, ordering])
 
 
 @typecheck(expr=agg_expr(expr_numeric))
@@ -945,7 +940,7 @@ def inbreeding(expr, prior) -> StructExpression:
                 n_called=tint64,
                 expected_homs=tfloat64,
                 observed_homs=tint64)
-    return _agg_func('Inbreeding', expr, t, f=lambda x: prior)
+    return _agg_func('Inbreeding', expr, t, seq_op_args=[lambda expr: expr, prior])
 
 
 @typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
@@ -1060,7 +1055,36 @@ def hist(expr, start, end, bins) -> StructExpression:
                 bin_freq=tarray(tint64),
                 n_smaller=tint64,
                 n_larger=tint64)
-    return _agg_func('Histogram', expr, t, [start, end, bins])
+    return _agg_func('Histogram', expr, t, constructor_args=[start, end, bins])
+
+
+@typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
+def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
+    """Downsample (x, y) coordinate datapoints.
+
+    Parameters
+    ---------
+    x : :class:`.NumericExpression`
+        X-values to be downsampled.
+    y : :class:`.NumericExpression`
+        Y-values to be downsampled.
+    label : :class:`.StringExpression` or :class:`.ArrayExpression`
+        Additional data for each (x, y) coordinate. Can pass in multiple fields in an :class:`.ArrayExpression`.
+    n_divisions : :obj:`int`
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Expression for downsampled coordinate points (x, y). The element type of the array is
+        :py:data:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :py:data:`.tarray` of :py:data:`.tstring`
+    """
+    if label is None:
+        label = hl.null(hl.tarray(hl.tstr))
+    elif isinstance(label, StringExpression):
+        label = hl.array([label])
+    return _agg_func('downsample', _to_agg(x), tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
+                     constructor_args=[n_divisions], seq_op_args=[lambda x: x, y, label])
 
 
 @typecheck(gp=agg_expr(expr_array(expr_float64)))
@@ -1275,7 +1299,7 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', y, t, [k, k0], f=lambda expr: x)
+    return _agg_func('LinearRegression', y, t, [k, k0], seq_op_args=[lambda y: y, x])
 
 
 @typecheck(group=expr_any,
