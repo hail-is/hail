@@ -397,29 +397,21 @@ task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
 }
 
 task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
-    doLast {
-        gitHash = exec {commandLine 'git', 'rev-parse', '--short=12', 'HEAD'}
-        commandLine 'sh', 'python/hail/docs/makeDocs.sh'
-        environment SPARK_HOME: sparkHome
-        environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-        environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-        environment HAIL_VERSION: hailVersion
-        environment HAIL_RELEASE: hailVersion + '-' + gitHash
-        environment SPHINXOPTS: '-tchecktutorial'
-    }
+    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
+    environment SPARK_HOME: sparkHome
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment SPHINXOPTS: '-tchecktutorial'
 }
 
 task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
-    doLast {
-        gitHash = exec {commandLine 'git', 'rev-parse', '--short=12', 'HEAD'}
-        commandLine 'sh', 'python/hail/docs/makeDocs.sh'
-        environment SPARK_HOME: sparkHome
-        environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-        environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-        environment HAIL_VERSION: hailVersion
-        environment HAIL_RELEASE: hailVersion + '-' + gitHash
-        environment SPHINXOPTS: ''
-    }
+    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
+    environment SPARK_HOME: sparkHome
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment SPHINXOPTS: ''
 }
 
 task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
