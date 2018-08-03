@@ -1091,7 +1091,7 @@ class Tests(unittest.TestCase):
         BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(), a_t_path)
 
         a = BlockMatrix.read(a_t_path).T.to_numpy()
-        g = a[:,-n_orig_markers:]
+        g = a[:, -n_orig_markers:]
         g_std = self._filter_and_standardize_cols(g)
 
         n_markers = g_std.shape[1]
@@ -1108,7 +1108,7 @@ class Tests(unittest.TestCase):
         # low rank computation of S, P
         l = g_std.T @ g_std
         sl, v = np.linalg.eigh(l)
-        n_eigenvectors = int((sl > 1e-10).sum())
+        n_eigenvectors = int(np.sum(sl > 1e-10))
         sl = sl[-n_eigenvectors:]
         v = v[:, -n_eigenvectors:]
         s = sl * (n_samples / n_markers)
@@ -1154,7 +1154,7 @@ class Tests(unittest.TestCase):
 
         lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
-        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values
+        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
         assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
 
     def test_linear_mixed_model_full_rank(self):
@@ -1234,7 +1234,7 @@ class Tests(unittest.TestCase):
 
         lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
 
-        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values
+        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
         assert lmm_vs_numpy_p_value[-1] < 1e-8  # all p-values
 
     def test_linear_mixed_model_fastlmm(self):
@@ -1270,7 +1270,7 @@ class Tests(unittest.TestCase):
 
         # FastLMM p-values do not agree to high precision because FastLMM regresses
         # out x from each SNP first and does an F(1, dof)-test on (beta / se)^2
-        # (a t(dof)-test), whereas Hail does LRT on chi_sq (a z-test).
+        # (t-test), whereas Hail does likelihood ratio test.
         # We verify below that Hail's p-values remain fixed going forward.
         # fastlmm = [0.84650294, 0.57865098, 0.59050998, 1.6649473e-06, 0.46892059]
         pval_hail = [0.84543084, 0.57596760, 0.58788517, 1.4057279e-06, 0.46578204]
@@ -1297,7 +1297,7 @@ class Tests(unittest.TestCase):
         assert argmax <= np.argmax(h_sq_norm_lkhd) + 1 <= argmax + 1
         assert np.isclose(np.sum(h_sq_norm_lkhd), 1.0)
 
-        mt3_chr3_5var = mt_chr3.filter_rows(mt_chr3.locus.position < 2005)
+        mt3_chr3_5var = mt_chr3.filter_rows(mt_chr3.locus.position < 2005)  # first 5
         a = BlockMatrix.from_entry_expr(mt3_chr3_5var.GT.n_alt_alleles()).to_numpy().T
 
         # FastLMM standardizes each variant to have mean 0 and variance 1.
@@ -1390,3 +1390,72 @@ class Tests(unittest.TestCase):
 
         assert np.isclose(model.h_sq, h2_fastlmm)
         assert np.isclose(model.h_sq_standard_error, h2_std_error)
+
+    def test_linear_mixed_model_math(self):
+        gamma = 2.0  # testing at fixed value of gamma
+        n, p, m = 4, 2, 3
+        y = np.array([0.0, 1.0, 8.0, 9.0])
+        x = np.array([[1.0, 0.0],
+                      [1.0, 2.0],
+                      [1.0, 1.0],
+                      [1.0, 4.0]])
+        z = np.array([[0.0, 0.0, 1.0],
+                      [0.0, 1.0, 2.0],
+                      [1.0, 2.0, 4.0],
+                      [2.0, 4.0, 8.0]])
+        k = z @ z.T
+        v = k + np.eye(4) / gamma
+        v_inv = np.linalg.inv(v)
+
+        beta = np.linalg.solve(x.T @ v_inv @ x, x.T @ v_inv @ y)
+        residual = y - x @ beta
+        sigma_sq = 1 / (n - p) * (residual @ v_inv @ residual)
+        sv = sigma_sq * v
+        neg_log_lkhd = 0.5 * (np.linalg.slogdet(sv)[1] + np.linalg.slogdet(x.T @ np.linalg.inv(sv) @ x)[1])  # plus C
+
+        x_star = np.array([1.0, 0.0, 1.0, 0.0])
+        a = x_star.reshape(n, 1)
+        x1 = np.hstack([a, x])
+        beta1 = np.linalg.solve(x1.T @ v_inv @ x1, x1.T @ v_inv @ y)
+        residual1 = y - x1 @ beta1
+        chi_sq = n * np.log((residual @ v_inv @ residual) / (residual1 @ v_inv @ residual1))
+
+        # test full-rank fit
+        model, p = hl.LinearMixedModel.from_kinship(y, x, k)
+        model.fit(np.log(gamma))
+        self.assertTrue(np.allclose(model.beta, beta))
+        self.assertAlmostEqual(model.sigma_sq, sigma_sq)
+        self.assertAlmostEqual(model.compute_neg_log_reml(np.log(gamma)), neg_log_lkhd)
+
+        # test full-rank alternative
+        pa = p @ a
+        stats = model.fit_alternatives_numpy(pa).collect()[0]
+        self.assertAlmostEqual(stats.beta, beta1[0])
+        self.assertAlmostEqual(stats.chi_sq, chi_sq)
+
+        pa_t_path = utils.new_temp_file()
+        BlockMatrix.from_numpy(pa.T).write(pa_t_path, force_row_major=True)
+        stats = model.fit_alternatives(pa_t_path).collect()[0]
+        self.assertAlmostEqual(stats.beta, beta1[0])
+        self.assertAlmostEqual(stats.chi_sq, chi_sq)
+
+        # test low-rank fit
+        model, p = hl.LinearMixedModel.from_mixed_effects(y, x, z)
+        model.fit(np.log(gamma))
+        self.assertTrue(np.allclose(model.beta, beta))
+        self.assertAlmostEqual(model.sigma_sq, sigma_sq)
+        self.assertAlmostEqual(model.compute_neg_log_reml(np.log(gamma)), neg_log_lkhd)
+
+        # test low_rank alternative
+        pa = p @ a
+        stats = model.fit_alternatives_numpy(pa, a).collect()[0]
+        self.assertAlmostEqual(stats.beta, beta1[0])
+        self.assertAlmostEqual(stats.chi_sq, chi_sq)
+
+        a_t_path = utils.new_temp_file()
+        BlockMatrix.from_numpy(a.T).write(a_t_path, force_row_major=True)
+        pa_t_path = utils.new_temp_file()
+        BlockMatrix.from_numpy(pa.T).write(pa_t_path, force_row_major=True)
+        stats = model.fit_alternatives(pa_t_path, a_t_path).collect()[0]
+        self.assertAlmostEqual(stats.beta, beta1[0])
+        self.assertAlmostEqual(stats.chi_sq, chi_sq)
