@@ -8,7 +8,6 @@ import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.linalg.BlockMatrix
-import is.hail.methods.SplitMulti
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
