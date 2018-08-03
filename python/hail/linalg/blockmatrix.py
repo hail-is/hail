@@ -2071,13 +2071,13 @@ class BlockMatrix(object):
 
         Returns
         -------
-        u: :class:`ndarray<float64>` or :class:`BlockMatrix`
+        u: :class:`ndarray` or :class:`BlockMatrix`
             Left singular vectors :math:`U`, as a block matrix if :math:`n > m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
-        s: :class:`ndarray<float64>`
+        s: :class:`ndarray`
             Singular values from :math:`\Sigma` in descending order.
-        vt: :class:`ndarray<float64>` or :class:`BlockMatrix`
+        vt: :class:`ndarray` or :class:`BlockMatrix`
             Right singular vectors :math:`V^T``, as a block matrix if :math:`n \leq m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.

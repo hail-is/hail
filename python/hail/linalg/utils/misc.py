@@ -226,3 +226,13 @@ def _compute_contig_start_idx(global_pos, contig_cum_len):
             cum_len = next(cum_len_iter)
         last = curr
     return contig_start_idx
+
+
+def _check_dims(a, name, ndim, min_size=1):
+    if len(a.shape) != ndim:
+        raise ValueError(f'{name} must be {ndim}-dimensional, '
+                         f'found {a.ndim}')
+    for i in range(ndim):
+        if a.shape[i] < min_size:
+            raise ValueError(f'{name}.shape[{i}] must be at least '
+                             f'{min_size}, found {a.shape[i]}')
