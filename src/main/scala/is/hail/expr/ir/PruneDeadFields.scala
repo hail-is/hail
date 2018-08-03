@@ -696,7 +696,7 @@ object PruneDeadFields {
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
       case LocalizeEntries(child, fieldName) =>
         val child2 = rebuild(child, memo)
-        if (child2.typ.rvRowType.fields.contains(MatrixType.entriesIdentifier))
+        if (dep.rowType.hasField(fieldName))
           LocalizeEntries(child2, fieldName)
         else
           MatrixRowsTable(child2)
