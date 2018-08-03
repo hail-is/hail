@@ -1508,22 +1508,24 @@ class SplitMulti(object):
             annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.map(map_alleles))})
             return cleanup(process_exprs(annotated.explode_rows(annotated[self._new_id]), None))
         else:
-            def left_aligned():
-                def flatmap_alleles(i):
-                    def struct_or_empty(v):
-                        return hl.case().when(v[0] == base['locus'], hl.array([make_struct_from_minrep(v, i)])).or_missing()
-                    return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-                annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.flatmap(flatmap_alleles))})
-                return process_exprs(annotated.explode_rows(self._new_id), None)
+            def flatmap_alleles(i, cond):
+                def struct_or_empty(v):
+                    return hl.case().when(cond(v[0]), hl.array([make_struct_from_minrep(v, i)])).or_missing()
+                return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
 
-            def moved():
-                def flatmap_alleles(i):
-                    def struct_or_empty(v):
-                        return hl.case().when(v[0] != base['locus'], hl.array([make_struct_from_minrep(v, i)])).or_missing()
-                    return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-                annotated = base.annotate_rows(**{self._new_id: hl.sorted(kept_alleles.flatmap(flatmap_alleles))})
-                return process_exprs(annotated.explode_rows(self._new_id), [['locus'], ['alleles']])
-        return cleanup(left_aligned()).union_rows(cleanup(moved()))
+            def struct_expr(cond):
+                return hl.sorted(kept_alleles
+                                 .flatmap(lambda i: flatmap_alleles(i, cond)))
+
+            left_aligned = process_exprs(
+                base.annotate_rows(**{self._new_id: struct_expr(lambda locus: locus == base['locus'])})
+                    .explode_rows(self._new_id),
+                None)
+            moved = process_exprs(
+                base.annotate_rows(**{self._new_id: struct_expr(lambda locus: locus != base['locus'])})
+                    .explode_rows(self._new_id),
+                [['locus'], ['alleles']])
+        return cleanup(left_aligned).union_rows(cleanup(moved))
 
 
 @typecheck(ds=MatrixTable,
