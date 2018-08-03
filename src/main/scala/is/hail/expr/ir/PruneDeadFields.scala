@@ -329,6 +329,13 @@ object PruneDeadFields {
               memo)
           case None => memoizeTableIR(child, requestedType, memo)
         }
+      case LocalizeEntries(child, fieldName) =>
+        val minChild = minimal(child.typ)
+        val m = Map(fieldName -> MatrixType.entriesIdentifier)
+        val childDep = minChild.copy(
+          globalType = requestedType.globalType,
+          rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
+        memoizeMatrixIR(child, childDep, memo)
     }
   }
 
@@ -687,6 +694,12 @@ object PruneDeadFields {
         val expr2 = rebuild(expr, child2.typ, memo)
         val newKey2 = rebuild(newKey, child2.typ, memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
+      case LocalizeEntries(child, fieldName) =>
+        val child2 = rebuild(child, memo)
+        if (dep.rowType.hasField(fieldName))
+          LocalizeEntries(child2, fieldName)
+        else
+          MatrixRowsTable(child2)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
