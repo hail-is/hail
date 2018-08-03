@@ -189,7 +189,7 @@ class OrderedRVD(
   def localSort(newKey: Array[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
-    require(partitioner.partitionKey.isDefined)
+    require(partitioner.satisfiesPartitionKey(typ.key.length - 1))
 
     val (newKType, _) = typ.rowType.select(newKey)
     val oldType = typ
@@ -468,9 +468,7 @@ class OrderedRVD(
     assert(newNParts >= 0)
 
     val newRangeBounds = Array.range(0, newNParts).map(partitioner.rangeBounds)
-    val newPartitioner = new OrderedRVDPartitioner(partitioner.partitionKey,
-      partitioner.kType,
-      newRangeBounds)
+    val newPartitioner = partitioner.copy(rangeBounds = newRangeBounds)
 
     OrderedRVD(typ, newPartitioner, newRDD)
   }
@@ -539,10 +537,7 @@ class OrderedRVD(
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
       "values not increasing or not in range [0, number of partitions)")
 
-    val newPartitioner = new OrderedRVDPartitioner(
-      partitioner.partitionKey,
-      partitioner.kType,
-      keep.map(partitioner.rangeBounds))
+    val newPartitioner = partitioner.copy(rangeBounds = keep.map(partitioner.rangeBounds))
 
     OrderedRVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
