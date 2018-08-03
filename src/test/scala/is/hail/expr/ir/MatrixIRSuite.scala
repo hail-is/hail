@@ -211,7 +211,7 @@ class MatrixIRSuite extends SparkSuite {
     } catch {
       case e: org.apache.spark.SparkException => {
         assert(e.getCause.getClass.toString.contains("HailException"))
-        assert(e.getCause.getMessage.contains("wrong size"))
+        assert(e.getCause.getMessage.contains("incorrect entry array length"))
       }
     }
 

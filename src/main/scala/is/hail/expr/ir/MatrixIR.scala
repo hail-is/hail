@@ -2139,15 +2139,16 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
       ir.IsNA(field))
 
     var rowOrvd = rowtab.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-    // this is the check that all arrays have the same length and are present
+    // this checks that all arrays in the entries have the same length and are present
     rowOrvd.mapPartitions { it =>
       it.map { rv =>
         if (missingF()(rv.region, rv.offset, false)) {
-          fatal("missing entry") // FIXME(cdv) error message
+          fatal("missing entry array value in argument to UnlocalizeEntries")
         }
         val l = lenF()(rv.region, rv.offset, false)
         if (l != localColData.length) {
-          fatal(s"entry wrong size, was ${l}, should be ${localColData.length}") // FIXME error message
+          fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
+                   |   had ${l} elements, should have had ${localColData.length} elements""")
         }
         ()
       }
