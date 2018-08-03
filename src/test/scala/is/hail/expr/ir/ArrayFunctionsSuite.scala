@@ -54,13 +54,13 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "basic")
   def sum(a: Seq[Integer]) {
     assertEvalsTo(invoke("sum", toIRArray(a)),
-      Option(a).map(_.filter(_ != null).map(_.toInt).sum).orNull)
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) => comb.flatMap(c => Option(x).map(_ + c)))).orNull)
   }
 
   @Test(dataProvider = "basic")
   def product(a: Seq[Integer]) {
     assertEvalsTo(invoke("product", toIRArray(a)),
-      Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) => comb.flatMap(c => Option(x).map(_ * c)))).orNull)
   }
 
   @Test def mean() {
