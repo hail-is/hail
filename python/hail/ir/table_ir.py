@@ -238,4 +238,4 @@ class LocalizeEntries(TableIR):
         self.entry_field_name = entry_field_name
 
     def __str__(self):
-        return f'(LocalizeEntries {escape_str(self.entry_field_name)} {self.child})'
+        return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {self.child})'
