@@ -65,9 +65,9 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def mean() {
     assertEvalsTo(invoke("mean", IRArray(3, 7)), 5.0)
-    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", IRArray(3, 7, 11)), 7.0)
-    assertEvalsTo(invoke("mean", IRArray()), null)
+    assertEvalsTo(invoke("mean", IRArray()), Double.NaN)
     assertEvalsTo(invoke("mean", IRArray(null)), null)
     assertEvalsTo(invoke("mean", naa), null)
   }
@@ -117,7 +117,13 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "sort")
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
     assertEvalsTo(invoke("min", toIRArray(a)),
-      Option(asc).flatMap(_.headOption).orNull)
+      Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
+  }
+
+  @Test(dataProvider = "sort")
+  def max(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("max", toIRArray(a)),
+      Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
   }
 
   @DataProvider(name = "argminmax")

@@ -183,19 +183,20 @@ object ArrayFunctions extends RegistryFunctions {
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
           Let(m, GetField(Ref(accum, tAccum), "m"),
-            If(IsNA(Ref(m, t)),
-              updateAccum(Ref(value, t), Ref(idx, TInt32())),
-              If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
+            If(IsNA(Ref(value, t)),
+              Ref(accum, tAccum),
+              If(IsNA(Ref(m, t)),
                 updateAccum(Ref(value, t), Ref(idx, TInt32())),
-                Ref(accum, tAccum)))))
-
-        GetField(ArrayFold(
-          ArrayRange(I32(0), ArrayLen(a), I32(1)),
-          NA(tAccum),
-          accum,
-          idx,
-          body
-        ), "midx")
+                If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
+                  updateAccum(Ref(value, t), Ref(idx, TInt32())),
+                  Ref(accum, tAccum))))))
+      GetField(ArrayFold(
+        ArrayRange(I32(0), ArrayLen(a), I32(1)),
+        NA(tAccum),
+        accum,
+        idx,
+        body
+      ), "midx")
     }
 
     registerIR("argmin", TArray(tv("T")))(argF(_, LT(_)))
@@ -217,13 +218,18 @@ object ArrayFunctions extends RegistryFunctions {
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
           Let(m, GetField(Ref(accum, tAccum), "m"),
-            If(IsNA(Ref(m, t)),
-              updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
-              If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
+            If(IsNA(Ref(value, t)),
+              Ref(accum, tAccum),
+              If(IsNA(Ref(m, t)),
                 updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
-                If(ApplyComparisonOp(EQ(t), Ref(value, t), Ref(m, t)),
-                  updateAccum(Ref(value, t), Ref(idx, TInt32()), ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
-                  Ref(accum, tAccum))))))
+                If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
+                  updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
+                  If(ApplyComparisonOp(EQ(t), Ref(value, t), Ref(m, t)),
+                    updateAccum(
+                      Ref(value, t),
+                      Ref(idx, TInt32()),
+                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
+                    Ref(accum, tAccum)))))))
 
       Let(result, ArrayFold(
         ArrayRange(I32(0), ArrayLen(a), I32(1)),
