@@ -118,30 +118,32 @@ class MatrixIRSuite extends SparkSuite {
     val actualOrdering = getRows(unioned).map { case Row(i: Int) => i }
 
     assert(actualOrdering sameElements expectedOrdering)
-
   }
 
-  @Test def testMatrixExplode() {
+
+  @DataProvider(name = "explodeRowsData")
+  def explodeRowsData(): Array[Array[Any]] = Array(
+    Array(FastIndexedSeq("empty"), FastIndexedSeq()),
+    Array(FastIndexedSeq("null"), null),
+    Array(FastIndexedSeq("set"), FastIndexedSeq(1, 3)),
+    Array(FastIndexedSeq("one"), FastIndexedSeq(3)),
+    Array(FastIndexedSeq("na"), FastIndexedSeq(null)),
+    Array(FastIndexedSeq("x", "y"), FastIndexedSeq(3)),
+    Array(FastIndexedSeq("foo", "bar"), FastIndexedSeq(1, 3)),
+    Array(FastIndexedSeq("a", "b", "c"), FastIndexedSeq()))
+
+  @Test(dataProvider = "explodeRowsData")
+  def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
     val tarray = TArray(TInt32())
     val range = MatrixTable.range(hc, 5, 2, None).ast
-    val fields = FastIndexedSeq(
-      "empty" -> IRArray(),
-      "null" -> NA(tarray),
-      "set" -> IRSet(1, 3),
-      "z" -> IRArray(3),
-      "x" -> IRStruct("y" -> IRArray(3)),
-      "a" -> IRStruct("b" -> IRStruct("c" -> IRArray())))
 
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), fields), None)
+    val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)), None)
 
-    def explodeAndCount(path: String*): IR =
-      TableCount(MatrixRowsTable(MatrixExplodeRows(annotated, path.toIndexedSeq)))
+    val q = annotated.typ.rowType.query(path: _*)
+    val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
 
-    assertEvalsTo(explodeAndCount("empty"), 0L)
-    assertEvalsTo(explodeAndCount("null"), 0L)
-    assertEvalsTo(explodeAndCount("set"), 10L)
-    assertEvalsTo(explodeAndCount("z"), 5L)
-    assertEvalsTo(explodeAndCount("x", "y"), 5L)
-    assertEvalsTo(explodeAndCount("a", "b", "c"), 0L)
+    val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
+    assert(exploded sameElements expected)
   }
 }

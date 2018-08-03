@@ -1888,6 +1888,7 @@ case class TableToMatrixTable(
 }
 
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
+  assert(path.nonEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1945,17 +1946,14 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
         val rowF = f()
         it.flatMap { rv =>
           val len = lenF(rv.region, rv.offset, false)
-          if (len == 0)
-            Iterator()
-          else
-            new Iterator[RegionValue] {
-              private[this] var i = 0
-              def hasNext(): Boolean = i < len
-              def next(): RegionValue = {
-                rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
-                i += 1
-                rv2
-              }
+          new Iterator[RegionValue] {
+            private[this] var i = 0
+            def hasNext(): Boolean = i < len
+            def next(): RegionValue = {
+              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+              i += 1
+              rv2
+            }
           }
         }
       }))
