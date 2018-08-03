@@ -795,7 +795,7 @@ def try_to_cancel_job_by_id(id):
         job = batch_client.get_job(id)
         try_to_cancel_job(job)
     except requests.exceptions.HTTPError as e:
-        log.warn(f'while trying to cancel a job, could not get job {job.id} due to {e}')
+        log.warn(f'while trying to cancel a job, could not get job {id} due to {e}')
 
 def try_to_cancel_job(job):
     try:
