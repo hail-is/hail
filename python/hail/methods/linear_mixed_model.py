@@ -374,17 +374,12 @@ class LinearMixedModel(object):
 
         The formulae follow from `Bayesian Inference for Variance Components Using Only Error Contrasts (1974)
         <http://faculty.dbmi.pitt.edu/day/Bioinf2132-advanced-Bayes-and-R/previousDocuments/Bioinf2132-documents-2016/2016-11-22/Harville-1974.pdf>`__.
-        Harville derives that for fixed covariance :math:`V`, the restricted likelihood of
+        Harville derives that for fixed covariance :math:`V`, the restricted
+        likelihood of the variance parameter :math:`V` in the model
 
         .. math::
 
           y \sim \mathrm{N}(X \beta, \, V)
-
-        at
-
-        .. math::
-
-          \hat\beta = (X^T V^{-1} X)^{-1} X^T V^{-1} y
 
         is given by
 
@@ -396,7 +391,13 @@ class LinearMixedModel(object):
           \det(X^T V^{-1} X)^{-\frac{1}{2}}
           e^{-\frac{1}{2}(y - X\hat\beta)^T V^{-1}(y - X\hat\beta)}.
 
-        In our case, the covariance is
+        with
+
+        .. math::
+
+          \hat\beta = (X^T V^{-1} X)^{-1} X^T V^{-1} y.
+
+        In our case, the variance is
 
         .. math::
 
@@ -530,7 +531,7 @@ class LinearMixedModel(object):
             else:
                 raise Exception(f'failed to fit log_gamma:\n  {self.optimize_result}')
         else:
-             self.log_gamma = log_gamma
+            self.log_gamma = log_gamma
 
         _, self.beta, self.sigma_sq, self.tau_sq = self.compute_neg_log_reml(self.log_gamma, return_parameters=True)
 
@@ -593,17 +594,17 @@ class LinearMixedModel(object):
         :class:`ndarray` of :obj:`float64`
             Normalized likelihood values for :math:`\mathit{h}^2`.
         """
-        ll = np.zeros(101, dtype=np.float64)
-        ll[0], ll[100] = np.nan, np.nan
+        log_lkhd = np.zeros(101, dtype=np.float64)
+        log_lkhd[0], log_lkhd[100] = np.nan, np.nan
 
         for h2 in range(1, 100):
             gamma = h2 / (100.0 - h2)
-            ll[h2] = -self.compute_neg_log_reml(np.log(gamma))
+            log_lkhd[h2] = -self.compute_neg_log_reml(np.log(gamma))
 
-        ll -= np.max(ll[1:-1])
-        l = np.exp(ll)
-        l /= np.sum(l[1:-1])
-        return l
+        log_lkhd -= np.max(log_lkhd[1:-1])
+        lkhd = np.exp(log_lkhd)
+        lkhd /= np.sum(lkhd[1:-1])
+        return lkhd
 
     @typecheck_method(pa_t_path=str,
                       a_t_path=nullable(str),
@@ -622,8 +623,11 @@ class LinearMixedModel(object):
         .. math::
 
           \chi^2 = 2 \log\left(\frac{
-          \max_{\beta_\star, \beta, \sigma^2}\mathrm{N}(y \, | \, x_\star \beta_\star + X \beta; \sigma^2(K + \gamma^{-1}I)}
-          {\max_{\beta, \sigma^2} \mathrm{N}(y \, | \, x_\star \cdot 0 + X \beta; \sigma^2(K + \gamma^{-1}I)}\right)
+          \max_{\beta_\star, \beta, \sigma^2}\mathrm{N}
+          (y \, | \, x_\star \beta_\star + X \beta; \sigma^2(K + \gamma^{-1}I)}
+          {\max_{\beta, \sigma^2} \mathrm{N}
+          (y \, | \, x_\star \cdot 0 + X \beta; \sigma^2(K + \gamma^{-1}I)}
+          \right)
 
         The p-value is given by the tail probability under a chi-squared
         distribution with one degree of freedom.
@@ -825,7 +829,7 @@ class LinearMixedModel(object):
                       x=np.ndarray,
                       k=np.ndarray)
     def from_kinship(cls, y, x, k):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
+        r"""Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
 
         Examples
         --------
@@ -912,7 +916,7 @@ class LinearMixedModel(object):
                       z=oneof(np.ndarray, hl.linalg.BlockMatrix),
                       max_condition_number=float)
     def from_mixed_effects(cls, y, x, z, max_condition_number=1e-10):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
+        r"""Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
 
         Examples
         --------
