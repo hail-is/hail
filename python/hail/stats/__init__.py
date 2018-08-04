@@ -1,5 +1,7 @@
-from .distributions import TruncatedBetaDist, BetaDist, UniformDist
+from .distributions import BetaDist, TruncatedBetaDist, UniformDist
+from .linear_mixed_model import LinearMixedModel
 
-__all__ = ['TruncatedBetaDist',
-           'BetaDist',
-           'UniformDist']
+__all__ = ['BetaDist',
+           'TruncatedBetaDist',
+           'UniformDist',
+           'LinearMixedModel']

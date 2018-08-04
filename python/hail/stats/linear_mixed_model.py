@@ -833,6 +833,7 @@ class LinearMixedModel(object):
 
         Examples
         --------
+        >>> from hail.stats import LinearMixedModel
         >>> y = np.array([0.0, 1.0, 8.0, 9.0])
         >>> x = np.array([[1.0, 0.0],
         ...               [1.0, 2.0],
@@ -842,7 +843,7 @@ class LinearMixedModel(object):
         ...               [-0.8727875 ,  1.        , -0.93036112, -0.97320323],
         ...               [ 0.96397335, -0.93036112,  1.        ,  0.98294169],
         ...               [ 0.94512946, -0.97320323,  0.98294169,  1.        ]])
-        >>> model, p = hl.LinearMixedModel.from_kinship(y, x, k)
+        >>> model, p = LinearMixedModel.from_kinship(y, x, k)
         >>> model.fit()
         >>> model.h_sq
         0.2525148830695317
@@ -855,7 +856,7 @@ class LinearMixedModel(object):
         >>> r = 2
         >>> s_r = model.s[:r]
         >>> p_r = p[:r, :]
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
+        >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
         >>> model.fit()
         >>> model.h_sq
         0.25193197591429695
@@ -920,6 +921,7 @@ class LinearMixedModel(object):
 
         Examples
         --------
+        >>> from hail.stats import LinearMixedModel
         >>> y = np.array([0.0, 1.0, 8.0, 9.0])
         >>> x = np.array([[1.0, 0.0],
         ...               [1.0, 2.0],
@@ -929,7 +931,7 @@ class LinearMixedModel(object):
         ...               [0.0, 1.0, 2.0],
         ...               [1.0, 2.0, 4.0],
         ...               [2.0, 4.0, 8.0]])
-        >>> model, p = hl.LinearMixedModel.from_mixed_effects(y, x, z)
+        >>> model, p = LinearMixedModel.from_mixed_effects(y, x, z)
         >>> model.fit()
         >>> model.h_sq
         0.38205307244271675
@@ -949,7 +951,7 @@ class LinearMixedModel(object):
 
         >>> s_r = model.s[:r]  # doctest: +SKIP
         >>> p_r = p[:r, :]  # doctest: +SKIP
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
+        >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
 
         No standardization is applied to `z`.
 
