@@ -3,24 +3,23 @@ git clone $SOURCE_REPO_URL \
     --branch $SOURCE_BRANCH \
     repo && \
 cd repo && \
-echo $(git rev-parse $SOURCE_BRANCH) && \
-git checkout $SOURCE_SHA && \
 git remote add target $TARGET_REPO_URL && \
 git fetch target $TARGET_BRANCH && \
 echo $(git rev-parse target/$TARGET_BRANCH) && \
+echo $(git rev-parse $SOURCE_BRANCH) && \
+[[ $( git rev-parse $SOURCE_BRANCH ) == $SOURCE_SHA ]] && \
+[[ $( git rev-parse target/$TARGET_BRANCH ) == $TARGET_SHA ]] && \
 git config --global user.email hail-ci-pr-builder@hail.is && \
 git config --global user.name "Hail CI PR Builder" && \
-git merge $TARGET_SHA && \
-source activate hail && \
-GRADLE_OPTS=-Xmx2048m ./gradlew testAll --gradle-user-home /gradle-cache ; \
-GRADLE_EXIT=$? ; \
+git rebase $TARGET_BRANCH $SOURCE_BRANCH && \
+./hail-ci-build.sh && \
 gcloud auth activate-service-account \
   hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
   --key-file=/secrets/hail-ci-0-1.key && \
 gsutil -m \
   -h "Cache-Control:private, max-age=0, no-transform" \
   cp -r \
-  build/reports/tests/ \
-  gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ && \
-gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/test-report/ ; \
-exit $GRADLE_EXIT
+  artifacts/ \
+  gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ && \
+gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ ; \
+exit $BUILD_EXIT

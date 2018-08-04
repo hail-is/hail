@@ -154,11 +154,12 @@ class TestCI(unittest.TestCase):
                      pr['target_url'] == 'https://github.com/hail-is/ci-test.git' and
                      pr['target_ref'] == 'master' and
                      (pr['status']['state'] == 'pending' and pr['status']['job_id'] is None or
-                      pr['status']['state'] == 'running' and pr['status']['job_id'] is not None) and
+                      pr['status']['state'] != 'pending' and pr['status']['job_id'] is not None) and
                      pr['status']['review_state'] == 'pending' and
                      pr['status']['source_sha'] == source_sha and
                      pr['status']['target_sha'] == target_sha and
-                     pr['status']['pr_number'] == str(pr_number)
+                     pr['status']['pr_number'] == str(pr_number) and
+                     pr['status']['docker_image'] == 'alpine:latest'
                      for pr in prs].count(True),
                     1, f'expected a pr to have: "source_sha": "{source_sha}", "target_sha": "{target_sha}", "pr_number": "{pr_number}", actual prs: {prs}')
             finally:

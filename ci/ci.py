@@ -1,6 +1,7 @@
 from batch.client import *
 from flask import Flask, request, jsonify
 from google.cloud import storage
+from subprocess import run
 import collections
 import json
 import logging
@@ -35,7 +36,6 @@ assert isinstance(INITIAL_WATCHED_REPOS, list), INITIAL_WATCHED_REPOS
 assert all(isinstance(repo, str) for repo in INITIAL_WATCHED_REPOS), INITIAL_WATCHED_REPOS
 GITHUB_URL = 'https://api.github.com/'
 CONTEXT = 'hail-ci'
-PR_IMAGE = 'gcr.io/broad-ctsa/hail-pr-builder:latest'
 SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
 BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
@@ -93,7 +93,8 @@ class Status(object):
                  source_sha,
                  target_sha,
                  pr_number,
-                 job_id=None):
+                 job_id=None,
+                 docker_image=None):
         assert state == 'failure' or state == 'pending' or state == 'success' or state == 'running'
         assert review_state == 'approved' or review_state == 'changes_requested' or review_state == 'pending', review_state
         if state == 'pending':
@@ -104,6 +105,23 @@ class Status(object):
         self.target_sha = target_sha
         self.pr_number = pr_number
         self.job_id = job_id
+        self.docker_image = docker_image
+
+    def copy(self,
+             state=None,
+             review_state=None,
+             source_sha=None,
+             target_sha=None,
+             pr_number=None,
+             job_id=None,
+             docker_image=None):
+        return Status(self.state if state is None else state,
+                      self.review_state if review_state is None else review_state,
+                      self.source_sha if source_sha is None else source_sha,
+                      self.target_sha if target_sha is None else target_sha,
+                      self.pr_number if pr_number is None else pr_number,
+                      self.job_id if job_id is None else job_id,
+                      self.docker_image if docker_image is None else docker_image)
 
     def github_state_up_to_date(self, github_state):
         return (self.state == github_state or
@@ -116,7 +134,8 @@ class Status(object):
             'source_sha': self.source_sha,
             'target_sha': self.target_sha,
             'pr_number': self.pr_number,
-            'job_id': self.job_id
+            'job_id': self.job_id,
+            'docker_image': self.docker_image
         }
 
 watched_repos = INITIAL_WATCHED_REPOS
@@ -292,12 +311,17 @@ def github_push():
                     },
                     status_code=201
                 )
+                docker_image = get_build_image(target_url, target_ref, new_sha,
+                                               source_url, source_ref, status.source_sha)
                 update_pr_status(
                     source_url,
                     source_ref,
                     target_url,
                     target_ref,
-                    Status('pending', status.review_state, status.source_sha, new_sha, status.pr_number))
+                    status.copy(state='pending',
+                                target_sha=new_sha,
+                                job_id=None,
+                                docker_image=docker_image))
         heal()
     else:
         log.info(f'ignoring ref push {ref} because it does not start with refs/heads/')
@@ -315,9 +339,16 @@ def github_pull_request():
         target_ref = data['pull_request']['base']['ref']
         pr_number = str(data['number'])
         target_sha = get_sha_for_target_ref(target_url, target_ref)
+        docker_image = get_build_image(target_url, target_ref, target_sha,
+                                       source_url, source_ref, source_sha)
         review_status = review_status_net(repo_from_url(target_url), pr_number)
         cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
-        status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
+        status = Status('pending',
+                        review_status['state'],
+                        source_sha,
+                        target_sha,
+                        pr_number,
+                        docker_image=docker_image)
         update_pr_status(source_url, source_ref, target_url, target_ref, status)
         post_repo(
             repo_from_url(target_url),
@@ -397,7 +428,11 @@ def build_finished(pr_number,
             source_ref,
             target_url,
             target_ref,
-            Status('success', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+            status.copy(state='success',
+                        # what does it mean if pr_number is different?
+                        pr_number=pr_number,
+                        # what does it mean if job_id is different?
+                        job_id=job_id)
         )
         post_repo(
             repo_from_url(target_url),
@@ -417,7 +452,9 @@ def build_finished(pr_number,
             source_ref,
             target_url,
             target_ref,
-            Status('failure', status.review_state, status.source_sha, status.target_sha, pr_number, job_id)
+            status.copy(state='failure',
+                        pr_number=pr_number,
+                        job_id=job_id)
         )
         status_message = f'failing build ({exit_code}) after merge with {target_sha}'
         post_repo(
@@ -535,8 +572,9 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         'type': 'hail-ci-' + VERSION
     }
     log.info(f'creating job with attributes {attributes}')
+    assert status.docker_image is not None, ((target_url, target_ref), (source_url, source_ref), status.to_json())
     job=batch_client.create_job(
-        PR_IMAGE,
+        status.docker_image,
         command=[
             '/bin/bash',
             '-c',
@@ -587,12 +625,8 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         source_ref,
         target_url,
         target_ref,
-        Status('running',
-               status.review_state,
-               status.source_sha,
-               status.target_sha,
-               status.pr_number,
-               job_id=job.id))
+        status.copy(state='running', job_id=job.id)
+    )
     log.info(f'successfully updated status about job {job.id}')
 
 def get_sha_for_target_ref(url, ref):
@@ -640,12 +674,25 @@ def refresh_github_state():
                     else:
                         log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                                  f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
+                        docker_image = get_build_image(target_url, target_ref, target_sha,
+                                                       source_url, source_ref, source_sha)
+                        if status.state == 'running' and latest_state == 'pending':
+                            latest_state = 'running'
+                            job_id = status.job_id
+                        else:
+                            job_id = None
                         update_pr_status(
                             source_url,
                             source_ref,
                             target_url,
                             target_ref,
-                            Status(latest_state, latest_review_state, source_sha, target_sha, pr_number))
+                            Status(latest_state,
+                                   latest_review_state,
+                                   source_sha,
+                                   target_sha,
+                                   pr_number,
+                                   job_id=job_id,
+                                   docker_image=docker_image))
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
                     log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
@@ -824,6 +871,31 @@ def batch_job_state_smaller_is_closer_to_complete(x, y):
         else:
             assert y == 'Cancelled', y
             return -1
+
+def get_build_image(source_url, source_ref, source_sha,
+                    target_url, target_ref, target_sha):
+    d = os.getcwd()
+    try:
+        target_repo = repo_from_url(target_url)
+        if not os.path.isdir(target_repo):
+            os.makedirs(target_repo, exist_ok=True)
+            os.chdir(target_repo)
+            run(['git', 'clone', target_url, '.'], check=True)
+        else:
+            os.chdir(target_repo)
+        source_repo = repo_from_url(source_url)
+        if run(['/bin/sh', '-c', f'git remote | grep -q {source_repo}']).returncode != 0:
+            run(['git', 'remote', 'add', source_repo, source_url], check=True)
+        run(['git', 'fetch', source_repo], check=True)
+        run(['git', 'checkout', target_sha], check=True)
+        run(['git', 'merge', source_sha], check=True)
+        # a force push that removes refs could fail us... not sure what we
+        # should do in that case. maybe 500'ing is OK?
+        with open('hail-ci-build-image', 'r') as f:
+            return f.read().strip()
+    finally:
+        os.chdir(d)
+
 
 ###############################################################################
 ### Review Status
