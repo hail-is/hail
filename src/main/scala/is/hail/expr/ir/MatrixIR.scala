@@ -1888,6 +1888,7 @@ case class TableToMatrixTable(
 }
 
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
+  assert(path.nonEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1899,25 +1900,41 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   override def columnCount: Option[Int] = child.columnCount
 
   private val rvRowType = child.typ.rvRowType
-  private val (keysType, querier) = rvRowType.queryTyped(path: _*)
-  private val keyType = keysType match {
-    case TArray(e, _) => e
-    case TSet(e, _) => e
+
+  val length: IR = {
+    val lenUID = genUID()
+    Let(lenUID,
+      ArrayLen(ToArray(
+        path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
+          GetField(struct, field)))),
+      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
   }
 
-  private val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path.toList)
+  val idx = Ref(genUID(), TInt32())
+  val newRVRow: InsertFields = {
+    val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
+      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
 
-  val typ: MatrixType = child.typ.copy(rvRowType = newRVType)
+    path.zip(refs).zipWithIndex.foldRight[IR](idx) {
+      case (((field, ref), i), arg) =>
+        InsertFields(ref, FastIndexedSeq(field ->
+          (if (i == refs.length - 1)
+            ArrayRef(ToArray(GetField(ref, field)), arg)
+          else
+            Let(refs(i+1).name, GetField(ref, field), arg))))
+    }.asInstanceOf[InsertFields]
+  }
+
+  val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
-
-    val localEntriesIndex = child.typ.entriesIdx
-    val oldRVType = rvRowType
-    val localNewRVType = newRVType
-    val localInserter = inserter
-    val localQuerier = querier
-    val localKeyType = keyType
+    val (_, l) = Compile[Long, Int]("va", rvRowType, length)
+    val (t, f) = Compile[Long, Int, Long](
+      "va", rvRowType,
+      idx.name, TInt32(),
+      newRVRow)
+    assert(t == typ.rvRowType)
 
     MatrixValue(typ,
       prev.globals,
@@ -1925,21 +1942,19 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
       prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
         val region2 = ctx.region
         val rv2 = RegionValue(region2)
-        val rv2b = ctx.rvb
-        val ur = new UnsafeRow(oldRVType)
+        val lenF = l()
+        val rowF = f()
         it.flatMap { rv =>
-          ur.set(rv)
-          val keys = localQuerier(ur).asInstanceOf[Iterable[Any]]
-          if (keys == null)
-            None
-          else
-            keys.iterator.map { explodedElement =>
-              rv2b.start(localNewRVType)
-              localInserter(rv.region, rv.offset, rv2b,
-                () => rv2b.addAnnotation(localKeyType, explodedElement))
-              rv2.setOffset(rv2b.end())
+          val len = lenF(rv.region, rv.offset, false)
+          new Iterator[RegionValue] {
+            private[this] var i = 0
+            def hasNext(): Boolean = i < len
+            def next(): RegionValue = {
+              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+              i += 1
               rv2
             }
+          }
         }
       }))
   }

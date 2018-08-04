@@ -2,8 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
-import is.hail.table.Table
-import is.hail.utils.FastIndexedSeq
+import is.hail.expr.types._
+import is.hail.utils._
+import is.hail.TestUtils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -26,7 +27,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow, None)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx, idx) => row_idx == idx})
+    assert(rows.forall { case Row(row_idx, idx) => row_idx == idx })
   }
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
@@ -37,7 +38,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow, None)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
+    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
@@ -48,7 +49,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow, None)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx))})
+    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
   }
 
   @Test def testScanCountBehavesLikeIndexOnCols() {
@@ -59,7 +60,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx, idx) => col_idx == idx})
+    assert(cols.forall { case Row(col_idx, idx) => col_idx == idx })
   }
 
   @Test def testScanCollectBehavesLikeRangeOnCols() {
@@ -70,7 +71,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, col_idx)})
+    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, col_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
@@ -81,7 +82,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, col_idx))})
+    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, col_idx)) })
   }
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
@@ -96,7 +97,7 @@ class MatrixIRSuite extends SparkSuite {
         FastIndexedSeq.empty))
   }
 
-  @DataProvider(name="unionRowsData")
+  @DataProvider(name = "unionRowsData")
   def unionRowsData(): Array[Array[Any]] = Array(
     Array(FastIndexedSeq(0 -> 0, 5 -> 7)),
     Array(FastIndexedSeq(0 -> 1, 5 -> 7)),
@@ -107,7 +108,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test(dataProvider = "unionRowsData")
   def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]) {
-    val expectedOrdering = ranges.flatMap{ case (start, end) =>
+    val expectedOrdering = ranges.flatMap { case (start, end) =>
       Array.range(start, end)
     }.sorted
 
@@ -117,5 +118,32 @@ class MatrixIRSuite extends SparkSuite {
     val actualOrdering = getRows(unioned).map { case Row(i: Int) => i }
 
     assert(actualOrdering sameElements expectedOrdering)
+  }
+
+
+  @DataProvider(name = "explodeRowsData")
+  def explodeRowsData(): Array[Array[Any]] = Array(
+    Array(FastIndexedSeq("empty"), FastIndexedSeq()),
+    Array(FastIndexedSeq("null"), null),
+    Array(FastIndexedSeq("set"), FastIndexedSeq(1, 3)),
+    Array(FastIndexedSeq("one"), FastIndexedSeq(3)),
+    Array(FastIndexedSeq("na"), FastIndexedSeq(null)),
+    Array(FastIndexedSeq("x", "y"), FastIndexedSeq(3)),
+    Array(FastIndexedSeq("foo", "bar"), FastIndexedSeq(1, 3)),
+    Array(FastIndexedSeq("a", "b", "c"), FastIndexedSeq()))
+
+  @Test(dataProvider = "explodeRowsData")
+  def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
+    val tarray = TArray(TInt32())
+    val range = MatrixTable.range(hc, 5, 2, None).ast
+
+    val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)), None)
+
+    val q = annotated.typ.rowType.query(path: _*)
+    val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
+
+    val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
+    assert(exploded sameElements expected)
   }
 }
