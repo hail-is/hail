@@ -143,7 +143,7 @@ class TestCI(unittest.TestCase):
                     status_code=201
                 )
                 pr_number = data['number']
-                time.sleep(5)
+                time.sleep(7) # plenty of time to start a pod and run a simple command
                 status = ci_get('/status', status_code=200)
                 self.assertIn('prs', status)
                 self.assertIn('watched_repos', status)
@@ -152,13 +152,13 @@ class TestCI(unittest.TestCase):
                                   pr['source_url'] == 'https://github.com/hail-is/ci-test.git',
                                   pr['target_url'] == 'https://github.com/hail-is/ci-test.git',
                                   pr['target_ref'] == 'master',
-                                  (pr['status']['state'] == 'pending' and pr['status']['job_id'] is None or
-                                   pr['status']['state'] != 'pending' and pr['status']['job_id'] is not None),
+                                  pr['status']['state'] == 'success',
+                                  pr['status']['job_id'] is not None,
                                   pr['status']['review_state'] == 'pending',
                                   pr['status']['source_sha'] == source_sha,
                                   pr['status']['target_sha'] == target_sha,
                                   pr['status']['pr_number'] == str(pr_number),
-                                  pr['status']['docker_image'] == 'gcr.io/broad-ctsa/alpine-bash:latest')
+                                  pr['status']['docker_image'] == 'google/cloud-sdk:alpine')
                                  for pr in prs]
                 self.assertEqual(
                     [all(x) for x in pr_goodnesses].count(True),
