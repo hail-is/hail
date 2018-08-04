@@ -2,6 +2,7 @@ import subprocess
 from subprocess import call, run
 import os
 import time
+import random
 import requests
 import tempfile
 import unittest
@@ -173,5 +174,100 @@ class TestCI(unittest.TestCase):
                         status_code=200
                     )
 
+    def test_push_while_building(self):
+        BRANCH_NAME='test_push_while_building'
+        with tempfile.TemporaryDirectory() as d:
+            pr_number = None
+            try:
+                status = ci_get('/status', status_code=200)
+                self.assertIn('watched_repos', status)
+                self.assertEqual(status['watched_repos'], ['hail-is/ci-test'])
+                os.chdir(d)
+                call(['git', 'clone', 'git@github.com:hail-is/ci-test.git'])
+                os.chdir('ci-test')
+                call(['git', 'remote', '-v'])
 
-
+                call(['git', 'checkout', '-b', BRANCH_NAME])
+                with open('hail-ci-build.sh', 'w') as f:
+                    f.write('sleep 45')
+                call(['git', 'add', 'hail-ci-build.sh'])
+                call(['git', 'commit', '-m', 'foo'])
+                call(['git', 'push', 'origin', BRANCH_NAME])
+                source_sha = run(['git', 'rev-parse', BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                first_target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                data = post_repo(
+                    'hail-is/ci-test',
+                    'pulls',
+                    json={ "title" : "foo", "head": BRANCH_NAME, "base": "master" },
+                    status_code=201
+                )
+                pr_number = data['number']
+                time.sleep(7) # plenty of time to start a pod
+                status = ci_get('/status', status_code=200)
+                self.assertIn('prs', status)
+                self.assertIn('watched_repos', status)
+                prs = status['prs']
+                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
+                self.assertEqual(len(prs), 1)
+                pr = prs[0]
+                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_ref'], 'master')
+                self.assertEqual(pr['status']['state'], 'running')
+                first_job_id = pr['status']['job_id']
+                self.assertTrue(first_job_id is not None)
+                self.assertEqual(pr['status']['review_state'], 'pending')
+                self.assertEqual(pr['status']['source_sha'], source_sha)
+                self.assertEqual(pr['status']['target_sha'], first_target_sha)
+                self.assertEqual(pr['status']['pr_number'], str(pr_number))
+                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+                call(['git', 'checkout', 'master'])
+                call(['git', 'commit', '--allow-empty', '-m', 'foo'])
+                call(['git', 'push', 'origin', 'master'])
+                second_target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                time.sleep(15) # plenty of time for github to notify ci and to start a new pod
+                status = ci_get('/status', status_code=200)
+                self.assertIn('prs', status)
+                self.assertIn('watched_repos', status)
+                prs = status['prs']
+                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
+                self.assertEqual(len(prs), 1)
+                pr = prs[0]
+                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_ref'], 'master')
+                self.assertEqual(pr['status']['state'], 'running')
+                second_job_id = pr['status']['job_id']
+                self.assertNotEqual(second_job_id, first_job_id)
+                self.assertEqual(pr['status']['review_state'], 'pending')
+                self.assertEqual(pr['status']['source_sha'], source_sha)
+                self.assertEqual(pr['status']['target_sha'], second_target_sha)
+                self.assertEqual(pr['status']['pr_number'], str(pr_number))
+                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+                time.sleep(45) # build should be done now
+                status = ci_get('/status', status_code=200)
+                self.assertIn('prs', status)
+                self.assertIn('watched_repos', status)
+                prs = status['prs']
+                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
+                self.assertEqual(len(prs), 1)
+                pr = prs[0]
+                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
+                self.assertEqual(pr['target_ref'], 'master')
+                self.assertEqual(pr['status']['state'], 'success')
+                self.assertEqual(second_job_id, pr['status']['job_id'])
+                self.assertEqual(pr['status']['review_state'], 'pending')
+                self.assertEqual(pr['status']['source_sha'], source_sha)
+                self.assertEqual(pr['status']['target_sha'], second_target_sha)
+                self.assertEqual(pr['status']['pr_number'], str(pr_number))
+                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+            finally:
+                call(['git', 'push', 'origin', ':'+BRANCH_NAME])
+                if pr_number is not None:
+                    patch_repo(
+                        'hail-is/ci-test',
+                        f'pulls/{pr_number}',
+                        json={ "state" : "closed" },
+                        status_code=200
+                    )
