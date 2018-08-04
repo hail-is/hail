@@ -11,7 +11,7 @@ echo $(git rev-parse $SOURCE_BRANCH) && \
 [[ $( git rev-parse target/$TARGET_BRANCH ) == $TARGET_SHA ]] && \
 git config --global user.email hail-ci-pr-builder@hail.is && \
 git config --global user.name "Hail CI PR Builder" && \
-git rebase $TARGET_BRANCH $SOURCE_BRANCH && \
+git rebase target/$TARGET_BRANCH $SOURCE_BRANCH && \
 ./hail-ci-build.sh && \
 gcloud auth activate-service-account \
   hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
