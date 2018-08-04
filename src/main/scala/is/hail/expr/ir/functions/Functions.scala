@@ -7,6 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import is.hail.experimental.ExperimentalFunctions
 import is.hail.variant.Call
 
 import scala.collection.mutable
@@ -93,7 +94,8 @@ object IRFunctionRegistry {
     MathFunctions,
     SetFunctions,
     StringFunctions,
-    UtilFunctions
+    UtilFunctions,
+    ExperimentalFunctions
   ).foreach(_.registerAll())
 }
 
