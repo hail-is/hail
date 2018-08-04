@@ -62,8 +62,24 @@ And if you want to cleanly restart fresh:
 HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
 ```
 
+Buildable Repos
+---
+
+We can build an repo whose root contains the files:
+
+ - `hail-ci-build-image` containing a publicly accessible docker image
+   containing at least a bash installation at /bin/bash
+
+ - `hail-ci-build.sh` containing a script that, when executed in the image
+   specified in `hail-ci-build-image`, produces exit code 0 for a passing commit
+   and a non-zero exit code for a failing commit
+
 pr-build-script
 ---
+
+OUT OF DATE SECTION
+
+
 The `pr-build-script` has access to the following shell variables:
 
  - `SOURCE_REPO_URL` -- a URL pointing to the `.git` file of the repo containing
