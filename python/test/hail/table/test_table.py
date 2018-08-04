@@ -207,8 +207,8 @@ class Tests(unittest.TestCase):
             hl.tstruct(k=hl.tstr, b=hl.tint32),
             key='k')
         self.assertEqual(
-            ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect(),
-            [hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)])
+            set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
+            {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
 
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
