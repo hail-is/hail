@@ -68,7 +68,9 @@ Buildable Repos
 We can build an repo whose root contains the files:
 
  - `hail-ci-build-image` containing a publicly accessible docker image
-   containing at least a bash installation at /bin/bash
+   containing at least a `bash` installation at `/bin/bash` as well as `git`,
+   `gcloud`, and `gsutil`. The author recommends
+   [google/cloud-sdk:alpine](https://hub.docker.com/r/google/cloud-sdk/)
 
  - `hail-ci-build.sh` containing a script that, when executed in the image
    specified in `hail-ci-build-image`, produces exit code 0 for a passing commit
