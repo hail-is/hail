@@ -701,7 +701,7 @@ def refresh_github_state():
                             log.info(f'cancelling job {status.job_id} for {status.to_json()}')
                             try_to_cancel_job_by_id(status.job_id)
         except Exception as e:
-            log.error(f'could not refresh state from {repo} due to {e}')
+            log.exception(f'could not refresh state from {repo} due to {e}')
 
     return '', 200
 
