@@ -888,6 +888,7 @@ def get_build_image(source_url, source_ref, source_sha,
         # should do in that case. maybe 500'ing is OK?
         with open('hail-ci-build-image', 'r') as f:
             return f.read().strip()
+        run(['git', 'reset', '--hard', 'HEAD~'], check=True) # quietly throw away orphan HEAD
     finally:
         os.chdir(d)
 
