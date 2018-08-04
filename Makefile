@@ -9,11 +9,15 @@ setup-conda-env:
 update-conda-env:
 	conda env update --name hail-ci -f environment.yml
 
+hail-ci-image: GIT_SHA = $(shell git rev-parse HEAD)
 hail-ci-image:
-	docker build . -t hail-ci -t gcr.io/broad-ctsa/hail-ci
+	docker build . -t hail-ci:${GIT_SHA}
 
+push-hail-ci-image: GIT_SHA = $(shell git rev-parse HEAD)
 push-hail-ci-image: hail-ci-image
-	docker push gcr.io/broad-ctsa/hail-ci
+	docker tag hail-ci:${GIT_SHA} -t gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
+	docker push gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
+	echo built gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
