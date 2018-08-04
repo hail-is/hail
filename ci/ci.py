@@ -787,12 +787,7 @@ def refresh_batch_state():
                     )
                     update_pr_status(
                         source_url, source_ref, target_url, target_ref,
-                        Status('pending',
-                               status.review_state,
-                               status.source_sha,
-                               status.target_sha,
-                               status.pr_number,
-                               job_id))
+                        status.copy(state='pending'))
                 else:
                     log.info(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
                              f'was pending for {target_sha} <- {source_sha}')
