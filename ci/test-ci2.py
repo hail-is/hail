@@ -148,20 +148,21 @@ class TestCI(unittest.TestCase):
                 self.assertIn('prs', status)
                 self.assertIn('watched_repos', status)
                 prs = status['prs']
+                pr_goodnesses = [(pr['source_ref'] == 'foo',
+                                  pr['source_url'] == 'https://github.com/hail-is/ci-test.git',
+                                  pr['target_url'] == 'https://github.com/hail-is/ci-test.git',
+                                  pr['target_ref'] == 'master',
+                                  (pr['status']['state'] == 'pending' and pr['status']['job_id'] is None or
+                                   pr['status']['state'] != 'pending' and pr['status']['job_id'] is not None),
+                                  pr['status']['review_state'] == 'pending',
+                                  pr['status']['source_sha'] == source_sha,
+                                  pr['status']['target_sha'] == target_sha,
+                                  pr['status']['pr_number'] == str(pr_number),
+                                  pr['status']['docker_image'] == 'gcr.io/broad-ctsa/alpine-bash:latest')
+                                 for pr in prs]
                 self.assertEqual(
-                    [pr['source_ref'] == 'foo' and
-                     pr['source_url'] == 'https://github.com/hail-is/ci-test.git' and
-                     pr['target_url'] == 'https://github.com/hail-is/ci-test.git' and
-                     pr['target_ref'] == 'master' and
-                     (pr['status']['state'] == 'pending' and pr['status']['job_id'] is None or
-                      pr['status']['state'] != 'pending' and pr['status']['job_id'] is not None) and
-                     pr['status']['review_state'] == 'pending' and
-                     pr['status']['source_sha'] == source_sha and
-                     pr['status']['target_sha'] == target_sha and
-                     pr['status']['pr_number'] == str(pr_number) and
-                     pr['status']['docker_image'] == 'alpine:latest'
-                     for pr in prs].count(True),
-                    1, f'expected a pr to have: "source_sha": "{source_sha}", "target_sha": "{target_sha}", "pr_number": "{pr_number}", actual prs: {prs}')
+                    [all(x) for x in pr_goodnesses].count(True),
+                    1, f'expected a pr to have: "source_sha": "{source_sha}", "target_sha": "{target_sha}", "pr_number": "{pr_number}", actual prs and goodnesses: {list(zip(prs, pr_goodnesses))}')
             finally:
                 call(['git', 'push', 'origin', ':foo'])
                 if pr_number is not None:
