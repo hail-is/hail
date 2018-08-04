@@ -107,21 +107,25 @@ class Status(object):
         self.job_id = job_id
         self.docker_image = docker_image
 
+    class Sentinel(object):
+        pass
+    keep = Sentinel()
+
     def copy(self,
-             state=None,
-             review_state=None,
-             source_sha=None,
-             target_sha=None,
-             pr_number=None,
-             job_id=None,
-             docker_image=None):
-        return Status(self.state if state is None else state,
-                      self.review_state if review_state is None else review_state,
-                      self.source_sha if source_sha is None else source_sha,
-                      self.target_sha if target_sha is None else target_sha,
-                      self.pr_number if pr_number is None else pr_number,
-                      self.job_id if job_id is None else job_id,
-                      self.docker_image if docker_image is None else docker_image)
+             state=keep,
+             review_state=keep,
+             source_sha=keep,
+             target_sha=keep,
+             pr_number=keep,
+             job_id=keep,
+             docker_image=keep):
+        return Status(state=self.state if state is Status.keep else state,
+                      review_state=self.review_state if review_state is Status.keep else review_state,
+                      source_sha=self.source_sha if source_sha is Status.keep else source_sha,
+                      target_sha=self.target_sha if target_sha is Status.keep else target_sha,
+                      pr_number=self.pr_number if pr_number is Status.keep else pr_number,
+                      job_id=self.job_id if job_id is Status.keep else job_id,
+                      docker_image=self.docker_image if docker_image is Status.keep else docker_image)
 
     def github_state_up_to_date(self, github_state):
         return (self.state == github_state or
@@ -301,6 +305,7 @@ def github_push():
         pr_statuses = get_pr_status_by_target(target_url, target_ref)
         for (source_url, source_ref), status in pr_statuses.items():
             if (status.target_sha != new_sha):
+                cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
                 post_repo(
                     repo_from_url(target_url),
                     'statuses/' + status.source_sha,
@@ -883,7 +888,7 @@ def get_build_image(source_url, source_ref, source_sha,
             run(['git', 'remote', 'add', source_repo, source_url], check=True)
         run(['git', 'fetch', source_repo], check=True)
         run(['git', 'checkout', target_sha], check=True)
-        run(['git', 'merge', source_sha], check=True)
+        run(['git', 'merge', source_sha, '-m', 'foo'], check=True)
         # a force push that removes refs could fail us... not sure what we
         # should do in that case. maybe 500'ing is OK?
         with open('hail-ci-build-image', 'r') as f:
