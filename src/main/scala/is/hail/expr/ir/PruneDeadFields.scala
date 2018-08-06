@@ -935,7 +935,7 @@ object PruneDeadFields {
     else {
       var table = ir
       if (upcastRow && ir.typ.rowType != rType.rowType) {
-        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), None, None)
+        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key, rType.key.map(_.length))
       }
       if (upcastGlobals && ir.typ.globalType != rType.globalType) {
         table = TableMapGlobals(table,
