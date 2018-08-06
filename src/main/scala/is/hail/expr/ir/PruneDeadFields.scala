@@ -926,10 +926,12 @@ object PruneDeadFields {
     }
   }
 
-  def upcastTable(ir: TableIR,
+  def upcastTable(
+    ir: TableIR,
     rType: TableType,
     upcastRow: Boolean = true,
-    upcastGlobals: Boolean = true): TableIR = {
+    upcastGlobals: Boolean = true
+  ): TableIR = {
     if (ir.typ == rType)
       ir
     else {
