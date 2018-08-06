@@ -1,10 +1,15 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.utils._
 
 object TypeCheck {
   def apply(ir: IR, aggEnv: Option[Env[Type]] = None) {
-    apply(ir, new Env[Type](), aggEnv)
+    try {
+      apply(ir, new Env[Type](), aggEnv)
+    } catch {
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ir)}", e)
+    }
   }
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
@@ -119,12 +124,12 @@ object TypeCheck {
       case x@ArrayFilter(a, name, cond) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
-        check(cond, env = env.bind(name, tarray.elementType))
+        check(cond, env = env.bind(name, -tarray.elementType))
         assert(cond.typ.isOfType(TBoolean()))
       case x@ArrayFlatMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
-        check(body, env = env.bind(name, tarray.elementType))
+        check(body, env = env.bind(name, -tarray.elementType))
         assert(body.typ.isInstanceOf[TArray])
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         check(a)

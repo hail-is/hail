@@ -224,7 +224,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
         self.assertEqual(kt.filter(True).count(), 3)
 
-    def test_filter_na(self):
+    def test_filter_missing(self):
         ht = hl.utils.range_table(1, 1)
 
         self.assertEqual(ht.filter(hl.null(hl.tbool)).count(), 0)

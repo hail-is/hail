@@ -21,6 +21,13 @@ class CollectionExpression(Expression):
     >>> s3 = hl.literal({'Alice', 'Bob', 'Charlie'})
     """
 
+
+    def _filter_missing_method(self, filter_missing: bool, name: str, ret_type: HailType, *args):
+        collection = self
+        if filter_missing:
+            collection = self.filter(hl.is_defined)
+        return collection._method(name, ret_type, *args)
+
     @typecheck_method(f=func_spec(1, expr_bool))
     def any(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.

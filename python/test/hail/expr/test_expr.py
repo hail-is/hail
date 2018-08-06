@@ -1363,7 +1363,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.len([0, 1, 4, 6])), 4)
 
-        self.assertEqual(hl.eval_expr(hl.mean(hl.empty_array(hl.tint))), None)
+        self.assertTrue(math.isnan(hl.eval_expr(hl.mean(hl.empty_array(hl.tint)))))
         self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6, hl.null(tint32)])), 2.75)
 
         self.assertEqual(hl.eval_expr(hl.median(hl.empty_array(hl.tint))), None)
@@ -1777,3 +1777,22 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]).value, 0.009900990296049406)
         self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]).value, 0.9900990100009803)
         self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]).value, 1.980198019704931)
+        self.assertIsNone(hl.pl_dosage([20, hl.null('int'), 100]).value)
+
+    def test_collection_method_missingness(self):
+        a = [1, hl.null('int')]
+
+        self.assertEqual(hl.min(a).value, 1)
+        self.assertIsNone(hl.min(a, filter_missing=False).value)
+
+        self.assertEqual(hl.max(a).value, 1)
+        self.assertIsNone(hl.max(a, filter_missing=False).value)
+
+        self.assertEqual(hl.mean(a).value, 1)
+        self.assertIsNone(hl.mean(a, filter_missing=False).value)
+
+        self.assertEqual(hl.product(a).value, 1)
+        self.assertIsNone(hl.product(a, filter_missing=False).value)
+
+        self.assertEqual(hl.sum(a).value, 1)
+        self.assertIsNone(hl.sum(a, filter_missing=False).value)
