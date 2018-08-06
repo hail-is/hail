@@ -11,18 +11,6 @@ case class OrderedRVIterator(
   ctx: RVDContext
 ) {
 
-  def restrictToPKInterval(interval: Interval): Iterator[RegionValue] = {
-    val ur = new UnsafeRow(t.rowType)
-    val pk = new KeyedRow(ur, t.kRowFieldIdx)
-    iterator.filter { rv => {
-      ur.set(rv)
-      val keep = interval.contains(t.kType.ordering, pk)
-      if (!keep)
-        ctx.region.clear()
-      keep
-    } }
-  }
-
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toFlipbookIterator.staircased(t.kRowOrdView(ctx.freshRegion))
 

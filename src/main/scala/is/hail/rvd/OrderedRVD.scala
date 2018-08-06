@@ -140,6 +140,7 @@ class OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
       crdd = ContextRDD(RepartitionedOrderedRDD(this, newPartitioner)))
+
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -319,13 +320,7 @@ class OrderedRVD(
       return filter(pred)
 
     val newPartitionIndices = intervals.toIterator.flatMap { case (i, _) =>
-      if (!partitioner.rangeTree.probablyOverlaps(pkOrdering, i))
-        IndexedSeq()
-      else {
-        val start = partitioner.getPartitionPK(i.start)
-        val end = partitioner.getPartitionPK(i.end)
-        start to end
-      }
+      partitioner.getPartitionRange(i)
     }
       .toSet[Int] // distinct
       .toArray
@@ -874,6 +869,7 @@ object OrderedRVD {
           val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kRowFieldIdx)
           val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
           (keys, bytes)
+
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kType.ordering.toOrdering)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
