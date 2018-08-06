@@ -118,7 +118,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key.length) ++
       right.rvd.partitioner.coarsenedRangeBounds(key.length)
-    val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
+    val newPartitioner = OrderedRVDPartitioner.generate(this.virtType.partitionKey, kType, ranges)
     val repartitionedLeft =
       this.rvd.constrainToOrderedPartitioner(
         this.realType.copy(partitionKey = key, key = key),
