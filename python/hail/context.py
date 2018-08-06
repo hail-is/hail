@@ -159,7 +159,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     default_reference : :obj:`str`
         Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
     idempotent : :obj:`bool`
-        If True, calling this function is a no-op if Hail has already been initialized.
+        If ``True``, calling this function is a no-op if Hail has already been initialized.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
