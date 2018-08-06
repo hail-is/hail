@@ -1096,7 +1096,8 @@ class tinterval(HailType):
 
     def _traverse(self, obj, f):
         if f(self, obj):
-            self.point_type._traverse(obj.point, f)
+            self.point_type._traverse(obj.start, f)
+            self.point_type._traverse(obj.end, f)
 
     def _typecheck(self, annotation):
         if annotation is not None:
