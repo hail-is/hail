@@ -248,6 +248,12 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(1).annotate_globals(a=5, b=10)
         self.assertEqual(ht.transmute_globals(c=ht.a + 5).globals.dtype, hl.tstruct(b=hl.tint, c=hl.tint))
 
+    def test_transmute_key(self):
+        ht = hl.utils.range_table(10)
+        self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{idx: int32, y: int32}'))
+        ht = ht.key_by(None)
+        self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{y: int32}'))
+
     def test_select(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
                             g=hl.tstruct(x=hl.tbool, y=hl.tint32))

@@ -757,6 +757,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.transmute_cols(c3=mt.c2 + 1).col_value.dtype, hl.tstruct(c1=hl.tint, c3=hl.tint))
         self.assertEqual(mt.transmute_entries(e3=mt.e2 + 1).entry.dtype, hl.tstruct(e1=hl.tint, e3=hl.tint))
 
+    def test_transmute_agg(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_entries(x=5)
+        mt = mt.transmute_rows(y = hl.agg.mean(mt.x))
+
     def test_agg_explode(self):
         t = hl.Table.parallelize([
             hl.struct(a=[1, 2]),

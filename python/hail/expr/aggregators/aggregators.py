@@ -97,16 +97,14 @@ class AggFunc(object):
                              list(map(get_ir, constructor_args)),
                              None if init_op_args is None else list(map(get_ir, init_op_args)),
                              signature)
-            indices, _ = unify_all(aggregable, *args)
             aggs = aggregations
         else:
             ir = ApplyAggOp(seq_op._ir,
                             list(map(get_ir, constructor_args)),
                             None if init_op_args is None else list(map(get_ir, init_op_args)),
                             signature)
-            indices, _ = unify_all(*args)
             aggs = aggregations.push(Aggregation(aggregable, *args))
-        return construct_expr(ir, ret_type, indices, aggs)
+        return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
 
 
 _agg_func = AggFunc()
