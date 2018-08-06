@@ -38,8 +38,11 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   * as appropriate. In the case 't: TBaseStruct', 't' could be replaced by any
   * 't2' such that 't.isPrefixOf(t2)' without changing the behavior.
   */
-case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: Boolean) extends Serializable {
-  val (left, right) = Interval.toIntervalEndpoints(start, end, includesStart, includesEnd)
+class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends Serializable {
+  def start: Any = left.point
+  def end: Any = right.point
+  def includesStart = left.sign < 0
+  def includesEnd = right.sign > 0
 
   private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
 
@@ -105,11 +108,26 @@ case class Interval(start: Any, end: Any, includesStart: Boolean, includesEnd: B
       None
 
   override def toString: String = (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
+
+  override def equals(other: Any): Boolean = other match {
+    case that: Interval => left == that.left && right == that.right
+    case _ => false
+  }
+
+  override def hashCode(): Int = (left, right).##
 }
 
 object Interval {
   def apply(left: IntervalEndpoint, right: IntervalEndpoint): Interval =
-    new Interval(left.point, right.point, left.sign < 0, right.sign > 0)
+    new Interval(left, right)
+
+  def apply(start: Any, end: Any, includesStart: Boolean, includesEnd: Boolean): Interval = {
+    val (left, right) = toIntervalEndpoints(start, end, includesStart, includesEnd)
+    Interval(left, right)
+  }
+
+  def unapply(interval: Interval): Option[(Any, Any, Boolean, Boolean)] =
+    Some((interval.start, interval.end, interval.includesStart, interval.includesEnd))
 
   def orNone(pord: ExtendedOrdering,
     start: Any, end: Any,
