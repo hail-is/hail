@@ -977,7 +977,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
+    val prevRVD = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD]
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", child.typ.globalType,
