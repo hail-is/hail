@@ -37,7 +37,7 @@ We recommend that new users install `0.2 beta`, since this version is already ra
 
 To get started using Hail `0.2 beta` on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
-- install Hail using the instructions in [Installation](https://hail.is/docs/devel/installation.html)
+- install Hail using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
 - read the [Overview](https://hail.is/docs/devel/tutorials-landing.html) for a broad introduction to Hail
 - follow the [Tutorials](https://hail.is/docs/devel/overview.html) for examples of how to use Hail
 - check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
@@ -62,7 +62,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
-- see the [For Software Developers](https://hail.is/docs/devel/installation.html#for-software-developers) section of the installation guide for info on compiling Hail
+- see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
