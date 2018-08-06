@@ -4,11 +4,12 @@ Genetics
 Formatting
 ~~~~~~~~~~
 
-..
-    >>> ht = ht.annotate(variant = '1:100000:A:T,C')
-
 Convert variants in string format to separate locus and allele fields
 .....................................................................
+
+..
+    >>> ht = hl.import_table('data/variant-lof.tsv')
+    >>> ht = ht.transmute(variant = ht.v)
 
 >>> ht = ht.key_by(**hl.parse_variant(ht.variant))
 
@@ -115,7 +116,8 @@ Polygenic Risk Score Calculation
 ...         mt.score * hl.coalesce(mt.GT.n_alt_alleles(),
 ...                                2 * mt.variant_qc.AF[1])) / hl.agg.count())
 
-This command is analogous to plink's --score command.
+This command is analogous to plink's --score command. This requires biallelic
+variants.
 
 The :func:`.coalesce` function takes any number of arguments and returns the
 first non-missing one.

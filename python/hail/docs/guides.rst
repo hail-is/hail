@@ -13,7 +13,7 @@ These guides are short, goal-oriented explanations of how to use Hail.
 
 .. toctree::
 
-        Dataset Basics <guides/basics/basics.rst>
-        Aggregation <guides/agg/agg.rst>
-        Annotation (Adding Fields) <guides/annotation/annotation.rst>
-        Genetics <guides/genetics/genetics.rst>
+        Dataset Basics <guides/basics.rst>
+        Aggregation <guides/agg.rst>
+        Annotation (Adding Fields) <guides/annotation.rst>
+        Genetics <guides/genetics.rst>

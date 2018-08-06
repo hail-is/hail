@@ -47,15 +47,62 @@ Examine your data
 Explore the schema
 ~~~~~~~~~~~~~~~~~~
 
->>> mt.describe()
-
 Get information about the fields and keys of a matrix table using
 :meth:`.MatrixTable.describe`.
 
->>> ht.describe()
+.. code-block:: python
+
+    >>> mt.describe()
+    ----------------------------------------
+    Global fields:
+        'populations': array<str>
+    ----------------------------------------
+    Column fields:
+        's': str
+        'is_case': bool
+        'pheno': struct {
+            is_case: bool,
+            is_female: bool,
+            age: float64,
+            height: float64,
+            blood_pressure: float64,
+            cohort_name: str
+        }
+    ----------------------------------------
+    Row fields:
+        'locus': locus<GRCh37>
+        'alleles': array<str>
+        'rsid': str
+        'qual': float64
+    ----------------------------------------
+    Entry fields:
+        'GT': call
+        'AD': array<int32>
+        'DP': int32
+        'GQ': int32
+        'PL': array<int32>
+    ----------------------------------------
+    Column key: ['s']
+    Row key: ['locus', 'alleles']
+    Partition key: ['locus']
+    ----------------------------------------
 
 Get information about the fields and keys of a table using
 :meth:`.Table.describe`.
+
+.. code-block:: python
+
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'locus': locus<GRCh37>
+        'alleles': array<str>
+    ----------------------------------------
+    Key: ['locus', 'alleles']
+    ----------------------------------------
 
 We can also select fields from a table or matrix table with an expression like
 ``mt.s``. Then we can call the :meth:`.Expression.describe` method on the
@@ -77,11 +124,21 @@ expression to get information about the expression's type, indices, and source:
 View your data locally
 ~~~~~~~~~~~~~~~~~~~~~~
 
->>> ht.show(15)
-
 The :meth:`.Table.show` method can be used to view the first n rows of a
 dataset. The default number of rows shown is 10. You should only try to view
 the entire table if your table is small.
+
+>>> ht.show(5)
++-------+-------+-----+-------+-------+-------+-------+-------+
+|    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
++-------+-------+-----+-------+-------+-------+-------+-------+
+| int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
++-------+-------+-----+-------+-------+-------+-------+-------+
+|     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+|     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+|     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+|     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
++-------+-------+-----+-------+-------+-------+-------+-------+
 
 Matrix Tables do not have a ``show`` method, but you can call
 :meth:`.Table.show` on the :meth:`.MatrixTable.rows` table,
