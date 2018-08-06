@@ -1363,7 +1363,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval_expr(hl.len([0, 1, 4, 6])), 4)
 
-        self.assertEqual(hl.eval_expr(hl.mean(hl.empty_array(hl.tint))), None)
+        self.assertTrue(math.isnan(hl.eval_expr(hl.mean(hl.empty_array(hl.tint)))))
         self.assertEqual(hl.eval_expr(hl.mean([0, 1, 4, 6, hl.null(tint32)])), 2.75)
 
         self.assertEqual(hl.eval_expr(hl.median(hl.empty_array(hl.tint))), None)
