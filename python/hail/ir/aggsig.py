@@ -9,7 +9,7 @@ class AggSignature(object):
 
     def __str__(self):
         return '({} ({}) {} ({}))'.format(
-            escape_id(self.op),
+            self.op,
             ' '.join([x._jtype.parsableString() for x in self.ctor_arg_types]),
             ('(' + ' '.join([x._jtype.parsableString() for x in self.initop_arg_types]) + ')'
              if self.initop_arg_types else 'None'),

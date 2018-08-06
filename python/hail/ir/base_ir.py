@@ -30,6 +30,16 @@ class IR(BaseIR):
     def copy(self, *args):
         raise NotImplementedError("IR has no copy method defined.")
 
+    def map_ir(self, f):
+        new_children = []
+        for child in self.children:
+            if isinstance(child, IR):
+                new_children.append(f(child))
+            else:
+                new_children.append(child)
+
+        return self.copy(*new_children)
+
     @property
     def bound_variables(self):
         return {v for child in self.children for v in child.bound_variables}
