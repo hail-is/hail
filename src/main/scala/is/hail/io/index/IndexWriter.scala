@@ -1,8 +1,8 @@
 package is.hail.io.index
 
+import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.hadoop.conf.Configuration
@@ -12,6 +12,7 @@ import org.json4s.jackson.Serialization
 case class IndexMetadata(
   fileVersion: Int,
   branchingFactor: Int,
+  height: Int,
   keyType: String,
   nKeys: Long,
   indexPath: String,
@@ -19,35 +20,47 @@ case class IndexMetadata(
   attributes: Map[String, Any]
 )
 
+case class IndexNodeInfo(
+  fileOffset: Long,
+  firstIndex: Long,
+  firstKey: Annotation,
+  firstKeyOffset: Long
+)
+
 class IndexWriter(
-  conf: Configuration,
+  hConf: Configuration,
   path: String,
   keyType: Type,
   branchingFactor: Int = 1024,
-  attributes: Map[String, Any] = Map.empty[String, Any]) {
+  attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
 
   private var elementIdx = 0L
   private var rootOffset = 0L
 
-  private val ctx = RVDContext.default
-  private val rvb = ctx.rvb
-  private val region = ctx.freshRegion
+  private val rvb = new RegionValueBuilder()
+  private val region = new Region()
   rvb.set(region)
 
   private val leafNode = new LeafNodeBuilder(keyType)
   private val internalNodes = new ArrayBuilder[InternalNodeBuilder]()
 
-  private val trackedOS = new ByteTrackingOutputStream(conf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNode.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType))(trackedOS)
 
-  private def writeInternalNode(node: InternalNodeBuilder): (Long, Long, Any, Long) = {
+  private def calcDepth: Int =
+    math.max(1, (math.log10(elementIdx) / math.log10(branchingFactor)).ceil.toInt) // max necessary for array of length 1 becomes depth = 0
+
+  private def height: Int = math.max(calcDepth - 1, 1) + 1 // ensure always at least one internal level and one leaf level
+
+  private def writeInternalNode(node: InternalNodeBuilder): IndexNodeInfo = {
     val fileOffset = trackedOS.bytesWritten
     rootOffset = fileOffset
 
-    val firstKey = node.firstKey
-    val firstKeyOffset = node.firstOffset
+    val child = node.getChild(0)
+    val firstKey = child.firstKey
+    val firstKeyOffset = child.firstKeyOffset
     val firstIndex = node.firstIndex
 
     internalEncoder.writeByte(1)
@@ -59,10 +72,10 @@ class IndexWriter(
     region.clear()
     node.clear()
 
-    (fileOffset, firstIndex, firstKey, firstKeyOffset)
+    IndexNodeInfo(fileOffset, firstIndex, firstKey, firstKeyOffset)
   }
 
-  private def writeLeafNode(idx: Long): (Long, Any, Long) = {
+  private def writeLeafNode(idx: Long): IndexNodeInfo = {
     val fileOffset = trackedOS.bytesWritten
     val firstKey = leafNode.firstKey
     val firstOffset = leafNode.firstOffset
@@ -76,72 +89,67 @@ class IndexWriter(
     region.clear()
     leafNode.clear()
 
-    (fileOffset, firstKey, firstOffset)
+    IndexNodeInfo(fileOffset, idx, firstKey, firstOffset)
   }
 
   private def write() {
-    def updateInternalNodes(level: Int, fileOffset: Long, firstIndex: Long, firstKey: Any, firstOffset: Long) {
+    def updateInternalNodes(level: Int, info: IndexNodeInfo) {
       if (level == internalNodes.size)
         internalNodes += new InternalNodeBuilder(keyType)
 
       val node = internalNodes(level)
 
       if (node.size == 0) {
-        node.setFirstIndex(firstIndex)
+        node.setFirstIndex(info.firstIndex)
       }
 
-      node += (fileOffset, firstKey, firstOffset)
+      node += info
 
       if (node.size == branchingFactor) {
-        val (fileOffset, firstIndex, firstKey, firstKeyOffset) = writeInternalNode(node)
-        updateInternalNodes(level + 1, fileOffset, firstIndex, firstKey, firstKeyOffset)
+        val newNodeInfo = writeInternalNode(node)
+        updateInternalNodes(level + 1, newNodeInfo)
       }
     }
 
     val idx = elementIdx - leafNode.size
-    val (leafFileOffset, leafFirstKey, leafFirstOffset) = writeLeafNode(idx)
-    updateInternalNodes(0, leafFileOffset, idx, leafFirstKey, leafFirstOffset)
+    val newNodeInfo = writeLeafNode(idx)
+    updateInternalNodes(0, newNodeInfo)
   }
 
   private def flush() {
-    val nInternalLevels = math.max(IndexUtils.calcDepth(elementIdx, branchingFactor) - 1, 1) // ensure always one internal node
+    val nInternalLevels = math.max(calcDepth - 1, 1) // ensure always one internal node
 
-    def flushInternalNodes(level: Int, fileOffset: Long, firstIndex: Long, firstKey: Any, firstOffset: Long) {
+    def flushInternalNodes(level: Int, info: IndexNodeInfo) {
       if (level != nInternalLevels) {
         val node = internalNodes(level)
 
         if (node.size == 0)
-          node.setFirstIndex(firstIndex)
+          node.setFirstIndex(info.firstIndex)
 
-        node += (fileOffset, firstKey, firstOffset)
+        node += info
 
         assert(node.size > 0 && node.size <= branchingFactor)
 
-        val (nextFileOffset, nextFirstIndex, nextFirstKey, nextFirstKeyOffset) = writeInternalNode(node)
+        val newNodeInfo = writeInternalNode(node)
 
-        flushInternalNodes(level + 1, nextFileOffset, nextFirstIndex, nextFirstKey, nextFirstKeyOffset)
+        flushInternalNodes(level + 1, newNodeInfo)
       }
     }
 
-    if (leafNode.size > 0) {
+    if (leafNode.size > 0)
       write()
-    }
-    assert(internalNodes.size > 0)
 
-    var level = 0
-    while (level < nInternalLevels) {
-      val node = internalNodes(level)
-      if (node.size > 0) {
-        val (fileOffset, firstIndex, firstKey, firstKeyOffset) = writeInternalNode(node)
-        flushInternalNodes(level + 1, fileOffset, firstIndex, firstKey, firstKeyOffset)
-      }
-      level += 1
+    val firstUnwrittenNodeIdx = internalNodes.result().indexWhere(_.size > 0)
+    if (firstUnwrittenNodeIdx != -1 && firstUnwrittenNodeIdx < nInternalLevels) {
+      val node = internalNodes(firstUnwrittenNodeIdx)
+      val newNodeInfo = writeInternalNode(node)
+      flushInternalNodes(firstUnwrittenNodeIdx + 1, newNodeInfo)
     }
   }
 
   private def writeMetadata() = {
-    conf.writeTextFile(path + "/metadata.json.gz") { out =>
-      val metadata = IndexMetadata(1, branchingFactor, keyType._toPretty, elementIdx, path, rootOffset, attributes)
+    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+      val metadata = IndexMetadata(1, branchingFactor, height, keyType._toPretty, elementIdx, path, rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)
     }
@@ -158,7 +166,7 @@ class IndexWriter(
   def close(): Unit = {
     flush()
     trackedOS.close()
-    ctx.close()
+    region.close()
 
     writeMetadata()
   }

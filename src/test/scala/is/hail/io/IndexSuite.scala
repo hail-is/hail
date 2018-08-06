@@ -36,7 +36,7 @@ class IndexSuite extends SparkSuite {
     assert(ir.attributes == attributes)
     data.zipWithIndex.foreach { case (s, i) =>
       assert(ir.queryByIndex(i).key == s)
-      assert(ir.queryByKey(s).contains(i))
+      assert(ir.queryByKey(s).map(_.offset).contains(i))
     }
     assert(ir.queryByKey("moo").isEmpty)
     ir.close()

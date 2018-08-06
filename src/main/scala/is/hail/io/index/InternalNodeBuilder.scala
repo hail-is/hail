@@ -37,10 +37,10 @@ class InternalNodeBuilder(keyType: Type) {
     firstIndex = idx
   }
 
-  def +=(childOffset: Long, firstKey: Any, firstKeyOffset: Long) {
-    childOffsets += childOffset
-    firstKeys += firstKey
-    firstKeyOffsets += firstKeyOffset
+  def +=(info: IndexNodeInfo) {
+    childOffsets += info.fileOffset
+    firstKeys += info.firstKey
+    firstKeyOffsets += info.firstKeyOffset
     size += 1
   }
 
@@ -70,6 +70,11 @@ class InternalNodeBuilder(keyType: Type) {
     firstKeyOffsets.clear()
     size = 0
     firstIndex = 0L
+  }
+
+  def getChild(idx: Int): InternalChild = {
+    assert(size > idx)
+    InternalChild(childOffsets(idx), firstKeys(idx), firstKeyOffsets(idx))
   }
 
   override def toString: String = s"InternalNodeBuilder $size $firstIndex [${ (0 until size).map(i => (childOffsets(i), firstKeys(i), firstKeyOffsets(i))).mkString(",") }]"
