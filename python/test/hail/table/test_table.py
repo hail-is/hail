@@ -599,3 +599,16 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
         t = mt._localize_entries('__entries')
         self.assertTrue(t._same(ref_tab))
+
+    def test_union(self):
+        t1 = hl.utils.range_table(5)
+
+        t2 = hl.utils.range_table(5)
+        t2 = t2.key_by(idx = t2.idx + 5)
+
+        t3 = hl.utils.range_table(5)
+        t3 = t3.key_by(idx = t3.idx + 10)
+
+        self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
+        self.assertTrue(t1.key_by(None).union(t2.key_by(None), t3.key_by(None))
+                        ._same(hl.utils.range_table(15).key_by(None)))
