@@ -2642,6 +2642,6 @@ class Table(ExprContainer):
 
     @typecheck_method(cols=table_type, entries_field_name=str)
     def _unlocalize_entries(self, cols, entries_field_name):
-        return MatrixTable(self._jt.unlocalizeEntries(cols, entries_field_name))
+        return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
 table_type.set(Table)
