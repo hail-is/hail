@@ -218,6 +218,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
   val m: Int = X.cols
 
   def bInterceptOnly(): DenseVector[Double] = {
+    require(m > 0)
     val b = DenseVector.zeros[Double](m)
     val avg = sum(y) / n
     b(0) = math.log(avg / (1 - avg))

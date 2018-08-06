@@ -1112,7 +1112,7 @@ def info_score(gp) -> StructExpression:
 @typecheck(y=agg_expr(expr_float64),
            x=oneof(expr_float64, sequenceof(expr_float64)))
 def linreg(y, x):
-    """Compute linear regression statistics.
+    """Compute multivariate linear regression statistics.
 
     Examples
     --------
