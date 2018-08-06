@@ -1728,6 +1728,7 @@ case class MatrixAnnotateRowsTable(
   table: TableIR,
   root: String,
   key: Option[IndexedSeq[IR]]) extends MatrixIR {
+  require(table.typ.key.isDefined)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table) ++ key.getOrElse(FastIndexedSeq.empty[IR])
 
@@ -1738,13 +1739,13 @@ case class MatrixAnnotateRowsTable(
   val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren
     MatrixAnnotateRowsTable(
-      newChildren(0).asInstanceOf[MatrixIR],
-      newChildren(1).asInstanceOf[TableIR],
+      child, table,
       root,
       key.map { keyIRs =>
-        assert(newChildren.length == keyIRs.length + 2)
-        newChildren.drop(2).map(_.asInstanceOf[IR])
+        assert(newKey.length == keyIRs.length + 2)
+        newKey.map(_.asInstanceOf[IR])
       }
     )
   }
@@ -1763,12 +1764,12 @@ case class MatrixAnnotateRowsTable(
         val (newRVType, ins) = child.typ.rvRowType.unsafeStructInsert(typToInsert, List(root))
 
         val partBc = hc.sc.broadcast(prev.rvd.partitioner)
-        val tableRowTYpe = table.typ.rowType
+        val tableRowType = table.typ.rowType
         val tableKeyIdx = table.typ.keyFieldIdx.get(0)
         val tableValueIndex = table.typ.valueFieldIdx
         val partitionKeyedIntervals = tv.rvd.boundary.crdd
           .flatMap { rv =>
-            val r = SafeRow(tableRowTYpe, rv)
+            val r = SafeRow(tableRowType, rv)
             val interval = r.getAs[Interval](tableKeyIdx)
             if (interval != null) {
               val rangeTree = partBc.value.rangeTree
@@ -1828,14 +1829,14 @@ case class MatrixAnnotateRowsTable(
         prev.copy(typ = typ, rvd = newRVD)
 
       // annotateRowsTable using non-key MT fields
-      case Some(irs) =>
+      case Some(newKeys) =>
         // FIXME: here be monsters
 
         // used to zipWithIndex in multiple places
         val partitionCounts = child.getOrComputePartitionCounts()
 
         val prevRowKeys = child.typ.rowKey.toArray
-        val newKeyUIDs = Array.fill(irs.length)(ir.genUID())
+        val newKeyUIDs = Array.fill(newKeys.length)(ir.genUID())
         val indexUID = ir.genUID()
 
         // has matrix row key and foreign join key
@@ -1846,7 +1847,7 @@ case class MatrixAnnotateRowsTable(
             MakeStruct(
               prevRowKeys.zip(
                 prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
-              ) ++ newKeyUIDs.zip(irs)),
+              ) ++ newKeyUIDs.zip(newKeys)),
             None))).execute(hc)
         val indexedRVD1 = mrt.rvd
           .asInstanceOf[OrderedRVD]
@@ -1881,11 +1882,9 @@ case class MatrixAnnotateRowsTable(
 
         val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
         // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
-        val joinedMT = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
+        val newRVD = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
           .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
-
-        // cast partitioner back
-        val newRVD = joinedMT.copy(orderedPartitioner = prevPartitioner)
+          .copy(orderedPartitioner = prevPartitioner)
         MatrixValue(typ, prev.globals, prev.colValues, newRVD)
 
       // annotateRowsTable using key

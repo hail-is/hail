@@ -463,9 +463,9 @@ object PruneDeadFields {
             val tableDep = table.typ.copy(rowType = unify(
               table.typ.rowType,
               FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
-              FastIndexedSeq(struct): _*),
+                FastIndexedSeq(struct): _*),
               globalType = minimal(table.typ.globalType))
-            memoizeTableIR(table,tableDep, memo)
+            memoizeTableIR(table, tableDep, memo)
             val keyDep = unify(child.typ,
               key.map(_.map(ir => memoizeAndGetDep(ir, ir.typ, child.typ, memo)))
                 .getOrElse(FastIndexedSeq.empty[MatrixType]): _*)
@@ -815,15 +815,15 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         } )
-      case MatrixAnnotateRowsTable(child, table, uid, key) =>
+      case MatrixAnnotateRowsTable(child, table, root, key) =>
         // if the field is not used, this node can be elided entirely
-        if (!requestedType.rvRowType.hasField(uid))
+        if (!requestedType.rvRowType.hasField(root))
           rebuild(child, memo)
         else {
           val child2 = rebuild(child, memo)
           val table2 = rebuild(table, memo)
           val key2 = key.map(_.map(ir => rebuild(ir, child2.typ, memo)))
-          MatrixAnnotateRowsTable(child2, table2, uid, key2)
+          MatrixAnnotateRowsTable(child2, table2, root, key2)
         }
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule

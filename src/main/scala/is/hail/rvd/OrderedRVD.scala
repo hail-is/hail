@@ -146,6 +146,66 @@ class OrderedRVD(
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
     new KeyedOrderedRVD(this, key)
 
+  def orderedLeftJoinDistinctAndInsert(
+    right: OrderedRVD,
+    root: String,
+    lift: Option[String] = None,
+    dropLeft: Option[Array[String]] = None
+  ): OrderedRVD = {
+    assert(!typ.key.contains(root))
+
+    val valueStruct = right.typ.valueType
+    val rightRowType = right.typ.rowType
+    val liftField = lift.map { name => rightRowType.field(name) }
+    val valueType = liftField.map(-_.typ).getOrElse(valueStruct)
+
+    val removeLeft = dropLeft.map(_.toSet).getOrElse(Set.empty)
+    val keepIndices = rowType.fields.filter(f => !removeLeft.contains(f.name)).map(_.index).toArray
+    val newRowType = TStruct(
+      keepIndices.map(i => rowType.fieldNames(i) -> rowType.types(i)) ++ Array(root -> valueType): _*)
+
+    val localRowType = rowType
+
+    val shouldLift = lift.isDefined
+    val rightValueIndices = right.typ.valueIndices
+    val liftIndex = liftField.map(_.index).getOrElse(-1)
+
+    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
+      val rvb = ctx.rvb
+      val rv = RegionValue()
+
+      it.map { jrv =>
+        val lrv = jrv.rvLeft
+        val rrv = jrv.rvRight
+        rvb.start(newRowType)
+        rvb.startStruct()
+        rvb.addFields(localRowType, lrv, keepIndices)
+        if (rrv == null)
+          rvb.setMissing()
+        else {
+          if (shouldLift)
+            rvb.addField(rightRowType, rrv, liftIndex)
+          else {
+            rvb.startStruct()
+            rvb.addFields(rightRowType, rrv, rightValueIndices)
+            rvb.endStruct()
+          }
+        }
+        rvb.endStruct()
+        rv.set(ctx.region, rvb.end())
+        rv
+      }
+    }
+    keyBy(typ.key.take(right.typ.key.length)).orderedJoinDistinct(
+      right.keyBy(),
+      "left",
+      joiner,
+      typ.copy(rowType = newRowType,
+        partitionKey = typ.partitionKey.filter(!removeLeft.contains(_)),
+        key = typ.key.filter(!removeLeft.contains(_)))
+    )
+  }
+
   def orderedJoin(
     right: OrderedRVD,
     joinType: String,
@@ -514,66 +574,6 @@ class OrderedRVD(
 
   override def toUnpartitionedRVD: UnpartitionedRVD =
     new UnpartitionedRVD(typ.rowType, crdd)
-
-  def orderedLeftJoinDistinctAndInsert(
-    right: OrderedRVD,
-    root: String,
-    lift: Option[String] = None,
-    dropLeft: Option[Array[String]] = None
-  ): OrderedRVD = {
-    assert(!typ.key.contains(root))
-
-    val valueStruct = right.typ.valueType
-    val rightRowType = right.typ.rowType
-    val liftField = lift.map { name => rightRowType.field(name) }
-    val valueType = liftField.map(_.typ).getOrElse(valueStruct)
-
-    val removeLeft = dropLeft.map(_.toSet).getOrElse(Set.empty)
-    val keepIndices = rowType.fields.filter(f => !removeLeft.contains(f.name)).map(_.index).toArray
-    val newRowType = TStruct(
-      keepIndices.map(i => rowType.fieldNames(i) -> rowType.types(i)) ++ Array(root -> valueType): _*)
-
-    val localRowType = rowType
-
-    val shouldLift = lift.isDefined
-    val rightValueIndices = right.typ.valueIndices
-    val liftIndex = liftField.map(_.index).getOrElse(-1)
-
-    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = ctx.rvb
-      val rv = RegionValue()
-
-      it.map { jrv =>
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
-        rvb.start(newRowType)
-        rvb.startStruct()
-        rvb.addFields(localRowType, lrv, keepIndices)
-        if (rrv == null)
-          rvb.setMissing()
-        else {
-          if (shouldLift)
-            rvb.addField(rightRowType, rrv, liftIndex)
-          else {
-            rvb.startStruct()
-            rvb.addFields(rightRowType, rrv, rightValueIndices)
-            rvb.endStruct()
-          }
-        }
-        rvb.endStruct()
-        rv.set(ctx.region, rvb.end())
-        rv
-      }
-    }
-    keyBy(typ.key.take(right.typ.key.length)).orderedJoinDistinct(
-      right.keyBy(),
-      "left",
-      joiner,
-      typ.copy(rowType = newRowType,
-        partitionKey = typ.partitionKey.filter(!removeLeft.contains(_)),
-        key = typ.key.filter(!removeLeft.contains(_)))
-    )
-  }
 }
 
 object OrderedRVD {

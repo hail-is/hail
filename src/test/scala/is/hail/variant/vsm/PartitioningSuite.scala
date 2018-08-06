@@ -26,19 +26,19 @@ class PartitioningSuite extends SparkSuite {
       .toSet
     s1 == s2
   }
-  
+
   @Test def testShuffleOnEmptyRDD() {
     val t = TableLiteral(TableValue(
-        TableType(TStruct("tidx"->TInt32()), Some(IndexedSeq("tidx")), TStruct.empty()),
-        BroadcastRow(Row.empty, TStruct.empty(), sc),
-        UnpartitionedRVD.empty(sc, TStruct("tidx"->TInt32()))))
+      TableType(TStruct("tidx" -> TInt32()), Some(IndexedSeq("tidx")), TStruct.empty()),
+      BroadcastRow(Row.empty, TStruct.empty(), sc),
+      UnpartitionedRVD.empty(sc, TStruct("tidx" -> TInt32()))))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     MatrixAnnotateRowsTable(ir.MatrixRead(rangeReader.fullType, false, false, rangeReader), t, "foo", None)
       .execute(hc).rvd.count()
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
     val orvdType = mt.matrixType.orvdType
 
     mt.rvd.orderedJoinDistinct(OrderedRVD.empty(hc.sc, orvdType), "left", (_, it) => it.map(_._1), orvdType).count()
@@ -46,7 +46,7 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testEmptyRDDOrderedJoin() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions=Some(6)))
+    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
     val orvdType = mt.matrixType.orvdType
 
     val nonEmptyRVD = mt.rvd
