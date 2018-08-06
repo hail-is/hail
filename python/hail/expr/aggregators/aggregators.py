@@ -1246,9 +1246,9 @@ def group_by(group, agg_expr) -> DictExpression:
                  p_value=[0.03249975499062629],
                  n=2)}
 
-    Compute call statistics stratified by cohort and case status:
+    Compute call statistics stratified by population group and case status:
 
-    >>> ann = ds.annotate_rows(call_stats=hl.agg.group_by([ds.pop, ds.is_case],
+    >>> ann = ds.annotate_rows(call_stats=hl.agg.group_by(hl.struct(pop=ds.pop, is_case=ds.is_case),
     ...                                                   hl.agg.call_stats(ds.GT, ds.alleles)))
 
     Parameters
