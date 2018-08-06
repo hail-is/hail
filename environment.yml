@@ -4,6 +4,7 @@ dependencies:
 - python=3.6
 - requests
 - flask
+- pytest
 - pip
 - pip:
     - google-cloud-storage
