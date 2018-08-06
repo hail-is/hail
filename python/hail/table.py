@@ -1712,15 +1712,17 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
+        left_key = None if self.key is None else list(self.key)
         for i, ht, in enumerate(tables):
+            right_key = None if ht.key is None else list(ht.key)
             if not ht.row.dtype == self.row.dtype:
-                raise TypeError(f"'union': table {i} has a different row type.\n"
+                raise ValueError(f"'union': table {i} has a different row type.\n"
                                 f"  Expected:  {self.row.dtype}\n"
                                 f"  Table {i}: {ht.row.dtype}")
-            elif list(ht.key) != list(self.key):
-                raise TypeError(f"'union': table {i} has a different key."
-                                f"  Expected:  {list(self.key)}\n"
-                                f"  Table {i}: {list(ht.key)}")
+            elif left_key != right_key:
+                raise ValueError(f"'union': table {i} has a different key."
+                                f"  Expected:  {left_key}\n"
+                                f"  Table {i}: {right_key}")
         return Table(self._jt.union([table._jt for table in tables]))
 
     @typecheck_method(n=int)
