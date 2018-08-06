@@ -644,10 +644,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateRowsTableIR(table: Table, uid: String, irs: java.util.ArrayList[String]): MatrixTable = {
+    val refMap = matrixType.refMap
     val key = Option(irs).map { irs =>
       irs.asScala
         .toFastIndexedSeq
-        .map(Parser.parse_value_ir(_, matrixType.refMap))
+        .map(Parser.parse_value_ir(_, refMap))
     }
     new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
   }
