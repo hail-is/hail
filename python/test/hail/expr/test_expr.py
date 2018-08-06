@@ -456,7 +456,7 @@ class Tests(unittest.TestCase):
 
     def test_iter(self):
         a = hl.literal([1, 2, 3])
-        self.assertRaises(TypeError, lambda: hl.eval_expr(list(a)))
+        self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval_expr(list(a)))
 
     def test_dict_get(self):
         d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.null(hl.tint32)})
