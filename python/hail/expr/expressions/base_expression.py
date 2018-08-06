@@ -359,7 +359,7 @@ class Expression(object):
             "    Hint: instead of 'not x', use '~x'")
 
     def __iter__(self):
-        raise TypeError("'Expression' object is not iterable")
+        raise ExpressionException(f"{repr(self)} object is not iterable")
 
     def _promote_scalar(self, typ):
         if typ == tint32:
