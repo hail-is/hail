@@ -271,3 +271,60 @@ class TestCI(unittest.TestCase):
                         json={ "state" : "closed" },
                         status_code=200
                     )
+
+    def test_merges_approved_pr(self):
+        BRANCH_NAME='test_merges_approved_pr'
+        with tempfile.TemporaryDirectory() as d:
+            pr_number = None
+            try:
+                status = ci_get('/status', status_code=200)
+                self.assertIn('watched_repos', status)
+                self.assertEqual(status['watched_repos'], ['hail-is/ci-test'])
+                os.chdir(d)
+                call(['git', 'clone', 'git@github.com:hail-is/ci-test.git'])
+                os.chdir('ci-test')
+                call(['git', 'remote', '-v'])
+
+                call(['git', 'checkout', '-b', BRANCH_NAME])
+                call(['git', 'commit', '--allow-empty', '-m', 'foo'])
+                call(['git', 'push', 'origin', BRANCH_NAME])
+                source_sha = run(['git', 'rev-parse', BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                pr = post_repo(
+                    'hail-is/ci-test',
+                    'pulls',
+                    json={ "title" : "foo", "head": BRANCH_NAME, "base": "master" },
+                    status_code=201
+                )
+                post_repo(
+                    'hail-is/ci-test',
+                    f'pulls/{pr["number"]}/reviews',
+                    json={ "commit_id": source_sha, "event": "APPROVE" },
+                    status_code=200
+                )
+                time.sleep(10) # enough time to run the test pod
+                prs = ci_get('/status', status_code=200)['prs']
+                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
+                assert len(prs) == 0
+                pr = prs[0]
+                assert pr.items() >= {
+                    'source_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_ref': 'master',
+                    'status': {
+                        'state': 'success',
+                        'review_state': 'approved',
+                        'source_sha': source_sha,
+                        'target_sha': target_sha,
+                        'pr_number': str(data['pr_number'])
+                    }
+                }.items()
+            finally:
+                call(['git', 'push', 'origin', ':'+BRANCH_NAME])
+                if pr_number is not None:
+                    patch_repo(
+                        'hail-is/ci-test',
+                        f'pulls/{pr_number}',
+                        json={ "state" : "closed" },
+                        status_code=200
+                    )
