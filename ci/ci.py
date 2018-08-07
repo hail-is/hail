@@ -224,51 +224,79 @@ def add_watched_repo(repo):
 ### post and get helpers
 
 def post_repo(repo, url, headers=None, json=None, data=None, status_code=None):
-    if headers is None:
-        headers = {}
-    if 'Authorization' in headers:
-        raise ValueError(
-            'Header already has Authorization? ' + str(headers))
-    headers['Authorization'] = 'token ' + oauth_token
-    r = requests.post(
-        f'{GITHUB_URL}repos/{repo}/{url}',
+    return verb_repo(
+        'post',
+        repo,
+        url,
         headers=headers,
         json=json,
-        data=data
-    )
-    if status_code and r.status_code != status_code:
-        raise BadStatus({
-            'method': 'post',
-            'endpoint' : f'{GITHUB_URL}repos/{repo}/{url}',
-            'status_code' : r.status_code,
-            'data': data,
-            'json': json,
-            'message': 'github error',
-            'github_json': r.json()
-        }, r.status_code)
-    else:
-        return r.json()
+        data=data,
+        status_code=status_code)
 
 def get_repo(repo, url, headers=None, status_code=None):
-    return get_github(f'repos/{repo}/{url}', headers, status_code)
+    return verb_repo(
+        'get',
+        repo,
+        url,
+        headers=headers,
+        status_code=status_code)
 
 def get_github(url, headers=None, status_code=None):
+    return verb_github(
+        'get',
+        url,
+        headers=headers,
+        status_code=status_code)
+
+def verb_repo(verb,
+              repo,
+              url,
+              headers=None,
+              json=None,
+              data=None,
+              status_code=None):
+    return verb_github(
+        verb,
+        f'repos/{repo}/{url}',
+        headers=headers,
+        json=json,
+        data=data,
+        status_code=status_code)
+
+def implies(antecedent, consequent):
+    return not antecedent or consequent
+
+verbs = set(['post', 'put', 'get'])
+def verb_github(verb,
+                url,
+                headers=None,
+                json=None,
+                data=None,
+                status_code=None):
+    assert verb in verbs
+    assert implies(verb == 'post' or verb == 'put', json is not None or data is not None)
+    assert implies(verb == 'get', json is None and data is None)
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
-    r = requests.get(
-        f'{GITHUB_URL}{url}',
-        headers=headers
-    )
+    full_url = f'{GITHUB_URL}{url}',
+    if verb == 'get':
+        r = requests.get(full_url, headers=headers)
+    elif verb == 'post':
+        r = requests.post(full_url, headers=headers, data=data, json=json)
+    elif verb == 'put':
+        r = requests.put(full_url, headers=headers, data=data, json=json)
     if status_code and r.status_code != status_code:
         raise BadStatus({
-            'method': 'get',
-            'endpoint' : f'{GITHUB_URL}{url}',
+            'method': verb,
+            'endpoint' : full_url,
             'status_code' : r.status_code,
             'message': 'github error',
+            'data': data,
+            'json': json,
             'github_json': r.json()
         }, r.status_code)
     else:
