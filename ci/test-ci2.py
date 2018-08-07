@@ -21,15 +21,16 @@ class BadStatus(Exception):
 def read_oauth_token_or_fail(path):
     try:
         with open(path, 'r') as f:
-            f.read()
+            return f.read()
     except FileNotFoundError as e:
         raise NoOAuthToken(
             f"working directory must contain `{path}' "
             "containing a valid GitHub oauth token"
         ) from e
 
-oauth_tokens['user1'] = read_oauth_token_or_fail('github-token/user1')
-oauth_tokens['user2'] = read_oauth_token_or_fail('github-token/user2')
+oauth_tokens = {}
+oauth_tokens['user1'] = read_oauth_token_or_fail('github-tokens/user1')
+oauth_tokens['user2'] = read_oauth_token_or_fail('github-tokens/user2')
 
 def ci_post(endpoint, json=None, status_code=None, json_response=True):
     r = requests.post(CI_URL + endpoint, json = json)
