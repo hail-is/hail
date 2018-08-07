@@ -104,7 +104,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                                               f" found indices {x._indices.axes}")
             return False
         else:
-            t._typecheck(x)
+            t._typecheck_one_level(x)
             return True
     if dtype is None:
         dtype = impute_type(x)
