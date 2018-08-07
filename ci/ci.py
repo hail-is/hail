@@ -369,7 +369,7 @@ def github_pull_request():
         # building) since the requester introduced new changes
         test_pr(source_url, source_ref, target_url, target_ref, status)
     else:
-        log.info(f'ignoring github pull_request event of type {action} full json: {data}')
+        log.warn(f'ignoring github pull_request event of type {action}.')
     return '', 200
 
 @app.route('/ci_build_done', methods=['POST'])
