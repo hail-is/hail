@@ -8,26 +8,46 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class OrderedRVDPartitionerSuite extends TestNGSuite {
+  val kType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
   val partitioner =
-    new OrderedRVDPartitioner(
-      Array("A", "B"),
-      TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32())),
+    new OrderedRVDPartitioner(kType,
       Array(
         Interval(Row(1, 0), Row(4, 3), true, false),
         Interval(Row(4, 3), Row(7, 9), true, false),
         Interval(Row(7, 11), Row(10, 0), true, true))
     )
 
+  @Test def testExtendKey() {
+    val p = new OrderedRVDPartitioner(TStruct(("A", TInt32()), ("B", TInt32())),
+      Array(
+        Interval(Row(1, 0), Row(4, 3), true, true),
+        Interval(Row(4, 3), Row(4, 3), true, true),
+        Interval(Row(4, 3), Row(7, 9), true, false),
+        Interval(Row(7, 11), Row(10, 0), true, true))
+      )
+    val extended = p.extendKey(kType)
+    assert(extended.rangeBounds sameElements Array(
+      Interval(Row(1, 0), Row(4, 3), true, true),
+      Interval(Row(4, 3), Row(7, 9), false, false),
+      Interval(Row(7, 11), Row(10, 0), true, true))
+    )
+  }
+
   @Test def testGetPartitionWithPartitionKeys() {
     assert(partitioner.getSafePartitionLowerBound(Row(-1, 7)) == 0)
     assert(partitioner.getSafePartitionUpperBound(Row(-1, 7)) == 0)
+
     assert(partitioner.getSafePartitionLowerBound(Row(4, 2)) == 0)
     assert(partitioner.getSafePartitionUpperBound(Row(4, 2)) == 1)
+
     assert(partitioner.getSafePartitionLowerBound(Row(4, 3)) == 1)
     assert(partitioner.getSafePartitionUpperBound(Row(4, 3)) == 2)
+
     assert(partitioner.getSafePartitionLowerBound(Row(5, -10259)) == 1)
+
     assert(partitioner.getSafePartitionLowerBound(Row(7, 9)) == 2)
     assert(partitioner.getSafePartitionUpperBound(Row(7, 9)) == 2)
+
     assert(partitioner.getSafePartitionLowerBound(Row(12, 19)) == 3)
     assert(partitioner.getSafePartitionUpperBound(Row(12, 19)) == 3)
   }
@@ -35,19 +55,25 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
   @Test def testGetPartitionWithLargerKeys() {
     assert(partitioner.getSafePartitionLowerBound(Row(0, 1, 3)) == 0)
     assert(partitioner.getSafePartitionUpperBound(Row(0, 1, 3)) == 0)
+
     assert(partitioner.getSafePartitionLowerBound(Row(2, 7, 5)) == 0)
     assert(partitioner.getSafePartitionUpperBound(Row(2, 7, 5)) == 1)
+
     assert(partitioner.getSafePartitionLowerBound(Row(4, 2, 1, 2.7, "bar")) == 0)
+
     assert(partitioner.getSafePartitionLowerBound(Row(7, 9, 7)) == 2)
     assert(partitioner.getSafePartitionUpperBound(Row(7, 9, 7)) == 2)
+
     assert(partitioner.getSafePartitionLowerBound(Row(11, 1, 42)) == 3)
   }
 
    @Test def testGetPartitionPKWithSmallerKeys() {
      assert(partitioner.getSafePartitionLowerBound(Row(2)) == 0)
      assert(partitioner.getSafePartitionUpperBound(Row(2)) == 1)
+
      assert(partitioner.getSafePartitionLowerBound(Row(4)) == 0)
      assert(partitioner.getSafePartitionUpperBound(Row(4)) == 2)
+
      assert(partitioner.getSafePartitionLowerBound(Row(11)) == 3)
      assert(partitioner.getSafePartitionUpperBound(Row(11)) == 3)
    }
@@ -64,24 +90,43 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     assert(partitioner.getSafePartitionKeyRange(Row(7, 11)) == Range.inclusive(2, 2))
   }
 
-  // FIXME: Add more generate tests
-  @Test def testGenerate() {
-    val partitioner = OrderedRVDPartitioner.generate(
-      Array("A", "B"),
-      TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32())),
+  @Test def testGenerateDisjoint() {
+    val intervals = Array(
+        Interval(Row(1, 0, 4), Row(4, 3, 2), true, false),
+        Interval(Row(4, 3, 5), Row(7, 9, 1), true, false),
+        Interval(Row(7, 11, 3), Row(10, 0, 1), true, true),
+        Interval(Row(11, 0, 2), Row(11, 0, 15), false, true),
+        Interval(Row(11, 0, 15), Row(11, 0, 20), true, false))
+
+    val p3 = OrderedRVDPartitioner.generate(Array("A", "B", "C"), kType, intervals)
+    assert(p3.satisfiesPartitionKey(2))
+    assert(p3.rangeBounds sameElements
       Array(
         Interval(Row(1, 0, 4), Row(4, 3, 2), true, false),
         Interval(Row(4, 3, 5), Row(7, 9, 1), true, false),
         Interval(Row(7, 11, 3), Row(10, 0, 1), true, true),
-        Interval(Row(10, 0, 2), Row(10, 0, 15), false, false),
-        Interval(Row(10, 0, 20), Row(10, 1, 7), true, false))
+        Interval(Row(11, 0, 2), Row(11, 0, 15), false, true),
+        Interval(Row(11, 0, 15), Row(11, 0, 20), false, false))
     )
-    assert(partitioner.rangeBounds sameElements
+
+    val p2 = OrderedRVDPartitioner.generate(Array("A", "B"), kType, intervals)
+    assert(p2.satisfiesPartitionKey(1))
+    assert(p2.rangeBounds sameElements
       Array(
         Interval(Row(1, 0, 4), Row(4, 3), true, true),
         Interval(Row(4, 3), Row(7, 9, 1), false, false),
-        Interval(Row(7, 11, 3), Row(10, 0), true, true),
-        Interval(Row(10, 0), Row(10, 1, 7), false, false))
+        Interval(Row(7, 11, 3), Row(10, 0, 1), true, true),
+        Interval(Row(11, 0, 2), Row(11, 0, 20), false, false))
+    )
+
+    val p1 = OrderedRVDPartitioner.generate(Array("A"), kType, intervals)
+    assert(p1.satisfiesPartitionKey(0))
+    assert(p1.rangeBounds sameElements
+      Array(
+        Interval(Row(1, 0, 4), Row(4), true, true),
+        Interval(Row(4), Row(7), false, true),
+        Interval(Row(7), Row(10, 0, 1), false, true),
+        Interval(Row(11, 0, 2), Row(11, 0, 20), false, false))
     )
   }
 }
