@@ -228,7 +228,7 @@ However, be aware that all top-level field names must be unique. In the
 following example, `**mt['info']` would fail if `DP` already exists as an entry
 field.
 
-    >>> mt_new = mt.select_rows(**mt['info'])
+    >>> mt_new = mt.select_rows(**mt['info']) # doctest: +SKIP
 
 The example below adds two new row fields. Keys are always preserved, so the
 row keys ``locus`` and ``alleles`` will also be present in the new table.
