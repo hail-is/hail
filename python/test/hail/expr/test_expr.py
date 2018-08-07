@@ -23,14 +23,18 @@ class Tests(unittest.TestCase):
         seeded3.show()
         seeded4.show()
 
+    def test_seeded_same(self):
+        ht = hl.utils.range_table(10, 4)
+        sample1 = hl.rand_unif(0, 1)
+        ht = ht.annotate(x=sample1, y=sample1, z=hl.rand_unif(0, 1))
+
+        print(ht.aggregate(agg.all((ht.x == ht.y) & (ht.x != ht.z))))
+
     def test_seeded_sampling(self):
         ht = hl.utils.range_table(50, 6)
 
-        def sample_bool(p):
-            return hl.rand_unif(0, 1, seeded=True) < p
-
-        sampled1 = ht.filter(sample_bool(0.5))
-        sampled2 = ht.filter(sample_bool(0.5))
+        sampled1 = ht.filter(hl.rand_bool(0.5))
+        sampled2 = ht.filter(hl.rand_bool(0.5))
 
         s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
         s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))

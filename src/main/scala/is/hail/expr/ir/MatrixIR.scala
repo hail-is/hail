@@ -2138,11 +2138,11 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
     MatrixValue(typ,
       prev.globals,
       prev.colValues,
-      prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
+      prev.rvd.boundary.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, { (i, ctx, it) =>
         val region2 = ctx.region
         val rv2 = RegionValue(region2)
-        val lenF = l()
-        val rowF = f()
+        val lenF = l(i)
+        val rowF = f(i)
         it.flatMap { rv =>
           val len = lenF(rv.region, rv.offset, false)
           new Iterator[RegionValue] {

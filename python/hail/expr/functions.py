@@ -26,7 +26,6 @@ def _get_seed(indices):
     return construct_expr(I64(randint(0, 9223372036854775807)), hl.tint64, indices=indices)
 
 
-
 @typecheck(t=hail_type)
 def null(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
@@ -1708,7 +1707,7 @@ def rand_bool(p) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin", tbool, p)
+    return _func("pcoin_seeded", tbool, p, _get_seed(p._indices))
 
 
 @typecheck(mean=expr_float64, sd=expr_float64)
@@ -1741,7 +1740,7 @@ def rand_norm(mean=0, sd=1) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rnorm", tfloat64, mean, sd)
+    return _func("rnorm_seeded", tfloat64, mean, sd, _get_seed(mean._indices))
 
 
 @typecheck(lamb=expr_float64)
@@ -1772,11 +1771,11 @@ def rand_pois(lamb) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rpois", tfloat64, lamb)
+    return _func("rpois_seeded", tfloat64, lamb, _get_seed(lamb._indices))
 
 
-@typecheck(min=expr_float64, max=expr_float64, seeded=bool)
-def rand_unif(min, max, seeded=False) -> Float64Expression:
+@typecheck(min=expr_float64, max=expr_float64)
+def rand_unif(min, max) -> Float64Expression:
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
     Examples
@@ -1805,9 +1804,7 @@ def rand_unif(min, max, seeded=False) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    if seeded:
-        return _func("runif_seeded", tfloat64, min, max, _get_seed(min._indices))
-    return _func("runif", tfloat64, min, max)
+    return _func("runif_seeded", tfloat64, min, max, _get_seed(min._indices))
 
 
 @typecheck(x=expr_float64)

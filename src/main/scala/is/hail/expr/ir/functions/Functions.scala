@@ -441,17 +441,15 @@ abstract class SeededIRFunction extends IRFunctionWithoutMissingness {
 
   def argTypes: Seq[Type]
 
-  private[this] var _seed: Long = _
-  def setSeed(seed: Long): Unit = {
-    _seed = seed
+  private[this] var seed: Long = _
+  def setSeed(s: Long): Unit = {
+    seed = s
   }
-
-  def getSeed: Long = _seed
 
   def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_]
 
   override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] =
-    applySeeded(getSeed, mb, args: _*)
+    applySeeded(seed, mb, args: _*)
 
   override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
     unify(args)
