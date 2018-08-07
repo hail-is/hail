@@ -10,3 +10,5 @@ batch-proxy.log
 batch-proxy.pid
 __pycache__
 hail-is/
+github-tokens/user1
+github-tokens/user2
