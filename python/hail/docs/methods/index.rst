@@ -39,7 +39,6 @@ Methods
 .. autosummary::
 
     linear_regression
-    LinearMixedModel
     logistic_regression
     pca
     row_correlation

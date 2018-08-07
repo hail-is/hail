@@ -374,17 +374,12 @@ class LinearMixedModel(object):
 
         The formulae follow from `Bayesian Inference for Variance Components Using Only Error Contrasts (1974)
         <http://faculty.dbmi.pitt.edu/day/Bioinf2132-advanced-Bayes-and-R/previousDocuments/Bioinf2132-documents-2016/2016-11-22/Harville-1974.pdf>`__.
-        Harville derives that for fixed covariance :math:`V`, the restricted likelihood of
+        Harville derives that for fixed covariance :math:`V`, the restricted
+        likelihood of the variance parameter :math:`V` in the model
 
         .. math::
 
           y \sim \mathrm{N}(X \beta, \, V)
-
-        at
-
-        .. math::
-
-          \hat\beta = (X^T V^{-1} X)^{-1} X^T V^{-1} y
 
         is given by
 
@@ -396,7 +391,13 @@ class LinearMixedModel(object):
           \det(X^T V^{-1} X)^{-\frac{1}{2}}
           e^{-\frac{1}{2}(y - X\hat\beta)^T V^{-1}(y - X\hat\beta)}.
 
-        In our case, the covariance is
+        with
+
+        .. math::
+
+          \hat\beta = (X^T V^{-1} X)^{-1} X^T V^{-1} y.
+
+        In our case, the variance is
 
         .. math::
 
@@ -530,7 +531,7 @@ class LinearMixedModel(object):
             else:
                 raise Exception(f'failed to fit log_gamma:\n  {self.optimize_result}')
         else:
-             self.log_gamma = log_gamma
+            self.log_gamma = log_gamma
 
         _, self.beta, self.sigma_sq, self.tau_sq = self.compute_neg_log_reml(self.log_gamma, return_parameters=True)
 
@@ -593,17 +594,17 @@ class LinearMixedModel(object):
         :class:`ndarray` of :obj:`float64`
             Normalized likelihood values for :math:`\mathit{h}^2`.
         """
-        ll = np.zeros(101, dtype=np.float64)
-        ll[0], ll[100] = np.nan, np.nan
+        log_lkhd = np.zeros(101, dtype=np.float64)
+        log_lkhd[0], log_lkhd[100] = np.nan, np.nan
 
         for h2 in range(1, 100):
             gamma = h2 / (100.0 - h2)
-            ll[h2] = -self.compute_neg_log_reml(np.log(gamma))
+            log_lkhd[h2] = -self.compute_neg_log_reml(np.log(gamma))
 
-        ll -= np.max(ll[1:-1])
-        l = np.exp(ll)
-        l /= np.sum(l[1:-1])
-        return l
+        log_lkhd -= np.max(log_lkhd[1:-1])
+        lkhd = np.exp(log_lkhd)
+        lkhd /= np.sum(lkhd[1:-1])
+        return lkhd
 
     @typecheck_method(pa_t_path=str,
                       a_t_path=nullable(str),
@@ -622,8 +623,11 @@ class LinearMixedModel(object):
         .. math::
 
           \chi^2 = 2 \log\left(\frac{
-          \max_{\beta_\star, \beta, \sigma^2}\mathrm{N}(y \, | \, x_\star \beta_\star + X \beta; \sigma^2(K + \gamma^{-1}I)}
-          {\max_{\beta, \sigma^2} \mathrm{N}(y \, | \, x_\star \cdot 0 + X \beta; \sigma^2(K + \gamma^{-1}I)}\right)
+          \max_{\beta_\star, \beta, \sigma^2}\mathrm{N}
+          (y \, | \, x_\star \beta_\star + X \beta; \sigma^2(K + \gamma^{-1}I)}
+          {\max_{\beta, \sigma^2} \mathrm{N}
+          (y \, | \, x_\star \cdot 0 + X \beta; \sigma^2(K + \gamma^{-1}I)}
+          \right)
 
         The p-value is given by the tail probability under a chi-squared
         distribution with one degree of freedom.
@@ -825,10 +829,11 @@ class LinearMixedModel(object):
                       x=np.ndarray,
                       k=np.ndarray)
     def from_kinship(cls, y, x, k):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
+        r"""Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
 
         Examples
         --------
+        >>> from hail.stats import LinearMixedModel
         >>> y = np.array([0.0, 1.0, 8.0, 9.0])
         >>> x = np.array([[1.0, 0.0],
         ...               [1.0, 2.0],
@@ -838,7 +843,7 @@ class LinearMixedModel(object):
         ...               [-0.8727875 ,  1.        , -0.93036112, -0.97320323],
         ...               [ 0.96397335, -0.93036112,  1.        ,  0.98294169],
         ...               [ 0.94512946, -0.97320323,  0.98294169,  1.        ]])
-        >>> model, p = hl.LinearMixedModel.from_kinship(y, x, k)
+        >>> model, p = LinearMixedModel.from_kinship(y, x, k)
         >>> model.fit()
         >>> model.h_sq
         0.2525148830695317
@@ -851,7 +856,7 @@ class LinearMixedModel(object):
         >>> r = 2
         >>> s_r = model.s[:r]
         >>> p_r = p[:r, :]
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
+        >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
         >>> model.fit()
         >>> model.h_sq
         0.25193197591429695
@@ -912,10 +917,11 @@ class LinearMixedModel(object):
                       z=oneof(np.ndarray, hl.linalg.BlockMatrix),
                       max_condition_number=float)
     def from_mixed_effects(cls, y, x, z, max_condition_number=1e-10):
-        """Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
+        r"""Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
 
         Examples
         --------
+        >>> from hail.stats import LinearMixedModel
         >>> y = np.array([0.0, 1.0, 8.0, 9.0])
         >>> x = np.array([[1.0, 0.0],
         ...               [1.0, 2.0],
@@ -925,7 +931,7 @@ class LinearMixedModel(object):
         ...               [0.0, 1.0, 2.0],
         ...               [1.0, 2.0, 4.0],
         ...               [2.0, 4.0, 8.0]])
-        >>> model, p = hl.LinearMixedModel.from_mixed_effects(y, x, z)
+        >>> model, p = LinearMixedModel.from_mixed_effects(y, x, z)
         >>> model.fit()
         >>> model.h_sq
         0.38205307244271675
@@ -945,7 +951,7 @@ class LinearMixedModel(object):
 
         >>> s_r = model.s[:r]  # doctest: +SKIP
         >>> p_r = p[:r, :]  # doctest: +SKIP
-        >>> model_r = hl.LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
+        >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
 
         No standardization is applied to `z`.
 
