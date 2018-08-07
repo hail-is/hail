@@ -9,35 +9,40 @@ on the Python programming interface.
 
 Use ``import hail as hl`` to access this functionality.
 
+Classes
+~~~~~~~
+
 .. autosummary::
     :nosignatures:
     :toctree: ./
     :template: class.rst
 
-    hail.Table
-    hail.GroupedTable
-    hail.MatrixTable
-    hail.GroupedMatrixTable
+        hail.Table
+        hail.GroupedTable
+        hail.MatrixTable
+        hail.GroupedMatrixTable
 
-.. rubric:: Modules
+Modules
+~~~~~~~
 
 .. toctree::
     :maxdepth: 1
 
-    expressions <expressions>
-    types <types>
-    functions <functions/index>
-    aggregators <aggregators>
-    scans <scans>
-    methods <methods/index>
-    utils <utils/index>
-    linalg <linalg/index>
-    stats <stats/index>
-    genetics <genetics/index>
-    plot <plot>
-    experimental <experimental>
+        expressions <expressions>
+        types <types>
+        functions <functions/index>
+        aggregators <aggregators>
+        scans <scans>
+        methods <methods/index>
+        utils <utils/index>
+        linalg <linalg/index>
+        stats <stats/index>
+        genetics <genetics/index>
+        plot <plot>
+        experimental <experimental>
 
-.. rubric:: Module functions
+Top-Level Functions
+~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: hail.init
 .. autofunction:: hail.stop
