@@ -28,6 +28,13 @@ class HailContext(object):
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False):
 
+        if Env._hc:
+            if idempotent:
+                return
+            else:
+                raise FatalError('Hail has already been initialized, restart session '
+                                 'or stop Hail to change configuration.')
+
         SparkContext._ensure_initialized()
 
         self._gateway = SparkContext._gateway
@@ -35,14 +42,6 @@ class HailContext(object):
 
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
-
-        if idempotent:
-            creation_func = self._hail.HailContext.getOrCreate
-        elif Env._hc:
-            raise FatalError('Hail has already been initialized, restart session '
-                             'or stop Hail to change configuration.')
-        else:
-            creation_func = self._hail.HailContext.apply
 
         Env._jvm = self._jvm
         Env._gateway = self._gateway
@@ -53,9 +52,15 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        self._jhc = creation_func(
-            jsc, app_name, joption(master), local, log, True, append,
-            min_block_size, branching_factor, tmp_dir)
+        # if idempotent:
+        if idempotent:
+            self._jhc = self._hail.HailContext.getOrCreate(
+                jsc, app_name, joption(master), local, log, True, append,
+                min_block_size, branching_factor, tmp_dir)
+        else:
+            self._jhc = self._hail.HailContext.apply(
+                jsc, app_name, joption(master), local, log, True, append,
+                min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
