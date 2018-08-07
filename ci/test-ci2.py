@@ -54,11 +54,11 @@ def ci_get(endpoint, status_code=None, json_response=True):
     else:
         return r.text
 
-def post_repo(repo, url, headers=None, json=None, data=None, status_code=None):
-    return modify_repo('post', repo, url, headers, json, data, status_code)
+def post_repo(repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
+    return modify_repo('post', repo, url, headers, json, data, status_code, user=user)
 
-def patch_repo(repo, url, headers=None, json=None, data=None, status_code=None):
-    return modify_repo('patch', repo, url, headers, json, data, status_code)
+def patch_repo(repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
+    return modify_repo('patch', repo, url, headers, json, data, status_code, user=user)
 
 def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
     if headers is None:
@@ -95,8 +95,8 @@ def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code
     else:
         return r.json()
 
-def get_repo(repo, url, headers=None, status_code=None):
-    return get_github(f'repos/{repo}/{url}', headers, status_code)
+def get_repo(repo, url, headers=None, status_code=None, user='user1'):
+    return get_github(f'repos/{repo}/{url}', headers, status_code, user=user)
 
 def get_github(url, headers=None, status_code=None, user='user1'):
     if headers is None:
@@ -153,18 +153,35 @@ class TestCI(unittest.TestCase):
         assert len(prs) == 1
         return prs[0]
 
-    def poll_until_finished_pr(self, source_ref):
+    def poll_until_finished_pr(self, source_ref, delay_in_seconds=20, max_polls=10):
+        return self.poll_pr(
+            source_ref,
+            lambda pr: pr['status']['state'] == 'running' or pr['status']['state'] == 'pending',
+            delay_in_seconds=delay_in_seconds,
+            max_polls=max_polls
+        )
+
+    def poll_until_running_pr(self, source_ref, delay_in_seconds=20, max_polls=10):
+        return self.poll_pr(
+            source_ref,
+            lambda pr: pr['status']['state'] == 'pending',
+            delay_in_seconds=delay_in_seconds,
+            max_polls=max_polls
+        )
+
+    def poll_pr(self, source_ref, poll_until_false, delay_in_seconds=20, max_polls=10):
         pr = self.get_pr(source_ref)
         polls = 0
-        while pr['status'] == 'running' or pr['status'] == 'pending':
-            assert polls < 10
-            time.sleep(10)
+        while poll_until_false(pr):
+            assert polls < max_polls
+            time.sleep(delay_in_seconds)
             pr = self.get_pr(source_ref)
             polls = polls + 1
         return pr
 
     def test_pull_request_trigger(self):
         BRANCH_NAME='test_pull_request_trigger'
+        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
@@ -216,6 +233,7 @@ class TestCI(unittest.TestCase):
 
     def test_push_while_building(self):
         BRANCH_NAME='test_push_while_building'
+        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
@@ -229,7 +247,7 @@ class TestCI(unittest.TestCase):
 
                 call(['git', 'checkout', '-b', BRANCH_NAME])
                 with open('hail-ci-build.sh', 'w') as f:
-                    f.write('sleep 45')
+                    f.write('sleep 15')
                 call(['git', 'add', 'hail-ci-build.sh'])
                 call(['git', 'commit', '-m', 'foo'])
                 call(['git', 'push', 'origin', BRANCH_NAME])
@@ -242,8 +260,8 @@ class TestCI(unittest.TestCase):
                     status_code=201
                 )
                 pr_number = data['number']
-                time.sleep(7) # plenty of time to start a pod
-                pr = self.get_pr(BRANCH_NAME)
+                time.sleep(7)
+                pr = self.poll_until_running_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
@@ -264,8 +282,8 @@ class TestCI(unittest.TestCase):
                 call(['git', 'commit', '--allow-empty', '-m', 'foo'])
                 call(['git', 'push', 'origin', 'master'])
                 second_target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                time.sleep(15) # plenty of time for github to notify ci and to start a new pod
-                pr = self.get_pr(BRANCH_NAME)
+                time.sleep(7)
+                pr = self.poll_until_running_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
@@ -281,7 +299,6 @@ class TestCI(unittest.TestCase):
                 })
                 second_job_id = pr['status']['job_id']
                 self.assertNotEqual(second_job_id, first_job_id)
-                time.sleep(45)
                 pr = self.poll_until_finished_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
@@ -310,6 +327,7 @@ class TestCI(unittest.TestCase):
 
     def test_merges_approved_pr(self):
         BRANCH_NAME='test_merges_approved_pr'
+        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
@@ -326,22 +344,23 @@ class TestCI(unittest.TestCase):
                 call(['git', 'push', 'origin', BRANCH_NAME])
                 source_sha = run(['git', 'rev-parse', BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
                 target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                pr = post_repo(
+                gh_pr = post_repo(
                     'hail-is/ci-test',
                     'pulls',
                     json={ "title" : "foo", "head": BRANCH_NAME, "base": "master" },
                     status_code=201
                 )
+                pr_number = str(gh_pr['number'])
                 post_repo(
                     'hail-is/ci-test',
-                    f'pulls/{pr["number"]}/reviews',
+                    f'pulls/{pr_number}/reviews',
                     json={ "commit_id": source_sha, "event": "APPROVE" },
                     status_code=200,
                     user='user2'
                 )
-                time.sleep(10) # enough time to run the test pod
+                time.sleep(7)
                 pr = self.poll_until_finished_pr(BRANCH_NAME)
-                assert pr.items() >= {
+                assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
                     'target_ref': 'master',
@@ -350,9 +369,14 @@ class TestCI(unittest.TestCase):
                         'review_state': 'approved',
                         'source_sha': source_sha,
                         'target_sha': target_sha,
-                        'pr_number': str(data['pr_number'])
+                        'pr_number': pr_number
                     }
-                }.items()
+                })
+                get_repo(
+                    'hail-is/ci-test',
+                    f'pulls/{pr_number}/merge',
+                    status_code=204 # 204 NO CONTENT means merged, 404 means not merged
+                )
             finally:
                 call(['git', 'push', 'origin', ':'+BRANCH_NAME])
                 if pr_number is not None:
