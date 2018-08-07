@@ -17,10 +17,10 @@ Classes
     :toctree: ./
     :template: class.rst
 
-        hail.Table
-        hail.GroupedTable
-        hail.MatrixTable
-        hail.GroupedMatrixTable
+    hail.Table
+    hail.GroupedTable
+    hail.MatrixTable
+    hail.GroupedMatrixTable
 
 Modules
 ~~~~~~~
@@ -28,18 +28,18 @@ Modules
 .. toctree::
     :maxdepth: 1
 
-        expressions <expressions>
-        types <types>
-        functions <functions/index>
-        aggregators <aggregators>
-        scans <scans>
-        methods <methods/index>
-        utils <utils/index>
-        linalg <linalg/index>
-        stats <stats/index>
-        genetics <genetics/index>
-        plot <plot>
-        experimental <experimental>
+    expressions <expressions>
+    types <types>
+    functions <functions/index>
+    aggregators <aggregators>
+    scans <scans>
+    methods <methods/index>
+    utils <utils/index>
+    linalg <linalg/index>
+    stats <stats/index>
+    genetics <genetics/index>
+    plot <plot>
+    experimental <experimental>
 
 Top-Level Functions
 ~~~~~~~~~~~~~~~~~~~
