@@ -129,6 +129,20 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
+  @Test def testMakeStruct() {
+    assertEvalsTo(MakeStruct(FastSeq()), Row())
+    assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
+    //making sure wide structs get emitted without failure
+    assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
+  }
+
+  @Test def testMakeTuple() {
+    assertEvalsTo(MakeTuple(FastSeq()), Row())
+    assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
+    //making sure wide structs get emitted without failure
+    assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
+  }
+
   @Test def testArrayRef() {
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(0)), 5)
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(1)), null)
@@ -336,6 +350,27 @@ class IRSuite extends SparkSuite {
         MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
         Seq("c" -> F64(3.2))),
       Row(null, "abc", 3.2))
+  }
+
+  @Test def testSelectFields() {
+    assertEvalsTo(
+      SelectFields(
+        NA(TStruct("foo" -> TInt32(), "bar" -> TFloat64())),
+        FastSeq("foo")),
+      null)
+
+    assertEvalsTo(
+      SelectFields(
+        MakeStruct(FastSeq("foo" -> 6, "bar" -> 0.0)),
+        FastSeq("foo")),
+      Row(6))
+
+    assertEvalsTo(
+      SelectFields(
+        MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
+        FastSeq("b", "a")),
+      Row(0.0, 6))
+
   }
 
   @Test def testTableCount() {
