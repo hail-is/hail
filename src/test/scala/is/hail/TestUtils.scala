@@ -260,28 +260,28 @@ object TestUtils {
           // aggregate
           i = 0
           rvAggs.foreach(_.clear())
-          initOps()(region, rvAggs, argsOff, false)
+          initOps(0)(region, rvAggs, argsOff, false)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps()(region, rvAggs, argsOff, false, aggElementOff, false)
+            seqOps(0)(region, rvAggs, argsOff, false, aggElementOff, false)
 
             i += 1
           }
 
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
-          initOps()(region, rvAggs2, argsOff, false)
+          initOps(0)(region, rvAggs2, argsOff, false)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps()(region, rvAggs2, argsOff, false, aggElementOff, false)
+            seqOps(0)(region, rvAggs2, argsOff, false, aggElementOff, false)
 
             i += 1
           }
@@ -299,7 +299,7 @@ object TestUtils {
           rvb.endStruct()
           val aggResultsOff = rvb.end()
 
-          val resultOff = f()(region, aggResultsOff, false, argsOff, false)
+          val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
 
@@ -321,7 +321,7 @@ object TestUtils {
           rvb.endTuple()
           val argsOff = rvb.end()
 
-          val resultOff = f()(region, argsOff, false)
+          val resultOff = f(0)(region, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
     }

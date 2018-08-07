@@ -247,7 +247,7 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  private[this] val partitionIndexField: ClassFieldRef[Int] = {
+  val partitionIndexField: ClassFieldRef[Int] = {
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
     val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
     val field = mb.newField[Int]
@@ -255,11 +255,6 @@ class EmitFunctionBuilder[F >: Null](
     mb.emit(field := mb.getArg[Int](1))
     field
   }
-
-  private[this] val randomFields: mutable.Map[Long, Code[IRRandomness]] = mutable.Map()
-
-//  def getRNG(seed: Long): Code[IRRandomness] = randomFields.getOrElseUpdate(seed,
-//    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField)))
 
   def getRNG(seed: Long): Code[IRRandomness] =
     newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField))

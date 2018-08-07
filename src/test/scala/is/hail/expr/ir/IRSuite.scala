@@ -22,20 +22,21 @@ object IRSuite { outer =>
   }
 
   object TestFunctions extends RegistryFunctions {
+    //FIXME: ???? I am kind of confused by this? But am changing it for now because it's causing compile errors.
     def registerAll() {
-      registerCodeWithMissingness("incr_s", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerCodeWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, l) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           l.v)
       }
 
-      registerCodeWithMissingness("incr_m", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerCodeWithMissingness("incr_m", TBoolean(), TBoolean()) { (mb, l) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
           l.v)
       }
 
-      registerCodeWithMissingness("incr_v", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerCodeWithMissingness("incr_v", TBoolean(), TBoolean()) { (mb, l) =>
         EmitTriplet(l.setup,
           l.m,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))

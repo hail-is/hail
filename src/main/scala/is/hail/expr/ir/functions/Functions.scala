@@ -334,6 +334,41 @@ abstract class RegistryFunctions {
 
   def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type)(f: (IR, IR, IR, IR) => IR): Unit =
     registerIR(mname, Array(mt1, mt2, mt3, mt4)) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
+
+  def registerSeeded(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[Code[_]]) => Code[_]) {
+    IRFunctionRegistry.addIRFunction(new SeededIRFunction {
+      val isDeterministic: Boolean = false
+
+      override val name: String = mname
+
+      override val argTypes: Seq[Type] = aTypes :+ TInt64()
+
+      override val returnType: Type = rType
+
+      override def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, seed, args.toArray)
+    })
+  }
+
+  def registerSeeded(mname: String, rType: Type)(impl: (EmitMethodBuilder, Long) => Code[_]): Unit =
+    registerSeeded(mname, Array[Type](), rType) { (emb, seed, array) =>
+      (emb: @unchecked, array: @unchecked) match {
+        case (mb, Array()) => impl(mb, seed)
+      }
+    }
+
+  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1), rType) { (emb, seed, array) =>
+      (emb: @unchecked, array: @unchecked) match {
+        case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, seed, a1)
+      }
+    }
+
+  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1], Code[A2]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1, arg2), rType) { (emb, seed, array) =>
+      (emb: @unchecked, array: @unchecked) match {
+        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, seed, a1, a2)
+      }
+    }
 }
 
 sealed abstract class IRFunction {

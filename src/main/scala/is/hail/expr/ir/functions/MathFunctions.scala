@@ -27,34 +27,6 @@ class IRRandomness(seed: Long, partitionIndex: Int) {
 
 object RandomSeededFunctions extends RegistryFunctions {
 
-  def registerSeeded(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[Code[_]]) => Code[_]) {
-    IRFunctionRegistry.addIRFunction(new SeededIRFunction {
-      val isDeterministic: Boolean = false
-
-      override val name: String = mname
-
-      override val argTypes: Seq[Type] = aTypes :+ TInt64()
-
-      override val returnType: Type = rType
-
-      override def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, seed, args.toArray)
-    })
-  }
-
-  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1]) => Code[_]): Unit =
-    registerSeeded(mname, Array(arg1), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, seed, a1)
-      }
-    }
-
-  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1], Code[A2]) => Code[_]): Unit =
-    registerSeeded(mname, Array(arg1, arg2), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, seed, a1, a2)
-      }
-    }
-
   def registerAll() {
     registerSeeded("runif_seeded", TFloat64(), TFloat64(), TFloat64()) { case (mb, seed, min, max) =>
       mb.getRNG(seed).invoke[Double, Double, Double]("runif", min, max)
