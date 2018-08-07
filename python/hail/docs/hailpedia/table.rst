@@ -14,7 +14,7 @@ Hail has functions to create tables from a variety of data sources.
 The most common use case is to load data from a TSV or CSV file, which can be
 done with the :func:`import_table` function.
 
-    ht = hl.import_table("data/kt_example1.tsv", impute=True)
+    >>> ht = hl.import_table("data/kt_example1.tsv", impute=True)
 
 Examples of genetics-specific import methods are
 :func:`.import_locus_intervals`, :func:`.import_fam`, and :func:`.import_bed`.

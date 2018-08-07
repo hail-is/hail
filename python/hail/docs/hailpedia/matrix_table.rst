@@ -9,12 +9,12 @@ Unlike a table, which has two field groups (row fields and global
 fields), a matrix table consists of four components:
 
 1. a two-dimensional matrix of **entry fields** where each entry is indexed by
-row key(s) and column key(s)
-2. a corresponding rows table that stores all of the **row fields** which are
-constant for every column in the dataset
-3. a corresponding
-columns table that stores all of the **column fields** that are constant for
-every row in the dataset
+   row key(s) and column key(s)
+2. a corresponding rows table that stores all of the **row fields** that are
+   constant for every column in the dataset
+3. a corresponding columns table that stores all of the **column fields** that
+   are constant for
+   every row in the dataset
 4. a set of **global fields** that are constant for every entry in the dataset
 
 There are different operations on the matrix for each field group.
