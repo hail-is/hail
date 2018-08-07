@@ -886,6 +886,7 @@ def get_build_image(source_url, source_ref, source_sha,
         source_repo = repo_from_url(source_url)
         if run(['/bin/sh', '-c', f'git remote | grep -q {source_repo}']).returncode != 0:
             run(['git', 'remote', 'add', source_repo, source_url], check=True)
+        run(['git', 'fetch', 'origin'], check=True)
         run(['git', 'fetch', source_repo], check=True)
         run(['git', 'checkout', target_sha], check=True)
         run(['git', 'merge', source_sha, '-m', 'foo'], check=True)
