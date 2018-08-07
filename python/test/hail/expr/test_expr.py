@@ -25,16 +25,15 @@ class Tests(unittest.TestCase):
         self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y) & (ht.x != ht.z))))
 
     def test_seeded_sampling(self):
+        # FIXME: This test is failing right now because I don't understand joins
         ht = hl.utils.range_table(50, 6)
 
         sampled1 = ht.filter(hl.rand_bool(0.5))
         sampled2 = ht.filter(hl.rand_bool(0.5))
 
-        s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
-        s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
-
-        expected = set(s1.idx.collect())
-        self.assertEqual(set(s2.idx.collect()), expected)
+        set1 = set(sampled1.idx.collect())
+        set2 = set(sampled2.idx.collect())
+        expected = set1 & set2
 
         for i in range(10):
             s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
