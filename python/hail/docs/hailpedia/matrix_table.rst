@@ -344,7 +344,7 @@ Next we group the columns by `case_status` and aggregate:
         }
     }
 
-    >>> mt_grouped.describe()
+    >>> print(mt_grouped.col.dtype)
     struct{status: str}
 
 Joins

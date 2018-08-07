@@ -270,13 +270,15 @@ takes the type as its single argument.
 An example of generating a :class:`.Float64Expression` that is missing is:
 
     >>> hl.null('float64')
+    <Float64Expression of type float64>
 
 These can be used with conditional statements to set values to missing if they
 don't satisfy a condition:
 
     >>> hl.cond(x > 2.0, x, hl.null(hl.tfloat))
+    <Float64Expression of type float64>
 
-The result of method calls on a missing value is ``None``. For example, if
+The Python representation of a missing value is ``None``. For example, if
 we define ``cnull`` to be a missing value with type :class:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
 
