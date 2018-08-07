@@ -7,7 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from .misc import require_biallelic, require_row_key_variant, require_col_key_str
+from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -417,12 +417,12 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     return global_conc, col_conc, row_conc
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(dataset=oneof(Table, MatrixTable),
            config=str,
            block_size=int,
            name=str,
            csq=bool)
-def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
+def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep', csq=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -650,7 +650,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
     config : :obj:`str`
         Path to VEP configuration file.
@@ -664,20 +664,29 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing VEP annotations.
     """
+    if isinstance(dataset, MatrixTable):
+        require_row_key_variant(dataset, 'vep')
+        ht = dataset.select_rows().rows()
+    else:
+        require_table_key_variant(dataset, 'vep')
+        ht = dataset.select()
 
-    require_row_key_variant(dataset, 'vep')
-    mt = MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
-    return mt.annotate_rows(vep=mt['vep']['vep'])
+    annotations = Table(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+
+    if isinstance(dataset, MatrixTable):
+        return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})
+    else:
+        return dataset.annotate(**{name: annotations[dataset.key].vep})
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(dataset=oneof(Table, MatrixTable),
            config=str,
            block_size=int,
            name=str)
-def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
+def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name='nirvana'):
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
     .. include:: ../_templates/experimental.rst
@@ -983,7 +992,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
     config : :obj:`str`
         Path to Nirvana configuration file.
@@ -994,13 +1003,22 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing Nirvana annotations.
     """
+    if isinstance(dataset, MatrixTable):
+        require_row_key_variant(dataset, 'nirvana')
+        ht = dataset.select_rows().rows()
+    else:
+        require_table_key_variant(dataset, 'nirvana')
+        ht = dataset.select()
 
-    require_row_key_variant(dataset, 'nirvana')
-    mt = MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
-    return mt.annotate_rows(nirvana=mt['nirvana']['nirvana'])
+    annotations = Table(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+
+    if isinstance(dataset, MatrixTable):
+        return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})
+    else:
+        return dataset.annotate(**{name: annotations[dataset.key].nirvana})
 
 
 @typecheck(mt=MatrixTable, show=bool)
