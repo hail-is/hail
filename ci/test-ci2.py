@@ -18,14 +18,18 @@ class BadStatus(Exception):
         self.data = data
         self.status_code = status_code
 
-try:
-    with open('oauth-token/oauth-token', 'r') as f:
-        oauth_token = f.read()
-except FileNotFoundError as e:
-    raise NoOAuthToken(
-        "working directory must contain `oauth-token/oauth-token' "
-        "containing a valid GitHub oauth token"
-    ) from e
+def read_oauth_token_or_fail(path):
+    try:
+        with open(path, 'r') as f:
+            f.read()
+    except FileNotFoundError as e:
+        raise NoOAuthToken(
+            f"working directory must contain `{path}' "
+            "containing a valid GitHub oauth token"
+        ) from e
+
+oauth_tokens['user1'] = read_oauth_token_or_fail('github-token/user1')
+oauth_tokens['user2'] = read_oauth_token_or_fail('github-token/user2')
 
 def ci_post(endpoint, json=None, status_code=None, json_response=True):
     r = requests.post(CI_URL + endpoint, json = json)
@@ -55,13 +59,13 @@ def post_repo(repo, url, headers=None, json=None, data=None, status_code=None):
 def patch_repo(repo, url, headers=None, json=None, data=None, status_code=None):
     return modify_repo('patch', repo, url, headers, json, data, status_code)
 
-def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code=None):
+def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
-    headers['Authorization'] = 'token ' + oauth_token
+    headers['Authorization'] = 'token ' + oauth_tokens[user]
     if verb == 'post':
         r = requests.post(
             f'{GITHUB_URL}repos/{repo}/{url}',
@@ -93,13 +97,13 @@ def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code
 def get_repo(repo, url, headers=None, status_code=None):
     return get_github(f'repos/{repo}/{url}', headers, status_code)
 
-def get_github(url, headers=None, status_code=None):
+def get_github(url, headers=None, status_code=None, user='user1'):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
-    headers['Authorization'] = 'token ' + oauth_token
+    headers['Authorization'] = 'token ' + oauth_tokens[user]
     r = requests.get(
         f'{GITHUB_URL}{url}',
         headers=headers
@@ -120,6 +124,7 @@ def assertDictHasKVs(actual, kvs):
     assert len(d) == 0, d
 
 def dictKVMismatches(actual, kvs):
+    assert isinstance(actual, dict), actual
     errors = {}
     for k, v in kvs.items():
         if k not in actual:
@@ -138,7 +143,27 @@ def dictKVMismatches(actual, kvs):
 
 class TestCI(unittest.TestCase):
 
+    def get_pr(self, source_ref):
+        status = ci_get('/status', status_code=200)
+        assert 'prs' in status
+        assert 'watched_repos' in status
+        prs = status['prs']
+        prs = [pr for pr in prs if pr['source_ref'] == source_ref]
+        assert len(prs) == 1
+        return prs[0]
+
+    def poll_until_finished_pr(self, source_ref):
+        pr = self.get_pr(source_ref)
+        polls = 0
+        while pr['status'] == 'running' or pr['status'] == 'pending':
+            assert polls < 10
+            time.sleep(10)
+            pr = self.get_pr(source_ref)
+            polls = polls + 1
+        return pr
+
     def test_pull_request_trigger(self):
+        BRANCH_NAME='test_pull_request_trigger'
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
@@ -150,30 +175,21 @@ class TestCI(unittest.TestCase):
                 os.chdir('ci-test')
                 call(['git', 'remote', '-v'])
 
-                call(['git', 'checkout', '-b', 'foo'])
-                call(['touch', 'foo'])
-                call(['git', 'add', 'foo'])
-                call(['git', 'commit', '-m', 'foo'])
-                call(['git', 'push', 'origin', 'foo'])
-                source_sha = run(['git', 'rev-parse', 'foo'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+                call(['git', 'checkout', '-b', BRANCH_NAME])
+                call(['git', 'commit', '--allow-empty', '-m', 'foo'])
+                call(['git', 'push', 'origin', BRANCH_NAME])
+                source_sha = run(['git', 'rev-parse', BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
                 target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
                 data = post_repo(
                     'hail-is/ci-test',
                     'pulls',
-                    json={ "title" : "foo", "head": "foo", "base": "master" },
+                    json={ "title" : "foo", "head": BRANCH_NAME, "base": "master" },
                     status_code=201
                 )
                 pr_number = data['number']
-                time.sleep(7) # plenty of time to start a pod and run a simple command
-                status = ci_get('/status', status_code=200)
-                self.assertIn('prs', status)
-                self.assertIn('watched_repos', status)
-                prs = status['prs']
-                prs = [pr for pr in prs if pr['source_ref'] == 'foo']
-                assert len(prs) == 1
-                pr = prs[0]
+                time.sleep(7)
+                pr = self.poll_until_finished_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
-                    'source_ref': 'foo',
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
                     'target_ref': 'master',
@@ -188,7 +204,7 @@ class TestCI(unittest.TestCase):
                 })
                 assert pr['status']['job_id'] is not None
             finally:
-                call(['git', 'push', 'origin', ':foo'])
+                call(['git', 'push', 'origin', ':' + BRANCH_NAME])
                 if pr_number is not None:
                     patch_repo(
                         'hail-is/ci-test',
@@ -226,13 +242,7 @@ class TestCI(unittest.TestCase):
                 )
                 pr_number = data['number']
                 time.sleep(7) # plenty of time to start a pod
-                status = ci_get('/status', status_code=200)
-                self.assertIn('prs', status)
-                self.assertIn('watched_repos', status)
-                prs = status['prs']
-                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                assert len(prs) == 1
-                pr = prs[0]
+                pr = self.get_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
@@ -254,13 +264,7 @@ class TestCI(unittest.TestCase):
                 call(['git', 'push', 'origin', 'master'])
                 second_target_sha = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
                 time.sleep(15) # plenty of time for github to notify ci and to start a new pod
-                status = ci_get('/status', status_code=200)
-                self.assertIn('prs', status)
-                self.assertIn('watched_repos', status)
-                prs = status['prs']
-                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                assert len(prs) == 1
-                pr = prs[0]
+                pr = self.get_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
@@ -276,15 +280,8 @@ class TestCI(unittest.TestCase):
                 })
                 second_job_id = pr['status']['job_id']
                 self.assertNotEqual(second_job_id, first_job_id)
-
-                time.sleep(45) # build should be done now
-                status = ci_get('/status', status_code=200)
-                self.assertIn('prs', status)
-                self.assertIn('watched_repos', status)
-                prs = status['prs']
-                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                assert len(prs) == 1
-                pr = prs[0]
+                time.sleep(45)
+                pr = self.poll_until_finished_pr(BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
@@ -338,13 +335,11 @@ class TestCI(unittest.TestCase):
                     'hail-is/ci-test',
                     f'pulls/{pr["number"]}/reviews',
                     json={ "commit_id": source_sha, "event": "APPROVE" },
-                    status_code=200
+                    status_code=200,
+                    user='user2'
                 )
                 time.sleep(10) # enough time to run the test pod
-                prs = ci_get('/status', status_code=200)['prs']
-                prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                assert len(prs) == 1
-                pr = prs[0]
+                pr = self.poll_until_finished_pr(BRANCH_NAME)
                 assert pr.items() >= {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
