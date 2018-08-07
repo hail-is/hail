@@ -2,21 +2,24 @@
 MatrixTable
 -----------
 
-A :class:`.MatrixTable` is a distributed two-dimensional dataset consisting of
-four components: a two-dimensional matrix where each entry is indexed by row
-key(s) and column key(s), a corresponding rows table that stores all of the row
-fields which are constant for every column in the dataset, a corresponding
-columns table that stores all of the column fields that are constant for every
-row in the dataset, and a set of global fields that are constant for every entry
-in the dataset.
+A :class:`.MatrixTable` is a distributed two-dimensional extension of a
+:class:`.Table`.
 
-Unlike a :class:`.Table` which has two field groups (row fields and global
-fields), a matrix table has four field groups: global fields, row fields, column
-fields, entry fields.
+Unlike a table, which has two field groups (row fields and global
+fields), a matrix table consists of four components:
 
-In addition, there are different operations on the matrix for each field group.
+1. a two-dimensional matrix of **entry fields** where each entry is indexed by
+row key(s) and column key(s)
+2. a corresponding rows table that stores all of the **row fields** which are
+constant for every column in the dataset
+3. a corresponding
+columns table that stores all of the **column fields** that are constant for
+every row in the dataset
+4. a set of **global fields** that are constant for every entry in the dataset
+
+There are different operations on the matrix for each field group.
 For instance, :class:`.Table` has :meth:`.Table.select` and
-:meth:`.Table.select_globals`, and :class:`.MatrixTable` has
+:meth:`.Table.select_globals`, while :class:`.MatrixTable` has
 :meth:`.MatrixTable.select_rows`, :meth:`.MatrixTable.select_cols`,
 :meth:`.MatrixTable.select_entries`, and :meth:`.MatrixTable.select_globals`.
 
@@ -28,7 +31,8 @@ it.
 The :meth:`.MatrixTable.rows` and :meth:`.MatrixTable.cols` methods return the
 row and column fields as separate tables. The :meth:`.MatrixTable.entries`
 method returns the matrix as a table in coordinate form -- use this object with
-caution.
+caution, because this representation is costly to compute and is significantly
+larger in memory
 
 Keys
 ====
@@ -38,15 +42,11 @@ tables have two keys: a row key and a column key. Row fields are indexed by the
 row key, column fields are indexed by the column key, and entry fields are
 indexed by the row key and the column key. The key structs can be accessed with
 :attr:`.MatrixTable.row_key` and :attr:`.MatrixTable.col_key`. It is possible to
-change the key with :meth:`.MatrixTable.key_rows_by` and
+change the keys with :meth:`.MatrixTable.key_rows_by` and
 :meth:`.MatrixTable.key_cols_by`.
 
-Note that changing the row key, however, may be an expensive operation.
-
-Hail matrix tables are natively distributed objects, and as such have another
-key: a partition key. This key is used for specifying the ordering of the matrix
-table along the row dimension, which is important for performance. Access this
-with :attr:`.MatrixTable.partition_key`
+Due to the data representation of a matrix table, changing a row key is often an
+expensive operation.
 
 Referencing Fields
 ==================
@@ -58,13 +58,12 @@ row field `locus`, this field could be referenced with either ``mt.locus`` or
 spaces or punctuation.
 
 The result of referencing a field from a matrix table is an :class:`.Expression`
-which knows its type and knows its source as well as whether it is a row field,
+which knows its type, its source matrix table, and whether it is a row field,
 column field, entry field, or global field. Hail uses this context to know which
 operations are allowed for a given expression.
 
 When evaluated in a Python interpreter, we can see ``mt.locus`` is a
-:class:`.LocusExpression` with type ``locus<GRCh37>`` and it is a row field of
-the MatrixTable `mt`.
+:class:`.LocusExpression` with type ``locus<GRCh37>``.
 
     >>> mt
     <hail.matrixtable.MatrixTable at 0x1107e54a8>
@@ -72,9 +71,14 @@ the MatrixTable `mt`.
     >>> mt.locus
     <LocusExpression of type locus<GRCh37>>
 
-Likewise, ``mt.DP`` would be an :class:`.Int32Expression` with type ``int32``
-and is an entry field of `mt`. It is indexed by both rows and columns as denoted
-by its indices when describing the expression:
+Likewise, ``mt.DP`` is an :class:`.Int32Expression` with type ``int32``
+and is an entry field of ``mt``.
+
+Hail expressions can also :meth:`.Expression.describe` themselves, providing
+information on their source matrix table or table and which keys index the
+expression, if any. For example, ``mt.DP.describe()`` tells us that ``mt.DP``
+has type ``int32`` and is an entry field of ``mt``, since it is indexed
+by both rows and columns:
 
     >>> mt.DP.describe()
     --------------------------------------------------------
@@ -140,7 +144,7 @@ their types, as well as the keys.
 Common Operations
 =================
 
-Like tables, Hail provides a number of useful methods for manipulating data in a
+Like tables, Hail provides a number of methods for manipulating data in a
 matrix table.
 
 **Filter**
@@ -168,10 +172,10 @@ mean of the `GQ` field, and removes columns where the result is smaller than 20.
 
 :class:`.MatrixTable` has four methods to add new fields or update existing fields:
 
+- :meth:`.MatrixTable.annotate_globals`
 - :meth:`.MatrixTable.annotate_rows`
 - :meth:`.MatrixTable.annotate_cols`
 - :meth:`.MatrixTable.annotate_entries`
-- :meth:`.MatrixTable.annotate_globals`
 
 Annotate methods take keyword arguments where the key is the name of the new
 field to add and the value is an expression specifying what should be added.
@@ -193,16 +197,15 @@ of non-missing entries `GT` per row:
 Annotate methods are also useful for updating values. For example, to update the
 GT entry field to be missing if `GQ` is less than 20, we can do the following:
 
-    >>> mt_new = mt.annotate_entries(GT = hl.case()
-    ...                                     .when(mt.GQ >= 20, mt.GT)
-    ...                                     .or_missing())
+    >>> mt_new = mt.annotate_entries(GT = hl.or_missing(mt.GQ >= 20, mt.GT))
 
 **Select**
 
-Select is used to create a new schema for a dimension of the matrix table. For
-example, following the matrix table schemas from importing a VCF file (shown above),
+Select is used to create a new schema for a dimension of the matrix table. Key
+fields are always preserved even when not selected. For example, following the
+matrix table schemas from importing a VCF file (shown above),
 to create a hard calls dataset where each entry only contains the `GT` field
-one can do the following:
+we can do the following:
 
     >>> mt_new = mt.select_entries('GT')
     >>> print(mt_new.entry.dtype.pretty())
@@ -212,22 +215,24 @@ one can do the following:
 
 :class:`.MatrixTable` has four select methods that select and create new fields:
 
+- :meth:`.MatrixTable.select_globals`
 - :meth:`.MatrixTable.select_rows`
 - :meth:`.MatrixTable.select_cols`
 - :meth:`.MatrixTable.select_entries`
-- :meth:`.MatrixTable.select_globals`
 
 Each method can take either strings referring to top-level fields, an attribute
 reference (useful for accessing nested fields), as well as keyword arguments
 ``KEY=VALUE`` to compute new fields. The Python unpack operator ``**`` can be
 used to specify that all fields of a Struct should become top level fields.
-However, be aware that all top-level field names must be unique. In this
-example, `**mt['info']` would fail because `DP` already exists as an entry
+However, be aware that all top-level field names must be unique. In the
+following example, `**mt['info']` would fail if `DP` already exists as an entry
 field.
 
-The example below will keep the row keys `locus` and `alleles` as well as add
-two new fields: `AC` is making the subfield `AC` into a top level field and
-`n_filters` is a new computed field.
+    >>> mt_new = mt.select_rows(**mt['info'])
+
+The example below adds two new row fields. Keys are always preserved, so the
+row keys ``locus`` and ``alleles`` will also be present in the new table.
+``AC = mt.info.AC`` turns the subfield ``AC`` into a top-level field.
 
     >>> mt_new = mt.select_rows(AC = mt.info.AC,
     ...                         n_filters = hl.len(mt['filters']))
@@ -294,9 +299,10 @@ An example of querying entries is to compute the global mean of field `GQ`:
     >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))
     67.73196915777027
 
-It is possible to compute multiple values simultaneously (and encouraged,
-because grouping two computations together will run twice as fast!) by
-creating a tuple or struct:
+It is possible to compute multiple values simultaneously by
+creating a tuple or struct. This is encouraged, because grouping two
+computations together is far more efficient by traversing the dataset only once
+rather than twice.
 
     >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))
     (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
@@ -338,7 +344,7 @@ Next we group the columns by `case_status` and aggregate:
         }
     }
 
-    >>> print(mt_grouped.col.dtype)
+    >>> mt_grouped.describe()
     struct{status: str}
 
 Joins
@@ -359,13 +365,17 @@ Unix). Likewise, :meth:`.MatrixTable.union_rows` performs an inner join on
 columns while concatenating rows together (similar to `cat` in Unix).
 
 In addition, Hail provides support for joining data from multiple sources together
-if the keys of each source are compatible (same order and type, but the names do
-not need to be identical) using Python's bracket notation ``[]``. The arguments
-inside the brackets are the destination key as a single value or a tuple if there
-are multiple destination keys.
+if the keys of each source are compatible. Keys are compatible if they are the
+same type, and share the same ordering in the case where tables have multiple keys.
 
-For example, we can annotate rows with row fields from another matrix table or
-table. Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type
+If the keys are compatible, joins can then be performed using Python's bracket
+notation ``[]``. This looks like ``right_table[left_table.key]``. The argument
+inside the brackets is the key of the destination (left) table as a single value, or a
+tuple if there are multiple destination keys.
+
+For example, we can join a matrix table and a table in order to annotate the
+rows of the matrix table with a field from the table. Let `gnomad_data` be a
+:class:`.Table` keyed by two row fields with type
 ``locus`` and ``array<str>``, which matches the row keys of `mt`:
 
     >>> mt_new = mt.annotate_rows(gnomad_ann = gnomad_data[mt.locus, mt.alleles])
