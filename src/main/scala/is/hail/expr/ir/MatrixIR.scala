@@ -2147,7 +2147,7 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
           val l = lenF()(rv.region, rv.offset, false)
           if (l != localColData.length) {
             fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
-                     |   had ${l} elements, should have had ${localColData.length} elements""")
+                     |   had ${l} elements, should have had ${localColData.length} elements""".stripMargin)
           }
           rv
         }
