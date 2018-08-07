@@ -37,9 +37,11 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
+  private val contextLock = new Object()
+
   private var theContext: HailContext = _
 
-  def get: HailContext = synchronized { theContext }
+  def get: HailContext = contextLock.synchronized { theContext }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -155,7 +157,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = synchronized {
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
 
     if (get != null) {
       val hc = get
@@ -192,7 +194,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = synchronized {
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
