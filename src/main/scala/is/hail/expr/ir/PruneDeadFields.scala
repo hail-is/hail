@@ -700,6 +700,12 @@ object PruneDeadFields {
           LocalizeEntries(child2, fieldName)
         else
           MatrixRowsTable(child2)
+      case TableUnion(children) =>
+        val requestedType = memo.lookup(tir).asInstanceOf[TableType]
+        val rebuilt = children.map { c =>
+          upcastTable(rebuild(c, memo), requestedType, upcastGlobals = false)
+        }
+        TableUnion(rebuilt)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -917,6 +923,28 @@ object PruneDeadFields {
         mt = MatrixMapGlobals(mt, upcast(Ref("global", ir.typ.globalType), rType.globalType), BroadcastRow.empty(HailContext.get.sc))
 
       mt
+    }
+  }
+
+  def upcastTable(
+    ir: TableIR,
+    rType: TableType,
+    upcastRow: Boolean = true,
+    upcastGlobals: Boolean = true
+  ): TableIR = {
+    if (ir.typ == rType)
+      ir
+    else {
+      var table = ir
+      if (upcastRow && ir.typ.rowType != rType.rowType) {
+        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key, rType.key.map(_.length))
+      }
+      if (upcastGlobals && ir.typ.globalType != rType.globalType) {
+        table = TableMapGlobals(table,
+          upcast(Ref("global", table.typ.globalType), rType.globalType),
+          BroadcastRow.empty(HailContext.get.sc))
+      }
+      table
     }
   }
 }
