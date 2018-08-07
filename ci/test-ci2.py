@@ -115,9 +115,29 @@ def get_github(url, headers=None, status_code=None):
     else:
         return r.json()
 
+def assertDictHasKVs(actual, kvs):
+    d = dictKVMismatches(actual, kvs)
+    assert len(d) == 0, d
+
+def dictKVMismatches(actual, kvs):
+    errors = {}
+    for k, v in kvs.items():
+        if k not in actual:
+            errors[k] = f'had nothing, should have had {v}'
+        elif isinstance(v, dict):
+            sub_errors = dictKVMismatches(actual[k], v)
+            if len(sub_errors) != 0:
+                errors[k] = sub_errors
+        else:
+            actual_v = actual[k]
+            if actual_v != v:
+                errors[k] = f'{actual_v} != {v}'
+    return errors
+
 ###############################################################################
 
 class TestCI(unittest.TestCase):
+
     def test_pull_request_trigger(self):
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
@@ -149,21 +169,24 @@ class TestCI(unittest.TestCase):
                 self.assertIn('prs', status)
                 self.assertIn('watched_repos', status)
                 prs = status['prs']
-                pr_goodnesses = [(pr['source_ref'] == 'foo',
-                                  pr['source_url'] == 'https://github.com/hail-is/ci-test.git',
-                                  pr['target_url'] == 'https://github.com/hail-is/ci-test.git',
-                                  pr['target_ref'] == 'master',
-                                  pr['status']['state'] == 'success',
-                                  pr['status']['job_id'] is not None,
-                                  pr['status']['review_state'] == 'pending',
-                                  pr['status']['source_sha'] == source_sha,
-                                  pr['status']['target_sha'] == target_sha,
-                                  pr['status']['pr_number'] == str(pr_number),
-                                  pr['status']['docker_image'] == 'google/cloud-sdk:alpine')
-                                 for pr in prs]
-                self.assertEqual(
-                    [all(x) for x in pr_goodnesses].count(True),
-                    1, f'expected a pr to have: "source_sha": "{source_sha}", "target_sha": "{target_sha}", "pr_number": "{pr_number}", actual prs and goodnesses: {list(zip(prs, pr_goodnesses))}')
+                prs = [pr for pr in prs if pr['source_ref'] == 'foo']
+                assert len(prs) == 1
+                pr = prs[0]
+                assertDictHasKVs(pr, {
+                    'source_ref': 'foo',
+                    'source_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_ref': 'master',
+                    'status': {
+                        'state': 'success',
+                        'review_state': 'pending',
+                        'source_sha': source_sha,
+                        'target_sha': target_sha,
+                        'pr_number': str(pr_number),
+                        'docker_image': 'google/cloud-sdk:alpine'
+                    }
+                })
+                assert pr['status']['job_id'] is not None
             finally:
                 call(['git', 'push', 'origin', ':foo'])
                 if pr_number is not None:
@@ -208,19 +231,24 @@ class TestCI(unittest.TestCase):
                 self.assertIn('watched_repos', status)
                 prs = status['prs']
                 prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                self.assertEqual(len(prs), 1)
+                assert len(prs) == 1
                 pr = prs[0]
-                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_ref'], 'master')
-                self.assertEqual(pr['status']['state'], 'running')
+                assertDictHasKVs(pr, {
+                    'source_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_ref': 'master',
+                    'status': {
+                        'state': 'running',
+                        'review_state': 'pending',
+                        'source_sha': source_sha,
+                        'target_sha': first_target_sha,
+                        'pr_number': str(pr_number),
+                        'docker_image': 'google/cloud-sdk:alpine'
+                    }
+                })
                 first_job_id = pr['status']['job_id']
-                self.assertTrue(first_job_id is not None)
-                self.assertEqual(pr['status']['review_state'], 'pending')
-                self.assertEqual(pr['status']['source_sha'], source_sha)
-                self.assertEqual(pr['status']['target_sha'], first_target_sha)
-                self.assertEqual(pr['status']['pr_number'], str(pr_number))
-                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+                assert first_job_id is not None
+
                 call(['git', 'checkout', 'master'])
                 call(['git', 'commit', '--allow-empty', '-m', 'foo'])
                 call(['git', 'push', 'origin', 'master'])
@@ -231,37 +259,47 @@ class TestCI(unittest.TestCase):
                 self.assertIn('watched_repos', status)
                 prs = status['prs']
                 prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                self.assertEqual(len(prs), 1)
+                assert len(prs) == 1
                 pr = prs[0]
-                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_ref'], 'master')
-                self.assertEqual(pr['status']['state'], 'running')
+                assertDictHasKVs(pr, {
+                    'source_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_ref': 'master',
+                    'status': {
+                        'state': 'running',
+                        'review_state': 'pending',
+                        'source_sha': source_sha,
+                        'target_sha': second_target_sha,
+                        'pr_number': str(pr_number),
+                        'docker_image': 'google/cloud-sdk:alpine'
+                    }
+                })
                 second_job_id = pr['status']['job_id']
                 self.assertNotEqual(second_job_id, first_job_id)
-                self.assertEqual(pr['status']['review_state'], 'pending')
-                self.assertEqual(pr['status']['source_sha'], source_sha)
-                self.assertEqual(pr['status']['target_sha'], second_target_sha)
-                self.assertEqual(pr['status']['pr_number'], str(pr_number))
-                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+
                 time.sleep(45) # build should be done now
                 status = ci_get('/status', status_code=200)
                 self.assertIn('prs', status)
                 self.assertIn('watched_repos', status)
                 prs = status['prs']
                 prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                self.assertEqual(len(prs), 1)
+                assert len(prs) == 1
                 pr = prs[0]
-                self.assertEqual(pr['source_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_url'], 'https://github.com/hail-is/ci-test.git')
-                self.assertEqual(pr['target_ref'], 'master')
-                self.assertEqual(pr['status']['state'], 'success')
-                self.assertEqual(second_job_id, pr['status']['job_id'])
-                self.assertEqual(pr['status']['review_state'], 'pending')
-                self.assertEqual(pr['status']['source_sha'], source_sha)
-                self.assertEqual(pr['status']['target_sha'], second_target_sha)
-                self.assertEqual(pr['status']['pr_number'], str(pr_number))
-                self.assertEqual(pr['status']['docker_image'], 'google/cloud-sdk:alpine')
+                assertDictHasKVs(pr, {
+                    'source_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_url': 'https://github.com/hail-is/ci-test.git',
+                    'target_ref': 'master',
+                    'status': {
+                        'state': 'success',
+                        'review_state': 'pending',
+                        'source_sha': source_sha,
+                        'target_sha': second_target_sha,
+                        'pr_number': str(pr_number),
+                        'docker_image': 'google/cloud-sdk:alpine'
+                    }
+                })
+                second_job_id = pr['status']['job_id']
+                self.assertNotEqual(second_job_id, first_job_id)
             finally:
                 call(['git', 'push', 'origin', ':'+BRANCH_NAME])
                 if pr_number is not None:
@@ -305,7 +343,7 @@ class TestCI(unittest.TestCase):
                 time.sleep(10) # enough time to run the test pod
                 prs = ci_get('/status', status_code=200)['prs']
                 prs = [pr for pr in prs if pr['source_ref'] == BRANCH_NAME]
-                assert len(prs) == 0
+                assert len(prs) == 1
                 pr = prs[0]
                 assert pr.items() >= {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
