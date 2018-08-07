@@ -1245,8 +1245,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
       val partRegion = ctx.freshContext.region
-      rvb.set(partRegion)
 
+      rvb.set(partRegion)
       val globals = if (rowIterationNeedsGlobals) {
         rvb.start(localGlobalsType)
         rvb.addAnnotation(localGlobalsType, globalsBc.value)
@@ -1263,6 +1263,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       val rowF = returnF()
 
       it.map { rv =>
+        rvb.set(rv.region)
+
         val scanOff = if (scanAggs.nonEmpty) {
           rvb.start(scanResultType)
           rvb.startStruct()
