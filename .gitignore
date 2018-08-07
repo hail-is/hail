@@ -4,6 +4,7 @@
 *.pid
 *.log
 oauth-token
+gcloud-token
 proxy.log
 proxy.pid
 batch-proxy.log
