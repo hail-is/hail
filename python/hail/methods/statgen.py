@@ -1348,7 +1348,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
     >>> pl = hl.or_missing(
     ...      hl.is_defined(sm.PL),
     ...      (hl.range(0, 3).map(lambda i: hl.min(hl.range(0, hl.len(sm.PL))
-    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(i))
+    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index) == hl.unphased_diploid_gt_index_call(i))
     ...                     .map(lambda j: sm.PL[j])))))
     >>> split_ds = sm.annotate_entries(
     ...     GT=hl.downcode(sm.GT, sm.a_index),
