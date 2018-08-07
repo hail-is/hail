@@ -1744,7 +1744,7 @@ case class MatrixAnnotateRowsTable(
       child, table,
       root,
       key.map { keyIRs =>
-        assert(newKey.length == keyIRs.length + 2)
+        assert(newKey.length == keyIRs.length)
         newKey.map(_.asInstanceOf[IR])
       }
     )
