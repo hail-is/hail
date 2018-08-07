@@ -160,8 +160,8 @@ object HailContext {
     if (get != null) {
       val hc = get
       if (sc == null) {
-        warn("Requested that the HailContext be created with a new SparkContext, but HailContext " +
-          "has already been initialized. Returning the existing HailContext anyway.")
+        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
+          "has already been initialized. Different configuration settings will be ignored.")
       }
       val paramsDiff = (Map(
         "tmpDir" -> Seq(tmpDir, hc.tmpDir),
@@ -172,8 +172,8 @@ object HailContext {
         s"Param: $name, Provided value: $provided, Existing value: $existing"
       }.mkString("\n")
       if (paramsDiff.nonEmpty) {
-        warn("Some parameters were different from the existing HailContext. Returning it " +
-          s"anyway.\n$paramsDiffStr")
+        warn("Found differences between requested and initialized parameters. Ignoring requested " +
+          s"parameters.\n$paramsDiffStr")
       }
 
       hc
