@@ -2,18 +2,18 @@
 Expressions
 -----------
 
-The Python language allows users to specify their computations using expressions.
-For example, a simple expression is ``5 + 6``. This will be evaluated and return
-``11``. You can also assign expressions to variables and then add variable expressions
-together such as ``x = 5; y = 6; x + y``.
+The Python language allows users to specify their computations using
+expressions. For example, a simple expression is ``5 + 6``. This will be
+evaluated and return ``11``. You can also assign expressions to variables and
+then add variable expressions together such as ``x = 5; y = 6; x + y``.
 
 Throughout Hail documentation and tutorials, you will see Python code like this:
 
     >>> ht2 = ht.annotate(C4 = ht.C3 + 3 * ht.C2 ** 2)
 
 However, Hail is not running Python code on your data. Instead, Hail is keeping
-track of the computations applied to your data, then compiling these computations
-into native code and running them in parallel.
+track of the computations applied to your data, then compiling these
+computations into native code and running them in parallel.
 
 This happens using the :class:`.Expression` class. Hail expressions operate much
 like Python objects of the same type: for example, an :class:`.Int32Expression`
@@ -33,15 +33,15 @@ The Hail equivalent of the Python example above would be as follows:
     >>> x = hl.int32(5)
     >>> y = hl.int32(6)
 
-We can print `x` in a Python interpreter and see that `x` is an :class:`.Int32Expression`.
-This makes sense because `x`  is a Python :obj:`int`.
+We can print `x` in a Python interpreter and see that `x` is an
+:class:`.Int32Expression`. This makes sense because `x`  is a Python :obj:`int`.
 
     >>> x
     <Int32Expression of type int32>
 
 We can add two :class:`.Int32Expression` objects together just like with Python
-:obj:`int` objects. ``x + y`` returns another :class:`.Int32Expression` representing
-the computation of ``x + y`` and not an actual value.
+:obj:`int` objects. ``x + y`` returns another :class:`.Int32Expression`
+representing the computation of ``x + y`` and not an actual value.
 
     >>> z = x + y
     >>> z
@@ -76,8 +76,8 @@ Addition is commutative, so we can also add an :class:`.Int32Expression` to an
     <Int32Expression of type int32>
 
 Hail has many subclasses of :class:`.Expression` -- one for each Hail type. Each
-subclass defines possible methods and operations that can be applied. For example,
-if we have a list of Python integers, we can convert this to a Hail
+subclass defines possible methods and operations that can be applied. For
+example, if we have a list of Python integers, we can convert this to a Hail
 :class:`.ArrayNumericExpression` with either :func:`.array` or :func:`.literal`:
 
     >>> a = hl.array([1, 2, -3, 0, 5])
@@ -198,11 +198,11 @@ the method `is_het` will return ``None`` and not ``False``.
     >>> cnull.is_het().value
     None
 
-
 Functions
 =========
 
 In addition to the methods exposed on each :class:`.Expression`, Hail also has
-numerous functions that can be applied to expressions, which also return an expression.
+numerous functions that can be applied to expressions, which also return an
+expression.
 
 Take a look at the :ref:`sec-functions` page for full documentation.

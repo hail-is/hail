@@ -6,12 +6,12 @@
 Hailpedia
 =========
 
-Hail is...
+Hail is a library for analyzing structured tabular and matrix data. Hail
+contains collection of primitives for operating on data in parallel, as well as
+a suite of functionality for processing genetic data.
 
-  - a library for analyzing structured tabular and matrix data
-  - a collection of primitives for operating on data in parallel
-  - a suite of functionality for processing genetic data
-  - *not* an acronym
+This section of Hail's documentation contains detailed explanations of Hail's
+architecture, primitives, classes, and libraries.
 
 .. toctree::
     :maxdepth: 2

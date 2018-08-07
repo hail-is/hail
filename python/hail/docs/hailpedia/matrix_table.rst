@@ -402,4 +402,3 @@ Export
 
 To save a matrix table to a file, use the :meth:`.MatrixTable.write`. These
 files can be read with :func:`.read_matrix_table`.
-
