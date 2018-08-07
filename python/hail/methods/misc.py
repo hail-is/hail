@@ -158,13 +158,18 @@ def require_col_key_str(dataset: MatrixTable, method: str):
 
 
 def require_row_key_variant(dataset, method):
-    if (list(dataset.row_key) != ['locus', 'alleles'] or
+    if isinstance(dataset, Table):
+        key = dataset.key
+    else:
+        assert isinstance(dataset, MatrixTable)
+        key = dataset.row_key
+    if (list(key) != ['locus', 'alleles'] or
             not isinstance(dataset['locus'].dtype, tlocus) or
             not dataset['alleles'].dtype == tarray(tstr)):
         raise ValueError("Method '{}' requires row key to be two fields 'locus' (type 'locus<any>') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
 def require_row_key_variant_w_struct_locus(dataset, method):
