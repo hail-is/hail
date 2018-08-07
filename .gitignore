@@ -3,6 +3,8 @@
 *.pid
 *.pyc
 *~
+.cache
+.pytest_cache
 __pycache__
 batch-proxy.log
 batch-proxy.pid
