@@ -11,6 +11,39 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def test_seeded(self):
+        ht = hl.utils.range_table(10, 4)
+        seeded = ht.annotate(x=hl.int32(hl.rand_unif(0, 1, seeded=True) * 100))
+        seeded2 = seeded.annotate(y=seeded.x)
+        seeded_expr = hl.int32(hl.rand_unif(0, 1, seeded=True) * 100)
+        seeded3 = seeded2.annotate(z=seeded_expr)
+        seeded4 = seeded2.annotate(z=seeded_expr)
+        seeded.show()
+        seeded2.show()
+        seeded3.show()
+        seeded4.show()
+
+    def test_seeded_sampling(self):
+        ht = hl.utils.range_table(50, 6)
+
+        def sample_bool(p):
+            return hl.rand_unif(0, 1, seeded=True) < p
+
+        sampled1 = ht.filter(sample_bool(0.5))
+        sampled2 = ht.filter(sample_bool(0.5))
+
+        s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
+        s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
+
+        expected = set(s1.idx.collect())
+        self.assertEquals(set(s2.idx.collect()), expected)
+
+        for i in range(10):
+            s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
+            s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
+            self.assertEquals(set(s1.idx.collect()), expected)
+            self.assertEquals(set(s2.idx.collect()), expected)
+
     def test_operators(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 

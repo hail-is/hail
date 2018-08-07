@@ -188,7 +188,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rgfield = fb.newLazyField(grch38.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
-    val f = fb.result()()
+    val f = fb.resultWithIndex()(0)
     assert(f("X") == grch38.isValidContig("X"))
   }
 
@@ -205,7 +205,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rgfield = fb.newLazyField(rg.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getArg[String](1), fb.getArg[Int](2), fb.getArg[Int](3), fb.getArg[Int](4)))
 
-    val f = fb.result()()
+    val f = fb.resultWithIndex()(0)
     assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
     ReferenceGenome.removeReference(rg.name)
   }
@@ -220,7 +220,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val rgfield = fb.newLazyField(grch37.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Locus, Double, Locus]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
 
-    val f = fb.result()()
+    val f = fb.resultWithIndex()(0)
     assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))
     grch37.removeLiftover("GRCh38")
   }

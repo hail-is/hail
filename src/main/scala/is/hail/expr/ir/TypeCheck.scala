@@ -224,11 +224,12 @@ object TypeCheck {
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
       case x@Apply(fn, args) =>
-        val impl = x.implementation
         args.foreach(check(_))
         assert(x.implementation.unify(args.map(_.typ)))
+      case x@ApplySeeded(fn, args, seed) =>
+        args.foreach(check(_))
+        assert(x.implementation.unify(args.map(_.typ) :+ TInt64()))
       case x@ApplySpecial(fn, args) =>
-        val impl = x.implementation
         args.foreach(check(_))
         assert(x.implementation.unify(args.map(_.typ)))
       case Uniroot(_, fn, min, max) =>

@@ -55,13 +55,13 @@ class FunctionSuite extends SparkSuite {
   def toF[R: TypeInfo](ir: IR): AsmFunction1[Region, R] = {
     val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, R])
     Emit(ir, fb)
-    fb.result(Some(new PrintWriter(System.out)))()
+    fb.resultWithIndex(Some(new PrintWriter(System.out)))(0)
   }
 
   def toF[A: TypeInfo, R: TypeInfo](ir: IR): AsmFunction3[Region, A, Boolean, R] = {
     val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, A, Boolean, R])
     Emit(ir, fb)
-    fb.result(Some(new PrintWriter(System.out)))()
+    fb.resultWithIndex(Some(new PrintWriter(System.out)))(0)
   }
 
   def lookup(meth: String, types: Type*)(irs: IR*): IR =

@@ -6,6 +6,7 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
+import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -46,6 +47,10 @@ trait FunctionWithHadoopConfiguration {
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
 }
 
+trait FunctionWithSeededRandomness {
+  def setPartitionIndex(idx: Int): Unit
+}
+
 class EmitMethodBuilder(
   override val fb: EmitFunctionBuilder[_],
   mname: String,
@@ -73,6 +78,8 @@ class EmitMethodBuilder(
 
   def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness)
+
+  def getRNG(seed: Long): Code[IRRandomness] = fb.getRNG(seed)
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -240,6 +247,20 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
+  private[this] val partitionIndexField: ClassFieldRef[Int] = {
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
+    val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
+    val field = mb.newField[Int]
+    methods.append(mb)
+    mb.emit(field := mb.getArg[Int](1))
+    field
+  }
+
+  private[this] val randomFields: mutable.Map[Long, Code[IRRandomness]] = mutable.Map()
+
+  def getRNG(seed: Long): Code[IRRandomness] = randomFields.getOrElseUpdate(seed,
+    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField)))
+
   override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
@@ -278,7 +299,7 @@ class EmitFunctionBuilder[F >: Null](
     df
   }
 
-  override def result(print: Option[PrintWriter] = None): () => F = {
+  def resultWithIndex(print: Option[PrintWriter] = None): Int => F = {
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
@@ -288,11 +309,11 @@ class EmitFunctionBuilder[F >: Null](
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new (() => F) with java.io.Serializable {
+    new ((Int) => F) with java.io.Serializable {
       @transient
       @volatile private var f: F = null
 
-      def apply(): F = {
+      def apply(idx: Int): F = {
         try {
           if (f == null) {
             this.synchronized {
@@ -301,6 +322,7 @@ class EmitFunctionBuilder[F >: Null](
                 f = loadClass(n, bytes).newInstance().asInstanceOf[F]
                 if (localHConf != null)
                   f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+                f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
               }
             }
           }

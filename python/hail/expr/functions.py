@@ -1,6 +1,7 @@
 import builtins
 import math
 from typing import *
+from random import randint
 
 import hail
 import hail as hl
@@ -19,6 +20,11 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
     return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+
+
+def _get_seed(indices):
+    return construct_expr(I64(randint(0, 9223372036854775807)), hl.tint64, indices=indices)
+
 
 
 @typecheck(t=hail_type)
@@ -1769,8 +1775,8 @@ def rand_pois(lamb) -> Float64Expression:
     return _func("rpois", tfloat64, lamb)
 
 
-@typecheck(min=expr_float64, max=expr_float64)
-def rand_unif(min, max) -> Float64Expression:
+@typecheck(min=expr_float64, max=expr_float64, seeded=bool)
+def rand_unif(min, max, seeded=False) -> Float64Expression:
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
     Examples
@@ -1799,6 +1805,8 @@ def rand_unif(min, max) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
+    if seeded:
+        return _func("runif_seeded", tfloat64, min, max, _get_seed(min._indices))
     return _func("runif", tfloat64, min, max)
 
 

@@ -338,11 +338,28 @@ trait RVD {
     crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
   }
 
+  def treeAggregateWithIndex[U: ClassTag](zeroValue: U)(
+    seqOp: Int => ((U, RegionValue) => U),
+    combOp: (U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
+  ): U = {
+    val clearingSeqOp = {i: Int =>
+      val seqOpF = seqOp(i)
+      val f = { (ctx: RVDContext, u: U, rv: RegionValue) =>
+        val u2 = seqOpF(u, rv)
+        ctx.region.clear()
+        u2
+      }
+      f
+    }
+    crdd.treeAggregateWithIndex(zeroValue, clearingSeqOp, combOp, depth)
+  }
+
   def aggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U, makePC: RVDContext => PC
+    zeroValue: U, makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit, combOp: (U, U) => U): U = {
-    crdd.cmapPartitions[U] { (ctx, it) =>
-      val pc = makePC(ctx)
+    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      val pc = makePC(i, ctx)
       var comb = zeroValue
       it.foreach { rv =>
         seqOp(pc, comb, rv)
@@ -385,9 +402,9 @@ trait RVD {
       Iterator.single(count)
     }.collect()
 
-  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
-    crdd.cmapPartitions { (ctx, it) =>
-      Iterator.single(f(ctx, it))
+  def collectPerPartition[T : ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
+    crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      Iterator.single(f(i, ctx, it))
     }.collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {

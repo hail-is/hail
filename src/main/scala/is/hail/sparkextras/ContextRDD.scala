@@ -276,6 +276,53 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
+  def treeAggregateWithIndex[U: ClassTag](
+    zero: U,
+    seqOp: Int => ((C, U, T) => U),
+    combOp: (U, U) => U,
+    depth: Int
+  ): U = treeAggregateWithIndex(zero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+
+  def treeAggregateWithIndex[U: ClassTag, V: ClassTag](
+    zero: U,
+    seqOp: Int => ((C, U, T) => U),
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U,
+    depth: Int
+  ): V = {
+    require(depth > 0)
+    val zeroValue = serialize(zero)
+    val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
+      using(mkc()) { c =>
+        val actualSeqOp = seqOp(i)
+        serialize(
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(actualSeqOp(c, _, _), combOp)) } }
+    val combOpV = clean { (l: V, r: V) =>
+      serialize(
+        combOp(deserialize(l), deserialize(r))) }
+
+    var reduced: RDD[V] =
+      rdd.mapPartitionsWithIndex((i, it) =>
+        Iterator.single(aggregatePartitionOfContextTs(i, it)))
+    var level = depth
+    val scale =
+      math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+    var targetPartitionCount = reduced.partitions.length / scale
+
+    while (level > 1 && targetPartitionCount >= scale) {
+      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+        it.map(i % targetPartitionCount -> _)
+      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
+      level -= 1
+      targetPartitionCount /= scale
+    }
+
+    reduced.reduce(combOpV)
+  }
+
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
     cmapPartitions((c, it) => it.map(f(c, _)), true)
 

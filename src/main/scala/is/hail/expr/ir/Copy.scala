@@ -129,6 +129,8 @@ object Copy {
         ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
       case Apply(fn, args) =>
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
+      case ApplySeeded(fn, args, seed) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
       case ApplySpecial(fn, args) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
       case Uniroot(argname, _, _, _) =>

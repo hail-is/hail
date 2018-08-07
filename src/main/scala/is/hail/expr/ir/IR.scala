@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
-import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness, SeededIRFunction}
 import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
@@ -188,6 +188,18 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
   }
 
   def isDeterministic: Boolean = implementation.isDeterministic
+}
+
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends IR {
+  lazy val implementation: SeededIRFunction =
+    IRFunctionRegistry.lookupFunction(function, args.map(_.typ) :+ TInt64()).get.asInstanceOf[SeededIRFunction]
+
+  def typ: Type = {
+    // convert all arg types before unifying
+    val argTypes = args.map(_.typ)
+    implementation.unify(argTypes)
+    implementation.returnType.subst()
+  }
 }
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {

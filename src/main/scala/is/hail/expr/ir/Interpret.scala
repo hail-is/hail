@@ -541,7 +541,32 @@ object Interpret {
             GetTupleElement(Ref("in", argTuple), i)
           }))))
 
-        val f = makeFunction()
+        val f = makeFunction(0)
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder()
+          rvb.set(region)
+          rvb.start(argTuple)
+          rvb.startTuple()
+          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
+            val argValue = interpret(arg, env, args, agg)
+            rvb.addAnnotation(t, argValue)
+          }
+          rvb.endTuple()
+          val offset = rvb.end()
+
+          val resultOffset = f(region, offset, false)
+          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
+            .get(0)
+        }
+      case ir@ApplySeeded(function, functionArgs, seed) =>
+
+        val argTuple = TTuple(functionArgs.map(_.typ): _*)
+        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(ApplySeeded(function,
+          functionArgs.zipWithIndex.map { case (x, i) =>
+            GetTupleElement(Ref("in", argTuple), i)
+          }, seed))))
+
+        val f = makeFunction(0)
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -565,7 +590,7 @@ object Interpret {
             GetTupleElement(Ref("in", argTuple), i)
           }))))
 
-        val f = makeFunction()
+        val f = makeFunction(0)
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -633,7 +658,7 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
-            initOps()(region, rvAggs, globals, false)
+            initOps(0)(region, rvAggs, globals, false)
           }
 
           val zval = rvAggs
@@ -641,14 +666,14 @@ object Interpret {
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
           }
-          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+          value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
             rvb.start(localGlobalSignature)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
-            val seqOpsFunction = seqOps()
+            val seqOpsFunction = seqOps(i)
             (globalsOffset, seqOpsFunction)
           })( { case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
@@ -670,7 +695,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
           SafeRow(coerce[TTuple](t), region, resultOffset)
             .get(0)
@@ -716,7 +741,7 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
-            initOps()(region, rvAggs, globals, false)
+            initOps(0)(region, rvAggs, globals, false)
           }
 
           val zval = rvAggs
@@ -725,7 +750,7 @@ object Interpret {
             rvAggs1
           }
 
-          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+          value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
@@ -735,7 +760,7 @@ object Interpret {
             rvb.start(localColsType)
             rvb.addAnnotation(localColsType, colValuesBc.value)
             val colsOffset = rvb.end()
-            val seqOpsFunction = seqOps()
+            val seqOpsFunction = seqOps(i)
             (globalsOffset, colsOffset, seqOpsFunction)
           })( { case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, colsOffset, false, rv.offset, false)
@@ -757,7 +782,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
           SafeRow(coerce[TTuple](t), region, resultOffset)
             .get(0)

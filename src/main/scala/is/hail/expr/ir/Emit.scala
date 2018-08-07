@@ -910,6 +910,14 @@ private class Emit(
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
+      case ir@ApplySeeded(fn, args, seed) =>
+        val impl = ir.implementation
+        val unified = impl.unify(args.map(_.typ) :+ TInt64())
+        assert(unified)
+        impl.setSeed(seed)
+        val codeArgs = args.map(emit(_))
+        val vs = codeArgs.map(_.v)
+        strict(impl.apply(mb, vs: _*), codeArgs: _*)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
         val unified = x.implementation.unify(args.map(_.typ))

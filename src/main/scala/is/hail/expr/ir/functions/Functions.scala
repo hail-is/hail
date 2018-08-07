@@ -69,6 +69,8 @@ object IRFunctionRegistry {
 
     val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>
       f match {
+        case _: SeededIRFunction =>
+          ApplySeeded(name, irArgs.init, irArgs.last.asInstanceOf[I64].x)
         case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
         case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
       }
@@ -92,6 +94,7 @@ object IRFunctionRegistry {
     IntervalFunctions,
     LocusFunctions,
     MathFunctions,
+    RandomSeededFunctions,
     SetFunctions,
     StringFunctions,
     UtilFunctions,
@@ -427,6 +430,36 @@ abstract class IRFunctionWithMissingness extends IRFunction {
   def argTypes: Seq[Type]
 
   def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
+
+  def returnType: Type
+
+  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+}
+
+abstract class SeededIRFunction extends IRFunctionWithoutMissingness {
+  def name: String
+
+  def argTypes: Seq[Type]
+
+  private[this] var _seed: Long = _
+  def setSeed(seed: Long): Unit = {
+    _seed = seed
+  }
+
+  def getSeed: Long = _seed
+
+  def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_]
+
+  override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] =
+    applySeeded(getSeed, mb, args: _*)
+
+  override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
+    unify(args)
+    val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
+    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
+    methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+    methodbuilder
+  }
 
   def returnType: Type
 

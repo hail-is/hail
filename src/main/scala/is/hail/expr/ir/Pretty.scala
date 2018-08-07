@@ -181,6 +181,7 @@ object Pretty {
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
+            case ApplySeeded(function, _, seed) => prettyIdentifier(function) + " " + seed.toString
             case ApplySpecial(function, _) => prettyIdentifier(function)
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
