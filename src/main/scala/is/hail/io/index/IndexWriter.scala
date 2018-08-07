@@ -24,7 +24,8 @@ case class IndexNodeInfo(
   fileOffset: Long,
   firstIndex: Long,
   firstKey: Annotation,
-  firstKeyOffset: Long
+  firstKeyOffset: Long,
+  lastKey: Annotation
 )
 
 class IndexWriter(
@@ -61,9 +62,15 @@ class IndexWriter(
     val fileOffset = trackedOS.bytesWritten
     rootOffset = fileOffset
 
-    val child = node.getChild(0)
-    val firstKey = child.firstKey
-    val firstKeyOffset = child.firstKeyOffset
+    assert(node.size > 0)
+
+    val firstChild = node.getChild(0)
+    val firstKey = firstChild.firstKey
+    val firstKeyOffset = firstChild.firstKeyOffset
+
+    val lastChild = node.getChild(node.size - 1)
+    val lastKey = lastChild.lastKey
+
     val firstIndex = node.firstIndex
 
     internalEncoder.writeByte(1)
@@ -75,13 +82,19 @@ class IndexWriter(
     region.clear()
     node.clear()
 
-    IndexNodeInfo(fileOffset, firstIndex, firstKey, firstKeyOffset)
+    IndexNodeInfo(fileOffset, firstIndex, firstKey, firstKeyOffset, lastKey)
   }
 
   private def writeLeafNode(idx: Long): IndexNodeInfo = {
     val fileOffset = trackedOS.bytesWritten
-    val firstKey = leafNode.firstKey
-    val firstOffset = leafNode.firstOffset
+
+    assert(leafNode.size > 0)
+    val firstChild = leafNode.getChild(0)
+    val firstKey = firstChild.key
+    val firstOffset = firstChild.offset
+
+    val lastChild = leafNode.getChild(leafNode.size - 1)
+    val lastKey = lastChild.key
 
     leafEncoder.writeByte(0)
 
@@ -92,7 +105,7 @@ class IndexWriter(
     region.clear()
     leafNode.clear()
 
-    IndexNodeInfo(fileOffset, idx, firstKey, firstOffset)
+    IndexNodeInfo(fileOffset, idx, firstKey, firstOffset, lastKey)
   }
 
   private def write() {

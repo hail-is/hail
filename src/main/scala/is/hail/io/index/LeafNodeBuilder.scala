@@ -26,12 +26,12 @@ class LeafNodeBuilder(keyType: Type) {
 
     rvb.addLong(idx) // first_key_idx
 
-    rvb.startArray(size) // keys
+    rvb.startArray(size)
     var i = 0
     while (i < size) {
       rvb.startStruct()
-      rvb.addAnnotation(keyType, keys(i)) // key
-      rvb.addLong(offsets(i)) // offset
+      rvb.addAnnotation(keyType, keys(i))
+      rvb.addLong(offsets(i))
       rvb.endStruct()
       i += 1
     }
@@ -40,14 +40,9 @@ class LeafNodeBuilder(keyType: Type) {
     rvb.end()
   }
 
-  def firstKey: Any = {
-    assert(size > 0)
-    keys(0)
-  }
-
-  def firstOffset: Long = {
-    assert(size > 0)
-    offsets(0)
+  def getChild(idx: Int): LeafChild = {
+    assert(idx >= 0 && idx < size)
+    LeafChild(keys(idx), offsets(idx))
   }
 
   def +=(key: Any, offset: Long) {

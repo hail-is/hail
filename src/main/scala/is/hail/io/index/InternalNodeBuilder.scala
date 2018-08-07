@@ -10,7 +10,8 @@ object InternalNodeBuilder {
     "children" -> +TArray(TStruct(
       "child_offset" -> +TInt64(),
       "first_key" -> keyType,
-      "first_key_offset" -> +TInt64()
+      "first_key_offset" -> +TInt64(),
+      "last_key" -> keyType
     ), required = true)
   )
 }
@@ -19,19 +20,11 @@ class InternalNodeBuilder(keyType: Type) {
   val childOffsets = new ArrayBuilder[Long]()
   val firstKeys = new ArrayBuilder[Any]()
   val firstKeyOffsets = new ArrayBuilder[Long]()
+  val lastKeys = new ArrayBuilder[Any]()
+
   var size = 0
   val typ = InternalNodeBuilder.typ(keyType)
   var firstIndex = 0L
-
-  def firstKey: Any = {
-    assert(size > 0)
-    firstKeys(0)
-  }
-
-  def firstOffset: Long = {
-    assert(size > 0)
-    firstKeyOffsets(0)
-  }
 
   def setFirstIndex(idx: Long) {
     firstIndex = idx
@@ -41,6 +34,7 @@ class InternalNodeBuilder(keyType: Type) {
     childOffsets += info.fileOffset
     firstKeys += info.firstKey
     firstKeyOffsets += info.firstKeyOffset
+    lastKeys += info.lastKey
     size += 1
   }
 
@@ -53,9 +47,10 @@ class InternalNodeBuilder(keyType: Type) {
     var i = 0
     while (i < size) {
       rvb.startStruct()
-      rvb.addLong(childOffsets(i)) // child_offset
-      rvb.addAnnotation(keyType, firstKeys(i)) // first_key
-      rvb.addLong(firstKeyOffsets(i)) // first_key_offset
+      rvb.addLong(childOffsets(i))
+      rvb.addAnnotation(keyType, firstKeys(i))
+      rvb.addLong(firstKeyOffsets(i))
+      rvb.addAnnotation(keyType, lastKeys(i))
       rvb.endStruct()
       i += 1
     }
@@ -68,14 +63,15 @@ class InternalNodeBuilder(keyType: Type) {
     childOffsets.clear()
     firstKeys.clear()
     firstKeyOffsets.clear()
+    lastKeys.clear()
     size = 0
     firstIndex = 0L
   }
 
   def getChild(idx: Int): InternalChild = {
     assert(size > idx)
-    InternalChild(childOffsets(idx), firstKeys(idx), firstKeyOffsets(idx))
+    InternalChild(childOffsets(idx), firstKeys(idx), firstKeyOffsets(idx), lastKeys(idx))
   }
 
-  override def toString: String = s"InternalNodeBuilder $size $firstIndex [${ (0 until size).map(i => (childOffsets(i), firstKeys(i), firstKeyOffsets(i))).mkString(",") }]"
+  override def toString: String = s"InternalNodeBuilder $size $firstIndex [${ (0 until size).map(i => (childOffsets(i), firstKeys(i), firstKeyOffsets(i), lastKeys(i))).mkString(",") }]"
 }
