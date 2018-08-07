@@ -533,7 +533,7 @@ object Interpret {
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
-      case ir: AbstractApplyNode =>
+      case ir: AbstractApplyNode[_] =>
         val argTuple = TTuple(ir.args.map(_.typ): _*)
         val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
           GetTupleElement(Ref("in", argTuple), i)

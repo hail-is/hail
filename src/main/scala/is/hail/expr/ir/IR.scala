@@ -176,17 +176,11 @@ final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] =>
   def typ: Type = explicitNode.typ
 }
 
-sealed abstract class AbstractApplyNode extends IR {
+sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
-  def typ: Type
-  def implementation: IRFunction
-}
-
-final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode {
-  lazy val implementation: IRFunctionWithoutMissingness =
-    IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
-
+  def argTypes: Seq[Type] = args.map(_.typ)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes).get.asInstanceOf[F]
   def typ: Type = {
     // convert all arg types before unifying
     val argTypes = args.map(_.typ)
@@ -194,32 +188,15 @@ final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNod
     implementation.returnType.subst()
   }
 
-  def isDeterministic: Boolean = implementation.isDeterministic
 }
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode {
-  lazy val implementation: SeededIRFunction =
-    IRFunctionRegistry.lookupFunction(function, args.map(_.typ) :+ TInt64()).get.asInstanceOf[SeededIRFunction]
+final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-  def typ: Type = {
-    val argTypes = args.map(_.typ)
-    implementation.unify(argTypes :+ TInt64())
-    implementation.returnType.subst()
-  }
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction] {
+  override def argTypes: Seq[Type] = args.map(_.typ) :+ TInt64()
 }
 
-final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode {
-  lazy val implementation: IRFunctionWithMissingness =
-    IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
-
-  def typ: Type = {
-    val argTypes = args.map(_.typ)
-    implementation.unify(argTypes)
-    implementation.returnType.subst()
-  }
-
-  def isDeterministic: Boolean = implementation.isDeterministic
-}
+final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR { val typ: Type = TFloat64() }
 

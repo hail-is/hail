@@ -91,45 +91,35 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registered.foreach(IRFunctionRegistry.removeIRFunction)
 
   def registerRGCode(
-    mname: String, args: Array[Type], rt: Type, isDeterministic: Boolean)(
+    mname: String, args: Array[Type], rt: Type)(
     impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]
   ): Unit = {
     val newName = rg.wrapFunctionName(mname)
     registered += newName
-    registerCode(newName, args, rt, isDeterministic)(impl)
+    registerCode(newName, args, rt)(impl)
   }
-
-  def registerRGCode[A1](
-    mname: String, arg1: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[A1]) => Code[_]
-  ): Unit =
-    registerRGCode(mname, Array[Type](arg1), rt, isDeterministic) {
-      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
-    }
 
   def registerRGCode[A1](
     mname: String, arg1: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, rt, isDeterministic = true)(impl)
-
-  def registerRGCode[A1, A2](
-    mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    registerRGCode(mname, Array[Type](arg1), rt) {
+      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
     }
 
   def registerRGCode[A1, A2](
     mname: String, arg1: Type, arg2: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2), rt) {
+      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    }
 
   def registerRGCode[A1, A2, A3, A4](
-    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type, isDeterministic: Boolean)(
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4), rt, isDeterministic) {
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4), rt) {
       case (mb, Array(
       a1: Code[A1] @unchecked,
       a2: Code[A2] @unchecked,
@@ -137,16 +127,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a4: Code[A4] @unchecked)) => impl(mb, a1, a2, a3, a4)
     }
 
-  def registerRGCode[A1, A2, A3, A4](
-    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, arg2, arg3, arg4, rt, isDeterministic = true)(impl)
-
   def registerRGCode[A1, A2, A3, A4, A5](
-    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type, isDeterministic: Boolean)(
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
   ): Unit =
-    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt, isDeterministic) {
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5), rt) {
       case (mb, Array(
       a1: Code[A1] @unchecked,
       a2: Code[A2] @unchecked,
@@ -154,11 +139,6 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a4: Code[A4] @unchecked,
       a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
     }
-
-  def registerRGCode[A1, A2, A3, A4, A5](
-    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, rt: Type)(
-    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]
-  ): Unit = registerRGCode(mname, arg1, arg2, arg3, arg4, arg5, rt, isDeterministic = true)(impl)
 
   def registerAll() {
 
@@ -259,26 +239,21 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 class LiftoverFunctions(rg: ReferenceGenome, destRG: ReferenceGenome) extends ReferenceGenomeFunctions(rg) {
 
   def registerLiftoverCode(
-    mname: String, args: Array[Type], rt: Type, isDeterministic: Boolean)(
+    mname: String, args: Array[Type], rt: Type)(
     impl: (EmitMethodBuilder, Array[EmitTriplet]) => EmitTriplet
   ): Unit = {
     val newName = destRG.wrapFunctionName(rg.wrapFunctionName(mname))
     registered += newName
-    registerCodeWithMissingness(newName, args, rt, isDeterministic)(impl)
+    registerCodeWithMissingness(newName, args, rt)(impl)
   }
-
-  def registerLiftoverCode(
-    mname: String, arg1: Type, arg2: Type, rt: Type, isDeterministic: Boolean)(
-    impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet
-  ): Unit =
-    registerLiftoverCode(mname, Array[Type](arg1, arg2), rt, isDeterministic) {
-      case (mb, Array(a1, a2)) => impl(mb, a1, a2)
-    }
 
   def registerLiftoverCode(
     mname: String, arg1: Type, arg2: Type, rt: Type)(
     impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet
-  ): Unit = registerLiftoverCode(mname, arg1, arg2, rt, isDeterministic = true)(impl)
+  ): Unit =
+    registerLiftoverCode(mname, Array[Type](arg1, arg2), rt) {
+      case (mb, Array(a1, a2)) => impl(mb, a1, a2)
+    }
 
   override def registerAll() {
 

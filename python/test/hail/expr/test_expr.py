@@ -11,6 +11,12 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def test_key_by_random(self):
+        ht = hl.utils.range_table(10, 4)
+        ht = ht.annotate(new_key=hl.rand_unif(0, 1))
+        ht = ht.key_by('new_key')
+        self.assertEqual(ht._force_count(), 10)
+
     def test_seeded_same(self):
         ht = hl.utils.range_table(10, 4)
         sample1 = hl.rand_unif(0, 1)
@@ -28,13 +34,13 @@ class Tests(unittest.TestCase):
         s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
 
         expected = set(s1.idx.collect())
-        self.assertEquals(set(s2.idx.collect()), expected)
+        self.assertEqual(set(s2.idx.collect()), expected)
 
         for i in range(10):
             s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
             s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
-            self.assertEquals(set(s1.idx.collect()), expected)
-            self.assertEquals(set(s2.idx.collect()), expected)
+            self.assertEqual(set(s1.idx.collect()), expected)
+            self.assertEqual(set(s2.idx.collect()), expected)
 
     def test_operators(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
