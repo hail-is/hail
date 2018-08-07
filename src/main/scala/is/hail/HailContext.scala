@@ -158,7 +158,25 @@ object HailContext {
     tmpDir: String = "/tmp"): HailContext = synchronized {
 
     if (get != null) {
-      get
+      val hc = get
+      if (sc == null) {
+        warn("Requested that the HailContext be created with a new SparkContext, but HailContext " +
+          "has already been initialized. Returning the existing HailContext anyway.")
+      }
+      val paramsDiff = (Map(
+        "tmpDir" -> Seq(tmpDir, hc.tmpDir),
+        "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
+        "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
+       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
+        s"Param: $name, Provided value: $provided, Existing value: $existing"
+      }.mkString("\n")
+      if (paramsDiff.nonEmpty) {
+        warn("Some parameters were different from the existing HailContext. Returning it " +
+          s"anyway.\n$paramsDiffStr")
+      }
+
+      hc
     } else {
       apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
         tmpDir)
