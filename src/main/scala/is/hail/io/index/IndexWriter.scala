@@ -103,6 +103,7 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     assert(leafNodeBuilder.size > 0)
+
     val firstIndex = leafNodeBuilder.firstIdx
 
     val firstChild = leafNodeBuilder.getChild(0)

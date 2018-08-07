@@ -43,7 +43,7 @@ class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
     rvb.end()
   }
 
-  def +=(key: Annotation, offset: Long, annotation: Annotation) {
+  def +=(key: Any, offset: Long, annotation: Annotation) {
     keys += key
     recordOffsets += offset
     annotations += annotation
