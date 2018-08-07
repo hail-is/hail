@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue}
+import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.methods.Aggregators
@@ -538,6 +538,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
       bufferSize
     ))
   }
+
+  def unlocalizeEntries(cols: Table, entriesFieldName: String): MatrixTable =
+    new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
 
   def aggregateByKey(expr: String): Table = {
     val x = Parser.parse_value_ir(expr, typ.refMap)

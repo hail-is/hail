@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.variant.MatrixTable
@@ -120,7 +121,6 @@ class MatrixIRSuite extends SparkSuite {
     assert(actualOrdering sameElements expectedOrdering)
   }
 
-
   @DataProvider(name = "explodeRowsData")
   def explodeRowsData(): Array[Array[Any]] = Array(
     Array(FastIndexedSeq("empty"), FastIndexedSeq()),
@@ -145,5 +145,101 @@ class MatrixIRSuite extends SparkSuite {
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
     assert(exploded sameElements expected)
+  }
+
+  // these two items are helper for UnlocalizedEntries testing,
+  def makeLocalizedTable(data: Array[Array[Any]]): Table = {
+    val rowRdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val rowSig = TStruct(
+      "idx" -> TInt32(),
+      "animal" -> TString(),
+      "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
+    )
+    val keyNames = IndexedSeq("idx")
+    Table(hc, rowRdd, rowSig, Some(keyNames))
+  }
+  def getLocalizedCols: Table = {
+    val cdata = Array(
+      Array(1, "atag"),
+      Array(2, "btag")
+    )
+    val colRdd = sc.parallelize(cdata.map(Row.fromSeq(_)))
+    val colSig = TStruct("idx" -> TInt32(), "tag" -> TString())
+    val keyNames = IndexedSeq("idx")
+    Table(hc, colRdd, colSig, Some(keyNames))
+  }
+
+  @Test def testUnlocalizeEntries() {
+    val rdata = Array(
+      Array(1, "fish", IndexedSeq(Row.fromSeq(Array("a", 1.0)), Row.fromSeq(Array("x", 2.0)))),
+      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
+      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+    )
+    val rowTab = makeLocalizedTable(rdata)
+    val colTab = getLocalizedCols
+
+    val mir = UnlocalizeEntries(rowTab.tir, colTab.tir, "__entries")
+    // cols are same
+    val mtCols = MatrixColsTable(mir).execute(hc).rdd.collect()
+    val taCols = colTab.tir.execute(hc).rdd.collect()
+    assert(mtCols sameElements taCols)
+
+    // Rows are same
+    val mtRows = MatrixRowsTable(mir).execute(hc).rdd.collect()
+    val taRows = rowTab.tir.execute(hc).rdd
+    assert(mtRows sameElements taRows.map(row => Row.fromSeq(row.toSeq.take(2))).collect())
+
+    // Round trip
+    val localRows = new MatrixTable(hc, mir).localizeEntries("__entries").tir.execute(hc).rdd.collect()
+    assert(localRows sameElements taRows.collect())
+  }
+
+  @Test def testUnlocalizeEntriesErrors() {
+    val rdata = Array(
+      Array(1, "fish", IndexedSeq(Row.fromSeq(Array("x", 2.0)))),
+      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
+      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+    )
+    val rowTab = makeLocalizedTable(rdata)
+    val colTab = getLocalizedCols
+    val mir = UnlocalizeEntries(rowTab.tir, colTab.tir, "__entries")
+    // All rows must have the same number of elements in the entry field as colTab has rows
+    try {
+      val mv = mir.execute(hc)
+      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
+      assert(false, "should have thrown an error, as the number of columns must match "
+        + "the number of array entries")
+    } catch {
+      case e: org.apache.spark.SparkException => {
+        assert(e.getCause.getClass.toString.contains("HailException"))
+        assert(e.getCause.getMessage.contains("incorrect entry array length"))
+      }
+    }
+
+    // The entry field must be an array
+    try {
+      val mir1 = UnlocalizeEntries(rowTab.tir, colTab.tir, "animal")
+    } catch {
+      case e: is.hail.utils.HailException => {}
+    }
+
+    val rdata2 = Array(
+      Array(1, "fish", null),
+      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
+      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+    )
+    val rowTab2 = makeLocalizedTable(rdata2)
+    val mir2 = UnlocalizeEntries(rowTab2.tir, colTab.tir, "__entries")
+
+    try {
+      val mv = mir2.execute(hc)
+      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
+      assert(false, "should have thrown an error, as no array should be missing")
+    } catch {
+      case e: org.apache.spark.SparkException => {
+        assert(e.getCause.getClass.toString.contains("HailException"))
+        assert(e.getCause.getMessage.contains("missing"))
+      }
+    }
   }
 }

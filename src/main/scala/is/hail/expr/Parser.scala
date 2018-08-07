@@ -660,7 +660,10 @@ object Parser extends JavaTokenParsers {
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) } |
-      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) }
+      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) } |
+      "UnlocalizeEntries" ~> string_literal ~ table_ir ~ table_ir ^^ {
+        case entryField ~ rowsEntries ~ cols => ir.UnlocalizeEntries(rowsEntries, cols, entryField)
+      }
 
   def parse_value_ir(s: String, ref_map: Map[String, Type]): IR = parse(ir_value_expr(ref_map), s)
 

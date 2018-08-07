@@ -268,6 +268,7 @@ object Pretty {
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
             case LocalizeEntries(_, name) => prettyStringLiteral(name)
+            case UnlocalizeEntries(_, _, name) => prettyStringLiteral(name)
             case _ => ""
           }
 

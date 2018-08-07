@@ -273,3 +273,16 @@ class MatrixExplodeCols(MatrixIR):
         return '(MatrixExplodeCols ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
+
+class UnlocalizeEntries(MatrixIR):
+    def __init__(self, rows_entries, cols, entry_field_name):
+        super().__init__()
+        self.rows_entries = rows_entries
+        self.cols = cols
+        self.entry_field_name = entry_field_name
+
+    def __str__(self):
+        return '(UnlocalizeEntries ' \
+                f'"{escape_str(self.entry_field_name)}" ' \
+                f'{self.rows_entries} ' \
+                f'{self.cols})'
