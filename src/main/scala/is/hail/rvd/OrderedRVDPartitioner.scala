@@ -121,21 +121,14 @@ class OrderedRVDPartitioner(
       rangeTree.queryOverlappingValues(kType.ordering, query)
   }
 
-  // Get greatest partition ID whose lower bound is less than 'key'. Returns -1
-  // if all partitions are above 'key'.
-  def getSafePartitionUpperBound(key: Any): Int = {
-    require(rangeBounds.nonEmpty)
-    require(kType.isComparableAt(key))
-
-    val range = getPartitionRange(Interval(Row(), key, true, true))
-    range.lastOption.getOrElse(-1)
-  }
-
-  def getSafePartitionKeyRange(key: Any): Range =
-    Range.inclusive(getSafePartitionLowerBound(key), getSafePartitionUpperBound(key))
-
-  // Get least partition ID whose upper bound is greater than 'key'. Returns
-  // numPartitions if all partitions are below 'key'.
+  // Returns the least partition which is not completely below 'key', i.e. the
+  // least partition whose upper bound is greater than 'key'. Returns
+  // numPartitions if all partitions are below 'key'. The range of partitions
+  // which can contain 'key' is always [lowerBound, upperBound). lowerBound =
+  // upperBound if and only if 'key' is not contained in the partitioner, in
+  // which case i = lowerBound is the partition index at which a new partition
+  // containing 'key' would be inserted (becoming the new partition i, between
+  // the old partition i-1 and the old partition i).
   def getSafePartitionLowerBound(key: Any): Int = {
     require(rangeBounds.nonEmpty)
     require(kType.isComparableAt(key))
@@ -143,6 +136,21 @@ class OrderedRVDPartitioner(
     val range = getPartitionRange(Interval(key, Row(), true, true))
     range.headOption.getOrElse(numPartitions)
   }
+
+  // Returns the least partition which is completely above 'key', i.e. the least
+  // partition whose upper bound is greater than 'key'. Returns numPartitions
+  // if no partition is above 'key'. The range of partitions which can contain
+  // 'key' is always [lowerBound, upperBound).
+  def getSafePartitionUpperBound(key: Any): Int = {
+    require(rangeBounds.nonEmpty)
+    require(kType.isComparableAt(key))
+
+    val range = getPartitionRange(Interval(Row(), key, true, true))
+    range.lastOption.getOrElse(-1) + 1
+  }
+
+  def getSafePartitionKeyRange(key: Any): Range =
+    Range(getSafePartitionLowerBound(key), getSafePartitionUpperBound(key))
 
   def copy(
     kType: TStruct = kType,

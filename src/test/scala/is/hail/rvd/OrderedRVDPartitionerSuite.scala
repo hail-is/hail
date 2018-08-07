@@ -19,37 +19,37 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     )
 
   @Test def testGetPartitionWithPartitionKeys() {
-    assert(partitioner.getSafePartitionUpperBound(Row(-1, 7)) == -1)
     assert(partitioner.getSafePartitionLowerBound(Row(-1, 7)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(4, 2)) == 0)
+    assert(partitioner.getSafePartitionUpperBound(Row(-1, 7)) == 0)
     assert(partitioner.getSafePartitionLowerBound(Row(4, 2)) == 0)
+    assert(partitioner.getSafePartitionUpperBound(Row(4, 2)) == 1)
     assert(partitioner.getSafePartitionLowerBound(Row(4, 3)) == 1)
-    assert(partitioner.getSafePartitionUpperBound(Row(4, 3)) == 1)
+    assert(partitioner.getSafePartitionUpperBound(Row(4, 3)) == 2)
     assert(partitioner.getSafePartitionLowerBound(Row(5, -10259)) == 1)
-    assert(partitioner.getSafePartitionUpperBound(Row(7, 9)) == 1)
     assert(partitioner.getSafePartitionLowerBound(Row(7, 9)) == 2)
-    assert(partitioner.getSafePartitionUpperBound(Row(12, 19)) == 2)
+    assert(partitioner.getSafePartitionUpperBound(Row(7, 9)) == 2)
     assert(partitioner.getSafePartitionLowerBound(Row(12, 19)) == 3)
+    assert(partitioner.getSafePartitionUpperBound(Row(12, 19)) == 3)
   }
 
   @Test def testGetPartitionWithLargerKeys() {
-    assert(partitioner.getSafePartitionUpperBound(Row(0, 1, 3)) == -1)
     assert(partitioner.getSafePartitionLowerBound(Row(0, 1, 3)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(2, 7, 5)) == 0)
+    assert(partitioner.getSafePartitionUpperBound(Row(0, 1, 3)) == 0)
     assert(partitioner.getSafePartitionLowerBound(Row(2, 7, 5)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(4, 2, 1, 2.7, "bar")) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(7, 9, 7)) == 1)
+    assert(partitioner.getSafePartitionUpperBound(Row(2, 7, 5)) == 1)
+    assert(partitioner.getSafePartitionLowerBound(Row(4, 2, 1, 2.7, "bar")) == 0)
     assert(partitioner.getSafePartitionLowerBound(Row(7, 9, 7)) == 2)
+    assert(partitioner.getSafePartitionUpperBound(Row(7, 9, 7)) == 2)
     assert(partitioner.getSafePartitionLowerBound(Row(11, 1, 42)) == 3)
   }
 
    @Test def testGetPartitionPKWithSmallerKeys() {
-     assert(partitioner.getSafePartitionUpperBound(Row(2)) == 0)
      assert(partitioner.getSafePartitionLowerBound(Row(2)) == 0)
-     assert(partitioner.getSafePartitionUpperBound(Row(4)) == 1)
+     assert(partitioner.getSafePartitionUpperBound(Row(2)) == 1)
      assert(partitioner.getSafePartitionLowerBound(Row(4)) == 0)
-     assert(partitioner.getSafePartitionUpperBound(Row(11)) == 2)
+     assert(partitioner.getSafePartitionUpperBound(Row(4)) == 2)
      assert(partitioner.getSafePartitionLowerBound(Row(11)) == 3)
+     assert(partitioner.getSafePartitionUpperBound(Row(11)) == 3)
    }
 
   @Test def testGetPartitionRange() {
