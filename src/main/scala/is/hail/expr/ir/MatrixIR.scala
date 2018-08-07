@@ -1530,31 +1530,29 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         initOps(0)(region, colRVAggs, globals, false, cols, false)
       }
 
-      prev.rvd.treeAggregateWithIndex[Array[RegionValueAggregator]](colRVAggs)( { i =>
-        val seqOpF: CompileWithAggregators.IRAggFun3[Long, Long, Long] = seqOps(i)
-        val f = { (colRVAggs: Array[RegionValueAggregator], rv: RegionValue) =>
-          val rvb = new RegionValueBuilder()
-          val region = rv.region
-          val oldRow = rv.offset
+      prev.rvd.treeAggregateWithPartitionOp(colRVAggs)( { (i, _) =>
+        seqOps(i)
+      }, { (seqOpF: CompileWithAggregators.IRAggFun3[Long, Long, Long], colRVAggs: Array[RegionValueAggregator], rv: RegionValue) =>
+        val rvb = new RegionValueBuilder()
+        val region = rv.region
+        val oldRow = rv.offset
 
-          val globals = if (seqOpNeedsGlobals) {
+        val globals = if (seqOpNeedsGlobals) {
           rvb.set(region)
           rvb.start(localGlobalsType)
           rvb.addAnnotation(localGlobalsType, globalsBc.value)
           rvb.end()
         } else 0L
 
-          val cols = if (seqOpNeedsSA) {
+        val cols = if (seqOpNeedsSA) {
           rvb.start(localColsType)
           rvb.addAnnotation(localColsType, colValuesBc.value)
           rvb.end()
         } else 0L
 
-          seqOpF(region, colRVAggs, globals, false, cols, false, oldRow, false)
+        seqOpF(region, colRVAggs, globals, false, cols, false, oldRow, false)
 
-          colRVAggs
-        }
-        f
+        colRVAggs
       }, { (rvAggs1, rvAggs2) =>
         var i = 0
         while (i < rvAggs1.length) {

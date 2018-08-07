@@ -258,8 +258,11 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] val randomFields: mutable.Map[Long, Code[IRRandomness]] = mutable.Map()
 
-  def getRNG(seed: Long): Code[IRRandomness] = randomFields.getOrElseUpdate(seed,
-    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField)))
+//  def getRNG(seed: Long): Code[IRRandomness] = randomFields.getOrElseUpdate(seed,
+//    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField)))
+
+  def getRNG(seed: Long): Code[IRRandomness] =
+    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField))
 
   override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)

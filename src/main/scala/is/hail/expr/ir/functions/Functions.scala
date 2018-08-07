@@ -439,8 +439,6 @@ abstract class IRFunctionWithMissingness extends IRFunction {
 abstract class SeededIRFunction extends IRFunctionWithoutMissingness {
   def name: String
 
-  def argTypes: Seq[Type]
-
   private[this] var seed: Long = _
   def setSeed(s: Long): Unit = {
     seed = s
@@ -451,15 +449,5 @@ abstract class SeededIRFunction extends IRFunctionWithoutMissingness {
   override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] =
     applySeeded(seed, mb, args: _*)
 
-  override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
-    unify(args)
-    val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
-    methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
-    methodbuilder
-  }
-
-  def returnType: Type
-
-  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
+  override def toString: String = s"$name(${ argTypes.init.mkString(", ") }): $returnType"
 }

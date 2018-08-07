@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
-import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness, SeededIRFunction}
+import is.hail.expr.ir.functions._
 import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
@@ -176,7 +176,14 @@ final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] =>
   def typ: Type = explicitNode.typ
 }
 
-final case class Apply(function: String, args: Seq[IR]) extends IR {
+sealed abstract class AbstractApplyNode extends IR {
+  def function: String
+  def args: Seq[IR]
+  def typ: Type
+  def implementation: IRFunction
+}
+
+final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode {
   lazy val implementation: IRFunctionWithoutMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithoutMissingness]
 
@@ -190,19 +197,18 @@ final case class Apply(function: String, args: Seq[IR]) extends IR {
   def isDeterministic: Boolean = implementation.isDeterministic
 }
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends IR {
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode {
   lazy val implementation: SeededIRFunction =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ) :+ TInt64()).get.asInstanceOf[SeededIRFunction]
 
   def typ: Type = {
-    // convert all arg types before unifying
     val argTypes = args.map(_.typ)
-    implementation.unify(argTypes)
+    implementation.unify(argTypes :+ TInt64())
     implementation.returnType.subst()
   }
 }
 
-final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
+final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode {
   lazy val implementation: IRFunctionWithMissingness =
     IRFunctionRegistry.lookupFunction(function, args.map(_.typ)).get.asInstanceOf[IRFunctionWithMissingness]
 

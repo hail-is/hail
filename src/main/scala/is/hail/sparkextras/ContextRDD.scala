@@ -276,16 +276,18 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
-  def treeAggregateWithIndex[U: ClassTag](
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](
     zero: U,
-    seqOp: Int => ((C, U, T) => U),
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
     combOp: (U, U) => U,
     depth: Int
-  ): U = treeAggregateWithIndex(zero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+  ): U = treeAggregateWithPartitionOp(zero, makePC, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
 
-  def treeAggregateWithIndex[U: ClassTag, V: ClassTag](
+  def treeAggregateWithPartitionOp[PC, U: ClassTag, V: ClassTag](
     zero: U,
-    seqOp: Int => ((C, U, T) => U),
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
     deserialize: V => U,
@@ -295,9 +297,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val zeroValue = serialize(zero)
     val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
-        val actualSeqOp = seqOp(i)
+        val pc = makePC(i, c)
         serialize(
-          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(actualSeqOp(c, _, _), combOp)) } }
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, pc, _, _), combOp)) } }
     val combOpV = clean { (l: V, r: V) =>
       serialize(
         combOp(deserialize(l), deserialize(r))) }

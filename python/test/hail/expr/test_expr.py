@@ -11,24 +11,12 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    def test_seeded(self):
-        ht = hl.utils.range_table(10, 4)
-        seeded = ht.annotate(x=hl.int32(hl.rand_unif(0, 1, seeded=True) * 100))
-        seeded2 = seeded.annotate(y=seeded.x)
-        seeded_expr = hl.int32(hl.rand_unif(0, 1, seeded=True) * 100)
-        seeded3 = seeded2.annotate(z=seeded_expr)
-        seeded4 = seeded2.annotate(z=seeded_expr)
-        seeded.show()
-        seeded2.show()
-        seeded3.show()
-        seeded4.show()
-
     def test_seeded_same(self):
         ht = hl.utils.range_table(10, 4)
         sample1 = hl.rand_unif(0, 1)
         ht = ht.annotate(x=sample1, y=sample1, z=hl.rand_unif(0, 1))
 
-        print(ht.aggregate(agg.all((ht.x == ht.y) & (ht.x != ht.z))))
+        self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y) & (ht.x != ht.z))))
 
     def test_seeded_sampling(self):
         ht = hl.utils.range_table(50, 6)

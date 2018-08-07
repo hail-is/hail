@@ -338,21 +338,18 @@ trait RVD {
     crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
   }
 
-  def treeAggregateWithIndex[U: ClassTag](zeroValue: U)(
-    seqOp: Int => ((U, RegionValue) => U),
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](zeroValue: U)(
+    makePC: (Int, RVDContext) => PC,
+    seqOp: (PC, U, RegionValue) => U,
     combOp: (U, U) => U,
     depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
   ): U = {
-    val clearingSeqOp = {i: Int =>
-      val seqOpF = seqOp(i)
-      val f = { (ctx: RVDContext, u: U, rv: RegionValue) =>
-        val u2 = seqOpF(u, rv)
-        ctx.region.clear()
-        u2
-      }
-      f
+    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
+      val u2 = seqOp(pc, u, rv)
+      ctx.region.clear()
+      u2
     }
-    crdd.treeAggregateWithIndex(zeroValue, clearingSeqOp, combOp, depth)
+    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
   }
 
   def aggregateWithPartitionOp[PC, U: ClassTag](

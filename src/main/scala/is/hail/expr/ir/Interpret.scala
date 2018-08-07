@@ -533,70 +533,21 @@ object Interpret {
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
-      case ir@Apply(function, functionArgs) =>
+      case ir: AbstractApplyNode =>
+        val argTuple = TTuple(ir.args.map(_.typ): _*)
+        val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
+          GetTupleElement(Ref("in", argTuple), i)
+        }.toFastIndexedSeq
+        val wrappedIR = Copy(ir, wrappedArgs).asInstanceOf[IR]
 
-        val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(Apply(function,
-          functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
-          }))))
-
+        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)))
         val f = makeFunction(0)
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
           rvb.start(argTuple)
           rvb.startTuple()
-          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
-            val argValue = interpret(arg, env, args, agg)
-            rvb.addAnnotation(t, argValue)
-          }
-          rvb.endTuple()
-          val offset = rvb.end()
-
-          val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
-            .get(0)
-        }
-      case ir@ApplySeeded(function, functionArgs, seed) =>
-
-        val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(ApplySeeded(function,
-          functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
-          }, seed))))
-
-        val f = makeFunction(0)
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder()
-          rvb.set(region)
-          rvb.start(argTuple)
-          rvb.startTuple()
-          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
-            val argValue = interpret(arg, env, args, agg)
-            rvb.addAnnotation(t, argValue)
-          }
-          rvb.endTuple()
-          val offset = rvb.end()
-
-          val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
-            .get(0)
-        }
-      case ir@ApplySpecial(function, functionArgs) =>
-        val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(FastSeq(ApplySpecial(function,
-          functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
-          }))))
-
-        val f = makeFunction(0)
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder()
-          rvb.set(region)
-          rvb.start(argTuple)
-          rvb.startTuple()
-          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
+          ir.args.zip(argTuple.types).foreach { case (arg, t) =>
             val argValue = interpret(arg, env, args, agg)
             rvb.addAnnotation(t, argValue)
           }
