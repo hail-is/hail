@@ -482,14 +482,14 @@ object PruneDeadFields {
         val minRowEntries = minimal(rowsEntries.typ)
         val rowsEntriesDep = minRowEntries.copy(
           globalType = requestedType.globalType,
-          rowType = unify(rowsEntries.typ.rowType, minRowEntries.rowType, requestedType.rvRowType.rename(m))
+          rowType = unify(rowsEntries.typ.rowType, requestedType.rvRowType.rename(m))
         )
         memoizeTableIR(rowsEntries, rowsEntriesDep, memo)
 
         val minCols = minimal(cols.typ)
         val colDep = cols.typ.copy(
-          rowType = unify(cols.typ.rowType, minCols.rowType, requestedType.colType),
-          globalType = TStruct())
+          rowType = unify(cols.typ.rowType, requestedType.colType),
+          globalType = minCols.globalType)
         memoizeTableIR(cols, colDep, memo)
     }
   }

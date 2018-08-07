@@ -146,7 +146,7 @@ class MatrixIRSuite extends SparkSuite {
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
     assert(exploded sameElements expected)
   }
-  
+
   // these two items are helper for UnlocalizedEntries testing,
   def makeLocalizedTable(data: Array[Array[Any]]): Table = {
     val rowRdd = sc.parallelize(data.map(Row.fromSeq(_)))
@@ -206,6 +206,7 @@ class MatrixIRSuite extends SparkSuite {
     // All rows must have the same number of elements in the entry field as colTab has rows
     try {
       val mv = mir.execute(hc)
+      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
       assert(false, "should have thrown an error, as the number of columns must match "
         + "the number of array entries")
     } catch {
@@ -232,6 +233,7 @@ class MatrixIRSuite extends SparkSuite {
 
     try {
       val mv = mir2.execute(hc)
+      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
       assert(false, "should have thrown an error, as no array should be missing")
     } catch {
       case e: org.apache.spark.SparkException => {
