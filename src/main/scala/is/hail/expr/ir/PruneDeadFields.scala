@@ -282,6 +282,12 @@ object PruneDeadFields {
         val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         memoizeTableIR(child, child.typ.copy(rowType = unify(child.typ.rowType, aggDep.rowType),
           globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) =>
+        val keyDep = memoizeAndGetDep(newKey, newKey.typ, child.typ, memo)
+        val exprDep = memoizeAndGetDep(expr, requestedType.valueType, child.typ, memo)
+        memoizeTableIR(child,
+          unify(child.typ, keyDep, exprDep, minimal(child.typ).copy(globalType = requestedType.globalType)),
+          memo)
       case MatrixColsTable(child) =>
         val minChild = minimal(child.typ)
         val mtDep = minChild.copy(
@@ -323,6 +329,13 @@ object PruneDeadFields {
               memo)
           case None => memoizeTableIR(child, requestedType, memo)
         }
+      case LocalizeEntries(child, fieldName) =>
+        val minChild = minimal(child.typ)
+        val m = Map(fieldName -> MatrixType.entriesIdentifier)
+        val childDep = minChild.copy(
+          globalType = requestedType.globalType,
+          rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
+        memoizeMatrixIR(child, childDep, memo)
     }
   }
 
@@ -464,6 +477,20 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
+      case UnlocalizeEntries(rowsEntries, cols, fieldName) =>
+        val m = Map(MatrixType.entriesIdentifier -> fieldName)
+        val minRowEntries = minimal(rowsEntries.typ)
+        val rowsEntriesDep = minRowEntries.copy(
+          globalType = requestedType.globalType,
+          rowType = unify(rowsEntries.typ.rowType, requestedType.rvRowType.rename(m))
+        )
+        memoizeTableIR(rowsEntries, rowsEntriesDep, memo)
+
+        val minCols = minimal(cols.typ)
+        val colDep = cols.typ.copy(
+          rowType = unify(cols.typ.rowType, requestedType.colType),
+          globalType = minCols.globalType)
+        memoizeTableIR(cols, colDep, memo)
     }
   }
 
@@ -676,6 +703,23 @@ object PruneDeadFields {
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
+      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        val child2 = rebuild(child, memo)
+        val expr2 = rebuild(expr, child2.typ, memo)
+        val newKey2 = rebuild(newKey, child2.typ, memo)
+        TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
+      case LocalizeEntries(child, fieldName) =>
+        val child2 = rebuild(child, memo)
+        if (dep.rowType.hasField(fieldName))
+          LocalizeEntries(child2, fieldName)
+        else
+          MatrixRowsTable(child2)
+      case TableUnion(children) =>
+        val requestedType = memo.lookup(tir).asInstanceOf[TableType]
+        val rebuilt = children.map { c =>
+          upcastTable(rebuild(c, memo), requestedType, upcastGlobals = false)
+        }
+        TableUnion(rebuilt)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -893,6 +937,28 @@ object PruneDeadFields {
         mt = MatrixMapGlobals(mt, upcast(Ref("global", ir.typ.globalType), rType.globalType), BroadcastRow.empty(HailContext.get.sc))
 
       mt
+    }
+  }
+
+  def upcastTable(
+    ir: TableIR,
+    rType: TableType,
+    upcastRow: Boolean = true,
+    upcastGlobals: Boolean = true
+  ): TableIR = {
+    if (ir.typ == rType)
+      ir
+    else {
+      var table = ir
+      if (upcastRow && ir.typ.rowType != rType.rowType) {
+        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key, rType.key.map(_.length))
+      }
+      if (upcastGlobals && ir.typ.globalType != rType.globalType) {
+        table = TableMapGlobals(table,
+          upcast(Ref("global", table.typ.globalType), rType.globalType),
+          BroadcastRow.empty(HailContext.get.sc))
+      }
+      table
     }
   }
 }

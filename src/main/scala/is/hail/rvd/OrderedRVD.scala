@@ -140,6 +140,7 @@ class OrderedRVD(
       typ = ordType,
       partitioner = newPartitioner,
       crdd = ContextRDD(RepartitionedOrderedRDD(this, newPartitioner)))
+
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -163,6 +164,9 @@ class OrderedRVD(
 
   def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
     keyBy().orderedZipJoin(right.keyBy())
+
+  def orderedMerge(right: OrderedRVD): OrderedRVD =
+    keyBy().orderedMerge(right.keyBy())
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
@@ -316,13 +320,7 @@ class OrderedRVD(
       return filter(pred)
 
     val newPartitionIndices = intervals.toIterator.flatMap { case (i, _) =>
-      if (!partitioner.rangeTree.probablyOverlaps(pkOrdering, i))
-        IndexedSeq()
-      else {
-        val start = partitioner.getPartitionPK(i.start)
-        val end = partitioner.getPartitionPK(i.end)
-        start to end
-      }
+      partitioner.getPartitionRange(i)
     }
       .toSet[Int] // distinct
       .toArray
@@ -871,6 +869,7 @@ object OrderedRVD {
           val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kRowFieldIdx)
           val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
           (keys, bytes)
+
         }
       }.shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kType.ordering.toOrdering)
         .cmapPartitionsWithIndex { case (i, ctx, it) =>
@@ -1028,7 +1027,7 @@ object OrderedRVD {
 
             kUR.set(prevK.value)
             if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR)) {
-              val shouldBeIn = partitionerBc.value.getPartition(kUR)
+              val shouldBeIn = partitionerBc.value.getPartitionPK(kUR)
               fatal(
                 s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
@@ -1045,11 +1044,6 @@ object OrderedRVD {
 
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
     require(rvds.length > 1)
-    val first = rvds.head
-    OrderedRVD.coerce(
-      first.typ,
-      RVD.union(rvds),
-      None,
-      None)
+    rvds.reduce(_.orderedMerge(_))
   }
 }

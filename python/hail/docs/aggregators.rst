@@ -36,6 +36,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     info_score
     hist
     linreg
+    group_by
 
 .. autofunction:: collect
 .. autofunction:: collect_as_set
@@ -61,3 +62,4 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: info_score
 .. autofunction:: hist
 .. autofunction:: linreg
+.. autofunction:: group_by

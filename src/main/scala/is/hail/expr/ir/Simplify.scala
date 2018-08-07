@@ -210,8 +210,9 @@ object Simplify {
           case c => Some(c)
         })
 
-      case MatrixRowsTable(MatrixUnionRows(children)) =>
-        TableUnion(children.map(MatrixRowsTable))
+      // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
+//      case MatrixRowsTable(MatrixUnionRows(children)) =>
+//        TableUnion(children.map(MatrixRowsTable))
 
       case MatrixColsTable(MatrixUnionRows(children)) =>
         MatrixColsTable(children(0))
@@ -274,6 +275,13 @@ object Simplify {
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+      case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
+        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
+        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
+        TableAggregateByKey(child, expr)
+      case TableAggregateByKey(TableKeyBy(child, keys, _, _), expr) =>
+        TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
     })
   }
 }

@@ -1245,8 +1245,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
       val partRegion = ctx.freshContext.region
-      rvb.set(partRegion)
 
+      rvb.set(partRegion)
       val globals = if (rowIterationNeedsGlobals) {
         rvb.start(localGlobalsType)
         rvb.addAnnotation(localGlobalsType, globalsBc.value)
@@ -1263,6 +1263,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       val rowF = returnF()
 
       it.map { rv =>
+        rvb.set(rv.region)
+
         val scanOff = if (scanAggs.nonEmpty) {
           rvb.start(scanResultType)
           rvb.startStruct()
@@ -1888,6 +1890,7 @@ case class TableToMatrixTable(
 }
 
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
+  assert(path.nonEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1899,25 +1902,41 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   override def columnCount: Option[Int] = child.columnCount
 
   private val rvRowType = child.typ.rvRowType
-  private val (keysType, querier) = rvRowType.queryTyped(path: _*)
-  private val keyType = keysType match {
-    case TArray(e, _) => e
-    case TSet(e, _) => e
+
+  val length: IR = {
+    val lenUID = genUID()
+    Let(lenUID,
+      ArrayLen(ToArray(
+        path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
+          GetField(struct, field)))),
+      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
   }
 
-  private val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path.toList)
+  val idx = Ref(genUID(), TInt32())
+  val newRVRow: InsertFields = {
+    val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
+      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
 
-  val typ: MatrixType = child.typ.copy(rvRowType = newRVType)
+    path.zip(refs).zipWithIndex.foldRight[IR](idx) {
+      case (((field, ref), i), arg) =>
+        InsertFields(ref, FastIndexedSeq(field ->
+          (if (i == refs.length - 1)
+            ArrayRef(ToArray(GetField(ref, field)), arg)
+          else
+            Let(refs(i+1).name, GetField(ref, field), arg))))
+    }.asInstanceOf[InsertFields]
+  }
+
+  val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
 
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
-
-    val localEntriesIndex = child.typ.entriesIdx
-    val oldRVType = rvRowType
-    val localNewRVType = newRVType
-    val localInserter = inserter
-    val localQuerier = querier
-    val localKeyType = keyType
+    val (_, l) = Compile[Long, Int]("va", rvRowType, length)
+    val (t, f) = Compile[Long, Int, Long](
+      "va", rvRowType,
+      idx.name, TInt32(),
+      newRVRow)
+    assert(t == typ.rvRowType)
 
     MatrixValue(typ,
       prev.globals,
@@ -1925,21 +1944,19 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
       prev.rvd.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
         val region2 = ctx.region
         val rv2 = RegionValue(region2)
-        val rv2b = ctx.rvb
-        val ur = new UnsafeRow(oldRVType)
+        val lenF = l()
+        val rowF = f()
         it.flatMap { rv =>
-          ur.set(rv)
-          val keys = localQuerier(ur).asInstanceOf[Iterable[Any]]
-          if (keys == null)
-            None
-          else
-            keys.iterator.map { explodedElement =>
-              rv2b.start(localNewRVType)
-              localInserter(rv.region, rv.offset, rv2b,
-                () => rv2b.addAnnotation(localKeyType, explodedElement))
-              rv2.setOffset(rv2b.end())
+          val len = lenF(rv.region, rv.offset, false)
+          new Iterator[RegionValue] {
+            private[this] var i = 0
+            def hasNext(): Boolean = i < len
+            def next(): RegionValue = {
+              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+              i += 1
               rv2
             }
+          }
         }
       }))
   }
@@ -1979,7 +1996,17 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val values = children.map(_.execute(hc))
     checkColKeysSame(values.map(_.colValues.value))
-    values.head.copy(rvd = OrderedRVD.union(values.map(_.rvd)))
+    val rvds = values.map(_.rvd)
+    val first = rvds.head
+    require(rvds.tail.forall(_.partitioner.kType == first.partitioner.kType))
+    rvds.filter(_.partitioner.range.isDefined) match {
+      case IndexedSeq() =>
+        values.head
+      case IndexedSeq(rvd) =>
+        values.head.copy(rvd = rvd)
+      case nonEmpty =>
+        values.head.copy(rvd = OrderedRVD.union(nonEmpty))
+    }
   }
 }
 
@@ -2052,5 +2079,92 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
         }
         rvb.endArray()
       })
+  }
+}
+
+/**
+ * This is inteded to be an inverse to LocalizeEntries on a MatrixTable
+ *
+ * Some notes on semantics,
+ * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
+ * `entryFieldName` must refer to an array of structs field in `rowsEntries`
+ * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
+ * all array elements must be the same length, though individual array items may be missing.
+ */
+case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName: String) extends MatrixIR {
+  private val m = Map(entryFieldName -> MatrixType.entriesIdentifier)
+  private val entryFieldIdx = rowsEntries.typ.rowType.fieldIdx(entryFieldName)
+  private val entryFieldType = rowsEntries.typ.rowType.types(entryFieldIdx)
+  private val newRowType = rowsEntries.typ.rowType.rename(m)
+
+  entryFieldType match {
+    case TArray(TStruct(_, _), _) => {}
+    case _ => fatal(s"expected entry field to be an array of structs, found ${ entryFieldType }")
+  }
+
+  val typ: MatrixType = MatrixType(
+      rowsEntries.typ.globalType,
+      cols.typ.keyOrEmpty,
+      cols.typ.rowType,
+      rowsEntries.typ.keyOrEmpty,
+      rowsEntries.typ.keyOrEmpty,
+      newRowType
+    )
+
+  def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): UnlocalizeEntries = {
+    assert(newChildren.length == 2)
+    UnlocalizeEntries(
+      newChildren(0).asInstanceOf[TableIR],
+      newChildren(1).asInstanceOf[TableIR],
+      entryFieldName
+    )
+  }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = rowsEntries.partitionCounts
+
+  def execute(hc: HailContext): MatrixValue = {
+    val rowtab = rowsEntries.execute(hc)
+    val coltab = cols.execute(hc)
+
+    val localColType = coltab.typ.rowType
+    val localColData: Array[Annotation] = coltab.rvd.mapPartitions { it =>
+      it.map { rv => SafeRow(localColType, rv.region, rv.offset) : Annotation }
+    }.collect
+
+    val field = GetField(Ref("row", rowtab.typ.rowType), entryFieldName)
+    val (_, lenF) = ir.Compile[Long, Int]("row", rowtab.typ.rowType,
+      ir.ArrayLen(field))
+
+    val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
+      ir.IsNA(field))
+
+    var rowOrvd = rowtab.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    rowOrvd = rowOrvd.mapPartitionsPreservesPartitioning(rowOrvd.typ) { it =>
+        it.map { rv =>
+          if (missingF()(rv.region, rv.offset, false)) {
+            fatal("missing entry array value in argument to UnlocalizeEntries")
+          }
+          val l = lenF()(rv.region, rv.offset, false)
+          if (l != localColData.length) {
+            fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
+                     |   had ${l} elements, should have had ${localColData.length} elements""".stripMargin)
+          }
+          rv
+        }
+      }
+    val newOrvd = rowOrvd.updateType(rowOrvd.typ.copy(rowType = newRowType))
+
+    MatrixValue(
+      typ,
+      rowtab.globals,
+      BroadcastIndexedSeq(
+        localColData,
+        TArray(coltab.typ.rowType),
+        hc.sc
+      ),
+      newOrvd
+    )
   }
 }

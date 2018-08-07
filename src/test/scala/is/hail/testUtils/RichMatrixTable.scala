@@ -1,13 +1,8 @@
 package is.hail.testUtils
 
 import is.hail.annotations._
-import is.hail.expr.ir
-import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser}
-import is.hail.methods._
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable}
+import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag

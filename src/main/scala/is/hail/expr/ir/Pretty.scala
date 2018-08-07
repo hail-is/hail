@@ -252,6 +252,8 @@ object Pretty {
             case TableJoin(_, _, joinType) => joinType
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
+            case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
+              prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, field) => field
             case TableParallelize(typ, rows, nPartitions) =>
               val valueType = TArray(typ.rowType)
@@ -265,6 +267,8 @@ object Pretty {
                   JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
+            case LocalizeEntries(_, name) => prettyStringLiteral(name)
+            case UnlocalizeEntries(_, _, name) => prettyStringLiteral(name)
             case _ => ""
           }
 

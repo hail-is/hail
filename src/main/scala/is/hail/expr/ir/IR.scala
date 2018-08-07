@@ -65,7 +65,7 @@ final case class Void() extends IR { val typ = TVoid }
 
 final case class Cast(v: IR, typ: Type) extends IR
 
-final case class NA(typ: Type) extends IR
+final case class NA(typ: Type) extends IR { assert(!typ.required) }
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR

@@ -17,7 +17,7 @@ import org.apache.spark.sql.Row
 object RepartitionedOrderedRDD {
   def apply(prev: OrderedRVD, newPartitioner: OrderedRVDPartitioner): RepartitionedOrderedRDD = {
     new RepartitionedOrderedRDD(
-      prev.crdd,
+      prev.boundary.crdd,
       prev.typ,
       prev.partitioner.broadcast(prev.crdd.sparkContext),
       newPartitioner.broadcast(prev.crdd.sparkContext))
@@ -44,13 +44,22 @@ class RepartitionedOrderedRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
+    val pord = typ.kType.ordering.intervalEndpointOrdering
+    val range = ordPartition.range
+    val ur = new UnsafeRow(typ.rowType)
+    val key = new KeyedRow(ur, typ.kRowFieldIdx)
 
     Iterator.single { (ctx: RVDContext) =>
-      val it = ordPartition.parents.iterator
+      ordPartition.parents.iterator
         .flatMap { parentPartition =>
           prev.iterator(parentPartition, context).flatMap(_(ctx))
+        }.dropWhile { rv =>
+          ur.set(rv)
+          pord.lt(key, range.left)
+        }.takeWhile { rv =>
+          ur.set(rv)
+          pord.lteq(key, range.right)
         }
-      OrderedRVIterator(typ, it, ctx).restrictToPKInterval(ordPartition.range)
     }
   }
 

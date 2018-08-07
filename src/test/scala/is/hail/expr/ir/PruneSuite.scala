@@ -255,6 +255,17 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2")))
   }
 
+  @Test def testTableKeyByAndAggregateMemo() {
+    val tka = TableKeyByAndAggregate(tab,
+      tableRefStruct(tab.typ, "row.2"),
+      MakeStruct(FastSeq("bar" -> tableRefBoolean(tab.typ, "row.3"))),
+      None,
+      1)
+
+    checkMemo(tka, subsetTable(tka.typ, "row.foo"), Array(subsetTable(tab.typ, "row.2", "row.3"), null, null))
+    checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3"), null, null))
+  }
+
   @Test def testTableUnionMemo() {
     checkMemo(
       TableUnion(FastIndexedSeq(tab, tab)),
@@ -521,6 +532,24 @@ class PruneSuite extends SparkSuite {
         val tmg = r.asInstanceOf[TableMapGlobals]
         TypeCheck(tmg.newRow, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
+      })
+  }
+
+  @Test def testTableUnionRebuildUnifiesRowTypes() {
+    val mapExpr = InsertFields(Ref("row", tr.typ.rowType),
+      FastIndexedSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
+    val tfilter = TableFilter(
+      TableMapRows(tr, mapExpr, None, None),
+      tableRefBoolean(tr.typ, "row.2"))
+    val tmap = TableMapRows(tr, mapExpr, None, None)
+    val tunion = TableUnion(FastIndexedSeq(tfilter, tmap))
+    checkRebuild(tunion, subsetTable(tunion.typ, "row.foo"),
+      (_: BaseIR, rebuilt: BaseIR) => {
+        val tu = rebuilt.asInstanceOf[TableUnion]
+        val tf = tu.children(0)
+        val tm = tu.children(1)
+        tf.typ.rowType == tm.typ.rowType &&
+          tu.typ == subsetTable(tunion.typ, "row.foo", "global.g1")
       })
   }
 

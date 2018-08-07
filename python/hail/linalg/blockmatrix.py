@@ -1980,23 +1980,23 @@ class BlockMatrix(object):
 
         .. math::
 
-          X = U S V^T
+          X = U \Sigma V^T
 
         where
 
         - :math:`U` is an :math:`n \times r` matrix whose columns are
           (orthonormal) left singular vectors,
 
-        - :math:`S` is an :math:`r \times r` diagonal matrix of non-negative
+        - :math:`\Sigma` is an :math:`r \times r` diagonal matrix of non-negative
           singular values in descending order,
 
         - :math:`V^T` is an :math:`r \times m` matrix whose rows are
           (orthonormal) right singular vectors.
 
-        If the singular values in :math:`S` are distinct, then the decomposition
-        is unique up to multiplication of corresponding left and right singular
-        vectors by -1. The computational complexity of SVD is roughly
-        :math:`nmr`.
+        If the singular values in :math:`\Sigma` are distinct, then the
+        decomposition is unique up to multiplication of corresponding left and
+        right singular vectors by -1. The computational complexity of SVD is
+        roughly :math:`nmr`.
 
         We now describe the implementation in more detail.
         If :math:`\sqrt[3]{nmr}` is less than or equal to `complexity_bound`,
@@ -2008,22 +2008,41 @@ class BlockMatrix(object):
         reduced SVD is computed via the smaller gramian matrix of :math:`X`. For
         :math:`n > m`, the three stages are:
 
-        - compute (and localize) the gramian matrix :math:`X^T X`,
+        1. Compute (and localize) the gramian matrix :math:`X^T X`,
 
-        - compute the singular values and right singular vectors via the
-          symmetric eigendecomposition :math:`X^T X = V S^2 V^T` with
-          :func:`numpy.linalg.eigh` or :func:`scipy.linalg.eigh`,
+        2. Compute the eigenvalues and right singular vectors via the
+           symmetric eigendecomposition :math:`X^T X = V S V^T` with
+           :func:`numpy.linalg.eigh` or :func:`scipy.linalg.eigh`,
 
-        - compute the left singular vectors as the block matrix
-          :math:`U = X V S^{-1}`.
+        3. Compute the singular values as :math:`\Sigma = S^\frac{1}{2}` and the
+           the left singular vectors as the block matrix
+           :math:`U = X V \Sigma^{-1}`.
 
         In this case, since block matrix multiplication is lazy, it is efficient
         to subsequently slice :math:`U` (e.g. based on the singular values), or
         discard :math:`U` entirely.
 
         If :math:`n \leq m`, the three stages instead use the gramian
-        :math:`X X^T = U S^2 U^T` and return :math:`V^T` as the
-        block matrix :math:`S^{-1} U^T X`.
+        :math:`X X^T = U S U^T` and return :math:`V^T` as the
+        block matrix :math:`\Sigma^{-1} U^T X`.
+
+        Warning
+        -------
+        Computing reduced SVD via the gramian presents an added wrinkle when
+        :math:`X` is not full rank, as the block-matrix-side null-basis is not
+        computable by the formula in the third stage. Furthermore, due to finite
+        precision, the zero eigenvalues of :math:`X^T X` or :math:`X X^T` will
+        only be approximately zero.
+
+        If the rank is not known ahead, examining the relative sizes of the
+        trailing singular values should reveal where the spectrum switches from
+        non-zero to "zero" eigenvalues.  With 64-bit floating point, zero
+        eigenvalues are typically about 1e-16 times the largest eigenvalue.
+        The corresponding singular vectors should be sliced away **before** an
+        action which realizes the block-matrix-side singular vectors.
+
+        :meth:`svd` sets the singular values corresponding to negative
+        eigenvalues to exactly ``0.0``.
 
         Warning
         -------
@@ -2039,24 +2058,27 @@ class BlockMatrix(object):
         the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
         is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
 
+        Consequently, the optimal value of `complexity_bound` is highly
+        configuration-dependent.
+
         Parameters
         ----------
         compute_uv: :obj:`bool`
-            If False, only compute the singular values.
+            If False, only compute the singular values (or eigenvalues).
         complexity_bound: :obj:`int`
             Maximum value of :math:`\sqrt[3]{nmr}` for which
             :func:`scipy.linalg.svd` is used.
 
         Returns
         -------
-        u: :class:`ndarray<float64>` or :class:`BlockMatrix`
-            Left singular vectors, as a block matrix if :math:`n > m` and
+        u: :class:`ndarray` or :class:`BlockMatrix`
+            Left singular vectors :math:`U`, as a block matrix if :math:`n > m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
-        s: :class:`ndarray<float64>`
-            Singular values in descending order.
-        vt: :class:`ndarray<float64>` or :class:`BlockMatrix`
-            Right singular vectors, as a block matrix if :math:`n \leq m` and
+        s: :class:`ndarray`
+            Singular values from :math:`\Sigma` in descending order.
+        vt: :class:`ndarray` or :class:`BlockMatrix`
+            Right singular vectors :math:`V^T``, as a block matrix if :math:`n \leq m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
         """
@@ -2082,6 +2104,8 @@ class BlockMatrix(object):
 
         if compute_uv:
             e, w = _eigh(a)
+            for i in range(np.searchsorted(e, 0.0)):
+                e[i] = 0
 
             # flip singular values to descending order
             s = np.flip(np.sqrt(e), axis=0)
@@ -2096,6 +2120,9 @@ class BlockMatrix(object):
             return u, s, vt
         else:
             e = np.linalg.eigvalsh(a)
+            for i in range(np.searchsorted(e, 0.0)):
+                e[i] = 0
+
             return np.flip(np.sqrt(e), axis=0)
 
 
@@ -2189,7 +2216,7 @@ def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite
 
 def _eigh(a):
     """
-    Only the lower triangle is used.
+    Only the lower triangle is used. Returns eigenvalues, eigenvectors.
     NumPy and SciPy apply different Lapack algorithms:
     NumPy uses DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevd
     SciPy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr

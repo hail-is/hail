@@ -29,6 +29,7 @@ from .genetics import *
 from .methods import *
 from . import genetics as genetics
 from . import methods as methods
+from . import stats as stats
 from . import linalg as linalg
 from . import plot as plot
 from . import experimental as experimental
@@ -63,6 +64,7 @@ __all__ = [
     'scan',
     'genetics',
     'methods',
+    'stats',
     'linalg',
     'plot',
     'experimental',

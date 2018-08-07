@@ -191,6 +191,25 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_group_aggregate_by_key(self):
+        ht = hl.utils.range_table(100, n_partitions=10)
+
+        r1 = ht.group_by(k = ht.idx % 5)._set_buffer_size(3).aggregate(n = hl.agg.count())
+        r2 = ht.group_by(k = ht.idx // 20)._set_buffer_size(3).aggregate(n = hl.agg.count())
+        assert r1.all(r1.n == 20)
+        assert r2.all(r2.n == 20)
+
+    def test_aggregate_by_key_partitioning(self):
+        ht1 = hl.Table.parallelize([
+            {'k': 'foo', 'b': 1},
+            {'k': 'bar', 'b': 2},
+            {'k': 'bar', 'b': 2}],
+            hl.tstruct(k=hl.tstr, b=hl.tint32),
+            key='k')
+        self.assertEqual(
+            set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
+            {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
+
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -205,7 +224,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
         self.assertEqual(kt.filter(True).count(), 3)
 
-    def test_filter_na(self):
+    def test_filter_missing(self):
         ht = hl.utils.range_table(1, 1)
 
         self.assertEqual(ht.filter(hl.null(hl.tbool)).count(), 0)
@@ -228,6 +247,12 @@ class Tests(unittest.TestCase):
     def test_transmute_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(a=5, b=10)
         self.assertEqual(ht.transmute_globals(c=ht.a + 5).globals.dtype, hl.tstruct(b=hl.tint, c=hl.tint))
+
+    def test_transmute_key(self):
+        ht = hl.utils.range_table(10)
+        self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{idx: int32, y: int32}'))
+        ht = ht.key_by(None)
+        self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{y: int32}'))
 
     def test_select(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
@@ -580,3 +605,27 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             ht._filter_partitions([0, 7]).idx.collect(),
             [0, 1, 2, 21, 22])
+
+    def test_localize_entries(self):
+        ref_schema = hl.tstruct(row_idx=hl.tint32,
+                                __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
+        ref_data = [{'row_idx': i, '__entries': [{'v': i+j} for j in range(6)]}
+                    for i in range(8)]
+        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        mt = hl.utils.range_matrix_table(8, 6)
+        mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
+        t = mt._localize_entries('__entries')
+        self.assertTrue(t._same(ref_tab))
+
+    def test_union(self):
+        t1 = hl.utils.range_table(5)
+
+        t2 = hl.utils.range_table(5)
+        t2 = t2.key_by(idx = t2.idx + 5)
+
+        t3 = hl.utils.range_table(5)
+        t3 = t3.key_by(idx = t3.idx + 10)
+
+        self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
+        self.assertTrue(t1.key_by(None).union(t2.key_by(None), t3.key_by(None))
+                        ._same(hl.utils.range_table(15).key_by(None)))

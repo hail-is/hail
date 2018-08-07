@@ -104,6 +104,7 @@ class GroupedTable(ExprContainer):
         self._groups = groups
         self._parent = parent
         self._npartitions = None
+        self._buffer_size = 50
 
         self._copy_fields_from(parent)
 
@@ -142,6 +143,24 @@ class GroupedTable(ExprContainer):
             Same grouped table with a partition hint.
         """
         self._npartitions = n
+        return self
+
+    def _set_buffer_size(self, n: int) -> 'GroupedTable':
+        """Set the map-side combiner buffer size (in rows).
+
+        Parameters
+        ----------
+        n : int
+            Buffer size.
+
+        Returns
+        -------
+        :class:`.GroupedTable`
+            Same grouped table with a buffer size.
+        """
+        if n <= 0:
+            raise ValueError(n)
+        self._buffer_size = n
         return self
 
     @typecheck_method(named_exprs=expr_any)
@@ -188,11 +207,11 @@ class GroupedTable(ExprContainer):
 
         base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        new_key = hl.struct(**group_exprs)
-        keyed_t = base._select_scala(self._parent.row.annotate(**new_key), *base._preserved_key_pairs(new_key))
-
-        t = Table(keyed_t._jt.aggregateByKey(str(hl.struct(**named_exprs)._ir)))
-        return cleanup(t)
+        return Table(base._jt.keyByAndAggregate(
+            str(hl.struct(**named_exprs)._ir),
+            str(hl.struct(**group_exprs)._ir),
+            joption(self._npartitions),
+            self._buffer_size))
 
 
 class Table(ExprContainer):
@@ -1401,8 +1420,7 @@ class Table(ExprContainer):
                         vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
                         vt = vt.key_by(None).drop(*uids)
                         # group by v and index by the key exprs
-                        vt = (vt.group_by(*rk_uids)
-                            .aggregate(values=agg.collect(vt.row.drop(*rk_uids))))
+                        vt = vt.key_by(*rk_uids).collect_by_key()
                         vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
 
                         jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
@@ -1694,15 +1712,17 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
+        left_key = None if self.key is None else list(self.key)
         for i, ht, in enumerate(tables):
+            right_key = None if ht.key is None else list(ht.key)
             if not ht.row.dtype == self.row.dtype:
-                raise TypeError(f"'union': table {i} has a different row type.\n"
+                raise ValueError(f"'union': table {i} has a different row type.\n"
                                 f"  Expected:  {self.row.dtype}\n"
                                 f"  Table {i}: {ht.row.dtype}")
-            elif list(ht.key) != list(self.key):
-                raise TypeError(f"'union': table {i} has a different key."
-                                f"  Expected:  {list(self.key)}\n"
-                                f"  Table {i}: {list(ht.key)}")
+            elif left_key != right_key:
+                raise ValueError(f"'union': table {i} has a different key."
+                                f"  Expected:  {left_key}\n"
+                                f"  Table {i}: {right_key}")
         return Table(self._jt.union([table._jt for table in tables]))
 
     @typecheck_method(n=int)
@@ -2619,5 +2639,9 @@ class Table(ExprContainer):
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
         return Table(self._jt.filterPartitions(parts, keep))
+
+    @typecheck_method(cols=table_type, entries_field_name=str)
+    def _unlocalize_entries(self, cols, entries_field_name):
+        return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
 table_type.set(Table)

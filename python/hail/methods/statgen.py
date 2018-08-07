@@ -237,7 +237,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> MatrixTable:
+def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixTable:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -246,14 +246,15 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
     :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
-    of `x` are mean-imputed over these columns.
+    of `x` are mean-imputed over these columns. As in the example, the intercept
+    covariate ``1.0`` must be included explicitly if desired.
 
     Notes
     -----
@@ -296,9 +297,9 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 1` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
-    ``x`` and the intercept.
+    ``x``.
 
     Parameters
     ----------
@@ -353,7 +354,6 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
                                          **dict(zip(cov_field_names, covariates))),
                           entry_exprs=entry_expr)
 
-
     jm = Env.hail().methods.LinearRegression.apply(
         mt._jvds,
         jarray(Env.jvm().java.lang.String, y_field_names),
@@ -378,20 +378,21 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str)
-def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable:
+def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
     Examples
     --------
     Run the logistic regression Wald test per variant using a Boolean
-    phenotype and two covariates stored in column-indexed fields:
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
 
     >>> ds_result = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
 
     Notes
     -----
@@ -399,7 +400,8 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     variable in predicting a binary (case-control) response variable based on
     the logistic regression model. The response variable type must either be
     numeric (with all present values 0 or 1) or Boolean, in which case true and
-    false are coded as 1 and 0, respectively.
+    false are coded as 1 and 0, respectively. As in the example, the intercept
+    covariate ``1.0`` must be included explicitly if desired.
 
     Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
     score test ('score'), and Firth test ('firth'). Hail only includes columns
@@ -566,7 +568,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate expressions.
+        Non-empty list of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
 
@@ -575,6 +577,9 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
     """
+    if len(covariates) == 0:
+        raise ValueError('logistic regression requires at least one covariate expression')
+
     mt = matrix_table_source('logistic_regression/x', x)
     check_entry_indexed('logistic_regression/x', x)
 
@@ -625,7 +630,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
+def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
@@ -641,7 +646,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
     ...                      x=burden_ds.GT.n_alt_alleles(),
-    ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
+    ...                      covariates=[1.0, burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
 
@@ -667,9 +672,10 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
     <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
-    The test is run on columns with `y` and all `covariates` non-missing. For
-    each row, missing input (`x`) values are imputed as the mean of all
-    non-missing input values.
+    The test is run on columns with `y` and all `covariates` non-missing.
+    As in the example, the intercept covariate ``1.0`` must be included
+    explicitly if desired. For each row, missing input (`x`) values are
+    imputed as the mean of all non-missing input values.
 
     Row weights must be non-negative. Rows with missing weights are ignored. In
     the R package ``skat``---which assumes rows are variants---default weights

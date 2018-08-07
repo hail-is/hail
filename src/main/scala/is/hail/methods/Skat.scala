@@ -2,12 +2,11 @@ package is.hail.methods
 
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.{Annotation, UnsafeRow}
-import breeze.linalg.{DenseVector => BDV, DenseMatrix => BDM, _}
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -100,15 +99,20 @@ object Skat {
 
     def linearSkat(): RDD[Row] = { 
       // fit null model
-      val QR = qr.reduced(cov)
-      val Qt = QR.q.t
-      val R = QR.r
-      val beta = R \ (Qt * y)
-      val res = y - cov * beta
+      val (qt, res) =
+        if (k == 0)
+          (BDM.zeros[Double](0, n), y)
+        else {
+          val QR = qr.reduced(cov)
+          val Qt = QR.q.t
+          val R = QR.r
+          val beta = R \ (Qt * y)
+          (Qt, y - cov * beta)
+        }
       val sigmaSq = (res dot res) / d
-  
+      
       val resBc = sc.broadcast(res)
-      val QtBc = sc.broadcast(Qt)
+      val QtBc = sc.broadcast(qt)
       
       def linearTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -135,34 +139,37 @@ object Skat {
         }
     }
         
-    def logisticSkat(): RDD[Row] = {
-      val logRegM = new LogisticRegressionModel(cov, y).fit()
-      if (!logRegM.converged)
-        fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
-          if (logRegM.exploded)
-            s"exploded at Newton iteration ${ logRegM.nIter }"
-          else
-            "Newton iteration failed to converge"))
-  
-      val mu = sigmoid(cov * logRegM.b)
-      val V = mu.map(x => x * (1 - x))
-      val VX = cov(::, *) *:* V
-      val XtVX = cov.t * VX
-      XtVX.forceSymmetry()
-      var Cinv: BDM[Double] = null
-      try {
-        Cinv = inv(cholesky(XtVX))
-      } catch {
-        case e: MatrixSingularException =>
-          fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage)
-        case e: NotConvergedException =>
-          fatal("Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage)
-      }
-      val res = y - mu
-  
-      val sqrtVBc = sc.broadcast(sqrt(V))
+    def logisticSkat(): RDD[Row] = {  
+      val (sqrtV, res, cinvXtV) =
+        if (k > 0) {
+          val logRegM = new LogisticRegressionModel(cov, y).fit()
+          if (!logRegM.converged)
+            fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
+              if (logRegM.exploded)
+                s"exploded at Newton iteration ${ logRegM.nIter }"
+              else
+                "Newton iteration failed to converge"))
+          val mu = sigmoid(cov * logRegM.b)
+          val V = mu.map(x => x * (1 - x))
+          val VX = cov(::, *) *:* V
+          val XtVX = cov.t * VX
+          XtVX.forceSymmetry()
+          var Cinv: BDM[Double] = null
+          try {
+            Cinv = inv(cholesky(XtVX))
+          } catch {
+            case e: MatrixSingularException =>
+              fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage)
+            case e: NotConvergedException =>
+              fatal("Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage)
+          }
+          (sqrt(V), y - mu, Cinv * VX.t)
+        } else
+          (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
+      
+      val sqrtVBc = sc.broadcast(sqrtV)
       val resBc = sc.broadcast(res)
-      val CinvXtVBc = sc.broadcast(Cinv * VX.t)
+      val CinvXtVBc = sc.broadcast(cinvXtV)
   
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)

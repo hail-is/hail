@@ -33,7 +33,6 @@ class AggregableChecker(TypeChecker):
             x = coercer.check(x, caller, param)
             return _to_agg(x)
 
-
 def _to_agg(x):
     return Aggregable(x._ir, x._type, x._indices, x._aggregations)
 
@@ -97,16 +96,61 @@ class AggFunc(object):
                              list(map(get_ir, constructor_args)),
                              None if init_op_args is None else list(map(get_ir, init_op_args)),
                              signature)
-            indices, _ = unify_all(aggregable, *args)
             aggs = aggregations
         else:
             ir = ApplyAggOp(seq_op._ir,
                             list(map(get_ir, constructor_args)),
                             None if init_op_args is None else list(map(get_ir, init_op_args)),
                             signature)
-            indices, _ = unify_all(*args)
             aggs = aggregations.push(Aggregation(aggregable, *args))
-        return construct_expr(ir, ret_type, indices, aggs)
+        return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
+
+    def _group_by(self, group, agg_expr):
+        if group._aggregations:
+            raise ExpressionException("'group_by' does not support an already-aggregated expression as the argument to 'group'")
+
+        if isinstance(agg_expr._ir, ApplyScanOp):
+            if not self._as_scan:
+                raise TypeError("'agg.group_by' requires a non-scan aggregation expression (agg.*) as the argument to 'agg_expr'")
+        elif isinstance(agg_expr._ir, ApplyAggOp):
+            if self._as_scan:
+                raise TypeError("'scan.group_by' requires a scan aggregation expression (scan.*) as the argument to 'agg_expr'")
+        elif not isinstance(agg_expr._ir, ApplyAggOp) and not isinstance(agg_expr._ir, ApplyScanOp):
+            raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
+
+        ir = agg_expr._ir
+        agg_sig = ir.agg_sig
+        a = ir.a
+
+        new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
+                                    agg_sig.ctor_arg_types,
+                                    agg_sig.initop_arg_types,
+                                    [group.dtype] + agg_sig.seqop_arg_types)
+
+        def rewrite_a(ir):
+            if isinstance(ir, SeqOp):
+                return SeqOp(ir.i, [group._ir] + ir.args, new_agg_sig)
+            else:
+                return ir.map_ir(rewrite_a)
+
+        new_a = rewrite_a(a)
+
+        if isinstance(agg_expr._ir, ApplyAggOp):
+            ir = ApplyAggOp(new_a,
+                            ir.constructor_args,
+                            ir.init_op_args,
+                            new_agg_sig)
+        else:
+            assert isinstance(agg_expr._ir, ApplyScanOp)
+            ir = ApplyScanOp(new_a,
+                             ir.constructor_args,
+                             ir.init_op_args,
+                             new_agg_sig)
+
+        return construct_expr(ir,
+                              hl.tdict(group.dtype, agg_expr.dtype),
+                              agg_expr._indices,
+                              agg_expr._aggregations)
 
 
 _agg_func = AggFunc()
@@ -1033,8 +1077,7 @@ def info_score(gp) -> StructExpression:
 
     >>> gen_mt = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> gen_mt = gen_mt.annotate_cols(is_case = hl.rand_bool(0.5))
-    >>> gen_mt = gen_mt.annotate_rows(info_score_case = hl.agg.info_score(hl.agg.filter(gen_mt.is_case, gen_mt.GP)),
-    ...                               info_score_ctrl = hl.agg.info_score(hl.agg.filter(~gen_mt.is_case, gen_mt.GP)))
+    >>> gen_mt = gen_mt.annotate_rows(info_score = hl.agg.group_by(gen_mt.is_case, hl.agg.info_score(gen_mt.GP)))
 
     Notes
     -----
@@ -1111,12 +1154,12 @@ def info_score(gp) -> StructExpression:
 
 @typecheck(y=agg_expr(expr_float64),
            x=oneof(expr_float64, sequenceof(expr_float64)))
-def linreg(y, x):
-    """Compute linear regression statistics.
+def linreg(y, x) -> StructExpression:
+    """Compute multivariate linear regression statistics.
 
     Examples
     --------
-    Regress HT against an intercept (1) , SEX, and C1:
+    Regress HT against an intercept (1), SEX, and C1:
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
     Struct(
@@ -1178,6 +1221,51 @@ def linreg(y, x):
     return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
 
 
+@typecheck(group=expr_any,
+           agg_expr=expr_any)
+def group_by(group, agg_expr) -> DictExpression:
+    """Compute aggregation statistics stratified by one or more groups.
+
+    .. include:: _templates/experimental.rst
+
+    Examples
+    --------
+    Compute linear regression statistics stratified by SEX:
+
+    >>> table1.aggregate(agg.group_by(table1.SEX, agg.linreg(table1.HT, table1.C1)))
+    {'F': Struct(beta=[6.153846153846154],
+                 standard_error=[0.7692307692307685],
+                 t_stat=[8.000000000000009],
+                 p_value=[0.07916684832113098],
+                 n=2),
+     'M': Struct(beta=[34.25],
+                 standard_error=[1.75],
+                 t_stat=[19.571428571428573],
+                 p_value=[0.03249975499062629],
+                 n=2)}
+
+    Compute call statistics stratified by population group and case status:
+
+    >>> ann = ds.annotate_rows(call_stats=hl.agg.group_by(hl.struct(pop=ds.pop, is_case=ds.is_case),
+    ...                                                   hl.agg.call_stats(ds.GT, ds.alleles)))
+
+    Parameters
+    ----------
+    group : :class:`.Expression` or :obj:`list` of :class:`.Expression`
+        Group to stratify the result by.
+    agg_expr : :class:`.Expression`
+        Aggregation or scan expression to compute per grouping.
+
+    Returns
+    -------
+    :class:`.DictExpression`
+        Dictionary where the keys are `group` and the values are the result of computing
+        `agg_expr` for each unique value of `group`.
+    """
+
+    return _agg_func._group_by(group, agg_expr)
+
+
 class ScanFunctions(object):
 
     def __init__(self, scope):
@@ -1203,4 +1291,3 @@ class ScanFunctions(object):
             raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
                 field,
                 "\n    ".join(field_matches)))
-

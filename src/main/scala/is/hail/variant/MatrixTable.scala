@@ -173,7 +173,10 @@ object MatrixTable {
   }
 
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable =
-    new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
+    if (nRows == 0) {
+      new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions, dropRows=true))
+    } else
+      new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
@@ -837,14 +840,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyAST(MatrixExplodeCols(ast, path.toFastIndexedSeq))
   }
 
-  def localizeEntries(entriesFieldName: String): Table = {
-    val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
-    val newRowType = rvRowType.rename(m)
-    new Table(hc, TableLiteral(TableValue(
-      TableType(newRowType, Some(rowKey), globalType),
-      globals,
-      rvd.copy(typ = rvd.typ.copy(rowType = newRowType)))))
-  }
+  def localizeEntries(entriesFieldName: String): Table =
+    new Table(hc, LocalizeEntries(ast, entriesFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)

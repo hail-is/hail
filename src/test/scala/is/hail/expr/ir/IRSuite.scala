@@ -474,6 +474,8 @@ class IRSuite extends SparkSuite {
         TableAggregateByKey(read,
           MakeStruct(FastIndexedSeq(
             "a" -> I32(5)))),
+        TableKeyByAndAggregate(read,
+          NA(TStruct()), NA(TStruct()), Some(1), 2),
         TableJoin(read,
           TableRange(100, 10), "inner"),
         MatrixEntriesTable(mtRead),
@@ -500,7 +502,8 @@ class IRSuite extends SparkSuite {
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
         TableUnkey(read),
-        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending)))
+        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
+        LocalizeEntries(mtRead, " # entries")
       )
       xs.map(x => Array(x))
     } catch {
@@ -570,7 +573,13 @@ class IRSuite extends SparkSuite {
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
-        MatrixExplodeCols(read, FastIndexedSeq("col_mset")))
+        MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
+        UnlocalizeEntries(
+          LocalizeEntries(read, "all of the entries"),
+          MatrixColsTable(read),
+          "all of the entries"
+        )
+      )
 
       xs.map(x => Array(x))
     } catch {

@@ -597,6 +597,8 @@ object Parser extends JavaTokenParsers {
       "MatrixRowsTable" ~> matrix_ir ^^ { child => ir.MatrixRowsTable(child) } |
       "MatrixEntriesTable" ~> matrix_ir ^^ { child => ir.MatrixEntriesTable(child) } |
       "TableAggregateByKey" ~> table_ir ~ ir_value_expr() ^^ { case child ~ expr => ir.TableAggregateByKey(child, expr) } |
+      "TableKeyByAndAggregate" ~> int32_literal_opt ~ int32_literal ~ table_ir ~ ir_value_expr() ~ ir_value_expr() ^^ {
+        case nPartitions ~ bufferSize ~ child ~ expr ~ newKey => ir.TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) } |
       "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
       "TableJoin" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case joinType ~ left ~ right => ir.TableJoin(left, right, joinType) } |
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
@@ -618,7 +620,10 @@ object Parser extends JavaTokenParsers {
           else
             SortField(i.substring(1), Descending)))
       } |
-      "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) }
+      "TableExplode" ~> identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) } |
+      "LocalizeEntries" ~> string_literal ~ matrix_ir ^^ { case field ~ child =>
+        ir.LocalizeEntries(child, field)
+      }
 
   def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
 
@@ -655,7 +660,10 @@ object Parser extends JavaTokenParsers {
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
       "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) } |
-      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) }
+      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) } |
+      "UnlocalizeEntries" ~> string_literal ~ table_ir ~ table_ir ^^ {
+        case entryField ~ rowsEntries ~ cols => ir.UnlocalizeEntries(rowsEntries, cols, entryField)
+      }
 
   def parse_value_ir(s: String, ref_map: Map[String, Type]): IR = parse(ir_value_expr(ref_map), s)
 
