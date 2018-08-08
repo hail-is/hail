@@ -120,6 +120,22 @@ def get_github(url, headers=None, status_code=None, user='user1'):
     else:
         return r.json()
 
+###############################################################################
+
+class Match(object):
+    def __init__(self, pred, msg):
+        self.pref = pred
+        self.msg = msg
+
+    def matches(self, x):
+        return pred(x)
+
+    def __str__(self):
+        return self.msg
+
+    def any(*args):
+        return Match(lambda x: x in set(args), f'any({args})')
+
 def assertDictHasKVs(actual, kvs):
     d = dictKVMismatches(actual, kvs)
     assert len(d) == 0, d
@@ -136,7 +152,9 @@ def dictKVMismatches(actual, kvs):
                 errors[k] = sub_errors
         else:
             actual_v = actual[k]
-            if actual_v != v:
+            if isinstance(v, Match) and v.matches(actual_v):
+                errors[k] = f'{actual_v} does not match {v}'
+            elif actual_v != v:
                 errors[k] = f'{actual_v} != {v}'
     return errors
 
@@ -373,7 +391,7 @@ class TestCI(unittest.TestCase):
                     'target_url': 'https://github.com/hail-is/ci-test.git',
                     'target_ref': 'master',
                     'status': {
-                        'state': 'success',
+                        'state': Match.any('success', 'merged1'),
                         'review_state': 'approved',
                         'source_sha': source_sha,
                         'target_sha': target_sha,
