@@ -62,10 +62,33 @@ And if you want to cleanly restart fresh:
 HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
 ```
 
-Buildable Repos
+Testing
 ---
 
-We can build an repo whose root contains the files:
+The tests require two more oauth-tokens, see the <github-tokens/README.md>.
+
+
+With the anaconda environment activated, the following starts a local ci server
+configured appropriately for local testing. There already exist webhooks on the
+`test-ci` repo for `35.232.159.176:3001`.
+
+```
+pip install ./batch
+HAIL_CI_REMOTE_PORT=3001 make restart-all-proxies
+BATCH_SERVER_URL='http://localhost:8888' SELF_HOSTNAME='http://35.232.159.176:3001' WATCHED_REPOS='["hail-is/ci-test"]' python ci/ci.py
+```
+
+From another terminal with the anaconda environment also activated, the
+following runs the tests:
+
+```
+pytest ci/test-ci2.py
+```
+
+
+Buildable Repos ---
+
+We can build any repo whose root contains the files:
 
  - `hail-ci-build-image` containing a publicly accessible docker image
    containing at least a `bash` installation at `/bin/bash` as well as `git`,
