@@ -143,7 +143,7 @@ class Status(object):
     # but target_url, target_ref, source_url, source_ref on Status so I can
     # compute docker_image myself
     def target_change(self, new_sha, docker_image):
-        if state == 'merged':
+        if self.state == 'merged':
             return self
         else:
             return self.copy(
@@ -154,10 +154,10 @@ class Status(object):
             )
 
     def build_succeeded(self, pr_number, job_id):
-        if state == 'merged':
+        if self.state == 'merged':
             log.warn(
                 f'was notified of succeeding build for already merged PR! '
-                f'{pr_number}, {job_id}, {self.to_json()}')
+                f'{self.pr_number}, {self.job_id}, {self.to_json()}')
             return self
         else:
             return self.copy(
@@ -168,10 +168,10 @@ class Status(object):
                 job_id=job_id)
 
     def build_failed(self, pr_number, job_id):
-        if state == 'merged':
+        if self.state == 'merged':
             log.error(
                 f'was notified of failing build for already merged PR! '
-                f'{pr_number}, {job_id}, {self.to_json()}')
+                f'{self.pr_number}, {self.job_id}, {self.to_json()}')
             return self
         else:
             return self.copy(
@@ -185,15 +185,15 @@ class Status(object):
         return self.copy(state='merged')
 
     def running(self, job_id):
-        assert state != 'merged', self.to_json()
-        return self.copy(state='running', job_id=job.id)
+        assert self.state != 'merged', self.to_json()
+        return self.copy(state='running', job_id=job_id)
 
     def pending(self):
-        assert state != 'merged', self.to_json()
+        assert self.state != 'merged', self.to_json()
         return self.copy(state='pending', job_id=None)
 
     def surivived_a_gc(self):
-        assert state == 'merged' and gc == 0, self.to_json()
+        assert self.state == 'merged' and self.gc == 0, self.to_json()
         return self.copy(gc=self.gc+1)
 
     def to_json(self):
@@ -794,7 +794,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         source_ref,
         target_url,
         target_ref,
-        status.running(job_id)
+        status.running(job.id)
     )
     log.info(f'successfully updated status about job {job.id}')
 
