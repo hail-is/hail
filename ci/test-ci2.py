@@ -195,9 +195,12 @@ class Match(object):
         s = set(args)
         return Match(lambda x: x in s, f'any{args}')
 
+    def notEqual(x):
+        return Match(lambda y: x != y, f'not equal to {x}')
+
 def assertDictHasKVs(actual, kvs):
     d = dictKVMismatches(actual, kvs)
-    assert len(d) == 0, d
+    assert len(d) == 0, f'{d}, actual: {actual}'
 
 def dictKVMismatches(actual, kvs):
     assert isinstance(actual, dict), actual
@@ -231,8 +234,8 @@ class TestCI(unittest.TestCase):
         assert len(prs) == 1
         return prs[0]
 
-    DELAY_IN_SECONDS=20
-    MAX_POLLS=15
+    DELAY_IN_SECONDS=5
+    MAX_POLLS=60
 
     def poll_until_finished_pr(self, source_ref, delay_in_seconds=DELAY_IN_SECONDS, max_polls=MAX_POLLS):
         return self.poll_pr(
@@ -335,14 +338,46 @@ class TestCI(unittest.TestCase):
                         status_code=200
                     )
 
+    def create_pull_request(self, title, ref, base="master"):
+        return post_repo(
+            'hail-is/ci-test',
+            'pulls',
+            json={ "title" : title, "head": ref, "base": base },
+            status_code=201
+        )
+
+    def create_and_push_empty_commit(self, source_ref, target_ref='master'):
+        call(['git', 'checkout', target_ref])
+        call(['git', 'checkout', '-b', source_ref])
+        return self.push_empty_commit(source_ref)
+
+    def push_empty_commit(self, ref):
+        call(['git', 'checkout', ref])
+        call(['git', 'commit', '--allow-empty', '-m' 'foo'])
+        return self.push(ref)
+
+    def push(self, ref):
+        call(['git', 'push', 'origin', ref])
+        return run(['git', 'rev-parse', ref], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
+    def approve(self, pr_number, sha):
+        return post_repo(
+            'hail-is/ci-test',
+            f'pulls/{pr_number}/reviews',
+            json={ "commit_id": sha, "event": "APPROVE" },
+            status_code=200,
+            user='user2'
+        )
+
+    def current_master_sha(self):
+        return run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
     def test_push_while_building(self):
         BRANCH_NAME='test_push_while_building'
-        SLOW_BRANCH_NAME='test_push_while_building2'
-        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
+        SLOW_BRANCH_NAME='test_push_while_building_slow'
         with tempfile.TemporaryDirectory() as d:
             pr_number = {}
             source_sha = {}
-            first_target_sha = {}
             gh_pr = {}
             pr = {}
             try:
@@ -355,29 +390,16 @@ class TestCI(unittest.TestCase):
                 call(['git', 'remote', '-v'])
 
                 # start slow branch
+                call(['git', 'checkout', 'master'])
                 call(['git', 'checkout', '-b', SLOW_BRANCH_NAME])
                 with open('hail-ci-build.sh', 'w') as f:
                     f.write('sleep 30')
                 call(['git', 'add', 'hail-ci-build.sh'])
                 call(['git', 'commit', '-m', 'foo'])
-                call(['git', 'push', 'origin', SLOW_BRANCH_NAME])
-                source_sha[SLOW_BRANCH_NAME] = run(['git', 'rev-parse', SLOW_BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                first_target_sha[SLOW_BRANCH_NAME] = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                gh_pr[SLOW_BRANCH_NAME] = post_repo(
-                    'hail-is/ci-test',
-                    'pulls',
-                    json={ "title" : "foo", "head": SLOW_BRANCH_NAME, "base": "master" },
-                    status_code=201
-                )
+                source_sha[SLOW_BRANCH_NAME] = self.push(SLOW_BRANCH_NAME)
+                first_target_sha = self.current_master_sha()
+                gh_pr[SLOW_BRANCH_NAME] = self.create_pull_request('foo', SLOW_BRANCH_NAME)
                 pr_number[SLOW_BRANCH_NAME] = gh_pr[SLOW_BRANCH_NAME]['number']
-                time.sleep(7)
-                post_repo(
-                    'hail-is/ci-test',
-                    f'pulls/{pr_number[SLOW_BRANCH_NAME]}/reviews',
-                    json={ "commit_id": source_sha, "event": "APPROVE" },
-                    status_code=200,
-                    user='user2'
-                )
 
                 # get details on first job of slow branch
                 pr[SLOW_BRANCH_NAME] = self.poll_until_pr_exists_and(
@@ -392,7 +414,7 @@ class TestCI(unittest.TestCase):
                         'state': 'running',
                         'review_state': 'pending',
                         'source_sha': source_sha[SLOW_BRANCH_NAME],
-                        'target_sha': first_target_sha[SLOW_BRANCH_NAME],
+                        'target_sha': first_target_sha,
                         'pr_number': str(pr_number[SLOW_BRANCH_NAME]),
                         'docker_image': 'google/cloud-sdk:alpine'
                     }
@@ -401,18 +423,10 @@ class TestCI(unittest.TestCase):
                 assert first_slow_job_id is not None
 
                 # start fast branch
-                call(['git', 'checkout', '-b', BRANCH_NAME])
-                call(['git', 'commit', '--allow-empty', '-m' 'foo'])
-                call(['git', 'push', 'origin', BRANCH_NAME])
-                source_sha[BRANCH_NAME] = run(['git', 'rev-parse', BRANCH_NAME], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                target_sha[BRANCH_NAME] = run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-                gh_pr[BRANCH_NAME] = post_repo(
-                    'hail-is/ci-test',
-                    'pulls',
-                    json={ "title" : "foo", "head": SLOW_BRANCH_NAME, "base": "master" },
-                    status_code=201
-                )
+                source_sha[BRANCH_NAME] = self.create_and_push_empty_commit(BRANCH_NAME)
+                gh_pr[BRANCH_NAME] = self.create_pull_request('foo', BRANCH_NAME)
                 pr_number[BRANCH_NAME] = gh_pr[BRANCH_NAME]['number']
+                self.approve(pr_number[BRANCH_NAME], source_sha[BRANCH_NAME])
 
                 # wait for fast branch to finish and merge
                 pr[BRANCH_NAME] = self.poll_until_merged_pr(BRANCH_NAME)
@@ -424,12 +438,16 @@ class TestCI(unittest.TestCase):
                         'state': 'merged',
                         'review_state': 'approved',
                         'source_sha': source_sha[BRANCH_NAME],
-                        'target_sha': first_target_sha[BRANCH_NAME],
+                        'target_sha': first_target_sha,
                         'pr_number': str(pr_number[BRANCH_NAME]),
                         'docker_image': 'google/cloud-sdk:alpine'
                     }
                 })
 
+                call(['git', 'fetch', 'origin'])
+                second_target_sha = self.current_master_sha()
+
+                # slow branch should be running again with the new target sha
                 pr[SLOW_BRANCH_NAME] = self.get_pr(SLOW_BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
@@ -438,14 +456,14 @@ class TestCI(unittest.TestCase):
                     'status': {
                         'state': 'running',
                         'review_state': 'pending',
-                        'source_sha': source_sha,
+                        'source_sha': source_sha[SLOW_BRANCH_NAME],
                         'target_sha': second_target_sha,
                         'pr_number': str(pr_number),
-                        'docker_image': 'google/cloud-sdk:alpine'
+                        'docker_image': 'google/cloud-sdk:alpine',
+                        'job_id': Match.notEqual(first_slow_job_id)
                     }
                 })
-                second_slow_job_id = pr[SLOW_BRANCH_NAME]['status']['job_id']
-                assert second_slow_job_id != first_slow_job_id
+
                 pr[SLOW_BRANCH_NAME] = self.poll_until_finished_pr(SLOW_BRANCH_NAME)
                 assertDictHasKVs(pr, {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
@@ -457,17 +475,17 @@ class TestCI(unittest.TestCase):
                         'source_sha': source_sha,
                         'target_sha': second_target_sha,
                         'pr_number': str(pr_number),
-                        'docker_image': 'google/cloud-sdk:alpine'
+                        'docker_image': 'google/cloud-sdk:alpine',
+                        'job_id': second_slow_job_id
                     }
                 })
-                assert pr[SLOW_BRANCH_NAME]['status']['job_id'] == second_slow_job_id
             finally:
                 call(['git', 'push', 'origin', ':'+SLOW_BRANCH_NAME])
                 call(['git', 'push', 'origin', ':'+BRANCH_NAME])
                 for pr_number in pr_number.values():
                     patch_repo(
                         'hail-is/ci-test',
-                        f'pulls/{b1_pr_number}',
+                        f'pulls/{pr_number}',
                         json={ "state" : "closed" },
                         status_code=200
                     )
