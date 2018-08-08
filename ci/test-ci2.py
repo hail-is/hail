@@ -153,7 +153,10 @@ class TestCI(unittest.TestCase):
         assert len(prs) == 1
         return prs[0]
 
-    def poll_until_finished_pr(self, source_ref, delay_in_seconds=20, max_polls=10):
+    DELAY_IN_SECONDS=20
+    MAX_POLLS=15
+
+    def poll_until_finished_pr(self, source_ref, delay_in_seconds=DELAY_IN_SECONDS, max_polls=MAX_POLLS):
         return self.poll_pr(
             source_ref,
             lambda pr: pr['status']['state'] == 'running' or pr['status']['state'] == 'pending',
@@ -161,7 +164,7 @@ class TestCI(unittest.TestCase):
             max_polls=max_polls
         )
 
-    def poll_until_running_pr(self, source_ref, delay_in_seconds=20, max_polls=10):
+    def poll_until_running_pr(self, source_ref, delay_in_seconds=DELAY_IN_SECONDS, max_polls=MAX_POLLS):
         return self.poll_pr(
             source_ref,
             lambda pr: pr['status']['state'] == 'pending',
@@ -169,7 +172,7 @@ class TestCI(unittest.TestCase):
             max_polls=max_polls
         )
 
-    def poll_pr(self, source_ref, poll_until_false, delay_in_seconds=20, max_polls=10):
+    def poll_pr(self, source_ref, poll_until_false, delay_in_seconds=DELAY_IN_SECONDS, max_polls=MAX_POLLS):
         pr = self.get_pr(source_ref)
         polls = 0
         while poll_until_false(pr):
@@ -357,6 +360,11 @@ class TestCI(unittest.TestCase):
                     json={ "commit_id": source_sha, "event": "APPROVE" },
                     status_code=200,
                     user='user2'
+                )
+                r = get_repo(
+                    'hail-is/ci-test',
+                    f'pulls/{pr_number}/reviews',
+                    status_code=200
                 )
                 time.sleep(7)
                 pr = self.poll_until_finished_pr(BRANCH_NAME)

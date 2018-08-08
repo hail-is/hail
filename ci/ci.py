@@ -86,7 +86,13 @@ gcs_client = storage.Client(project=GCP_PROJECT)
 ###############################################################################
 ### Global State & Setup
 
+def implies(antecedent, consequent):
+    return not antecedent or consequent
+
 class Status(object):
+    states = set(['failure', 'pending', 'success', 'running', 'merged'])
+    review_states = set(['approved', 'changes_requested', 'pending'])
+
     def __init__(self,
                  state,
                  review_state,
@@ -94,11 +100,11 @@ class Status(object):
                  target_sha,
                  pr_number,
                  job_id=None,
-                 docker_image=None):
-        assert state == 'failure' or state == 'pending' or state == 'success' or state == 'running'
-        assert review_state == 'approved' or review_state == 'changes_requested' or review_state == 'pending', review_state
-        if state == 'pending':
-            assert job_id is None
+                 docker_image=None,
+                 gc=0):
+        assert state in Status.states
+        assert review_state in Status.review_states
+        assert implies(state == 'pending', job_id is None)
         self.state = state
         self.review_state = review_state
         self.source_sha = source_sha
@@ -106,6 +112,7 @@ class Status(object):
         self.pr_number = pr_number
         self.job_id = job_id
         self.docker_image = docker_image
+        self.gc = gc
 
     class Sentinel(object):
         pass
@@ -118,18 +125,76 @@ class Status(object):
              target_sha=keep,
              pr_number=keep,
              job_id=keep,
-             docker_image=keep):
+             docker_image=keep,
+             gc=keep):
         return Status(state=self.state if state is Status.keep else state,
                       review_state=self.review_state if review_state is Status.keep else review_state,
                       source_sha=self.source_sha if source_sha is Status.keep else source_sha,
                       target_sha=self.target_sha if target_sha is Status.keep else target_sha,
                       pr_number=self.pr_number if pr_number is Status.keep else pr_number,
                       job_id=self.job_id if job_id is Status.keep else job_id,
-                      docker_image=self.docker_image if docker_image is Status.keep else docker_image)
+                      docker_image=self.docker_image if docker_image is Status.keep else docker_image,
+                      gc=self.gc if gc is Status.keep else gc)
 
     def github_state_up_to_date(self, github_state):
         return (self.state == github_state or
                 self.state == 'running' and github_state == 'pending')
+
+    # but target_url, target_ref, source_url, source_ref on Status so I can
+    # compute docker_image myself
+    def target_change(self, new_sha, docker_image):
+        if state == 'merged':
+            return self
+        else:
+            return self.copy(
+                state='pending',
+                target_sha=new_sha,
+                job_id=None,
+                docker_image=docker_image
+            )
+
+    def build_succeeded(self, pr_number, job_id):
+        if state == 'merged':
+            log.warn(
+                f'was notified of succeeding build for already merged PR! '
+                f'{pr_number}, {job_id}, {self.to_json()}')
+            return self
+        else:
+            return self.copy(
+                state='success',
+                # what does it mean if pr_number is different?
+                pr_number=pr_number,
+                # what does it mean if job_id is different?
+                job_id=job_id)
+
+    def build_failed(self, pr_number, job_id):
+        if state == 'merged':
+            log.error(
+                f'was notified of failing build for already merged PR! '
+                f'{pr_number}, {job_id}, {self.to_json()}')
+            return self
+        else:
+            return self.copy(
+                state='failed',
+                # what does it mean if pr_number is different?
+                pr_number=pr_number,
+                # what does it mean if job_id is different?
+                job_id=job_id)
+
+    def merged(self):
+        return self.copy(state='merged')
+
+    def running(self, job_id):
+        assert state != 'merged', self.to_json()
+        return self.copy(state='running', job_id=job.id)
+
+    def pending(self):
+        assert state != 'merged', self.to_json()
+        return self.copy(state='pending', job_id=None)
+
+    def surivived_a_gc(self):
+        assert state == 'merged' and gc == 0, self.to_json()
+        return self.copy(gc=self.gc+1)
 
     def to_json(self):
         return {
@@ -153,6 +218,10 @@ def update_pr_status(source_url, source_ref, target_url, target_ref, status):
         source_target_pr[(source_url, source_ref)] = {}
     target_source_pr[(target_url, target_ref)][(source_url, source_ref)] = status
     source_target_pr[(source_url, source_ref)][(target_url, target_ref)] = status
+
+def remove_pr(source_url, source_ref, target_url, target_ref):
+    target_source_pr[(target_url, target_ref)].pop((source_url, source_ref))
+    source_target_pr[(source_url, source_ref)].pop((target_url, target_ref))
 
 def get_pr_status(source_url, source_ref, target_url, target_ref, default=None):
     x = source_target_pr.get((source_url, source_ref), {}).get((target_url, target_ref), default)
@@ -241,6 +310,16 @@ def get_repo(repo, url, headers=None, status_code=None):
         headers=headers,
         status_code=status_code)
 
+def put_repo(repo, url, headers=None, json=None, data=None, status_code=None):
+    return verb_repo(
+        'put',
+        repo,
+        url,
+        headers=headers,
+        json=json,
+        data=data,
+        status_code=status_code)
+
 def get_github(url, headers=None, status_code=None):
     return verb_github(
         'get',
@@ -263,9 +342,6 @@ def verb_repo(verb,
         data=data,
         status_code=status_code)
 
-def implies(antecedent, consequent):
-    return not antecedent or consequent
-
 verbs = set(['post', 'put', 'get'])
 def verb_github(verb,
                 url,
@@ -273,6 +349,10 @@ def verb_github(verb,
                 json=None,
                 data=None,
                 status_code=None):
+    if isinstance(status_code, int):
+        status_codes = [status_code]
+    else:
+        status_codes = status_code
     assert verb in verbs
     assert implies(verb == 'post' or verb == 'put', json is not None or data is not None)
     assert implies(verb == 'get', json is None and data is None)
@@ -282,25 +362,31 @@ def verb_github(verb,
         raise ValueError(
             'Header already has Authorization? ' + str(headers))
     headers['Authorization'] = 'token ' + oauth_token
-    full_url = f'{GITHUB_URL}{url}',
+    full_url = f'{GITHUB_URL}{url}'
     if verb == 'get':
         r = requests.get(full_url, headers=headers)
     elif verb == 'post':
         r = requests.post(full_url, headers=headers, data=data, json=json)
     elif verb == 'put':
         r = requests.put(full_url, headers=headers, data=data, json=json)
-    if status_code and r.status_code != status_code:
+    if status_codes and r.status_code not in status_codes:
         raise BadStatus({
             'method': verb,
             'endpoint' : full_url,
-            'status_code' : r.status_code,
+            'status_code' : {
+                'actual': r.status_code,
+                'expected': status_codes
+            },
             'message': 'github error',
             'data': data,
             'json': json,
             'github_json': r.json()
         }, r.status_code)
     else:
-        return r.json()
+        if isinstance(status_code, list):
+            return (r.json(), r.status_code)
+        else:
+            return r.json()
 
 ###############################################################################
 ### Error Handlers
@@ -351,10 +437,7 @@ def github_push():
                     source_ref,
                     target_url,
                     target_ref,
-                    status.copy(state='pending',
-                                target_sha=new_sha,
-                                job_id=None,
-                                docker_image=docker_image))
+                    status.target_change(new_sha, docker_image))
         heal()
     else:
         log.info(f'ignoring ref push {ref} because it does not start with refs/heads/')
@@ -461,11 +544,7 @@ def build_finished(pr_number,
             source_ref,
             target_url,
             target_ref,
-            status.copy(state='success',
-                        # what does it mean if pr_number is different?
-                        pr_number=pr_number,
-                        # what does it mean if job_id is different?
-                        job_id=job_id)
+            status.build_succeeded(pr_number, job_id)
         )
         post_repo(
             repo_from_url(target_url),
@@ -485,9 +564,7 @@ def build_finished(pr_number,
             source_ref,
             target_url,
             target_ref,
-            status.copy(state='failure',
-                        pr_number=pr_number,
-                        job_id=job_id)
+            status.build_failed(pr_number, job_id)
         )
         status_message = f'failing build ({exit_code}) after merge with {target_sha}'
         post_repo(
@@ -516,36 +593,95 @@ def heal():
         if len(ready_to_merge) != 0:
             # pick oldest one instead
             ((source_url, source_ref), status) = ready_to_merge[0]
-            log.info(f'normally I would merge {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
-        # else:
-        approved_running = [(source, status)
-                            for source, status in prs.items()
-                            if status.state == 'running'
-                            and status.review_state == 'approved']
-        if len(approved_running) != 0:
-            approved_running_json = [(source, status.to_json()) for (source, status) in approved_running]
-            log.info(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running_json}')
-        else:
-            approved = [(source, status)
-                        for source, status in prs.items()
-                        if status.state == 'pending'
-                        and status.review_state == 'approved']
-            if len(approved) != 0:
-                # pick oldest one instead
-                ((source_url, source_ref), status) = approved[0]
-                log.info(f'no approved and running prs, will build: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
-                test_pr(source_url, source_ref, target_url, target_ref, status)
+            log.info(f'merging {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
+            pr_number = status.pr_number
+            (gh_response, status_code) = put_repo(
+                repo_from_url(target_url),
+                f'pulls/{pr_number}/merge',
+                json={
+                    'merge_method': 'squash',
+                    'sha': status.source_sha
+                },
+                status_code=[200, 409]
+            )
+            if status_code == 200:
+                log.info(
+                    f'successful merge of {source_url}:{source_ref} into '
+                    f'{target_url}:{target_ref} with status {status.to_json()}')
             else:
-                untested = [(source, status)
+                assert status_code == 409, f'{status_code} {gh_response}'
+                log.warn(
+                    f'failure to merge {source_url}:{source_ref} into '
+                    f'{target_url}:{target_ref} with status {status.to_json()} '
+                    f'due to {status_code} {gh_response}, removing PR, github '
+                    f'state refresh will recover and retest if necessary')
+            update_pr_status(
+                source_url,
+                source_ref,
+                target_url,
+                target_ref,
+                status.merged()
+            )
+        else:
+            approved_running = [(source, status)
+                                for source, status in prs.items()
+                                if status.state == 'running'
+                                and status.review_state == 'approved']
+            if len(approved_running) != 0:
+                approved_running_json = [(source, status.to_json()) for (source, status) in approved_running]
+                log.info(f'at least one approved PR is already being tested against {target_url}:{target_ref}, I will not test any others. {approved_running_json}')
+            else:
+                approved = [(source, status)
                             for source, status in prs.items()
-                            if status.state == 'pending']
-                if len(untested) != 0:
-                    log.info('no approved prs, will build all PRs with out of date statuses')
-                    for (source_url, source_ref), status in untested:
-                        log.info(f'building: {target_url}:{target_ref} <- {source_url}:{source_ref}; {status.target_sha} <- {status.source_sha}')
-                        test_pr(source_url, source_ref, target_url, target_ref, status)
+                            if status.state == 'pending'
+                            and status.review_state == 'approved']
+                if len(approved) != 0:
+                    # pick oldest one instead
+                    ((source_url, source_ref), status) = approved[0]
+                    log.info(
+                        f'no approved and running prs, will build: '
+                        f'{target_url}:{target_ref} <- {source_url}:{source_ref} '
+                        f'{status.to_json()}')
+                    test_pr(source_url, source_ref, target_url, target_ref, status)
                 else:
-                    log.info(f'all prs are tested or running for {target_url}:{target_ref}')
+                    untested = [(source, status)
+                                for source, status in prs.items()
+                                if status.state == 'pending']
+                    if len(untested) != 0:
+                        log.info('no approved prs, will build all PRs with out of date statuses')
+                        for (source_url, source_ref), status in untested:
+                            log.info(
+                                f'building: '
+                                f'{target_url}:{target_ref} <- {source_url}:{source_ref}'
+                                f'{status.to_json()}')
+                            test_pr(source_url, source_ref, target_url, target_ref, status)
+                    else:
+                        log.info(f'all prs are tested or running for {target_url}:{target_ref}')
+
+@app.route('/gc', methods=['POST'])
+def gc():
+    for (target_url, target_ref), prs in target_source_pr.items():
+        log.info(f'attempting to clean up old merged PRs for {target_url}:{target_ref}')
+        ready_to_gc = [(source, status)
+                       for source, status in prs.items()
+                       if status.state == 'merged' and status.gc > 0]
+        if len(ready_to_gc) > 0:
+            ready_to_gc_message = [f'{source_url}:{source_ref}' for (source_url, source_ref) in ready_to_gc.keys()]
+            log.info(f'removing {len(ready_to_gc)} old merged PRs for {target_url}:{target_ref}: {ready_to_gc_message}')
+            for ((source_url, source_ref), status) in ready_to_gc:
+                remove_pr(source_url, source_ref, target_url, target_ref)
+            merged_and_old = [(source, status)
+                              for source, status in prs.items()
+                              if status.state == 'merged' and status.gc == 0]
+        for ((source_url, source_ref), status) in merged_and_old:
+            update_pr_status(
+                source_url,
+                source_ref,
+                target_url,
+                target_ref,
+                status.survived_a_gc()
+            )
+    return '', 200
 
 @app.route('/force_retest_pr', methods=['POST'])
 def force_retest_pr_endpoint():
@@ -658,7 +794,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         source_ref,
         target_url,
         target_ref,
-        status.copy(state='running', job_id=job.id)
+        status.running(job_id)
     )
     log.info(f'successfully updated status about job {job.id}')
 
@@ -709,7 +845,7 @@ def refresh_github_state():
                                  f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
                         docker_image = get_build_image(target_url, target_ref, target_sha,
                                                        source_url, source_ref, source_sha)
-                        if status.state == 'running' and latest_state == 'pending':
+                        if status and status.state == 'running' and latest_state == 'pending':
                             latest_state = 'running'
                             job_id = status.job_id
                         else:
@@ -757,8 +893,8 @@ def refresh_batch_state():
             if job2 is None:
                 latest_jobs[key] = job
             else:
-                job2_state = job2.status()['state']
-                job_state = job.status()['state']
+                job2_state = job2.cached_status()['state']
+                job_state = job.cached_status()['state']
                 if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
                     job2.id < job.id):
                     try_to_cancel_job(job2)
@@ -768,7 +904,7 @@ def refresh_batch_state():
 
     for job in latest_jobs.values():
         job_id = job.id
-        job_status = job.status()
+        job_status = job.cached_status()
         job_state = job_status['state']
         pr_number = job.attributes['pr_number']
         source_url = job.attributes['source_url']
@@ -820,7 +956,8 @@ def refresh_batch_state():
                     )
                     update_pr_status(
                         source_url, source_ref, target_url, target_ref,
-                        status.copy(state='pending', job_id=None))
+                        status.pending()
+                    )
                 else:
                     log.info(f'already knew {target_url}:{target_ref} <- {source_url}:{source_ref} '
                              f'was pending for {target_sha} <- {source_sha}')
@@ -1044,6 +1181,8 @@ def polling_event_loop():
            r = requests.post('http://127.0.0.1:5000/refresh_batch_state')
            r.raise_for_status()
            r = requests.post('http://127.0.0.1:5000/heal')
+           r.raise_for_status()
+           r = requests.post('http://127.0.0.1:5000/gc')
            r.raise_for_status()
         except Exception as e:
             log.error(f'Could not poll due to exception: {e}')
