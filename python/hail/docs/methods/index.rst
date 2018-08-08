@@ -66,8 +66,8 @@ Methods
     realized_relationship_matrix
     sample_qc
     skat
+    split_multi
     split_multi_hts
-    SplitMulti
     transmission_disequilibrium_test
     trio_matrix
     variant_qc

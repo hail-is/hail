@@ -1321,18 +1321,18 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
 
     :func:`.split_multi` adds the following fields:
 
-     - `was_split` (*Boolean*) -- ``True`` if this variant was originally
+     - `was_split` (*bool*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
 
-     - `a_index` (*Int*) -- The original index of this alternate allele in the
+     - `a_index` (*int*) -- The original index of this alternate allele in the
        multiallelic representation (NB: 1 is the first alternate allele or the
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
        splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
        with ``a_index = 2``.
 
-     - `old_locus` (*Locus*) -- The original, unsplit locus.
+     - `old_locus` (*locus*) -- The original, unsplit locus.
 
-     - `old_alleles` (*Array[String]*) -- The original, unsplit alleles.
+     - `old_alleles` (*array<str>*) -- The original, unsplit alleles.
 
      All other fields are left unchanged.
 
@@ -1374,7 +1374,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
     :class:`.MatrixTable` or :class:`.Table`
     """
 
-    require_row_key_variant(ds, "SplitMulti")
+    require_row_key_variant(ds, "split_multi")
     new_id = Env.get_uid()
     is_table = isinstance(ds, Table)
 
@@ -1563,10 +1563,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     :func:`.split_multi_hts` adds the following fields:
 
-     - `was_split` (*Boolean*) -- ``True`` if this variant was originally
+     - `was_split` (*bool*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
 
-     - `a_index` (*Int*) -- The original index of this alternate allele in the
+     - `a_index` (*int*) -- The original index of this alternate allele in the
        multiallelic representation (NB: 1 is the first alternate allele or the
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
        splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
