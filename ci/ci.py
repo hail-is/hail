@@ -675,7 +675,8 @@ def gc():
                        for source, status in prs.items()
                        if status.state == 'merged' and status.gc > 0]
         if len(ready_to_gc) > 0:
-            ready_to_gc_message = [f'{source_url}:{source_ref} {status}' for ((source_url, source_ref), status) in ready_to_gc]
+            ready_to_gc_message = [f'{source_url}:{source_ref} {status.to_json()}'
+                                   for ((source_url, source_ref), status) in ready_to_gc]
             log.info(f'removing {len(ready_to_gc)} old merged PRs for {target_url}:{target_ref}: {ready_to_gc_message}')
             for ((source_url, source_ref), status) in ready_to_gc:
                 remove_pr(source_url, source_ref, target_url, target_ref)
@@ -831,8 +832,12 @@ def refresh_github_state():
                 pulls_by_target[target_ref].append(pull)
             log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
             gh_targets = set([(target_url, ref) for ref in pulls_by_target.keys()])
-            for (dead_target_url, dead_target_ref) in gh_targets - set(get_pr_targets()):
-                pop_prs_for_target(dead_target_ref, dead_target_url)
+            for (dead_target_url, dead_target_ref) in set(get_pr_targets()) - gh_targets:
+                prs = pop_prs_for_target(dead_target_ref, dead_target_url)
+                if len(prs) != 0:
+                    log.info(
+                        f'no open PRs for {target_url}:{target_ref} on GitHub, '
+                        f'forgetting the {len(prs)} PRs I was tracking')
             for target_ref, pulls in pulls_by_target.items():
                 target_sha = get_sha_for_target_ref(target_url, target_ref)
                 log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
