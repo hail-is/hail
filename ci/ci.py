@@ -231,13 +231,6 @@ def get_pr_status(source_url, source_ref, target_url, target_ref, default=None):
     assert x == y, str(x) + str(y)
     return x
 
-def pop_prs_for_target(target_url, target_ref):
-    prs = target_source_pr.pop((target_url, target_ref), {})
-    for (source_url, source_ref), status in prs.items():
-        x = source_target_pr[(source_url, source_ref)]
-        del x[(target_url, target_ref)]
-    return prs
-
 def pop_prs_for_target(target_url, target_ref, default):
     prs = target_source_pr.pop((target_url, target_ref), None)
     if prs is None:
@@ -833,7 +826,7 @@ def refresh_github_state():
             log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
             gh_targets = set([(target_url, ref) for ref in pulls_by_target.keys()])
             for (dead_target_url, dead_target_ref) in set(get_pr_targets()) - gh_targets:
-                prs = pop_prs_for_target(dead_target_ref, dead_target_url)
+                prs = pop_prs_for_target(dead_target_ref, dead_target_url, {})
                 if len(prs) != 0:
                     log.info(
                         f'no open PRs for {target_url}:{target_ref} on GitHub, '
