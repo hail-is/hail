@@ -140,6 +140,7 @@ profile file for your shell (e.g. ``~/.bash_profile``).
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python/lib/py4j-*-src.zip"
     ## PYSPARK_SUBMIT_ARGS is used by ipython and jupyter
     export PYSPARK_SUBMIT_ARGS="\
+      --jars $HAIL_HOME/build/libs/hail-all-spark.jar \
       --conf spark.driver.extraClassPath=\"$HAIL_HOME/build/libs/hail-all-spark.jar\" \
       --conf spark.executor.extraClassPath=./hail-all-spark.jar \
       --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
@@ -162,6 +163,7 @@ pass the configuration from ``PYSPARK_SUBMIT_ARGS`` directly as well as adding
 extra configuration parameters specific to running Hail through ``pyspark``::
 
     pyspark \
+      --jars $HAIL_HOME/build/libs/hail-all-spark.jar \
       --conf spark.driver.extraClassPath=$HAIL_HOME/build/libs/hail-all-spark.jar \
       --conf spark.executor.extraClassPath=./hail-all-spark.jar \
       --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
