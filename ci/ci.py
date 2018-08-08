@@ -205,7 +205,8 @@ class Status(object):
             'target_sha': self.target_sha,
             'pr_number': self.pr_number,
             'job_id': self.job_id,
-            'docker_image': self.docker_image
+            'docker_image': self.docker_image,
+            'gc': self.gc
         }
 
 watched_repos = INITIAL_WATCHED_REPOS
