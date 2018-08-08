@@ -54,13 +54,52 @@ def ci_get(endpoint, status_code=None, json_response=True):
     else:
         return r.text
 
-def post_repo(repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
-    return modify_repo('post', repo, url, headers, json, data, status_code, user=user)
+def post_repo(repo,
+              url,
+              headers=None,
+              json=None,
+              data=None,
+              status_code=None,
+              user='user1',
+              json_response=True):
+    return modify_repo(
+        'post',
+        repo,
+        url,
+        headers,
+        json,
+        data,
+        status_code,
+        user=user,
+        json_response=json_response)
 
-def patch_repo(repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
-    return modify_repo('patch', repo, url, headers, json, data, status_code, user=user)
+def patch_repo(repo,
+               url,
+               headers=None,
+               json=None,
+               data=None,
+               status_code=None,
+               user='user1',
+               json_response=True):
+    return modify_repo(
+        'patch',
+        repo,
+        url,
+        headers,
+        json,
+        data,
+        status_code,
+        user=user)
 
-def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code=None, user='user1'):
+def modify_repo(verb,
+                repo,
+                url,
+                headers=None,
+                json=None,
+                data=None,
+                status_code=None,
+                user='user1',
+                json_response=True):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
@@ -92,8 +131,10 @@ def modify_repo(verb, repo, url, headers=None, json=None, data=None, status_code
             'message': 'github error',
             'github_json': r.json()
         }, r.status_code)
-    else:
+    elif json_response:
         return r.json()
+    else:
+        return r.text
 
 def get_repo(repo, url, headers=None, status_code=None, user='user1'):
     return get_github(f'repos/{repo}/{url}', headers, status_code, user=user)
@@ -403,7 +444,8 @@ class TestCI(unittest.TestCase):
                 get_repo(
                     'hail-is/ci-test',
                     f'pulls/{pr_number}/merge',
-                    status_code=204 # 204 NO CONTENT means merged, 404 means not merged
+                    status_code=204, # 204 NO CONTENT means merged, 404 means not merged
+                    json_response=False
                 )
             finally:
                 call(['git', 'push', 'origin', ':'+BRANCH_NAME])
