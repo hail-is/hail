@@ -253,6 +253,9 @@ def get_pr_status_by_source(source_url, source_ref):
 def get_pr_status_by_target(target_url, target_ref):
     return target_source_pr.get((target_url, target_ref), {})
 
+def get_pr_targets():
+    return target_source_pr.keys()
+
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
 def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
@@ -827,6 +830,9 @@ def refresh_github_state():
                 target_ref = pull['base']['ref']
                 pulls_by_target[target_ref].append(pull)
             log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
+            gh_targets = set([(target_url, ref) for ref in pulls_by_target.keys()])
+            for (dead_target_url, dead_target_ref) in gh_targets - set(get_pr_targets()):
+                pop_prs_for_target(dead_target_ref, dead_target_url)
             for target_ref, pulls in pulls_by_target.items():
                 target_sha = get_sha_for_target_ref(target_url, target_ref)
                 log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
