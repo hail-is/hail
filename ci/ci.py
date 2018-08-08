@@ -625,6 +625,7 @@ def heal():
                 target_ref,
                 status.merged()
             )
+            # FIXME: eagerly update statuses for all PRs targeting this branch
         else:
             approved_running = [(source, status)
                                 for source, status in prs.items()
