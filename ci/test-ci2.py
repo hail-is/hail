@@ -89,7 +89,8 @@ def patch_repo(repo,
         json,
         data,
         status_code,
-        user=user)
+        user=user,
+        json_response=json_response)
 
 def modify_repo(verb,
                 repo,
@@ -136,10 +137,24 @@ def modify_repo(verb,
     else:
         return r.text
 
-def get_repo(repo, url, headers=None, status_code=None, user='user1'):
-    return get_github(f'repos/{repo}/{url}', headers, status_code, user=user)
+def get_repo(repo,
+             url,
+             headers=None,
+             status_code=None,
+             user='user1',
+             json_response=True):
+    return get_github(
+        f'repos/{repo}/{url}',
+        headers,
+        status_code,
+        user=user,
+        json_response=json_response)
 
-def get_github(url, headers=None, status_code=None, user='user1'):
+def get_github(url,
+               headers=None,
+               status_code=None,
+               user='user1',
+               json_response=True):
     if headers is None:
         headers = {}
     if 'Authorization' in headers:
@@ -158,8 +173,10 @@ def get_github(url, headers=None, status_code=None, user='user1'):
             'message': 'github error',
             'github_json': r.json()
         }, r.status_code)
-    else:
+    elif json_response:
         return r.json()
+    else:
+        return r.text
 
 ###############################################################################
 
