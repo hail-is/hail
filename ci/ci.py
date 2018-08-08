@@ -192,7 +192,7 @@ class Status(object):
         assert self.state != 'merged', self.to_json()
         return self.copy(state='pending', job_id=None)
 
-    def surivived_a_gc(self):
+    def survived_a_gc(self):
         assert self.state == 'merged' and self.gc == 0, self.to_json()
         return self.copy(gc=self.gc+1)
 
@@ -417,6 +417,9 @@ def github_push():
         target_ref = ref[11:]
         target_url = data['repository']['clone_url']
         pr_statuses = get_pr_status_by_target(target_url, target_ref)
+        log.info(
+            f'{target_url}:{target_ref} was updated to {new_sha}, '
+            f'{len(pr_statuses)} (possibly recently merged) PRs target this ref')
         for (source_url, source_ref), status in pr_statuses.items():
             if (status.target_sha != new_sha):
                 cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
@@ -666,7 +669,7 @@ def gc():
                        for source, status in prs.items()
                        if status.state == 'merged' and status.gc > 0]
         if len(ready_to_gc) > 0:
-            ready_to_gc_message = [f'{source_url}:{source_ref}' for (source_url, source_ref) in ready_to_gc.keys()]
+            ready_to_gc_message = [f'{source_url}:{source_ref} {status}' for ((source_url, source_ref), status) in ready_to_gc]
             log.info(f'removing {len(ready_to_gc)} old merged PRs for {target_url}:{target_ref}: {ready_to_gc_message}')
             for ((source_url, source_ref), status) in ready_to_gc:
                 remove_pr(source_url, source_ref, target_url, target_ref)
