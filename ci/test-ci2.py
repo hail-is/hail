@@ -369,8 +369,8 @@ class TestCI(unittest.TestCase):
             user='user2'
         )
 
-    def current_master_sha(self):
-        return run(['git', 'rev-parse', 'master'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+    def rev_parse(self, ref):
+        return run(['git', 'rev-parse', ref], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
     def test_push_while_building(self):
         BRANCH_NAME='test_push_while_building'
@@ -391,13 +391,13 @@ class TestCI(unittest.TestCase):
 
                 # start slow branch
                 call(['git', 'checkout', 'master'])
+                first_target_sha = self.rev_parse('master')
                 call(['git', 'checkout', '-b', SLOW_BRANCH_NAME])
                 with open('hail-ci-build.sh', 'w') as f:
                     f.write('sleep 30')
                 call(['git', 'add', 'hail-ci-build.sh'])
                 call(['git', 'commit', '-m', 'foo'])
                 source_sha[SLOW_BRANCH_NAME] = self.push(SLOW_BRANCH_NAME)
-                first_target_sha = self.current_master_sha()
                 gh_pr[SLOW_BRANCH_NAME] = self.create_pull_request('foo', SLOW_BRANCH_NAME)
                 pr_number[SLOW_BRANCH_NAME] = gh_pr[SLOW_BRANCH_NAME]['number']
 
@@ -444,12 +444,14 @@ class TestCI(unittest.TestCase):
                     }
                 })
 
-                call(['git', 'fetch', 'origin'])
-                second_target_sha = self.current_master_sha()
+                print('git fetch origin')
+                second_target_sha = self.rev_parse('origin/master')
+
+                time.sleep(5) # allow github push notification to be sent
 
                 # slow branch should be running again with the new target sha
                 pr[SLOW_BRANCH_NAME] = self.get_pr(SLOW_BRANCH_NAME)
-                assertDictHasKVs(pr, {
+                assertDictHasKVs(pr[SLOW_BRANCH_NAME], {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
                     'target_ref': 'master',
@@ -458,14 +460,14 @@ class TestCI(unittest.TestCase):
                         'review_state': 'pending',
                         'source_sha': source_sha[SLOW_BRANCH_NAME],
                         'target_sha': second_target_sha,
-                        'pr_number': str(pr_number),
+                        'pr_number': str(pr_number[SLOW_BRANCH_NAME]),
                         'docker_image': 'google/cloud-sdk:alpine',
                         'job_id': Match.notEqual(first_slow_job_id)
                     }
                 })
 
                 pr[SLOW_BRANCH_NAME] = self.poll_until_finished_pr(SLOW_BRANCH_NAME)
-                assertDictHasKVs(pr, {
+                assertDictHasKVs(pr[SLOW_BRANCH_NAME], {
                     'source_url': 'https://github.com/hail-is/ci-test.git',
                     'target_url': 'https://github.com/hail-is/ci-test.git',
                     'target_ref': 'master',
@@ -474,7 +476,7 @@ class TestCI(unittest.TestCase):
                         'review_state': 'pending',
                         'source_sha': source_sha,
                         'target_sha': second_target_sha,
-                        'pr_number': str(pr_number),
+                        'pr_number': str(pr_number[SLOW_BRANCH_NAME]),
                         'docker_image': 'google/cloud-sdk:alpine',
                         'job_id': second_slow_job_id
                     }
