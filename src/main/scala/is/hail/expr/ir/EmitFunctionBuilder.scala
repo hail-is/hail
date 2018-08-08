@@ -247,18 +247,6 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  val partitionIndexField: ClassFieldRef[Int] = {
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
-    val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
-    val field = mb.newField[Int]
-    methods.append(mb)
-    mb.emit(field := mb.getArg[Int](1))
-    field
-  }
-
-  def getRNG(seed: Long): Code[IRRandomness] =
-    newLazyField[IRRandomness](Code.newInstance[IRRandomness, Long, Int](seed, partitionIndexField))
-
   override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
@@ -297,7 +285,44 @@ class EmitFunctionBuilder[F >: Null](
     df
   }
 
+  val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
+
+  def makeRNGs() {
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
+
+    val initialized = newField[Boolean]
+    val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
+    methods += mb
+
+    val rngFields = rngs.result()
+    val initialize = Code(rngFields.map { case (field, initialization) =>
+        field := initialization
+    }: _*)
+
+    val setPartitionIndices = Code(rngFields.map { case (field, _) =>
+      field.invoke[Int, Unit]("setPartitionIndex", mb.getArg[Int](1))
+    }: _*)
+
+    val reseed = Code(rngFields.map { case (field, _) =>
+      field.invoke[Unit]("reseed")
+    }: _*)
+
+    mb.emit(Code(
+      initialized.mux(
+        Code._empty,
+        Code(initialize, initialized := true)),
+      setPartitionIndices,
+      reseed))
+  }
+
+  def getRNG(seed: Long): Code[IRRandomness] = {
+    val rng = newField[IRRandomness]
+    rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
+    rng
+  }
+
   def resultWithIndex(print: Option[PrintWriter] = None): Int => F = {
+    makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
@@ -320,11 +345,10 @@ class EmitFunctionBuilder[F >: Null](
                 f = loadClass(n, bytes).newInstance().asInstanceOf[F]
                 if (localHConf != null)
                   f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
-                f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
               }
             }
           }
-
+          f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {
           //  only triggers on classloader

@@ -10,11 +10,18 @@ import is.hail.stats.{chisqStruct, entropy, fetStruct, hweStruct, uniroot}
 import is.hail.utils.fatal
 
 
-class IRRandomness(seed: Long, partitionIndex: Int) {
-  private[this] val combinedSeed = seed ^ java.lang.Math.floorMod(partitionIndex * 11399, 17863)
+class IRRandomness(seed: Long) {
 
-  val random: RandomDataGenerator = new RandomDataGenerator()
-  random.reSeed(combinedSeed)
+  protected[this] var pidx: Int = 0
+  private[this] val random: RandomDataGenerator = new RandomDataGenerator()
+
+  def setPartitionIndex(partitionIdx: Int): Unit =
+    pidx = partitionIdx
+
+  def reseed() {
+    val combinedSeed = seed ^ java.lang.Math.floorMod(pidx * 11399, 17863)
+    random.reSeed(combinedSeed)
+  }
 
   def runif(min: Double, max: Double): Double = random.nextUniform(min, max, true)
 
