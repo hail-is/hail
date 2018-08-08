@@ -465,6 +465,7 @@ class TestCI(unittest.TestCase):
                         'job_id': Match.notEqual(first_slow_job_id)
                     }
                 })
+                second_slow_job_id = pr[SLOW_BRANCH_NAME]['status']['job_id']
 
                 pr[SLOW_BRANCH_NAME] = self.poll_until_finished_pr(SLOW_BRANCH_NAME)
                 assertDictHasKVs(pr[SLOW_BRANCH_NAME], {
@@ -474,7 +475,7 @@ class TestCI(unittest.TestCase):
                     'status': {
                         'state': 'success',
                         'review_state': 'pending',
-                        'source_sha': source_sha,
+                        'source_sha': source_sha[SLOW_BRANCH_NAME],
                         'target_sha': second_target_sha,
                         'pr_number': str(pr_number[SLOW_BRANCH_NAME]),
                         'docker_image': 'google/cloud-sdk:alpine',
