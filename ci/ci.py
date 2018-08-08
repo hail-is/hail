@@ -670,9 +670,9 @@ def gc():
             log.info(f'removing {len(ready_to_gc)} old merged PRs for {target_url}:{target_ref}: {ready_to_gc_message}')
             for ((source_url, source_ref), status) in ready_to_gc:
                 remove_pr(source_url, source_ref, target_url, target_ref)
-            merged_and_old = [(source, status)
-                              for source, status in prs.items()
-                              if status.state == 'merged' and status.gc == 0]
+        merged_and_old = [(source, status)
+                          for source, status in prs.items()
+                          if status.state == 'merged' and status.gc == 0]
         for ((source_url, source_ref), status) in merged_and_old:
             update_pr_status(
                 source_url,
