@@ -1065,7 +1065,11 @@ def hist(expr, start, end, bins) -> StructExpression:
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
 def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
-    """Downsample (x, y) coordinate datapoints.
+    """Downsample (x, y) points based on visual similarity.
+
+    Example
+    -------
+    >>> downsampled_array = ht.aggregate(hl.agg.downsample(ht.ID, ht.z, label=ht.SEX, n_divisions=1000))
 
     Parameters
     ---------
@@ -1074,7 +1078,9 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     y : :class:`.NumericExpression`
         Y-values to be downsampled.
     label : :class:`.StringExpression` or :class:`.ArrayExpression`
-        Additional data for each (x, y) coordinate. Can pass in multiple fields in an :class:`.ArrayExpression`.
+        Additional metadata for each (x, y) coordinate that will be returned
+        with the downsampled points. The metadata must be a string expression
+         or an array of string expressions.
     n_divisions : :obj:`int`
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
 
