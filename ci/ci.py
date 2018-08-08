@@ -102,9 +102,9 @@ class Status(object):
                  job_id=None,
                  docker_image=None,
                  gc=0):
-        assert state in Status.states
-        assert review_state in Status.review_states
-        assert implies(state == 'pending', job_id is None)
+        assert state in Status.states, f'{state} should be in {Status.states}'
+        assert review_state in Status.review_states, f'{review_state} sohuld be in {Status.review_states}'
+        assert implies(state == 'pending', job_id is None), f'{state} {job_id}'
         self.state = state
         self.review_state = review_state
         self.source_sha = source_sha
@@ -175,7 +175,7 @@ class Status(object):
             return self
         else:
             return self.copy(
-                state='failed',
+                state='failure',
                 # what does it mean if pr_number is different?
                 pr_number=pr_number,
                 # what does it mean if job_id is different?
