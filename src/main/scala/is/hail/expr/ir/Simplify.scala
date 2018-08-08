@@ -279,11 +279,11 @@ object Simplify {
         TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
       case TableHead(TableRepartition(child, nPar, shuffle), n) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
-        case TableHead(tr@TableRange(nRows, nPar), n) =>
-          if (n < nRows)
-            TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
-          else
-            tr
+      case TableHead(tr@TableRange(nRows, nPar), n) =>
+        if (n < nRows)
+          TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
+        else
+          tr
       case TableHead(x@TableParallelize(typ, rows, nPartitions), n) =>
         if (n < rows.length)
           TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
