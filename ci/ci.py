@@ -41,6 +41,7 @@ BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 GCP_PROJECT = 'broad-ctsa'
 VERSION = '0-1'
+VERSION_FOR_TYPE = VERSION + '-1'
 GCS_BUCKET = 'hail-ci-' + VERSION
 
 log.info(f'INITIAL_WATCHED_REPOS {INITIAL_WATCHED_REPOS}')
@@ -742,9 +743,8 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         'target_url': target_url,
         'target_ref': target_ref,
         'target_sha': status.target_sha,
-        'type': 'hail-ci-' + VERSION
+        'type': 'hail-ci-' + VERSION_FOR_TYPE
     }
-    log.info(f'creating job with attributes {attributes}')
     assert status.docker_image is not None, ((target_url, target_ref), (source_url, source_ref), status.to_json())
     job=batch_client.create_job(
         status.docker_image,
@@ -889,7 +889,7 @@ def refresh_batch_state():
     for job in jobs:
         t = job.attributes.get('type', None)
         repo = repo_from_url(job.attributes['target_url'])
-        if t and t == 'hail-ci-' + VERSION and repo in watched_repos:
+        if t and t == 'hail-ci-' + VERSION_FOR_TYPE and repo in watched_repos:
             key = (job.attributes['source_url'],
                    job.attributes['source_ref'],
                    job.attributes['source_sha'],
@@ -904,9 +904,11 @@ def refresh_batch_state():
                 job_state = job.cached_status()['state']
                 if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
                     job2.id < job.id):
+                    log.info(f'cancelling {job2.id}, preferring {job.id}, {job2.cached_status()} {job.cached_status()} ')
                     try_to_cancel_job(job2)
                     latest_jobs[key] = job
                 else:
+                    log.info(f'cancelling {job.id}, preferring {job2.id}, {job2.cached_status()} {job.cached_status()} ')
                     try_to_cancel_job(job)
 
     for job in latest_jobs.values():
