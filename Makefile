@@ -15,7 +15,7 @@ hail-ci-image:
 
 push-hail-ci-image: GIT_SHA = $(shell git rev-parse HEAD)
 push-hail-ci-image: hail-ci-image
-	docker tag hail-ci:${GIT_SHA} -t gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
+	docker tag hail-ci:${GIT_SHA} gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
 	docker push gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
 	echo built gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
 
