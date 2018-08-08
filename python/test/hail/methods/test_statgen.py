@@ -1091,4 +1091,4 @@ class Tests(unittest.TestCase):
                            [mt.GT.n_alt_alleles()],
                            [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()]]:
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
-            self.assertFalse('', [intercept] + covariates)
+            self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
