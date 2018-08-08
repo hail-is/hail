@@ -812,6 +812,7 @@ def get_sha_for_target_ref(url, ref):
 @app.route('/refresh_github_state', methods=['POST'])
 def refresh_github_state():
     for repo in watched_repos:
+        log.info(f'refreshing state for {repo}')
         try:
             target_url = url_from_repo(repo)
             pulls = get_repo(
@@ -819,10 +820,12 @@ def refresh_github_state():
                 'pulls?state=open',
                 status_code=200
             )
+            log.info(f'found {len(pulls)} open PRs in this repo')
             pulls_by_target = collections.defaultdict(list)
             for pull in pulls:
                 target_ref = pull['base']['ref']
                 pulls_by_target[target_ref].append(pull)
+            log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
             for target_ref, pulls in pulls_by_target.items():
                 target_sha = get_sha_for_target_ref(target_url, target_ref)
                 log.info(f'for target {target_ref} ({target_sha}) we found ' + str([pull['title'] for pull in pulls]))
