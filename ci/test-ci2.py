@@ -153,8 +153,9 @@ def dictKVMismatches(actual, kvs):
                 errors[k] = sub_errors
         else:
             actual_v = actual[k]
-            if isinstance(v, Match) and not v.matches(actual_v):
-                errors[k] = f'{actual_v} does not match {v}'
+            if isinstance(v, Match):
+                if not v.matches(actual_v):
+                    errors[k] = f'{actual_v} does not match {v}'
             elif actual_v != v:
                 errors[k] = f'{actual_v} != {v}'
     return errors
