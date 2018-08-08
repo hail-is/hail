@@ -288,7 +288,6 @@ class TestCI(unittest.TestCase):
 
     def test_pull_request_trigger(self):
         BRANCH_NAME='test_pull_request_trigger'
-        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
