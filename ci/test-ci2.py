@@ -444,7 +444,7 @@ class TestCI(unittest.TestCase):
                     }
                 })
 
-                print('git fetch origin')
+                call(['git', 'fetch', 'origin'])
                 second_target_sha = self.rev_parse('origin/master')
 
                 time.sleep(5) # allow github push notification to be sent
