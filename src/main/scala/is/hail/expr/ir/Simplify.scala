@@ -275,21 +275,25 @@ object Simplify {
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
 
-      case TableHead(x@TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
+      case TableHead(TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
         TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
       case TableHead(TableRepartition(child, nPar, shuffle), n) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
-      case TableHead(tr@TableRange(nRows, nPar), n) =>
-        if (n < nRows)
-          TableRange(n.toInt, (nPar * nRows.toFloat / n).toInt)
+        case TableHead(tr@TableRange(nRows, nPar), n) =>
+          if (n < nRows)
+            TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
+          else
+            tr
+      case TableHead(x@TableParallelize(typ, rows, nPartitions), n) =>
+        if (n < rows.length)
+          TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
         else
-          tr
-      case TableHead(x@TableMapGlobals(child, newRow, value), n) =>
+          x
+      case TableHead(TableMapGlobals(child, newRow, value), n) =>
         TableMapGlobals(TableHead(child, n), newRow, value)
       case TableHead(TableOrderBy(child, sortFields), n)
         if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
         // n < 256 is arbitrary for memory concerns
-        // this rule is awesome
         val uid = genUID()
         val row = Ref("row", child.typ.rowType)
         val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
@@ -301,9 +305,9 @@ object Simplify {
                 SeqOp(I32(0), Array(row, keyStruct), aggSig),
                 FastIndexedSeq(I32(n.toInt)),
                 None,
-                AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))))),
+                aggSig))),
             MakeStruct(Seq()), // aggregate to one row
-            Some(1), 1),
+            Some(1), 10),
           "row")
         TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
 

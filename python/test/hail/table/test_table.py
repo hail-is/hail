@@ -629,3 +629,26 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
         self.assertTrue(t1.key_by(None).union(t2.key_by(None), t3.key_by(None))
                         ._same(hl.utils.range_table(15).key_by(None)))
+
+    def test_table_head_returns_right_number(self):
+        rt = hl.utils.range_table(10, 11)
+        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], dtype='struct<x: int32>', n_partitions=11)
+
+        # test TableRange and TableParallelize rewrite rules
+        tables = [rt, par, rt.cache()]
+        for table in tables:
+            self.assertEqual(table.head(10).count(), 10)
+            self.assertEqual(table.head(10)._force_count(), 10)
+            self.assertEqual(table.head(9).count(), 9)
+            self.assertEqual(table.head(9)._force_count(), 9)
+            self.assertEqual(table.head(11).count(), 10)
+            self.assertEqual(table.head(11)._force_count(), 10)
+            self.assertEqual(table.head(0).count(), 0)
+            self.assertEqual(table.head(0)._force_count(), 0)
+
+    def test_table_order_by_head_rewrite(self):
+        rt = hl.utils.range_table(10, 2)
+        rt = rt.annotate(x = 10 - rt.idx)
+        expected = list(range(10))[::-1]
+        self.assertEqual(rt.order_by('x').idx.take(10), expected)
+        self.assertEqual(rt.order_by('x').idx.collect(), expected)
