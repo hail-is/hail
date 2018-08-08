@@ -471,7 +471,10 @@ object Interpret {
       case SelectFields(old, fields) =>
         val oldt = coerce[TStruct](old.typ)
         val oldRow = interpret(old, env, args, agg).asInstanceOf[Row]
-        Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
+        if (oldRow == null)
+          null
+        else
+          Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
       case InsertFields(old, fields) =>
         var struct = interpret(old, env, args, agg)
         var t = old.typ
