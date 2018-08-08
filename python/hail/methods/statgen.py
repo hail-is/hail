@@ -334,6 +334,8 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
         all_exprs.append(e)
         analyze('linear_regression/covariates', e, mt._col_indices)
 
+    _warn_if_no_intercept('linear_regression', covariates)
+
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
         x_field_name = mt._fields_inverse[x]
@@ -590,6 +592,8 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
         all_exprs.append(e)
         analyze('logistic_regression/covariates', e, mt._col_indices)
 
+    _warn_if_no_intercept('logistic_regression', covariates)
+
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
         x_field_name = mt._fields_inverse[x]
@@ -773,6 +777,8 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     for e in covariates:
         all_exprs.append(e)
         analyze('skat/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('skat', covariates)
 
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
@@ -2780,3 +2786,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     return locally_pruned_table.filter(
         hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()
+
+
+def _warn_if_no_intercept(caller, covariates):
+    if all([e._indices.axes for e in covariates]):
+        warn(f'{caller}: model appears to have no intercept covariate.'
+             '\n    To include an intercept, add 1.0 to the list of covariates.')
+        return True
+    return False

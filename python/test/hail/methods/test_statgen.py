@@ -1080,3 +1080,15 @@ class Tests(unittest.TestCase):
         self.assertTrue(entries.all(hl.all(lambda x: x.e_col_idx == entries.col_idx, entries.prev_entries)))
         self.assertTrue(entries.all(hl.all(lambda x: entries.row_idx - 1 - x[0] == x[1].e_row_idx,
                                            hl.zip_with_index(entries.prev_entries))))
+
+    def test_warn_if_no_intercept(self):
+        mt = hl.balding_nichols_model(1, 1, 1).add_row_index().add_col_index()
+        intercept = hl.float64(1.0)
+
+        for covariates in [[],
+                           [mt.row_idx],
+                           [mt.col_idx],
+                           [mt.GT.n_alt_alleles()],
+                           [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()]]:
+            self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
+            self.assertFalse('', [intercept] + covariates)
