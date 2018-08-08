@@ -826,10 +826,10 @@ def refresh_github_state():
             log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
             gh_targets = set([(target_url, ref) for ref in pulls_by_target.keys()])
             for (dead_target_url, dead_target_ref) in set(get_pr_targets()) - gh_targets:
-                prs = pop_prs_for_target(dead_target_ref, dead_target_url, {})
+                prs = pop_prs_for_target(dead_target_url, dead_target_ref, {})
                 if len(prs) != 0:
                     log.info(
-                        f'no open PRs for {target_url}:{target_ref} on GitHub, '
+                        f'no open PRs for {dead_target_url}:{daed_target_ref} on GitHub, '
                         f'forgetting the {len(prs)} PRs I was tracking')
             for target_ref, pulls in pulls_by_target.items():
                 target_sha = get_sha_for_target_ref(target_url, target_ref)
