@@ -21,15 +21,19 @@ class HailContext(object):
                       min_block_size=int,
                       branching_factor=int,
                       tmp_dir=nullable(str),
-                      default_reference=str)
+                      default_reference=str,
+                      idempotent=bool)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37"):
+                 default_reference="GRCh37", idempotent=False):
 
         if Env._hc:
-            raise FatalError('Hail has already been initialized, restart session '
-                             'or stop Hail to change configuration.')
+            if idempotent:
+                return
+            else:
+                raise FatalError('Hail has already been initialized, restart session '
+                                 'or stop Hail to change configuration.')
 
         SparkContext._ensure_initialized()
 
@@ -48,9 +52,15 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        self._jhc = self._hail.HailContext.apply(
-            jsc, app_name, joption(master), local, log, True, append,
-            min_block_size, branching_factor, tmp_dir)
+        # if idempotent:
+        if idempotent:
+            self._jhc = self._hail.HailContext.getOrCreate(
+                jsc, app_name, joption(master), local, log, True, append,
+                min_block_size, branching_factor, tmp_dir)
+        else:
+            self._jhc = self._hail.HailContext.apply(
+                jsc, app_name, joption(master), local, log, True, append,
+                min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
@@ -118,11 +128,12 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'))
+           default_reference=enumeration('GRCh37', 'GRCh38'),
+           idempotent=bool)
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
              log='hail.log', quiet=False, append=False,
              min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37'):
+             default_reference='GRCh37', idempotent=False):
     """Initialize Hail and Spark.
 
     Parameters
@@ -152,10 +163,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         file path.
     default_reference : :obj:`str`
         Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
+    idempotent : :obj:`bool`
+        If ``True``, calling this function is a no-op if Hail has already been initialized.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference)
+                default_reference, idempotent)
 
 def stop():
     """Stop the currently running Hail session."""

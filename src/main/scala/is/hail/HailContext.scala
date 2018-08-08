@@ -37,9 +37,11 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
+  private val contextLock = new Object()
+
   private var theContext: HailContext = _
 
-  def get: HailContext = theContext
+  def get: HailContext = contextLock.synchronized { theContext }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -140,6 +142,49 @@ object HailContext {
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
+  /**
+   * If a HailContext has already been initialized, this function returns it regardless of the
+   * parameters with which it was initialized.
+   *
+   * Otherwise, it initializes and returns a new HailContext.
+   */
+  def getOrCreate(sc: SparkContext = null,
+    appName: String = "Hail",
+    master: Option[String] = None,
+    local: String = "local[*]",
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    minBlockSize: Long = 1L,
+    branchingFactor: Int = 50,
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+
+    if (get != null) {
+      val hc = get
+      if (sc == null) {
+        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
+          "has already been initialized. Different configuration settings will be ignored.")
+      }
+      val paramsDiff = (Map(
+        "tmpDir" -> Seq(tmpDir, hc.tmpDir),
+        "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
+        "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
+       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
+        s"Param: $name, Provided value: $provided, Existing value: $existing"
+      }.mkString("\n")
+      if (paramsDiff.nonEmpty) {
+        warn("Found differences between requested and initialized parameters. Ignoring requested " +
+          s"parameters.\n$paramsDiffStr")
+      }
+
+      hc
+    } else {
+      apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
+        tmpDir)
+    }
+  }
+
   def apply(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -149,7 +194,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = {
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
