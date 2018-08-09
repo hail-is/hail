@@ -916,8 +916,7 @@ private class Emit(
         assert(unified)
         impl.setSeed(seed)
         val codeArgs = args.map(emit(_))
-        val vs = codeArgs.map(_.v)
-        strict(impl.apply(mb, vs: _*), codeArgs: _*)
+        impl.apply(mb, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
         val unified = x.implementation.unify(args.map(_.typ))

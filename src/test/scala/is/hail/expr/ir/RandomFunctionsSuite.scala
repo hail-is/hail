@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, RVD}
+import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}

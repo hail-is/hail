@@ -345,7 +345,15 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, seed, args.toArray)
+      def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, seed, args.toArray)
+
+      def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = {
+        val setup = args.map(_.setup)
+        val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_.m).reduce(_ || _)
+        val value = applySeeded(seed, mb, args.map(_.v): _*)
+
+        EmitTriplet(setup, missing, value)
+      }
     })
   }
 
@@ -432,18 +440,19 @@ abstract class IRFunctionWithMissingness extends IRFunction {
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 }
 
-abstract class SeededIRFunction extends IRFunctionWithoutMissingness {
+abstract class SeededIRFunction extends IRFunction {
   def name: String
 
+  def argTypes: Seq[Type]
+
   private[this] var seed: Long = _
-  def setSeed(s: Long): Unit = {
-    seed = s
-  }
+  def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_]
-
-  override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] =
+  def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
+  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
     applySeeded(seed, mb, args: _*)
+
+  def returnType: Type
 
   override def toString: String = s"$name(${ argTypes.init.mkString(", ") }): $returnType"
 }
