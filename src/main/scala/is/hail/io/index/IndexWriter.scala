@@ -34,7 +34,7 @@ object IndexWriter {
     path: String,
     keyType: Type,
     branchingFactor: Int = 1024,
-    attributes: Map[String, Any] = Map.empty[String, Any]) = new IndexWriter(new SerializableHadoopConfiguration(hConf), path, keyType, branchingFactor)
+    attributes: Map[String, Any] = Map.empty[String, Any]) = new IndexWriter(new SerializableHadoopConfiguration(hConf), path, keyType, branchingFactor, attributes)
 }
 
 class IndexWriter(
