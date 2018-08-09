@@ -5,6 +5,9 @@
 .idea/
 .pytest_cache/
 .git/
+.ensime.cache.d/
+.ensime_cache.d/
+.ensime_cache/
 build/
 hail.iml
 hail.log
