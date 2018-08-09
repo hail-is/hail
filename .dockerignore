@@ -3,6 +3,7 @@
 *~
 .*.crc
 .ensime*
+.git/
 .gradle/
 .idea/
 build/
