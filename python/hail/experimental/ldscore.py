@@ -8,12 +8,19 @@ from hail.expr.expressions import *
 from hail.utils import new_temp_file, wrap_to_list
 
 
-@typecheck(entry_expr=expr_numeric,
-           annotation_exprs=oneof(expr_numeric, sequenceof(expr_numeric)),
-           position_expr=expr_numeric,
-           window_size=numeric)
-def ld_score(entry_expr, annotation_exprs,
-             position_expr, window_size) -> Table:
+@typecheck(entry_expr=expr_float64,
+           locus_expr=expr_locus(),
+           radius=oneof(int, float),
+           coord_expr=nullable(expr_float64),
+           annotation_exprs=nullable(oneof(expr_numeric,
+                                           sequenceof(expr_numeric))),
+           block_size=nullable(int))
+def ld_score(entry_expr,
+             locus_expr,
+             radius,
+             coord_expr=None,
+             annotation_exprs=None,
+             block_size=None) -> Table:
     """Calculate LD scores.
 
     Example
@@ -33,25 +40,16 @@ def ld_score(entry_expr, annotation_exprs,
     >>> ht = ht.key_by('locus')
 
     >>> # Annotate MatrixTable with external annotations
-    >>> mt = mt.annotate_rows(univariate_annotation=1,
-    ...                       binary_annotation=ht[mt.locus].binary,
+    >>> mt = mt.annotate_rows(binary_annotation=ht[mt.locus].binary,
     ...                       continuous_annotation=ht[mt.locus].continuous)
 
-    >>> # Annotate MatrixTable with alt allele count stats
-    >>> mt = mt.annotate_rows(stats=hl.agg.stats(mt.GT.n_alt_alleles()))
-
-    >>> # Create standardized genotype entry
-    >>> mt = mt.annotate_entries(GT_std=hl.or_else(
-    ...     (mt.GT.n_alt_alleles() - mt.stats.mean)/mt.stats.stdev, 0.0))
-
-    >>> # Calculate LD scores using standardized genotypes
-    >>> ht_scores = hl.experimental.ld_score(entry_expr=mt.GT_std,
-    ...                                      annotation_exprs=[
-    ...                                         mt.univariate_annotation,
-    ...                                         mt.binary_annotation,
-    ...                                         mt.continuous_annotation],
-    ...                                      position_expr=mt.cm_position,
-    ...                                      window_size=1)
+    >>> # Calculate LD scores using centimorgan coordinates
+    >>> ht_scores = hl.experimental.ld_score(entry_expr=mt.GT.n_alt_alleles(),
+    ...                                      locus_expr=mt.locus,
+    ...                                      radius=1.0,
+    ...                                      coord_expr=mt.cm_position,
+    ...                                      annotation_exprs=[mt.binary_annotation,
+    ...                                                        mt.continuous_annotation])
 
     Warning
     -------
@@ -71,107 +69,88 @@ def ld_score(entry_expr, annotation_exprs,
     entry_expr : :class:`.NumericExpression`
         Expression for entries of genotype matrix
         (e.g. ``mt.GT.n_alt_alleles()``).
+    locus_expr : :class:`.LocusExpression`
+        Row-indexed locus expression on a table or matrix table that is
+        row-aligned with the matrix table of `entry_expr`.
+    radius : :obj:`int` or :obj:`float`
+        Radius of window for row values (in units of `coord_expr`.
     annotation_exprs : :class:`.NumericExpression` or
-                       :obj:`list` of :class:`.NumericExpression`
-        Annotation expression(s) to partition LD scores.
-    position_expr : :class:`.NumericExpression`
-        Expression for position of variant
-        (e.g. ``mt.cm_position`` or ``mt.locus.position``).
-    window_size : :obj:`int` or :obj:`float`
-        Size of variant window used to calculate LD scores,
-        in units of ``position``.
+                       :obj:`list` of :class:`.NumericExpression`, optional
+        Annotation expression(s) to partition LD scores. Univariate
+        annotation will always be included and does not need to be
+        specified.
+    coord_expr: :class:`.Float64Expression`, optional
+        Row-indexed numeric expression for the row value on the same table or
+        matrix table as `locus_expr`.
+        By default, the row value is given by the locus position.
+    block_size : :obj:`int`, optional
+        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
     Returns
     -------
     :class:`.Table`
-        Locus-keyed table with LD scores for each variant and annotation."""
-
-    assert window_size >= 0
+        Table keyed by `locus_expr` with LD scores for each variant and
+        `annotation_expr`. The function will always return LD scores for
+        the univariate (all SNPs) annotation."""
 
     mt = entry_expr._indices.source
-    annotations = wrap_to_list(annotation_exprs)
-    variant_key = [x for x in mt.row_key]
+    N = mt.count_cols()
 
-    ht_annotations = mt.select_rows(*annotations).rows()
-    annotation_names = [x for x in ht_annotations.row if x not in variant_key]
+    R2 = hl.row_correlation(entry_expr, block_size) ** 2
+    R2_adj = (N - 1.0)/(N - 2.0) * R2 - 1.0/(N - 2.0)
 
-    ht_annotations = hl.Table.union(
-        *[(ht_annotations.annotate(annotation=hl.str(x),
-                                   value=hl.float(ht_annotations[x]))
-                         .select('annotation', 'value'))
-          for x in annotation_names]
-    )
-    mt_annotations = ht_annotations.to_matrix_table(row_key=variant_key,
-                                                    col_key=['annotation'])
+    starts, stops = hl.linalg.utils.locus_windows(locus_expr,
+                                                  radius,
+                                                  coord_expr)
+    R2_adj_sparse = R2_adj.sparsify_row_intervals(starts, stops)
 
-    cols = mt_annotations['annotation'].collect()
-    col_idxs = {i: cols[i] for i in range(len(cols))}
+    tmp_R2_adj_sparse_file = new_temp_file()
+    R2_adj_sparse.write(tmp_R2_adj_sparse_file, force_row_major=True)
+    R2_adj_sparse = BlockMatrix.read(tmp_R2_adj_sparse_file)
 
-    G = BlockMatrix.from_entry_expr(entry_expr)
-    A = BlockMatrix.from_entry_expr(mt_annotations.value)
+    if not annotation_exprs:
+        cols = ['univariate']
+        col_idxs = {0: 'univariate'}
+        L2 = R2_adj_sparse.sum(axis=1)
+    else:
+        ht = mt.select_rows(*wrap_to_list(annotation_exprs)).rows()
+        ht = ht.annotate(univariate=hl.literal(1.0))
+        names = [x for x in ht.row if x not in ht.key]
 
-    n = G.n_cols
+        ht_union = hl.Table.union(
+            *[(ht.annotate(name=hl.str(x),
+                           value=hl.float(ht[x]))
+                 .select('name', 'value')) for x in names])
+        mt_annotations = ht_union.to_matrix_table(
+            row_key=[x for x in ht_union.key],
+            col_key=['name'])
 
-    R2 = ((G @ G.T) / n) ** 2
-    R2_adj = R2 - (1.0 - R2) / (n - 2.0)
+        cols = mt_annotations['name'].collect()
+        col_idxs = {i: cols[i] for i in range(len(cols))}
 
-    positions = [(x[0], float(x[1])) for x in
-                 hl.array([mt.locus.contig, hl.str(position_expr)]).collect()]
-    n_positions = len(positions)
+        A = BlockMatrix.from_entry_expr(mt_annotations.value)
+        tmp_A_file = new_temp_file()
+        BlockMatrix.write_from_entry_expr(mt_annotations.value, tmp_A_file)
 
-    starts = np.zeros(n_positions, dtype='int')
-    stops = np.zeros(n_positions, dtype='int')
+        A = BlockMatrix.read(tmp_A_file)
+        L2 = R2_adj_sparse @ A
 
-    contig = '0'
-    for i, (c, p) in enumerate(positions):
-        if c != contig:
-            j = i
-            k = i
-            contig = c
+    tmp_L2_bm_file = new_temp_file()
+    tmp_L2_tsv_file = new_temp_file()
+    L2.write(tmp_L2_bm_file, force_row_major=True)
+    BlockMatrix.export(tmp_L2_bm_file, tmp_L2_tsv_file)
 
-        min_val = p - window_size
-        max_val = p + window_size
-
-        while j < n_positions and positions[j][1] < min_val:
-            j += 1
-
-        starts[i] = j
-
-        if k == n_positions:
-            stops[i] = k
-            continue
-
-        while positions[k][0] == contig and positions[k][1] <= max_val:
-            k += 1
-            if k == n_positions:
-                break
-
-        stops[i] = k
-
-    R2_adj_sparse = R2_adj.sparsify_row_intervals([int(x) for x in starts],
-                                                  [int(x) for x in stops])
-    L2 = R2_adj_sparse @ A
-
-    tmp_bm_path = new_temp_file()
-    tmp_tsv_path = new_temp_file()
-
-    L2.write(tmp_bm_path, force_row_major=True)
-    BlockMatrix.export(tmp_bm_path, tmp_tsv_path)
-
-    ht_scores = hl.import_table(tmp_tsv_path, no_header=True, impute=True)
+    ht_scores = hl.import_table(tmp_L2_tsv_file, no_header=True, impute=True)
     ht_scores = ht_scores.add_index()
     ht_scores = ht_scores.key_by('idx')
     ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i]
                                   for i in range(len(cols))})
 
-    ht_variants = mt.rows()
-    ht_variants = ht_variants.drop(
-        *[x for x in ht_variants.row if x not in variant_key])
-    ht_variants = ht_variants.add_index()
-    ht_variants = ht_variants.key_by('idx')
+    ht = mt.select_rows(__locus=locus_expr).rows()
+    ht = ht.add_index()
+    ht = ht.annotate(**ht_scores[ht.idx])
+    ht = ht.key_by('__locus')
+    ht = ht.select(*[x for x in ht_scores.row if x not in ht_scores.key])
+    ht = ht.rename({'__locus': 'locus'})
 
-    ht_scores = ht_variants.join(ht_scores, how='inner')
-    ht_scores = ht_scores.key_by('locus')
-    ht_scores = ht_scores.drop('alleles', 'idx')
-
-    return ht_scores
+    return ht
