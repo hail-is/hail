@@ -33,6 +33,7 @@ class AggregableChecker(TypeChecker):
             x = coercer.check(x, caller, param)
             return _to_agg(x)
 
+
 def _to_agg(x):
     return Aggregable(x._ir, x._type, x._indices, x._aggregations)
 
@@ -1153,8 +1154,9 @@ def info_score(gp) -> StructExpression:
 
 
 @typecheck(y=agg_expr(expr_float64),
-           x=oneof(expr_float64, sequenceof(expr_float64)))
-def linreg(y, x) -> StructExpression:
+           x=oneof(expr_float64, sequenceof(expr_float64)),
+           k_null=int)
+def linreg(y, x, k_null=1) -> StructExpression:
     """Compute multivariate linear regression statistics.
 
     Examples
@@ -1162,63 +1164,105 @@ def linreg(y, x) -> StructExpression:
     Regress HT against an intercept (1), SEX, and C1:
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
-    Struct(
-    beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
-    standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
-    t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
-    p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
-    n=4)
+    Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
+           standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
+           t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
+           p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
+           multiple_standard_error=4.949747468305833,
+           multiple_r_squared=0.7175792507204611,
+           adjusted_r_squared=0.1527377521613834,
+           f_stat=1.2704081632653061,
+           multiple_p_value=0.5314327326007864,
+           n=4)
 
-    Regress blood pressure against an intercept (1), age, height, and height squared:
+    Regress blood pressure against an intercept (1), genotype, age, and
+    the interaction genotype * age:
 
-    >>> ds_ann = ds.annotate_rows(
-    ...    linreg = hl.agg.linreg(ds.pheno.blood_pressure,
-    ...                           [1, ds.pheno.age, ds.pheno.height, ds.pheno.height ** 2]))
+    >>> ds_ann = ds.annotate_rows(linreg = 
+    ...     hl.agg.linreg(ds.pheno.blood_pressure,
+    ...                   [1,
+    ...                    ds.GT.n_alt_alleles(),
+    ...                    ds.pheno.age,
+    ...                    ds.GT.n_alt_alleles() * ds.pheno.age]))
 
     Notes
     -----
-    This aggregator returns a struct expression with five fields:
+    This aggregator returns a struct expression with ten fields:
 
-     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
-       for each predictor.
-     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated standard error
-       estimate for each predictor.
-     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`): t statistic for each predictor.
-     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
-     - `n` (:py:data:`.tint64`): Number of samples included in the regression. A sample is
-       included if and only if `y` and all elements of `x` are non-missing.
+     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`):
+       Estimated regression coefficient for each covariate.
+     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`):
+       Estimated standard error estimate for each covariate.
+     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`):
+       t-statistic for each covariate.
+     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`):
+       p-value for each covariate.
+     - `multiple_standard_error` (:py:data:`.tfloat64`):
+       standard error of model.
+     - `multiple_r_squared` (:py:data:`.tfloat64`):
+       one minus (model residual sum of squares over null residual sum of squares).
+     - `adjusted_r_squared` (:py:data:`.tfloat64`):
+       adjusted version of `multiple_r_squared`.
+     - `f_stat` (:py:data:`.tfloat64`):
+       F-statistic for full model versus null model.
+     - `multiple_p_value` (:py:data:`.tfloat64`):
+       p-value for full model vs null model.
+     - `n` (:py:data:`.tint64`):
+       Number of samples included in the regression. A sample is included if and
+       only if `y` and all elements of `x` are non-missing.
 
-    The first four fields are missing if n is less than or equal to the number of predictors
-    or if the predictors are linearly dependent.
+    All but the last field are missing if n is less than or equal to the number
+    of covariates or if the covariates are linearly dependent.
+
+    The model is defined by all `k` covariates in `x`, whereas the null model
+    for `multiple_r_squared`, `adjusted_r_squared`, `f_stat`, and
+    `multiple_p_value` is defined by the first `k_null` covariates.
+    In particular, if the first covariate is the intercept ``1.0`` and `k_null`
+    is the default value ``1``, then the null model is the intercept-only model.
 
     Parameters
     ----------
     y : :class:`.Float64Expression`
-        Response variable.
+        Response (dependent variable).
     x : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
-        Independent variables.
+        Covariates (independent variables).
+    k_null : :obj:`int`
+        The null model includes the first `k_null` covariates.
+        Must be between 0 and `k` (the length of `x`).
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct with fields `beta`, `standard_error`, `t_stat`, `p_value`, and `n`.
+        Struct or regression results.
     """
     x = wrap_to_list(x)
     k = len(x)
     if k == 0:
-        raise ValueError("'linreg' requires at least one predictor in `x`")
+        raise ValueError("linreg: must have at least one covariate in `x`")
 
+    hl.methods.statgen._warn_if_no_intercept('linreg', x)
+
+    k0 = k_null
+    if k0 < 0 or k0 > k:
+        raise ValueError("linreg: `k_null` must be between 0 and the number "
+                         "of covariates in `x`, inclusive")
 
     t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
                    standard_error=hl.tarray(hl.tfloat64),
                    t_stat=hl.tarray(hl.tfloat64),
                    p_value=hl.tarray(hl.tfloat64),
+                   multiple_standard_error=hl.tfloat64,
+                   multiple_r_squared=hl.tfloat64,
+                   adjusted_r_squared=hl.tfloat64,
+                   f_stat=hl.tfloat64,
+                   multiple_p_value=hl.tfloat64,
                    n=hl.tint64)
 
     x = hl.array(x)
     k = hl.int32(k)
+    k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
+    return _agg_func('LinearRegression', y, t, [k, k0], f=lambda expr: x)
 
 
 @typecheck(group=expr_any,
@@ -1232,17 +1276,30 @@ def group_by(group, agg_expr) -> DictExpression:
     --------
     Compute linear regression statistics stratified by SEX:
 
-    >>> table1.aggregate(agg.group_by(table1.SEX, agg.linreg(table1.HT, table1.C1)))
-    {'F': Struct(beta=[6.153846153846154],
-                 standard_error=[0.7692307692307685],
-                 t_stat=[8.000000000000009],
-                 p_value=[0.07916684832113098],
-                 n=2),
-     'M': Struct(beta=[34.25],
-                 standard_error=[1.75],
-                 t_stat=[19.571428571428573],
-                 p_value=[0.03249975499062629],
-                 n=2)}
+    >>> table1.aggregate(agg.group_by(table1.SEX,
+    ...                               agg.linreg(table1.HT, table1.C1, k_null=0)))
+    {
+    'F': Struct(beta=[6.153846153846154],
+                standard_error=[0.7692307692307685],
+                t_stat=[8.000000000000009],
+                p_value=[0.07916684832113098],
+                multiple_standard_error=11.4354374979373,
+                multiple_r_squared=0.9846153846153847,
+                adjusted_r_squared=0.9692307692307693,
+                f_stat=64.00000000000014,
+                multiple_p_value=0.07916684832113098,
+                n=2),
+    'M': Struct(beta=[34.25],
+                standard_error=[1.75],
+                t_stat=[19.571428571428573],
+                p_value=[0.03249975499062629],
+                multiple_standard_error=4.949747468305833,
+                multiple_r_squared=0.9973961101073441,
+                adjusted_r_squared=0.9947922202146882,
+                f_stat=383.0408163265306,
+                multiple_p_value=0.03249975499062629,
+                n=2)
+    }
 
     Compute call statistics stratified by population group and case status:
 

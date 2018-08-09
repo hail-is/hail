@@ -210,10 +210,10 @@ object AggOp {
         RegionValueInbreedingAggregator.typ,
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
 
-    case (LinearRegression(), constArgs@Seq(_: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
+    case (LinearRegression(), constArgs@Seq(_: TInt32, _: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
       CodeAggregator[RegionValueLinearRegressionAggregator](
         RegionValueLinearRegressionAggregator.typ,
-        constrArgTypes = Array(classOf[Int]),
+        constrArgTypes = Array(classOf[Int], classOf[Int]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
     case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
