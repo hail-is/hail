@@ -80,53 +80,6 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-
-  private def queryByKey(key: Annotation, level: Int, offset: Long, ordering: ExtendedOrdering): Option[LeafChild] = {
-    def searchLeafNode(node: LeafNode): Option[LeafChild] = {
-      var left = 0
-      var right = node.children.length - 1
-      while (left <= right) {
-        val mid = left + (right - left) / 2
-        val midKey = node.children(mid).key
-
-        if (ordering.equiv(key, midKey))
-          return Some(node.children(mid))
-        else if (ordering.lt(key, midKey))
-          right = mid - 1
-        else
-          left = mid + 1
-      }
-      None
-    }
-
-    def searchInternalNode(node: InternalNode): InternalChild = {
-      var left = 0
-      var right = node.children.length - 1
-      while (left <= right) {
-        val mid = left + (right - left) / 2
-        val midKey = node.children(mid).firstKey
-
-        if (ordering.equiv(key, midKey))
-          return node.children(mid)
-        else if (ordering.lt(key, midKey))
-          right = mid - 1
-        else
-          left = mid + 1
-      }
-
-      node.children(left - 1)
-    }
-
-    if (level == 0)
-      searchLeafNode(readLeafNode(offset))
-    else
-      queryByKey(key, level - 1, searchInternalNode(readInternalNode(offset)).childOffset, ordering)
-  }
-
-  def queryByKey(key: Annotation): Option[LeafChild] = {
-    queryByKey(key, height - 1, metadata.rootOffset, keyType.ordering)
-  }
-
   private def queryByIndex(idx: Long, level: Int, offset: Long): LeafChild = {
     if (level == 0) {
       val node = readLeafNode(offset)

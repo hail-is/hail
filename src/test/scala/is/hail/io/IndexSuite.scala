@@ -16,7 +16,7 @@ class IndexSuite extends SparkSuite {
 
   @DataProvider(name = "elements")
   def data(): Array[Array[Array[String]]] = {
-    (1 to strings.length).map(i => Array(strings.take(i))).toArray // FIXME: empty array ???
+    (1 to strings.length).map(i => Array(strings.take(i))).toArray
   }
 
   @Test(dataProvider = "elements")
@@ -36,9 +36,7 @@ class IndexSuite extends SparkSuite {
     assert(ir.attributes == attributes)
     data.zipWithIndex.foreach { case (s, i) =>
       assert(ir.queryByIndex(i).key == s)
-      assert(ir.queryByKey(s).map(_.offset).contains(i))
     }
-    assert(ir.queryByKey("moo").isEmpty)
     ir.close()
   }
 }

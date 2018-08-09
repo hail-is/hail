@@ -34,6 +34,9 @@ class IndexWriter(
   branchingFactor: Int = 1024,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
 
+  private val indexFile = path + "/index"
+  private val metadataFile = path + "/metadata.json.gz"
+
   private var elementIdx = 0L
   private var rootOffset = 0L
 
@@ -44,7 +47,7 @@ class IndexWriter(
   private val leafNode = new LeafNodeBuilder(keyType)
   private val internalNodes = new ArrayBuilder[InternalNodeBuilder]()
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(indexFile))
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNode.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType))(trackedOS)
@@ -148,8 +151,8 @@ class IndexWriter(
   }
 
   private def writeMetadata() = {
-    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      val metadata = IndexMetadata(1, branchingFactor, height, keyType._toPretty, elementIdx, path, rootOffset, attributes)
+    hConf.writeTextFile(metadataFile) { out =>
+      val metadata = IndexMetadata(1, branchingFactor, height, keyType._toPretty, elementIdx, indexFile, rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)
     }
