@@ -18,17 +18,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht._force_count(), 10)
 
     def test_seeded_same(self):
-        ht = hl.utils.range_table(10, 4)
-        sample1 = hl.rand_unif(0, 1)
-        ht = ht.annotate(x=sample1, y=sample1, z=hl.rand_unif(0, 1))
 
-        self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y) & (ht.x != ht.z))))
+        def test_random_function(rand_f):
+            ht = hl.utils.range_table(10, 4)
+            sample1 = rand_f()
+            ht = ht.annotate(x=sample1, y=sample1, z=rand_f())
+            self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y)) & ~agg.all((ht.x == ht.z))))
+
+        test_random_function(lambda: hl.rand_unif(0, 1))
+        test_random_function(lambda: hl.rand_bool(0.5))
+        test_random_function(lambda: hl.rand_norm(0, 1))
+        test_random_function(lambda: hl.rand_pois(1))
 
     def test_seeded_sampling(self):
-        ht = hl.utils.range_table(50, 6)
-
-        sampled1 = ht.filter(hl.rand_bool(0.5))
-        sampled2 = ht.filter(hl.rand_bool(0.5))
+        sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
+        sampled2 = hl.utils.range_table(50, 5).ht.filter(hl.rand_bool(0.5))
 
         set1 = set(sampled1.idx.collect())
         set2 = set(sampled2.idx.collect())
