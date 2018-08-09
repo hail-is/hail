@@ -453,6 +453,34 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
   }
 }
 
+case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
+  require(left.typ.key.isDefined)
+  require(right.typ.key.isDefined)
+  require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => l.isIsomorphicTo(r))))
+
+  def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
+  val typ: TableType = left.typ.copy(rowType = newRowType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
+    TableLeftJoinRightDistinct(newLeft, newRight, root)
+  }
+
+  override def execute(hc: HailContext): TableValue = {
+    val leftValue = left.execute(hc)
+    val rightValue = right.execute(hc)
+
+    leftValue.copy(
+      typ = typ,
+      rvd = leftValue.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        .orderedLeftJoinDistinctAndInsert(rightValue.enforceOrderingRVD.asInstanceOf[OrderedRVD], root))
+  }
+}
+
 // Must not modify key ordering.
 // newKey is key of resulting Table, if newKey=None then result is unkeyed.
 // preservedKeyFields is length of initial sequence of key fields whose values are unchanged.

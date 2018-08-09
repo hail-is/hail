@@ -205,6 +205,19 @@ class PruneSuite extends SparkSuite {
     )
   }
 
+  @Test def testTableLeftJoinRightDistinctMemo() {
+    val tk1 = TableKeyBy(tab, Array("1"), None)
+    val tk2 = TableKeyBy(tab, Array("3"), None)
+    val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
+    checkMemo(tj,
+      subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
+      Array(
+        subsetTable(tk1.typ, "row.1", "row.4"),
+        subsetTable(tk2.typ)
+      )
+    )
+  }
+
   @Test def testTableExplodeMemo() {
     val te = TableExplode(tab, "2")
     checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
@@ -544,6 +557,17 @@ class PruneSuite extends SparkSuite {
         val tmg = r.asInstanceOf[TableMapGlobals]
         TypeCheck(tmg.newRow, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
+      })
+  }
+
+  @Test def testTableLeftJoinRightDistinctRebuild() {
+    val tk1 = TableKeyBy(tab, Array("1"), None)
+    val tk2 = TableKeyBy(tab, Array("3"), None)
+    val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
+
+    checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
+      (_: BaseIR, r: BaseIR) => {
+        r.isInstanceOf[TableKeyBy] // no dependence on row.foo elides the join
       })
   }
 

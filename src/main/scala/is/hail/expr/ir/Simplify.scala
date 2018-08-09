@@ -188,6 +188,8 @@ object Simplify {
 
       case TableCount(TableUnkey(child)) => TableCount(child)
 
+      case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
+
       case TableCount(TableRange(n, _)) => I64(n)
 
       case TableCount(TableParallelize(_, rows, _)) => I64(rows.length)
