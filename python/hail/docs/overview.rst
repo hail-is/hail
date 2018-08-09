@@ -267,38 +267,6 @@ the method `is_het` will return ``None`` and not ``False``.
     None
 
 
-Binding Variables
-=================
-
-Hail inlines function calls each time an expression appears. This can result
-in unexpected behavior when random values are used. For example, let `x` be
-a random number generated with the function :func:`.rand_unif`:
-
-    >>> x = hl.rand_unif(0, 1)
-
-The value of `x` changes with each evaluation:
-
-    >>> x.value
-    0.4678132874101748
-
-    >>> x.value
-    0.9097632224065403
-
-If we create a list with x repeated 3 times, we'd expect to get an array with identical
-values. However, instead we see a list of 3 random numbers.
-
-    >>> hl.array([x, x, x]).value
-    [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
-
-To solve this problem, we can use the :func:`.bind` function to bind an expression to a
-value before applying it in a function.
-
-    >>> expr = hl.bind(lambda x: [x, x, x], hl.rand_unif(0, 1))
-
-    >>> expr.value
-    [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
-
-
 Functions
 =========
 

@@ -282,31 +282,8 @@ def bind(f: Callable, *exprs):
     Examples
     --------
 
-    Expressions are "inlined", leading to perhaps unexpected behavior
-    when randomness is involved. For example, let us define a variable
-    `x` from the :meth:`.rand_unif` method:
-
-    >>> x = hl.rand_unif(0, 1)
-
-    Note that evaluating `x` multiple times returns different results.
-    The value of evaluating `x` is unknown when the expression is defined.
-
-    >>> x.value
-    0.3189309481038456
-
-    >>> x.value
-    0.20842918568366375
-
-    What if we evaluate `x` multiple times?
-
-    >>> hl.array([x, x, x]).value
-    [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
-
-    The random number generator is called separately for each inclusion
-    of `x`. This method, :func:`.bind`, is the solution to this problem!
-
-    >>> hl.bind(lambda y: [y, y, y], x).value
-    [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+    >>> add_one = hl.bind(lambda x: x + 1, 1).value
+    2
 
     :func:`.bind` also can take multiple arguments:
 
@@ -1694,11 +1671,6 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     >>> hl.rand_bool(0.5).value
     False
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug.
-
     Parameters
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
@@ -1725,12 +1697,6 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
 
     >>> hl.rand_norm().value
     -0.3006188509144124
-
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
 
     Parameters
     ----------
@@ -1761,12 +1727,6 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     >>> hl.rand_pois(1).value
     3.0
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
@@ -1783,7 +1743,8 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
 
 @typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
 def rand_unif(min, max, seed=None) -> Float64Expression:
-    """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
+    """Returns a random floating-point number uniformly drawn from the interval
+    [`min`, `max`].
 
     Examples
     --------
@@ -1793,12 +1754,6 @@ def rand_unif(min, max, seed=None) -> Float64Expression:
 
     >>> hl.rand_unif(0, 1).value
     0.5161799497741769
-
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
 
     Parameters
     ----------

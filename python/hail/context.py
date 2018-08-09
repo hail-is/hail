@@ -232,4 +232,16 @@ def get_reference(name) -> 'hail.ReferenceGenome':
 
 @typecheck(seed=int)
 def set_global_seed(seed):
+    """Sets Hail's global seed to `seed`.
+
+    Parameters
+    ----------
+    seed : :obj:`int`
+        Integer used to seed Hail's random number generator
+
+    Returns
+    -------
+    :class:`.ReferenceGenome`
+    """
+
     Env.set_seed(seed)
