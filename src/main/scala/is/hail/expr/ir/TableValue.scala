@@ -44,7 +44,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         rvb.start(globalType)
         rvb.addAnnotation(globalType, localGlobals.value)
         (partitionOp(partitionIdx), RegionValue(globalRegion, rvb.end()))
-      }, { case (p, globals, rv) => pred(p, rv, globals) }))
+      }, { case ((p, glob), rv) => pred(p, rv, glob) }))
   }
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {

@@ -5,13 +5,11 @@ import is.hail.asm4s.Code
 import is.hail.expr.types._
 import net.sourceforge.jdistlib.Poisson
 import net.sourceforge.jdistlib.rng.MersenneTwister
-import org.apache.commons.math3.random.RandomDataGenerator
 
 class IRRandomness(seed: Long) {
 
-  private[this] val random: RandomDataGenerator = new RandomDataGenerator()
+  private[this] val random = new MersenneTwister()
   private[this] var poisState = Poisson.create_random_state()
-  private[this] val poisEngine = new MersenneTwister()
 
   // FIXME: these are just combined with some large primes, so probably should be fixed up
   private[this] def hash(pidx: Int): Long =
@@ -19,18 +17,17 @@ class IRRandomness(seed: Long) {
 
   def reset(partitionIdx: Int) {
     val combinedSeed = hash(partitionIdx)
-      poisEngine.setSeed(combinedSeed)
-    random.reSeed(combinedSeed)
+    random.setSeed(combinedSeed)
     poisState = Poisson.create_random_state()
   }
 
-  def runif(min: Double, max: Double): Double = random.nextUniform(min, max, true)
+  def runif(min: Double, max: Double): Double = min + (max - min) * random.nextDouble()
 
-  def rcoin(p: Double): Boolean = runif(0, 1) < p
+  def rcoin(p: Double): Boolean = random.nextDouble() < p
 
-  def rpois(lambda: Double): Double = Poisson.random(lambda, poisEngine, poisState)
+  def rpois(lambda: Double): Double = Poisson.random(lambda, random, poisState)
 
-  def rnorm(mean: Double, sd: Double): Double = random.nextGaussian(mean, sd)
+  def rnorm(mean: Double, sd: Double): Double = mean + sd * random.nextGaussian()
 }
 
 object RandomSeededFunctions extends RegistryFunctions {
