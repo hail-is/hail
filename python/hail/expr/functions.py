@@ -23,7 +23,7 @@ def _func(name, ret_type, *args):
 
 
 def _get_seed(indices):
-    return construct_expr(I64(randint(0, 9223372036854775807)), hl.tint64, indices=indices)
+    return construct_expr(I64(Env.next_seed()), hl.tint64, indices=indices)
 
 
 @typecheck(t=hail_type)
