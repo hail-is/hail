@@ -73,7 +73,7 @@ def ld_score(entry_expr,
         Row-indexed locus expression on a table or matrix table that is
         row-aligned with the matrix table of `entry_expr`.
     radius : :obj:`int` or :obj:`float`
-        Radius of window for row values (in units of `coord_expr`.
+        Radius of window for row values (in units of `coord_expr`).
     annotation_exprs : :class:`.NumericExpression` or
                        :obj:`list` of :class:`.NumericExpression`, optional
         Annotation expression(s) to partition LD scores. Univariate
