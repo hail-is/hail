@@ -13,7 +13,8 @@ git config --global user.email hail-ci-pr-builder@hail.is && \
 git config --global user.name "Hail CI PR Builder" && \
 git rebase target/$TARGET_BRANCH $SOURCE_BRANCH && \
 chmod 755 ./hail-ci-build.sh && \
-./hail-ci-build.sh && ( \
+./hail-ci-build.sh ; \
+BUILD_EXIT=$? ; ( \
 [[ ! -e artifacts ]] || ( \
   gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
@@ -22,7 +23,7 @@ chmod 755 ./hail-ci-build.sh && \
     -h "Cache-Control:private, max-age=0, no-transform" \
     cp -r \
     artifacts/ \
-    gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ && \
+    gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/ && \
   gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ \
 ) ) ; \
 exit $BUILD_EXIT
