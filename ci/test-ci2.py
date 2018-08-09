@@ -276,13 +276,16 @@ class TestCI(unittest.TestCase):
 
     def poll_until_pr_exists_and(self, source_ref, poll_until_true, delay_in_seconds=DELAY_IN_SECONDS, max_polls=MAX_POLLS):
         prs = []
-        while len(prs) == 0 or not poll_until_true(prs[0]):
+        polls = 0
+        while (len(prs) == 0 or not poll_until_true(prs[0])) and polls < max_polls:
+            time.sleep(delay_in_seconds)
             status = ci_get('/status', status_code=200)
             assert 'prs' in status
             assert 'watched_repos' in status
             prs = status['prs']
             prs = [pr for pr in prs if pr['source_ref'] == source_ref]
             assert len(prs) <= 1
+            polls = polls + 1
         assert len(prs) == 1
         return prs[0]
 
@@ -494,7 +497,6 @@ class TestCI(unittest.TestCase):
 
     def test_merges_approved_pr(self):
         BRANCH_NAME='test_merges_approved_pr'
-        call(['git', 'push', 'origin', ':'+BRANCH_NAME])
         with tempfile.TemporaryDirectory() as d:
             pr_number = None
             try:
