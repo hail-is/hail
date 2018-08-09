@@ -156,7 +156,7 @@ class Status(object):
 
     def build_succeeded(self, pr_number, job_id):
         if self.state == 'merged':
-            log.warn(
+            log.warning(
                 f'was notified of succeeding build for already merged PR! '
                 f'{self.pr_number}, {self.job_id}, {self.to_json()}')
             return self
@@ -497,7 +497,7 @@ def github_pull_request():
         # building) since the requester introduced new changes
         test_pr(source_url, source_ref, target_url, target_ref, status)
     else:
-        log.warn(f'ignoring github pull_request event of type {action}.')
+        log.warning(f'ignoring github pull_request event of type {action}.')
     return '', 200
 
 @app.route('/ci_build_done', methods=['POST'])
@@ -629,7 +629,7 @@ def heal():
                     f'{target_url}:{target_ref} with status {status.to_json()}')
             else:
                 assert status_code == 409, f'{status_code} {gh_response}'
-                log.warn(
+                log.warning(
                     f'failure to merge {source_url}:{source_ref} into '
                     f'{target_url}:{target_ref} with status {status.to_json()} '
                     f'due to {status_code} {gh_response}, removing PR, github '
@@ -1039,13 +1039,13 @@ def try_to_cancel_job_by_id(id):
         job = batch_client.get_job(id)
         try_to_cancel_job(job)
     except requests.exceptions.HTTPError as e:
-        log.warn(f'while trying to cancel a job, could not get job {id} due to {e}')
+        log.warning(f'while trying to cancel a job, could not get job {id} due to {e}')
 
 def try_to_cancel_job(job):
     try:
         job.cancel()
     except requests.exceptions.HTTPError as e:
-        log.warn(f'could not cancel job {job.id} due to {e}')
+        log.warning(f'could not cancel job {job.id} due to {e}')
 
 def batch_job_state_smaller_is_closer_to_complete(x, y):
     if x == 'Complete':
