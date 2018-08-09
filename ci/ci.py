@@ -41,7 +41,6 @@ BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 GCP_PROJECT = 'broad-ctsa'
 VERSION = '0-1'
-VERSION_FOR_TYPE = VERSION + '-1'
 GCS_BUCKET = 'hail-ci-' + VERSION
 
 log.info(f'INITIAL_WATCHED_REPOS {INITIAL_WATCHED_REPOS}')
@@ -759,7 +758,7 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         'target_url': target_url,
         'target_ref': target_ref,
         'target_sha': status.target_sha,
-        'type': 'hail-ci-' + VERSION_FOR_TYPE
+        'type': 'hail-ci-' + VERSION
     }
     assert status.docker_image is not None, ((target_url, target_ref), (source_url, source_ref), status.to_json())
     job=batch_client.create_job(
@@ -912,7 +911,7 @@ def refresh_batch_state():
     for job in jobs:
         t = job.attributes.get('type', None)
         repo = repo_from_url(job.attributes['target_url'])
-        if t and t == 'hail-ci-' + VERSION_FOR_TYPE and repo in watched_repos:
+        if t and t == 'hail-ci-' + VERSION and repo in watched_repos:
             key = (job.attributes['source_url'],
                    job.attributes['source_ref'],
                    job.attributes['source_sha'],
