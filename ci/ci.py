@@ -1,7 +1,7 @@
 from batch.client import *
 from flask import Flask, request, jsonify
 from google.cloud import storage
-from subprocess import run
+from subprocess import run, CalledProcessError
 import collections
 import json
 import logging
@@ -892,7 +892,7 @@ def refresh_github_state():
                                        pr_number,
                                        job_id=job_id,
                                        docker_image=docker_image))
-                        except subprocess.CalledProcessError as e:
+                        except CalledProcessError as e:
                             log.exception(f'could not get docker image due to {e}, will ignore this PR for now')
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
