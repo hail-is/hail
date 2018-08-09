@@ -19,8 +19,8 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
-  def head(n: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.head(n))
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, crdd.head(n, partitionCounts))
 
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crddBoundary.filter(f))

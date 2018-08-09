@@ -2,12 +2,10 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
-import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries}
+import is.hail.expr.{ir, _}
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -22,9 +20,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 sealed abstract class SortOrder
 
@@ -444,11 +440,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
-  def head(n: Long): Table = {
-    if (n < 0)
-      fatal(s"n must be non-negative! Found `$n'.")
-    copy2(rvd = rvd.head(n))
-  }
+  def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
   def keyBy(key: String*): Table = keyBy(key.toArray, null)
 
@@ -646,7 +638,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def take(n: Int): Array[Row] = rvd.take(n, RVD.wireCodec)
+  def take(n: Int): Array[Row] = {
+    val head = TableHead(tir, n)
+    ir.Optimize(head)
+      .execute(hc)
+      .rvd
+      .collect(RVD.wireCodec)
+  }
 
   def takeJSON(n: Int): String = {
     val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
