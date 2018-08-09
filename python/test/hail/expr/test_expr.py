@@ -1841,3 +1841,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.sum(a).value, 1)
         self.assertIsNone(hl.sum(a, filter_missing=False).value)
+
+    def test_literal_with_nested_expr(self):
+        self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
+        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})

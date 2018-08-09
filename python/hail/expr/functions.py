@@ -92,22 +92,31 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     -------
     :class:`.Expression`
     """
-    if dtype:
-        try:
-            dtype._typecheck(x)
-        except TypeError as e:
-            raise TypeError("'literal': object did not match the passed type '{}'"
-                            .format(dtype)) from e
-    else:
+    wrapper = {'has_expr': False}
+    def typecheck_expr(t, x):
+        if isinstance(x, Expression):
+            wrapper['has_expr'] = True
+            if x.dtype != t:
+                raise TypeError(f"'literal': type mismatch: expected '{t}', found '{x.dtype}'")
+            elif x._indices.source is not None:
+                if x._indices.axes:
+                    raise ExpressionException(f"'literal' can only accept scalar or global expression arguments,"
+                                              f" found indices {x._indices.axes}")
+            return False
+        else:
+            t._typecheck_one_level(x)
+            return True
+    if dtype is None:
         dtype = impute_type(x)
 
-    def get_float_str(x):
-        if math.isnan(x):
-            return 'nan'
-        elif math.isinf(x):
-            return 'inf' if x > 0 else 'neginf'
-        else:
-            return builtins.str(builtins.float(x))
+    try:
+        dtype._traverse(x, typecheck_expr)
+    except TypeError as e:
+        raise TypeError("'literal': object did not match the passed type '{}'"
+                        .format(dtype)) from e
+
+    if wrapper['has_expr']:
+        return literal(to_expr(x).value, dtype)
 
     if x is None:
         return hl.null(dtype)
