@@ -6,6 +6,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.Parser
+import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
@@ -61,8 +62,6 @@ object IRSuite { outer =>
       }
     }
   }
-
-  TestFunctions.registerAll()
 }
 
 class IRSuite extends SparkSuite {
@@ -669,6 +668,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testEvaluations() {
+    TestFunctions.registerAll()
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
       val args = IndexedSeq((i, TBoolean()))
@@ -688,17 +688,17 @@ class IRSuite extends SparkSuite {
 
     def i = In(0, TBoolean())
 
-    def st = ApplySpecial("incr_s", Seq(True()))
-    def sf = ApplySpecial("incr_s", Seq(False()))
-    def sm = ApplySpecial("incr_s", Seq(NA(TBoolean())))
+    def st = invoke("incr_s", True(), 0L)
+    def sf = invoke("incr_s", True(), 0L)
+    def sm = invoke("incr_s", NA(TBoolean()), 0L)
 
-    def mt = ApplySpecial("incr_m", Seq(True()))
-    def mf = ApplySpecial("incr_m", Seq(False()))
-    def mm = ApplySpecial("incr_m", Seq(NA(TBoolean())))
+    def mt = invoke("incr_m", True(), 0L)
+    def mf = invoke("incr_m", True(), 0L)
+    def mm = invoke("incr_m", NA(TBoolean()), 0L)
 
-    def vt = ApplySpecial("incr_v", Seq(True()))
-    def vf = ApplySpecial("incr_v", Seq(False()))
-    def vm = ApplySpecial("incr_v", Seq(NA(TBoolean())))
+    def vt = invoke("incr_v", True(), 0L)
+    def vf = invoke("incr_v", True(), 0L)
+    def vm = invoke("incr_v", NA(TBoolean()), 0L)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
