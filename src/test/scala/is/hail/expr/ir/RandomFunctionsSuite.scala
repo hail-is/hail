@@ -11,11 +11,11 @@ import org.testng.annotations.{BeforeClass, Test}
 
 class TestIRRandomness(val seed: Long) extends IRRandomness(seed) {
   private[this] var i = -1
+  var partitionIndex: Int = 0
 
-  def partitionIndex(): Int = pidx
-
-  override def reseed() {
-    super.reseed()
+  override def reset(pidx: Int) {
+    super.reset(pidx)
+    partitionIndex = 0
     i = -1
   }
 

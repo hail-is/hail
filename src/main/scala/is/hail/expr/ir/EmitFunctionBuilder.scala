@@ -299,19 +299,14 @@ class EmitFunctionBuilder[F >: Null](
         field := initialization
     }: _*)
 
-    val setPartitionIndices = Code(rngFields.map { case (field, _) =>
-      field.invoke[Int, Unit]("setPartitionIndex", mb.getArg[Int](1))
-    }: _*)
-
     val reseed = Code(rngFields.map { case (field, _) =>
-      field.invoke[Unit]("reseed")
+      field.invoke[Int, Unit]("reset", mb.getArg[Int](1))
     }: _*)
 
     mb.emit(Code(
       initialized.mux(
         Code._empty,
         Code(initialize, initialized := true)),
-      setPartitionIndices,
       reseed))
   }
 

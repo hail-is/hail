@@ -3,26 +3,32 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s.Code
 import is.hail.expr.types._
+import net.sourceforge.jdistlib.Poisson
+import net.sourceforge.jdistlib.rng.MersenneTwister
 import org.apache.commons.math3.random.RandomDataGenerator
 
 class IRRandomness(seed: Long) {
 
-  protected[this] var pidx: Int = 0
   private[this] val random: RandomDataGenerator = new RandomDataGenerator()
+  private[this] var poisState = Poisson.create_random_state()
+  private[this] val poisEngine = new MersenneTwister()
 
-  def setPartitionIndex(partitionIdx: Int): Unit =
-    pidx = partitionIdx
+  // FIXME: these are just combined with some large primes, so probably should be fixed up
+  private[this] def hash(pidx: Int): Long =
+    seed ^ java.lang.Math.floorMod(pidx * 11399L, 2147483647L)
 
-  def reseed() {
-    val combinedSeed = seed ^ java.lang.Math.floorMod(pidx * 11399, 17863)
+  def reset(partitionIdx: Int) {
+    val combinedSeed = hash(partitionIdx)
+      poisEngine.setSeed(combinedSeed)
     random.reSeed(combinedSeed)
+    poisState = Poisson.create_random_state()
   }
 
   def runif(min: Double, max: Double): Double = random.nextUniform(min, max, true)
 
   def rcoin(p: Double): Boolean = runif(0, 1) < p
 
-  def rpois(lambda: Double): Double = random.nextPoisson(lambda)
+  def rpois(lambda: Double): Double = Poisson.random(lambda, poisEngine, poisState)
 
   def rnorm(mean: Double, sd: Double): Double = random.nextGaussian(mean, sd)
 }
