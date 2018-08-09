@@ -926,11 +926,11 @@ def refresh_batch_state():
                 job_state = job.cached_status()['state']
                 if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
                     job2.id < job.id):
-                    log.info(f'cancelling {job2.id}, preferring {job.id}, {job2.cached_status()} {job.cached_status()} ')
+                    log.info(f'cancelling {job2.id}, preferring {job.id}, {job2.attributes} {job.attributes} ')
                     try_to_cancel_job(job2)
                     latest_jobs[key] = job
                 else:
-                    log.info(f'cancelling {job.id}, preferring {job2.id}, {job2.cached_status()} {job.cached_status()} ')
+                    log.info(f'cancelling {job.id}, preferring {job2.id}, {job2.attributes} {job.attributes} ')
                     try_to_cancel_job(job)
 
     for job in latest_jobs.values():
