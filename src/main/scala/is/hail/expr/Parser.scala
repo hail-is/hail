@@ -523,6 +523,7 @@ object Parser extends JavaTokenParsers {
       "Str" ~> string_literal ^^ { x => ir.Str(x) } |
       "True" ^^ { x => ir.True() } |
       "False" ^^ { x => ir.False() } |
+      "Literal" ~> ir_value ~ string_literal ^^ { case (value ~ id) => ir.Literal(value._1, value._2, id)} |
       "Void" ^^ { x => ir.Void() } |
       "Cast" ~> type_expr ~ expr_with_map ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |

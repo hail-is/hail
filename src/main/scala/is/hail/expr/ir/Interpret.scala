@@ -3,14 +3,22 @@ package is.hail.expr.ir
 import is.hail.{HailContext, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
-import is.hail.expr.{SymbolTable, TypedAggregator}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
+
+  def interpretPyIR(s: String): String = {
+    val ir = Parser.parse_value_ir(s)
+    val t = ir.typ
+    val value = Interpret[Any](ir)
+    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+  }
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
@@ -35,6 +43,8 @@ object Interpret {
       })
     }
 
+    ir = LiftLiterals(ir).asInstanceOf[IR]
+
     apply(ir, valueEnv, args, agg, None).asInstanceOf[T]
   }
 
@@ -49,6 +59,7 @@ object Interpret {
       case Str(x) => x
       case True() => true
       case False() => false
+      case Literal(_, value, _) => value
       case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args, agg)

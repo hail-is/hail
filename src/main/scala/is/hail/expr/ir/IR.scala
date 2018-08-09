@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, IRFunctionWithMissingness, IRFunctionWithoutMissingness}
 import is.hail.utils.{ExportType, FastIndexedSeq}
@@ -39,9 +40,14 @@ object Literal {
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
       case _: TString => Str(x.asInstanceOf[String])
+      case _ => Literal(t, x, genUID())
       case _ => throw new RuntimeException(s"Unsupported literal type: $t")
     }
   }
+}
+
+final case class Literal(typ: Type, value: Annotation, id: String) extends IR {
+  require(id.startsWith("_"))
 }
 
 sealed trait InferIR extends IR {
@@ -193,7 +199,7 @@ final case class ApplySpecial(function: String, args: Seq[IR]) extends IR {
     implementation.unify(argTypes)
     implementation.returnType.subst()
   }
-  
+
   def isDeterministic: Boolean = implementation.isDeterministic
 }
 

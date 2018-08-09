@@ -1616,23 +1616,15 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long](
-      "global", child.typ.globalType,
-      "value", value.t,
-      newRow)
-    assert(rTyp == typ.globalType)
+    val newGlobals = Interpret[Row](
+      newRow,
+      Env.empty[(Any, Type)].bind(
+        "global" -> (prev.globals.value, child.typ.globalType),
+        "value" -> (value.value, value.t)),
+      FastIndexedSeq(),
+      None)
 
-    val newGlobals = Region.scoped { globalRegion =>
-      val globalOff = prev.globals.toRegion(globalRegion)
-      val valueOff = value.toRegion(globalRegion)
-      val newOff = f()(globalRegion, globalOff, false, valueOff, false)
-
-      prev.globals.copy(
-        value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
-        t = rTyp.asInstanceOf[TStruct])
-    }
-
-    prev.copy(typ = typ, globals = newGlobals)
+    prev.copy(typ = typ, globals = BroadcastRow(newGlobals, typ.globalType, hc.sc))
   }
 }
 

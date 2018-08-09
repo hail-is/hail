@@ -25,6 +25,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
+      case Literal(_, _, _) =>
       case Void() =>
 
       case Cast(v, typ) =>
