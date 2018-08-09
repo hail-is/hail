@@ -56,3 +56,5 @@ ADD https://archive.apache.org/dist/spark/spark-2.0.2/spark-2.0.2-bin-hadoop2.7.
 RUN tar --strip-components=1 -xvzf spark-2.0.2-bin-hadoop2.7.tgz -C /spark && \
     rm -rf spark-2.0.2-bin-hadoop2.7.tgz
 ENV SPARK_HOME /spark/
+
+WORKDIR /hail
