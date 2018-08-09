@@ -1467,9 +1467,7 @@ class Table(ExprContainer):
         return construct_expr(ir, self.globals.dtype)
 
     def _process_joins(self, *exprs):
-        def broadcast_f(left, data, t):
-            return Table(left._jt.annotateGlobalJSON(data, t._jtype))
-        return process_joins(self, exprs, broadcast_f)
+        return process_joins(self, exprs)
 
     def cache(self):
         """Persist this table in memory.
@@ -1724,7 +1722,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
+        return self.head(n).collect()
 
     @typecheck_method(n=int)
     def head(self, n):

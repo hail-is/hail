@@ -639,25 +639,16 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val gType = typ.globalType
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long](
-      "global", child.typ.globalType,
-      "value", value.t,
-      newRow)
-    assert(rTyp == gType)
+    val newGlobals = Interpret[Row](
+      newRow,
+      Env.empty[(Any, Type)].bind(
+        "global" -> (tv.globals.value, child.typ.globalType),
+        "value" -> (value.value, value.t)),
+      FastIndexedSeq(),
+      None)
 
-    val newGlobals = Region.scoped { globalRegion =>
-      val globalOff = tv.globals.toRegion(globalRegion)
-      val valueOff = value.toRegion(globalRegion)
-      val newOff = f()(globalRegion, globalOff, false, valueOff, false)
-
-      tv.globals.copy(
-        value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
-        t = rTyp.asInstanceOf[TStruct])
-    }
-
-    TableValue(typ, newGlobals, tv.rvd)
+    tv.copy(typ = typ, globals = BroadcastRow(newGlobals, typ.globalType, hc.sc))
   }
 }
 

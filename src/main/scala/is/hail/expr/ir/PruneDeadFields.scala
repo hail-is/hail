@@ -1,12 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq, BroadcastRow}
-import is.hail.expr._
+import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
-
-import scala.util.{Failure, Success, Try}
 
 object PruneDeadFields {
   def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {

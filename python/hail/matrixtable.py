@@ -2541,8 +2541,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     def _process_joins(self, *exprs):
-        broadcast_f = lambda left, data, t: MatrixTable(left._jvds.annotateGlobalJSON(data, t._jtype))
-        return process_joins(self, exprs, broadcast_f)
+        return process_joins(self, exprs)
 
     def describe(self):
         """Print information about the fields in the matrix."""

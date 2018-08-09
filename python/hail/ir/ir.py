@@ -1,5 +1,6 @@
 from typing import *
 
+import hail
 from .aggsig import AggSignature
 from .base_ir import *
 from hail.expr.types import hail_type
@@ -1224,16 +1225,34 @@ class MatrixWrite(IR):
                other.matrix_writer == self.matrix_writer
 
 
-class Broadcast(IR):
-    @typecheck_method(value=anytype, dtype=hail_type)
-    def __init__(self, value, dtype):
-        super(Broadcast, self).__init__()
+class Literal(IR):
+    _idx = 0
+
+    @typecheck_method(dtype=hail_type,
+                      value=anytype,
+                      id=nullable(str))
+    def __init__(self, dtype, value, id=None):
+        super(Literal, self).__init__()
+        self.dtype: 'hail.HailType' = dtype
         self.value = value
-        self.dtype = dtype
-        self.uid = Env.get_uid()
+        if id is None:
+            id = f'__py_literal_{Literal._idx}'
+        self.id = id
+        Literal._idx += 1
+
+    def copy(self):
+        return Literal(self.dtype, self.value, self.id)
 
     def __str__(self):
-        return str(GetField(TopLevelReference('global'), self.uid))
+        return f'(Literal {self.dtype._jtype.parsableString()} ' \
+               f'"{escape_str(self.dtype._to_json(self.value))}" ' \
+               f'"{self.id}")'
+
+    def __eq__(self, other):
+        return isinstance(other, Literal) and \
+               other.dtype == self.dtype and \
+               other.value == self.value and \
+               other.id == self.id
 
 
 class Join(IR):

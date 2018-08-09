@@ -10,6 +10,7 @@ object Copy {
       case Str(value) => Str(value)
       case True() => True()
       case False() => False()
+      case Literal(typ, value, id) => Literal(typ, value, id)
       case Void() => Void()
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren

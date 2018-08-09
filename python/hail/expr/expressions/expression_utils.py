@@ -1,4 +1,4 @@
-from hail.utils import warn, error
+from hail.utils import warn, error, java
 from .indices import *
 from ..expressions import Expression, Aggregable, ExpressionException, expr_any
 from typing import *
@@ -191,7 +191,12 @@ def eval_expr_typed(expression):
     """
     analyze('eval_expr_typed', expression, Indices(expression._indices.source))
 
-    return expression.collect()[0], expression.dtype
+    if expression._indices.source is None:
+        return (expression.dtype._from_json(
+            java.Env._hail_package.expr.ir.Interpret.interpretPyIR(str(expression._ir))),
+                expression.dtype)
+    else:
+        return expression.collect()[0], expression.dtype
 
 
 def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:

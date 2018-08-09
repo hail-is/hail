@@ -134,7 +134,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
             assert isinstance(x, builtins.str)
             return construct_expr(Str(x), tstr)
     else:
-        return construct_expr(Broadcast(x, dtype), dtype)
+        return construct_expr(Literal(dtype, x), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
