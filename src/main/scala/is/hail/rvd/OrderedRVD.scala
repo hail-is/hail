@@ -196,6 +196,7 @@ class OrderedRVD(
         rv
       }
     }
+    assert(typ.key.length >= right.typ.key.length, s"$typ >= ${ right.typ }\n  $this\n  $right")
     keyBy(typ.key.take(right.typ.key.length)).orderedJoinDistinct(
       right.keyBy(),
       "left",

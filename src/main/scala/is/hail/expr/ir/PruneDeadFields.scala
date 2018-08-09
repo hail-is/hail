@@ -456,8 +456,8 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, rowDep),
           globalType = requestedType.globalType)
         memoizeTableIR(child, requestedChildType, memo)
-      case MatrixAnnotateRowsTable(child, table, uid, key) =>
-        val fieldDep = requestedType.rvRowType.fieldOption(uid).map(_.typ.asInstanceOf[TStruct])
+      case MatrixAnnotateRowsTable(child, table, root, key) =>
+        val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
         fieldDep match {
           case Some(struct) =>
             val tableDep = table.typ.copy(rowType = unify(
@@ -475,7 +475,7 @@ object PruneDeadFields {
               requestedType.copy(rvRowType =
                 unify(child.typ.rvRowType,
                   minimal(child.typ).rvRowType,
-                  requestedType.rvRowType.filterSet(Set(uid), include = false)._1)))
+                  requestedType.rvRowType.filterSet(Set(root), include = false)._1)))
             memoizeMatrixIR(child, matDep, memo)
           case None =>
             // don't depend on key IR dependencies if we are going to elide the node anyway
