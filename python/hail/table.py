@@ -200,6 +200,8 @@ class GroupedTable(ExprContainer):
 
         group_exprs = dict(self._groups)
 
+        for name, expr in named_exprs.items():
+            analyze(f'GroupedTable.aggregate: ({repr(name)})', expr, self._parent._global_indices)
         if not named_exprs.keys().isdisjoint(group_exprs.keys()):
             intersection = set(named_exprs.keys()) & set(group_exprs.keys())
             raise ValueError(
