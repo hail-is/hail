@@ -1,4 +1,4 @@
-name: hail-0.1
+name: hail-0.1-dev
 dependencies:
 - python>=2
 - Sphinx=1.7

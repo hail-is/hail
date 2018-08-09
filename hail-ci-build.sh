@@ -1,5 +1,5 @@
 set -x
-source activate hail
+source activate hail-0.1-dev
 GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs --gradle-user-home /gradle-cache
 EXIT_CODE=$?
 rm -rf artifacts
