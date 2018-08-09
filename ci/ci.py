@@ -847,7 +847,7 @@ def refresh_github_state():
                 prs = pop_prs_for_target(dead_target_url, dead_target_ref, {})
                 if len(prs) != 0:
                     log.info(
-                        f'no open PRs for {dead_target_url}:{daed_target_ref} on GitHub, '
+                        f'no open PRs for {dead_target_url}:{dead_target_ref} on GitHub, '
                         f'forgetting the {len(prs)} PRs I was tracking')
             for target_ref, pulls in pulls_by_target.items():
                 target_sha = get_sha_for_target_ref(target_url, target_ref)
