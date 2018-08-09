@@ -1757,7 +1757,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
+        return self.head(n).collect()
 
     @typecheck_method(n=int)
     def head(self, n):

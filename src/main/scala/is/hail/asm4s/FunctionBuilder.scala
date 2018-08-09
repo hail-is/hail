@@ -251,8 +251,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.getArg[T](i)
 
-  def
-  emit(c: Code[_]) = apply_method.emit(c)
+  def emit(c: Code[_]) = apply_method.emit(c)
 
   def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
 
