@@ -305,25 +305,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       pred)
     assert(rTyp == TBoolean())
 
-    val localGlobalsType = typ.globalType
-    val localGlobals = ktv.globals.broadcast
-
-    val mapPartitionsF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-      val globalRegion = ctx.freshRegion
-      val rvb = new RegionValueBuilder(globalRegion)
-      rvb.start(localGlobalsType)
-      rvb.addAnnotation(localGlobalsType, localGlobals.value)
-      val globalRV = RegionValue(globalRegion, rvb.end())
-
-      val rowF = f(i)
-
-      it.filter { rv => rowF(rv.region, rv.offset, false, globalRV.offset, false) }
-    }
-
-    ktv.copy(rvd=ktv.rvd match {
-      case orvd: OrderedRVD => orvd.mapPartitionsWithIndexPreservesPartitioning(orvd.typ, mapPartitionsF)
-      case urvd: UnpartitionedRVD => urvd.mapPartitionsWithIndex(urvd.rowType, mapPartitionsF)
-    })
+    ktv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
 
