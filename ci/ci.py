@@ -1085,6 +1085,8 @@ def get_build_image(source_url, source_ref, source_sha,
         run(['git', 'fetch', 'origin'], check=True)
         run(['git', 'fetch', source_repo], check=True)
         run(['git', 'checkout', target_sha], check=True)
+        run(['git', 'config', '--global', 'user.email', 'hail-ci-leader@example.com'], check=True)
+        run(['git', 'config', '--global', 'user.name', 'hail-ci-leader'], check=True)
         run(['git', 'merge', source_sha, '-m', 'foo'], check=True)
         # a force push that removes refs could fail us... not sure what we
         # should do in that case. maybe 500'ing is OK?
