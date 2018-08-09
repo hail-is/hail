@@ -1881,9 +1881,9 @@ case class MatrixAnnotateRowsTable(
 
         val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
         // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
-        val newRVD = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
+        val newRVD = indexedMtRVD.copy(typ = mtOType, partitioner = indexedPartitioner)
           .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
-          .copy(orderedPartitioner = prevPartitioner)
+          .copy(partitioner = prevPartitioner)
         MatrixValue(typ, prev.globals, prev.colValues, newRVD)
 
       // annotateRowsTable using key

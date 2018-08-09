@@ -622,32 +622,31 @@ class OrderedRVD(
     partitioner,
     this.crdd.czip(that.crdd, preservesPartitioning = true)(zipper))
 
-  // New key type must be same as left key type. If this doesn't hold, use
-  // constrainToOrderedPartitioner on left RVD first.
-  // 'joinKey' must be prefix of both left key and right key.
-  // 'zipper' must take all output key values from left iterator, and be
-  // monotonic on left iterator (it can drop or duplicate elements of left
-  // iterator, but cannot rearrange them), and output region values must
-  // conform to 'newTyp'.
-  // Resulting OrderedRVD will have same partitioner as 'this'. Each
-  // partition will be computed by 'zipper', with corresponding partition
-  // of 'this' as first iterator, and with all rows of 'that' whose 'joinKey'
-  // might match something in partition as the second iterator.
+  // New key type must be prefix of left key type. 'joinKey' must be prefix of
+  // both left key and right key. 'zipper' must take all output key values from
+  // left iterator, and be monotonic on left iterator (it can drop or duplicate
+  // elements of left iterator, or insert new elements in order, but cannot
+  // rearrange them), and output region values must conform to 'newTyp'. The
+  // partitioner of the resulting OrderedRVD will be left partitioner truncated
+  // to new key. Each partition will be computed by 'zipper', with corresponding
+  // partition of 'this' as first iterator, and with all rows of 'that' whose
+  // 'joinKey' might match something in partition as the second iterator.
   def alignAndZipPartitions(
     newTyp: OrderedRVDType,
     that: OrderedRVD,
     joinKey: TStruct
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
-    require(newTyp.kType == this.typ.kType)
+    require(newTyp.kType isPrefixOf this.typ.kType)
     require(joinKey isPrefixOf this.typ.kType)
     require(joinKey isPrefixOf that.typ.kType)
 
+    val left = this.truncateKey(newTyp.key)
     val coarsenedPartitioner = this.partitioner.coarsen(joinKey.size)
     OrderedRVD(
       typ = newTyp,
-      partitioner = this.partitioner,
-      crdd = this.crddBoundary.czipPartitions(
+      partitioner = left.partitioner,
+      crdd = left.crddBoundary.czipPartitions(
         that.constrainToOrderedPartitioner(
           that.typ.copy(
             partitionKey = that.typ.key.take(coarsenedPartitioner.partitionKey.getOrElse(that.typ.key.length)),
