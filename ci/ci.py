@@ -209,6 +209,7 @@ class Status(object):
             'gc': self.gc
         }
 
+auto_merge_on = True
 watched_repos = INITIAL_WATCHED_REPOS
 target_source_pr = {}
 source_target_pr = {}
@@ -262,6 +263,7 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
 @app.route('/status')
 def status():
     return jsonify({
+        'auto_merge_on': auto_merge_on,
         'watched_repos': watched_repos,
         'prs': [{ 'source_url': source_url,
            'source_ref': source_ref,
@@ -272,17 +274,31 @@ def status():
          for ((target_url, target_ref), status) in prs.items()]
     })
 
+@app.route('/status/enable_auto_merge', methods=['POST'])
+def enable_auto_merge():
+    global auto_merge_on
+    auto_merge_on = True
+    return '', 200
+
+@app.route('/status/disable_auto_merge', methods=['POST'])
+def disable_auto_merge():
+    global auto_merge_on
+    auto_merge_on = False
+    return '', 200
+
 @app.route('/status/watched_repos')
 def get_watched_repos():
     return jsonify(watched_repos)
 
 @app.route('/status/watched_repos/<repo>/remove', methods=['POST'])
 def remove_watched_repo(repo):
+    global watched_repos
     watched_repos = [r for r in watched_repos if r != repo]
     return jsonify(watched_repos)
 
 @app.route('/status/watched_repos/<repo>/add', methods=['POST'])
 def add_watched_repo(repo):
+    global watched_repos
     watched_repos = [r for r in watched_repos if r != repo]
     watched_repos.append(repo)
     return jsonify(watched_repos)
@@ -419,7 +435,7 @@ def github_push():
             f'{target_url}:{target_ref} was updated to {new_sha}, '
             f'{len(pr_statuses)} (possibly recently merged) PRs target this ref')
         for (source_url, source_ref), status in pr_statuses.items():
-            if (status.target_sha != new_sha):
+            if (status.target_sha != new_sha and status.state != 'merged'):
                 cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
                 post_repo(
                     repo_from_url(target_url),
@@ -591,7 +607,9 @@ def heal():
                           for source, status in prs.items()
                           if status.state == 'success'
                           and status.review_state == 'approved']
-        if len(ready_to_merge) != 0:
+        if not auto_merge_on and len(ready_to_merge) != 0:
+            log.info(f'auto merge is disabled, so I will not attempt to merge any of {[(x, y.to_json()) for (x, y) in ready_to_merge]}')
+        if auto_merge_on and len(ready_to_merge) != 0:
             # pick oldest one instead
             ((source_url, source_ref), status) = ready_to_merge[0]
             log.info(f'merging {source_url}:{source_ref} into {target_url}:{target_ref} with status {status.to_json()}')
