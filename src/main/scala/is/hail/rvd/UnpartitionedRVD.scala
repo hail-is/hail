@@ -23,7 +23,7 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
   override def toOrderedRVD: OrderedRVD = {
     new OrderedRVD(
-      typ = new OrderedRVDType(Array(), rowType),
+      typ = OrderedRVDType(FastIndexedSeq.empty, rowType),
       partitioner = OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
       crdd = crdd
     )

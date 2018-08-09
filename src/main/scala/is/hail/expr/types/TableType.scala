@@ -1,8 +1,9 @@
 package is.hail.expr.types
 
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.expr.Parser
 import is.hail.utils._
 import is.hail.expr.ir._
+import is.hail.rvd.OrderedRVDType
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -14,6 +15,7 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
 
   val keyOrEmpty: IndexedSeq[String] = key.getOrElse(IndexedSeq.empty)
   val keyOrNull: IndexedSeq[String] = key.orNull
+  val rvdType = OrderedRVDType(keyOrEmpty, rowType)
 
   def env: Env[Type] = {
     Env.empty[Type]
@@ -34,11 +36,10 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
     "global" -> globalType,
     "row" -> rowType)
 
-  def keyType: Option[TStruct] = key.map(key => rowType.select(key.toArray)._1)
-  val keyFieldIdx: Option[Array[Int]] = key.map(_.toArray.map(rowType.fieldIdx))
-  def valueType: TStruct = rowType.filterSet(keyOrEmpty.toSet, include = false)._1
-  val valueFieldIdx: Array[Int] =
-    rowType.fields.filter(f => !keyOrEmpty.contains(f.name)).map(_.index).toArray
+  def keyType: Option[TStruct] = key.map(_ => rvdType.kType)
+  val keyFieldIdx: Option[Array[Int]] = key.map(_ => rvdType.kFieldIdx)
+  def valueType: TStruct = rvdType.valueType
+  val valueFieldIdx: Array[Int] = rvdType.valueFieldIdx
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0

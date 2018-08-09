@@ -176,7 +176,7 @@ class OrderedRVDPartitioner(
     copy(rangeBounds = newRangeBounds)
   }
 
-  def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
+  def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): OrderedRVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
       rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))
     }
@@ -224,7 +224,7 @@ object OrderedRVDPartitioner {
   }
 
   def generate(
-    partitionKey: Array[String],
+    partitionKey: IndexedSeq[String],
     kType: TStruct,
     intervals: IndexedSeq[Interval]
   ): OrderedRVDPartitioner = {

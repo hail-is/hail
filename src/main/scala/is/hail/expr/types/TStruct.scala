@@ -501,7 +501,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def select(keep: Array[String]): (TStruct, (Row) => Row) = {
+  def select(keep: IndexedSeq[String]): (TStruct, (Row) => Row) = {
     val t = TStruct(keep.map { n =>
       n -> field(n).typ
     }: _*)
@@ -513,7 +513,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t, selectF)
   }
 
-  def typeAfterSelect(keep: Array[Int]): TStruct =
+  def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
   override val fundamentalType: TStruct = {

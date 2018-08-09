@@ -99,10 +99,10 @@ class OrderedRVD(
       crdd.cmapPartitions(f))
   }
 
-  def changeKey(newKey: Array[String]): OrderedRVD =
+  def changeKey(newKey: IndexedSeq[String]): OrderedRVD =
     OrderedRVD.coerce(typ.copy(key = newKey), this)
 
-  def extendKeyPreservesPartitioning(newKey: Array[String]): OrderedRVD = {
+  def extendKeyPreservesPartitioning(newKey: IndexedSeq[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
     val orvdType = typ.copy(key = newKey)
@@ -112,7 +112,7 @@ class OrderedRVD(
       constrainToOrderedPartitioner(orvdType, partitioner.extendKey(orvdType.kType))
   }
 
-  def truncateKey(newKey: Array[String]): OrderedRVD = {
+  def truncateKey(newKey: IndexedSeq[String]): OrderedRVD = {
     require(typ.key startsWith newKey)
     copy(
       typ = typ.copy(key = newKey),
@@ -189,7 +189,7 @@ class OrderedRVD(
       ContextRDD(new RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds)))
   }
 
-  def localSort(newKey: Array[String]): OrderedRVD = {
+  def localSort(newKey: IndexedSeq[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
     require(partitioner.satisfiesPartitionKey(typ.key.length - 1))
@@ -212,7 +212,7 @@ class OrderedRVD(
     new OrderedRVD(newType, newPartitioner, sortedRDD)
   }
 
-  def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
+  def keyBy(key: IndexedSeq[String] = typ.key): KeyedOrderedRVD =
     new KeyedOrderedRVD(this, key)
 
   def orderedLeftJoinDistinctAndInsert(
@@ -236,7 +236,7 @@ class OrderedRVD(
     val localRowType = rowType
 
     val shouldLift = lift.isDefined
-    val rightValueIndices = right.typ.valueIndices
+    val rightValueIndices = right.typ.valueFieldIdx
     val liftIndex = liftField.map(_.index).getOrElse(-1)
 
     val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
@@ -413,7 +413,7 @@ class OrderedRVD(
   def filterOutIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
     val kType = typ.kType
-    val kRowFieldIdx = typ.kRowFieldIdx
+    val kRowFieldIdx = typ.kFieldIdx
     val rowType = typ.rowType
 
     mapPartitionsPreservesPartitioning(typ, { (ctx, it) =>
@@ -431,7 +431,7 @@ class OrderedRVD(
     val kOrdering = typ.kType.ordering
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType
-    val kRowFieldIdx = typ.kRowFieldIdx
+    val kRowFieldIdx = typ.kFieldIdx
 
     val pred: (RegionValue) => Boolean = (rv: RegionValue) => {
       val ur = new UnsafeRow(rowType, rv)
@@ -508,7 +508,7 @@ class OrderedRVD(
         rvb.startStruct()
         var i = 0
         while (i < localType.kType.size) {
-          rvb.addField(localType.rowType, stepIt.value, localType.kRowFieldIdx(i))
+          rvb.addField(localType.rowType, stepIt.value, localType.kFieldIdx(i))
           i += 1
         }
         for (rv <- stepIt) {
@@ -731,7 +731,7 @@ object OrderedRVD {
     crdd.cmapPartitions { (ctx, it) =>
       val wrv = WritableRegionValue(localType.kType, ctx.freshRegion)
       it.map { rv =>
-        wrv.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+        wrv.setSelect(localType.rowType, localType.kFieldIdx, rv)
         wrv.value
       }
     }
@@ -1013,7 +1013,7 @@ object OrderedRVD {
     val shuffledCRDD = crdd
       .mapPartitions { it =>
         val ur = new UnsafeRow(typ.rowType, null, 0)
-        val key = new KeyedRow(ur, typ.kRowFieldIdx)
+        val key = new KeyedRow(ur, typ.kFieldIdx)
         it.filter { rv =>
           ur.set(rv)
           partBc.value.rangeTree.contains(kOrdering, key)
@@ -1021,7 +1021,7 @@ object OrderedRVD {
       }
       .cmapPartitions { (ctx, it) =>
         it.map { rv =>
-          val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kRowFieldIdx)
+          val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kFieldIdx)
           val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
           (keys, bytes)
         }
@@ -1092,7 +1092,7 @@ object OrderedRVD {
               assert(localType.kRowOrd.lteq(prevK.value, rv))
             }
 
-            prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
             kUR.set(prevK.value)
 
             if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR))

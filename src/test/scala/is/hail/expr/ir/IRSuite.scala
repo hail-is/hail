@@ -512,7 +512,7 @@ class IRSuite extends SparkSuite {
         TableKeyByAndAggregate(read,
           NA(TStruct()), NA(TStruct()), Some(1), 2),
         TableJoin(read,
-          TableRange(100, 10), "inner"),
+          TableRange(100, 10), "inner", 1),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, false),

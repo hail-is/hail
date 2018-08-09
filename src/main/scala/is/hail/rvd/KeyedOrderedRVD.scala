@@ -7,7 +7,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.collection.generic.Growable
 
-class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
+class KeyedOrderedRVD(val rvd: OrderedRVD, val key: IndexedSeq[String]) {
   val realType: OrderedRVDType = rvd.typ
   val virtType = new OrderedRVDType(key, realType.rowType)
   val (kType, _) = rvd.rowType.select(key)

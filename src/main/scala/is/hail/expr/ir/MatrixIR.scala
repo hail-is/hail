@@ -694,7 +694,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val newRVType = typ.rvRowType
     val newRowType = typ.rowType
     val rvType = prev.typ.rvRowType
-    val selectIdx = prev.typ.orvdType.kRowFieldIdx
+    val selectIdx = prev.typ.orvdType.kFieldIdx
     val keyOrd = prev.typ.orvdType.kRowOrd
     val localGlobalsType = prev.typ.globalType
     val localColsType = TArray(minColType)
@@ -2015,8 +2015,8 @@ case class TableToMatrixTable(
       }
     }
 
-    val ordType = new OrderedRVDType(rowKey.toArray ++ Array(INDEX_UID), rowEntryStruct)
-    val ordTypeNoIndex = new OrderedRVDType(rowKey.toArray, rowEntryStruct)
+    val ordType = OrderedRVDType(rowKey ++ FastIndexedSeq(INDEX_UID), rowEntryStruct)
+    val ordTypeNoIndex = OrderedRVDType(rowKey, rowEntryStruct)
     val ordered = OrderedRVD.coerce(ordType, rowKey.length, rowEntryRVD)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)

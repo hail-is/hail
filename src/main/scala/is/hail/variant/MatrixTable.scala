@@ -595,7 +595,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val rightRowType = rightRVD.rowType
     val leftRowType = rvRowType
 
-    val rightValueIndices = rightRVD.typ.valueIndices
+    val rightValueIndices = rightRVD.typ.valueFieldIdx
     assert(!product || rightValueIndices.length == 1)
 
     val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
@@ -633,7 +633,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length).toArray).orderedJoinDistinct(
+    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length)).orderedJoinDistinct(
       right.keyBy(),
       "left",
       joiner,

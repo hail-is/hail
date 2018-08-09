@@ -253,7 +253,7 @@ object Pretty {
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
             case TableHead(_, n) => n.toString
-            case TableJoin(_, _, joinType) => joinType
+            case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>

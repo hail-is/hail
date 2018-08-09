@@ -99,11 +99,11 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            'src/test/resources/backward_compatability/1.0.0/table/0.ht', False, None)
+            resource('backward_compatability/1.0.0/table/0.ht'), False, None)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
-            'src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt', False, False)
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -122,7 +122,7 @@ class TableIRTests(unittest.TestCase):
                 1, 2),
             ir.TableJoin(
                 table_read,
-                ir.TableRange(100, 10), 'inner'),
+                ir.TableRange(100, 10), 'inner', 1),
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
             ir.TableParallelize(

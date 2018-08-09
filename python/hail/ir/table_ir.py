@@ -14,15 +14,16 @@ class MatrixRowsTable(TableIR):
 
 
 class TableJoin(TableIR):
-    def __init__(self, left, right, join_type):
+    def __init__(self, left, right, join_type, join_key):
         super().__init__()
         self.left = left
         self.right = right
         self.join_type = join_type
+        self.join_key = join_key
 
     def __str__(self):
-        return '(TableJoin {} {} {})'.format(
-            escape_id(self.join_type), self.left, self.right)
+        return '(TableJoin {} {} {} {})'.format(
+            escape_id(self.join_type), self.join_key, self.left, self.right)
 
 
 class TableUnion(TableIR):
