@@ -354,6 +354,8 @@ abstract class RegistryFunctions {
 
         EmitTriplet(setup, missing, value)
       }
+
+      override val isStrict: Boolean = true
     })
   }
 
@@ -453,6 +455,8 @@ abstract class SeededIRFunction extends IRFunction {
     applySeeded(seed, mb, args: _*)
 
   def returnType: Type
+
+  def isStrict: Boolean = false
 
   override def toString: String = s"$name(${ argTypes.init.mkString(", ") }): $returnType"
 }
