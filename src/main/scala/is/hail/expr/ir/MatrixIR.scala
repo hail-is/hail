@@ -2020,14 +2020,12 @@ case class TableToMatrixTable(
     val ordTypeNoIndex = new OrderedRVDType(partitionKey.toArray, rowKey.toArray, rowEntryStruct)
     val ordered = OrderedRVD.coerce(ordType, rowEntryRVD)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
-    val orderedRKIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)
 
     val idxIndex = rowEntryStruct.fieldIdx(INDEX_UID)
     assert(idxIndex == rowEntryStruct.size - 1)
 
     val newRVType = typ.rvRowType
-    val orderedRKStruct = typ.rowKeyStruct
 
     val newRVD = ordered.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
       val region = ctx.region
@@ -2038,39 +2036,48 @@ case class TableToMatrixTable(
         ordTypeNoIndex,
         it,
         ctx
-      ).staircase.map { rowIt =>
-        rvb.start(newRVType)
-        rvb.startStruct()
-        var i = 0
-        while (i < orderedRowIndices.length) {
-          rvb.addField(rowEntryStruct, rowIt.value, orderedRowIndices(i))
-          i += 1
-        }
-        rvb.startArray(nCols)
-        i = 0
-        for (rv <- rowIt) {
-          val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
-          while (i < nextInt) {
+      ).staircase.flatMap { rowIt =>
+        var rvs = Array[RegionValue]()
+
+        while (rowIt.isValid) {
+          var i = 0
+          rvb.start(newRVType)
+          rvb.startStruct()
+          while (i < orderedRowIndices.length) {
+            rvb.addField(rowEntryStruct, rowIt.value, orderedRowIndices(i))
+            i += 1
+          }
+          rvb.startArray(nCols)
+          i = 0
+          while (i<nCols && rowIt.isValid) {
+            val rv = rowIt.value
+            val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+            while (i < nextInt) {
+              rvb.setMissing()
+              i += 1
+            }
+            rvb.startStruct()
+            var j = 0
+            while (j < orderedEntryIndices.length) {
+              rvb.addField(rowEntryStruct, rv, orderedEntryIndices(j))
+              j += 1
+            }
+            rvb.endStruct()
+            i += 1
+            if (rowIt.isValid) {
+              rowIt.advance()
+            }
+          }
+          while (i < nCols) {
             rvb.setMissing()
             i += 1
           }
-          rvb.startStruct()
-          var j = 0
-          while (j < orderedEntryIndices.length) {
-            rvb.addField(rowEntryStruct, rv, orderedEntryIndices(j))
-            j += 1
-          }
+          rvb.endArray()
           rvb.endStruct()
-          i += 1
+          outRV.setOffset(rvb.end())
+          rvs = rvs :+ outRV
         }
-        while (i < nCols) {
-          rvb.setMissing()
-          i += 1
-        }
-        rvb.endArray()
-        rvb.endStruct()
-        outRV.setOffset(rvb.end())
-        outRV
+        rvs
       }
     })
     MatrixValue(
