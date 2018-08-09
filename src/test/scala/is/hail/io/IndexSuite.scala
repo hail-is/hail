@@ -114,6 +114,8 @@ class IndexSuite extends SparkSuite {
     assert(ir.queryByKey("cow", greater = false, closed = false).contains(LeafChild("cat", 6L)))
     assert(ir.queryByKey("dog", greater = false, closed = false).contains(LeafChild("cat", 6L)))
     assert(ir.queryByKey("elk", greater = false, closed = false).contains(LeafChild("dog", 7L)))
+
+    assert(ir.queryByKeyAllMatchesOffsets(Array("cat", "dog", "bear")).toFastIndexedSeq == strings.indices)
   }
 
   @Test def testDuplicateKeys2() {
@@ -147,5 +149,9 @@ class IndexSuite extends SparkSuite {
         assert(ir.queryByKey(s, greater = true, closed = false).contains(LeafChild(strings(idx), idx)))
       }
     }
+  }
+
+  @Test def testIndex() {
+    hc.indexBgen(Array("src/test/resources/random.bgen"))
   }
 }

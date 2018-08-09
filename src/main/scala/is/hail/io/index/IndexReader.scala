@@ -230,6 +230,28 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     ab.result()
   }
 
+  def queryByKeyAllMatchesOffsets(keys: Array[Annotation]): Array[Long] = {
+    val ab = new ArrayBuilder[Long]()
+    val lcab = new ArrayBuilder[LeafChild]()
+    var lastKey: Annotation = null
+
+    if (nKeys != 0) {
+      keys.sortWith({ (a1, a2) => ordering.lt(a1, a2) }).foreach { k =>
+        if (k != lastKey) {
+          lcab.clear()
+          queryByKeyAllMatches(k, height - 1, metadata.rootOffset, lcab)
+          var i = 0
+          while (i < lcab.size) {
+            ab += lcab(i).offset
+            i += 1
+          }
+          lastKey = k
+        }
+      }
+    }
+    ab.result()
+  }
+
   def queryByKey(key: Annotation, greater: Boolean = true, closed: Boolean = true): Option[LeafChild] = {
     if (nKeys == 0)
       return None
@@ -267,7 +289,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     region.close()
     leafDecoder.close()
     internalDecoder.close()
-    info(s"Index reader cache hit rate: ${ cacheHits.toDouble / (cacheHits + cacheMisses) }")
+    log.info(s"Index reader cache hit rate: ${ cacheHits.toDouble / (cacheHits + cacheMisses) }")
   }
 }
 

@@ -319,13 +319,12 @@ class HailContext private(val sc: SparkContext,
     includeDosage: Boolean = false,
     includeLid: Boolean = true,
     includeRsid: Boolean = true,
-    includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
     blockSizeInMB: Option[Int] = None,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
+    includedVariants: Option[Seq[Annotation]] = None
   ): MatrixTable = {
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 
@@ -333,8 +332,7 @@ class HailContext private(val sc: SparkContext,
       (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
       (true, "alleles" -> TArray(TString())),
       (includeRsid, "rsid" -> TString()),
-      (includeLid, "varid" -> TString()),
-      (includeFileRowIdx, "file_row_idx" -> TInt64()))
+      (includeLid, "varid" -> TString()))
       .withFilter(_._1).map(_._2)
 
     val typedEntryFields: Array[(String, Type)] =
@@ -362,7 +360,7 @@ class HailContext private(val sc: SparkContext,
       rg,
       Option(contigRecoding).getOrElse(Map.empty[String, String]),
       skipInvalidLoci,
-      includedVariantsPerUnresolvedFilePath,
+      includedVariants,
       createIndex = false)
     new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
