@@ -22,8 +22,9 @@ def _func(name, ret_type, *args):
     return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
-def _get_seed(indices):
-    return construct_expr(I64(Env.next_seed()), hl.tint64, indices=indices)
+def _get_seed(default, indices):
+    seed = default if default is not None else Env.next_seed()
+    return construct_expr(I64(seed), hl.tint64, indices=indices)
 
 
 @typecheck(t=hail_type)
@@ -1680,8 +1681,8 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     return _func("range", tarray(tint32), start, stop, step)
 
 
-@typecheck(p=expr_float64)
-def rand_bool(p) -> BooleanExpression:
+@typecheck(p=expr_float64, seed=nullable(int))
+def rand_bool(p, seed=None) -> BooleanExpression:
     """Returns ``True`` with probability `p` (RNG).
 
     Examples
@@ -1702,16 +1703,18 @@ def rand_bool(p) -> BooleanExpression:
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability between 0 and 1.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin_seeded", tbool, p, _get_seed(p._indices))
+    return _func("pcoin_seeded", tbool, p, _get_seed(seed, p._indices))
 
 
-@typecheck(mean=expr_float64, sd=expr_float64)
-def rand_norm(mean=0, sd=1) -> Float64Expression:
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
+def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
     Examples
@@ -1735,16 +1738,18 @@ def rand_norm(mean=0, sd=1) -> Float64Expression:
         Mean of normal distribution.
     sd : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation of normal distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rnorm_seeded", tfloat64, mean, sd, _get_seed(mean._indices))
+    return _func("rnorm_seeded", tfloat64, mean, sd, _get_seed(seed, mean._indices))
 
 
-@typecheck(lamb=expr_float64)
-def rand_pois(lamb) -> Float64Expression:
+@typecheck(lamb=expr_float64, seed=nullable(int))
+def rand_pois(lamb, seed=None) -> Float64Expression:
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
     Examples
@@ -1766,16 +1771,18 @@ def rand_pois(lamb) -> Float64Expression:
     ----------
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter for Poisson distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rpois_seeded", tfloat64, lamb, _get_seed(lamb._indices))
+    return _func("rpois_seeded", tfloat64, lamb, _get_seed(seed, lamb._indices))
 
 
-@typecheck(min=expr_float64, max=expr_float64)
-def rand_unif(min, max) -> Float64Expression:
+@typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
+def rand_unif(min, max, seed=None) -> Float64Expression:
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
     Examples
@@ -1799,12 +1806,14 @@ def rand_unif(min, max) -> Float64Expression:
         Left boundary of range.
     max : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Right boundary of range.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("runif_seeded", tfloat64, min, max, _get_seed(min._indices))
+    return _func("runif_seeded", tfloat64, min, max, _get_seed(seed, min._indices))
 
 
 @typecheck(x=expr_float64)
