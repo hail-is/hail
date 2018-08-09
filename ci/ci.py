@@ -872,25 +872,28 @@ def refresh_github_state():
                     else:
                         log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                                  f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
-                        docker_image = get_build_image(target_url, target_ref, target_sha,
-                                                       source_url, source_ref, source_sha)
-                        if status and status.state == 'running' and latest_state == 'pending':
-                            latest_state = 'running'
-                            job_id = status.job_id
-                        else:
-                            job_id = None
-                        update_pr_status(
-                            source_url,
-                            source_ref,
-                            target_url,
-                            target_ref,
-                            Status(latest_state,
-                                   latest_review_state,
-                                   source_sha,
-                                   target_sha,
-                                   pr_number,
-                                   job_id=job_id,
-                                   docker_image=docker_image))
+                        try:
+                            docker_image = get_build_image(target_url, target_ref, target_sha,
+                                                           source_url, source_ref, source_sha)
+                            if status and status.state == 'running' and latest_state == 'pending':
+                                latest_state = 'running'
+                                job_id = status.job_id
+                            else:
+                                job_id = None
+                            update_pr_status(
+                                source_url,
+                                source_ref,
+                                target_url,
+                                target_ref,
+                                Status(latest_state,
+                                       latest_review_state,
+                                       source_sha,
+                                       target_sha,
+                                       pr_number,
+                                       job_id=job_id,
+                                       docker_image=docker_image))
+                        except subprocess.CalledProcessError as e:
+                            log.exception(f'could not get docker image due to {e}, will ignore this PR for now')
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
                     log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
@@ -1093,6 +1096,7 @@ def get_build_image(source_url, source_ref, source_sha,
         with open('hail-ci-build-image', 'r') as f:
             return f.read().strip()
     finally:
+        run(['git', 'reset', '--merge'], check=True)
         os.chdir(d)
 
 
