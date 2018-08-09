@@ -1766,7 +1766,7 @@ case class MatrixAnnotateColsTable(
     val newAnnotations = prev.colValues.value
       .map { row =>
         val key = colKeyF(row.asInstanceOf[Row])
-        val newAnnotation = inserter(row, m(row))
+        val newAnnotation = inserter(row, m.getOrElse(key, null))
         newAnnotation
       }
     prev.copy(typ = typ, colValues = BroadcastIndexedSeq(newAnnotations, TArray(colType), hc.sc))
