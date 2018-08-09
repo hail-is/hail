@@ -95,6 +95,20 @@ class TableSuite extends SparkSuite {
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
+  @Test def testTableToMatrixTableWithDuplicateRowKeys(): Unit = {
+    val table = Table.parallelize(
+      hc,
+      FastIndexedSeq(
+        Row("1:100", 0.5.toFloat, "trait1"),
+        Row("1:100", 0.6.toFloat, "trait1")),
+      TStruct("locus" -> TString(), "pval" -> TFloat32Required,
+        "phenotype" -> TString()),
+      None, None)
+
+    assert(table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
+      Array(), Array("locus")).count() == (2L, 1L))
+  }
+
   @Test def testToMatrixTable() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()
