@@ -32,7 +32,7 @@ class Tests(unittest.TestCase):
 
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
-        sampled2 = hl.utils.range_table(50, 5).ht.filter(hl.rand_bool(0.5))
+        sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
 
         set1 = set(sampled1.idx.collect())
         set2 = set(sampled2.idx.collect())
