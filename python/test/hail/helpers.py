@@ -8,7 +8,7 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        hail.init(master='local[2]', min_block_size=0, quiet=True, log='/tmp/hail.log')
+        hail.init(master='local[2]', min_block_size=0, quiet=True)
         _initialized = True
 
 

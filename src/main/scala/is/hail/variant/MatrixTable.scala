@@ -643,120 +643,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyMT(matrixType = newMatrixType, rvd = joinedRVD)
   }
 
-  private def annotateRowsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
-    assert(kt.key.isDefined)
-    assert(rowPartitionKeyTypes.length == 1)
-    assert(kt.keySignature.get.size == 1)
-    assert(kt.keySignature.get.types(0) == TInterval(rowPartitionKeyTypes(0)))
-
-    val typOrdering = rowPartitionKeyTypes(0).ordering
-
-    val typToInsert: Type = if (product) TArray(kt.valueSignature) else kt.valueSignature
-
-    val (newRVType, ins) = rvRowType.unsafeStructInsert(typToInsert, List(root))
-
-    val partBc = sparkContext.broadcast(rvd.partitioner)
-    val ktSignature = kt.signature
-    val ktKeyFieldIdx = kt.keyFieldIdx.get(0)
-    val pType = coerce[TInterval](ktSignature.types(ktKeyFieldIdx)).pointType
-    val ktValueFieldIdx = kt.valueFieldIdx
-    val partitionKeyedIntervals = kt.rvd.boundary.crdd
-      .flatMap { rv =>
-        val r = SafeRow(ktSignature, rv)
-        val interval = r.getAs[Interval](ktKeyFieldIdx)
-        if (interval != null) {
-          val rangeTree = partBc.value.rangeTree
-          val pkOrd = partBc.value.pkType.ordering
-          val wrappedInterval = interval.copy(
-            start = Row(interval.start),
-            end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
-        } else
-          Iterator()
-      }
-
-    val nParts = rvd.getNumPartitions
-    val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
-      def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-      def numPartitions: Int = nParts
-    }).values
-
-    val localRVRowType = rvRowType
-    val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val newRVD = rvd.zipPartitionsPreservesPartitioning(
-      newMatrixType.orvdType,
-      zipRDD
-    ) { (it, intervals) =>
-      val intervalAnnotations: Array[(Interval, Any)] =
-        intervals.map { r =>
-          val interval = r.getAs[Interval](ktKeyFieldIdx)
-          (interval, Row.fromSeq(ktValueFieldIdx.map(r.get)))
-        }.toArray
-
-      val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
-
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-
-      it.map { rv =>
-        val ur = new UnsafeRow(localRVRowType, rv)
-        val pk = ur.get(pkIndex)
-        val queries = iTree.queryValues(typOrdering, pk)
-        val value: Annotation = if (product)
-          queries: IndexedSeq[Annotation]
-        else {
-          if (queries.isEmpty)
-            null
-          else
-            queries(0)
-        }
-        assert(typToInsert.typeCheck(value))
-
-        rvb.set(rv.region)
-        rvb.start(newRVType)
-
-        ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
-
-        rv2.set(rv.region, rvb.end())
-
-        rv2
-      }
+  def annotateRowsTableIR(table: Table, uid: String, irs: java.util.ArrayList[String]): MatrixTable = {
+    val refMap = matrixType.refMap
+    val key = Option(irs).map { irs =>
+      irs.asScala
+        .toFastIndexedSeq
+        .map(Parser.parse_value_ir(_, refMap))
     }
-
-    copyMT(rvd = newRVD, matrixType = newMatrixType)
-  }
-
-  def annotateRowsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
-    assert(kt.key.isDefined)
-    assert(!rowKey.contains(root))
-
-    val keyTypes = kt.keyFields.get.map(_.typ)
-    if (keyTypes.sameElements(rowKeyTypes) || keyTypes.sameElements(rowPartitionKeyTypes)) {
-      val rightORVD = kt.rvd match {
-        case ordered: OrderedRVD => ordered
-        case unordered =>
-          val ordType = new OrderedRVDType(
-            kt.key.get.toArray.take(rowPartitionKey.length),
-            kt.key.get.toArray,
-            kt.signature)
-          unordered.constrainToOrderedPartitioner(ordType, rvd.partitioner)
-      }
-      orderedRVDLeftJoinDistinctAndInsert(rightORVD, root, product)
-    } else if (
-      keyTypes.length == 1 &&
-        rowPartitionKeyTypes.length == 1 &&
-        keyTypes(0) == TInterval(rowPartitionKeyTypes(0))
-    ) {
-      annotateRowsIntervalTable(kt, root, product)
-    } else {
-      fatal(
-        s"""method 'annotate_rows_table' expects a key table keyed by one of the following:
-           |  [ ${ rowKeyTypes.mkString(", ") } ]
-           |  [ ${ rowPartitionKeyTypes.mkString(", ") } ]
-           |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
-    }
+    new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
   }
 
   def selectGlobals(expr: String): MatrixTable = {
@@ -1408,11 +1302,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal("found one or more type check errors")
   }
 
-  def entryEC: EvalContext = matrixType.genotypeEC
+  lazy val entryEC: EvalContext = matrixType.genotypeEC
 
-  def rowEC: EvalContext = matrixType.rowEC
+  lazy val rowEC: EvalContext = matrixType.rowEC
 
-  def colEC: EvalContext = matrixType.colEC
+  lazy val colEC: EvalContext = matrixType.colEC
 
   def globalsTable(): Table = {
     Table(hc,

@@ -255,6 +255,7 @@ class MatrixExplodeRows(MatrixIR):
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
 
+
 class MatrixUnionRows(MatrixIR):
     def __init__(self, *children):
         super().__init__()
@@ -262,6 +263,7 @@ class MatrixUnionRows(MatrixIR):
 
     def __str__(self):
         return '(MatrixUnionRows {})'.format(' '.join(map(str, self.children)))
+
 
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
@@ -273,6 +275,7 @@ class MatrixExplodeCols(MatrixIR):
         return '(MatrixExplodeCols ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
+
 
 class UnlocalizeEntries(MatrixIR):
     def __init__(self, rows_entries, cols, entry_field_name):
@@ -286,3 +289,21 @@ class UnlocalizeEntries(MatrixIR):
                 f'"{escape_str(self.entry_field_name)}" ' \
                 f'{self.rows_entries} ' \
                 f'{self.cols})'
+
+
+class MatrixAnnotateRowsTable(MatrixIR):
+    def __init__(self, child, table, root, key):
+        super().__init__()
+        self.child = child
+        self.table = table
+        self.root = root
+        self.key = key
+
+    def __str__(self):
+        if self.key is None:
+            key_bool = False
+            key_strs = ()
+        else:
+            key_bool = True
+            key_strs = ' '.join(str(x) for x in self.key)
+        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {self.child} {self.table} {key_strs})"'

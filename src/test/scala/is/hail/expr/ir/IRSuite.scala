@@ -613,8 +613,8 @@ class IRSuite extends SparkSuite {
         UnlocalizeEntries(
           LocalizeEntries(read, "all of the entries"),
           MatrixColsTable(read),
-          "all of the entries"
-        )
+          "all of the entries"),
+        MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
       )
 
       xs.map(x => Array(x))

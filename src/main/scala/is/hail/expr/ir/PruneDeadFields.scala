@@ -137,9 +137,19 @@ object PruneDeadFields {
     result.asInstanceOf[T]
   }
 
+  def minimalBT[T <: BaseType](base: T): T = {
+    (base match {
+      case tt: TableType => minimal(tt)
+      case mt: MatrixType => minimal(mt)
+      case t: Type => minimal(t)
+    }).asInstanceOf[T]
+  }
+
   def unifyBaseType(base: BaseType, children: BaseType*): BaseType = unifyBaseTypeSeq(base, children)
 
   def unifyBaseTypeSeq(base: BaseType, children: Seq[BaseType]): BaseType = {
+    if (children.isEmpty)
+      return minimalBT(base)
     base match {
       case tt: TableType =>
         val ttChildren = children.map(_.asInstanceOf[TableType])
@@ -446,6 +456,31 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, rowDep),
           globalType = requestedType.globalType)
         memoizeTableIR(child, requestedChildType, memo)
+      case MatrixAnnotateRowsTable(child, table, root, key) =>
+        val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+        fieldDep match {
+          case Some(struct) =>
+            val tableDep = table.typ.copy(rowType = unify(
+              table.typ.rowType,
+              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
+                FastIndexedSeq(struct): _*),
+              globalType = minimal(table.typ.globalType))
+            memoizeTableIR(table, tableDep, memo)
+            val keyDep = unify(child.typ,
+              key.map(_.map(ir => memoizeAndGetDep(ir, ir.typ, child.typ, memo)))
+                .getOrElse(FastIndexedSeq.empty[MatrixType]): _*)
+            val matDep = unify(
+              child.typ,
+              keyDep,
+              requestedType.copy(rvRowType =
+                unify(child.typ.rvRowType,
+                  minimal(child.typ).rvRowType,
+                  requestedType.rvRowType.filterSet(Set(root), include = false)._1)))
+            memoizeMatrixIR(child, matDep, memo)
+          case None =>
+            // don't depend on key IR dependencies if we are going to elide the node anyway
+            memoizeMatrixIR(child, requestedType, memo)
+        }
       case MatrixExplodeRows(child, path) =>
         def getExplodedField(typ: MatrixType): Type = typ.rowType.queryTyped(path.toList)._1
         val preExplosionFieldType = getExplodedField(child.typ)
@@ -730,10 +765,10 @@ object PruneDeadFields {
   }
 
   def rebuild(mir: MatrixIR, memo: Memo[BaseType]): MatrixIR = {
-    val dep = memo.lookup(mir).asInstanceOf[MatrixType]
+    val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
     mir match {
       case x@MatrixRead(_, dropCols, dropRows, reader) =>
-        MatrixRead(dep, dropCols, dropRows, reader)
+        MatrixRead(requestedType, dropCols, dropRows, reader)
       case MatrixFilterCols(child, pred) =>
         val child2 = rebuild(child, memo)
         MatrixFilterCols(child2, rebuild(pred, child2.typ, memo))
@@ -780,6 +815,16 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         } )
+      case MatrixAnnotateRowsTable(child, table, root, key) =>
+        // if the field is not used, this node can be elided entirely
+        if (!requestedType.rvRowType.hasField(root))
+          rebuild(child, memo)
+        else {
+          val child2 = rebuild(child, memo)
+          val table2 = rebuild(table, memo)
+          val key2 = key.map(_.map(ir => rebuild(ir, child2.typ, memo)))
+          MatrixAnnotateRowsTable(child2, table2, root, key2)
+        }
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)

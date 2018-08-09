@@ -424,14 +424,15 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
-  def zipWithIndex(name: String): RVD
+  def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD
 
   private[rvd] def zipWithIndexCRDD(
-    name: String
+    name: String,
+    partitionCounts: Option[IndexedSeq[Long]] = None
   ): (TStruct, ContextRDD[RVDContext, RegionValue]) = {
     val (newRowType, ins) = rowType.unsafeStructInsert(TInt64(), List(name))
 
-    val a = sparkContext.broadcast(countPerPartition().scanLeft(0L)(_ + _))
+    val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
 
     val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
       val rv2 = RegionValue()
