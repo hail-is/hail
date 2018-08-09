@@ -261,13 +261,14 @@ object TestUtils {
           i = 0
           rvAggs.foreach(_.clear())
           initOps(0)(region, rvAggs, argsOff, false)
+          var seqOpF = seqOps(0)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps(0)(region, rvAggs, argsOff, false, aggElementOff, false)
+            seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
 
             i += 1
           }
@@ -275,13 +276,14 @@ object TestUtils {
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
           initOps(0)(region, rvAggs2, argsOff, false)
+          seqOpF = seqOps(1)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps(0)(region, rvAggs2, argsOff, false, aggElementOff, false)
+            seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
 
             i += 1
           }
