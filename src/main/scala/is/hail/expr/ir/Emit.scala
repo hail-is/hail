@@ -912,7 +912,7 @@ private class Emit(
         strict(value, codeArgs: _*)
       case ir@ApplySeeded(fn, args, seed) =>
         val impl = ir.implementation
-        val unified = impl.unify(args.map(_.typ) :+ TInt64())
+        val unified = impl.unify(args.map(_.typ))
         assert(unified)
         impl.setSeed(seed)
         val codeArgs = args.map(emit(_))

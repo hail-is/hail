@@ -22,9 +22,10 @@ def _func(name, ret_type, *args):
     return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
-def _get_seed(default, indices):
-    seed = default if default is not None else Env.next_seed()
-    return construct_expr(I64(seed), hl.tint64, indices=indices)
+def _seeded_func(name, ret_type, seed, *args):
+    seed = seed if seed is not None else Env.next_seed()
+    indices, aggregations = unify_all(*args)
+    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -1682,7 +1683,7 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin_seeded", tbool, p, _get_seed(seed, p._indices))
+    return _seeded_func("pcoin_seeded", tbool, seed, p)
 
 
 @typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
@@ -1711,7 +1712,7 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rnorm_seeded", tfloat64, mean, sd, _get_seed(seed, mean._indices))
+    return _seeded_func("rnorm_seeded", tfloat64, seed, mean, sd)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
@@ -1738,7 +1739,7 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rpois_seeded", tfloat64, lamb, _get_seed(seed, lamb._indices))
+    return _seeded_func("rpois_seeded", tfloat64, seed, lamb)
 
 
 @typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
@@ -1768,7 +1769,7 @@ def rand_unif(min, max, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("runif_seeded", tfloat64, min, max, _get_seed(seed, min._indices))
+    return _seeded_func("runif_seeded", tfloat64, seed, min, max)
 
 
 @typecheck(x=expr_float64)

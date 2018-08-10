@@ -30,7 +30,7 @@ object IRSuite { outer =>
 
         override val name: String = mname
 
-        override val argTypes: Seq[Type] = aTypes :+ TInt64()
+        override val argTypes: Seq[Type] = aTypes
 
         override val returnType: Type = rType
 
@@ -688,17 +688,17 @@ class IRSuite extends SparkSuite {
 
     def i = In(0, TBoolean())
 
-    def st = invoke("incr_s", True(), 0L)
-    def sf = invoke("incr_s", True(), 0L)
-    def sm = invoke("incr_s", NA(TBoolean()), 0L)
+    def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
 
-    def mt = invoke("incr_m", True(), 0L)
-    def mf = invoke("incr_m", True(), 0L)
-    def mm = invoke("incr_m", NA(TBoolean()), 0L)
+    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
 
-    def vt = invoke("incr_v", True(), 0L)
-    def vf = invoke("incr_v", True(), 0L)
-    def vm = invoke("incr_v", NA(TBoolean()), 0L)
+    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)

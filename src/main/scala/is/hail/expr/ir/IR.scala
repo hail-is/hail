@@ -192,9 +192,7 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
 
 final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction] {
-  override def argTypes: Seq[Type] = args.map(_.typ) :+ TInt64()
-}
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction]
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
 

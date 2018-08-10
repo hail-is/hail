@@ -53,8 +53,8 @@ class RandomFunctionsSuite extends SparkSuite {
     TableRange(n, npart),
     InsertFields(Ref("row", TableRange(1, 1).typ.rowType),
       FastSeq(
-        "pi" -> invoke("pi_seeded", 0L),
-        "counter" -> invoke("counter_seeded", 0L))),
+        "pi" -> ApplySeeded("pi_seeded", FastSeq(), 0L),
+        "counter" -> ApplySeeded("counter_seeded", FastSeq(), 0L))),
     Some(FastIndexedSeq("idx")), Some(1))
 
   @BeforeClass def registerFunctions() {

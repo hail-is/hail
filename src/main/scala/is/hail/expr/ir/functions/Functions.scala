@@ -341,7 +341,7 @@ abstract class RegistryFunctions {
 
       override val name: String = mname
 
-      override val argTypes: Seq[Type] = aTypes :+ TInt64()
+      override val argTypes: Seq[Type] = aTypes
 
       override val returnType: Type = rType
 
@@ -426,8 +426,6 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   }
 
   def returnType: Type
-
-  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 }
 
 abstract class IRFunctionWithMissingness extends IRFunction {
@@ -438,8 +436,6 @@ abstract class IRFunctionWithMissingness extends IRFunction {
   def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
 
   def returnType: Type
-
-  override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 }
 
 abstract class SeededIRFunction extends IRFunction {
@@ -457,6 +453,4 @@ abstract class SeededIRFunction extends IRFunction {
   def returnType: Type
 
   def isStrict: Boolean = false
-
-  override def toString: String = s"$name(${ argTypes.init.mkString(", ") }): $returnType"
 }
