@@ -601,8 +601,13 @@ class IRSuite extends SparkSuite {
         "new_f32" -> ApplyBinaryPrimOp(Add(),
           GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f))))
+
+      val newRowAnn = MakeStruct(FastIndexedSeq(
+        "new_f32"-> ApplyBinaryPrimOp(Add(),
+          GetField(Ref("va", read.typ.rowType), "row_f32"),
+          F32(-5.2f))))
       val newEntry = MakeStruct(FastIndexedSeq(
-        "new_f32" -> ApplyBinaryPrimOp(Add(),
+        "new_f32_entry" -> ApplyBinaryPrimOp(Add(),
           GetField(Ref("g", read.typ.entryType), "entry_f32"),
           F32(-5.2f))))
 
@@ -619,8 +624,8 @@ class IRSuite extends SparkSuite {
             GetField(Ref("global", read.typ.globalType), "global_f32"),
             F32(-5.2f))))),
         MatrixCollectColsByKey(read),
-        MatrixAggregateColsByKey(read, newCol),
-        MatrixAggregateRowsByKey(read, newEntry, newRow),
+        MatrixAggregateColsByKey(read, newEntry),
+        MatrixAggregateRowsByKey(read, newEntry, newRowAnn),
         range,
         vcf,
         bgen,
