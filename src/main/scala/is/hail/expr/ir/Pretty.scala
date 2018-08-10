@@ -261,6 +261,7 @@ object Pretty {
             case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType) => joinType
+            case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>

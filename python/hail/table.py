@@ -1366,7 +1366,7 @@ class Table(ExprContainer):
                 if is_interval:
                     left = Table(left._jt.intervalJoin(self._jt, uid))
                 else:
-                    left = Table(left._jt.join(self.select(**{uid: self.row_value}).distinct()._jt, 'left'))
+                    left = Table(left._jt.leftJoinRightDistinct(self._jt, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)

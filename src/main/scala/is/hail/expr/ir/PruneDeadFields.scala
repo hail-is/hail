@@ -251,6 +251,25 @@ object PruneDeadFields {
           }: _*),
           globalType = minimal(right.typ.globalType))
         memoizeTableIR(right, rightDep, memo)
+      case TableLeftJoinRightDistinct(left, right, root) =>
+        val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+        fieldDep match {
+          case Some(struct) =>
+            val rightDep = right.typ.copy(rowType = unify(
+              right.typ.rowType,
+              FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.get.toSet, true)._1) ++
+                FastIndexedSeq(struct): _*),
+              globalType = minimal(right.typ.globalType))
+            memoizeTableIR(right, rightDep, memo)
+            val leftDep = unify(
+              left.typ,
+              requestedType.copy(rowType =
+                requestedType.rowType.filterSet(Set(root), include = false)._1))
+            memoizeTableIR(left, leftDep, memo)
+          case None =>
+            // don't memoize right if we are going to elide it during rebuild
+            memoizeTableIR(left, requestedType, memo)
+        }
       case TableExplode(child, field) =>
         val minChild = minimal(child.typ)
         val dep2 = unify(child.typ, requestedType.copy(rowType = requestedType.rowType.filter(_.name != field)._1),
@@ -753,6 +772,11 @@ object PruneDeadFields {
         // fixme push down into value
         val child2 = rebuild(child, memo)
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
+      case TableLeftJoinRightDistinct(left, right, root) =>
+        if (dep.rowType.hasField(root))
+          TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
+        else
+          rebuild(left, memo)
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))

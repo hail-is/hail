@@ -472,6 +472,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
+  def leftJoinRightDistinct(other: Table, root: String): Table =
+    new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
+
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType))
   }
