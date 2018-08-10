@@ -27,7 +27,8 @@ class HailContext(object):
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37", idempotent=False, global_seed=6348563392232659379):
+                 default_reference="GRCh37", idempotent=False,
+                 global_seed=6348563392232659379):
 
         if Env._hc:
             if idempotent:
@@ -134,9 +135,10 @@ class HailContext(object):
            idempotent=bool,
            global_seed=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
-             log='hail.log', quiet=False, append=False,
-             min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37', idempotent=False, global_seed=None):
+         log='hail.log', quiet=False, append=False,
+         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+         default_reference='GRCh37', idempotent=False,
+         global_seed=6348563392232659379):
     """Initialize Hail and Spark.
 
     Parameters
