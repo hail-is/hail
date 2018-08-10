@@ -161,6 +161,10 @@ object Pretty {
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
+            case Literal(typ, value, id) =>
+              s"${ typ.parsableString() } " +
+                s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) } " +
+                s"${ prettyStringLiteral(id) }"
             case Let(name, _, _) => prettyIdentifier(name)
             case Ref(name, typ) => s"${ typ.parsableString() } $name"
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
@@ -198,6 +202,8 @@ object Pretty {
             case MatrixAnnotateRowsTable(_, _, uid, key) =>
               prettyStringLiteral(uid) + " " +
               prettyBooleanLiteral(key.isDefined)
+            case MatrixAnnotateColsTable(_, _, uid) =>
+              prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixExplodeCols(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)

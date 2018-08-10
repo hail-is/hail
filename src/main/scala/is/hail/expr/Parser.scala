@@ -523,6 +523,7 @@ object Parser extends JavaTokenParsers {
       "Str" ~> string_literal ^^ { x => ir.Str(x) } |
       "True" ^^ { x => ir.True() } |
       "False" ^^ { x => ir.False() } |
+      "Literal" ~> ir_value ~ string_literal ^^ { case (value ~ id) => ir.Literal(value._1, value._2, id)} |
       "Void" ^^ { x => ir.Void() } |
       "Cast" ~> type_expr ~ expr_with_map ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |
@@ -661,6 +662,10 @@ object Parser extends JavaTokenParsers {
         case uid ~ hasKey ~ child ~ table ~ key =>
           val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
           ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
+      } |
+      "MatrixAnnotateColsTable" ~> string_literal ~ matrix_ir ~ table_ir ^^ {
+        case root ~ child ~ table =>
+          ir.MatrixAnnotateColsTable(child, table, root)
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |

@@ -1633,23 +1633,15 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long](
-      "global", child.typ.globalType,
-      "value", value.t,
-      newRow)
-    assert(rTyp == typ.globalType)
+    val newGlobals = Interpret[Row](
+      newRow,
+      Env.empty[(Any, Type)].bind(
+        "global" -> (prev.globals.value, child.typ.globalType),
+        "value" -> (value.value, value.t)),
+      FastIndexedSeq(),
+      None)
 
-    val newGlobals = Region.scoped { globalRegion =>
-      val globalOff = prev.globals.toRegion(globalRegion)
-      val valueOff = value.toRegion(globalRegion)
-      val newOff = f()(globalRegion, globalOff, false, valueOff, false)
-
-      prev.globals.copy(
-        value = SafeRow(rTyp.asInstanceOf[TStruct], globalRegion, newOff),
-        t = rTyp.asInstanceOf[TStruct])
-    }
-
-    prev.copy(typ = typ, globals = newGlobals)
+    prev.copy(typ = typ, globals = BroadcastRow(newGlobals, typ.globalType, hc.sc))
   }
 }
 
@@ -1720,6 +1712,56 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
     val newRVD = mv.rvd.mapPartitionsPreservesPartitioning(typ.orvdType, mapPartitionF)
     mv.copy(rvd = newRVD)
+  }
+}
+
+case class MatrixAnnotateColsTable(
+  child: MatrixIR,
+  table: TableIR,
+  root: String) extends MatrixIR {
+  require(table.typ.key.isDefined)
+  require(child.typ.colType.fieldOption(root).isEmpty)
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
+
+  override def columnCount: Option[Call] = child.columnCount
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
+  val typ: MatrixType = child.typ.copy(colType = colType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    MatrixAnnotateColsTable(
+      newChildren(0).asInstanceOf[MatrixIR],
+      newChildren(1).asInstanceOf[TableIR],
+      root)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev =  child.execute(hc)
+    val tab = table.execute(hc)
+
+    val keyTypes = tab.typ.keyType.get.types
+    val colKeyTypes = prev.typ.colKeyStruct.types
+
+    val keyedRDD = tab.keyedRDD().filter { case (k, _) => !k.anyNull }
+
+    assert(keyTypes.length == colKeyTypes.length
+      && keyTypes.zip(colKeyTypes).forall { case (l, r) => l.isOfType(r) },
+      s"MT col key: ${ colKeyTypes.mkString(", ") }, TB key: ${ keyTypes.mkString(", ") }")
+    val r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
+
+    val m = r.collectAsMap()
+    val colKeyF = prev.typ.extractColKey
+
+    val newAnnotations = prev.colValues.value
+      .map { row =>
+        val key = colKeyF(row.asInstanceOf[Row])
+        val newAnnotation = inserter(row, m.getOrElse(key, null))
+        newAnnotation
+      }
+    prev.copy(typ = typ, colValues = BroadcastIndexedSeq(newAnnotations, TArray(colType), hc.sc))
   }
 }
 

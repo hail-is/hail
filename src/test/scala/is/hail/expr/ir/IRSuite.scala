@@ -485,7 +485,9 @@ class IRSuite extends SparkSuite {
       invoke("&&", b, c), // ApplySpecial
       invoke("toFloat64", i), // Apply
       invoke("isDefined", s), // ApplyIR
-      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)))
+      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
+      Literal(TStruct("x" -> TInt32()), Row(1), "__broadcast1")
+    )
     irs.map(x => Array(x))
   }
 
@@ -614,6 +616,7 @@ class IRSuite extends SparkSuite {
           LocalizeEntries(read, "all of the entries"),
           MatrixColsTable(read),
           "all of the entries"),
+        MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
       )
 

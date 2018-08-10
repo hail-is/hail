@@ -306,4 +306,14 @@ class MatrixAnnotateRowsTable(MatrixIR):
         else:
             key_bool = True
             key_strs = ' '.join(str(x) for x in self.key)
-        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {self.child} {self.table} {key_strs})"'
+        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {self.child} {self.table} {key_strs})'
+
+class MatrixAnnotateColsTable(MatrixIR):
+    def __init__(self, child, table, root):
+        super().__init__()
+        self.child = child
+        self.table = table
+        self.root = root
+
+    def __str__(self):
+        return f'(MatrixAnnotateColsTable "{self.root}" {self.child} {self.table})'

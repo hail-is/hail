@@ -1,12 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, AnnotationPathException, BroadcastIndexedSeq, BroadcastRow}
-import is.hail.expr._
+import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
-
-import scala.util.{Failure, Success, Try}
 
 object PruneDeadFields {
   def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {
@@ -481,6 +478,26 @@ object PruneDeadFields {
             // don't depend on key IR dependencies if we are going to elide the node anyway
             memoizeMatrixIR(child, requestedType, memo)
         }
+      case MatrixAnnotateColsTable(child, table, uid) =>
+        val fieldDep = requestedType.colType.fieldOption(uid).map(_.typ.asInstanceOf[TStruct])
+        fieldDep match {
+          case Some(struct) =>
+            val tableDep = table.typ.copy(rowType = unify(
+              table.typ.rowType,
+              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
+                FastIndexedSeq(struct): _*))
+            memoizeTableIR(table,tableDep, memo)
+            val matDep = unify(
+              child.typ,
+              requestedType.copy(colType =
+                unify(child.typ.colType,
+                  minimal(child.typ).colType,
+                  requestedType.colType.filterSet(Set(uid), include = false)._1)))
+            memoizeMatrixIR(child, matDep, memo)
+          case None =>
+            // don't depend on key IR dependencies if we are going to elide the node anyway
+            memoizeMatrixIR(child, requestedType, memo)
+        }
       case MatrixExplodeRows(child, path) =>
         def getExplodedField(typ: MatrixType): Type = typ.rowType.queryTyped(path.toList)._1
         val preExplosionFieldType = getExplodedField(child.typ)
@@ -824,6 +841,15 @@ object PruneDeadFields {
           val table2 = rebuild(table, memo)
           val key2 = key.map(_.map(ir => rebuild(ir, child2.typ, memo)))
           MatrixAnnotateRowsTable(child2, table2, root, key2)
+        }
+      case MatrixAnnotateColsTable(child, table, uid) =>
+        // if the field is not used, this node can be elided entirely
+        if (!requestedType.colType.hasField(uid))
+          rebuild(child, memo)
+        else {
+          val child2 = rebuild(child, memo)
+          val table2 = rebuild(table, memo)
+          MatrixAnnotateColsTable(child2, table2, uid)
         }
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule

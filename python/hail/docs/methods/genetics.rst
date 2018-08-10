@@ -26,8 +26,8 @@ Genetics
     pc_relate
     sample_qc
     skat
+    split_multi
     split_multi_hts
-    SplitMulti
     summarize_variants
     transmission_disequilibrium_test
     trio_matrix
@@ -53,9 +53,9 @@ Genetics
 .. autofunction:: pc_relate
 .. autofunction:: sample_qc
 .. autofunction:: skat
+.. autofunction:: split_multi
 .. autofunction:: split_multi_hts
 .. autofunction:: summarize_variants
-.. autoclass:: SplitMulti
 .. autofunction:: transmission_disequilibrium_test
 .. autofunction:: trio_matrix
 .. autofunction:: variant_qc

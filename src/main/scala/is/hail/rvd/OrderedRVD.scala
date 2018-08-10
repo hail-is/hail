@@ -1064,7 +1064,21 @@ object OrderedRVD {
             if (first)
               first = false
             else {
-              assert(localType.kRowOrd.lteq(prevK.value, rv))
+              if (localType.kRowOrd.gt(prevK.value, rv)) {
+                kUR.set(prevK.value)
+                val prevKeyString = kUR.toString()
+
+                prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)
+                kUR.set(prevK.value)
+                val currKeyString = kUR.toString()
+                fatal(
+                  s"""OrderedRVD error! Keys found out of order:
+                     |  Current key:  $currKeyString
+                     |  Previous key: $prevKeyString
+                     |This error can occur after a split_multi if the dataset
+                     |contains both multiallelic variants and duplicated loci.
+                   """.stripMargin)
+              }
             }
 
             prevK.setSelect(localType.rowType, localType.kRowFieldIdx, rv)

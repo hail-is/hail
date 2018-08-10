@@ -664,7 +664,7 @@ class MatrixTable(ExprContainer):
                 raise ValueError("cannot have two row key fields with the same name: '{}'".format(k))
 
         key_fields = dict(pk_dict, **rest_of_keys_dict)
-        row = self._row.annotate(**key_fields)
+        row = self._rvrow.annotate(**key_fields)
 
         return self._select_rows(caller, row, list(key_fields.keys()), pk_size=len(pk_dict))
 
@@ -877,7 +877,7 @@ class MatrixTable(ExprContainer):
 
         caller = "MatrixTable.annotate_rows"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select_rows(caller, self.row.annotate(**e))
+        return self._select_rows(caller, self._rvrow.annotate(**e))
 
     def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
@@ -2541,8 +2541,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     def _process_joins(self, *exprs):
-        broadcast_f = lambda left, data, t: MatrixTable(left._jvds.annotateGlobalJSON(data, t._jtype))
-        return process_joins(self, exprs, broadcast_f)
+        return process_joins(self, exprs)
 
     def describe(self):
         """Print information about the fields in the matrix."""

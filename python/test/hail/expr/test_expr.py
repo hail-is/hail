@@ -1439,7 +1439,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
         self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
-        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [None, 4, 3, 2, 1, 0])
+        # FIXME: this next line triggers a bug: None should be sorted last!
+        # self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval_expr(hl.literal(True) & True))
@@ -1839,3 +1841,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.sum(a).value, 1)
         self.assertIsNone(hl.sum(a, filter_missing=False).value)
+
+    def test_literal_with_nested_expr(self):
+        self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
+        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})
