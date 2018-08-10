@@ -9,7 +9,7 @@ The Hail project began in Fall 2015 to empower the worldwide genetics community 
 Here are two examples of projects powered by Hail:
 
 - The [gnomAD](http://gnomad.broadinstitute.org/) team uses Hail as its core analysis platform. gnomAD is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. Analysis results are shared publicly and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
-- The Neale Lab at the Broad Institute used Hail to perform QC and genome-wide association analysis of 2419 phenotypes across 10 million variants and 337,000 samples from the UK Biobank in 24 hours. These results are also publicly available, see the Neale Lab [blog](http://www.nealelab.is/blog/) for more info.
+- The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
 
 For genomics applications, Hail can:
 
