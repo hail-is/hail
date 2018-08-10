@@ -649,7 +649,7 @@ object Parser extends JavaTokenParsers {
           BroadcastRow(v.asInstanceOf[Row], t.asInstanceOf[TBaseStruct], HailContext.get.sc))
       } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
-      "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
+      "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr() ~ ir_value_expr() ^^ { case child ~ aggEntry ~ aggRow => ir.MatrixAggregateRowsByKey(child, aggEntry, aggRow) } |
       "MatrixRead" ~> matrix_type_expr_opt ~ boolean_literal ~ boolean_literal ~ string_literal ^^ {
         case typ ~ dropCols ~ dropRows ~ readerStr =>
           implicit val formats = ir.MatrixReader.formats

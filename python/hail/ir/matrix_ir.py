@@ -3,13 +3,14 @@ from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id, parsable_strings
 
 class MatrixAggregateRowsByKey(MatrixIR):
-    def __init__(self, child, expr):
+    def __init__(self, child, entryExpr, rowExpr):
         super().__init__()
         self.child = child
-        self.expr = expr
+        self.entryExpr = entryExpr
+        self.rowExpr = rowExpr
 
     def __str__(self):
-        return '(MatrixAggregateRowsByKey {} {})'.format(self.child, self.expr)
+        return '(MatrixAggregateRowsByKey {} {} {})'.format(self.child, self.entryExpr, self.rowExpr)
 
 
 class MatrixRead(MatrixIR):

@@ -431,12 +431,18 @@ object PruneDeadFields {
           })
         )
         memoizeMatrixIR(child, explodedDep, memo)
-      case MatrixAggregateRowsByKey(child, expr) =>
-        val irDep = memoizeAndGetDep(expr, requestedType.entryType, child.typ, memo)
+      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
+        val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
+        val irDepRow = memoizeAndGetDep(rowExpr, requestedType.rowType, child.typ, memo)
         val childDep = child.typ.copy(
-          globalType = unify(child.typ.globalType, irDep.globalType, requestedType.globalType),
-          rvRowType = irDep.rvRowType,
-          colType = unify(child.typ.colType, irDep.colType, requestedType.colType)
+          globalType = unify(child.typ.globalType, irDepEntry.globalType, requestedType.globalType),
+          rvRowType = irDepRow.rvRowType.copy(irDepRow.rvRowType.fields.map { f =>
+            if (f.name == MatrixType.entriesIdentifier)
+              f.copy(typ = irDepEntry.entryArrayType)
+            else
+              f
+          }),
+          colType = unify(child.typ.colType, irDepEntry.colType, requestedType.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
       case MatrixAggregateColsByKey(child, expr) =>
@@ -832,9 +838,9 @@ object PruneDeadFields {
       case MatrixMapGlobals(child, newRow, value) =>
         val child2 = rebuild(child, memo)
         MatrixMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
-      case MatrixAggregateRowsByKey(child, expr) =>
+      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val child2 = rebuild(child, memo)
-        MatrixAggregateRowsByKey(child2, rebuild(expr, child2.typ, memo))
+        MatrixAggregateRowsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(rowExpr, child2.typ, memo))
       case MatrixAggregateColsByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateColsByKey(child2, rebuild(expr, child2.typ, memo))

@@ -275,7 +275,7 @@ object Simplify {
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
-      case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
 
       case TableHead(TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
         TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
