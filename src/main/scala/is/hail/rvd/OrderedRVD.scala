@@ -557,6 +557,18 @@ class OrderedRVD(
   ): ContextRDD[RVDContext, T] =
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper)
 
+
+  def zipPartitionsWithIndex(
+    newTyp: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner,
+    that: RVD,
+    preservesPartitioning: Boolean
+  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    newPartitioner,
+    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd, preservesPartitioning)(zipper))
+
   def zip(
     newTyp: OrderedRVDType,
     that: RVD

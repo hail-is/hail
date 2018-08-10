@@ -79,7 +79,7 @@ class EmitMethodBuilder(
   def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness)
 
-  def getRNG(seed: Long): Code[IRRandomness] = fb.getRNG(seed)
+  def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -310,7 +310,7 @@ class EmitFunctionBuilder[F >: Null](
       reseed))
   }
 
-  def getRNG(seed: Long): Code[IRRandomness] = {
+  def newRNG(seed: Long): Code[IRRandomness] = {
     val rng = newField[IRRandomness]
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng

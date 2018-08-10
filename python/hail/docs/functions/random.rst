@@ -42,9 +42,8 @@ calls to :func`.rand_unif` should be made:
     >>> hl.array([a, b, c]).value
     [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
 
-Within the rows of a :class:`.Table`, the same expression will
-yield a consistent value across each row, but different (random) values between
-rows:
+Within the rows of a :class:`.Table`, the same expression will yield a
+consistent value within each row, but different (random) values across rows:
 
     >>> table = hl.utils.range_table(5, 1)
     >>> table = table.annotate(x1=x, x2=x, rand=hl.rand_unif(0, 1))
@@ -95,7 +94,7 @@ rows may have different values if the expression is applied to different tables:
      0.5448831893094143,
      0.42365480398481625]
 
-    >>> table = hl.utils.range_table(5, 1).annotate(x=hl.rand_bool(0.5, seed=0))
+    >>> table = hl.utils.range_table(5, 5).annotate(x=hl.rand_bool(0.5, seed=0))
     >>> table.x.collect()
     [0.5488135008937808,
      0.9595974306263271,

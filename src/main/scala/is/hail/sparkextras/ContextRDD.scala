@@ -406,6 +406,21 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
     mkc)
 
+  // WARNING: this method is easy to use wrong because it shares the context
+  // between the two producers and the one consumer
+  def czipPartitionsWithIndex[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (Int, C, Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => Iterator.single(l -> r)).mapPartitionsWithIndex({ case (i, it) =>
+      it.flatMap { case (l, r) =>
+        inCtx(ctx => f(i, ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))
+      }
+    }, preservesPartitioning),
+    mkc)
+
   def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false

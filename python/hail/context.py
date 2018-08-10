@@ -27,7 +27,7 @@ class HailContext(object):
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37", idempotent=False, global_seed=None):
+                 default_reference="GRCh37", idempotent=False, global_seed=6348563392232659379):
 
         if Env._hc:
             if idempotent:

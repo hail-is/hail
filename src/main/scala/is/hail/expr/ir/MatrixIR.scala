@@ -51,7 +51,7 @@ object MatrixIR {
         rvd = mv.rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orvdType, { (i, ctx, it) =>
           val f = makeF(i)
           val keep = keepBc.value
-          var rv2 = RegionValue()
+          val rv2 = RegionValue()
 
           it.map { rv =>
             val region = ctx.region
@@ -256,7 +256,6 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
         OrderedRVD.empty(hc.sc, requestedType.orvdType)
       else {
         val fullRowType = requestedType.rvRowType
-        val rowType = requestedType.rowType
         val localEntriesIndex = requestedType.entriesIdx
 
         val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType).asInstanceOf[OrderedRVD]
@@ -299,9 +298,8 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
               }))
           assert(t2 == fullRowType)
 
-          rowsRVD.zipPartitions(requestedType.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (ctx, it1, it2) =>
-            val f = makeF(0) // definitely no randomness here, so partition index doesn't matter
-            val rvb = ctx.rvb
+          rowsRVD.zipPartitionsWithIndex(requestedType.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (i, ctx, it1, it2) =>
+            val f = makeF(i)
             val region = ctx.region
             val rv3 = RegionValue(region)
             new Iterator[RegionValue] {
@@ -1581,6 +1579,9 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       }
     }
 
+    val colsF = f(0)
+    val scanSeqOpF = scanSeqOps(0)
+
     val mapF = (a: Annotation, i: Int) => {
       Region.scoped { region =>
         rvb.set(region)
@@ -1614,8 +1615,8 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         rvb.endStruct()
         val scanResultsOffset = rvb.end()
 
-        val resultOffset = f(0)(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)
-        scanSeqOps(0)(region, scanAggs, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
+        val resultOffset = colsF(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)
+        scanSeqOpF(region, scanAggs, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
 
         SafeRow(coerce[TStruct](rTyp), region, resultOffset)
       }

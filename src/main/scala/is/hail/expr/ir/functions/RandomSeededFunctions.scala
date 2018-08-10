@@ -34,19 +34,19 @@ object RandomSeededFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSeeded("runif_seeded", TFloat64(), TFloat64(), TFloat64()) { case (mb, seed, min, max) =>
-      mb.getRNG(seed).invoke[Double, Double, Double]("runif", min, max)
+      mb.newRNG(seed).invoke[Double, Double, Double]("runif", min, max)
     }
 
     registerSeeded("rnorm_seeded", TFloat64(), TFloat64(), TFloat64()) { case (mb, seed, mean, sd) =>
-      mb.getRNG(seed).invoke[Double, Double, Double]("rnorm", mean, sd)
+      mb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean, sd)
     }
 
     registerSeeded("pcoin_seeded", TFloat64(), TBoolean()) { case (mb, seed, p) =>
-      mb.getRNG(seed).invoke[Double, Boolean]("rcoin", p)
+      mb.newRNG(seed).invoke[Double, Boolean]("rcoin", p)
     }
 
     registerSeeded("rpois_seeded", TFloat64(), TFloat64()) { case (mb, seed, lambda) =>
-      mb.getRNG(seed).invoke[Double, Double]("rpois", lambda)
+      mb.newRNG(seed).invoke[Double, Double]("rpois", lambda)
     }
 
     registerSeeded("rpois_seeded", TInt32(), TFloat64(), TArray(TFloat64())) { case (mb, seed, n, lambda) =>
@@ -56,7 +56,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         length := n,
         srvb.start(n),
         Code.whileLoop(srvb.arrayIdx < length,
-          srvb.addDouble(mb.getRNG(seed).invoke[Double, Double]("rpois", lambda)),
+          srvb.addDouble(mb.newRNG(seed).invoke[Double, Double]("rpois", lambda)),
           srvb.advance()
         ),
         srvb.offset)
