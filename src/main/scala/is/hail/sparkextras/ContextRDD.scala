@@ -456,26 +456,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def shuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
     ContextRDD.weaken(run.coalesce(numPartitions, true), mkc)
 
-  def sample(
-    withReplacement: Boolean,
-    fraction: Double,
-    seed: Long
-  ): ContextRDD[C, T] = {
-    require(fraction >= 0.0 && fraction <= 1.0)
-    val r = new Random(seed)
-    val partitionSeeds =
-      sparkContext.broadcast(
-        Array.fill(rdd.partitions.length)(r.nextLong()))
-    cmapPartitionsWithIndex({ (i, ctx, it) =>
-      val sampler = if (withReplacement)
-        new PoissonSampler[T](fraction)
-      else
-        new BernoulliSampler[T](fraction)
-      sampler.setSeed(partitionSeeds.value(i))
-      sampler.sample(it)
-    }, preservesPartitioning = true)
-  }
-
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
     require(n >= 0)
 

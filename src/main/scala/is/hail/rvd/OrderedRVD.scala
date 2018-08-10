@@ -89,9 +89,6 @@ class OrderedRVD(
     })
   }
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
-    OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
-
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): OrderedRVD = {
     assert(!typ.key.contains(name))
     val (newRowType, newCRDD) = zipWithIndexCRDD(name, partitionCounts)

@@ -436,8 +436,6 @@ trait RVD {
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
-
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD
 
   private[rvd] def zipWithIndexCRDD(

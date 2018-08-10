@@ -1174,11 +1174,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def sampleRows(p: Double, seed: Int = 1): MatrixTable = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copyMT(rvd = rvd.sample(withReplacement = false, p, seed))
-  }
-
   def copy2(rvd: OrderedRVD = rvd,
     colValues: BroadcastIndexedSeq = colValues,
     colKey: IndexedSeq[String] = colKey,
