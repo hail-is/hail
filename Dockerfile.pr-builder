@@ -57,6 +57,6 @@ RUN tar --strip-components=1 -xvzf spark-2.2.0-bin-hadoop2.7.tgz -C /spark && \
     rm -rf spark-2.2.2-bin-hadoop2.7.tgz
 ENV SPARK_HOME /spark/
 
-RUN apt-get -y install xsltproc
+RUN apt-get -y install xsltproc pandoc
 
 WORKDIR /hail
