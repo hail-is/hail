@@ -56,11 +56,11 @@ object VEP {
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
-  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): MatrixTable = {
+  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
     assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
     assert(ht.typ.rowType.size == 2)
 
-    val conf = readConfiguration(vsm.hadoopConf, config)
+    val conf = readConfiguration(ht.hc.hadoopConf, config)
     val vepSignature = conf.vep_json_schema
 
     val cmd = conf.command.map(s =>
