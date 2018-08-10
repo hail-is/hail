@@ -11,6 +11,44 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def test_key_by_random(self):
+        ht = hl.utils.range_table(10, 4)
+        ht = ht.annotate(new_key=hl.rand_unif(0, 1))
+        ht = ht.key_by('new_key')
+        self.assertEqual(ht._force_count(), 10)
+
+    def test_seeded_same(self):
+
+        def test_random_function(rand_f):
+            ht = hl.utils.range_table(10, 4)
+            sample1 = rand_f()
+            ht = ht.annotate(x=sample1, y=sample1, z=rand_f())
+            self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y)) & ~agg.all((ht.x == ht.z))))
+
+        test_random_function(lambda: hl.rand_unif(0, 1))
+        test_random_function(lambda: hl.rand_bool(0.5))
+        test_random_function(lambda: hl.rand_norm(0, 1))
+        test_random_function(lambda: hl.rand_pois(1))
+
+    def test_seeded_sampling(self):
+        sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
+        sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
+
+        set1 = set(sampled1.idx.collect())
+        set2 = set(sampled2.idx.collect())
+        expected = set1 & set2
+
+        for i in range(10):
+            s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
+            s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
+            self.assertEqual(set(s1.idx.collect()), expected)
+            self.assertEqual(set(s2.idx.collect()), expected)
+
+    def test_order_by_head_optimization_with_randomness(self):
+        ht = hl.utils.range_table(10, 6).annotate(x=hl.rand_unif(0, 1))
+        expected = sorted(ht.collect(), key=lambda x: x['x'])[:5]
+        self.assertEqual(ht.order_by(ht.x).take(5), expected)
+
     def test_operators(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 

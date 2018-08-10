@@ -17,6 +17,7 @@ object Simplify {
         _: GetField |
         _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
+      case f: ApplySeeded => f.implementation.isStrict
       case _ => false
     }
   }
@@ -145,7 +146,6 @@ object Simplify {
       case x@SelectFields(InsertFields(struct, insertFields), selectFields) =>
         val selectSet = selectFields.toSet
         val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
-        val insertSet = insertFields2.map(_._1).toSet
         val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
         val selectFields2 = selectFields.filter(structSet.contains)
         val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)

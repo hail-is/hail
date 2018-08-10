@@ -96,6 +96,8 @@ object Children {
       args.toFastIndexedSeq
     case Apply(_, args) =>
       args.toFastIndexedSeq
+    case ApplySeeded(_, args, seed) =>
+      args.toFastIndexedSeq
     case ApplySpecial(_, args) =>
       args.toFastIndexedSeq
     case Uniroot(_, fn, min, max) =>

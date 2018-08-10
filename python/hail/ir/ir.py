@@ -1053,6 +1053,30 @@ class Apply(IR):
                other.args == self.args
 
 
+class ApplySeeded(IR):
+    @typecheck_method(function=str, seed=int, args=IR)
+    def __init__(self, function, seed, *args):
+        super().__init__(*args)
+        self.function = function
+        self.args = args
+        self.seed = seed
+
+    def copy(self, *args):
+        new_instance = self.__class__
+        return new_instance(self.function, self.seed, *args)
+
+    def __str__(self):
+        return '(ApplySeeded {} {} {})'.format(
+            escape_id(self.function),
+            self.seed,
+            ' '.join([str(x) for x in self.args]))
+
+    def __eq__(self, other):
+        return isinstance(other, Apply) and \
+               other.function == self.function and \
+               other.args == self.args
+
+
 class Uniroot(IR):
     @typecheck_method(argname=str, function=IR, min=IR, max=IR)
     def __init__(self, argname, function, min, max):

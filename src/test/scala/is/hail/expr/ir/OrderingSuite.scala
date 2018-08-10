@@ -38,7 +38,7 @@ class OrderingSuite extends TestNGSuite {
       case "gt" => fb.emit(stagedOrdering.gt(cregion, (const(false), cv1), cregion, (const(false), cv2)))
       case "gteq" => fb.emit(stagedOrdering.gteq(cregion, (const(false), cv1), cregion, (const(false), cv2)))
     }
-    fb.result()()
+    fb.resultWithIndex()(0)
   }
 
   def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
@@ -62,7 +62,7 @@ class OrderingSuite extends TestNGSuite {
       case 1 =>
         val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
         Emit(ir, fb)
-        val f = fb.result()()
+        val f = fb.resultWithIndex()(0)
         val f2 = { (region: Region, as: Seq[Annotation]) =>
           val offs = addTupledArgsToRegion(region, args.zip(as): _*)
           SafeRow(TTuple(rt), region, f(region, offs(0), false)).get(0)
@@ -71,7 +71,7 @@ class OrderingSuite extends TestNGSuite {
       case 2 =>
         val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
         Emit(ir, fb)
-        val f = fb.result()()
+        val f = fb.resultWithIndex()(0)
         val f2 = { (region: Region, as: Seq[Annotation]) =>
           val offs = addTupledArgsToRegion(region, args.zip(as): _*)
           SafeRow(TTuple(rt), region, f(region, offs(0), false, offs(1), false)).get(0)
@@ -208,7 +208,7 @@ class OrderingSuite extends TestNGSuite {
       val fb = EmitFunctionBuilder[Region, Boolean]
       Emit(ir, fb)
 
-      val f = fb.result()()
+      val f = fb.resultWithIndex()(0)
       Region.scoped { region =>
         assert(f(region))
       }
@@ -292,7 +292,7 @@ class OrderingSuite extends TestNGSuite {
 
         val asArray = SafeIndexedSeq(TArray(t), region, soff)
 
-        val f = fb.result()()
+        val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -332,7 +332,7 @@ class OrderingSuite extends TestNGSuite {
 
         val asArray = SafeIndexedSeq(TArray(tdict.elementType), region, soff)
 
-        val f = fb.result()()
+        val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
         def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
         val maybeEqual = getKey(closestI)
@@ -362,7 +362,7 @@ class OrderingSuite extends TestNGSuite {
     val fb = EmitFunctionBuilder[Region, Boolean]
     Emit(ir, fb)
 
-    val f = fb.result()()
+    val f = fb.resultWithIndex()(0)
     Region.scoped { region =>
       assert(f(region))
     }

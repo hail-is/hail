@@ -566,6 +566,7 @@ object Parser extends JavaTokenParsers {
       "StringLength" ~> expr_with_map ^^ { s => ir.StringLength(s) } |
       "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
+      "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(ref_map) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(ref_map) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ expr_with_map ~ expr_with_map ~ expr_with_map ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
   }

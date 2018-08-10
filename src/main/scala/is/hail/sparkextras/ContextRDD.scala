@@ -276,6 +276,55 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](
+    zero: U,
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
+    combOp: (U, U) => U,
+    depth: Int
+  ): U = treeAggregateWithPartitionOp(zero, makePC, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+
+  def treeAggregateWithPartitionOp[PC, U: ClassTag, V: ClassTag](
+    zero: U,
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U,
+    depth: Int
+  ): V = {
+    require(depth > 0)
+    val zeroValue = serialize(zero)
+    val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
+      using(mkc()) { c =>
+        val pc = makePC(i, c)
+        serialize(
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, pc, _, _), combOp)) } }
+    val combOpV = clean { (l: V, r: V) =>
+      serialize(
+        combOp(deserialize(l), deserialize(r))) }
+
+    var reduced: RDD[V] =
+      rdd.mapPartitionsWithIndex((i, it) =>
+        Iterator.single(aggregatePartitionOfContextTs(i, it)))
+    var level = depth
+    val scale =
+      math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+    var targetPartitionCount = reduced.partitions.length / scale
+
+    while (level > 1 && targetPartitionCount >= scale) {
+      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+        it.map(i % targetPartitionCount -> _)
+      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
+      level -= 1
+      targetPartitionCount /= scale
+    }
+
+    reduced.reduce(combOpV)
+  }
+
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
     cmapPartitions((c, it) => it.map(f(c, _)), true)
 
@@ -355,6 +404,21 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, V] = new ContextRDD(
     rdd.zipPartitions(that.rdd, preservesPartitioning)(
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
+    mkc)
+
+  // WARNING: this method is easy to use wrong because it shares the context
+  // between the two producers and the one consumer
+  def czipPartitionsWithIndex[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (Int, C, Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => Iterator.single(l -> r)).mapPartitionsWithIndex({ case (i, it) =>
+      it.flatMap { case (l, r) =>
+        inCtx(ctx => f(i, ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))
+      }
+    }, preservesPartitioning),
     mkc)
 
   def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
