@@ -1,13 +1,13 @@
 set -x
 source activate hail
-GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs --gradle-user-home /gradle-cache
+GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache
 EXIT_CODE=$?
 rm -rf artifacts
 mkdir -p artifacts
 cp build/libs/hail-all-spark.jar artifacts/hail-all-spark.jar
 cp build/distributions/hail-python.zip artifacts/hail-python.zip
 cp -R build/www artifacts/www
-cp -R build/reports/tests/test artifacts/test-report
+cp -R build/reports/tests artifacts/test-report
 cat <<EOF > artifacts/index.html
 <html>
 <body>
