@@ -107,11 +107,11 @@ seed globally for all subsequent Hail operations, and a pipeline will be
 guaranteed to have the same results if the global seed is set right beforehand:
 
     >>> hl.set_global_seed(0)
-    >>> hl.array(hl.rand_unif(0, 1), hl.rand_unif(0, 1)).value
+    >>> hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]).value
     [0.6830630912401323, 0.4035978197966855]
 
     >>> hl.set_global_seed(0)
-    >>> hl.array(hl.rand_unif(0, 1), hl.rand_unif(0, 1)).value
+    >>> hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]).value
     [0.6830630912401323, 0.4035978197966855]
 
 
