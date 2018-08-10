@@ -1155,8 +1155,8 @@ def info_score(gp) -> StructExpression:
 
 @typecheck(y=agg_expr(expr_float64),
            x=oneof(expr_float64, sequenceof(expr_float64)),
-           k_null=int)
-def linreg(y, x, k_null=1) -> StructExpression:
+           nested_dim=int)
+def linreg(y, x, nested_dim=1) -> StructExpression:
     """Compute multivariate linear regression statistics.
 
     Examples
@@ -1176,7 +1176,7 @@ def linreg(y, x, k_null=1) -> StructExpression:
            n=4)
 
     Regress blood pressure against an intercept (1), genotype, age, and
-    the interaction genotype * age:
+    the interaction of genotype and age:
 
     >>> ds_ann = ds.annotate_rows(linreg = 
     ...     hl.agg.linreg(ds.pheno.blood_pressure,
@@ -1187,38 +1187,48 @@ def linreg(y, x, k_null=1) -> StructExpression:
 
     Notes
     -----
-    This aggregator returns a struct expression with ten fields:
+    The intercept must be included explicitly in `x` if desired.
 
+    In relation to
+    `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__.
+    in R,
+    ``linreg(y, x = [1, mt.x1, mt.x2])``
+    computes ``summary(lm(y ~ x1 + x2))`` and
+    ``linreg(y, x = [mt.x1, mt.x2], nested_dim=0)`` computes
+    ``summary(lm(y ~ x1 + x2 - 1))``.
+
+    More generally, `nested_dim` defines the number of effects to fit in the
+    nested (null) model, with the effects on the remaining covariates fixed
+    to zero.
+
+    The returned struct has ten fields:
      - `beta` (:class:`.tarray` of :py:data:`.tfloat64`):
        Estimated regression coefficient for each covariate.
      - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`):
-       Estimated standard error estimate for each covariate.
+       Estimated standard error for each covariate.
      - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`):
        t-statistic for each covariate.
      - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`):
        p-value for each covariate.
      - `multiple_standard_error` (:py:data:`.tfloat64`):
-       standard error of model.
+       Estimated standard deviation of the random error.
      - `multiple_r_squared` (:py:data:`.tfloat64`):
-       one minus (model residual sum of squares over null residual sum of squares).
+       Coefficient of determination for nested models.
      - `adjusted_r_squared` (:py:data:`.tfloat64`):
-       adjusted version of `multiple_r_squared`.
+       Adjusted `multiple_r_squared` taking into account degrees of
+       freedom.
      - `f_stat` (:py:data:`.tfloat64`):
-       F-statistic for full model versus null model.
+       F-statistic for nested models.
      - `multiple_p_value` (:py:data:`.tfloat64`):
-       p-value for full model vs null model.
+       p-value for the
+       `F-test <https://en.wikipedia.org/wiki/F-test#Regression_problems>`__ of
+       nested models.
      - `n` (:py:data:`.tint64`):
        Number of samples included in the regression. A sample is included if and
        only if `y` and all elements of `x` are non-missing.
 
-    All but the last field are missing if n is less than or equal to the number
-    of covariates or if the covariates are linearly dependent.
-
-    The model is defined by all `k` covariates in `x`, whereas the null model
-    for `multiple_r_squared`, `adjusted_r_squared`, `f_stat`, and
-    `multiple_p_value` is defined by the first `k_null` covariates.
-    In particular, if the first covariate is the intercept ``1.0`` and `k_null`
-    is the default value ``1``, then the null model is the intercept-only model.
+    All but the last field are missing if `n` is less than or equal to the
+    number of covariates or if the covariates are linearly dependent.
 
     Parameters
     ----------
@@ -1226,14 +1236,14 @@ def linreg(y, x, k_null=1) -> StructExpression:
         Response (dependent variable).
     x : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
         Covariates (independent variables).
-    k_null : :obj:`int`
-        The null model includes the first `k_null` covariates.
+    nested_dim : :obj:`int`
+        The null model includes the first `nested_dim` covariates.
         Must be between 0 and `k` (the length of `x`).
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct or regression results.
+        Struct of regression results.
     """
     x = wrap_to_list(x)
     k = len(x)
@@ -1242,10 +1252,10 @@ def linreg(y, x, k_null=1) -> StructExpression:
 
     hl.methods.statgen._warn_if_no_intercept('linreg', x)
 
-    k0 = k_null
+    k0 = nested_dim
     if k0 < 0 or k0 > k:
-        raise ValueError("linreg: `k_null` must be between 0 and the number "
-                         "of covariates in `x`, inclusive")
+        raise ValueError("linreg: `nested_dim` must be between 0 and the number "
+                         f"of covariates ({k}), inclusive")
 
     t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
                    standard_error=hl.tarray(hl.tfloat64),
