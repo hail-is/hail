@@ -158,7 +158,6 @@ object LiftLiterals {
           literals)
       case TableMapGlobals(child, newRow, value) => TableMapGlobals(child, rewriteIR(newRow, child.typ.globalType), value)
       case MatrixMapGlobals(child, newRow, value) => MatrixMapGlobals(child, rewriteIR(newRow, child.typ.globalType), value)
-        val rewriteChild = rewriteChild
       case TableAggregate(child, expr) =>
         val literals = getLiterals(expr)
         val rewriteChild = addLiterals(child, literals)
