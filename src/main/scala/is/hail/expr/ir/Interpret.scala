@@ -458,9 +458,10 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case LinearRegression() =>
-            val Seq(nxs) = constructorArgs
-            val nxsValue = interpret(nxs, Env.empty[Any], null, null).asInstanceOf[Int]
-            new LinearRegressionAggregator(null, nxsValue)
+            val Seq(k, k0) = constructorArgs
+            val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
+            val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
+            new LinearRegressionAggregator(null, kValue, k0Value)
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
         }
