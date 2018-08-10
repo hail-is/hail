@@ -1,6 +1,6 @@
 name: hail-0.1-dev
 dependencies:
-- python>=2
+- python=2
 - Sphinx=1.7
 - sphinxcontrib
 - conda-forge::nbsphinx
