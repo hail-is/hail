@@ -1185,10 +1185,13 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
     ...                    ds.pheno.age,
     ...                    ds.GT.n_alt_alleles() * ds.pheno.age]))
 
+    Warning
+    -------
+    As in the example, the intercept covariate ``1`` must be included
+    **explicitly** if desired.
+
     Notes
     -----
-    The intercept must be included explicitly in `x` if desired.
-
     In relation to
     `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__.
     in R,

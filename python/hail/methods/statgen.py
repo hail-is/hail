@@ -246,7 +246,7 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -254,7 +254,7 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
     of `x` are mean-imputed over these columns. As in the example, the intercept
-    covariate ``1.0`` must be included explicitly if desired.
+    covariate ``1`` must be included **explicitly** if desired.
 
     Notes
     -----
@@ -394,7 +394,15 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[1.0, dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    Warning
+    -------
+    :func:`.logistic_regression` considers the same set of columns (i.e.,
+    samples, points) for every row, namely those columns for which **all**
+    covariates are defined. For each row, missing values of `x` are mean-imputed
+    over these columns. As in the example, the intercept covariate ``1`` must be
+    included **explicitly** if desired.
 
     Notes
     -----
@@ -402,8 +410,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     variable in predicting a binary (case-control) response variable based on
     the logistic regression model. The response variable type must either be
     numeric (with all present values 0 or 1) or Boolean, in which case true and
-    false are coded as 1 and 0, respectively. As in the example, the intercept
-    covariate ``1.0`` must be included explicitly if desired.
+    false are coded as 1 and 0, respectively.
 
     Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
     score test ('score'), and Firth test ('firth'). Hail only includes columns
@@ -543,13 +550,6 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     Heinze and Schemper further analyze Firth's approach in
     `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-    Those variants that don't vary across the included samples (e.g., all
-    genotypes are HomRef) will have missing annotations.
-
-    For Boolean covariate types, ``True`` is coded as 1 and ``False`` as 0. In
-    particular, for the sample annotation `fam.is_case` added by importing a FAM
-    file with case-control phenotype, case is 1 and control is 0.
-
     Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
     and ``b.score`` tests in `EPACTS`_. For each variant, Hail imputes missing
     input values as the mean of non-missing input values, whereas EPACTS
@@ -650,7 +650,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
     ...                      x=burden_ds.GT.n_alt_alleles(),
-    ...                      covariates=[1.0, burden_ds.burden.cov1, burden_ds.burden.cov2])
+    ...                      covariates=[1, burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
 
@@ -668,6 +668,14 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
        entire job to fail. In this case, use the `max_size` parameter to skip
        groups larger than `max_size`.
 
+    Warning
+    -------
+    :func:`.skat` considers the same set of columns (i.e., samples, points) for
+    every group, namely those columns for which **all** covariates are defined.
+    For each row, missing values of `x` are mean-imputed over these columns.
+    As in the example, the intercept covariate ``1`` must be included
+    **explicitly** if desired.
+
     Notes
     -----
 
@@ -675,11 +683,6 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     variance-component test originally described in
     `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
     <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
-
-    The test is run on columns with `y` and all `covariates` non-missing.
-    As in the example, the intercept covariate ``1.0`` must be included
-    explicitly if desired. For each row, missing input (`x`) values are
-    imputed as the mean of all non-missing input values.
 
     Row weights must be non-negative. Rows with missing weights are ignored. In
     the R package ``skat``---which assumes rows are variants---default weights
@@ -748,6 +751,9 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         Row-indexed expression for row weights.
     y : :class:`.Float64Expression`
         Column-indexed response expression.
+        If `logistic` is ``True``, all non-missing values must evaluate to 0 or
+        1. Note that a :class:`.BooleanExpression` will be implicitly converted
+        to a :class:`.Float64Expression` with this property.
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
