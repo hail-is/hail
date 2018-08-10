@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -9,11 +9,6 @@ mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 
 # copy levene haldane
 # cp docs/LeveneHaldane.pdf build/www/ does not exist
-
-ls -al .
-pwd
-
-ls -al www
 
 # copy website content
 cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
