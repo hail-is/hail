@@ -796,8 +796,8 @@ def grep(regex, path, max_count=100):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
-           _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')),
-           _variants_per_file=dictof(str, sequenceof(int)))
+           _row_fields=sequenceof(enumeration('varid', 'rsid')),
+           _variants=nullable(expr_array(expr_struct())))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -807,7 +807,7 @@ def import_bgen(path,
                 contig_recoding=None,
                 skip_invalid_loci=False,
                 _row_fields=['varid', 'rsid'],
-                _variants_per_file={}) -> MatrixTable:
+                _variants=None) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -840,7 +840,9 @@ def import_bgen(path,
     must be bi-allelic.
 
     Each BGEN file must have a corresponding index file, which can be generated
-    with :func:`.index_bgen`. To load multiple files at the same time,
+    with :func:`.index_bgen`. The parameters given for `reference_genome`,
+    `contig_recoding`, and `skip_invalid_loci` must be identical as those used to
+    create the index file. To load multiple files at the same time,
     use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
     If n_partitions and block_size are both specified, block_size is
@@ -937,11 +939,21 @@ def import_bgen(path,
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
+    if _variants is not None:
+        et = _variants.dtype.element_type
+        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint64)
+        if et != tstruct(locus=lt, alleles=tarray(tstr)):
+            raise ValueError("'import_bgen' requires the expression type for '_variants' must match the BGEN key type: \n" +
+                             f"\tFound: {et}\n" +
+                             f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+
+        _variants = _variants.dtype._convert_to_j(_variants.value)
+
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
+                                    'varid' in row_set, 'rsid' in row_set,
                                     joption(n_partitions), joption(block_size), joption(rg), contig_recoding,
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
+                                    skip_invalid_loci, joption(_variants))
     return MatrixTable(jmt)
 
 
@@ -1826,8 +1838,14 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, sequenceof(str)))
-def index_bgen(path):
+@typecheck(path=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
+def index_bgen(path,
+               reference_genome='default',
+               contig_recoding=None,
+               skip_invalid_loci=False):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
@@ -1848,9 +1866,21 @@ def index_bgen(path):
 
     path: :obj:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
+    rg = reference_genome.name if reference_genome else None
+
+    if contig_recoding:
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)

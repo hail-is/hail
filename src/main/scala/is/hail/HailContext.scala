@@ -339,6 +339,24 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
+  def indexBgen(file: String) {
+    indexBgen(FastSeq(file))
+  }
+
+  def indexBgen(files: Seq[String],
+    rg: Option[String] = None,
+    contigRecoding: Map[String, String] = null,
+    skipInvalidLoci: Boolean = false) {
+
+    files.foreach { f =>
+      if (hadoopConf.exists(f + ".idx"))
+        hadoopConf.delete(f + ".idx", recursive = true)
+    }
+
+    LoadBgen.index(this, files.toArray, rg, contigRecoding, skipInvalidLoci)
+    info(s"Number of BGEN files indexed: ${ files.length }")
+  }
+
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     includeGT: Boolean = true,
@@ -346,13 +364,12 @@ class HailContext private(val sc: SparkContext,
     includeDosage: Boolean = false,
     includeLid: Boolean = true,
     includeRsid: Boolean = true,
-    includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
     blockSizeInMB: Option[Int] = None,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
+    includedVariants: Option[Seq[Annotation]] = None
   ): MatrixTable = {
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 
@@ -360,8 +377,7 @@ class HailContext private(val sc: SparkContext,
       (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
       (true, "alleles" -> TArray(TString())),
       (includeRsid, "rsid" -> TString()),
-      (includeLid, "varid" -> TString()),
-      (includeFileRowIdx, "file_row_idx" -> TInt64()))
+      (includeLid, "varid" -> TString()))
       .withFilter(_._1).map(_._2)
 
     val typedEntryFields: Array[(String, Type)] =
@@ -389,7 +405,8 @@ class HailContext private(val sc: SparkContext,
       rg,
       Option(contigRecoding).getOrElse(Map.empty[String, String]),
       skipInvalidLoci,
-      includedVariantsPerUnresolvedFilePath)
+      includedVariants,
+      createIndex = false)
     new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 
@@ -696,35 +713,6 @@ class HailContext private(val sc: SparkContext,
     maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
-  }
-
-  def indexBgen(file: String) {
-    indexBgen(List(file))
-  }
-
-  def indexBgen(files: Seq[String]) {
-    val inputs = hadoopConf.globAll(files).flatMap { file =>
-      if (!file.endsWith(".bgen"))
-        warn(s"Input file does not have .bgen extension: $file")
-
-      if (hadoopConf.isDir(file))
-        hadoopConf.listStatus(file)
-          .map(_.getPath.toString)
-          .filter(p => ".*part-[0-9]+".r.matches(p))
-      else
-        Array(file)
-    }
-
-    if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    val conf = new SerializableHadoopConfiguration(hadoopConf)
-
-    sc.parallelize(inputs, numSlices = inputs.length).foreach { in =>
-      LoadBgen.index(conf.value, in)
-    }
-
-    info(s"Number of BGEN files indexed: ${ inputs.length }")
   }
 
   def baldingNicholsModel(populations: Int,
