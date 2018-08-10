@@ -454,7 +454,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
 }
 
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
-  require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => r.isPrefixOf(l))))
+  require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => r.isPrefixOf(l))),
+    s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
 
   def children: IndexedSeq[BaseIR] = Array(left, right)
 
