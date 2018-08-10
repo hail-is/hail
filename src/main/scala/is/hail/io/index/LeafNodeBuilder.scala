@@ -1,37 +1,40 @@
 package is.hail.io.index
 
-import is.hail.annotations.RegionValueBuilder
+import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object LeafNodeBuilder {
-  def typ(keyType: Type) = TStruct(
-    "first_key_idx" -> +TInt64(),
+  def typ(keyType: Type, annotationType: Type) = TStruct(
+    "first_idx" -> +TInt64(),
     "keys" -> +TArray(TStruct(
       "key" -> keyType,
-      "offset" -> +TInt64()
+      "offset" -> +TInt64(),
+      "annotation" -> annotationType
     ), required = true)
   )
 }
 
-class LeafNodeBuilder(keyType: Type) {
+class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
   val keys = new ArrayBuilder[Any]()
-  val offsets = new ArrayBuilder[Long]()
+  val recordOffsets = new ArrayBuilder[Long]()
+  val annotations = new ArrayBuilder[Any]()
   var size = 0
-  val typ = LeafNodeBuilder.typ(keyType)
+  val typ = LeafNodeBuilder.typ(keyType, annotationType)
 
-  def write(rvb: RegionValueBuilder, idx: Long): Long = {
+  def write(rvb: RegionValueBuilder): Long = {
     rvb.start(typ)
     rvb.startStruct()
 
-    rvb.addLong(idx) // first_key_idx
+    rvb.addLong(firstIdx)
 
-    rvb.startArray(size) // keys
+    rvb.startArray(size)
     var i = 0
     while (i < size) {
       rvb.startStruct()
-      rvb.addAnnotation(keyType, keys(i)) // key
-      rvb.addLong(offsets(i)) // offset
+      rvb.addAnnotation(keyType, keys(i))
+      rvb.addLong(recordOffsets(i))
+      rvb.addAnnotation(annotationType, annotations(i))
       rvb.endStruct()
       i += 1
     }
@@ -40,27 +43,25 @@ class LeafNodeBuilder(keyType: Type) {
     rvb.end()
   }
 
-  def firstKey: Any = {
-    assert(size > 0)
-    keys(0)
-  }
-
-  def firstOffset: Long = {
-    assert(size > 0)
-    offsets(0)
-  }
-
-  def +=(key: Any, offset: Long) {
+  def +=(key: Annotation, offset: Long, annotation: Annotation) {
     keys += key
-    offsets += offset
+    recordOffsets += offset
+    annotations += annotation
     size += 1
   }
 
-  def clear() {
-    keys.clear()
-    offsets.clear()
-    size = 0
+  def getChild(idx: Int): LeafChild = {
+    assert(idx >= 0 && idx < size)
+    LeafChild(keys(idx), recordOffsets(idx), annotations(idx))
   }
 
-  override def toString: String = s"LeafNodeBuilder $size [${ (0 until size).map(i => (keys(i), offsets(i))).mkString(",") }]"
+  def clear(newIdx: Long) {
+    keys.clear()
+    recordOffsets.clear()
+    annotations.clear()
+    size = 0
+    firstIdx = newIdx
+  }
+
+  override def toString: String = s"LeafNodeBuilder $firstIdx $size [${ (0 until size).map(i => (keys(i), recordOffsets(i), annotations(i))).mkString(",") }]"
 }

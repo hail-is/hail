@@ -5,57 +5,46 @@ import is.hail.expr.types.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object InternalNodeBuilder {
-  def typ(keyType: Type) = TStruct(
-    "block_first_key_idx" -> +TInt64(),
+  def typ(keyType: Type, annotationType: Type) = TStruct(
+    "first_idx" -> +TInt64(),
     "children" -> +TArray(TStruct(
-      "child_offset" -> +TInt64(),
+      "index_file_offset" -> +TInt64(),
       "first_key" -> keyType,
-      "first_key_offset" -> +TInt64()
+      "first_record_offset" -> +TInt64(),
+      "first_annotation" -> annotationType
     ), required = true)
   )
 }
 
-class InternalNodeBuilder(keyType: Type) {
-  val childOffsets = new ArrayBuilder[Long]()
+class InternalNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
+  val indexFileOffsets = new ArrayBuilder[Long]()
   val firstKeys = new ArrayBuilder[Any]()
-  val firstKeyOffsets = new ArrayBuilder[Long]()
+  val firstRecordOffsets = new ArrayBuilder[Long]()
+  val firstAnnotations = new ArrayBuilder[Any]()
   var size = 0
-  val typ = InternalNodeBuilder.typ(keyType)
-  var firstIndex = 0L
-
-  def firstKey: Any = {
-    assert(size > 0)
-    firstKeys(0)
-  }
-
-  def firstOffset: Long = {
-    assert(size > 0)
-    firstKeyOffsets(0)
-  }
-
-  def setFirstIndex(idx: Long) {
-    firstIndex = idx
-  }
+  val typ = InternalNodeBuilder.typ(keyType, annotationType)
 
   def +=(info: IndexNodeInfo) {
-    childOffsets += info.fileOffset
+    indexFileOffsets += info.indexFileOffset
     firstKeys += info.firstKey
-    firstKeyOffsets += info.firstKeyOffset
+    firstRecordOffsets += info.firstRecordOffset
+    firstAnnotations += info.firstAnnotation
     size += 1
   }
 
   def write(rvb: RegionValueBuilder): Long = {
     rvb.start(typ)
     rvb.startStruct()
-    rvb.addLong(firstIndex) // block_first_key_index
+    rvb.addLong(firstIdx)
 
     rvb.startArray(size)
     var i = 0
     while (i < size) {
       rvb.startStruct()
-      rvb.addLong(childOffsets(i)) // child_offset
-      rvb.addAnnotation(keyType, firstKeys(i)) // first_key
-      rvb.addLong(firstKeyOffsets(i)) // first_key_offset
+      rvb.addLong(indexFileOffsets(i))
+      rvb.addAnnotation(keyType, firstKeys(i))
+      rvb.addLong(firstRecordOffsets(i))
+      rvb.addAnnotation(annotationType, firstAnnotations(i))
       rvb.endStruct()
       i += 1
     }
@@ -64,18 +53,19 @@ class InternalNodeBuilder(keyType: Type) {
     rvb.end()
   }
 
-  def clear() {
-    childOffsets.clear()
+  def clear(idx: Long) {
+    indexFileOffsets.clear()
     firstKeys.clear()
-    firstKeyOffsets.clear()
+    firstRecordOffsets.clear()
+    firstAnnotations.clear()
     size = 0
-    firstIndex = 0L
+    firstIdx = idx
   }
 
   def getChild(idx: Int): InternalChild = {
     assert(size > idx)
-    InternalChild(childOffsets(idx), firstKeys(idx), firstKeyOffsets(idx))
+    InternalChild(indexFileOffsets(idx), firstKeys(idx), firstRecordOffsets(idx), firstAnnotations(idx))
   }
 
-  override def toString: String = s"InternalNodeBuilder $size $firstIndex [${ (0 until size).map(i => (childOffsets(i), firstKeys(i), firstKeyOffsets(i))).mkString(",") }]"
+  override def toString: String = s"InternalNodeBuilder $firstIdx $size [${ (0 until size).map(i => (indexFileOffsets(i), firstKeys(i), firstRecordOffsets(i), firstAnnotations(i))).mkString(",") }]"
 }

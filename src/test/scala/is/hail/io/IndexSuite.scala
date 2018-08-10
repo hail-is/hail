@@ -1,10 +1,11 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.expr.types.TString
+import is.hail.expr.types.{TBoolean, TString, TStruct}
 import is.hail.io.index.{IndexReader, IndexWriter}
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 class IndexSuite extends SparkSuite {
   val strings = Array(
@@ -24,19 +25,22 @@ class IndexSuite extends SparkSuite {
     val file = tmpDir.createTempFile("test", "idx")
     val attributes = Map("foo" -> true, "bar" -> 5)
 
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
-    data.zipWithIndex.foreach { case (s, offset) =>
-      iw += (s, offset)
-    }
-    iw.close()
+    for (branchingFactor <- 2 to 5) {
+      val iw = new IndexWriter(hc.hadoopConf, file, TString(), TStruct("a" -> TBoolean()), branchingFactor, attributes)
+      data.zipWithIndex.foreach { case (s, offset) =>
+        iw += (s, offset, Row(offset % 2 == 0))
+      }
+      iw.close()
 
-    assert(hc.hadoopConf.getFileSize(file) != 0)
+      assert(hc.hadoopConf.getFileSize(file) != 0)
 
-    val ir = new IndexReader(hc.hadoopConf, file)
-    assert(ir.attributes == attributes)
-    data.zipWithIndex.foreach { case (s, i) =>
-      assert(ir.queryByIndex(i).key == s)
+      val ir = new IndexReader(hc.hadoopConf, file)
+      assert(ir.attributes == attributes)
+      data.zipWithIndex.foreach { case (s, i) =>
+        val result = ir.queryByIndex(i)
+        assert(result.key == s && result.annotation == Row(i % 2 == 0))
+      }
+      ir.close()
     }
-    ir.close()
   }
 }

@@ -14,6 +14,7 @@ case class IndexMetadata(
   branchingFactor: Int,
   height: Int,
   keyType: String,
+  annotationType: String,
   nKeys: Long,
   indexPath: String,
   rootOffset: Long,
@@ -21,50 +22,55 @@ case class IndexMetadata(
 )
 
 case class IndexNodeInfo(
-  fileOffset: Long,
+  indexFileOffset: Long,
   firstIndex: Long,
   firstKey: Annotation,
-  firstKeyOffset: Long
+  firstRecordOffset: Long,
+  firstAnnotation: Annotation
 )
+
+object IndexWriter {
+  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+}
 
 class IndexWriter(
   hConf: Configuration,
   path: String,
   keyType: Type,
+  annotationType: TStruct,
   branchingFactor: Int = 1024,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
-
-  private val indexFile = path + "/index"
-  private val metadataFile = path + "/metadata.json.gz"
+  require(branchingFactor > 1)
 
   private var elementIdx = 0L
   private var rootOffset = 0L
 
-  private val rvb = new RegionValueBuilder()
   private val region = new Region()
-  rvb.set(region)
+  private val rvb = new RegionValueBuilder(region)
 
-  private val leafNode = new LeafNodeBuilder(keyType)
-  private val internalNodes = new ArrayBuilder[InternalNodeBuilder]()
+  private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
+  private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(indexFile))
+  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
   private val codecSpec = CodecSpec.default
-  private val leafEncoder = codecSpec.buildEncoder(leafNode.typ)(trackedOS)
-  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType))(trackedOS)
+  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
+  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
 
   private def calcDepth: Int =
     math.max(1, (math.log10(elementIdx) / math.log10(branchingFactor)).ceil.toInt) // max necessary for array of length 1 becomes depth = 0
 
-  private def height: Int = math.max(calcDepth - 1, 1) + 1 // ensure always at least one internal level and one leaf level
+  // last internal node builder is the root (not written): internal node length - root + leaf node == internalNodes.length
+  private def height: Int = internalNodeBuilders.length
 
   private def writeInternalNode(node: InternalNodeBuilder): IndexNodeInfo = {
-    val fileOffset = trackedOS.bytesWritten
-    rootOffset = fileOffset
+    val indexFileOffset = trackedOS.bytesWritten
 
+    assert(node.size > 0)
     val child = node.getChild(0)
+    val firstIndex = node.firstIdx
     val firstKey = child.firstKey
-    val firstKeyOffset = child.firstKeyOffset
-    val firstIndex = node.firstIndex
+    val firstRecordOffset = child.firstRecordOffset
+    val firstAnnotation = child.firstAnnotation
 
     internalEncoder.writeByte(1)
 
@@ -73,101 +79,82 @@ class IndexWriter(
     internalEncoder.flush()
 
     region.clear()
-    node.clear()
+    node.clear(elementIdx)
 
-    IndexNodeInfo(fileOffset, firstIndex, firstKey, firstKeyOffset)
+    IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
   }
 
-  private def writeLeafNode(idx: Long): IndexNodeInfo = {
-    val fileOffset = trackedOS.bytesWritten
-    val firstKey = leafNode.firstKey
-    val firstOffset = leafNode.firstOffset
+  private def writeLeafNode(): IndexNodeInfo = {
+    val indexFileOffset = trackedOS.bytesWritten
+
+    assert(leafNodeBuilder.size > 0)
+    val child = leafNodeBuilder.getChild(0)
+    val firstIndex = leafNodeBuilder.firstIdx
+    val firstKey = child.key
+    val firstRecordOffset = child.recordOffset
+    val firstAnnotation = child.annotation
 
     leafEncoder.writeByte(0)
 
-    val regionOffset = leafNode.write(rvb, idx)
+    val regionOffset = leafNodeBuilder.write(rvb)
     leafEncoder.writeRegionValue(region, regionOffset)
     leafEncoder.flush()
 
     region.clear()
-    leafNode.clear()
+    leafNodeBuilder.clear(elementIdx)
 
-    IndexNodeInfo(fileOffset, idx, firstKey, firstOffset)
+    IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
   }
 
-  private def write() {
-    def updateInternalNodes(level: Int, info: IndexNodeInfo) {
-      if (level == internalNodes.size)
-        internalNodes += new InternalNodeBuilder(keyType)
+  private def write(flush: Boolean = false) {
+    val nInternalNodes = math.max(calcDepth - 1, 1)
 
-      val node = internalNodes(level)
+    def writeInternalNodes(level: Int) {
+      if (level < nInternalNodes) {
+        val node = internalNodeBuilders(level)
 
-      if (node.size == 0) {
-        node.setFirstIndex(info.firstIndex)
-      }
-
-      node += info
-
-      if (node.size == branchingFactor) {
-        val newNodeInfo = writeInternalNode(node)
-        updateInternalNodes(level + 1, newNodeInfo)
-      }
-    }
-
-    val idx = elementIdx - leafNode.size
-    val newNodeInfo = writeLeafNode(idx)
-    updateInternalNodes(0, newNodeInfo)
-  }
-
-  private def flush() {
-    val nInternalLevels = math.max(calcDepth - 1, 1) // ensure always one internal node
-
-    def flushInternalNodes(level: Int, info: IndexNodeInfo) {
-      if (level != nInternalLevels) {
-        val node = internalNodes(level)
-
-        if (node.size == 0)
-          node.setFirstIndex(info.firstIndex)
-
-        node += info
-
-        assert(node.size > 0 && node.size <= branchingFactor)
-
-        val newNodeInfo = writeInternalNode(node)
-
-        flushInternalNodes(level + 1, newNodeInfo)
+        if (node.size == branchingFactor || (flush && node.size > 0)) {
+          val info = writeInternalNode(node)
+          if (level + 1 == internalNodeBuilders.size)
+            internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
+          internalNodeBuilders(level + 1) += info
+          writeInternalNodes(level + 1)
+        } else if (flush)
+          writeInternalNodes(level + 1)
       }
     }
 
-    if (leafNode.size > 0)
-      write()
-
-    val firstUnwrittenNodeIdx = internalNodes.result().indexWhere(_.size > 0)
-    if (firstUnwrittenNodeIdx != -1 && firstUnwrittenNodeIdx < nInternalLevels) {
-      val node = internalNodes(firstUnwrittenNodeIdx)
-      val newNodeInfo = writeInternalNode(node)
-      flushInternalNodes(firstUnwrittenNodeIdx + 1, newNodeInfo)
-    }
+    if (leafNodeBuilder.size == branchingFactor || (flush && leafNodeBuilder.size > 0)) {
+      val info = writeLeafNode()
+      if (internalNodeBuilders.isEmpty)
+        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
+      internalNodeBuilders(0) += info
+      writeInternalNodes(0)
+    } else if (flush)
+      writeInternalNodes(0)
   }
 
   private def writeMetadata() = {
-    hConf.writeTextFile(metadataFile) { out =>
-      val metadata = IndexMetadata(1, branchingFactor, height, keyType._toPretty, elementIdx, indexFile, rootOffset, attributes)
+    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+      val metadata = IndexMetadata(IndexWriter.version.rep, branchingFactor, height, keyType._toPretty, annotationType._toPretty, elementIdx, "index", rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)
     }
   }
 
-  def +=(x: Any, offset: Long) {
-    leafNode += (x, offset)
+  def +=(x: Annotation, offset: Long, annotation: Annotation) {
+    leafNodeBuilder += (x, offset, annotation)
     elementIdx += 1
-    if (leafNode.size == branchingFactor) {
+    if (leafNodeBuilder.size == branchingFactor) {
       write()
     }
   }
 
   def close(): Unit = {
-    flush()
+    write(flush = true)
+    val rootNodeBuilder = internalNodeBuilders.last
+    assert(rootNodeBuilder.size == 1)
+    rootOffset = rootNodeBuilder.indexFileOffsets(0)
     trackedOS.close()
     region.close()
 
