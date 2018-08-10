@@ -616,6 +616,7 @@ class IRSuite extends SparkSuite {
           LocalizeEntries(read, "all of the entries"),
           MatrixColsTable(read),
           "all of the entries"),
+        MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
       )
 

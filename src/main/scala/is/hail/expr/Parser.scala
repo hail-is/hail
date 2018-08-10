@@ -663,6 +663,10 @@ object Parser extends JavaTokenParsers {
           val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
           ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
       } |
+      "MatrixAnnotateColsTable" ~> string_literal ~ matrix_ir ~ table_ir ^^ {
+        case root ~ child ~ table =>
+          ir.MatrixAnnotateColsTable(child, table, root)
+      } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
       "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |

@@ -533,39 +533,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
-    require(kt.keyFields.isDefined)
-
-    val (finalType, inserter) = colType.structInsert(
-      kt.valueSignature,
-      List(root))
-
-    val keyTypes = kt.keyFields.get.map(_.typ)
-
-    val keyedRDD = kt.keyedRDD().filter { case (k, v) => k.toSeq.forall(_ != null) }
-
-    assert(keyTypes.length == colKeyTypes.length
-      && keyTypes.zip(colKeyTypes).forall { case (l, r) => l.isOfType(r) },
-      s"MT col key: ${ colKeyTypes.mkString(", ") }, TB key: ${ keyTypes.mkString(", ") }")
-    val r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
-
-    val m = r.collectAsMap()
-
-    annotateCols(finalType, inserter) { case (ck, _) => m.getOrElse(ck, null) }
-  }
-
-  def annotateCols(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
-    val newAnnotations = colKeys.zip(colValues.value)
-      .zipWithIndex
-      .map { case ((ck, sa), i) =>
-        val newAnnotation = inserter(sa, f(ck, i))
-        newSignature.typeCheck(newAnnotation)
-        newAnnotation
-      }
-
-    val newFields = newSignature.fieldNames.toSet
-    copy2(colValues = colValues.copy(value = newAnnotations, t = TArray(newSignature)),
-      colType = newSignature,
-      colKey = colKey.filter(newFields.contains))
+    new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
