@@ -37,6 +37,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     hist
     linreg
     group_by
+    downsample
 
 .. autofunction:: collect
 .. autofunction:: collect_as_set
@@ -63,3 +64,4 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: hist
 .. autofunction:: linreg
 .. autofunction:: group_by
+.. autofunction:: downsample

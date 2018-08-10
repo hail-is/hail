@@ -378,6 +378,24 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.6331017)
         self.assertAlmostEqual(r.n, 5)
 
+    def test_aggregators_downsample(self):
+        xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        label1 = ["2", "6", "4", "9", "1", "8", "5", "10", "3", "7"]
+        label2 = ["two", "six", "four", "nine", "one", "eight", "five", "ten", "three", "seven"]
+        table = hl.Table.parallelize([hl.struct(x=x, y=y, label1=label1, label2=label2)
+                                      for x, y, label1, label2 in zip(xs, ys, label1, label2)])
+        r = table.aggregate(agg.downsample(table.x, table.y, label=hl.array([table.label1, table.label2]), n_divisions=10))
+        xs = [x for (x, y, l) in r]
+        ys = [y for (x, y, l) in r]
+        label = [tuple(l) for (x, y, l) in r]
+        expected = set([(1.0, 1.0, ('1', 'one')), (2.0, 2.0, ('2', 'two')), (3.0, 3.0, ('3', 'three')),
+                        (4.0, 4.0, ('4', 'four')), (5.0, 5.0, ('5', 'five')), (6.0, 6.0, ('6', 'six')),
+                        (7.0, 7.0, ('7', 'seven')), (8.0, 8.0, ('8', 'eight')), (9.0, 9.0, ('9', 'nine')),
+                        (10.0, 10.0, ('10', 'ten'))])
+        for point in zip(xs, ys, label):
+            self.assertTrue(point in expected)
+
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
