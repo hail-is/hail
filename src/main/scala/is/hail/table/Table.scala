@@ -632,11 +632,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def sample(p: Double, seed: Int = 1): Table = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
-  }
-
   def index(name: String): Table = {
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")

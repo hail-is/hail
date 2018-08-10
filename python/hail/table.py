@@ -1756,8 +1756,8 @@ class Table(ExprContainer):
         return Table(self._jt.head(n))
 
     @typecheck_method(p=numeric,
-                      seed=int)
-    def sample(self, p, seed=0):
+                      seed=nullable(int))
+    def sample(self, p, seed=None):
         """Downsample the table by keeping each row with probability ``p``.
 
         Examples
@@ -1783,7 +1783,7 @@ class Table(ExprContainer):
         if not (0 <= p <= 1):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return Table(self._jt.sample(p, seed))
+        return self.filter(hl.rand_bool(p, seed))
 
     @typecheck_method(n=int,
                       shuffle=bool)

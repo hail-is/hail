@@ -60,9 +60,6 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     }
   }
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.sample(withReplacement, p, seed))
-
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): UnpartitionedRVD = {
     val (newRowType, newCRDD) = zipWithIndexCRDD(name, partitionCounts)
 
