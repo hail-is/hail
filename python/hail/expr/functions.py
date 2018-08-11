@@ -3811,7 +3811,8 @@ def min_rep(locus, alleles):
     :class:`.TupleExpression`
         Tuple of (:class:`.LocusExpression`, :class:`.ArrayExpression` of type :py:data:`.tstr`)
     """
-    return _func('min_rep', hl.ttuple(locus.dtype, alleles.dtype), locus, alleles)
+    ret_type = tstruct(locus=locus.dtype, alleles=alleles.dtype)
+    return _func('min_rep', ret_type, locus, alleles)
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,

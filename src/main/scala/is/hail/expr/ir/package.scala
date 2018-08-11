@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.language.implicitConversions
 
@@ -63,7 +64,7 @@ package object ir {
     case Some(f) => f(args)
     case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")})")
   }
-
+  val minRepStruct = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference), "alleles" -> TArray(TString()))
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 

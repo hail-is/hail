@@ -1727,7 +1727,7 @@ class Tests(unittest.TestCase):
         def assert_min_reps_to(old, new, pos_change=0):
             self.assertEqual(
                 hl.min_rep(hl.locus('1', 10), old).value,
-                (hl.Locus('1', 10 + pos_change), new)
+                hl.struct(locus=hl.Locus('1', 10 + pos_change), alleles=new)
             )
 
         assert_min_reps_to(['TAA', 'TA'], ['TA', 'T'])
