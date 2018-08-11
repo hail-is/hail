@@ -64,6 +64,7 @@ package object ir {
     case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")})")
   }
 
+
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 
   implicit def intToIR(i: Int): IR = I32(i)
