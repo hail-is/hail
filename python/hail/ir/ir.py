@@ -1,11 +1,9 @@
-from typing import *
-
 import hail
+from hail.expr.types import hail_type
+from hail.typecheck import *
+from hail.utils.java import escape_str, escape_id
 from .aggsig import AggSignature
 from .base_ir import *
-from hail.expr.types import hail_type
-from hail.typecheck.check import *
-from hail.utils.java import escape_str, escape_id, Env
 
 
 class I32(IR):

@@ -2,7 +2,7 @@ import re
 import inspect
 import abc
 import collections
-from functools import wraps, update_wrapper
+from decorator import decorator
 
 
 class TypecheckFailure(Exception):
@@ -540,13 +540,9 @@ def typecheck(**checkers):
 def _make_dec(checkers, is_method):
     checkers = {k: only(v) for k, v in checkers.items()}
 
-    def actual_decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=is_method)
-            return f(*args_, **kwargs_)
+    @decorator
+    def wrapper(__original_func, *args, **kwargs):
+        args_, kwargs_ = check_all(__original_func, args, kwargs, checkers, is_method=is_method)
+        return __original_func(*args_, **kwargs_)
 
-        update_wrapper(wrapper, f)
-        return wrapper
-
-    return actual_decorator
+    return wrapper

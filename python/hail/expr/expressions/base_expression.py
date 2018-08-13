@@ -1,3 +1,5 @@
+from typing import *
+
 from hail.expr import expressions
 from hail.expr.types import *
 from hail.genetics import Locus, Call
@@ -7,6 +9,7 @@ from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
+
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):

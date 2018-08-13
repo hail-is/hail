@@ -1,9 +1,14 @@
+import difflib
+from functools import wraps, update_wrapper
+
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.utils import wrap_to_list
 from hail.ir import *
-import difflib
+from hail.typecheck import *
+from hail.utils import wrap_to_list
+from hail.utils.java import Env
+
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
