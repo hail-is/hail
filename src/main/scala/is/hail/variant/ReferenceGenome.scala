@@ -527,9 +527,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
 object ReferenceGenome {
   var references: Map[String, ReferenceGenome] = Map()
-  val GRCh37: ReferenceGenome = fromResource("reference/GRCh37.json")
-  val GRCh38: ReferenceGenome = fromResource("reference/GRCh38.json")
-  val GRCm38: ReferenceGenome = fromResource("reference/GRCm38.json")
+  val GRCh37: ReferenceGenome = fromResource("reference/grch37.json")
+  val GRCh38: ReferenceGenome = fromResource("reference/grch38.json")
+  val GRCm38: ReferenceGenome = fromResource("reference/grcm38.json")
   var defaultReference = GRCh37
   references += ("default" -> defaultReference)
   val hailReferences = references.keySet
