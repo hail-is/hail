@@ -90,10 +90,14 @@ class OrderedRVDPartitioner(
     val sorted = cutPoints.map(_.coarsenRight(allowedOverlap + 1)).sorted(eord)
 
     var i = 0
+    def firstPast(threshold: IntervalEndpoint, start: Int): Int = {
+      val iw = sorted.indexWhere(eord.gt(_, threshold), start)
+      if (iw == -1) sorted.length else iw
+    }
     val newBounds = rangeBounds.flatMap { interval =>
-      val first = sorted.indexWhere(eord.gt(_, interval.left), i)
-      val last = sorted.indexWhere(eord.gt(_, interval.right), first)
-      val cuts = sorted.slice(first, if (last == -1) sorted.length else last)
+      val first = firstPast(interval.left, i)
+      val last = firstPast(interval.right, first)
+      val cuts = sorted.slice(first, last)
       i = last
       for {
         (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
@@ -163,13 +167,13 @@ class OrderedRVDPartitioner(
     enlargeToRange(Some(newRange))
 
   def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
-    require(newRange.forall{i => kType.relaxedTypeCheck(i.start) && kType.relaxedTypeCheck(i.end)})
+    require(newRange.forall(i => kType.relaxedTypeCheck(i.start) && kType.relaxedTypeCheck(i.end)))
 
     if (newRange.isEmpty)
       return this
     if (range.isEmpty)
       return copy(rangeBounds = FastIndexedSeq(newRange.get))
-    val pord: IntervalEndpointOrdering = kType.ordering.intervalEndpointOrdering
+    val pord = kType.ordering.intervalEndpointOrdering
     val newLeft = pord.min(range.get.left, newRange.get.left).asInstanceOf[IntervalEndpoint]
     val newRight = pord.max(range.get.right, newRange.get.right).asInstanceOf[IntervalEndpoint]
     val newRangeBounds =

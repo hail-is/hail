@@ -18,7 +18,7 @@ object UnpartitionedRVD {
   }
 }
 
-class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
+class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
   override def toOrderedRVD: OrderedRVD = {
