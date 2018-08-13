@@ -632,7 +632,7 @@ class Tests(unittest.TestCase):
 
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], dtype='struct<x: int32>', n_partitions=11)
+        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
 
         # test TableRange and TableParallelize rewrite rules
         tables = [rt, par, rt.cache()]

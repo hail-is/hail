@@ -465,7 +465,7 @@ class Table(ExprContainer):
 
     @classmethod
     @typecheck_method(rows=anytype,
-                      schema=nullable(tstruct),
+                      schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int))
     def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
