@@ -872,8 +872,6 @@ def refresh_github_state():
                         # restore pop'ed status
                         update_pr_status(source_url, source_ref, target_url, target_ref, status)
                     else:
-                        log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                                 f'to {latest_state} {latest_review_state} {target_sha} <- {source_sha}')
                         try:
                             docker_image = get_build_image(target_url, target_ref, target_sha,
                                                            source_url, source_ref, source_sha)
@@ -882,18 +880,22 @@ def refresh_github_state():
                                 job_id = status.job_id
                             else:
                                 job_id = None
+                            new_status = Status(
+                                latest_state,
+                                latest_review_state,
+                                source_sha,
+                                target_sha,
+                                pr_number,
+                                job_id=job_id,
+                                docker_image=docker_image)
+                            log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
+                                     f'to {new_status.to_json()} from {status.to_json() if status else status})')
                             update_pr_status(
                                 source_url,
                                 source_ref,
                                 target_url,
                                 target_ref,
-                                Status(latest_state,
-                                       latest_review_state,
-                                       source_sha,
-                                       target_sha,
-                                       pr_number,
-                                       job_id=job_id,
-                                       docker_image=docker_image))
+                                new_status)
                         except CalledProcessError as e:
                             log.exception(f'could not get docker image due to {e}, will ignore this PR for now')
                 if len(known_prs) != 0:
@@ -961,7 +963,7 @@ def refresh_batch_state():
                     build_state = 'failure'
                 if status.state == 'pending' or status.state == 'running' or status.state != build_state:
                     log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                             f'to {build_state} {status.review_state} {target_sha} <- {source_sha}')
+                             f'to {build_state} {status.review_state} {target_sha} <- {source_sha} (was: {status.to_json if status else status})')
                     build_finished(pr_number,
                                    source_url,
                                    source_ref,
