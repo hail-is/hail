@@ -59,8 +59,13 @@ class FlipbookIteratorSuite extends SparkSuite {
       }
     }
 
-  def boxIntOrd: (Box[Int], Box[Int]) => Int =
-    (l, r) => l.value - r.value
+  // missingness semantics in joins, assuming 1000 as missing
+  def boxIntOrd(missingValue: Int): (Box[Int], Box[Int]) => Int = { (l, r) =>
+    if (l.value == missingValue && r.value == missingValue)
+      -1
+    else l.value - r.value
+  }
+
 
   def makeTestIterator[A](elems: A*): StagingIterator[Box[A]] = {
     val it = elems.iterator
@@ -143,29 +148,29 @@ class FlipbookIteratorSuite extends SparkSuite {
   }
 
   @Test def orderedZipJoinWorks() {
-    val left = makeTestIterator(1, 2, 4)
-    val right = makeTestIterator(2, 3, 4)
+    val left = makeTestIterator(1, 2, 4, 1000, 1000)
+    val right = makeTestIterator(2, 3, 4, 1000, 1000)
     val zipped = left.orderedZipJoin(
       right,
       Box(0),
       Box(0),
-      boxIntOrd)
+      boxIntOrd(missingValue = 1000))
 
-    val it = Iterator((1, 0), (2, 2), (0, 3), (4, 4))
+    val it = Iterator((1, 0), (2, 2), (0, 3), (4, 4), (1000, 0), (0, 1000), (0, 1000))
 
     assert(zipped shouldBe it)
   }
 
   @Test def innerJoinDistinctWorks() {
-    val left = makeTestIterator(1, 2, 2, 4)
-    val right = makeTestIterator(2, 4, 4, 5)
+    val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
+    val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.innerJoinDistinct(
       right,
       boxOrdView[Int],
       boxOrdView[Int],
       Box(0),
       Box(0),
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
     val it = Iterator((2, 2), (2, 2), (4, 4))
@@ -173,24 +178,24 @@ class FlipbookIteratorSuite extends SparkSuite {
   }
 
   @Test def leftJoinDistinctWorks() {
-    val left = makeTestIterator(1, 2, 2, 4)
-    val right = makeTestIterator(2, 4, 4, 5)
+    val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
+    val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.leftJoinDistinct(
       right,
       boxOrdView[Int],
       boxOrdView[Int],
       Box(0),
       Box(0),
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
-    val it = Iterator((1, 0), (2, 2), (2, 2), (4, 4))
+    val it = Iterator((1, 0), (2, 2), (2, 2), (4, 4), (1000, 0), (1000, 0))
     assert(joined shouldBe it)
   }
 
   @Test def innerJoinWorks() {
-    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
-    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.innerJoin(
       right,
       boxOrdView[Int],
@@ -198,7 +203,7 @@ class FlipbookIteratorSuite extends SparkSuite {
       Box(0),
       Box(0),
       boxBuffer[Int],
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
     val it = Iterator((2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5))
@@ -206,8 +211,8 @@ class FlipbookIteratorSuite extends SparkSuite {
   }
 
   @Test def leftJoinWorks() {
-    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
-    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.leftJoin(
       right,
       boxOrdView[Int],
@@ -215,16 +220,16 @@ class FlipbookIteratorSuite extends SparkSuite {
       Box(0),
       Box(0),
       boxBuffer[Int],
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
-    val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5))
+    val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (1000, 0), (1000, 0))
     assert(joined shouldBe it)
   }
 
   @Test def rightJoinWorks() {
-    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
-    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.rightJoin(
       right,
       boxOrdView[Int],
@@ -232,16 +237,16 @@ class FlipbookIteratorSuite extends SparkSuite {
       Box(0),
       Box(0),
       boxBuffer[Int],
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
-    val it = Iterator((2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6))
+    val it = Iterator((2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6), (0, 1000), (0, 1000))
     assert(joined shouldBe it)
   }
 
   @Test def outerJoinWorks() {
-    val left = makeTestIterator(1, 2, 2, 4, 5, 5)
-    val right = makeTestIterator(2, 2, 4, 4, 5, 6)
+    val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
+    val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.outerJoin(
       right,
       boxOrdView[Int],
@@ -249,10 +254,11 @@ class FlipbookIteratorSuite extends SparkSuite {
       Box(0),
       Box(0),
       boxBuffer[Int],
-      boxIntOrd
+      boxIntOrd(missingValue = 1000)
     )
 
-    val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6))
+    val it = Iterator((1, 0), (2, 2), (2, 2), (2, 2), (2, 2), (4, 4), (4, 4), (5, 5), (5, 5), (0, 6), (1000, 0), (1000, 0), (0, 1000), (0, 1000))
+
     assert(joined shouldBe it)
   }
 }
