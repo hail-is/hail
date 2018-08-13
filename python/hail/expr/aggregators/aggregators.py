@@ -1319,7 +1319,7 @@ def group_by(group, agg_expr) -> DictExpression:
     Compute linear regression statistics stratified by SEX:
 
     >>> table1.aggregate(agg.group_by(table1.SEX,
-    ...                               agg.linreg(table1.HT, table1.C1, k_null=0)))
+    ...                               agg.linreg(table1.HT, table1.C1, nested_dim=0)))
     {
     'F': Struct(beta=[6.153846153846154],
                 standard_error=[0.7692307692307685],
