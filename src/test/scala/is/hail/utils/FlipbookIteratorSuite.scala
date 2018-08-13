@@ -156,7 +156,7 @@ class FlipbookIteratorSuite extends SparkSuite {
       Box(0),
       boxIntOrd(missingValue = 1000))
 
-    val it = Iterator((1, 0), (2, 2), (0, 3), (4, 4), (1000, 0), (0, 1000), (0, 1000))
+    val it = Iterator((1, 0), (2, 2), (0, 3), (4, 4), (1000, 0), (1000, 0), (0, 1000), (0, 1000))
 
     assert(zipped shouldBe it)
   }
