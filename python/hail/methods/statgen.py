@@ -1402,8 +1402,8 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
         kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
 
     def new_struct(variant, i):
-        return hl.struct(alleles=variant[1],
-                         locus=variant[0],
+        return hl.struct(alleles=variant.alleles,
+                         locus=variant.locus,
                          a_index=i,
                          was_split=hl.len(old_row.alleles) > 2)
 
@@ -1443,7 +1443,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
         def make_struct(i):
             def error_on_moved(v):
                 return (hl.case()
-                        .when(v[0] == old_row.locus, new_struct(v, i))
+                        .when(v.locus == old_row.locus, new_struct(v, i))
                         .or_error("Found non-left-aligned variant in SplitMulti"))
             return hl.bind(error_on_moved,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
@@ -1452,7 +1452,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
         def make_struct(i, cond):
             def struct_or_empty(v):
                 return (hl.case()
-                        .when(cond(v[0]), hl.array([new_struct(v, i)]))
+                        .when(cond(v.locus), hl.array([new_struct(v, i)]))
                         .or_missing())
             return hl.bind(struct_or_empty,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
@@ -2310,8 +2310,8 @@ def filter_alleles(mt: MatrixTable,
 
     old_to_new = hl.bind(lambda d: mt.alleles.map(lambda a: d.get(a)), old_to_new_dict)
     mt = mt.annotate_rows(old_to_new=old_to_new, new_to_old=new_to_old)
-    new_locus, new_alleles = hl.min_rep(mt.locus, mt.new_to_old.map(lambda i: mt.alleles[i]))
-    mt = mt.annotate_rows(__new_locus=new_locus, __new_alleles=new_alleles)
+    new_locus_alleles = hl.min_rep(mt.locus, mt.new_to_old.map(lambda i: mt.alleles[i]))
+    mt = mt.annotate_rows(__new_locus=new_locus_alleles.locus, __new_alleles=new_locus_alleles.alleles)
     mt = mt.filter_rows(hl.len(mt.__new_alleles) > 1)
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 

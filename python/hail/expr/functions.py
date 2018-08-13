@@ -3761,10 +3761,10 @@ def min_rep(locus, alleles):
     --------
 
     >>> hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']).value
-    (Locus(contig=1, position=100000, reference_genome=GRCh37), ['TA', 'T'])
+    Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['TA', 'T'])
 
     >>> hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']).value
-    (Locus(contig=1, position=100002, reference_genome=GRCh37), ['T', 'C'])
+    Struct(locus=Locus(contig=1, position=100002, reference_genome=GRCh37), alleles=['T', 'C'])
 
     Notes
     -----
@@ -3778,10 +3778,13 @@ def min_rep(locus, alleles):
 
     Returns
     -------
-    :class:`.TupleExpression`
-        Tuple of (:class:`.LocusExpression`, :class:`.ArrayExpression` of type :py:data:`.tstr`)
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `locus`
+        (:class:`.LocusExpression`) and `alleles`
+        (:class:`.ArrayExpression` of type :py:data:`.tstr`).
     """
-    return _func('min_rep', hl.ttuple(locus.dtype, alleles.dtype), locus, alleles)
+    ret_type = tstruct(locus=locus.dtype, alleles=alleles.dtype)
+    return _func('min_rep', ret_type, locus, alleles)
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
