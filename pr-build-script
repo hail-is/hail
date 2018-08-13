@@ -11,7 +11,7 @@ echo $(git rev-parse $SOURCE_BRANCH) && \
 [[ $( git rev-parse target/$TARGET_BRANCH ) == $TARGET_SHA ]] && \
 git config --global user.email hail-ci-pr-builder@hail.is && \
 git config --global user.name "Hail CI PR Builder" && \
-git rebase target/$TARGET_BRANCH $SOURCE_BRANCH && \
+git merge target/$TARGET_BRANCH $SOURCE_BRANCH && \
 chmod 755 ./hail-ci-build.sh && \
 ./hail-ci-build.sh ; \
 BUILD_EXIT=$? ; ( \
