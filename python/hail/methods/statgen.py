@@ -11,7 +11,6 @@ from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -2031,13 +2030,13 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            n_partitions=nullable(int),
            pop_dist=nullable(sequenceof(numeric)),
            fst=nullable(sequenceof(numeric)),
-           af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-           seed=int,
+           af_dist=expr_any,
            reference_genome=reference_genome_type,
+           seed=nullable(int),
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
-                          pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome='default', mixture=False) -> MatrixTable:
+                          pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9),
+                          reference_genome='default', seed=0, mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2186,28 +2185,93 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     :class:`.MatrixTable`
         Simulated matrix table of variants, samples, and genotypes.
     """
-
+    # add default args
     if pop_dist is None:
-        jvm_pop_dist_opt = joption(pop_dist)
-    else:
-        jvm_pop_dist_opt = joption(jarray(Env.jvm().double, pop_dist))
+        pop_dist = [1 for _ in range(n_populations)]
 
     if fst is None:
-        jvm_fst_opt = joption(fst)
-    else:
-        jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
+        fst = [0.1 for _ in range(n_populations)]
 
-    jmt = Env.hc()._jhc.baldingNicholsModel(n_populations, n_samples, n_variants,
-                                            joption(n_partitions),
-                                            jvm_pop_dist_opt,
-                                            jvm_fst_opt,
-                                            af_dist._jrep(),
-                                            seed,
-                                            reference_genome._jrep,
-                                            mixture)
-    return MatrixTable(jmt)
+    if n_partitions is None:
+        n_partitions = max(8, int(n_samples * n_variants / 1000000))
 
-@typecheck(mt=MatrixTable,f=anytype)
+    # verify args
+    for name, var in {"populations": n_populations,
+                      "samples": n_samples,
+                      "variants": n_variants,
+                      "partitions": n_partitions}.items():
+        if var < 1:
+            raise ValueError("n_{} must be positive, got {}".format(name, var))
+
+    for name, var in {"pop_dist": pop_dist, "fst": fst}.items():
+        if len(var) != n_populations:
+            raise ValueError("{} must be of length n_populations={}, got length {}"
+                             .format(name, n_populations, len(var)))
+
+    if any(map(lambda x: x < 0, pop_dist)):
+        raise ValueError("pop_dist must be non-negative, got {}"
+                         .format(pop_dist))
+
+    if any(map(lambda x: x <= 0 or x >= 1, fst)):
+        raise ValueError("elements of fst must satisfy 0 < x < 1, got {}"
+                         .format(fst))
+
+    # verify af_dist and seed
+    if not af_dist._is_constant:
+        raise ExpressionException('balding_nichols_model expects af_dist to ' +
+                                  'have constant arguments: found expression ' +
+                                  'from source {}'
+                                  .format(af_dist._indices.source))
+
+    if not isinstance(af_dist._ir, hl.ir.ApplySeeded) or af_dist.dtype != tfloat64:
+        raise ValueError("af_dist must be a random function with return type tfloat64.")
+
+    fn = af_dist._ir.function
+    import inspect
+    params = eval('list(inspect.signature(hl.{}).parameters.keys())'.format(fn))
+    args = list(map(lambda arg: construct_expr(arg, tfloat64).value, af_dist._ir.args))
+    assert params[-1] == 'seed'
+    params = params[:-1]
+    struct_af_dist = hl.struct(type=fn, **{p: a for p, a in zip(params, args)}, seed=af_dist._ir.seed)
+
+    info("balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants..."
+         .format(n_populations, n_samples, n_variants))
+
+    # generate matrix table
+    rand = hl.utils.HailSeedGenerator(seed)
+
+    bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
+    bn = bn.annotate_globals(n_populations=n_populations,
+                             n_samples=n_samples,
+                             n_variants=n_variants,
+                             pop_dist=pop_dist,
+                             fst=fst,
+                             ancestral_af_dist=struct_af_dist,
+                             seed=seed,
+                             mixture=mixture)
+    # col info
+    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
+    bn = bn.key_cols_by(sample_idx=bn.col_idx)
+    bn = bn.select_cols(pop=pop_f(pop_dist, seed=rand.next_seed()))
+
+    # row info
+    bn = bn.key_rows_by(locus=hl.locus_from_global_position(bn.row_idx, reference_genome=reference_genome),
+                        alleles=['A', 'C'])
+    bn = bn.select_rows(ancestral_af=af_dist,
+                        af=hl.bind(lambda ancestral:
+                                   hl.array([(1 - x) / x for x in fst])
+                                   .map(lambda x:
+                                        hl.rand_beta(ancestral * x,
+                                                     (1 - ancestral) * x,
+                                                     seed=rand.next_seed())),
+                                   af_dist))
+    # entry info
+    p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
+    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
+
+
+@typecheck(mt=MatrixTable, f=anytype)
 def filter_alleles(mt: MatrixTable,
                    f: Callable) -> MatrixTable:
     """Filter alternate alleles.

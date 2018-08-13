@@ -970,8 +970,10 @@ class Tests(unittest.TestCase):
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
-                                      af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
+                                      af_dist=hl.rand_beta(a=0.01, b=2.0, min=0.05, max=0.95),
                                       seed=1)
+
+        ds.entries().show(100, width=200)
 
         self.assertEqual(ds.count_cols(), 20)
         self.assertEqual(ds.count_rows(), 25)
@@ -985,7 +987,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.fst.value, [.02, .06])
         self.assertEqual(glob.seed.value, 1)
         self.assertEqual(glob.ancestral_af_dist.value,
-                         hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
+                         hl.Struct(type='rand_beta', a=0.01, b=2.0, min=0.05, max=0.95))
+
+    def test_balding_nichols_model_2(self):
+        ds = hl.balding_nichols_model(3, 7, 7, 3,
+                                      pop_dist=[1.0, 2.0, 3.0],
+                                      fst=[.02, .06, .01],
+                                      mixture=True,
+                                      # af_dist=hl.rand_beta(a=0.01, b=2.0, min=0.05, max=0.95, seed=1),
+                                      seed=1)
+
+        ds.entries().show(100, width=200)
 
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))

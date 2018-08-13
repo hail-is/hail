@@ -6,6 +6,7 @@ from collections import defaultdict, Counter, OrderedDict
 import atexit
 import shutil
 import tempfile
+from random import Random
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
@@ -366,3 +367,15 @@ def divide_null(num, denom):
     typ = unify_types_limited(num.dtype, denom.dtype)
     assert typ is not None
     return cond(denom != 0, num / denom, null(typ))
+
+
+class HailSeedGenerator(object):
+    def __init__(self, seed):
+        self.seed = seed
+        self.generator = Random(seed)
+
+    def set_seed(self, seed):
+        self.__init__(seed)
+
+    def next_seed(self):
+        return self.generator.randint(0, 9223372036854775807)
