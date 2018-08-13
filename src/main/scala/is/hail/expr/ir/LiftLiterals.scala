@@ -73,10 +73,10 @@ object LiftLiterals {
       emptyRow)
   }
 
-  def rewriteIR(ir: IR, newGlobalType: Type): IR = {
+  def rewriteIR(ir: IR, newGlobalType: Type, replaceLiterals: Boolean = true): IR = {
     MapIR.mapBaseIR(ir, {
       case Ref("global", _) => Ref("global", newGlobalType)
-      case Literal(_, _, id) => GetField(Ref("global", newGlobalType), id)
+      case Literal(_, _, id) if replaceLiterals => GetField(Ref("global", newGlobalType), id)
       case ir => ir
     }).asInstanceOf[IR]
   }
@@ -156,8 +156,10 @@ object LiftLiterals {
         removeLiterals(
           TableAggregateByKey(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType)),
           literals)
-      case TableMapGlobals(child, newRow, value) => TableMapGlobals(child, rewriteIR(newRow, child.typ.globalType), value)
-      case MatrixMapGlobals(child, newRow, value) => MatrixMapGlobals(child, rewriteIR(newRow, child.typ.globalType), value)
+      case TableMapGlobals(child, newRow, value) => TableMapGlobals(child,
+        rewriteIR(newRow, child.typ.globalType, replaceLiterals = false), value)
+      case MatrixMapGlobals(child, newRow, value) => MatrixMapGlobals(child,
+        rewriteIR(newRow, child.typ.globalType, replaceLiterals = false), value)
       case TableAggregate(child, expr) =>
         val literals = getLiterals(expr)
         val rewriteChild = addLiterals(child, literals)
