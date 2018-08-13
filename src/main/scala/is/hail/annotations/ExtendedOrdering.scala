@@ -389,10 +389,10 @@ abstract class ExtendedOrdering extends Serializable {
       }
 
       override def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
-        val xp = x.asInstanceOf[IntervalEndpoint].point
-        val xs = x.asInstanceOf[IntervalEndpoint].sign
-        val yp = y.asInstanceOf[IntervalEndpoint].point
-        val ys = y.asInstanceOf[IntervalEndpoint].sign
+        val xp = x.point
+        val xs = x.sign
+        val yp = y.point
+        val ys = y.sign
 
         val c = outer.compare(xp, yp, missingGreatest)
         if (c != 0)

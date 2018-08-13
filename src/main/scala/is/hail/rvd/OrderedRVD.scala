@@ -363,11 +363,11 @@ class OrderedRVD(
       return this
     if (shuffle) {
       val shuffled = stably(_.shuffleCoalesce(maxPartitions))
-      val pki = OrderedRVD.getKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled))
-      if (pki.isEmpty)
+      val keyInfo = OrderedRVD.getKeyInfo(typ, OrderedRVD.getKeys(typ, shuffled))
+      if (keyInfo.isEmpty)
         return OrderedRVD.empty(sparkContext, typ)
       val partitioner = OrderedRVD.calculateKeyRanges(
-        typ, pki, shuffled.getNumPartitions)
+        typ, keyInfo, shuffled.getNumPartitions)
       OrderedRVD.shuffle(typ, partitioner, shuffled)
     } else {
 
@@ -760,7 +760,7 @@ object OrderedRVD {
 
     val localType = typ
 
-    val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
+    val keyInfo = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
         Iterator(OrderedRVPartitionInfo(localType, samplesPerPartition, i, it, partitionSeed(i), ctx))
       else
@@ -768,7 +768,7 @@ object OrderedRVD {
       out
     }.collect()
 
-    pkis.sortBy(_.min)(typ.kType.ordering.toOrdering)
+    keyInfo.sortBy(_.min)(typ.kType.ordering.toOrdering)
   }
 
   def coerce(
@@ -787,27 +787,6 @@ object OrderedRVD {
     rvd: RVD,
     fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
   ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys)
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, None)
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: Option[RDD[RegionValue]]
-  ): OrderedRVD = coerce(
-    typ,
-    ContextRDD.weaken[RVDContext](rdd),
-    fastKeys.map(ContextRDD.weaken[RVDContext](_))
-    )
 
   def coerce(
     typ: OrderedRVDType,
@@ -930,7 +909,7 @@ object OrderedRVD {
     val max = pInfo.map(_.max).max(kord)
     val samples = pInfo.flatMap(_.samples)
 
-    OrderedRVDPartitioner.fromSampleKeys(typ, min, max, samples, nPartitions)
+    OrderedRVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions)
   }
 
   def adjustBoundsAndShuffle(

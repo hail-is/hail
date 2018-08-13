@@ -279,7 +279,7 @@ object OrderedRVDPartitioner {
     new OrderedRVDPartitioner(kType, rangeBounds, allowedOverlap)
   }
 
-  def fromSampleKeys(
+  def fromKeySamples(
     typ: OrderedRVDType,
     min: Any,
     max: Any,
@@ -290,6 +290,7 @@ object OrderedRVDPartitioner {
     require(typ.kType.relaxedTypeCheck(min))
     require(typ.kType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.relaxedTypeCheck))
+    require(keys.length >= nPartitions)
 
     val sortedKeys = keys.sorted(typ.kType.ordering.toOrdering)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
