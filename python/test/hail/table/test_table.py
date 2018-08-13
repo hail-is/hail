@@ -652,3 +652,83 @@ class Tests(unittest.TestCase):
         expected = list(range(10))[::-1]
         self.assertEqual(rt.order_by('x').idx.take(10), expected)
         self.assertEqual(rt.order_by('x').idx.collect(), expected)
+
+    def test_null_joins(self):
+        tr = hl.utils.range_table(7, 1)
+        table1 = tr.key_by(new_key=hl.cond((tr.idx == 3) | (tr.idx == 5),
+                                           hl.null(hl.tint32), tr.idx),
+                           key2=1)
+        table1 = table1.select(idx1=table1.idx)
+        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6),
+                                           hl.null(hl.tint32), tr.idx),
+                           key2=1)
+        table2 = table2.select(idx2=table2.idx)
+
+        left_join = table1.join(table2, 'left')
+        right_join = table1.join(table2, 'right')
+        inner_join = table1.join(table2, 'inner')
+        outer_join = table1.join(table2, 'outer')
+
+        def row(new_key, idx1, idx2):
+            return hl.Struct(new_key=new_key, key2=1, idx1=idx1, idx2=idx2)
+
+        left_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2),
+                              row(4, 4, None), row(6, 6, None),
+                              row(None, 3, None), row(None, 5, None)]
+
+        right_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2),
+                               row(3, None, 3), row(5, None, 5),
+                               row(None, None, 4), row(None, None, 6)]
+
+        inner_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2)]
+
+        outer_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2),
+                               row(3, None, 3), row(4, 4, None),
+                               row(5, None, 5), row(6, 6, None),
+                               row(None, 3, None), row(None, 5, None),
+                               row(None, None, 4), row(None, None, 6)]
+
+        self.assertEqual(left_join.collect(), left_join_expected)
+        self.assertEqual(right_join.collect(), right_join_expected)
+        self.assertEqual(inner_join.collect(), inner_join_expected)
+        self.assertEqual(outer_join.collect(), outer_join_expected)
+
+    def test_null_joins_2(self):
+        tr = hl.utils.range_table(7, 1)
+        table1 = tr.key_by(new_key=hl.cond((tr.idx == 3) | (tr.idx == 5),
+                                           hl.null(hl.tint32), tr.idx),
+                           key2=tr.idx)
+        table1 = table1.select(idx1=table1.idx)
+        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6),
+                                           hl.null(hl.tint32), tr.idx),
+                           key2=tr.idx)
+        table2 = table2.select(idx2=table2.idx)
+
+        left_join = table1.join(table2, 'left')
+        right_join = table1.join(table2, 'right')
+        inner_join = table1.join(table2, 'inner')
+        outer_join = table1.join(table2, 'outer')
+
+        def row(new_key, key2, idx1, idx2):
+            return hl.Struct(new_key=new_key, key2=key2, idx1=idx1, idx2=idx2)
+
+        left_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
+                              row(4, 4, 4, None), row(6, 6, 6, None),
+                              row(None, 3, 3, None), row(None, 5, 5, None)]
+
+        right_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
+                               row(3, 3, None, 3), row(5, 5, None, 5),
+                               row(None, 4, None, 4), row(None, 6, None, 6)]
+
+        inner_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2)]
+
+        outer_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
+                               row(3, 3, None, 3), row(4, 4, 4, None),
+                               row(5, 5, None, 5), row(6, 6, 6, None),
+                               row(None, 3, 3, None), row(None, 4, None, 4),
+                               row(None, 5, 5, None), row(None, 6, None, 6)]
+
+        self.assertEqual(left_join.collect(), left_join_expected)
+        self.assertEqual(right_join.collect(), right_join_expected)
+        self.assertEqual(inner_join.collect(), inner_join_expected)
+        self.assertEqual(outer_join.collect(), outer_join_expected)
