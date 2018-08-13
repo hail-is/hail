@@ -1781,6 +1781,128 @@ def rand_unif(min, max, seed=None) -> Float64Expression:
     return _seeded_func("runif_seeded", tfloat64, seed, min, max)
 
 
+@typecheck(a=expr_float64,
+           b=expr_float64,
+           min=nullable(expr_float64),
+           max=nullable(expr_float64),
+           seed=nullable(int))
+def rand_beta(a, b, min=None, max=None, seed=None) -> Float64Expression:
+    """Returns a random floating-point number drawn from a beta distribution
+    with parameters a and b.
+
+    Notes
+    -----
+    The optional parameters `min` and `max` represent a truncated beta
+    distribution with parameters a and b and support `[min, max]`. Draws are
+    made via rejection sampling, i.e. returning the first draw from Beta(a,b)
+    that falls in range `[min, max]`. This procedure may be slow if the
+    probability mass of Beta(a,b) over `[min, max]` is small.
+
+    Examples
+    --------
+
+    >>> hl.rand_beta(0, 1).value
+    0.7983073825816226
+
+    >>> hl.rand_beta(0, 1).value
+    0.5161799497741769
+
+    Parameters
+    ----------
+    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    b : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    min : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        (Optional) Left boundary of truncated beta distribution.
+    max : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        (Optional) Right boundary of truncated beta distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    if min is None and max is None:
+        return _seeded_func("rbeta_seeded", tfloat64, seed, a, b)
+    if min is None:
+        min = hl.literal(0)
+    if max is None:
+        max = hl.literal(1)
+
+    return _seeded_func("rtruncatedbeta_seeded", tfloat64, seed, a, b, min, max)
+
+
+@typecheck(a=expr_array(expr_float64),
+           seed=nullable(int))
+def multinomial(a, seed=None) -> Int32Expression:
+    """Returns a random floating-point number drawn from a beta distribution
+    with parameters a and b.
+
+    Notes
+    -----
+    The optional parameters `min` and `max` represent a truncated beta
+    distribution with parameters a and b and support `[min, max]`. Draws are
+    made via rejection sampling, i.e. returning the first draw from Beta(a,b)
+    that falls in range `[min, max]`. This procedure may be slow if the
+    probability mass of Beta(a,b) over `[min, max]` is small.
+
+    Examples
+    --------
+
+    >>> hl.rand_beta(0, 1).value
+    0.7983073825816226
+
+    >>> hl.rand_beta(0, 1).value
+    0.5161799497741769
+
+    Parameters
+    ----------
+    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _seeded_func("rmultinomial_seeded", tint32, seed, a)
+
+
+@typecheck(a=expr_array(expr_float64),
+           seed=nullable(int))
+def dirichlet(a, seed=None) -> ArrayExpression:
+    """Returns a random floating-point number drawn from a beta distribution
+    with parameters a and b.
+
+    Notes
+    -----
+    The optional parameters `min` and `max` represent a truncated beta
+    distribution with parameters a and b and support `[min, max]`. Draws are
+    made via rejection sampling, i.e. returning the first draw from Beta(a,b)
+    that falls in range `[min, max]`. This procedure may be slow if the
+    probability mass of Beta(a,b) over `[min, max]` is small.
+
+    Examples
+    --------
+
+    >>> hl.rand_beta(0, 1).value
+    0.7983073825816226
+
+    >>> hl.rand_beta(0, 1).value
+    0.5161799497741769
+
+    Parameters
+    ----------
+    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _seeded_func("rdirichlet_seeded", tarray(tfloat64), seed, a)
+
 @typecheck(x=expr_float64)
 def sqrt(x) -> Float64Expression:
     """Returns the square root of `x`.

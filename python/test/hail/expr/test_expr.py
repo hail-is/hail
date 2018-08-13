@@ -29,6 +29,10 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_bool(0.5))
         test_random_function(lambda: hl.rand_norm(0, 1))
         test_random_function(lambda: hl.rand_pois(1))
+        test_random_function(lambda: hl.rand_beta(1, 1))
+        test_random_function(lambda: hl.rand_beta(1, 1, 0, 1))
+        test_random_function(lambda: hl.multinomial(hl.array([1, 1])))
+        test_random_function(lambda: hl.dirichlet(hl.array([1, 1])))
 
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
