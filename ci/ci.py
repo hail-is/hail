@@ -733,7 +733,9 @@ def force_retest_pr_endpoint():
 
     review_status = review_status_net(repo_from_url(target_url), pr_number)
     cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
-    status = Status('pending', review_status['state'], source_sha, target_sha, pr_number)
+    docker_image = get_build_image(target_url, target_ref, target_sha,
+                                   source_url, source_ref, source_sha)
+    status = Status('pending', review_status['state'], source_sha, target_sha, pr_number, docker_image=docker_image)
     update_pr_status(source_url, source_ref, target_url, target_ref, status)
     post_repo(
         repo_from_url(target_url),
