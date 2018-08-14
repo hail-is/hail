@@ -211,6 +211,10 @@ object Pretty {
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixMapRows(_, _, newKey) =>
               prettyStringsOpt(newKey.map(_._1)) + " " + prettyStringsOpt(newKey.map(_._2))
+            case MatrixMapGlobals(_, _, value) =>
+              value.t.parsableString() + " " +
+                prettyStringLiteral(
+                  JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head
