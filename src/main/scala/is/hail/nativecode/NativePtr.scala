@@ -1,6 +1,5 @@
 package is.hail.nativecode
 
-//
 // NativePtr is a Scala object which stores a C++ std::shared_ptr<NativeObj>
 //
 // This allows off-heap objects to be managed with a consistent ref-count
@@ -15,7 +14,6 @@ package is.hail.nativecode
 // and then hold the reference in a Scala NativePtr, so there are
 // multiple constructors which indirect through a NativePtrFuncL<N>
 // to get that right.
-//
 
 class NativePtr() extends NativeBase() {
   //

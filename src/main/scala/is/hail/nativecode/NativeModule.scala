@@ -2,7 +2,6 @@ package is.hail.nativecode
 
 import com.sun.jna.Native
 
-//
 // NativeModule refers to a single DLL.
 //
 // It may be constructed either with compile-options and source-text,
@@ -14,7 +13,6 @@ import com.sun.jna.Native
 //
 // On a worker node, the binary of the DLL file will be provided
 // as Array[Byte].
-//
 
 class NativeModule() extends NativeBase() {
   @native def nativeCtorMaster(options: String, source: String, inc: String, forceBuild: Boolean): Unit
