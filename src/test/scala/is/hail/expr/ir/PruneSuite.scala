@@ -398,10 +398,10 @@ class PruneSuite extends SparkSuite {
   @Test def testMatrixAggregateRowsByKeyMemo() {
     val magg = MatrixAggregateRowsByKey(mat,
       matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"),
-      matrixRefStruct(mat.typ, "va.r2"))
+      matrixRefStruct(mat.typ, "va.r3", "global.g1"))
     checkMemo(magg,
-      subsetMatrixTable(magg.typ, "sa.c3", "g.foo"),
-      Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2"), null)
+      subsetMatrixTable(magg.typ, "sa.c3", "g.foo", "va.foo"),
+      Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2", "global.g1", "va.r3"), null, null)
     )
   }
 

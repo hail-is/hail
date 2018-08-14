@@ -434,15 +434,10 @@ object PruneDeadFields {
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
         val irDepRow = memoizeAndGetDep(rowExpr, requestedType.rowType, child.typ, memo)
-        val childDep = child.typ.copy(
-          globalType = unify(child.typ.globalType, irDepEntry.globalType, requestedType.globalType),
-          rvRowType = irDepRow.rvRowType.copy(irDepRow.rvRowType.fields.map { f =>
-            if (f.name == MatrixType.entriesIdentifier)
-              f.copy(typ = irDepEntry.entryArrayType)
-            else
-              f
-          }),
-          colType = unify(child.typ.colType, irDepEntry.colType, requestedType.colType)
+        val childDep = unify(child.typ,
+          irDepEntry,
+          irDepRow,
+          minimal(child.typ).copy(globalType = requestedType.globalType, colType = requestedType.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
       case MatrixAggregateColsByKey(child, expr) =>
