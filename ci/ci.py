@@ -861,7 +861,7 @@ def refresh_github_state():
                     pr_number = str(pull['number'])
                     status = known_prs.pop((source_url, source_ref), None)
                     review_status = review_status_net(repo_from_url(target_url), pr_number)
-                    latest_state = status_state_net(repo_from_url(source_url), source_sha, target_sha)
+                    latest_state = status_state_net(repo_from_url(target_url), source_sha, target_sha)
                     latest_review_state = review_status['state']
                     if (status and
                         status.source_sha == source_sha and
@@ -1120,9 +1120,11 @@ def review_status_net(repo, pr_number):
     )
     return review_status(reviews)
 
-def status_state_net(source_repo, source_sha, target_sha):
+# NB: a SHA that is used by a PR may have a status in *either* the target or the
+# source repo. We always use the target_repo.
+def status_state_net(repo, source_sha, target_sha):
     statuses = get_repo(
-        source_repo,
+        repo,
         'commits/' + source_sha + '/statuses',
         status_code=200
     )
@@ -1132,6 +1134,11 @@ def status_state_net(source_repo, source_sha, target_sha):
         latest_status = my_statuses[0]
         if target_sha in latest_status['description']:
             latest_state = latest_status['state']
+            log.info(f'latest status for {repo}:{source_sha} is {latest_state} because of {latest_status}')
+        else:
+            log.info(f'latest status for {repo}:{source_sha} does not include {target_sha} in description: {latest_status}')
+    else:
+        log.info(f'no status found for {repo}:{source_sha}')
     return latest_state
 
 def review_status(reviews):
