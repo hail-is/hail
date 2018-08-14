@@ -7,8 +7,8 @@ object RegionValueLinearRegressionAggregator {
   def typ = LinearRegressionCombiner.typ
 }
 
-class RegionValueLinearRegressionAggregator(nxs: Int) extends RegionValueAggregator {
-  var combiner = new LinearRegressionCombiner(nxs)
+class RegionValueLinearRegressionAggregator(k: Int, k0: Int) extends RegionValueAggregator {
+  var combiner = new LinearRegressionCombiner(k, k0)
 
   def seqOp(region: Region, y: Double, ym: Boolean, xsOffset: Long, xsMissing: Boolean) {
     if (!ym && !xsMissing) {
@@ -25,10 +25,10 @@ class RegionValueLinearRegressionAggregator(nxs: Int) extends RegionValueAggrega
     combiner.result(rvb)
   }
 
-  def newInstance(): RegionValueLinearRegressionAggregator = new RegionValueLinearRegressionAggregator(nxs)
+  def newInstance(): RegionValueLinearRegressionAggregator = new RegionValueLinearRegressionAggregator(k, k0)
 
   def copy(): RegionValueLinearRegressionAggregator = {
-    val rva = new RegionValueLinearRegressionAggregator(nxs)
+    val rva = new RegionValueLinearRegressionAggregator(k, k0)
     rva.combiner = combiner.copy()
     rva
   }

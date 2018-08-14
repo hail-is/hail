@@ -6,9 +6,9 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, ToIRFailure, ToIRSuccess, ir}
+import is.hail.expr.{EvalContext, Parser, ir}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
-import is.hail.io.bgen.LoadBgen
+import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
@@ -37,9 +37,11 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
+  private val contextLock = new Object()
+
   private var theContext: HailContext = _
 
-  def get: HailContext = theContext
+  def get: HailContext = contextLock.synchronized { theContext }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -140,6 +142,49 @@ object HailContext {
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
+  /**
+   * If a HailContext has already been initialized, this function returns it regardless of the
+   * parameters with which it was initialized.
+   *
+   * Otherwise, it initializes and returns a new HailContext.
+   */
+  def getOrCreate(sc: SparkContext = null,
+    appName: String = "Hail",
+    master: Option[String] = None,
+    local: String = "local[*]",
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    minBlockSize: Long = 1L,
+    branchingFactor: Int = 50,
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+
+    if (get != null) {
+      val hc = get
+      if (sc == null) {
+        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
+          "has already been initialized. Different configuration settings will be ignored.")
+      }
+      val paramsDiff = (Map(
+        "tmpDir" -> Seq(tmpDir, hc.tmpDir),
+        "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
+        "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
+       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
+        s"Param: $name, Provided value: $provided, Existing value: $existing"
+      }.mkString("\n")
+      if (paramsDiff.nonEmpty) {
+        warn("Found differences between requested and initialized parameters. Ignoring requested " +
+          s"parameters.\n$paramsDiffStr")
+      }
+
+      hc
+    } else {
+      apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
+        tmpDir)
+    }
+  }
+
   def apply(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -149,7 +194,7 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = {
+    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -294,15 +339,6 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  private[this] def absolutePath(rel: String): String = {
-    val matches = hadoopConf.glob(rel)
-    if (matches.length != 1)
-      fatal(s"""found more than one match for variant filter path: $rel:
-                 |${matches.mkString(",")}""".stripMargin)
-    val abs = matches(0).getPath.toString
-    abs
-  }
-
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     includeGT: Boolean = true,
@@ -313,62 +349,48 @@ class HailContext private(val sc: SparkContext,
     includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
     blockSizeInMB: Option[Int] = None,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
+    rg: Option[String] = None,
+    contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty[String, Seq[Int]]
+    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
   ): MatrixTable = {
-    var statuses = hadoopConf.globAllStatuses(files)
-    statuses = statuses.flatMap { status =>
-      val file = status.getPath.toString
-      if (!file.endsWith(".bgen"))
-        warn(s"input file does not have .bgen extension: $file")
+    val referenceGenome = rg.map(ReferenceGenome.getReference)
 
-      if (hadoopConf.isDir(file))
-        hadoopConf.listStatus(file)
-          .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
+    val typedRowFields = Array(
+      (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
+      (true, "alleles" -> TArray(TString())),
+      (includeRsid, "rsid" -> TString()),
+      (includeLid, "varid" -> TString()),
+      (includeFileRowIdx, "file_row_idx" -> TInt64()))
+      .withFilter(_._1).map(_._2)
+
+    val typedEntryFields: Array[(String, Type)] =
+      Array(
+        (includeGT, "GT" -> TCall()),
+        (includeGP, "GP" -> +TArray(+TFloat64())),
+        (includeDosage, "dosage" -> +TFloat64()))
+        .withFilter(_._1).map(_._2)
+
+    val requestedType: MatrixType = MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
+      rowType = TStruct(typedRowFields: _*),
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = TStruct(typedEntryFields: _*))
+
+    val reader = MatrixBGENReader(
+      files, sampleFile, nPartitions,
+      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
+        Some(128)
       else
-        Array(status)
-    }
-
-    if (statuses.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    val totalSize = statuses.map(_.getLen).sum
-
-    val inputNPartitions = (blockSizeInMB, nPartitions) match {
-      case (Some(blockSizeInMB), _) =>
-        val blockSizeInB = blockSizeInMB * 1024 * 1024
-        statuses.map { status =>
-          val size = status.getLen
-          ((size + blockSizeInB - 1) / blockSizeInB).toInt
-        }
-      case (_, Some(nParts)) =>
-        statuses.map { status =>
-          val size = status.getLen
-          ((size * nParts + totalSize - 1) / totalSize).toInt
-        }
-    }
-
-    val inputs = statuses.map(_.getPath.toString)
-
-    val includedVariantsPerFile = toMapIfUnique(
-      includedVariantsPerUnresolvedFilePath
-    )(absolutePath _
-    ) match {
-      case Left(duplicatedPaths) =>
-        fatal(s"""some relative paths in the import_bgen _variants_per_file
-                 |parameter have resolved to the same absolute path
-                 |$duplicatedPaths""".stripMargin)
-      case Right(m) =>
-        log.info(s"variant filters per file after path resolution is $m")
-        m
-    }
-
-    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
-
-    LoadBgen.load(this, inputs, inputNPartitions, sampleFile, includeGT, includeGP, includeDosage, includeLid, includeRsid, includeFileRowIdx,
-      rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci, includedVariantsPerFile)
+        blockSizeInMB,
+      rg,
+      Option(contigRecoding).getOrElse(Map.empty[String, String]),
+      skipInvalidLoci,
+      includedVariantsPerUnresolvedFilePath)
+    new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 
   def importGen(file: String,
@@ -671,7 +693,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = hadoopConf.globAll(files)
 
-    maybeGZipAsBGZip (forceBGZ) {
+    maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }

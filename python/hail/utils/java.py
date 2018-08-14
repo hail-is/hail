@@ -18,6 +18,7 @@ class Env:
     _jutils = None
     _hc = None
     _counter = 0
+    _seed_generator = None
 
     @staticmethod
     def get_uid():
@@ -72,6 +73,17 @@ class Env:
             import hail
             Env._dummy_table = hail.utils.range_table(1, 1).key_by(None).cache()
         return Env._dummy_table
+
+    @staticmethod
+    def set_seed(seed):
+        from random import Random
+        Env._seed_generator = Random(seed)
+
+    @staticmethod
+    def next_seed():
+        if Env._seed_generator is None:
+            Env.set_seed(None)
+        return Env._seed_generator.randint(0, 9223372036854775807)
 
 
 

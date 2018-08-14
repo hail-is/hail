@@ -276,6 +276,55 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     reduced.reduce(combOpV)
   }
 
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](
+    zero: U,
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
+    combOp: (U, U) => U,
+    depth: Int
+  ): U = treeAggregateWithPartitionOp(zero, makePC, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
+
+  def treeAggregateWithPartitionOp[PC, U: ClassTag, V: ClassTag](
+    zero: U,
+    makePC: (Int, C) => PC,
+    seqOp: (C, PC, U, T) => U,
+    combOp: (U, U) => U,
+    serialize: U => V,
+    deserialize: V => U,
+    depth: Int
+  ): V = {
+    require(depth > 0)
+    val zeroValue = serialize(zero)
+    val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
+      using(mkc()) { c =>
+        val pc = makePC(i, c)
+        serialize(
+          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, pc, _, _), combOp)) } }
+    val combOpV = clean { (l: V, r: V) =>
+      serialize(
+        combOp(deserialize(l), deserialize(r))) }
+
+    var reduced: RDD[V] =
+      rdd.mapPartitionsWithIndex((i, it) =>
+        Iterator.single(aggregatePartitionOfContextTs(i, it)))
+    var level = depth
+    val scale =
+      math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+    var targetPartitionCount = reduced.partitions.length / scale
+
+    while (level > 1 && targetPartitionCount >= scale) {
+      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+        it.map(i % targetPartitionCount -> _)
+      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
+      level -= 1
+      targetPartitionCount /= scale
+    }
+
+    reduced.reduce(combOpV)
+  }
+
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
     cmapPartitions((c, it) => it.map(f(c, _)), true)
 
@@ -357,6 +406,21 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       (l, r) => inCtx(ctx => f(ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))),
     mkc)
 
+  // WARNING: this method is easy to use wrong because it shares the context
+  // between the two producers and the one consumer
+  def czipPartitionsWithIndex[U: ClassTag, V: ClassTag](
+    that: ContextRDD[C, U],
+    preservesPartitioning: Boolean = false
+  )(f: (Int, C, Iterator[T], Iterator[U]) => Iterator[V]
+  ): ContextRDD[C, V] = new ContextRDD(
+    rdd.zipPartitions(that.rdd, preservesPartitioning)(
+      (l, r) => Iterator.single(l -> r)).mapPartitionsWithIndex({ case (i, it) =>
+      it.flatMap { case (l, r) =>
+        inCtx(ctx => f(i, ctx, l.flatMap(_(ctx)), r.flatMap(_(ctx))))
+      }
+    }, preservesPartitioning),
+    mkc)
+
   def czipPartitionsAndContext[U: ClassTag, V: ClassTag](
     that: ContextRDD[C, U],
     preservesPartitioning: Boolean = false
@@ -392,66 +456,59 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def shuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
     ContextRDD.weaken(run.coalesce(numPartitions, true), mkc)
 
-  def sample(
-    withReplacement: Boolean,
-    fraction: Double,
-    seed: Long
-  ): ContextRDD[C, T] = {
-    require(fraction >= 0.0 && fraction <= 1.0)
-    val r = new Random(seed)
-    val partitionSeeds =
-      sparkContext.broadcast(
-        Array.fill(rdd.partitions.length)(r.nextLong()))
-    cmapPartitionsWithIndex({ (i, ctx, it) =>
-      val sampler = if (withReplacement)
-        new PoissonSampler[T](fraction)
-      else
-        new BernoulliSampler[T](fraction)
-      sampler.setSeed(partitionSeeds.value(i))
-      sampler.sample(it)
-    }, preservesPartitioning = true)
-  }
-
-  def head(n: Long): ContextRDD[C, T] = {
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
     require(n >= 0)
 
-    val sc = sparkContext
-    val nPartitions = getNumPartitions
-
-    var partScanned = 0
-    var nLeft = n
-    var idxLast = -1
-    var nLast = 0L
-    var numPartsToTry = 1L
-
-    while (nLeft > 0 && partScanned < nPartitions) {
-      val nSeen = n - nLeft
-
-      if (partScanned > 0) {
-        // If we didn't find any rows after the previous iteration, quadruple and retry.
-        // Otherwise, interpolate the number of partitions we need to try, but overestimate
-        // it by 50%. We also cap the estimation in the end.
-        if (nSeen == 0) {
-          numPartsToTry = partScanned * 4
-        } else {
-          // the left side of max is >=1 whenever partsScanned >= 2
-          numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
-          numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+    val (idxLast, nLast) = partitionCounts match {
+      case Some(pcs) =>
+        val newPartitionCounts = getHeadPartitionCounts(pcs, n)
+        if (newPartitionCounts == pcs)
+          return this
+        else {
+          val lastIdx = newPartitionCounts.length - 1
+          lastIdx -> newPartitionCounts(lastIdx)
         }
-      }
+      case None =>
+        val sc = sparkContext
+        val nPartitions = getNumPartitions
 
-      val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
-      val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
+        var partScanned = 0
+        var nLeft = n
+        var idxLast = -1
+        var nLast = 0L
+        var numPartsToTry = 1L
 
-      p.zip(counts).foreach { case (idx, c) =>
-        if (nLeft > 0) {
-          idxLast = idx
-          nLast = if (c < nLeft) c else nLeft
-          nLeft -= nLast
+        while (nLeft > 0 && partScanned < nPartitions) {
+          val nSeen = n - nLeft
+
+          if (partScanned > 0) {
+            // If we didn't find any rows after the previous iteration, quadruple and retry.
+            // Otherwise, interpolate the number of partitions we need to try, but overestimate
+            // it by 50%. We also cap the estimation in the end.
+            if (nSeen == 0) {
+              numPartsToTry = partScanned * 4
+            } else {
+              // the left side of max is >=1 whenever partsScanned >= 2
+              numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
+              numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+            }
+          }
+
+          val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
+          val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
+
+          p.zip(counts).foreach { case (idx, c) =>
+            if (nLeft > 0) {
+              idxLast = idx
+              nLast = if (c < nLeft) c else nLeft
+              nLeft -= nLast
+            }
+          }
+
+          partScanned += p.size
         }
-      }
 
-      partScanned += p.size
+        idxLast -> nLast
     }
 
     mapPartitionsWithIndex({ case (i, it) =>

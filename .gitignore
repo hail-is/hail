@@ -2,10 +2,12 @@
 *.o
 .idea/
 hail.iml
+hail.log
 .gradle/
 build/
 out/
 python/**/*.pyc
+.pytest_cache/
 .*.crc
 python/hail/docs/_build/*
 src/main/c/libsimdpp-2.0-rc2.tar.gz
@@ -15,3 +17,5 @@ src/main/c/lib
 target
 src/main/resources/build-info.properties
 src/test/resources/example.v11.bgen.idx
+src/test/resources/example.8bits.bgen.idx
+src/test/resources/random.bgen.idx

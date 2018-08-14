@@ -83,7 +83,44 @@ class MatrixImportVCF(MatrixIR):
             gzAsBGZ=self.force_bgz,
             forceGZ=self.force
         )
-        return f'(MatrixImportVCF "{json.dumps(config)}" {self.drop_samples} False None)'
+        return f'(MatrixRead "{json.dumps(config)}" {self.drop_samples} False None)'
+
+class MatrixImportBGEN(MatrixIR):
+    def __init__(self,
+                 paths,
+                 entry_fields,
+                 sample_file,
+                 n_partitions,
+                 block_size,
+                 reference_genome,
+                 contig_recoding,
+                 skip_invalid_loci,
+                 row_fields,
+                 variants_per_file):
+        super().__init__()
+        self.paths = paths
+        self.entry_fields = entry_fields
+        self.sample_file = sample_file
+        self.n_partitions = n_partitions
+        self.block_size = block_size
+        self.reference_genome = reference_genome
+        self.contig_recoding = contig_recoding
+        self.skip_invalid_loci = skip_invalid_loci
+        self.row_fields = row_fields
+        self.variants_per_file = variants_per_file
+
+    def __str__(self):
+        config = dict(
+            name='MatrixBGENReader',
+            files=self.paths,
+            sampleFile=self.sampleFile,
+            nPartitions=self.n_partitions,
+            blockSizeInMB=self.block_size,
+            rg=self.reference_genome.name if self.reference_genome else None,
+            contigRecoding=self.contig_recoding,
+            skipInvalidLoci=self.skip_invalid_loci,
+            includedVariantsPerUnresolvedFilePath=self.variants_per_file)
+        return f'(MatrixRead "{json.dumps(config)}" False False None)'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
@@ -206,6 +243,7 @@ class TableToMatrixTable(MatrixIR):
                f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
                f'{self.child})'
 
+
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):
         super().__init__()
@@ -216,3 +254,66 @@ class MatrixExplodeRows(MatrixIR):
         return '(MatrixExplodeRows ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
             self.child)
+
+
+class MatrixUnionRows(MatrixIR):
+    def __init__(self, *children):
+        super().__init__()
+        self.children = children
+
+    def __str__(self):
+        return '(MatrixUnionRows {})'.format(' '.join(map(str, self.children)))
+
+
+class MatrixExplodeCols(MatrixIR):
+    def __init__(self, child, path):
+        super().__init__()
+        self.child = child
+        self.path = path
+
+    def __str__(self):
+        return '(MatrixExplodeCols ({}) {})'.format(
+            ' '.join([escape_id(id) for id in self.path]),
+            self.child)
+
+
+class UnlocalizeEntries(MatrixIR):
+    def __init__(self, rows_entries, cols, entry_field_name):
+        super().__init__()
+        self.rows_entries = rows_entries
+        self.cols = cols
+        self.entry_field_name = entry_field_name
+
+    def __str__(self):
+        return '(UnlocalizeEntries ' \
+                f'"{escape_str(self.entry_field_name)}" ' \
+                f'{self.rows_entries} ' \
+                f'{self.cols})'
+
+
+class MatrixAnnotateRowsTable(MatrixIR):
+    def __init__(self, child, table, root, key):
+        super().__init__()
+        self.child = child
+        self.table = table
+        self.root = root
+        self.key = key
+
+    def __str__(self):
+        if self.key is None:
+            key_bool = False
+            key_strs = ()
+        else:
+            key_bool = True
+            key_strs = ' '.join(str(x) for x in self.key)
+        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {self.child} {self.table} {key_strs})'
+
+class MatrixAnnotateColsTable(MatrixIR):
+    def __init__(self, child, table, root):
+        super().__init__()
+        self.child = child
+        self.table = table
+        self.root = root
+
+    def __str__(self):
+        return f'(MatrixAnnotateColsTable "{self.root}" {self.child} {self.table})'

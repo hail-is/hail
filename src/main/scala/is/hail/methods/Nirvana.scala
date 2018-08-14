@@ -4,12 +4,14 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import is.hail.annotations._
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
+import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant}
+import is.hail.variant.{Locus, RegionValueVariant}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -353,9 +355,9 @@ object Nirvana {
     w(sb.result())
   }
 
-  def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
-    assert(vds.rowKey == FastIndexedSeq("locus", "alleles"))
-    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
+  def annotate(ht: Table, config: String, blockSize: Int): Table = {
+    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
+    assert(ht.typ.rowType.size == 2)
 
     val properties = try {
       val p = new Properties()
@@ -397,15 +399,16 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val oldSignature = vds.rowType
+    val localRowType = ht.typ.rowType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = vds.matrixType.rowKeyStruct.ordering
+    val rowKeyOrd = ht.typ.keyType.get.ordering
 
     info("Running Nirvana")
 
-    val localRowType = vds.rvRowType
-    val annotations = vds.rvd
+    val prev = ht.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+
+    val annotations = prev
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
@@ -422,7 +425,7 @@ object Nirvana {
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
               printContext,
-              printElement(oldSignature),
+              printElement(localRowType),
               _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
@@ -447,18 +450,13 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val nirvanaORVDType = new OrderedRVDType(
-      vds.rowPartitionKey.toArray, vds.rowKey.toArray,
-      TStruct(
-        "locus" -> vds.rowKeyTypes(0),
-        "alleles" -> vds.rowKeyTypes(1),
-        "nirvana" -> nirvanaSignature))
+    val nirvanaORVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaORVDType.rowType
 
     val nirvanaRVD: OrderedRVD = OrderedRVD(
       nirvanaORVDType,
-      vds.rvd.partitioner,
+      prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = new RegionValueBuilder(region)
@@ -475,11 +473,16 @@ object Nirvana {
 
           rv
         }
-      })
+      }).persist(StorageLevel.MEMORY_AND_DISK)
 
-    vds.orderedRVDLeftJoinDistinctAndInsert(nirvanaRVD, "nirvana", product = false)
+    new Table(ht.hc, TableLiteral(
+      TableValue(
+        TableType(nirvanaRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
+        BroadcastRow(Row(), TStruct(), ht.hc.sc),
+        nirvanaRVD
+      )))
   }
 
-  def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =
-    annotate(vsm, config, blockSize, root)
+  def apply(ht: Table, config: String, blockSize: Int = 500000): Table =
+    annotate(ht, config, blockSize)
 }

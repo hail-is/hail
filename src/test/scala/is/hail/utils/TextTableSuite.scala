@@ -90,26 +90,4 @@ class TextTableSuite extends SparkSuite {
   @Test def testPipeDelimiter() {
     assert(TextTableReader.splitLine("a|b", "|", '#').toSeq == Seq("a", "b"))
   }
-  
-  @Test def testUseColsParameter() {
-    val file = "src/test/resources/variantAnnotations.tsv"
-    val tbl = TextTableReader.read(hc)(Array(file), impute = true)
-    val tir = tbl.tir.asInstanceOf[TableImport]
-    
-    val selectOneCol = tbl.select("{Gene: row.Gene}", None, None)
-    val irSelectOneCol = new Table(hc, TableImport(
-      tir.paths,
-      selectOneCol.typ,
-      tir.readerOpts.copy(useColIndices = Array(6))
-    ))
-    assert(selectOneCol.same(irSelectOneCol))
-
-    val selectTwoCols = tbl.select("{Chromosome: row.Chromosome, Rand2: row.Rand2}", None, None)
-    val irSelectTwoCols = new Table(hc, TableImport(
-      tir.paths,
-      selectTwoCols.typ,
-      tir.readerOpts.copy(useColIndices = Array(0, 5))
-    ))
-    assert(selectTwoCols.same(irSelectTwoCols))
-  }
 }

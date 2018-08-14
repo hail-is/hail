@@ -25,7 +25,7 @@ class OrderedRVDPartitioner(
   require(rangeBounds.isEmpty || (rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
     !left.mayOverlap(pkType.ordering, right) && pkType.ordering.lteq(left.start, right.start)
   } && rangeBounds.forall { i: Interval =>
-    pkType.ordering.lteq(i.start, i.end) && !i.definitelyEmpty(pkType.ordering)
+    pkType.ordering.lteq(i.start, i.end)
   }))
 
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
@@ -37,6 +37,9 @@ class OrderedRVDPartitioner(
     })
 
   def coarsenedPKRangeTree(newPK: Int): IntervalTree[Int] = {
+    assert(newPK <= partitionKey.length)
+    if (newPK == partitionKey.length)
+      return rangeTree
     val (newPKType, getNewPK) = pkType.select(partitionKey.take(newPK))
     IntervalTree.fromSorted(
       newPKType.ordering,
@@ -194,5 +197,66 @@ object OrderedRVDPartitioner {
       includesStart = false
       i
     }
+  }
+
+  // takes range bounds from n partitioners and splits them such that each
+  // resulting partition only comes from one partition per original partitioner.
+  def mergePartitioners(p1: OrderedRVDPartitioner, p2: OrderedRVDPartitioner): OrderedRVDPartitioner = {
+    require(p1.kType == p2.kType)
+    if (p1.range.isEmpty)
+      return p2
+    if (p2.range.isEmpty)
+      return p1
+
+    val ord = p1.kType.ordering
+    def cmp(p1: (Any, Boolean), p2: (Any, Boolean)): Int = {
+      val c = ord.compare(p1._1, p2._1)
+      if (c != 0)
+        c
+      else if (p1._2 == p2._2)
+        0
+      else if (p1._2)
+        -1
+      else 1
+    }
+
+    val bounds1 = p1.rangeBounds.map { i => i.start -> i.includesStart } :+ p1.rangeBounds.last.end -> !p1.rangeBounds.last.includesEnd
+    val bounds2 = p2.rangeBounds.map { i => i.start -> i.includesStart } :+ p2.rangeBounds.last.end -> !p2.rangeBounds.last.includesEnd
+
+    val boundsAB = new ArrayBuilder[(Any, Boolean)]()
+
+    var i = 0
+    var j = 0
+    while (i < bounds1.length && j < bounds2.length) {
+      val newBound = if (cmp(bounds1(i), bounds2(j)) <= 0)
+        bounds1(i)
+      else
+        bounds2(j)
+
+      while (i < bounds1.length && cmp(newBound, bounds1(i)) == 0) {
+        i += 1
+      }
+      while (j < bounds2.length && cmp(newBound, bounds2(j)) == 0) {
+        j += 1
+      }
+      boundsAB += newBound
+    }
+
+    while (i < bounds1.length) {
+      boundsAB += bounds1(i)
+      i += 1
+    }
+
+    while (j < bounds2.length) {
+      boundsAB += bounds2(j)
+      j += 1
+    }
+
+    val bounds = boundsAB.result()
+
+    val newBounds = bounds.zip(bounds.tail).map { case ((a1, i1), (a2, i2)) =>
+      Interval(a1, a2, i1, !i2)
+    }
+    p1.copy(numPartitions = newBounds.length, rangeBounds = newBounds)
   }
 }

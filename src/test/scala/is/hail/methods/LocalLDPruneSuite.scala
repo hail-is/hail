@@ -321,14 +321,6 @@ class LocalLDPruneSuite extends SparkSuite {
     Spec.check()
   }
 
-  @Test def testNoPrune() {
-    val filteredVDS = vds
-      .annotateRowsExpr("__flag" -> "AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-      .filterRowsExpr("va.__flag")
-    val locallyPrunedVariantsTable = LocalLDPrune(filteredVDS, r2Threshold = 1, windowSize = 0, maxQueueSize = maxQueueSize)
-    assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
-  }
-
   @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
     Region.scoped { r =>
       val rvb = new RegionValueBuilder(r)
@@ -371,21 +363,5 @@ class LocalLDPruneSuite extends SparkSuite {
     val locallyPrunedVariantsTable = LocalLDPrune(fooVDS, "foo", r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-  }
-  
-  @Test def testLocalLDPruneWithDifferentLocusAllelesIndexInSchema() {
-    val renameKeys = new java.util.HashMap[String, String](2)
-    renameKeys.put("locus2", "locus")
-    renameKeys.put("alleles2", "alleles")
-    
-    val emptyMap = new java.util.HashMap[String, String]()
-    
-    val vdsAlteredSchema = vds.annotateRowsExpr("locus2"->"{va.locus}", "alleles2"->"{va.alleles}")
-      .keyRowsBy(Array("locus2", "alleles2"), Array("locus2", "alleles2"))
-      .selectRows("{oldLocus: va.locus, oldAlleles: va.alleles, locus2: va.locus2, alleles2: va.alleles2}", None)
-      .renameFields(renameKeys,emptyMap, emptyMap, emptyMap)
-    
-    val locallyPrunedVariantsTable = LocalLDPrune(vdsAlteredSchema, maxQueueSize = maxQueueSize)
-    locallyPrunedVariantsTable.forceCount()
   }
 }

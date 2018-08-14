@@ -338,8 +338,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         output (`parallel` set to ``'separate_header'`` or
         ``'header_per_shard'``) when exporting large VCFs.
 
-    Hail exports the fields of struct `info` as INFO fields,
-    the elements of ``set<str>`` `filters` as FILTERS, and the
+    Hail exports the fields of struct `info` as INFO fields, the elements of
+    ``set<str>`` `filters` as FILTERS, the value of str `rsid` as ID, and the
     value of float64 `qual` as QUAL. No other row fields are exported.
 
     The FORMAT field is generated from the entry schema, which
@@ -929,7 +929,7 @@ def import_bgen(path,
     if n_partitions is None and block_size is None:
         block_size = 128
 
-    rg = reference_genome._jrep if reference_genome else None
+    rg = reference_genome.name if reference_genome else None
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
@@ -940,7 +940,7 @@ def import_bgen(path,
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
-                                    joption(n_partitions), joption(block_size), joption(rg), joption(contig_recoding),
+                                    joption(n_partitions), joption(block_size), joption(rg), contig_recoding,
                                     skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
     return MatrixTable(jmt)
 

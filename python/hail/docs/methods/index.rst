@@ -57,6 +57,7 @@ Methods
     hwe_normalized_pca
     identity_by_descent
     impute_sex
+    ld_matrix
     ld_prune
     mendel_errors
     de_novo
@@ -65,8 +66,8 @@ Methods
     realized_relationship_matrix
     sample_qc
     skat
+    split_multi
     split_multi_hts
-    SplitMulti
     transmission_disequilibrium_test
     trio_matrix
     variant_qc

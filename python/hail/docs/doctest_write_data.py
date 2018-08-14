@@ -32,7 +32,8 @@ ds = ds.annotate_cols(is_case=True,
                                       cohort_name="cohort1"),
                       cov=hl.struct(PC1=hl.rand_norm(0, 1)),
                       cov1=hl.rand_norm(0, 1),
-                      cov2=hl.rand_norm(0, 1))
+                      cov2=hl.rand_norm(0, 1),
+                      cohort="SIGMA")
 ds = ds.annotate_globals(global_field_1=5,
                          global_field_2=10,
                          pli={'SCN1A': 0.999, 'SONIC': 0.014},
@@ -44,7 +45,7 @@ ds.write('data/example.vds', overwrite=True)
 lmmreg_ds = hl.variant_qc(hl.split_multi_hts(hl.import_vcf('data/sample.vcf.bgz')))
 lmmreg_tsv = hl.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
 lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
-lmmreg_ds = lmmreg_ds.annotate_rows(use_in_kinship = lmmreg_ds.variant_qc.AF > 0.05)
+lmmreg_ds = lmmreg_ds.annotate_rows(use_in_kinship = lmmreg_ds.variant_qc.AF[1] > 0.05)
 lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
 
 burden_ds = hl.import_vcf('data/example_burden.vcf')
@@ -54,4 +55,4 @@ burden_ds = burden_ds.annotate_rows(weight = hl.float64(burden_ds.locus.position
 burden_ds = hl.variant_qc(burden_ds)
 genekt = hl.import_locus_intervals('data/gene.interval_list')
 burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
-burden_ds.write('data/example_burden.vds')
+burden_ds.write('data/example_burden.vds', overwrite=True)

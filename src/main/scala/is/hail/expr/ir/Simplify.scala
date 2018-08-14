@@ -2,6 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
+import is.hail.expr.types.{TInt32, TStruct}
+import is.hail.table.{Ascending, SortField}
 
 object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
@@ -15,6 +17,7 @@ object Simplify {
         _: GetField |
         _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
+      case f: ApplySeeded => f.implementation.isStrict
       case _ => false
     }
   }
@@ -72,7 +75,10 @@ object Simplify {
       case If(False(), _, x) => x
 
       case If(c, cnsq, altr) if cnsq == altr =>
-        If(IsNA(c), NA(cnsq.typ), cnsq)
+        if (cnsq.typ.required)
+          cnsq
+        else
+          If(IsNA(c), NA(cnsq.typ), cnsq)
 
       case Cast(x, t) if x.typ == t => x
 
@@ -137,6 +143,15 @@ object Simplify {
         val makeStructFields = fields.toMap
         MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
 
+      case x@SelectFields(InsertFields(struct, insertFields), selectFields) =>
+        val selectSet = selectFields.toSet
+        val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
+        val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
+        val selectFields2 = selectFields.filter(structSet.contains)
+        val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)
+        assert(x2.typ == x.typ)
+        x2
+
       case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
       case ApplyIR("annotate", Seq(s1, MakeStruct(Seq())), _) =>
@@ -162,6 +177,8 @@ object Simplify {
 
       case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
 
+      case TableCount(TableRepartition(child, _, _)) => TableCount(child)
+
       case TableCount(TableUnion(children)) =>
         children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
@@ -170,6 +187,8 @@ object Simplify {
       case TableCount(TableOrderBy(child, _)) => TableCount(child)
 
       case TableCount(TableUnkey(child)) => TableCount(child)
+
+      case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
 
       case TableCount(TableRange(n, _)) => I64(n)
 
@@ -187,6 +206,19 @@ object Simplify {
           case u: TableUnion => u.children
           case c => Some(c)
         })
+
+      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) =>
+        MatrixUnionRows(children.flatMap {
+          case u: MatrixUnionRows => u.children
+          case c => Some(c)
+        })
+
+      // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
+//      case MatrixRowsTable(MatrixUnionRows(children)) =>
+//        TableUnion(children.map(MatrixRowsTable))
+
+      case MatrixColsTable(MatrixUnionRows(children)) =>
+        MatrixColsTable(children(0))
 
       // optimize MatrixIR
 
@@ -245,7 +277,50 @@ object Simplify {
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
 
+      case TableHead(TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
+        TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
+      case TableHead(TableRepartition(child, nPar, shuffle), n) =>
+        TableRepartition(TableHead(child, n), nPar, shuffle)
+      case TableHead(tr@TableRange(nRows, nPar), n) =>
+        if (n < nRows)
+          TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
+        else
+          tr
+      case TableHead(x@TableParallelize(typ, rows, nPartitions), n) =>
+        if (n < rows.length)
+          TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
+        else
+          x
+      case TableHead(TableMapGlobals(child, newRow, value), n) =>
+        TableMapGlobals(TableHead(child, n), newRow, value)
+      case TableHead(TableOrderBy(child, sortFields), n)
+        if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
+        // n < 256 is arbitrary for memory concerns
+        val uid = genUID()
+        val row = Ref("row", child.typ.rowType)
+        val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
+        val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
+        val te = TableExplode(
+          TableKeyByAndAggregate(child,
+            MakeStruct(Seq(
+              "row" -> ApplyAggOp(
+                SeqOp(I32(0), Array(row, keyStruct), aggSig),
+                FastIndexedSeq(I32(n.toInt)),
+                None,
+                aggSig))),
+            MakeStruct(Seq()), // aggregate to one row
+            Some(1), 10),
+          "row")
+        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
+
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+      case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
+        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
+        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
+        TableAggregateByKey(child, expr)
+      case TableAggregateByKey(TableKeyBy(child, keys, _, _), expr) =>
+        TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
     })
   }
 }

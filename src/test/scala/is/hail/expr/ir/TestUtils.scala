@@ -96,4 +96,7 @@ object TestUtils {
       SeqOp(0, FastIndexedSeq(ir), aggSig),
       FastIndexedSeq(), None, aggSig)
   }
+
+  def IRStruct(fields: (String, IR)*): IR =
+    MakeStruct(fields)
 }

@@ -9,7 +9,7 @@ object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) =
     If(IsNA(set),
       NA(TBoolean()),
-      ApplyComparisonOp(
+      !ArrayLen(ToArray(set)).ceq(0) && ApplyComparisonOp(
         EQWithNA(elem.typ),
         ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
         elem))
@@ -100,10 +100,16 @@ object SetFunctions extends RegistryFunctions {
     registerIR("min", TSet(tnum("T"))) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
-      Let(a, ToArray(s), If(
-        ApplyComparisonOp(GT(TInt32()), ArrayLen(Ref(a, TArray(t))), I32(0)),
-        ArrayRef(Ref(a, TArray(t)), I32(0)),
-        NA(t)))
+      val size = genUID()
+      val last = genUID()
+
+      Let(a, ToArray(s),
+        Let(size, ArrayLen(Ref(a, TArray(t))),
+          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
+            NA(t),
+            If(IsNA(ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)))),
+              NA(t),
+              ArrayRef(Ref(a, TArray(t)), I32(0))))))
     }
 
     registerIR("max", TSet(tnum("T"))) { s =>
@@ -116,12 +122,7 @@ object SetFunctions extends RegistryFunctions {
         Let(size, ArrayLen(Ref(a, TArray(t))),
           If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
             NA(t),
-            Let(last, ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))),
-              If(IsNA(Ref(last, t)),
-                If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(1)),
-                  NA(t),
-                  ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(2)))),
-                Ref(last, t))))))
+            ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))))))
     }
 
     registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }

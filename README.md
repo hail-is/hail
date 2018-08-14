@@ -9,7 +9,7 @@ The Hail project began in Fall 2015 to empower the worldwide genetics community 
 Here are two examples of projects powered by Hail:
 
 - The [gnomAD](http://gnomad.broadinstitute.org/) team uses Hail as its core analysis platform. gnomAD is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. Analysis results are shared publicly and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
-- The Neale Lab at the Broad Institute used Hail to perform QC and genome-wide association analysis of 2419 phenotypes across 10 million variants and 337,000 samples from the UK Biobank in 24 hours. These results are also publicly available, see the Neale Lab [blog](http://www.nealelab.is/blog/) for more info.
+- The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
 
 For genomics applications, Hail can:
 
@@ -37,7 +37,7 @@ We recommend that new users install `0.2 beta`, since this version is already ra
 
 To get started using Hail `0.2 beta` on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
-- install Hail using the instructions in [Getting Started](https://hail.is/docs/devel/getting_started.html)
+- install Hail using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
 - read the [Overview](https://hail.is/docs/devel/tutorials-landing.html) for a broad introduction to Hail
 - follow the [Tutorials](https://hail.is/docs/devel/overview.html) for examples of how to use Hail
 - check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
@@ -62,7 +62,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
-- see [Getting Started Developing](https://hail.is/docs/devel/getting_started_developing.html) for info on compiling Hail
+- see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->

@@ -31,12 +31,17 @@ object LinearRegression {
     val dRec = 1d / d
 
     if (d < 1)
-      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
+      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
     info(s"linear_regression: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
-       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
+       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
-    val Qt = qr.reduced.justQ(cov).t
+    val Qt =
+      if (k > 0)
+        qr.reduced.justQ(cov).t
+      else
+        DenseMatrix.zeros[Double](0, n)
+
     val Qty = Qt * y
 
     val sc = vsm.sparkContext

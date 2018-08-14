@@ -23,12 +23,12 @@ object Subst {
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
       case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val substConstructorArgs = constructorArgs.map(arg => Recur(subst(_))(arg))
+        val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>
-          initOpArgs.map(arg => Recur(subst(_))(arg)))
+          initOpArgs.map(arg => MapIR(subst(_))(arg)))
         ApplyAggOp(subst(a, aggEnv, Env.empty), substConstructorArgs, substInitOpArgs, aggSig)
       case _ =>
-        Recur(subst(_))(e)
+        MapIR(subst(_))(e)
     }
   }
 }

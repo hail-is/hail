@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as spla
 import itertools
 from enum import IntEnum
 
@@ -98,6 +99,35 @@ class BlockMatrix(object):
         matrices. To achieve the desired behavior for ``+`` and ``*``, place the
         block matrix operand first; for ``-``, ``/``, and ``@``, first convert
         the ndarray to a block matrix using :meth:`.from_numpy`.
+
+    Warning
+    -------
+
+        Block matrix multiplication requires special care due to each block
+        of each operand being a dependency of multiple blocks in the product.
+
+        The :math:`(i, j)`-block in the product ``a @ b`` is computed by summing
+        the products of corresponding blocks in block row :math:`i` of ``a`` and
+        block column :math:`j` of ``b``. So overall, in addition to this
+        multiplication and addition, the evaluation of ``a @ b`` realizes each
+        block of ``a`` as many times as the number of block columns of ``b``
+        and realizes each block of ``b`` as many times as the number of
+        block rows of ``a``.
+
+        This becomes a performance and resilience issue whenever ``a`` or ``b``
+        is defined in terms of pending transformations (such as linear
+        algebra operations). For example, evaluating ``a @ (c @ d)`` will
+        effectively evaluate ``c @ d`` as many times as the number of block rows
+        in ``a``.
+
+        To limit re-computation, write or cache transformed block matrix
+        operands before feeding them into matrix multiplication:
+
+        >>> c = BlockMatrix.read('c.bm')      # doctest: +SKIP
+        >>> d = BlockMatrix.read('d.bm')      # doctest: +SKIP
+        >>> (c @ d).write('cd.bm')            # doctest: +SKIP
+        >>> a = BlockMatrix.read('a.bm')      # doctest: +SKIP
+        >>> e = a @ BlockMatrix.read('cd.bm') # doctest: +SKIP
 
     **Indexing and slicing**
 
@@ -346,12 +376,25 @@ class BlockMatrix(object):
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
 
+        Notes
+        -----
+        This convenience method writes the block matrix to a temporary file on
+        persistent disk and then reads the file. If you want to store the
+        resulting block matrix, use :meth:`write_from_entry_expr` directly to
+        avoid writing the result twice. See :meth:`write_from_entry_expr` for
+        further documentation.
+
         Warning
         -------
-        This convenience method writes the block matrix to a temporary file and
-        then reads the file. Use :meth:`write_from_entry_expr` directly if you
-        want to store the resulting block matrix; see
-        :meth:`write_from_entry_expr` for further documentation.
+        If you encounter a Hadoop write/replication error, increase the
+        number of persistent workers or the disk size per persistent worker,
+        or use :meth:`write_from_entry_expr` to write to external storage.
+
+        This method opens ``n_cols / block_size`` files concurrently per task.
+        To not blow out memory when the number of columns is very large,
+        limit the Hadoop write buffer size; e.g. on GCP, set this property on
+        cluster startup (the default is 64MB):
+        ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
 
         Parameters
         ----------
@@ -370,7 +413,8 @@ class BlockMatrix(object):
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
         path = new_temp_file()
-        cls.write_from_entry_expr(entry_expr, path, mean_impute, center, normalize, block_size)
+        cls.write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=mean_impute,
+                                  center=center, normalize=normalize, block_size=block_size)
         return cls.read(path)
 
     @classmethod
@@ -515,15 +559,18 @@ class BlockMatrix(object):
         return self._jbm.toBreezeMatrix().apply(0, 0)
 
     @typecheck_method(path=str,
+                      overwrite=bool,
                       force_row_major=bool,
                       stage_locally=bool)
-    def write(self, path, force_row_major=False, stage_locally=False):
+    def write(self, path, overwrite=False, force_row_major=False, stage_locally=False):
         """Writes the block matrix.
 
         Parameters
         ----------
         path: :obj:`str`
             Path for output file.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
         force_row_major: :obj:`bool`
             If ``True``, transform blocks in column-major format
             to row-major format before writing.
@@ -532,16 +579,18 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        self._jbm.write(path, force_row_major, stage_locally)
+        self._jbm.write(path, overwrite, force_row_major, stage_locally)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
                path=str,
+               overwrite=bool,
                mean_impute=bool,
                center=bool,
                normalize=bool,
                block_size=nullable(int))
-    def write_from_entry_expr(entry_expr, path, mean_impute=False, center=False, normalize=False, block_size=None):
+    def write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=False,
+                              center=False, normalize=False, block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
         Examples
@@ -580,7 +629,7 @@ class BlockMatrix(object):
         This method opens ``n_cols / block_size`` files concurrently per task.
         To not blow out memory when the number of columns is very large,
         limit the Hadoop write buffer size; e.g. on GCP, set this property on
-        cluster startup (the defualt is 64MB):
+        cluster startup (the default is 64MB):
         ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
 
         Parameters
@@ -589,6 +638,8 @@ class BlockMatrix(object):
             Entry expression for numeric matrix entries.
         path: :obj:`str`
             Path for output.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
         mean_impute: :obj:`bool`
             If true, set missing values to the row mean before centering or
             normalizing. If false, missing values will raise an error.
@@ -610,7 +661,7 @@ class BlockMatrix(object):
         if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
             #  FIXME: remove once select_entries on a field is free
             field = mt._fields_inverse[entry_expr]
-            mt._jvds.writeBlockMatrix(path, field, block_size)
+            mt._jvds.writeBlockMatrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -643,7 +694,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr})._jvds.writeBlockMatrix(path, field, block_size)
+            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
@@ -1545,7 +1596,7 @@ class BlockMatrix(object):
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', force_row_major=True)
+        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', overwrite=True, force_row_major=True)
 
         Export the full matrix as a file with tab-separated values:
 
@@ -1789,7 +1840,7 @@ class BlockMatrix(object):
         >>>
         >>> (BlockMatrix.from_numpy(nd)
         ...     .sparsify_rectangles(rectangles)
-        ...     .write('output/example.bm', force_row_major=True))
+        ...     .write('output/example.bm', overwrite=True, force_row_major=True))
 
         Export the three rectangles to TSV files:
 
@@ -1897,6 +1948,183 @@ class BlockMatrix(object):
         return Env.hail().linalg.BlockMatrix.exportRectangles(
             Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
 
+    @typecheck_method(compute_uv=bool,
+                      complexity_bound=int)
+    def svd(self, compute_uv=True, complexity_bound=8192):
+        r"""Computes the reduced singular value decomposition.
+
+        Examples
+        --------
+
+        >>> x = BlockMatrix.from_numpy(np.array([[-2.0, 0.0, 3.0],
+        ...                                      [-1.0, 2.0, 4.0]]))
+        >>> x.svd()
+        (array([[-0.60219551, -0.79834865],
+                [-0.79834865,  0.60219551]]),
+         array([5.61784832, 1.56197958]),
+         array([[ 0.35649586, -0.28421866, -0.89001711],
+                [ 0.6366932 ,  0.77106707,  0.00879404]]))
+
+        Notes
+        -----
+        This method leverages distributed matrix multiplication to compute
+        reduced `singular value decomposition
+        <https://en.wikipedia.org/wiki/Singular-value_decomposition>`__ (SVD)
+        for matrices that would otherwise be too large to work with locally,
+        provided that at least one dimension is less than or equal to 46300.
+
+        Let :math:`X` be an :math:`n \times m` matrix and let
+        :math:`r = \min(n, m)`. In particular, :math:`X` can have at most
+        :math:`r` non-zero singular values. The reduced SVD of :math:`X`
+        has the form
+
+        .. math::
+
+          X = U \Sigma V^T
+
+        where
+
+        - :math:`U` is an :math:`n \times r` matrix whose columns are
+          (orthonormal) left singular vectors,
+
+        - :math:`\Sigma` is an :math:`r \times r` diagonal matrix of non-negative
+          singular values in descending order,
+
+        - :math:`V^T` is an :math:`r \times m` matrix whose rows are
+          (orthonormal) right singular vectors.
+
+        If the singular values in :math:`\Sigma` are distinct, then the
+        decomposition is unique up to multiplication of corresponding left and
+        right singular vectors by -1. The computational complexity of SVD is
+        roughly :math:`nmr`.
+
+        We now describe the implementation in more detail.
+        If :math:`\sqrt[3]{nmr}` is less than or equal to `complexity_bound`,
+        then :math:`X` is localized to an ndarray on which
+        :func:`scipy.linalg.svd` is called. In this case, all components are
+        returned as ndarrays.
+
+        If :math:`\sqrt[3]{nmr}` is greater than `complexity_bound`, then the
+        reduced SVD is computed via the smaller gramian matrix of :math:`X`. For
+        :math:`n > m`, the three stages are:
+
+        1. Compute (and localize) the gramian matrix :math:`X^T X`,
+
+        2. Compute the eigenvalues and right singular vectors via the
+           symmetric eigendecomposition :math:`X^T X = V S V^T` with
+           :func:`numpy.linalg.eigh` or :func:`scipy.linalg.eigh`,
+
+        3. Compute the singular values as :math:`\Sigma = S^\frac{1}{2}` and the
+           the left singular vectors as the block matrix
+           :math:`U = X V \Sigma^{-1}`.
+
+        In this case, since block matrix multiplication is lazy, it is efficient
+        to subsequently slice :math:`U` (e.g. based on the singular values), or
+        discard :math:`U` entirely.
+
+        If :math:`n \leq m`, the three stages instead use the gramian
+        :math:`X X^T = U S U^T` and return :math:`V^T` as the
+        block matrix :math:`\Sigma^{-1} U^T X`.
+
+        Warning
+        -------
+        Computing reduced SVD via the gramian presents an added wrinkle when
+        :math:`X` is not full rank, as the block-matrix-side null-basis is not
+        computable by the formula in the third stage. Furthermore, due to finite
+        precision, the zero eigenvalues of :math:`X^T X` or :math:`X X^T` will
+        only be approximately zero.
+
+        If the rank is not known ahead, examining the relative sizes of the
+        trailing singular values should reveal where the spectrum switches from
+        non-zero to "zero" eigenvalues.  With 64-bit floating point, zero
+        eigenvalues are typically about 1e-16 times the largest eigenvalue.
+        The corresponding singular vectors should be sliced away **before** an
+        action which realizes the block-matrix-side singular vectors.
+
+        :meth:`svd` sets the singular values corresponding to negative
+        eigenvalues to exactly ``0.0``.
+
+        Warning
+        -------
+        The first and third stages invoke distributed matrix
+        multiplication with parallelism bounded by the number of resulting
+        blocks, whereas the second stage is executed on the master node.
+        For matrices of large minimum dimension, it may be preferable to
+        run these stages separately.
+
+        The performance of the second stage depends critically on the number
+        of master cores and the NumPy / SciPy configuration, viewable
+        with ``np.show_config()``. For Intel machines, we recommend installing
+        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
+        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+
+        Consequently, the optimal value of `complexity_bound` is highly
+        configuration-dependent.
+
+        Parameters
+        ----------
+        compute_uv: :obj:`bool`
+            If False, only compute the singular values (or eigenvalues).
+        complexity_bound: :obj:`int`
+            Maximum value of :math:`\sqrt[3]{nmr}` for which
+            :func:`scipy.linalg.svd` is used.
+
+        Returns
+        -------
+        u: :class:`ndarray` or :class:`BlockMatrix`
+            Left singular vectors :math:`U`, as a block matrix if :math:`n > m` and
+            :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
+            Only returned if `compute_uv` is True.
+        s: :class:`ndarray`
+            Singular values from :math:`\Sigma` in descending order.
+        vt: :class:`ndarray` or :class:`BlockMatrix`
+            Right singular vectors :math:`V^T``, as a block matrix if :math:`n \leq m` and
+            :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
+            Only returned if `compute_uv` is True.
+        """
+        n, m = self.shape
+
+        if n * m * min(n, m) <= complexity_bound ** 3:
+            return _svd(self.to_numpy(), full_matrices=False, compute_uv=compute_uv, overwrite_a=True)
+        else:
+            return self._svd_gramian(compute_uv)
+
+    @typecheck_method(compute_uv=bool)
+    def _svd_gramian(self, compute_uv):
+        x = self
+        n, m = x.shape
+        min_dim = min(n, m)
+        if min_dim > 46300:  # limit due to localizing through Java array
+            raise ValueError(f'svd: dimensions {n} and {m} both exceed 46300')
+
+        left_gramian = n <= m
+        a = ((x @ x.T if left_gramian else x.T @ x)
+             .sparsify_triangle(lower=True, blocks_only=True)
+             .to_numpy())
+
+        if compute_uv:
+            e, w = _eigh(a)
+            for i in range(np.searchsorted(e, 0.0)):
+                e[i] = 0
+
+            # flip singular values to descending order
+            s = np.flip(np.sqrt(e), axis=0)
+            w = np.fliplr(w)
+
+            if left_gramian:
+                u = w
+                vt = BlockMatrix.from_numpy((w / s).T) @ x
+            else:
+                u = x @ (w / s)
+                vt = w.T
+            return u, s, vt
+        else:
+            e = np.linalg.eigvalsh(a)
+            for i in range(np.searchsorted(e, 0.0)):
+                e[i] = 0
+
+            return np.flip(np.sqrt(e), axis=0)
+
 
 block_matrix_type.set(BlockMatrix)
 
@@ -1966,3 +2194,32 @@ def _breeze_from_ndarray(nd):
     uri = local_path_uri(path)
     nd.tofile(path)
     return _breeze_fromfile(uri, n_rows, n_cols)
+
+
+def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite=True):
+    """
+    SciPy supports two Lapack algorithms:
+    DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-gesdd
+    GR: https://software.intel.com/en-us/mkl-developer-reference-fortran-gesvd
+    DC (gesdd) is faster but uses O(elements) memory; lwork may overflow int32
+    """
+    try:
+        return spla.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, overwrite_a=overwrite_a,
+                        check_finite=check_finite, lapack_driver='gesdd')
+    except ValueError as e:
+        if 'Too large work array required' in str(e):
+            return spla.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, overwrite_a=overwrite_a,
+                            check_finite=check_finite, lapack_driver='gesvd')
+        else:
+            raise
+
+
+def _eigh(a):
+    """
+    Only the lower triangle is used. Returns eigenvalues, eigenvectors.
+    NumPy and SciPy apply different Lapack algorithms:
+    NumPy uses DC: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevd
+    SciPy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr
+    DC (syevd) is faster but uses O(elements) memory; lwork overflows int32 for dim_a > 32766
+    """
+    return np.linalg.eigh(a) if a.shape[0] <= 32766 else spla.eigh(a)

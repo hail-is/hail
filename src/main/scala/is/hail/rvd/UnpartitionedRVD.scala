@@ -19,11 +19,25 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
-  def head(n: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.head(n))
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): UnpartitionedRVD =
+    new UnpartitionedRVD(rowType, crdd.head(n, partitionCounts))
 
   def filter(f: (RegionValue) => Boolean): UnpartitionedRVD =
     new UnpartitionedRVD(rowType, crddBoundary.filter(f))
+
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+    mapPartitionsWithIndex(rowType, { (i, context, it) =>
+      val c = makeContext(i, context)
+      it.filter { rv =>
+        if (f(c, rv))
+          true
+        else {
+          rv.region.clear()
+          false
+        }
+      }
+    })
+  }
 
   def persist(level: StorageLevel): UnpartitionedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
@@ -46,11 +60,8 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     }
   }
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, crdd.sample(withReplacement, p, seed))
-
-  def zipWithIndex(name: String): UnpartitionedRVD = {
-    val (newRowType, newCRDD) = zipWithIndexCRDD(name)
+  def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): UnpartitionedRVD = {
+    val (newRowType, newCRDD) = zipWithIndexCRDD(name, partitionCounts)
 
     new UnpartitionedRVD(
       rowType = newRowType,
@@ -89,6 +100,14 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     }
 
     OrderedRVD.shuffle(ordType, newPartitioner, filtered)
+  }
+
+  def subsetPartitions(keep: Array[Int]): UnpartitionedRVD = {
+    require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
+      "values not increasing or not in range [0, number of partitions)")
+    
+    new UnpartitionedRVD(rowType, crdd.subsetPartitions(keep))
   }
 
   override def toUnpartitionedRVD: UnpartitionedRVD = this

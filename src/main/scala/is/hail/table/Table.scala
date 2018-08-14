@@ -2,12 +2,10 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
-import is.hail.expr.ir
-import is.hail.expr.ir.{IR, Pretty, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableRead, TableToMatrixTable, TableUnion, TableUnkey, TableValue}
+import is.hail.expr.{ir, _}
+import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -22,9 +20,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 sealed abstract class SortOrder
 
@@ -211,7 +207,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
-    val opt = ir.Optimize(tir)
+    val opt = LiftLiterals(ir.Optimize(tir)).asInstanceOf[TableIR]
     opt.execute(hc)
   }
 
@@ -409,15 +405,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     makeJSON(t, value)
   }
 
-  def aggregate(expr: String): (Any, Type) = {
-    val ec = aggEvalContext()
-
-    val queryAST = Parser.parseToAST(expr, ec)
-    (queryAST.toIROpt(Some("AGG" -> "row")): @unchecked) match {
-      case Some(ir) =>
-        aggregate(ir)
-    }
-  }
+  def aggregate(expr: String): (Any, Type) =
+    aggregate(Parser.parse_value_ir(expr, typ.refMap))
 
   def aggregate(query: IR): (Any, Type) = {
     val t = ir.TableAggregate(tir, query)
@@ -431,44 +420,18 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
-  def annotateGlobalJSON(data: String, t: TStruct): Table = {
-    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(data), t)
-    val value = BroadcastRow(ann.asInstanceOf[Row], t, hc.sc)
-    new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType),
-        t.fieldNames.map(name => name -> ir.GetField(ir.Ref("value", t), name))),
-      value))
-  }
-
   def selectGlobal(expr: String): Table = {
-    val ec = EvalContext("global" -> globalSignature)
-
-    val ast = Parser.parseToAST(expr, ec)
-    assert(ast.`type`.isInstanceOf[TStruct])
-
-    (ast.toIROpt(): @unchecked) match {
-      case Some(ir) =>
-        new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
-    }
+    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
   }
 
   def filter(cond: String, keep: Boolean): Table = {
-    val ec = rowEvalContext()
-    var filterAST = Parser.parseToAST(cond, ec)
-    val pred = filterAST.toIROpt()
-    (pred: @unchecked) match {
-      case Some(irPred) =>
-        new Table(hc,
-          TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep))
-        )
-    }
+    var irPred = Parser.parse_value_ir(cond, typ.refMap)
+    new Table(hc,
+      TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
-  def head(n: Long): Table = {
-    if (n < 0)
-      fatal(s"n must be non-negative! Found `$n'.")
-    copy2(rvd = rvd.head(n))
-  }
+  def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
   def keyBy(key: String*): Table = keyBy(key.toArray, null)
 
@@ -502,18 +465,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
   def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
-    val ec = rowEvalContext()
-    val ast = Parser.parseToAST(expr, ec)
-    assert(ast.`type`.isInstanceOf[TStruct])
-
-    (ast.toIROpt(): @unchecked) match {
-      case Some(ir) =>
-        new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
-    }
+    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
   }
 
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
+
+  def leftJoinRightDistinct(other: Table, root: String): Table =
+    new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType))
@@ -556,14 +516,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, partitionKeys, nPartitions))
   }
 
-  def aggregateByKey(expr: String, oldAggExpr: String, nPartitions: Option[Int] = None): Table = {
-    val ec = aggEvalContext()
-    val ast = Parser.parseToAST(expr, ec)
+  def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
+    new Table(hc, TableKeyByAndAggregate(tir,
+      Parser.parse_value_ir(expr, typ.refMap),
+      Parser.parse_value_ir(key, typ.refMap),
+      nPartitions,
+      bufferSize
+    ))
+  }
 
-    (ast.toIROpt(Some("AGG" -> "row")): @unchecked) match {
-      case Some(x) =>
-        new Table(hc, TableAggregateByKey(tir, x))
-    }
+  def unlocalizeEntries(cols: Table, entriesFieldName: String): MatrixTable =
+    new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
+
+  def aggregateByKey(expr: String): Table = {
+    val x = Parser.parse_value_ir(expr, typ.refMap)
+    new Table(hc, TableAggregateByKey(tir, x))
   }
 
   def expandTypes(): Table = {
@@ -659,23 +626,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
   }
 
-  def repartition(n: Int, shuffle: Boolean = true): Table = copy2(rvd = rvd.coalesce(n, shuffle))
+  def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
 
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
-
-  def take(n: Int): Array[Row] = rvd.take(n, RVD.wireCodec)
-
-  def takeJSON(n: Int): String = {
-    val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
-    JsonMethods.compact(r)
-  }
-
-  def sample(p: Double, seed: Int = 1): Table = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
-  }
 
   def index(name: String): Table = {
     if (fieldNames.contains(name))
@@ -701,7 +656,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val (data, hasMoreData) = if (n < 0)
       collect() -> false
     else {
-      val takeResult = take(n + 1)
+      val takeResult = head(n + 1).collect()
       val hasMoreData = takeResult.length > n
       takeResult.take(n) -> hasMoreData
     }
@@ -829,14 +784,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     sb.result()
   }
 
-  def copy(rdd: RDD[Row] = rdd,
-    signature: TStruct = signature,
-    key: Option[IndexedSeq[String]] = key,
-    globalSignature: TStruct = globalSignature,
-    newGlobals: Annotation = globals.value): Table = {
-    Table(hc, rdd, signature, key, globalSignature, newGlobals, sort = false)
-  }
-
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: Option[IndexedSeq[String]] = key,
@@ -939,5 +886,20 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     copy2(rvd = newRVD, signature = newRVType)
+  }
+
+  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
+    filterPartitions(parts.asScala.toArray, keep)
+
+  def filterPartitions(parts: Array[Int], keep: Boolean = true): Table = {
+    copy2(rvd =
+      rvd.subsetPartitions(
+        if (keep)
+          parts
+        else {
+          val partSet = parts.toSet
+          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
+        })
+    )
   }
 }

@@ -1,18 +1,23 @@
-.. _sec-getting_started_developing:
+For Software Developers
+-----------------------
 
-==========================
-Getting Started Developing
-==========================
+Hail is an open-source project. We welcome contributions to the repository. If you're interested
+in contributing to Hail, you will need to build your own Hail JAR and set up the testing environment.
+
+Requirements
+~~~~~~~~~~~~
 
 You'll need:
 
-- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_.
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_.
-- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_.
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
+- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
 
--------------------
+  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+
+- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_
+
 Building a Hail JAR
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 The only additional tool necessary to build Hail from source is a C++ compiler. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
 
@@ -65,9 +70,9 @@ Now you can import hail from a python interpreter::
 
     >>>
 
------------------
+
 Building the Docs
------------------
+~~~~~~~~~~~~~~~~~
 
 Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
 manage the doc build process's python dependencies. First, create a conda
@@ -107,9 +112,9 @@ conda environment
 
     conda env update haildoc -f ./python/hail/dev-environment.yml
 
------------------
+
 Running the tests
------------------
+~~~~~~~~~~~~~~~~~
 
 Several Hail tests have additional dependencies:
 
@@ -121,7 +126,7 @@ Several Hail tests have additional dependencies:
    as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__
    from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package.
    These can be installed within R using:
- 
+
    .. code-block:: R
 
       install.packages(c("jsonlite", "SKAT", "logistf"))
@@ -136,3 +141,20 @@ To execute all Hail tests, run:
 
     ./gradlew -Dspark.version=${SPARK_VERSION} -Dspark.home=${SPARK_HOME} test
 
+Contributing
+~~~~~~~~~~~~
+
+Chat with the dev team on our `Zulip chatroom <https://hail.zulipchat.com>`_ if
+you have an idea for a contribution. We can help you determine if your
+project is a good candidate for merging.
+
+Keep in mind the following principles when submitting a pull request:
+
+- A PR should focus on a single feature. Multiple features should be split into multiple PRs.
+- Before submitting your PR, you should rebase onto the latest master.
+- PRs must pass all tests before being merged. See the section above on `Running the tests`_ locally.
+- PRs require a review before being merged. We will assign someone from our dev team to review your PR.
+- Code in PRs should be formatted according to the style in ``code_style.xml``.
+  This file can be loaded into Intellij to automatically format your code.
+- When you make a PR, include a short message that describes the purpose of the
+  PR and any necessary context for the changes you are making.

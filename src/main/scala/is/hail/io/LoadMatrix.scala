@@ -234,14 +234,13 @@ object LoadMatrix {
     var includesStart = true
     val keepPartitions = new ArrayBuilder[Int]()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
-      val interval = Interval(Row(if (includesStart) s else s - 1), Row(e - 1), includesStart, true)
+      val interval = Interval.orNone(pkType.ordering,
+        Row(if (includesStart) s else s - 1),
+        Row(e - 1),
+        includesStart, true)
       includesStart = false
-      if (interval.definitelyEmpty(pkType.ordering))
-        None
-      else {
-        keepPartitions += i
-        Some(interval)
-      }
+      if (interval.isDefined) keepPartitions += i
+      interval
     }
     val ranges = rangeBoundIntervals
     (new OrderedRVDPartitioner(Array(pkType.fieldNames(0)), pkType, ranges), keepPartitions.result())

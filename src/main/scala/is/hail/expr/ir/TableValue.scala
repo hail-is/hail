@@ -20,6 +20,15 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
 
+  def keyedRDD(): RDD[(Row, Row)] = {
+    require(typ.key.isDefined)
+    val fieldIndices = typ.rowType.fields.map(f => f.name -> f.index).toMap
+    val keyIndices = typ.key.get.map(fieldIndices)
+    val keyIndexSet = keyIndices.toSet
+    val valueIndices = typ.rowType.fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
+  }
+
   def enforceOrderingRVD: RVD = (rvd, typ.key) match {
     case (orvd: OrderedRVD, Some(key)) =>
       assert(orvd.typ.key.startsWith(key))
@@ -33,25 +42,22 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       urvd
   }
 
-  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](partitionOp: Int => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.mapPartitions(typ.rowType, { (ctx, it) =>
-      val globalRV = RegionValue()
-      val globalRVb = new RegionValueBuilder()
-      it.filter { rv =>
-        globalRVb.set(rv.region)
-        globalRVb.start(globalType)
-        globalRVb.addAnnotation(globalType, localGlobals.value)
-        globalRV.set(rv.region, globalRVb.end())
-        if (p(rv, globalRV)) {
-          true
-        } else {
-          ctx.region.clear()
-          false
-        }
-      }
-    }))
+    copy(rvd = rvd.filterWithContext[(P, RegionValue)](
+      { (partitionIdx, ctx) =>
+        val globalRegion = ctx.freshRegion
+        val rvb = new RegionValueBuilder()
+        rvb.set(globalRegion)
+        rvb.start(globalType)
+        rvb.addAnnotation(globalType, localGlobals.value)
+        (partitionOp(partitionIdx), RegionValue(globalRegion, rvb.end()))
+      }, { case ((p, glob), rv) => pred(p, rv, glob) }))
+  }
+
+  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
+    filterWithPartitionOp(_ => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {

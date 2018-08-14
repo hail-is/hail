@@ -54,20 +54,20 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "basic")
   def sum(a: Seq[Integer]) {
     assertEvalsTo(invoke("sum", toIRArray(a)),
-      Option(a).map(_.filter(_ != null).map(_.toInt).sum).orNull)
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) => comb.flatMap(c => Option(x).map(_ + c)))).orNull)
   }
 
   @Test(dataProvider = "basic")
   def product(a: Seq[Integer]) {
     assertEvalsTo(invoke("product", toIRArray(a)),
-      Option(a).map(_.filter(_ != null).map(_.toInt).product).orNull)
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) => comb.flatMap(c => Option(x).map(_ * c)))).orNull)
   }
 
   @Test def mean() {
     assertEvalsTo(invoke("mean", IRArray(3, 7)), 5.0)
-    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), 5.0)
+    assertEvalsTo(invoke("mean", IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", IRArray(3, 7, 11)), 7.0)
-    assertEvalsTo(invoke("mean", IRArray()), null)
+    assertEvalsTo(invoke("mean", IRArray()), Double.NaN)
     assertEvalsTo(invoke("mean", IRArray(null)), null)
     assertEvalsTo(invoke("mean", naa), null)
   }
@@ -117,7 +117,13 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "sort")
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
     assertEvalsTo(invoke("min", toIRArray(a)),
-      Option(asc).flatMap(_.headOption).orNull)
+      Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
+  }
+
+  @Test(dataProvider = "sort")
+  def max(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
+    assertEvalsTo(invoke("max", toIRArray(a)),
+      Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
   }
 
   @DataProvider(name = "argminmax")

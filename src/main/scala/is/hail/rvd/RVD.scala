@@ -241,14 +241,13 @@ trait RVD {
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
     stabilize(crdd, codec).run
 
-  def head(n: Long): RVD
+  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): RVD
 
-  final def takeAsBytes(n: Int, codec: CodecSpec): Array[Array[Byte]] =
-    head(n).encodedRDD(codec).collect()
+  final def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = encodedRDD(codec).collect()
 
-  final def take(n: Int, codec: CodecSpec): Array[Row] = {
+  final def collect(codec: CodecSpec): Array[Row] = {
     val dec = codec.buildDecoder(rowType, rowType)
-    val encodedData = takeAsBytes(n, codec)
+    val encodedData = collectAsBytes(codec)
     Region.scoped { region =>
       encodedData.iterator
         .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
@@ -272,6 +271,8 @@ trait RVD {
 
   def filter(f: (RegionValue) => Boolean): RVD
 
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD
+
   def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): UnpartitionedRVD =
     new UnpartitionedRVD(newRowType, crdd.map(f))
 
@@ -288,7 +289,7 @@ trait RVD {
     new UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
 
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
-    filter(p).takeAsBytes(1, codec).headOption
+    filter(p).head(1, None).collectAsBytes(codec).headOption
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
@@ -337,11 +338,25 @@ trait RVD {
     crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
   }
 
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](zeroValue: U)(
+    makePC: (Int, RVDContext) => PC,
+    seqOp: (PC, U, RegionValue) => U,
+    combOp: (U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
+      val u2 = seqOp(pc, u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
+  }
+
   def aggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U, makePC: RVDContext => PC
+    zeroValue: U, makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit, combOp: (U, U) => U): U = {
-    crdd.cmapPartitions[U] { (ctx, it) =>
-      val pc = makePC(ctx)
+    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      val pc = makePC(i, ctx)
       var comb = zeroValue
       it.foreach { rv =>
         seqOp(pc, comb, rv)
@@ -384,9 +399,9 @@ trait RVD {
       Iterator.single(count)
     }.collect()
 
-  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
-    crdd.cmapPartitions { (ctx, it) =>
-      Iterator.single(f(ctx, it))
+  def collectPerPartition[T : ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
+    crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      Iterator.single(f(i, ctx, it))
     }.collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
@@ -421,16 +436,15 @@ trait RVD {
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD
 
-  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
-
-  def zipWithIndex(name: String): RVD
+  def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD
 
   private[rvd] def zipWithIndexCRDD(
-    name: String
+    name: String,
+    partitionCounts: Option[IndexedSeq[Long]] = None
   ): (TStruct, ContextRDD[RVDContext, RegionValue]) = {
     val (newRowType, ins) = rowType.unsafeStructInsert(TInt64(), List(name))
 
-    val a = sparkContext.broadcast(countPerPartition().scanLeft(0L)(_ + _))
+    val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
 
     val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
       val rv2 = RegionValue()
@@ -459,6 +473,8 @@ trait RVD {
     val localRowType = rowType
     map(rv => SafeRow(localRowType, rv.region, rv.offset))
   }
+
+  def subsetPartitions(keep: Array[Int]): RVD
 
   def toUnpartitionedRVD: UnpartitionedRVD
 }

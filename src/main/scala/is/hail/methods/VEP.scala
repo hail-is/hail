@@ -1,151 +1,35 @@
 package is.hail.methods
 
-import java.io.{FileInputStream, IOException}
-import java.util.Properties
-
-import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
+import com.fasterxml.jackson.core.JsonParseException
+import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDContext}
+import is.hail.rvd.{OrderedRVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
+import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, RegionValueVariant, VariantMethods}
+import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
+import org.apache.hadoop
 
 import scala.collection.JavaConverters._
 
-object VEP {
+case class VEPConfiguration(
+  command: Array[String],
+  env: Map[String, String],
+  vep_json_schema: TStruct)
 
-  val vepSignature = TStruct(
-    "assembly_name" -> TString(),
-    "allele_string" -> TString(),
-    "ancestral" -> TString(),
-    "colocated_variants" -> TArray(TStruct(
-      "aa_allele" -> TString(),
-      "aa_maf" -> TFloat64(),
-      "afr_allele" -> TString(),
-      "afr_maf" -> TFloat64(),
-      "allele_string" -> TString(),
-      "amr_allele" -> TString(),
-      "amr_maf" -> TFloat64(),
-      "clin_sig" -> TArray(TString()),
-      "end" -> TInt32(),
-      "eas_allele" -> TString(),
-      "eas_maf" -> TFloat64(),
-      "ea_allele" -> TString(),
-      "ea_maf" -> TFloat64(),
-      "eur_allele" -> TString(),
-      "eur_maf" -> TFloat64(),
-      "exac_adj_allele" -> TString(),
-      "exac_adj_maf" -> TFloat64(),
-      "exac_allele" -> TString(),
-      "exac_afr_allele" -> TString(),
-      "exac_afr_maf" -> TFloat64(),
-      "exac_amr_allele" -> TString(),
-      "exac_amr_maf" -> TFloat64(),
-      "exac_eas_allele" -> TString(),
-      "exac_eas_maf" -> TFloat64(),
-      "exac_fin_allele" -> TString(),
-      "exac_fin_maf" -> TFloat64(),
-      "exac_maf" -> TFloat64(),
-      "exac_nfe_allele" -> TString(),
-      "exac_nfe_maf" -> TFloat64(),
-      "exac_oth_allele" -> TString(),
-      "exac_oth_maf" -> TFloat64(),
-      "exac_sas_allele" -> TString(),
-      "exac_sas_maf" -> TFloat64(),
-      "id" -> TString(),
-      "minor_allele" -> TString(),
-      "minor_allele_freq" -> TFloat64(),
-      "phenotype_or_disease" -> TInt32(),
-      "pubmed" -> TArray(TInt32()),
-      "sas_allele" -> TString(),
-      "sas_maf" -> TFloat64(),
-      "somatic" -> TInt32(),
-      "start" -> TInt32(),
-      "strand" -> TInt32())),
-    "context" -> TString(),
-    "end" -> TInt32(),
-    "id" -> TString(),
-    "input" -> TString(),
-    "intergenic_consequences" -> TArray(TStruct(
-      "allele_num" -> TInt32(),
-      "consequence_terms" -> TArray(TString()),
-      "impact" -> TString(),
-      "minimised" -> TInt32(),
-      "variant_allele" -> TString())),
-    "most_severe_consequence" -> TString(),
-    "motif_feature_consequences" -> TArray(TStruct(
-      "allele_num" -> TInt32(),
-      "consequence_terms" -> TArray(TString()),
-      "high_inf_pos" -> TString(),
-      "impact" -> TString(),
-      "minimised" -> TInt32(),
-      "motif_feature_id" -> TString(),
-      "motif_name" -> TString(),
-      "motif_pos" -> TInt32(),
-      "motif_score_change" -> TFloat64(),
-      "strand" -> TInt32(),
-      "variant_allele" -> TString())),
-    "regulatory_feature_consequences" -> TArray(TStruct(
-      "allele_num" -> TInt32(),
-      "biotype" -> TString(),
-      "consequence_terms" -> TArray(TString()),
-      "impact" -> TString(),
-      "minimised" -> TInt32(),
-      "regulatory_feature_id" -> TString(),
-      "variant_allele" -> TString())),
-    "seq_region_name" -> TString(),
-    "start" -> TInt32(),
-    "strand" -> TInt32(),
-    "transcript_consequences" -> TArray(TStruct(
-      "allele_num" -> TInt32(),
-      "amino_acids" -> TString(),
-      "biotype" -> TString(),
-      "canonical" -> TInt32(),
-      "ccds" -> TString(),
-      "cdna_start" -> TInt32(),
-      "cdna_end" -> TInt32(),
-      "cds_end" -> TInt32(),
-      "cds_start" -> TInt32(),
-      "codons" -> TString(),
-      "consequence_terms" -> TArray(TString()),
-      "distance" -> TInt32(),
-      "domains" -> TArray(TStruct(
-        "db" -> TString(),
-        "name" -> TString())),
-      "exon" -> TString(),
-      "gene_id" -> TString(),
-      "gene_pheno" -> TInt32(),
-      "gene_symbol" -> TString(),
-      "gene_symbol_source" -> TString(),
-      "hgnc_id" -> TString(),
-      "hgvsc" -> TString(),
-      "hgvsp" -> TString(),
-      "hgvs_offset" -> TInt32(),
-      "impact" -> TString(),
-      "intron" -> TString(),
-      "lof" -> TString(),
-      "lof_flags" -> TString(),
-      "lof_filter" -> TString(),
-      "lof_info" -> TString(),
-      "minimised" -> TInt32(),
-      "polyphen_prediction" -> TString(),
-      "polyphen_score" -> TFloat64(),
-      "protein_end" -> TInt32(),
-      "protein_start" -> TInt32(),
-      "protein_id" -> TString(),
-      "sift_prediction" -> TString(),
-      "sift_score" -> TFloat64(),
-      "strand" -> TInt32(),
-      "swissprot" -> TString(),
-      "transcript_id" -> TString(),
-      "trembl" -> TString(),
-      "uniparc" -> TString(),
-      "variant_allele" -> TString())),
-    "variant_class" -> TString())
+object VEP {
+  def readConfiguration(hadoopConf: hadoop.conf.Configuration, path: String): VEPConfiguration = {
+    val jv = hadoopConf.readFile(path) { in =>
+      JsonMethods.parse(in)
+    }
+    implicit val formats = defaultJSONFormats + new TStructSerializer
+    jv.extract[VEPConfiguration]
+  }
 
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
@@ -172,79 +56,18 @@ object VEP {
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
-  def annotate(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int): MatrixTable = {
-    assert(vsm.rowKey == FastIndexedSeq("locus", "alleles"))
+  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
+    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
+    assert(ht.typ.rowType.size == 2)
 
-    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
+    val conf = readConfiguration(ht.hc.hadoopConf, config)
+    val vepSignature = conf.vep_json_schema
 
-    val properties = try {
-      val p = new Properties()
-      val is = new FileInputStream(config)
-      p.load(is)
-      is.close()
-      p
-    } catch {
-      case e: IOException =>
-        fatal(s"could not open file: ${ e.getMessage }")
-    }
-
-    val perl = properties.getProperty("hail.vep.perl", "perl")
-
-    val perl5lib = properties.getProperty("hail.vep.perl5lib")
-
-    val path = properties.getProperty("hail.vep.path")
-
-    val location = properties.getProperty("hail.vep.location")
-    if (location == null)
-      fatal("property `hail.vep.location' required")
-
-    val cacheDir = properties.getProperty("hail.vep.cache_dir")
-    if (cacheDir == null)
-      fatal("property `hail.vep.cache_dir' required")
-
-
-    val plugin = if (properties.getProperty("hail.vep.plugin") != null) {
-      properties.getProperty("hail.vep.plugin")
-    } else {
-
-      val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-      if (humanAncestor == null)
-        fatal("property `hail.vep.lof.human_ancestor' required")
-
-      val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
-      if (conservationFile == null)
-        fatal("property `hail.vep.lof.conservation_file' required")
-
-      s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
-    }
-
-    val fasta = properties.getProperty("hail.vep.fasta")
-    if (fasta == null)
-      fatal("property `hail.vep.fasta' required")
-
-    var assembly = properties.getProperty("hail.vep.assembly")
-    if (assembly == null) {
-      warn("property `hail.vep.assembly' not specified. Setting to GRCh37")
-      assembly = "GRCh37"
-    }
-
-    val cmd =
-      Array(
-        perl,
-        s"$location",
-        "--format", "vcf",
-        if (csq) "--vcf" else "--json",
-        "--everything",
-        "--allele_number",
-        "--no_stats",
-        "--cache", "--offline",
-        "--dir", s"$cacheDir",
-        "--fasta", s"$fasta",
-        "--minimal",
-        "--assembly", s"$assembly",
-        "--plugin", s"$plugin",
-        "-o", "STDOUT")
+    val cmd = conf.command.map(s =>
+      if (s == "__OUTPUT_FORMAT_FLAG__")
+        if (csq) "--vcf" else "--json"
+      else
+        s)
 
     val inputQuery = vepSignature.query("input")
 
@@ -252,16 +75,17 @@ object VEP {
 
     val localBlockSize = blockSize
 
-    val localRowType = vsm.rvRowType
-    val rowKeyOrd = vsm.matrixType.rowKeyStruct.ordering
-    val annotations = vsm.rvd
+    val localRowType = ht.typ.rowType
+    val rowKeyOrd = ht.typ.keyType.get.ordering
+
+    val prev = ht.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val annotations = prev
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
-        if (perl5lib != null)
-          env.put("PERL5LIB", perl5lib)
-        if (path != null)
-          env.put("PATH", path)
+        conf.env.foreach { case (key, value) =>
+            env.put(key, value)
+        }
 
         val rvv = new RegionValueVariant(localRowType)
         it
@@ -300,7 +124,14 @@ object VEP {
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
+                  val jv = try {
+                    JsonMethods.parse(s)
+                  } catch {
+                    case _: JsonParseException =>
+                      log.warn(s"vep: failed to parse json: $s")
+                      null
+                  }
+                  val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
                   val vepv@(vepLocus, vepAlleles) = variantFromInput(inputQuery(a).asInstanceOf[String])
 
                   nonStarToOriginalVariant.get(vepv) match {
@@ -321,22 +152,17 @@ object VEP {
 
             r
           }
-      }.persist(StorageLevel.MEMORY_AND_DISK)
+      }
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepORVDType = new OrderedRVDType(
-      vsm.rowPartitionKey.toArray, vsm.rowKey.toArray,
-      TStruct(
-        "locus" -> vsm.rowKeyTypes(0),
-        "alleles" -> vsm.rowKeyTypes(1),
-        "vep" -> vepType))
+    val vepORVDType = prev.typ.copy(rowType = prev.rowType ++ TStruct("vep" -> vepType))
 
     val vepRowType = vepORVDType.rowType
 
     val vepRVD: OrderedRVD = OrderedRVD(
       vepORVDType,
-      vsm.rvd.partitioner,
+      prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = ctx.rvb
@@ -350,16 +176,18 @@ object VEP {
           rvb.addAnnotation(vepRowType.types(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
-
           rv
         }
-      })
+      }).persist(StorageLevel.MEMORY_AND_DISK)
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    vsm.orderedRVDLeftJoinDistinctAndInsert(vepRVD, "vep", product = false)
+    new Table(ht.hc, TableLiteral(TableValue(
+        TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
+        BroadcastRow(Row(), TStruct(), ht.hc.sc),
+        vepRVD)))
   }
 
-  def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =
-    annotate(vsm, config, root, csq, blockSize)
+  def apply(ht: Table, config: String, csq: Boolean = false, blockSize: Int = 1000): Table =
+    annotate(ht, config, csq, blockSize)
 }

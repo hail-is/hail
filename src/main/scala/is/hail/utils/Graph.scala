@@ -43,36 +43,33 @@ object Graph {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     val wrappedNodeType = TTuple(nodeType)
-    val tieBreakerEc = EvalContext("l" -> wrappedNodeType, "r" -> wrappedNodeType)
+    val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
 
     val tieBreakerF = tieBreaker.map { e =>
-      val ast = Parser.parseToAST(e, tieBreakerEc)
-      ast.toIROpt() match {
-        case Some(ir) =>
-          val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
-          assert(t.isOfType(TTuple(TInt64())))
+      val ir = Parser.parse_value_ir(e, refMap)
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
+      assert(t.isOfType(TTuple(TInt64())))
 
-          (l: Any, r: Any) => {
-            Region.scoped { region =>
-              val rvb = new RegionValueBuilder()
-              rvb.set(region)
+      (l: Any, r: Any) => {
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder()
+          rvb.set(region)
 
-              rvb.start(wrappedNodeType)
-              rvb.startTuple()
-              rvb.addAnnotation(nodeType, l)
-              rvb.endTuple()
-              val lOffset = rvb.end()
+          rvb.start(wrappedNodeType)
+          rvb.startTuple()
+          rvb.addAnnotation(nodeType, l)
+          rvb.endTuple()
+          val lOffset = rvb.end()
 
-              rvb.start(wrappedNodeType)
-              rvb.startTuple()
-              rvb.addAnnotation(nodeType, r)
-              rvb.endTuple()
-              val rOffset = rvb.end()
+          rvb.start(wrappedNodeType)
+          rvb.startTuple()
+          rvb.addAnnotation(nodeType, r)
+          rvb.endTuple()
+          val rOffset = rvb.end()
 
-              val resultOffset = f()(region, lOffset, false, rOffset, false)
-              SafeRow(t.asInstanceOf[TBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
-            }
-          }
+          val resultOffset = f(0)(region, lOffset, false, rOffset, false)
+          SafeRow(t.asInstanceOf[TBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
+        }
       }
     }
 

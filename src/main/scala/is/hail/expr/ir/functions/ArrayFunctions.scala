@@ -16,22 +16,19 @@ object ArrayFunctions extends RegistryFunctions {
     def updateAccum(sum: IR, n: IR): IR =
       MakeStruct(FastSeq("sum" -> sum, "n" -> n))
 
-    Let(result,
-    ArrayFold(
-      a,
-      MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
-      accum,
-      v,
-      If(IsNA(Ref(v, t)),
-        Ref(accum, tAccum),
+    Let(
+      result,
+      ArrayFold(
+        a,
+        MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
+        accum,
+        v,
         updateAccum(
           ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1))))),
-      If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), "n"), I32(0)),
-        NA(TFloat64()),
-        ApplyBinaryPrimOp(FloatingPointDivide(),
-          GetField(Ref(result, tAccum), "sum"),
-          Cast(GetField(Ref(result, tAccum), "n"), TFloat64()))))
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1)))),
+      ApplyBinaryPrimOp(FloatingPointDivide(),
+        GetField(Ref(result, tAccum), "sum"),
+        Cast(GetField(Ref(result, tAccum), "n"), TFloat64())))
   }
 
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
@@ -54,7 +51,7 @@ object ArrayFunctions extends RegistryFunctions {
     val sum = genUID()
     val v = genUID()
     val zero = Cast(I64(0), t)
-    ArrayFold(a, zero, sum, v, If(IsNA(Ref(v, t)), Ref(sum, t), ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t))))
+    ArrayFold(a, zero, sum, v, ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t)))
   }
 
   def product(a: IR): IR = {
@@ -62,7 +59,7 @@ object ArrayFunctions extends RegistryFunctions {
     val product = genUID()
     val v = genUID()
     val one = Cast(I64(1), t)
-    ArrayFold(a, one, product, v, If(IsNA(Ref(v, t)), Ref(product, t), ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t))))
+    ArrayFold(a, one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
   }
 
   def registerAll() {
@@ -127,29 +124,26 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("product", TArray(tnum("T")))(product)
 
-    registerIR("min", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val min = genUID()
-      val value = genUID()
-      val body = If(IsNA(Ref(min, t)),
-        Ref(value, t),
-        If(IsNA(Ref(value, t)),
-          Ref(min, t),
-          If(ApplyComparisonOp(LT(t), Ref(value, t), Ref(min, t)), Ref(value, t), Ref(min, t))))
-      ArrayFold(a, NA(t), min, value, body)
+    def makeMinMaxOp(op: Type => ComparisonOp): IR => IR = {
+      { a =>
+        val t = -coerce[TArray](a.typ).elementType
+        val accum = genUID()
+        val value = genUID()
+
+        val aUID = genUID()
+        val aRef = Ref(aUID, a.typ)
+        val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
+
+        val body = If(
+          ApplyComparisonOp(op(t), Ref(value, t), Ref(accum, t)),
+          Ref(value, t),
+          Ref(accum, t))
+        Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
+      }
     }
 
-    registerIR("max", TArray(tnum("T"))) { a =>
-      val t = -coerce[TArray](a.typ).elementType
-      val max = genUID()
-      val value = genUID()
-      val body = If(IsNA(Ref(max, t)),
-        Ref(value, t),
-        If(IsNA(Ref(value, t)),
-          Ref(max, t),
-          If(ApplyComparisonOp(GT(t), Ref(value, t), Ref(max, t)), Ref(value, t), Ref(max, t))))
-      ArrayFold(a, NA(t), max, value, body)
-    }
+    registerIR("min", TArray(tnum("T")))(makeMinMaxOp(LT(_)))
+    registerIR("max", TArray(tnum("T")))(makeMinMaxOp(GT(_)))
 
     registerIR("mean", TArray(tnum("T")))(mean)
 
@@ -196,14 +190,13 @@ object ArrayFunctions extends RegistryFunctions {
                 If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
                   updateAccum(Ref(value, t), Ref(idx, TInt32())),
                   Ref(accum, tAccum))))))
-
-        GetField(ArrayFold(
-          ArrayRange(I32(0), ArrayLen(a), I32(1)),
-          NA(tAccum),
-          accum,
-          idx,
-          body
-        ), "midx")
+      GetField(ArrayFold(
+        ArrayRange(I32(0), ArrayLen(a), I32(1)),
+        NA(tAccum),
+        accum,
+        idx,
+        body
+      ), "midx")
     }
 
     registerIR("argmin", TArray(tv("T")))(argF(_, LT(_)))
@@ -232,7 +225,10 @@ object ArrayFunctions extends RegistryFunctions {
                 If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
                   updateAccum(Ref(value, t), Ref(idx, TInt32()), I32(1)),
                   If(ApplyComparisonOp(EQ(t), Ref(value, t), Ref(m, t)),
-                    updateAccum(Ref(value, t), Ref(idx, TInt32()), ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
+                    updateAccum(
+                      Ref(value, t),
+                      Ref(idx, TInt32()),
+                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
                     Ref(accum, tAccum)))))))
 
       Let(result, ArrayFold(

@@ -97,48 +97,8 @@ class IBDSuite extends SparkSuite {
       .toMap
   }
 
-  object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
-      .resize(1000)
-      .map { vds => vds.filterRowsExpr("va.locus.isAutosomal()") }
-      .filter(vds => vds.countRows > 2 && vds.numCols >= 2)
-
-    property("hail generates same result as plink 1.9") =
-      forAll(plinkSafeBiallelicVDS) { vds =>
-        val us = IBD.toRDD(IBD(vds)).collect().toMap
-
-        val plink = runPlinkIBD(vds)
-
-        mapSameElements(us, plink,
-          (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
-      }
-
-    property("hail generates same result as plink 1.9 with min and/or max") =
-      forAll(plinkSafeBiallelicVDS,
-        Gen.option(Gen.choose(0.0, 1.0), 0.8),
-        Gen.option(Gen.choose(0.0, 1.0), 0.8)) { (vds, maybeMin, maybeMax) =>
-        // ensure min <= max
-        val validMax = maybeMax.map(max => maybeMin match {
-          case None => max
-          case Some(min) if max < min => (max / min) * (1.0 - min) + min
-          case Some(min) => max
-        })
-
-        val us = IBD.toRDD(IBD(vds, min = maybeMin, max = validMax)).collect().toMap
-
-        val plink = runPlinkIBD(vds, maybeMin, validMax)
-
-        mapSameElements(us, plink,
-          (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
-      }
-  }
-
   // plink rounds to the nearest ten-thousandth
   val tolerance = 5e-5
-
-  @Test def testIBDPlink() {
-    Spec.check()
-  }
 
   @Test def ibdPlinkSameOnRealVCF() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
@@ -156,17 +116,4 @@ class IBDSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
   }
-
-  // Plink has default maf=0.01.  We try setting a different value
-  @Test def ibdWithMafExpr(): Unit = {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val vds2 = vds.selectRows("annotate(va, { `dummy_maf`: 0.08 })", None)
-
-    val us = IBD.toRDD(IBD(vds2, computeMafExpr = Some("va.dummy_maf"))).collect().toMap
-    val plink = runPlinkIBD(vds, maf = Some(0.08))
-
-    mapSameElements(us, plink,
-      (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
-  }
-
 }

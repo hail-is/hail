@@ -296,11 +296,11 @@ object IBD {
           rv.setOffset(rvb.end())
           rv
         }
-    }
+      }
   }
 
   def apply(vds: MatrixTable,
-    computeMafExpr: Option[String] = None,
+    mafFieldName: Option[String] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
     max: Option[Double] = None): Table = {
@@ -315,7 +315,7 @@ object IBD {
       }
     }
 
-    val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
+    val computeMaf = mafFieldName.map(generateComputeMaf(vds, _))
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
@@ -344,40 +344,25 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf(vds: MatrixTable,
-    computeMafExpr: String): (RegionValue) => Double = {
-
-    val mafSymbolTable = Map("va" -> (0, vds.rowType))
-    val mafEc = EvalContext(mafSymbolTable)
-    val mafAst = Parser.parseToAST(computeMafExpr, mafEc)
-
+  private[methods] def generateComputeMaf(vds: MatrixTable, fieldName: String): (RegionValue) => Double = {
+    val rvRowType = vds.rvRowType
+    val field = rvRowType.field(fieldName)
+    assert(field.typ.isOfType(TFloat64()))
     val rowKeysF = vds.rowKeysF
-    val localRowType = vds.rowType
+    val entriesIdx = vds.entriesIndex
 
-    val computeMafFromRV = mafAst.toIR() match {
-      case ToIRSuccess(ir0) =>
-        // The expression may need a cast to Double
-        val ir1 = if (ir0.typ.isInstanceOf[TFloat64]) ir0 else Cast(ir0, TFloat64())
-        val (rtyp, irThunk) = ir.Compile[Long, Long, Double](
-          "va", localRowType,
-          "_dummyA", localRowType,
-          ir1
-        )
-        (rv: RegionValue) => {
-          val result: java.lang.Double = irThunk()(rv.region, rv.offset, false, 0, true)
-          result
-        }
-    }
+    val idx = rvRowType.fieldIdx(fieldName)
 
     (rv: RegionValue) => {
-      val maf = computeMafFromRV(rv)
-      if (maf == null) {
-        val row = new UnsafeRow(localRowType, rv)
-        fatal(s"The minor allele frequency expression evaluated to NA at ${rowKeysF(row)}.")
+      val isDefined = rvRowType.isFieldDefined(rv, idx)
+      val maf = rv.region.loadDouble(rvRowType.loadField(rv, idx))
+      if (!isDefined) {
+        val row = new UnsafeRow(rvRowType, rv).deleteField(entriesIdx)
+        fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")
       }
       if (maf < 0.0 || maf > 1.0) {
-        val row = new UnsafeRow(localRowType, rv)
-        fatal(s"The minor allele frequency expression for ${rowKeysF(row)} evaluated to $maf which is not in [0,1].")
+        val row = new UnsafeRow(rvRowType, rv).deleteField(entriesIdx)
+        fatal(s"The minor allele frequency expression for ${ rowKeysF(row) } evaluated to $maf which is not in [0,1].")
       }
       maf
     }

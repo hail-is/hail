@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
+
+export HAIL_RELEASE=${HAIL_VERSION}-$(git rev-parse --short=12 HEAD)
 
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs

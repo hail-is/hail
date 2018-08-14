@@ -1,7 +1,9 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
+import is.hail.asm4s.AsmFunction4
 import is.hail.expr.types._
+import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.rvd._
 import is.hail.sparkextras._
 import is.hail.variant.ReferenceGenome
@@ -22,9 +24,8 @@ sealed case class RowFields (
   fileRowIndex: Boolean
 )
 
-case class BgenSettings (
+case class BgenSettings(
   nSamples: Int,
-  nVariants: Int,
   entries: EntriesSetting,
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
@@ -100,8 +101,7 @@ private class BgenRDD(
   includedVariantsPerFile: Map[String, Seq[Int]],
   settings: BgenSettings
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
-  private[this] val defaultMinPartitions =
-    sc.defaultMinPartitions
+  private[this] val f = CompileDecoder(settings)
   private[this] val parts = BgenRDDPartitions(
     sc,
     files,
@@ -113,18 +113,19 @@ private class BgenRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
     Iterator.single { (ctx: RVDContext) =>
-      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings).flatten }
+      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings, f()).flatten }
 }
 
 private class BgenRecordIterator(
   ctx: RVDContext,
   p: BgenPartition,
-  settings: BgenSettings
+  settings: BgenSettings,
+  f: AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
 ) extends Iterator[Option[RegionValue]] {
   private[this] val bfis = p.makeInputStream
   private[this] val rv = RegionValue(ctx.region)
   def next(): Option[RegionValue] = {
-    val maybeOffset = p.compiledNext(ctx.region, p, bfis, settings)
+    val maybeOffset = f(ctx.region, p, bfis, settings)
     if (maybeOffset == -1) {
       None
     } else {

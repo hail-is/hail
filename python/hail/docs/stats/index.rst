@@ -15,5 +15,6 @@ stats
     :template: class.rst
 
     BetaDist
+    LinearMixedModel
     TruncatedBetaDist
     UniformDist

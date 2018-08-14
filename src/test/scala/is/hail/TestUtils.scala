@@ -8,7 +8,6 @@ import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.linalg.BlockMatrix
-import is.hail.methods.SplitMulti
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -188,15 +187,7 @@ object TestUtils {
     } else
       None
   }
-
-  def exportPlink(mt: MatrixTable, path: String): Unit = {
-    mt.selectCols("""{fam_id: "0", id: sa.s, mat_id: "0", pat_id: "0", is_female: "0", pheno: "NA"}""", Some(FastIndexedSeq()))
-      .annotateRowsExpr(
-        "varid" -> """let l = va.locus and a = va.alleles in [l.contig, str(l.position), a[0], a[1]].mkString(":")""",
-        "cm_position" -> "0.0")
-      .exportPlink(path)
-  }
-
+  
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
@@ -228,7 +219,7 @@ object TestUtils {
         case In(i, t) =>
           GetTupleElement(Ref(argsVar, argsType), i)
         case _ =>
-          Recur(rewrite)(x)
+          MapIR(rewrite)(x)
       }
     }
 
@@ -269,28 +260,30 @@ object TestUtils {
           // aggregate
           i = 0
           rvAggs.foreach(_.clear())
-          initOps()(region, rvAggs, argsOff, false)
+          initOps(0)(region, rvAggs, argsOff, false)
+          var seqOpF = seqOps(0)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps()(region, rvAggs, argsOff, false, aggElementOff, false)
+            seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
 
             i += 1
           }
 
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
-          initOps()(region, rvAggs2, argsOff, false)
+          initOps(0)(region, rvAggs2, argsOff, false)
+          seqOpF = seqOps(1)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
-            seqOps()(region, rvAggs2, argsOff, false, aggElementOff, false)
+            seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
 
             i += 1
           }
@@ -308,7 +301,7 @@ object TestUtils {
           rvb.endStruct()
           val aggResultsOff = rvb.end()
 
-          val resultOff = f()(region, aggResultsOff, false, argsOff, false)
+          val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
 
@@ -330,7 +323,7 @@ object TestUtils {
           rvb.endTuple()
           val argsOff = rvb.end()
 
-          val resultOff = f()(region, argsOff, false)
+          val resultOff = f(0)(region, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
         }
     }

@@ -1,6 +1,7 @@
 from hail.typecheck import *
 import hail as hl
 
+
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(str))
     def __init__(self, source=None, axes=set()):

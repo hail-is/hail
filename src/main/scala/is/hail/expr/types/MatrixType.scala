@@ -126,6 +126,12 @@ case class MatrixType(
       "g" -> (3, entryType)))
   }
 
+  def refMap: Map[String, Type] = Map(
+    "global" -> globalType,
+    "va" -> rvRowType,
+    "sa" -> colType,
+    "g" -> entryType)
+
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0
 

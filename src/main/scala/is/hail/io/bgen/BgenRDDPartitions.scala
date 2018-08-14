@@ -22,17 +22,11 @@ trait BgenPartition extends Partition {
   def advance(bfis: HadoopFSDataBinaryReader): Long
 
   def hasNext(bfis: HadoopFSDataBinaryReader): Boolean
-
-  def compiledNext(
-    r: Region,
-    p: BgenPartition,
-    bfis: HadoopFSDataBinaryReader,
-    settings: BgenSettings
-  ): Long
 }
 
 object BgenRDDPartitions extends Logging {
-  private case class BgenFileMetadata (
+
+  private case class BgenFileMetadata(
     file: String,
     byteFileSize: Long,
     dataByteOffset: Long,
@@ -60,53 +54,48 @@ object BgenRDDPartitions extends Logging {
       Array.empty
     } else {
       val partitions = new ArrayBuilder[Partition]()
-      var partitionIndex = 0
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         val nPartitions = fileNPartitions(fileIndex)
-        val maxRecordsPerPartition = (file.nVariants + nPartitions - 1) / nPartitions
         using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
           includedVariantsPerFile.get(file.path) match {
             case None =>
-              val startOffsets =
-                index.positionOfVariants(
-                  Array.tabulate(nPartitions)(i => i * maxRecordsPerPartition))
+              val partNVariants = partition(file.nVariants, nPartitions)
+              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+              val partFirstByteOffset = index.positionOfVariants(partFirstVariantIndex)
               var i = 0
               while (i < nPartitions) {
                 partitions += BgenPartitionWithoutFilter(
                   file.path,
                   file.compressed,
-                  i * maxRecordsPerPartition,
-                  startOffsets(i),
-                  if (i < nPartitions - 1) startOffsets(i + 1) else file.fileByteSize,
-                  partitionIndex,
+                  partFirstVariantIndex(i),
+                  partFirstByteOffset(i),
+                  if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
+                  partitions.length,
                   sHadoopConfBc,
                   settings
                 )
-                partitionIndex += 1
                 i += 1
               }
             case Some(variantIndices) =>
-              val startOffsets = index.positionOfVariants(variantIndices.toArray)
+              val partNVariants = partition(variantIndices.length, nPartitions)
+              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+              val variantIndexByteOffset = index.positionOfVariants(variantIndices.toArray)
               var i = 0
               while (i < nPartitions) {
-                val left = i * maxRecordsPerPartition
-                val rightExclusive = if (i < nPartitions - 1)
-                  (i + 1) * maxRecordsPerPartition
-                else
-                  startOffsets.length
+                var firstVariantIndex = partFirstVariantIndex(i)
+                var lastVariantIndex = firstVariantIndex + partNVariants(i)
                 partitions += BgenPartitionWithFilter(
                   file.path,
                   file.compressed,
-                  partitionIndex,
-                  startOffsets.slice(left, rightExclusive),
-                  variantIndices.slice(left, rightExclusive).toArray,
+                  partitions.length,
+                  variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
+                  variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
                   sHadoopConfBc,
                   settings
                 )
                 i += 1
-                partitionIndex += 1
               }
           }
         }
@@ -116,7 +105,7 @@ object BgenRDDPartitions extends Logging {
     }
   }
 
-  private case class BgenPartitionWithoutFilter (
+  private case class BgenPartitionWithoutFilter(
     path: String,
     compressed: Boolean,
     firstRecordIndex: Long,
@@ -145,17 +134,9 @@ object BgenRDDPartitions extends Logging {
 
     def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
       bfis.getPosition < endByteOffset
-
-    private[this] val f = CompileDecoder(settings, this)
-    def compiledNext(
-      r: Region,
-      p: BgenPartition,
-      bfis: HadoopFSDataBinaryReader,
-      settings: BgenSettings
-    ): Long = f()(r, p, bfis, settings)
   }
 
-  private case class BgenPartitionWithFilter (
+  private case class BgenPartitionWithFilter(
     path: String,
     compressed: Boolean,
     partitionIndex: Int,
@@ -185,21 +166,12 @@ object BgenRDDPartitions extends Logging {
 
     def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
       keptVariantIndex < keptVariantIndices.length - 1
-
-    private[this] val f = CompileDecoder(settings, this)
-    def compiledNext(
-      r: Region,
-      p: BgenPartition,
-      bfis: HadoopFSDataBinaryReader,
-      settings: BgenSettings
-    ): Long = f()(r, p, bfis, settings)
   }
 }
 
 object CompileDecoder {
   def apply(
-    settings: BgenSettings,
-    p: BgenPartition
+    settings: BgenSettings
   ): () => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = new Function4Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
     val mb = fb.apply_method
@@ -339,15 +311,13 @@ object CompileDecoder {
 
         case EntriesWithFields(includeGT, includeGP, includeDosage) =>
           Code(
-            if (p.compressed) {
+            cp.invoke[Boolean]("compressed").mux(
               Code(
                 uncompressedSize := cbfis.invoke[Int]("readInt"),
                 input := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4),
                 data := Code.invokeScalaObject[Array[Byte], Int, Array[Byte]](
-                  BgenRDD.getClass, "decompress", input, uncompressedSize))
-            } else {
-              data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)
-            },
+                  BgenRDD.getClass, "decompress", input, uncompressedSize)),
+              data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)),
             reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),
             nRow := reader.invoke[Int]("readInt"),
             (nRow.cne(settings.nSamples)).mux(

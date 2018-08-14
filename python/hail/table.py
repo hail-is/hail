@@ -2,10 +2,12 @@ import pandas
 import pyspark
 import warnings
 
+from typing import *
+
 import hail as hl
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
@@ -102,6 +104,7 @@ class GroupedTable(ExprContainer):
         self._groups = groups
         self._parent = parent
         self._npartitions = None
+        self._buffer_size = 50
 
         self._copy_fields_from(parent)
 
@@ -140,6 +143,24 @@ class GroupedTable(ExprContainer):
             Same grouped table with a partition hint.
         """
         self._npartitions = n
+        return self
+
+    def _set_buffer_size(self, n: int) -> 'GroupedTable':
+        """Set the map-side combiner buffer size (in rows).
+
+        Parameters
+        ----------
+        n : int
+            Buffer size.
+
+        Returns
+        -------
+        :class:`.GroupedTable`
+            Same grouped table with a buffer size.
+        """
+        if n <= 0:
+            raise ValueError(n)
+        self._buffer_size = n
         return self
 
     @typecheck_method(named_exprs=expr_any)
@@ -184,19 +205,13 @@ class GroupedTable(ExprContainer):
             raise ValueError(
                 f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
 
-        strs = []
-        for k, v in named_exprs.items():
-            analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
-            strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
-
         base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        keyed_t = base._select_processed(hl.struct(**group_exprs))
-
-        t = Table(keyed_t._jt.aggregateByKey(hl.struct(**named_exprs)._ast.to_hql(),
-                                             ',\n'.join(strs),
-                                             joption(self._npartitions)))
-        return cleanup(t)
+        return Table(base._jt.keyByAndAggregate(
+            str(hl.struct(**named_exprs)._ir),
+            str(hl.struct(**group_exprs)._ir),
+            joption(self._npartitions),
+            self._buffer_size))
 
 
 class Table(ExprContainer):
@@ -302,10 +317,11 @@ class Table(ExprContainer):
         assert isinstance(self._global_type, tstruct)
         assert isinstance(self._row_type, tstruct)
 
-        self._globals = construct_expr(TopLevelReference('global', self._global_indices), self._global_type,
-                                       indices=self._global_indices)
-        self._row = construct_expr(TopLevelReference('row', self._row_indices), self._row_type,
-                                   indices=self._row_indices)
+        self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
+        self._row = construct_reference('row', self._row_type, indices=self._row_indices)
+
+        self._indices_from_ref = {'global': self._global_indices,
+                                  'row': self._row_indices}
 
         opt_key = from_option(jt.key())
         if opt_key is None:
@@ -396,66 +412,56 @@ class Table(ExprContainer):
         return self._jt.forceCount()
 
     @typecheck_method(caller=str,
-                      key_struct=oneof(nullable(expr_struct()), exactly("default")),
-                      value_struct=nullable(expr_struct()))
-    def _select(self, caller, key_struct="default", value_struct=None):
-        row, preserved_key, preserved_key_new, new_key = self._make_row(key_struct, value_struct)
+                      row=expr_struct(),
+                      new_keys=oneof(exactly("default"), nullable(sequenceof(str))))
+    def _select(self, caller, row, new_keys="default"):
+        if new_keys == "default":
+            new_key = list(self.key.keys()) if self.key is not None else None
+            preserved_key = preserved_key_new = new_key
+        elif new_keys == None:
+            preserved_key = None
+            preserved_key_new = None
+            new_key = None
+        else:
+            key_struct = hl.struct(**{name: row[name] for name in new_keys})
+            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
 
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
         return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
 
-    @typecheck_method(key_struct=oneof(nullable(expr_struct()), exactly("default")),
-                      value_struct=nullable(expr_struct()))
-    def _select_processed(self, key_struct="default", value_struct=None):
-        return self._select_scala(*self._make_row(key_struct, value_struct))
-
     def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
         jt = self._jt
         if self.key is not None and preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(row._ast.to_hql(), preserved_key_new, len(preserved_key) if preserved_key is not None else None)
+        jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key) if preserved_key is not None else None)
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         return Table(jt)
 
-    def _make_row(self, key_struct, value_struct) -> Tuple[StructExpression, Optional[List[str]], Optional[List[str]], Optional[List[str]]]:
-        def is_copy(ast, name):
-            return (isinstance(ast, Select) and
-                ast.name == name and
-                isinstance(ast.parent, TopLevelReference) and
-                ast.parent.name == 'row' and
-                ast.parent.indices.source is self
-                )
-        if isinstance(key_struct, str):
-            assert value_struct is not None
-            preserved_key = preserved_key_new = new_key = list(self.key.keys()) if self.key is not None else None
-            row = hl.bind(lambda v: self.key.annotate(**v), value_struct) if self.key else value_struct
-        elif key_struct is not None:
-            if self.key is None:
-                preserved_key_pairs = []
-            else:
-                preserved_key_pairs = list(map(lambda pair: (pair[1]._ast.name, pair[0]),
-                    itertools.takewhile(
-                        lambda pair: is_copy(pair[1]._ast, pair[2]),
-                        zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-            (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
-            new_key = list(key_struct.keys())
-            if value_struct is None:
-                row = hl.bind(lambda k: self.row.annotate(**k), key_struct)
-            else:
-                row = hl.bind(lambda k, v: hl.struct(**k, **v), key_struct, value_struct)
+    def _preserved_key_pairs(self, key_struct):
+        def is_copy(ir, name, indices):
+            return (indices.source is self and
+                    isinstance(ir, GetField) and
+                    ir.name == name and
+                    isinstance(ir.o, TopLevelReference) and
+                    ir.o.name == 'row')
+        if self.key is None:
+            preserved_key_pairs = []
         else:
-            preserved_key = preserved_key_new = new_key = None
-            row = value_struct if value_struct is not None else hl.struct()
-
-        return row, preserved_key, preserved_key_new, new_key
+            preserved_key_pairs = list(map(lambda pair: (pair[1]._ir.name, pair[0]),
+                                           itertools.takewhile(
+                                               lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
+                                               zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
+        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
+        new_key = list(key_struct.keys())
+        return preserved_key, preserved_key_new, new_key
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
-        return cleanup(Table(base._jt.selectGlobal(s._ast.to_hql())))
+        return cleanup(Table(base._jt.selectGlobal(str(s._ir))))
 
     @classmethod
     @typecheck_method(rows=anytype,
@@ -543,7 +549,8 @@ class Table(ExprContainer):
                                           protect_keys=False)
 
         return self._select("Table.key_by",
-                            key_struct=hl.struct(**key_fields))
+                            self.row.annotate(**key_fields),
+                            new_keys=list(key_fields.keys()))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
@@ -615,10 +622,10 @@ class Table(ExprContainer):
         assignments = OrderedDict()
 
         for e in exprs:
-            if e._ast.search(lambda ast: not isinstance(ast, TopLevelReference) and not isinstance(ast, Select)):
+            if not e._ir.is_nested_field:
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ast, Select)
-            assignments[e._ast.name] = e
+            assert isinstance(e._ir, GetField)
+            assignments[e._ir.name] = e
 
         for k, e in named_exprs.items():
             check_collisions(self._fields, k, self._global_indices)
@@ -724,7 +731,7 @@ class Table(ExprContainer):
         if self.key is not None:
             fields_referenced -= set(self.key)
 
-        return self._select(caller, value_struct=self.row_value.annotate(**e).drop(*fields_referenced))
+        return self._select(caller, self.row.annotate(**e).drop(*fields_referenced))
 
     def annotate(self, **named_exprs):
         """Add new fields.
@@ -753,7 +760,7 @@ class Table(ExprContainer):
         """
         caller = "Table.annotate"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select(caller, value_struct=self.row_value.annotate(**e))
+        return self._select(caller, self.row.annotate(**e))
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
@@ -803,7 +810,7 @@ class Table(ExprContainer):
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
 
-        return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
+        return cleanup(Table(base._jt.filter(str(expr._ir), keep)))
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
@@ -891,10 +898,12 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified fields.
         """
-        row = get_select_exprs('Table.select',
-                               exprs, named_exprs, self._row_indices,
-                               protect_keys=True)
-        return self._select('Table.select', value_struct=hl.struct(**row))
+        row_exprs = get_select_exprs('Table.select',
+                                     exprs, named_exprs, self._row_indices,
+                                     protect_keys=True)
+        row = self.key.annotate(**row_exprs) if self.key else hl.struct(**row_exprs)
+
+        return self._select('Table.select', row)
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs):
@@ -961,10 +970,14 @@ class Table(ExprContainer):
                 check_keys(f, self._row_indices)
             row_fields = set(table.row)
             to_drop = [f for f in fields_to_drop if f in row_fields]
-            table = table._select('drop', 'default', table.row_value.drop(*to_drop))
+            table = table._select('drop', table.row.drop(*to_drop))
 
         return table
 
+    @typecheck_method(output=str,
+               types_file=nullable(str),
+               header=bool,
+               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
     def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
@@ -983,13 +996,13 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        output : str
+        output : :obj:`str`
             URI at which to write exported file.
-        types_file : str or None
+        types_file : :obj:`str`, optional
             URI at which to write file containing field type information.
-        header : bool
+        header : :obj:`bool`
             Include a header in the file.
-        parallel : str or None
+        parallel : :obj:`str`, optional
             If None, a single file is produced, otherwise a
             folder of file shards is produced. If 'separate_header',
             the header file is output separately from the file shards. If
@@ -1096,10 +1109,9 @@ class Table(ExprContainer):
             else:
                 e = to_expr(e)
             analyze('Table.group_by', e, self._row_indices)
-            ast = e._ast.expand()
-            if any(not isinstance(a, TopLevelReference) and not isinstance(a, Select) for a in ast):
+            if not e._ir.is_nested_field:
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
-            key = ast[0].name
+            key = e._ir.name
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
@@ -1137,7 +1149,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_json = base._jt.aggregateJSON(expr._ast.to_hql())
+        result_json = base._jt.aggregateJSON(str(expr._ir))
         return expr.dtype._from_json(result_json)
 
     @typecheck_method(output=str,
@@ -1343,9 +1355,9 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = None if left.key is None else list(left.key)
-                    left = Table(left._jt.select(ApplyMethod('annotate',
-                                                             left._row._ast,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ast).to_hql(), None, None)
+                    left = Table(left._jt.select(str(Apply('annotate',
+                                                             left._row._ir,
+                                                             hl.struct(**dict(zip(uids, exprs)))._ir)), None, None)
                                  ).key_by(*uids)
                     rekey_f = lambda t: t.key_by(None) if original_key is None else t.key_by(*original_key)
                 else:
@@ -1354,15 +1366,15 @@ class Table(ExprContainer):
                 if is_interval:
                     left = Table(left._jt.intervalJoin(self._jt, uid))
                 else:
-                    left = Table(left._jt.join(self.select(**{uid: self.row}).distinct()._jt, 'left'))
+                    left = Table(left._jt.leftJoinRightDistinct(self._jt, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)
-            ast = Join(Select(TopLevelReference('row', src._row_indices), uid),
-                       all_uids,
-                       exprs,
-                       joiner)
-            return construct_expr(ast, new_schema, indices, aggregations)
+            ir = Join(GetField(TopLevelReference('row'), uid),
+                      all_uids,
+                      exprs,
+                      joiner)
+            return construct_expr(ir, new_schema, indices, aggregations)
         elif isinstance(src, MatrixTable):
             for e in exprs:
                 analyze('Table.index', e, src._entry_indices)
@@ -1379,60 +1391,22 @@ class Table(ExprContainer):
                     expr is key_field for expr, key_field in zip(exprs, src.partition_key.values()))
 
                 if is_row_key or is_partition_key:
-                    # no vds_key (way faster)
-                    def joiner(left):
-                        return MatrixTable(left._jvds.annotateRowsTable(
-                            right._jt, uid, False))
-
-                    ast = Join(Select(TopLevelReference('va', src._row_indices), uid),
-                               [uid],
-                               exprs,
-                               joiner)
-                    return construct_expr(ast, new_schema, indices, aggregations)
+                    key = None
                 else:
-                    # use vds_key
-                    uids = [Env.get_uid() for _ in range(len(exprs))]
-
-                    def joiner(left):
-                        from hail.expr import aggregators as agg
-
-                        rk_uids = [Env.get_uid() for _ in left.row_key]
-                        k_uid = Env.get_uid()
-
-                        # extract v, key exprs
-                        left2 = left.select_rows(**{uid: e for uid, e in zip(uids, exprs)})
-                        lrt = (left2.rows()
-                            .rename({name: u for name, u in zip(left2.row_key, rk_uids)})
-                            .key_by(*uids))
-
-                        vt = lrt.join(right)
-                        # group uids
-                        vt = vt.annotate(**{k_uid: Struct(**{u: vt[u] for u in uids})})
-                        vt = vt.key_by(None).drop(*uids)
-                        # group by v and index by the key exprs
-                        vt = (vt.group_by(*rk_uids)
-                            .aggregate(values=agg.collect(vt.row.drop(*rk_uids))))
-                        vt = vt.annotate(values=hl.dict(vt.values.map(lambda x: hl.tuple([x[k_uid], x.drop(k_uid)]))))
-
-                        jl = left._jvds.annotateRowsTable(vt._jt, uid, False)
-                        key_expr = '{uid}: va.{uid}.values.get({{ {es} }})'.format(uid=uid, es=','.join(
-                            '{}: {}'.format(u, e._ast.to_hql()) for u, e in
-                            zip(uids, exprs)))
-                        jl = jl.selectRows('annotate('+left._row._ast.to_hql()+', {'+key_expr+"})", None)
-                        return MatrixTable(jl)
-
-                    ast = Join(Select(TopLevelReference('va', src._row_indices), uid),
-                               [uid],
-                               exprs,
-                               joiner)
-                    return construct_expr(ast, new_schema, indices, aggregations)
-
+                    key = [str(k._ir) for k in exprs]
+                joiner = lambda left: MatrixTable(left._jvds.annotateRowsTableIR(right._jt, uid, key))
+                ast = Join(GetField(TopLevelReference('va'), uid),
+                           [uid],
+                           exprs,
+                           joiner)
+                return construct_expr(ast, new_schema, indices, aggregations)
             elif indices == src._col_indices:
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
-                    joiner = lambda left: MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
+                    def joiner(left):
+                        return MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1450,15 +1424,16 @@ class Table(ExprContainer):
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
-                        return MatrixTable(left.add_col_index(index_uid)
-                                           .key_cols_by(index_uid)
-                                           ._jvds
-                                           .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
-                ast = Join(Select(TopLevelReference('sa', src._col_indices), uid),
-                           all_uids,
-                           exprs,
-                           joiner)
-                return construct_expr(ast, new_schema, indices, aggregations)
+                        result = MatrixTable(left.add_col_index(index_uid)
+                                             .key_cols_by(index_uid)
+                                             ._jvds
+                                             .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
+                        return result
+                ir = Join(GetField(TopLevelReference('sa'), uid),
+                          all_uids,
+                          exprs,
+                          joiner)
+                return construct_expr(ir, new_schema, indices, aggregations)
             else:
                 raise NotImplementedError()
         else:
@@ -1482,20 +1457,17 @@ class Table(ExprContainer):
             from hail.matrixtable import MatrixTable
             if isinstance(obj, MatrixTable):
                 return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
-            else:
-                assert isinstance(obj, Table)
-                return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
+            assert isinstance(obj, Table)
+            return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        ast = Join(Select(TopLevelReference('global', Indices()), uid),
-                   [uid],
-                   [],
-                   joiner)
-        return construct_expr(ast, self.globals.dtype)
+        ir = Join(GetField(TopLevelReference('global'), uid),
+                  [uid],
+                  [],
+                  joiner)
+        return construct_expr(ir, self.globals.dtype)
 
     def _process_joins(self, *exprs):
-        def broadcast_f(left, data, jt):
-            return Table(left._jt.annotateGlobalJSON(data, jt))
-        return process_joins(self, exprs, broadcast_f)
+        return process_joins(self, exprs)
 
     def cache(self):
         """Persist this table in memory.
@@ -1703,15 +1675,17 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
+        left_key = None if self.key is None else list(self.key)
         for i, ht, in enumerate(tables):
+            right_key = None if ht.key is None else list(ht.key)
             if not ht.row.dtype == self.row.dtype:
-                raise TypeError(f"'union': table {i} has a different row type.\n"
+                raise ValueError(f"'union': table {i} has a different row type.\n"
                                 f"  Expected:  {self.row.dtype}\n"
                                 f"  Table {i}: {ht.row.dtype}")
-            elif list(ht.key) != list(self.key):
-                raise TypeError(f"'union': table {i} has a different key."
-                                f"  Expected:  {list(self.key)}\n"
-                                f"  Table {i}: {list(ht.key)}")
+            elif left_key != right_key:
+                raise ValueError(f"'union': table {i} has a different key."
+                                f"  Expected:  {left_key}\n"
+                                f"  Table {i}: {right_key}")
         return Table(self._jt.union([table._jt for table in tables]))
 
     @typecheck_method(n=int)
@@ -1748,7 +1722,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return hl.tarray(self.row.dtype)._from_json(self._jt.takeJSON(n))
+        return self.head(n).collect()
 
     @typecheck_method(n=int)
     def head(self, n):
@@ -1782,8 +1756,8 @@ class Table(ExprContainer):
         return Table(self._jt.head(n))
 
     @typecheck_method(p=numeric,
-                      seed=int)
-    def sample(self, p, seed=0):
+                      seed=nullable(int))
+    def sample(self, p, seed=None):
         """Downsample the table by keeping each row with probability ``p``.
 
         Examples
@@ -1809,7 +1783,7 @@ class Table(ExprContainer):
         if not (0 <= p <= 1):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return Table(self._jt.sample(p, seed))
+        return self.filter(hl.rand_bool(p, seed))
 
     @typecheck_method(n=int,
                       shuffle=bool)
@@ -2009,11 +1983,11 @@ class Table(ExprContainer):
 
         table = self
         if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else None
+            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else dict()
             new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
-                                  key_struct=hl.struct(**new_keys) if new_keys else "default",
-                                  value_struct=hl.struct(**new_values))
+                                  hl.struct(**new_keys, **new_values),
+                                  new_keys=list(new_keys.keys()) if new_keys else "default")
         if global_map:
             table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
         return table
@@ -2624,5 +2598,13 @@ class Table(ExprContainer):
         """
         hail.methods.misc.require_key(self, "distinct")
         return Table(self._jt.distinctByKey())
+
+    @typecheck_method(parts=sequenceof(int), keep=bool)
+    def _filter_partitions(self, parts, keep=True):
+        return Table(self._jt.filterPartitions(parts, keep))
+
+    @typecheck_method(cols=table_type, entries_field_name=str)
+    def _unlocalize_entries(self, cols, entries_field_name):
+        return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
 table_type.set(Table)

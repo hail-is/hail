@@ -66,7 +66,8 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueArraySumLongAggregator = {
     val rva = new RegionValueArraySumLongAggregator()
-    rva.sum = sum.clone()
+    if (sum != null)
+      rva.sum = sum.clone()
     rva
   }
 
@@ -137,7 +138,8 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
 
   def copy(): RegionValueArraySumDoubleAggregator = {
     val rva = new RegionValueArraySumDoubleAggregator()
-    rva.sum = sum.clone()
+    if (sum != null)
+      rva.sum = sum.clone()
     rva
   }
 

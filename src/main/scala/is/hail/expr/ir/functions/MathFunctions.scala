@@ -5,16 +5,13 @@ import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
-import is.hail.stats.{uniroot, entropy, chisqStruct, fetStruct, hweStruct}
-
+import is.hail.stats.{chisqStruct, entropy, fetStruct, hweStruct, uniroot}
 import is.hail.utils.fatal
 
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)
 
   def gamma(x: Double): Double = Gamma.gamma(x)
-
-  def rnorm(mean: Double, sd: Double): Double = mean + sd * scala.util.Random.nextGaussian()
 
   def floor(x: Float): Float = math.floor(x).toFloat
 
@@ -45,10 +42,6 @@ object MathFunctions extends RegistryFunctions {
   def floorDiv(x: Float, y: Float): Float = math.floor(x / y).toFloat
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
-
-  def pcoin(p: Double): Boolean = math.random < p
-
-  def runif(min: Double, max: Double): Double = min + (max - min) * math.random
 
   def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
     val f: Double => Double = irf(region, _, false)
@@ -106,25 +99,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("dbeta", TFloat64(), TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dbeta")
 
-    registerScalaFunction("rnorm", TFloat64(), TFloat64(), TFloat64())(thisClass, "rnorm", isDeterministic = false)
-
     registerScalaFunction("pnorm", TFloat64(), TFloat64())(statsPackageClass, "pnorm")
     registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
-
-    registerScalaFunction("rpois", TFloat64(), TFloat64())(statsPackageClass, "rpois", isDeterministic = false)
-    registerCode("rpois", TInt32(), TFloat64(), TArray(TFloat64()), isDeterministic = false){ (mb, n, lambda) => 
-      val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
-      Code(
-        res := Code.invokeScalaObject[Int, Double, Array[Double]](statsPackageClass, "rpois", n, lambda),
-        srvb.start(res.length()),
-        Code.whileLoop(srvb.arrayIdx < res.length(),
-          srvb.addDouble(res(srvb.arrayIdx)),
-          srvb.advance()
-        ),
-        srvb.offset
-      )
-    }
 
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
     registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
@@ -137,9 +113,6 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("pchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "chiSquaredTail")
     registerScalaFunction("qchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "inverseChiSquaredTail")
-
-    registerScalaFunction("pcoin", TFloat64(), TBoolean())(thisClass, "pcoin", isDeterministic = false)
-    registerScalaFunction("runif", TFloat64(), TFloat64(), TFloat64())(thisClass, "runif", isDeterministic = false)
 
     registerScalaFunction("floor", TFloat32(), TFloat32())(thisClass, "floor")
     registerScalaFunction("floor", TFloat64(), TFloat64())(thisClass, "floor")
@@ -162,7 +135,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
 
-    registerCode("fet", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
+    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, fetStruct)
       Code(
@@ -180,11 +153,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
     
-    registerCode("chisq", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
+    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chisqTest", a, b, c, d),
+        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -194,7 +167,7 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("ctt", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
+    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
       Code(
@@ -208,11 +181,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hwe", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
+    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
       val res = mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(mb, hweStruct)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hweTest", nHomRef, nHet, nHomVar),
+        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),

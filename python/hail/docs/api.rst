@@ -28,6 +28,7 @@ Use ``import hail as hl`` to access this functionality.
     types <types>
     functions <functions/index>
     aggregators <aggregators>
+    scans <scans>
     methods <methods/index>
     utils <utils/index>
     linalg <linalg/index>
@@ -43,3 +44,4 @@ Use ``import hail as hl`` to access this functionality.
 .. autofunction:: hail.spark_context
 .. autofunction:: hail.default_reference
 .. autofunction:: hail.get_reference
+.. autofunction:: hail.set_global_seed

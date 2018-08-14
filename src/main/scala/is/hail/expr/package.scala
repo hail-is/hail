@@ -1,9 +1,7 @@
 package is.hail
 
-import is.hail.annotations._
 import is.hail.expr.types.Type
 import scala.language.implicitConversions
-import is.hail.asm4s.Code
 
 package object expr extends HailRepFunctions {
   type SymbolTable = Map[String, (Int, Type)]
@@ -25,7 +23,4 @@ package object expr extends HailRepFunctions {
   }
 
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
-
-  type CPS[T] = (T => Unit) => Unit
-  type CMCodeCPS[T] = (Code[T] => CM[Code[Unit]]) => CM[Code[Unit]]
 }

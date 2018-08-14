@@ -15,8 +15,6 @@ import scala.io.Source
 import scala.language.postfixOps
 
 class ExportVCFSuite extends SparkSuite {
-  def annotateInfo(mt: MatrixTable, structExpr: String): MatrixTable =
-    mt.annotateRowsExpr(("info", s"annotate(va.info, $structExpr)"))
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
@@ -80,22 +78,6 @@ class ExportVCFSuite extends SparkSuite {
     assert(hc.importVCF(out2).same(vds))
   }
 
-  @Test def testGeneratedInfo() {
-    val out = tmpDir.createTempFile("export", "vcf")
-    val vds = annotateInfo(hc.importVCF("src/test/resources/sample2.vcf"),
-      "{AC: va.info.AC, another: 5}")
-    ExportVCF(vds, out)
-
-    hadoopConf.readFile(out) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .filter(_.startsWith("##INFO"))
-        .foreach { line =>
-          assert(line.contains("Description="))
-        }
-    }
-  }
-
   @Test def testVCFFormatHeader() {
     val out = tmpDir.createTempFile("export", "vcf")
     val vcfFile = "src/test/resources/sample2.vcf"
@@ -119,125 +101,6 @@ class ExportVCFSuite extends SparkSuite {
         |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin
 
     assert(outFormatHeader == vcfFormatHeader)
-  }
-
-  @Test def testCastLongToIntAndOtherTypes() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf")
-
-    // cast Long to Int
-    val out = tmpDir.createTempFile("out", "vcf")
-    ExportVCF(annotateInfo(vds,
-      "{AC_pass: AGG.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
-        "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()).toFloat64 >= 0.2 ) )).count()}"),
-      out)
-
-    hadoopConf.readFile(out) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .filter(l => l.startsWith("##INFO") && l.contains("AC_pass"))
-        .foreach { line =>
-          assert(line.contains("Type=Integer"))
-          assert(line.contains("Number=1"))
-        }
-    }
-
-    // other valid types
-    val out2 = tmpDir.createTempFile("out2", "vcf")
-    ExportVCF(annotateInfo(vds,
-        "{array: [\"foo\", \"bar\"]," +
-          "set: [4, 5].toSet, " +
-          "float: let x = 5.0 in x.toFloat64(), " +
-          "bool: true}"), out2)
-
-    hadoopConf.readFile(out2) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .filter(l => l.startsWith("##INFO"))
-        .foreach { l =>
-          if (l.contains("array")) {
-            assert(l.contains("Type=String"))
-            assert(l.contains("Number=."))
-          } else if (l.contains("set")) {
-            assert(l.contains("Type=Integer"))
-            assert(l.contains("Number=."))
-          } else if (l.contains("float")) {
-            assert(l.contains("Type=Float"))
-            assert(l.contains("Number=1"))
-          } else if (l.contains("bool")) {
-            assert(l.contains("Type=Flag"))
-            assert(l.contains("Number=0"))
-          }
-        }
-    }
-  }
-
-  @Test def testErrors() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf", dropSamples = true)
-
-    val out = tmpDir.createLocalTempFile("foo", "vcf")
-    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(annotateInfo(vds,
-        "{foo: [[1]]}"),
-        out)
-    }
-
-    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(annotateInfo(vds,
-        "{foo: [UnphasedDiploidGtIndexCall(3)]}"),
-        out)
-    }
-
-    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(annotateInfo(vds,
-        "{foo: va.locus}"),
-        out)
-    }
-
-    TestUtils.interceptSpark("Cannot convert Long to Int") {
-      ExportVCF(vds
-        .annotateRowsExpr(("info", "annotate(va.info, {foo: 2147483648L})")),
-        out)
-    }
-
-    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(annotateInfo(vds,
-        "{foo: [true]}"),
-        out)
-    }
-
-    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      ExportVCF(annotateInfo(vds,
-        "{foo: {INT: 5}}"),
-        out)
-    }
-
-    TestUtils.interceptFatal("Invalid type for format field 'BOOL'. Found 'bool'.") {
-      ExportVCF(vds
-        .annotateEntriesExpr(("BOOL","true")),
-        out)
-    }
-
-    TestUtils.interceptFatal("Invalid type for format field 'AA'.") {
-      ExportVCF(vds
-        .annotateEntriesExpr(("AA", "[[0]]")),
-        out)
-    }
-  }
-
-  @Test def testInfoFieldSemicolons() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
-      .annotateRowsExpr(("info", "{foo: 5, bar: NA: Int}"))
-
-    val out = tmpDir.createLocalTempFile("foo", "vcf")
-    ExportVCF(vds, out)
-    hadoopConf.readLines(out) { lines =>
-      lines.foreach { l =>
-        if (!l.value.startsWith("#")) {
-          assert(l.value.contains("foo=5"))
-          assert(!l.value.contains("foo=5;"))
-        }
-      }
-    }
   }
 
   @Test def testGenotypes() {
@@ -270,37 +133,6 @@ class ExportVCFSuite extends SparkSuite {
         .zipWithIndex
         .map { case ((k, t), i) => Field(k, t, i) }
         .toFastIndexedSeq))
-
-  @Test def testWriteGenericFormatField() {
-    val genericFormatFieldVCF: VSMSubgen = VSMSubgen.random.copy(
-      vaSigGen = Gen.const(TStruct.empty()),
-      tSigGen = genFormatStructVCF,
-      tGen = (t: Type, v: Annotation) => t.genValue)
-
-    val out = tmpDir.createTempFile("foo", "vcf.bgz")
-    val p = forAll(MatrixTable.gen(hc, genericFormatFieldVCF)) { vsm =>
-      val schema = vsm.entryType
-      val callFields = schema.fields.filter(fd => fd.typ == TCall()).map(_.name)
-      val callArrayFields = schema.fields.filter(fd => fd.typ == TArray(TCall())).map(_.name)
-      val callSetFields = schema.fields.filter(fd => fd.typ == TSet(TCall())).map(_.name)
-
-      val callAnnots = callFields.map(name => (name, s"let c = g.$name in " +
-        s"if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c"))
-
-      val callContainerAnnots = (callArrayFields ++ callSetFields).map(name => (name,
-        s"g.$name.map(c => if (c.ploidy == 0 || (c.ploidy == 1 && c.isPhased())) Call(0, 0, false) else c)"))
-
-      val annots = callAnnots ++ callContainerAnnots
-
-      val vsmAnn = if (annots.nonEmpty) vsm.annotateEntriesExpr(annots: _*) else vsm
-
-      hadoopConf.delete(out, recursive = true)
-      ExportVCF(vsmAnn, out)
-      true
-    }
-
-    p.check()
-  }
 
   @Test def testContigs() {
     val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)

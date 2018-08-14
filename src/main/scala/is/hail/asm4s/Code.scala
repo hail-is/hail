@@ -2,7 +2,6 @@ package is.hail.asm4s
 
 import java.io.PrintStream
 
-import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
@@ -175,8 +174,11 @@ object Code {
     m.invoke(staticObj.get(), args)
   }
 
+  def invokeScalaObject[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](cls, method, Array[Class[_]](), Array[Code[_]]())
+
   def invokeScalaObject[A1, S](cls: Class[_], method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array(a1))
+    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
   def invokeScalaObject[A1, A2, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
     invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array(a1, a2))
@@ -874,17 +876,4 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)
-
-  // Ideally this would not use a local variable, but I need a richer way to
-  // talk about the way `Code` modifies the stack.
-  def mapNull[U >: Null](cnonnullcase: Code[T] => Code[U]): CM[Code[U]] = for (
-    (stx, x) <- CM.memoize(lhs)
-  ) yield Code(stx,
-    x.ifNull[U](Code._null[U], cnonnullcase(x)))
-
-  def mapNullM[U >: Null](cnonnullcase: Code[T] => CM[Code[U]]): CM[Code[U]] = for (
-    (stx, x) <- CM.memoize(lhs);
-    result <- cnonnullcase(x)
-  ) yield Code(stx,
-    x.ifNull[U](Code._null[U], result))
 }

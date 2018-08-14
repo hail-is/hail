@@ -72,7 +72,6 @@ class StatsSuite extends SparkSuite {
     assert(qpois(0.3, 10, lowerTail = false, logP = false) == 12)
     assert(D_==(ppois(5, 10), 0.06708596))
     assert(D_==(ppois(5, 10, lowerTail = false, logP = false), 0.932914))
-    assert(rpois(5) >= 0)
 
     assert(qpois(ppois(5, 10), 10) == 5)
     assert(qpois(ppois(5, 10, lowerTail = false, logP = false), 10, lowerTail = false, logP = false) == 5)

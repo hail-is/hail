@@ -28,13 +28,6 @@ class TableIRSuite extends SparkSuite {
     assert(kt2.count() == 1)
   }
 
-  @Test def testFilterGlobals() {
-    val kt = getKT.selectGlobal("{g: 3}")
-    val kt2 = new Table(hc, TableFilter(kt.tir,
-      GetField(Ref("row", kt.typ.rowType), "field1").ceq(GetField(Ref("global", kt.typ.globalType), "g"))))
-    assert(kt2.count() == 1)
-  }
-
   @Test def testScanCountBehavesLikeIndex() {
     val t = rangeKT
     val oldRow = Ref("row", t.typ.rowType)

@@ -6,6 +6,7 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
+import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -46,6 +47,10 @@ trait FunctionWithHadoopConfiguration {
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
 }
 
+trait FunctionWithSeededRandomness {
+  def setPartitionIndex(idx: Int): Unit
+}
+
 class EmitMethodBuilder(
   override val fb: EmitFunctionBuilder[_],
   mname: String,
@@ -73,6 +78,8 @@ class EmitMethodBuilder(
 
   def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness)
+
+  def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -278,7 +285,39 @@ class EmitFunctionBuilder[F >: Null](
     df
   }
 
-  override def result(print: Option[PrintWriter] = None): () => F = {
+  val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
+
+  def makeRNGs() {
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
+
+    val initialized = newField[Boolean]
+    val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
+    methods += mb
+
+    val rngFields = rngs.result()
+    val initialize = Code(rngFields.map { case (field, initialization) =>
+        field := initialization
+    }: _*)
+
+    val reseed = Code(rngFields.map { case (field, _) =>
+      field.invoke[Int, Unit]("reset", mb.getArg[Int](1))
+    }: _*)
+
+    mb.emit(Code(
+      initialized.mux(
+        Code._empty,
+        Code(initialize, initialized := true)),
+      reseed))
+  }
+
+  def newRNG(seed: Long): Code[IRRandomness] = {
+    val rng = newField[IRRandomness]
+    rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
+    rng
+  }
+
+  def resultWithIndex(print: Option[PrintWriter] = None): Int => F = {
+    makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val bytes = classAsBytes(print)
@@ -288,11 +327,11 @@ class EmitFunctionBuilder[F >: Null](
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new (() => F) with java.io.Serializable {
+    new ((Int) => F) with java.io.Serializable {
       @transient
       @volatile private var f: F = null
 
-      def apply(): F = {
+      def apply(idx: Int): F = {
         try {
           if (f == null) {
             this.synchronized {
@@ -304,7 +343,7 @@ class EmitFunctionBuilder[F >: Null](
               }
             }
           }
-
+          f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {
           //  only triggers on classloader

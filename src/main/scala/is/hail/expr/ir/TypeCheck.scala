@@ -1,10 +1,15 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.utils._
 
 object TypeCheck {
   def apply(ir: IR, aggEnv: Option[Env[Type]] = None) {
-    apply(ir, new Env[Type](), aggEnv)
+    try {
+      apply(ir, new Env[Type](), aggEnv)
+    } catch {
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ir)}", e)
+    }
   }
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
@@ -20,6 +25,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
+      case Literal(_, _, _) =>
       case Void() =>
 
       case Cast(v, typ) =>
@@ -119,12 +125,12 @@ object TypeCheck {
       case x@ArrayFilter(a, name, cond) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
-        check(cond, env = env.bind(name, tarray.elementType))
+        check(cond, env = env.bind(name, -tarray.elementType))
         assert(cond.typ.isOfType(TBoolean()))
       case x@ArrayFlatMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
-        check(body, env = env.bind(name, tarray.elementType))
+        check(body, env = env.bind(name, -tarray.elementType))
         assert(body.typ.isInstanceOf[TArray])
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         check(a)
@@ -217,14 +223,9 @@ object TypeCheck {
       case Die(msg, typ) =>
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
-      case x@Apply(fn, args) =>
-        val impl = x.implementation
-        args.foreach(check(_))
-        assert(x.implementation.unify(args.map(_.typ)))
-      case x@ApplySpecial(fn, args) =>
-        val impl = x.implementation
-        args.foreach(check(_))
-        assert(x.implementation.unify(args.map(_.typ)))
+      case x: AbstractApplyNode[_] =>
+        x.args.foreach(check(_))
+        assert(x.implementation.unify(x.args.map(_.typ)))
       case Uniroot(_, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])

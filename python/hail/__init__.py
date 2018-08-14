@@ -21,7 +21,8 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, spark_context, default_reference, get_reference
+from .context import init, stop, spark_context, default_reference, \
+    get_reference, set_global_seed
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -29,12 +30,16 @@ from .genetics import *
 from .methods import *
 from . import genetics as genetics
 from . import methods as methods
+from . import stats as stats
 from . import linalg as linalg
 from . import plot as plot
 from . import experimental as experimental
+from . import ir as ir
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir
+
+scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
 __all__ = [
     'init',
@@ -42,6 +47,7 @@ __all__ = [
     'spark_context',
     'default_reference',
     'get_reference',
+    'set_global_seed',
     'Table',
     'GroupedTable',
     'MatrixTable',
@@ -57,11 +63,14 @@ __all__ = [
     'Struct',
     'Interval',
     'agg',
+    'scan',
     'genetics',
     'methods',
+    'stats',
     'linalg',
     'plot',
     'experimental',
+    'ir'
 ]
 
 __all__.extend(genetics.__all__)

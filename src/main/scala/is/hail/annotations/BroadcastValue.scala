@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.{TArray, TBaseStruct, Type}
+import is.hail.expr.types._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
@@ -19,6 +19,11 @@ abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) 
     rvb.addAnnotation(t, value)
     rvb.end()
   }
+}
+
+object BroadcastRow {
+  def empty(sc: SparkContext): BroadcastRow =
+    BroadcastRow(Row.empty, TStruct.empty(), sc)
 }
 
 case class BroadcastRow(value: Row,

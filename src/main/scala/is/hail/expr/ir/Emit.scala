@@ -260,8 +260,8 @@ private class Emit(
             codeCond.m.mux(
               Code(mout := true, out := defaultValue(typ)),
               coerce[Boolean](codeCond.v).mux(
-                Code(codeCnsq.setup, mout := codeCnsq.m, out := codeCnsq.m.mux(defaultValue(typ), codeCnsq.v)),
-                Code(codeAltr.setup, mout := codeAltr.m, out := codeAltr.m.mux(defaultValue(typ), codeAltr.v)))))
+                Code(codeCnsq.setup, mout := codeCnsq.m, out := mout.mux(defaultValue(typ), codeCnsq.v)),
+                Code(codeAltr.setup, mout := codeAltr.m, out := mout.mux(defaultValue(typ), codeAltr.v)))))
 
           EmitTriplet(setup, mout, out)
         }
@@ -647,9 +647,10 @@ private class Emit(
             codeI.m.mux(
               Code._empty,
               agg.initOp(
+                mb,
                 aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+                argsv.map(_.load()),
+                argsm.map(_.load())))),
           const(false),
           Code._empty)
 
@@ -679,10 +680,11 @@ private class Emit(
             codeI.m.mux(
               Code._empty,
               agg.seqOp(
+                mb,
                 region,
                 aggregator(coerce[Int](codeI.v)),
-                argsv.map(Code(_)),
-                argsm.map(Code(_).asInstanceOf[Code[Boolean]])))),
+                argsv.map(_.load()),
+                argsm.map(_.load())))),
           const(false),
           Code._empty)
 
@@ -908,6 +910,13 @@ private class Emit(
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
+      case ir@ApplySeeded(fn, args, seed) =>
+        val impl = ir.implementation
+        val unified = impl.unify(args.map(_.typ))
+        assert(unified)
+        impl.setSeed(seed)
+        val codeArgs = args.map(emit(_))
+        impl.apply(mb, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
         val unified = x.implementation.unify(args.map(_.typ))
@@ -951,7 +960,7 @@ private class Emit(
       case node@Ref(id, _) if env.lookupOption(id).isDefined =>
         ids += id
         node
-      case node => Recur(getReferenced)(node)
+      case node => MapIR(getReferenced)(node)
     }
 
     val f = fb.newDependentFunction[Region, A1, Boolean, R]

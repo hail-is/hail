@@ -10,6 +10,7 @@ object Copy {
       case Str(value) => Str(value)
       case True() => True()
       case False() => False()
+      case Literal(typ, value, id) => Literal(typ, value, id)
       case Void() => Void()
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
@@ -128,6 +129,8 @@ object Copy {
         ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
       case Apply(fn, args) =>
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
+      case ApplySeeded(fn, args, seed) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
       case ApplySpecial(fn, args) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
       case Uniroot(argname, _, _, _) =>

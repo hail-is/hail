@@ -4,13 +4,14 @@ from pprint import pprint
 from typing import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from .misc import require_biallelic, require_row_key_variant, require_col_key_str
+from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
 
 
-@typecheck(dataset=MatrixTable, name=str)
-def sample_qc(dataset, name='sample_qc') -> MatrixTable:
+@typecheck(mt=MatrixTable, name=str)
+def sample_qc(mt, name='sample_qc') -> MatrixTable:
     """Compute per-sample metrics useful for quality control.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -21,66 +22,52 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
     Compute sample QC metrics and remove low-quality samples:
 
     >>> dataset = hl.sample_qc(dataset, name='sample_qc')
-    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
+    >>> filtered_dataset = dataset.filter_cols((dataset.sample_qc.dp_stats.mean > 20) & (dataset.sample_qc.r_ti_tv > 1.5))
 
     Notes
     -----
 
-    This method computes summary statistics per sample from a genetic matrix and stores the results as
-    a new column-indexed field in the matrix, named based on the `name` parameter.
+    This method computes summary statistics per sample from a genetic matrix and stores
+    the results as a new column-indexed struct field in the matrix, named based on the
+    `name` parameter.
 
-    +--------------------------+-------+-+------------------------------------------------------+
-    | Name                     | Type    | Description                                          |
-    +==========================+=========+======================================================+
-    | ``call_rate``            | float64 | Fraction of calls non-missing                        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_hom_ref``            | int64   | Number of homozygous reference calls                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_het``                | int64   | Number of heterozygous calls                         |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_hom_var``            | int64   | Number of homozygous alternate calls                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_called``             | int64   | Sum of ``n_hom_ref`` + ``n_het`` + ``n_hom_var``     |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_not_called``         | int64   | Number of missing calls                              |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_snp``                | int64   | Number of SNP alternate alleles                      |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_insertion``          | int64   | Number of insertion alternate alleles                |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_deletion``           | int64   | Number of deletion alternate alleles                 |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_singleton``          | int64   | Number of private alleles                            |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_transition``         | int64   | Number of transition (A-G, C-T) alternate alleles    |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_transversion``       | int64   | Number of transversion alternate alleles             |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_star``               | int64   | Number of star (upstream deletion) alleles           |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``n_non_ref``            | int64   | Sum of ``n_het`` and ``n_hom_var``                   |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_ti_tv``              | float64 | Transition/Transversion ratio                        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_het_hom_var``        | float64 | Het/HomVar call ratio                                |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``r_insertion_deletion`` | float64 | Insertion/Deletion allele ratio                      |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``dp_mean``              | float64 | Depth mean across all calls                          |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``dp_stdev``             | float64 | Depth standard deviation across all calls            |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``gq_mean``              | float64 | The average genotype quality across all calls        |
-    +--------------------------+---------+------------------------------------------------------+
-    | ``gq_stdev``             | float64 | Genotype quality standard deviation across all calls |
-    +--------------------------+---------+------------------------------------------------------+
+    If `mt` contains an entry field `DP` of type :py:data:`.tint32`, then the
+    field `dp_stats` is computed. If `mt` contains an entry field `GQ` of type
+    :py:data:`.tint32`, then the field `gq_stats` is computed. Both `dp_stats`
+    and `gq_stats` are structs with with four fields:
 
-    Missing values ``NA`` may result from division by zero. The empirical
-    standard deviation is computed with zero degrees of freedom.
+    - `mean` (``float64``) -- Mean value.
+    - `stdev` (``float64``) -- Standard deviation (zero degrees of freedom).
+    - `min` (``int32``) -- Minimum value.
+    - `max` (``int32``) -- Maximum value.
+
+    If the dataset does not contain an entry field `GT` of type
+    :py:data:`.tcall`, then an error is raised. The following fields are always
+    computed from `GT`:
+
+    - `call_rate` (``float64``) -- Fraction of calls non-missing.
+    - `n_called` (``int64``) -- Number of non-missing calls.
+    - `n_not_called` (``int64``) -- Number of missing calls.
+    - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
+    - `n_het` (``int64``) -- Number of heterozygous calls.
+    - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
+    - `n_non_ref` (``int64``) -- Sum of ``n_het`` and ``n_hom_var``.
+    - `n_snp` (``int64``) -- Number of SNP alternate alleles.
+    - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
+    - `n_deletion` (``int64``) -- Number of deletion alternate alleles.
+    - `n_singleton` (``int64``) -- Number of private alleles.
+    - `n_transition` (``int64``) -- Number of transition (A-G, C-T) alternate alleles.
+    - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
+    - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
+    - `r_ti_tv` (``float64``) -- Transition/Transversion ratio.
+    - `r_het_hom_var (``float64``) -- Het/HomVar call ratio.
+    - `r_insertion_deletion` (``float64``) -- Insertion/Deletion allele ratio.
+
+    Missing values ``NA`` may result from division by zero.
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    mt : :class:`.MatrixTable`
         Dataset.
     name : :obj:`str`
         Name for resulting field.
@@ -91,7 +78,93 @@ def sample_qc(dataset, name='sample_qc') -> MatrixTable:
         Dataset with a new column-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.SampleQC.apply(dataset._jvds, name))
+    require_row_key_variant(mt, 'sample_qc')
+
+    from hail.expr.functions import _num_allele_type , _allele_types
+
+    allele_types = _allele_types[:]
+    allele_types.extend(['Transition', 'Transversion'])
+    allele_enum = {i: v for i, v in enumerate(allele_types)}
+    allele_ints = {v: k for k, v in allele_enum.items()}
+
+    def allele_type(ref, alt):
+        return hl.bind(lambda at: hl.cond(at == allele_ints['SNP'],
+                                          hl.cond(hl.is_transition(ref, alt),
+                                                  allele_ints['Transition'],
+                                                  allele_ints['Transversion']),
+                                          at),
+                       _num_allele_type(ref, alt))
+
+    variant_ac = Env.get_uid()
+    variant_atypes = Env.get_uid()
+    mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
+                             variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
+
+    exprs = {}
+
+    def has_field_of_type(name, dtype):
+        return name in mt.entry and mt[name].dtype == dtype
+
+    if has_field_of_type('DP', hl.tint32):
+        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+
+    if has_field_of_type('GQ', hl.tint32):
+        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+
+    if not has_field_of_type('GT',  hl.tcall):
+        raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
+
+    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
+    exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
+    exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+
+    def get_allele_type(allele_idx):
+        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
+
+    exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
+
+    mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
+
+    zero = hl.int64(0)
+
+    select_exprs = {}
+    if 'dp_stats' in exprs:
+        select_exprs['dp_stats'] = mt[name].dp_stats
+    if 'gq_stats' in exprs:
+        select_exprs['gq_stats'] = mt[name].gq_stats
+
+    select_exprs = {
+        **select_exprs,
+        'call_rate': hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
+        'n_called': mt[name].n_called,
+        'n_not_called': mt[name].n_not_called,
+        'n_hom_ref': mt[name].n_hom_ref,
+        'n_het': mt[name].n_het,
+        'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
+        'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
+        'n_singleton': mt[name].n_singleton,
+        'n_snp': mt[name].allele_type_counts.get(allele_ints["Transition"], zero) + \
+                 mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_insertion': mt[name].allele_type_counts.get(allele_ints["Insertion"], zero),
+        'n_deletion': mt[name].allele_type_counts.get(allele_ints["Deletion"], zero),
+        'n_transition': mt[name].allele_type_counts.get(allele_ints["Transition"], zero),
+        'n_transversion': mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
+        'n_star': mt[name].allele_type_counts.get(allele_ints["Star"], zero)
+    }
+
+    mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
+
+    mt = mt.annotate_cols(**{name: mt[name].annotate(
+        r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
+        r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),
+        r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
+    )})        
+
+    mt = mt.drop(variant_ac, variant_atypes)
+
+    return mt
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -140,16 +213,16 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
-    - `p_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
-      See :func:`.functions.hardy_weinberg_test` for details.
-    - `r_expected_het_freq` (``float64``) -- Expected frequency of heterozygous
+    - `het_freq_hwe` (``float64``) -- Expected frequency of heterozygous
       samples under Hardy-Weinberg equilibrium. See
-      :func:`.functions.hardy_weinberg_p` for details.
+      :func:`.functions.hardy_weinberg_test` for details.
+    - `p_value_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+      See :func:`.functions.hardy_weinberg_test` for details.
 
     Warning
     -------
-    `p_hwe` and `r_expected_het_freq` are calculated as in
-    :func:`.functions.hardy_weinberg_p`, with non-diploid calls
+    `het_freq_hwe` and `p_value_hwe` are calculated as in
+    :func:`.functions.hardy_weinberg_test`, with non-diploid calls
     (``ploidy != 2``) ignored in the counts. As this test is only
     statistically rigorous in the biallelic setting, :func:`variant_qc`
     sets both fields to missing for multiallelic variants. Consider using
@@ -201,9 +274,10 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
 
-    hwe = hl.hardy_weinberg_p(mt[name].homozygote_count[0],
-                              mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
-                              mt[name].homozygote_count[1])
+    hwe = hl.hardy_weinberg_test(mt[name].homozygote_count[0],
+                                 mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
+                                 mt[name].homozygote_count[1])
+    hwe = hwe.select(het_freq_hwe=hwe.het_freq_hwe, p_value_hwe=hwe.p_value)
     mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
                                                      call_rate=mt[name].n_called / n_samples,
                                                      n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),
@@ -329,6 +403,8 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     require_col_key_str(left, 'concordance, left')
     require_col_key_str(right, 'concordance, right')
+    left = left.select_rows().select_cols().select_globals().select_entries('GT')
+    right = right.select_rows().select_cols().select_globals().select_entries('GT')
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
@@ -341,240 +417,74 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     return global_conc, col_conc, row_conc
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(dataset=oneof(Table, MatrixTable),
            config=str,
            block_size=int,
            name=str,
            csq=bool)
-def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
+def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep', csq=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
 
     :func:`.vep` runs `Variant Effect Predictor
-    <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
-    plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
-    adds the result as a row field.
+    <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ on the
+    current dataset and adds the result as a row field.
 
     Examples
     --------
 
     Add VEP annotations to the dataset:
 
-    >>> result = hl.vep(dataset, "data/vep.properties") # doctest: +SKIP
+    >>> result = hl.vep(dataset, "data/vep-configuration.json") # doctest: +SKIP
 
     Notes
     -----
 
     **Configuration**
 
-    :func:`.vep` needs a configuration file to tell it
-    how to run VEP. The format is a `.properties file
-    <https://en.wikipedia.org/wiki/.properties>`__. Roughly, each line defines a
-    property as a key-value pair of the form `key = value`. :func:`.vep` supports the
-    following properties:
+    :func:`.vep` needs a configuration file to tell it how to run VEP.
+    The format of the configuration file is JSON, and :func:`.vep`
+    expects a JSON object with three fields:
 
-    - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
-    - **hail.vep.perl5lib** -- Value for the PERL5LIB environment variable when
-      invoking VEP. Optional, by default PERL5LIB is not set.
-    - **hail.vep.path** -- Value of the PATH environment variable when invoking
-      VEP.  Optional, by default PATH is not set.
-    - **hail.vep.location** -- Location of the VEP Perl script.  Required.
-    - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP
-      with the ``--dir`` option. Required.
-    - **hail.vep.fasta** -- Location of the FASTA file to use to look up the
-      reference sequence, passed to VEP with the `--fasta` option. Required.
-    - **hail.vep.assembly** -- Genome assembly version to use. Optional,
-      default: GRCh37
-    - **hail.vep.plugin** -- VEP plugin, passed to VEP with the `--plugin`
-      option. Optional. Overrides `hail.vep.lof.human_ancestor` and
-      `hail.vep.lof.conservation_file`.
-    - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for
-      the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required otherwise.
-    - **hail.vep.lof.conservation_file** -- Location of the conservation file
-      for the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required
-      otherwise.
+    - `command` (array of string) -- The VEP command line to run.  The string literal `__OUTPUT_FORMAT_FLAG__` is replaced with `--json` or `--vcf` depending on `csq`.
+    - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
+    - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
 
-    Here is an example ``vep.properties`` configuration file
+    Here is an example configuration file for invoking VEP release 81
+    installed in `/vep` with the Loftee plugin:
 
     .. code-block:: text
 
-        hail.vep.perl = /usr/bin/perl
-        hail.vep.path = /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-        hail.vep.location = /path/to/vep/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl
-        hail.vep.cache_dir = /path/to/vep
-        hail.vep.lof.human_ancestor = /path/to/loftee_data/human_ancestor.fa.gz
-        hail.vep.lof.conservation_file = /path/to/loftee_data/phylocsf.sql
-
-    **VEP Invocation**
-
-    .. code-block:: text
-
-        <hail.vep.perl>
-        <hail.vep.location>
-        --format vcf
-        --json
-        --everything
-        --allele_number
-        --no_stats
-        --cache --offline
-        --dir <hail.vep.cache_dir>
-        --fasta <hail.vep.fasta>
-        --minimal
-        --assembly <hail.vep.assembly>
-        --plugin LoF,\
-        human_ancestor_fa:$<hail.vep.lof.human_ancestor>,\
-        filter_position:0.05,\
-        min_intron_size:15,\
-        conservation_file:<hail.vep.lof.conservation_file>
-        -o STDOUT
+        {"command": [
+            "/usr/bin/perl",
+            "/vep/variant_effect_predictor/variant_effect_predictor.pl",
+            "--format", "vcf",
+            "__OUTPUT_FORMAT_FLAG__",
+            "--everything",
+            "--allele_number",
+            "--no_stats",
+            "--cache", "--offline",
+            "--dir", "/vep",
+            "--fasta", "/vep/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+            "--minimal",
+            "--assembly", "GRCh37",
+            "--plugin", "LoF,human_ancestor_fa:/vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/vep/loftee_data/phylocsf.sql",
+            "-o", "STDOUT"
+        ],
+         "env": {
+             "PERL5LIB": "/vep/loftee"
+         },
+         "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
+        }
 
     **Annotations**
 
-    A new row field is added in the location specified by `name` with the
-    following schema:
-
-    .. code-block:: text
-
-        struct {
-            assembly_name: str,
-            allele_string: str,
-            ancestral: str,
-            colocated_variants: array<struct {
-                aa_allele: str,
-                aa_maf: float64,
-                afr_allele: str,
-                afr_maf: float64,
-                allele_string: str,
-                amr_allele: str,
-                amr_maf: float64,
-                clin_sig: array<str>,
-                end: int32,
-                eas_allele: str,
-                eas_maf: float64,
-                ea_allele: str,
-                ea_maf: float64,
-                eur_allele: str,
-                eur_maf: float64,
-                exac_adj_allele: str,
-                exac_adj_maf: float64,
-                exac_allele: str,
-                exac_afr_allele: str,
-                exac_afr_maf: float64,
-                exac_amr_allele: str,
-                exac_amr_maf: float64,
-                exac_eas_allele: str,
-                exac_eas_maf: float64,
-                exac_fin_allele: str,
-                exac_fin_maf: float64,
-                exac_maf: float64,
-                exac_nfe_allele: str,
-                exac_nfe_maf: float64,
-                exac_oth_allele: str,
-                exac_oth_maf: float64,
-                exac_sas_allele: str,
-                exac_sas_maf: float64,
-                id: str,
-                minor_allele: str,
-                minor_allele_freq: float64,
-                phenotype_or_disease: int32,
-                pubmed: array<int32>,
-                sas_allele: str,
-                sas_maf: float64,
-                somatic: int32,
-                start: int32,
-                strand: int32
-            }>,
-            context: str,
-            end: int32,
-            id: str,
-            input: str,
-            intergenic_consequences: array<struct {
-                allele_num: int32,
-                consequence_terms: array<str>,
-                impact: str,
-                minimised: int32,
-                variant_allele: str
-            }>,
-            most_severe_consequence: str,
-            motif_feature_consequences: array<struct {
-                allele_num: int32,
-                consequence_terms: array<str>,
-                high_inf_pos: str,
-                impact: str,
-                minimised: int32,
-                motif_feature_id: str,
-                motif_name: str,
-                motif_pos: int32,
-                motif_score_change: float64,
-                strand: int32,
-                variant_allele: str
-            }>,
-            regulatory_feature_consequences: array<struct {
-                allele_num: int32,
-                biotype: str,
-                consequence_terms: array<str>,
-                impact: str,
-                minimised: int32,
-                regulatory_feature_id: str,
-                variant_allele: str
-            }>,
-            seq_region_name: str,
-            start: int32,
-            strand: int32,
-            transcript_consequences: array<struct {
-                allele_num: int32,
-                amino_acids: str,
-                biotype: str,
-                canonical: int32,
-                ccds: str,
-                cdna_start: int32,
-                cdna_end: int32,
-                cds_end: int32,
-                cds_start: int32,
-                codons: str,
-                consequence_terms: array<str>,
-                distance: int32,
-                domains: array<struct {
-                    db: str,
-                    name: str
-                }>,
-                exon: str,
-                gene_id: str,
-                gene_pheno: int32,
-                gene_symbol: str,
-                gene_symbol_source: str,
-                hgnc_id: str,
-                hgvsc: str,
-                hgvsp: str,
-                hgvs_offset: int32,
-                impact: str,
-                intron: str,
-                lof: str,
-                lof_flags: str,
-                lof_filter: str,
-                lof_info: str,
-                minimised: int32,
-                polyphen_prediction: str,
-                polyphen_score: float64,
-                protein_end: int32,
-                protein_start: int32,
-                protein_id: str,
-                sift_prediction: str,
-                sift_score: float64,
-                strand: int32,
-                swissprot: str,
-                transcript_id: str,
-                trembl: str,
-                uniparc: str,
-                variant_allele: str
-            }>,
-            variant_class: str
-        }
+    A new row field is added in the location specified by `name` with type given by the type given by the `json_vep_schema` (if `csq` is ``False``) or :py:data:`.tstr` (if `csq` is ``True``).
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
     config : :obj:`str`
         Path to VEP configuration file.
@@ -583,25 +493,35 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False) -> MatrixTable:
     name : :obj:`str`
         Name for resulting row field.
     csq : :obj:`bool`
-        If ``True``, annotates VCF CSQ field as a :py:data:`.tstr`.
-        If ``False``, annotates with the full nested struct schema.
+        If ``True``, annotates with the VCF CSQ field as a :py:data:`.tstr`.
+        If ``False``, annotates as the `vep_json_schema`.
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing VEP annotations.
+
     """
+    if isinstance(dataset, MatrixTable):
+        require_row_key_variant(dataset, 'vep')
+        ht = dataset.select_rows().rows()
+    else:
+        require_table_key_variant(dataset, 'vep')
+        ht = dataset.select()
 
-    require_row_key_variant(dataset, 'vep')
-    mt = MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
-    return mt.annotate_rows(vep=mt['vep']['vep'])
+    annotations = Table(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+
+    if isinstance(dataset, MatrixTable):
+        return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})
+    else:
+        return dataset.annotate(**{name: annotations[dataset.key].vep})
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(dataset=oneof(Table, MatrixTable),
            config=str,
            block_size=int,
            name=str)
-def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
+def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name='nirvana'):
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
     .. include:: ../_templates/experimental.rst
@@ -907,7 +827,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
     config : :obj:`str`
         Path to Nirvana configuration file.
@@ -918,13 +838,22 @@ def nirvana(dataset, config, block_size=500000, name='nirvana') -> MatrixTable:
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing Nirvana annotations.
     """
+    if isinstance(dataset, MatrixTable):
+        require_row_key_variant(dataset, 'nirvana')
+        ht = dataset.select_rows().rows()
+    else:
+        require_table_key_variant(dataset, 'nirvana')
+        ht = dataset.select()
 
-    require_row_key_variant(dataset, 'nirvana')
-    mt = MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
-    return mt.annotate_rows(nirvana=mt['nirvana']['nirvana'])
+    annotations = Table(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+
+    if isinstance(dataset, MatrixTable):
+        return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})
+    else:
+        return dataset.annotate(**{name: annotations[dataset.key].nirvana})
 
 
 @typecheck(mt=MatrixTable, show=bool)

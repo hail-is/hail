@@ -81,22 +81,36 @@ abstract class TBaseStruct extends Type {
     sb.result()
   }
 
-  override def _typeCheck(a: Any): Boolean =
-    a.isInstanceOf[Row] && {
-      val r = a.asInstanceOf[Row]
-      r.length == types.length &&
-        r.toSeq.zip(types).forall {
-          case (v, t) => t.typeCheck(v)
-        }
-    }
+  override def _typeCheck(a: Any): Boolean = a match {
+    case row: Row =>
+      row.length == types.length &&
+        isComparableAt(a)
+    case _ => false
+  }
+
+  def relaxedTypeCheck(a: Any): Boolean = a match {
+    case row: Row =>
+      row.length <= types.length &&
+        isComparableAt(a)
+    case _ => false
+  }
 
   def isComparableAt(a: Annotation): Boolean = a match {
     case row: Row =>
-      Range(0, math.min(row.size, size)).forall { i =>
-        types(i).typeCheck(row(i))
+      row.toSeq.zip(types).forall {
+        case (v, t) => t.typeCheck(v)
       }
     case _ => false
   }
+
+  def isIsomorphicTo(other: TBaseStruct): Boolean =
+    size == other.size && isCompatibleWith(other)
+
+  def isPrefixOf(other: TBaseStruct): Boolean =
+    size <= other.size && isCompatibleWith(other)
+
+  def isCompatibleWith(other: TBaseStruct): Boolean =
+    fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

@@ -78,10 +78,19 @@ object PCRelate {
 
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
+    val irFields = Array(
+      "i" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
+      "j" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
+      "kin" -> "(GetField kin (Ref row))",
+      "ibd0" -> "(GetField ibd0 (Ref row))",
+      "ibd1" -> "(GetField ibd1 (Ref row))",
+      "ibd2" -> "(GetField ibd2 (Ref row))"
+    ).map { case (name, expr) => s"($name $expr)" }
+    val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
+
     Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select("{i: global.sample_ids[row.i], j: global.sample_ids[row.j], kin: row.kin, ibd0: row.ibd0, ibd1: row.ibd1, ibd2: row.ibd2}",
-        Some(keys.toFastIndexedSeq), Some(0))
+      .select(irExpr, Some(keys.toFastIndexedSeq), Some(0))
   }
 
   // FIXME move matrix formation to Python

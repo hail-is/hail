@@ -1,4 +1,4 @@
-from hail.utils import warn, error
+from hail.utils import warn, error, java
 from .indices import *
 from ..expressions import Expression, Aggregable, ExpressionException, expr_any
 from typing import *
@@ -7,8 +7,13 @@ from typing import *
 @typecheck(caller=str,
            expr=Expression,
            expected_indices=Indices,
-           aggregation_axes=setof(str))
-def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set()):
+           aggregation_axes=setof(str),
+           broadcast=bool)
+def analyze(caller: str,
+            expr: Expression,
+            expected_indices: Indices,
+            aggregation_axes: Set = set(),
+            broadcast=True):
     indices = expr._indices
     source = indices.source
     axes = indices.axes
@@ -21,28 +26,53 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
     expected_axes = expected_indices.axes
 
     if source is not None and source is not expected_source:
+        bad_refs = []
+        for name, inds in get_refs(expr).items():
+            if inds.source is not expected_source:
+                bad_refs.append(name)
         errors.append(
-            ExpressionException('{} expects an expression from source {}, found expression derived from {}'.format(
-                caller, expected_source, source
+            ExpressionException("'{caller}': source mismatch\n"
+                                "  Expected an expression from source {expected}\n"
+                                "  Found expression derived from source {actual}\n"
+                                "  Problematic field(s): {bad_refs}\n\n"
+                                "  This error is commonly caused by chaining methods together:\n"
+                                "    >>> ht.distinct().select(ht.x)\n\n"
+                                "  Correct usage:\n"
+                                "    >>> ht = ht.distinct()\n"
+                                "    >>> ht = ht.select(ht.x)".format(
+                caller=caller,
+                expected=expected_source,
+                actual=source,
+                bad_refs=list(bad_refs)
             )))
 
     # check for stray indices by subtracting expected axes from observed
-    unexpected_axes = axes - expected_axes
+    if broadcast:
+        unexpected_axes = axes - expected_axes
+        strictness = ''
+    else:
+        unexpected_axes = axes if axes != expected_axes else set()
+        strictness = 'strictly '
 
     if unexpected_axes:
         # one or more out-of-scope fields
         refs = get_refs(expr)
         bad_refs = []
         for name, inds in refs.items():
-            bad_axes = inds.axes.intersection(unexpected_axes)
-            if bad_axes:
-                bad_refs.append((name, inds))
+            if broadcast:
+                bad_axes = inds.axes.intersection(unexpected_axes)
+                if bad_axes:
+                    bad_refs.append((name, inds))
+            else:
+                if inds.axes != expected_axes:
+                    bad_refs.append((name, inds))
 
         assert len(bad_refs) > 0
         errors.append(ExpressionException(
-            "scope violation: '{caller}' expects an expression indexed by {expected}"
+            "scope violation: '{caller}' expects an expression {strictness}indexed by {expected}"
             "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}{agg}".format(
                 caller=caller,
+                strictness=strictness,
                 expected=list(expected_axes),
                 axes=list(indices.axes),
                 stray=list(unexpected_axes),
@@ -63,13 +93,6 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                 refs = get_refs(*agg.exprs)
                 agg_indices = agg.indices
                 agg_axes = agg_indices.axes
-                if agg_indices.source is not None and agg_indices.source is not expected_source:
-                    errors.append(
-                        ExpressionException(
-                            'Expected an expression from source {}, found expression derived from {}'
-                            '\n    Invalid fields: [{}]'.format(
-                                expected_source, source, ', '.join("'{}'".format(name) for name in refs)
-                            )))
 
                 # check for stray indices
                 unexpected_agg_axes = agg_axes - expected_agg_axes
@@ -168,17 +191,23 @@ def eval_expr_typed(expression):
     """
     analyze('eval_expr_typed', expression, Indices(expression._indices.source))
 
-    return expression.collect()[0], expression.dtype
+    if expression._indices.source is None:
+        return (expression.dtype._from_json(
+            java.Env._hail_package.expr.ir.Interpret.interpretPyIR(str(expression._ir))),
+                expression.dtype)
+    else:
+        return expression.collect()[0], expression.dtype
 
 
 def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
-    from ..expr_ast import Select, TopLevelReference
+    from hail.ir import GetField, TopLevelReference
 
-    for ast in expr._ast.search(
-            lambda a: isinstance(a, Select)
+    for ir in expr._ir.search(
+            lambda a: isinstance(a, GetField)
                       and not a.name.startswith('__uid')
-                      and isinstance(a.parent, TopLevelReference)):
-        builder[ast.name] = ast.parent.indices
+                      and isinstance(a.o, TopLevelReference)):
+        src = expr._indices.source
+        builder[ir.name] = src._indices_from_ref[ir.o.name]
 
 
 def extract_refs_by_indices(exprs, indices):

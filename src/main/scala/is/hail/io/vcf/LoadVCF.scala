@@ -560,8 +560,11 @@ class FormatParser(
   }
 
   def setFieldMissing(rvb: RegionValueBuilder, i: Int) {
-    rvb.setFieldIndex(formatFieldGIndex(i))
-    rvb.setMissing()
+    val idx = formatFieldGIndex(i)
+    if (idx >= 0) {
+      rvb.setFieldIndex(idx)
+      rvb.setMissing()
+    }
   }
 
   def parse(l: VCFLine, rvb: RegionValueBuilder) {

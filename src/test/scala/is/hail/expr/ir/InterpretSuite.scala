@@ -4,7 +4,8 @@ import is.hail.expr.types._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.TestUtils._
 import org.apache.spark.sql.Row
-import org.junit.Test
+import org.testng.annotations.Test
+
 
 class InterpretSuite {
 
@@ -289,6 +290,6 @@ class InterpretSuite {
         Begin(FastIndexedSeq())),
       FastSeq(), None, aggSig),
       agg,
-      15)
+      15L)
   }
 }

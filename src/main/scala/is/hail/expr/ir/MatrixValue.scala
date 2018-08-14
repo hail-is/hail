@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.rvd._
 import is.hail.annotations._
-import is.hail.expr.types.{MatrixType, TStruct, TableType}
+import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
+import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -20,7 +20,7 @@ case class MatrixValue(
   colValues: BroadcastIndexedSeq,
   rvd: OrderedRVD) {
 
-    assert(rvd.typ == typ.orvdType)
+    assert(rvd.typ == typ.orvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.orvdType}")
 
     def sparkContext: SparkContext = rvd.sparkContext
 
@@ -197,11 +197,18 @@ case class MatrixValue(
       val localEntryType = typ.entryType
       val localNCols = nCols
 
-      val localColValues = colValues.broadcast.value
+      val localColValues = colValues.broadcast
 
       rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
         val rv2b = ctx.rvb
         val rv2 = RegionValue(ctx.region)
+
+        val colRegion = ctx.freshRegion
+        val colRVB = new RegionValueBuilder(colRegion)
+        val colsType = TArray(localColType, required = true)
+        colRVB.start(colsType)
+        colRVB.addAnnotation(colsType, localColValues.value)
+        val colsOffset = colRVB.end()
 
         it.flatMap { rv =>
           val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
@@ -221,7 +228,7 @@ case class MatrixValue(
                 j += 1
               }
 
-              rv2b.addInlineRow(localColType, localColValues(i).asInstanceOf[Row])
+              rv2b.addAllFields(localColType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
               rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
               rv2b.endStruct()
               rv2.setOffset(rv2b.end())
@@ -229,5 +236,55 @@ case class MatrixValue(
             }
         }
       })
+    }
+
+    def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
+      newColKey: IndexedSeq[String] = typ.colKey,
+      newColValues: BroadcastIndexedSeq = colValues,
+      newGlobalType: TStruct = typ.globalType,
+      newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+      inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
+      insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
+        TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+    }
+
+    def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
+      newColKey: IndexedSeq[String] = typ.colKey,
+      newColValues: BroadcastIndexedSeq = colValues,
+      newGlobalType: TStruct = typ.globalType,
+      newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
+      inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
+      assert(!typ.rowKey.contains(path))
+
+      val fullRowType = typ.rvRowType
+      val localEntriesIndex = typ.entriesIdx
+
+      val (newRVType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
+
+      val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
+        colKey = newColKey, globalType = newGlobalType)
+
+      MatrixValue(
+        newMatrixType,
+        newGlobals,
+        newColValues,
+        rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+
+          val pc = makePartitionContext()
+
+          val rv2 = RegionValue()
+          val rvb = new RegionValueBuilder()
+          it.map { rv =>
+            rvb.set(rv.region)
+            rvb.start(newRVType)
+
+            ins(rv.region, rv.offset, rvb,
+              () => inserter(pc, rv, rvb)
+            )
+
+            rv2.set(rv.region, rvb.end())
+            rv2
+          }
+        })
     }
   }

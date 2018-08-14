@@ -22,10 +22,15 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
+  def prettyAggOp(op: AggOp): String = op match {
+    case x@Keyed(aggOp) => s"Keyed(${ prettyAggOp(aggOp) })"
+    case _ => prettyClass(op)
+  }
+
   def prettyAggSignature(aggSig: AggSignature): String = {
     val sb = new StringBuilder
     sb += '('
-    sb.append(prettyClass(aggSig.op))
+    sb.append(prettyAggOp(aggSig.op))
     sb += ' '
     sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
     sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
@@ -156,6 +161,10 @@ object Pretty {
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
+            case Literal(typ, value, id) =>
+              s"${ typ.parsableString() } " +
+                s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) } " +
+                s"${ prettyStringLiteral(id) }"
             case Let(name, _, _) => prettyIdentifier(name)
             case Ref(name, typ) => s"${ typ.parsableString() } $name"
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
@@ -172,6 +181,7 @@ object Pretty {
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
+            case ApplySeeded(function, _, seed) => prettyIdentifier(function) + " " + seed.toString
             case ApplySpecial(function, _) => prettyIdentifier(function)
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
@@ -184,13 +194,19 @@ object Pretty {
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
-              prettyStrings(rowKey)
-              prettyStrings(colKey)
-              prettyStrings(rowFields)
-              prettyStrings(colFields)
-              prettyStrings(partitionKey)
+              prettyStrings(rowKey) + " " +
+              prettyStrings(colKey) +  " " +
+              prettyStrings(rowFields) + " " +
+              prettyStrings(colFields) + " " +
+              prettyStrings(partitionKey) + " " +
               prettyIntOpt(nPartitions)
+            case MatrixAnnotateRowsTable(_, _, uid, key) =>
+              prettyStringLiteral(uid) + " " +
+              prettyBooleanLiteral(key.isDefined)
+            case MatrixAnnotateColsTable(_, _, uid) =>
+              prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
+            case MatrixExplodeCols(_, path) => prettyIdentifiers(path)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixMapRows(_, _, newKey) =>
@@ -242,9 +258,14 @@ object Pretty {
                 prettyIntOpt(nPartitionKeys) + " " +
                 prettyBooleanLiteral(sort)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
+            case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
+            case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType) => joinType
+            case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
+            case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
+              prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, field) => field
             case TableParallelize(typ, rows, nPartitions) =>
               val valueType = TArray(typ.rowType)
@@ -258,6 +279,8 @@ object Pretty {
                   JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
+            case LocalizeEntries(_, name) => prettyStringLiteral(name)
+            case UnlocalizeEntries(_, _, name) => prettyStringLiteral(name)
             case _ => ""
           }
 

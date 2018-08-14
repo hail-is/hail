@@ -7,6 +7,7 @@ import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
+from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
@@ -92,11 +93,12 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
-        dataset, _ = dataset._process_joins(maf)
-        maf = maf._ast.to_hql()
-
+        dataset = dataset.select_rows(__maf = maf)
+    else:
+        dataset = dataset.select_rows()
+    dataset = dataset.select_cols().select_globals().select_entries('GT')
     return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
-                                              joption(maf),
+                                              joption('__maf' if maf is not None else None),
                                               bounded,
                                               joption(min),
                                               joption(max)))
@@ -236,7 +238,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=sequenceof(expr_float64),
            root=str,
            block_size=int)
-def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> MatrixTable:
+def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixTable:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -245,14 +247,15 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
 
     >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
     ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...                                       covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
     :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
     for every response variable and row, namely those columns for which **all**
     response variables and covariates are defined. For each row, missing values
-    of `x` are mean-imputed over these columns.
+    of `x` are mean-imputed over these columns. As in the example, the intercept
+    covariate ``1`` must be included **explicitly** if desired.
 
     Notes
     -----
@@ -295,9 +298,9 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__.
     See equation 3.12 for the t-statistic which follows the t-distribution with
-    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    :math:`n - k - 1` degrees of freedom, under the null hypothesis of no
     effect, with :math:`n` samples and :math:`k` covariates in addition to
-    ``x`` and the intercept.
+    ``x``.
 
     Parameters
     ----------
@@ -332,6 +335,8 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
         all_exprs.append(e)
         analyze('linear_regression/covariates', e, mt._col_indices)
 
+    _warn_if_no_intercept('linear_regression', covariates)
+
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
         x_field_name = mt._fields_inverse[x]
@@ -351,7 +356,6 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
     mt = mt._annotate_all(col_exprs=dict(**dict(zip(y_field_names, y)),
                                          **dict(zip(cov_field_names, covariates))),
                           entry_exprs=entry_expr)
-
 
     jm = Env.hail().methods.LinearRegression.apply(
         mt._jvds,
@@ -377,20 +381,29 @@ def linear_regression(y, x, covariates=(), root='linreg', block_size=16) -> Matr
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            root=str)
-def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable:
+def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
     Examples
     --------
     Run the logistic regression Wald test per variant using a Boolean
-    phenotype and two covariates stored in column-indexed fields:
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
 
     >>> ds_result = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
-    ...     covariates=[dataset.pheno.age, dataset.pheno.is_female])
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    Warning
+    -------
+    :func:`.logistic_regression` considers the same set of columns (i.e.,
+    samples, points) for every row, namely those columns for which **all**
+    covariates are defined. For each row, missing values of `x` are mean-imputed
+    over these columns. As in the example, the intercept covariate ``1`` must be
+    included **explicitly** if desired.
 
     Notes
     -----
@@ -538,13 +551,6 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     Heinze and Schemper further analyze Firth's approach in
     `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-    Those variants that don't vary across the included samples (e.g., all
-    genotypes are HomRef) will have missing annotations.
-
-    For Boolean covariate types, ``True`` is coded as 1 and ``False`` as 0. In
-    particular, for the sample annotation `fam.is_case` added by importing a FAM
-    file with case-control phenotype, case is 1 and control is 0.
-
     Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
     and ``b.score`` tests in `EPACTS`_. For each variant, Hail imputes missing
     input values as the mean of non-missing input values, whereas EPACTS
@@ -565,7 +571,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed covariate expressions.
+        Non-empty list of column-indexed covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
 
@@ -574,6 +580,9 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
     """
+    if len(covariates) == 0:
+        raise ValueError('logistic regression requires at least one covariate expression')
+
     mt = matrix_table_source('logistic_regression/x', x)
     check_entry_indexed('logistic_regression/x', x)
 
@@ -583,6 +592,8 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
     for e in covariates:
         all_exprs.append(e)
         analyze('logistic_regression/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('logistic_regression', covariates)
 
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
@@ -624,7 +635,7 @@ def logistic_regression(test, y, x, covariates=(), root='logreg') -> MatrixTable
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
+def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
@@ -640,7 +651,7 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
     ...                      x=burden_ds.GT.n_alt_alleles(),
-    ...                      covariates=[burden_ds.burden.cov1, burden_ds.burden.cov2])
+    ...                      covariates=[1, burden_ds.burden.cov1, burden_ds.burden.cov2])
 
     .. caution::
 
@@ -658,6 +669,14 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
        entire job to fail. In this case, use the `max_size` parameter to skip
        groups larger than `max_size`.
 
+    Warning
+    -------
+    :func:`.skat` considers the same set of columns (i.e., samples, points) for
+    every group, namely those columns for which **all** covariates are defined.
+    For each row, missing values of `x` are mean-imputed over these columns.
+    As in the example, the intercept covariate ``1`` must be included
+    **explicitly** if desired.
+
     Notes
     -----
 
@@ -665,10 +684,6 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     variance-component test originally described in
     `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
     <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
-
-    The test is run on columns with `y` and all `covariates` non-missing. For
-    each row, missing input (`x`) values are imputed as the mean of all
-    non-missing input values.
 
     Row weights must be non-negative. Rows with missing weights are ignored. In
     the R package ``skat``---which assumes rows are variants---default weights
@@ -737,6 +752,9 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
         Row-indexed expression for row weights.
     y : :class:`.Float64Expression`
         Column-indexed response expression.
+        If `logistic` is ``True``, all non-missing values must evaluate to 0 or
+        1. Note that a :class:`.BooleanExpression` will be implicitly converted
+        to a :class:`.Float64Expression` with this property.
     x : :class:`.Float64Expression`
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
@@ -766,6 +784,8 @@ def skat(key_expr, weight_expr, y, x, covariates=[], logistic=False,
     for e in covariates:
         all_exprs.append(e)
         analyze('skat/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('skat', covariates)
 
     # FIXME: remove this logic when annotation is better optimized
     if x in mt._fields_inverse:
@@ -1308,8 +1328,31 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
-class SplitMulti(object):
+
+@typecheck(ds=oneof(Table, MatrixTable),
+           keep_star=bool,
+           left_aligned=bool)
+def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixTable]:
     """Split multiallelic variants.
+
+    The resulting dataset will be keyed by the split locus and alleles.
+
+    :func:`.split_multi` adds the following fields:
+
+     - `was_split` (*bool*) -- ``True`` if this variant was originally
+       multiallelic, otherwise ``False``.
+
+     - `a_index` (*int*) -- The original index of this alternate allele in the
+       multiallelic representation (NB: 1 is the first alternate allele or the
+       only alternate allele in a biallelic variant). For example, 1:100:A:T,C
+       splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
+       with ``a_index = 2``.
+
+     - `old_locus` (*locus*) -- The original, unsplit locus.
+
+     - `old_alleles` (*array<str>*) -- The original, unsplit alleles.
+
+     All other fields are left unchanged.
 
     Example
     -------
@@ -1319,158 +1362,107 @@ class SplitMulti(object):
     the genotype annotations by downcoding the genotype, is
     implemented as:
 
-    >>> sm = hl.SplitMulti(ds)
+    >>> sm = hl.split_multi(ds)
     >>> pl = hl.or_missing(
-    ...      hl.is_defined(ds.PL),
-    ...      (hl.range(0, 3).map(lambda i: hl.min(hl.range(0, hl.len(ds.PL))
-    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index()) == hl.unphased_diploid_gt_index_call(i))
-    ...                     .map(lambda j: ds.PL[j])))))
-    >>> sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
-    >>> sm.update_entries(
-    ...     GT=hl.downcode(ds.GT, sm.a_index()),
-    ...     AD=hl.or_missing(hl.is_defined(ds.AD),
-    ...                     [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]]),
-    ...     DP=ds.DP,
+    ...      hl.is_defined(sm.PL),
+    ...      (hl.range(0, 3).map(lambda i: hl.min(hl.range(0, hl.len(sm.PL))
+    ...                     .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), sm.a_index) == hl.unphased_diploid_gt_index_call(i))
+    ...                     .map(lambda j: sm.PL[j])))))
+    >>> split_ds = sm.annotate_entries(
+    ...     GT=hl.downcode(sm.GT, sm.a_index),
+    ...     AD=hl.or_missing(hl.is_defined(sm.AD),
+    ...                     [hl.sum(sm.AD) - sm.AD[sm.a_index], sm.AD[sm.a_index]]),
+    ...     DP=sm.DP,
     ...     PL=pl,
-    ...     GQ=hl.gq_from_pl(pl))
-    >>> split_ds = sm.result()
+    ...     GQ=hl.gq_from_pl(pl)).drop('old_locus', 'old_alleles')
 
-    Warning
+    Parameters
+    ----------
+    ds : :class:`.MatrixTable` or :class:`.Table`
+        An unsplit dataset.
+    keep_star : :obj:`bool`
+        Do not filter out * alleles.
+    left_aligned : :obj:`bool`
+        If ``True``, variants are assumed to be left aligned and have unique
+        loci. This avoids a shuffle. If the assumption is violated, an error
+        is generated.
+
+    Returns
     -------
-    Any entry and row fields that are not updated will be copied (unchanged)
-    for each split variant.
+    :class:`.MatrixTable` or :class:`.Table`
     """
 
-    @typecheck_method(ds=MatrixTable,
-                      keep_star=bool,
-                      left_aligned=bool)
-    def __init__(self, ds, keep_star=False, left_aligned=False):
-        """
-        Parameters
-        ----------
-        ds : :class:`.MatrixTable`
-            An unsplit dataset.
-        keep_star : :obj:`bool`
-            Do not filter out * alleles.
-        left_aligned : :obj:`bool`
-            If ``True``, variants are assumed to be left aligned and have unique
-            loci. This avoids a shuffle. If the assumption is violated, an error
-            is generated.
+    require_row_key_variant(ds, "split_multi")
+    new_id = Env.get_uid()
+    is_table = isinstance(ds, Table)
 
-        Returns
-        -------
-        :class:`.SplitMulti`
-        """
-        self._ds = ds
-        self._keep_star = keep_star
-        self._left_aligned = left_aligned
-        self._entry_fields = None
-        self._row_fields = None
+    old_row = ds.row if is_table else ds._rvrow
+    kept_alleles = hl.range(1, hl.len(old_row.alleles))
+    if not keep_star:
+        kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
 
-    def new_locus(self):
-        """The new, split variant locus.
+    def new_struct(variant, i):
+        return hl.struct(alleles=variant.alleles,
+                         locus=variant.locus,
+                         a_index=i,
+                         was_split=hl.len(old_row.alleles) > 2)
 
-        Returns
-        -------
-        :class:`.LocusExpression`
-        """
-        return construct_reference(
-            "newLocus", type=self._ds.locus.dtype, indices=self._ds._row_indices)
+    def split_rows(expr, rekey):
+        if isinstance(ds, MatrixTable):
+            mt = (ds.annotate_rows(**{new_id: expr})
+                  .explode_rows(new_id))
+            new_row_expr = mt._rvrow.annotate(locus=mt[new_id]['locus'],
+                                              alleles=mt[new_id]['alleles'],
+                                              a_index=mt[new_id]['a_index'],
+                                              was_split=mt[new_id]['was_split'],
+                                              old_locus=mt.locus,
+                                              old_alleles=mt.alleles).drop(new_id)
 
-    def new_alleles(self):
-        """The new, split variant alleles.
-
-        Returns
-        -------
-        :class:`.ArrayStringExpression`
-        """
-        return construct_reference(
-            "newAlleles", type=tarray(tstr), indices=self._ds._row_indices)
-
-    def a_index(self):
-        """The index of the input allele to the output variant.
-
-        Returns
-        -------
-        :class:`.Expression` of type :py:data:`.tint32`
-        """
-        return construct_reference(
-            "aIndex", type=tint32, indices=self._ds._row_indices)
-
-    def was_split(self):
-        """``True`` if the original variant was multiallelic.
-
-        Returns
-        -------
-        :class:`.BooleanExpression`
-        """
-        return construct_reference(
-            "wasSplit", type=tbool, indices=self._ds._row_indices)
-
-    def update_rows(self, **kwargs):
-        """Set the row field updates for this SplitMulti object.
-
-        Note
-        ----
-        May only be called once.
-        """
-        if self._row_fields is None:
-            self._row_fields = kwargs
+            return mt._select_rows('split_multi',
+                                   new_row_expr,
+                                   new_key=['locus', 'alleles'] if rekey else None,
+                                   pk_size=1 if rekey else None)
         else:
-            raise FatalError("You may only call update_rows once")
+            assert isinstance(ds, Table)
+            ht = (ds.annotate(**{new_id: expr})
+                  .explode(new_id))
+            new_row_expr = ht.row.annotate(locus=ht[new_id]['locus'],
+                                           alleles=ht[new_id]['alleles'],
+                                           a_index=ht[new_id]['a_index'],
+                                           was_split=ht[new_id]['was_split'],
+                                           old_locus=ht.locus,
+                                           old_alleles=ht.alleles).drop(new_id)
 
-    def update_entries(self, **kwargs):
-        """Set the entry field updates for this SplitMulti object.
+            return ht._select_scala(new_row_expr,
+                                    preserved_key=['locus', 'alleles'] if not rekey else [],
+                                    preserved_key_new=['locus', 'alleles'],
+                                    new_key=['locus', 'alleles'])
 
-        Note
-        ----
-        May only be called once.
-        """
-        if self._entry_fields is None:
-            self._entry_fields = kwargs
-        else:
-            raise FatalError("You may only call update_entries once")
 
-    def result(self):
-        """Split the dataset.
+    if left_aligned:
+        def make_struct(i):
+            def error_on_moved(v):
+                return (hl.case()
+                        .when(v.locus == old_row.locus, new_struct(v, i))
+                        .or_error("Found non-left-aligned variant in SplitMulti"))
+            return hl.bind(error_on_moved,
+                           hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+        return split_rows(hl.sorted(kept_alleles.map(make_struct)), False)
+    else:
+        def make_struct(i, cond):
+            def struct_or_empty(v):
+                return (hl.case()
+                        .when(cond(v.locus), hl.array([new_struct(v, i)]))
+                        .or_missing())
+            return hl.bind(struct_or_empty,
+                           hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
 
-        Returns
-        -------
-        :class:`.MatrixTable`
-            A split dataset.
-        """
+        def make_array(cond):
+            return hl.sorted(kept_alleles.flatmap(lambda i: make_struct(i, cond)))
 
-        if not self._row_fields:
-            self._row_fields = {}
-        if not self._entry_fields:
-            self._entry_fields = {}
-
-        unmod_row_fields = set(self._ds.row) - set(self._row_fields) - {'locus', 'alleles', 'a_index', 'was_split'}
-        unmod_entry_fields = set(self._ds.entry) - set(self._entry_fields)
-
-        for name, fds in [('row', unmod_row_fields), ('entry', unmod_entry_fields)]:
-            if fds:
-                field = hl.utils.misc.plural('field', len(fds))
-                word = hl.utils.misc.plural('was', len(fds), 'were')
-                fds = ', '.join(["'" + f + "'" for f in fds])
-                warn(f"SplitMulti: The following {name} {field} {word} not updated: {fds}. " \
-                      "Data will be copied (unchanged) for each split variant.")
-
-        base, _ = self._ds._process_joins(*itertools.chain(
-            self._row_fields.values(), self._entry_fields.values()))
-
-        annotate_rows = ','.join(['va.`{}` = {}'.format(k, v._ast.to_hql())
-                                  for k, v in self._row_fields.items()])
-        annotate_entries = ','.join(['g.`{}` = {}'.format(k, v._ast.to_hql())
-                                     for k, v in self._entry_fields.items()])
-
-        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
-            self._ds._jvds,
-            annotate_rows,
-            annotate_entries,
-            self._keep_star,
-            self._left_aligned)
-        return MatrixTable(jvds)
+        left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
+        moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
+    return left.union(moved) if is_table else left.union_rows(moved)
 
 
 @typecheck(ds=MatrixTable,
@@ -1589,10 +1581,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     :func:`.split_multi_hts` adds the following fields:
 
-     - `was_split` (*Boolean*) -- ``True`` if this variant was originally
+     - `was_split` (*bool*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
 
-     - `a_index` (*Int*) -- The original index of this alternate allele in the
+     - `a_index` (*int*) -- The original index of this alternate allele in the
        multiallelic representation (NB: 1 is the first alternate allele or the
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
        splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
@@ -1615,40 +1607,37 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     """
 
     entry_fields = set(ds.entry)
-
+    split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
     update_entries_expression = {}
-    sm = SplitMulti(ds, keep_star=keep_star, left_aligned=left_aligned)
 
     if 'GT' in entry_fields:
-        update_entries_expression['GT'] = hl.downcode(ds.GT, sm.a_index())
+        update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
     if 'DP' in entry_fields:
-        update_entries_expression['DP'] = ds.DP
+        update_entries_expression['DP'] = split.DP
     if 'AD' in entry_fields:
-        update_entries_expression['AD'] = hl.or_missing(hl.is_defined(ds.AD),
-                                                        [hl.sum(ds.AD) - ds.AD[sm.a_index()], ds.AD[sm.a_index()]])
+        update_entries_expression['AD'] = hl.or_missing(hl.is_defined(split.AD),
+                                                        [hl.sum(split.AD) - split.AD[split.a_index], split.AD[split.a_index]])
     if 'PL' in entry_fields:
         pl = hl.or_missing(
-            hl.is_defined(ds.PL),
+            hl.is_defined(split.PL),
             (hl.range(0, 3).map(lambda i:
-                                hl.min((hl.range(0, hl.triangle(ds.alleles.length()))
+                                hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
                                         .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                      sm.a_index()) == hl.unphased_diploid_gt_index_call(i)
-                                                ).map(lambda j: ds.PL[j]))))))
+                                                                      split.a_index) == hl.unphased_diploid_gt_index_call(i)
+                                                ).map(lambda j: split.PL[j]))))))
         update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = hl.gq_from_pl(pl)
     else:
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = ds.GQ
+            update_entries_expression['GQ'] = split.GQ
 
     if 'PGT' in entry_fields:
-        update_entries_expression['PGT'] = hl.downcode(ds.PGT, sm.a_index())
+        update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
-        update_entries_expression['PID'] = ds.PID
+        update_entries_expression['PID'] = split.PID
 
-    sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
-    sm.update_entries(**update_entries_expression)
-    return sm.result()
+    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
@@ -1807,32 +1796,32 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     --------
     Consider the following dataset with three variants and four samples:
 
-    >>> data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
-    ...         {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
-    ...         {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
+    >>> data = [{'v': '1:1:A:C', 's': 'a', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C', 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:1:A:C', 's': 'd', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': 'b', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2:G:T', 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2:G:T', 's': 'd', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:3:C:G', 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:3:C:G', 's': 'c', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:3:C:G', 's': 'd', 'GT': hl.null(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
-    >>> mt = ht.to_matrix_table(['v'], ['s'])
+    >>> mt = ht.to_matrix_table(row_key=['v'], col_key=['s'])
 
-    Compute genotype correlation (linkage) between all pairs of variants:
+    Compute genotype correlation between all pairs of variants:
 
-    >>> ld_matrix = hl.row_correlation(mt.GT.n_alt_alleles())
-    >>> ld_matrix.to_numpy()
+    >>> ld = hl.row_correlation(mt.GT.n_alt_alleles())
+    >>> ld.to_numpy()
     array([[ 1.        , -0.85280287,  0.42640143],
            [-0.85280287,  1.        , -0.5       ],
            [ 0.42640143, -0.5       ,  1.        ]])
 
     Compute genotype correlation between consecutively-indexed variants:
 
-    >>> ld_matrix.sparsify_band(lower=0, upper=1).to_numpy()
+    >>> ld.sparsify_band(lower=0, upper=1).to_numpy()
     array([[ 1.        , -0.85280287,  0.        ],
            [ 0.        ,  1.        , -0.5       ],
            [ 0.        ,  0.        ,  1.        ]])
@@ -1842,17 +1831,6 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     Rows with a constant value (i.e., zero variance) will result `nan`
     correlation values. To avoid this, first check that all rows vary or filter
     out constant rows (for example, with the help of :func:`.aggregators.stats`).
-
-    Warning
-    -------
-    The resulting number of matrix elements is the square of the number of rows
-    in the matrix table, so computing the full matrix may be infeasible. For
-    example, ten million rows would produce 800TB of float64 values. The
-    block-sparse representation on BlockMatrix may be used to work efficiently
-    with regions of such matrices.
-
-    To prevent excessive re-computation, be sure to write and read the (possibly
-    block-sparsified) result before multiplication by another matrix.
 
     Notes
     -----
@@ -1866,15 +1844,32 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     `Pearson correlation coeffecient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
     between the corresponding empirical distributions of elements,
     or equivalently as the cosine of the angle between the vectors.
-    In particular, all values are between ``-1.0`` and ``1.0``, with
-    the diagonal identically ``1.0``.
 
-    This convenience method creates a row-normalized block matrix with
-    :meth:`BlockMatrix.from_entry_expr` and then multiplies this block matrix
-    by its transpose. The parallelism of the former is ``n_rows / block_size``
-    while the parallelism of the latter is ``(n_rows / block_size)^2``. For
-    large matrices, consider separating these stages and using more cores for
-    the latter.
+    This method has two stages:
+
+    - writing the row-normalized block matrix to a temporary file on persistent
+      disk with :meth:`BlockMatrix.from_entry_expr`. The parallelism is
+      ``n_rows / block_size``.
+
+    - reading and multiplying this block matrix by its transpose. The
+      parallelism is ``(n_rows / block_size)^2`` if all blocks are computed.
+
+    Warning
+    -------
+    See all warnings on :meth:`BlockMatrix.from_entry_expr`. In particular,
+    for large matrices, it may be preferable to run the two stages separately,
+    saving the row-normalized block matrix to a file on external storage with
+    :meth:`BlockMatrix.write_from_entry_expr`.
+
+    The resulting number of matrix elements is the square of the number of rows
+    in the matrix table, so computing the full matrix may be infeasible. For
+    example, ten million rows would produce 800TB of float64 values. The
+    block-sparse representation on BlockMatrix may be used to work efficiently
+    with regions of such matrices, as in the second example above and
+    :meth:`ld_matrix`.
+
+    To prevent excessive re-computation, be sure to write and read the (possibly
+    block-sparsified) result before multiplication by another matrix.
 
     Parameters
     ----------
@@ -1891,6 +1886,143 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     """
     bm = BlockMatrix.from_entry_expr(entry_expr, mean_impute=True, center=True, normalize=True, block_size=block_size)
     return bm @ bm.T
+
+
+@typecheck(entry_expr=expr_float64,
+           locus_expr=expr_locus(),
+           radius=oneof(int, float),
+           coord_expr=nullable(expr_float64),
+           block_size=nullable(int))
+def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) -> BlockMatrix:
+    """Computes the windowed correlation (linkage disequilibrium) matrix between
+    variants.
+
+    Examples
+    --------
+    Consider the following dataset consisting of three variants with centimorgan
+    coordinates and four samples:
+
+    >>> data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:1:A:C',       'cm': 0.1, 's': 'd', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'b', 'GT': hl.Call([1, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'c', 'GT': hl.Call([0, 1])},
+    ...         {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'd', 'GT': hl.Call([0, 0])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
+    >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
+    >>> ht = ht.transmute(**hl.parse_variant(ht.v))
+    >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+
+    Compute linkage disequilibrium between all pairs of variants on the same
+    contig and within two megabases:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6)
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [-0.85280287,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Within one megabases:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6)
+    >>> ld.to_numpy()
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+
+    Within one centimorgan:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm)
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [-0.85280287,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Within one centimorgan, and only calculate the upper triangle:
+
+    >>> ld = hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm)
+    >>> ld = ld.sparsify_triangle()
+    >>> ld.to_numpy()
+    array([[ 1.        , -0.85280287,  0.        ],
+           [ 0.        ,  1.        ,  0.        ],
+           [ 0.        ,  0.        ,  1.        ]])
+
+    Notes
+    -----
+    This method sparsifies the result of :meth:`row_correlation` using
+    :func:`.linalg.utils.locus_windows` and
+    :meth:`.BlockMatrix.sparsify_row_intervals`
+    in order to only compute linkage disequilibrium between nearby
+    variants. Use :meth:`row_correlation` directly to calculate correlation
+    without windowing.
+
+    More precisely, variants are 0-indexed by their order in the matrix table
+    (see :meth:`add_row_index`). Each variant is regarded as a vector of
+    elements defined by `entry_expr`, typically the number of alternate alleles
+    or genotype dosage. Missing values are mean-imputed within variant.
+
+    The method produces a symmetric block-sparse matrix supported in a
+    neighborhood of the diagonal. If variants ``i`` and ``j`` are on the same
+    contig and within `radius` base pairs (inclusive) then the ``(i, j)``
+    element is their
+    `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__.
+    Otherwise, the ``(i, j)`` element is ``0.0``.
+
+    Rows with a constant value (i.e., zero variance) will result in `nan`
+    correlation values. To avoid this, first check that all variants vary or
+    filter out constant variants (for example, with the help of
+    :func:`.aggregators.stats`).
+
+    If the :meth:`.global_position` on `locus_expr` is not in ascending order,
+    this method will fail. Ascending order should hold for a matrix table keyed
+    by locus or variant (and the associated row table), or for a table that's
+    been ordered by `locus_expr`.
+
+    Set `coord_expr` to use a value other than position to define the windows.
+    This row-indexed numeric expression must be non-missing, non-``nan``, on the
+    same source as `locus_expr`, and ascending with respect to locus
+    position for each contig; otherwise the method will raise an error.
+
+    Warning
+    -------
+    See the warnings in :meth:`row_correlation`. In particular, for large
+    matrices it may be preferable to run its stages separately.
+
+    `entry_expr` and `locus_expr` are implicitly aligned by row-index, though
+    they need not be on the same source. If their sources differ in the number
+    of rows, an error will be raised; otherwise, unintended misalignment may
+    silently produce unexpected results.
+
+    Parameters
+    ----------
+    entry_expr : :class:`.Float64Expression`
+        Entry-indexed numeric expression on matrix table.
+    locus_expr : :class:`.LocusExpression`
+        Row-indexed locus expression on a table or matrix table that is
+        row-aligned with the matrix table of `entry_expr`.
+    radius: :obj:`int` or :obj:`float`
+        Radius of window for row values.
+    coord_expr: :class:`.Float64Expression`, optional
+        Row-indexed numeric expression for the row value on the same table or
+        matrix table as `locus_expr`.
+        By default, the row value is given by the locus position.
+    block_size : :obj:`int`, optional
+        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
+
+    Returns
+    -------
+    :class:`.BlockMatrix`
+        Windowed correlation matrix between variants.
+        Row and column indices correspond to matrix table variant index.
+    """
+    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
+    ld = hl.row_correlation(entry_expr, block_size)
+    return ld.sparsify_row_intervals(starts, stops)
 
 
 @typecheck(n_populations=int,
@@ -2178,8 +2310,8 @@ def filter_alleles(mt: MatrixTable,
 
     old_to_new = hl.bind(lambda d: mt.alleles.map(lambda a: d.get(a)), old_to_new_dict)
     mt = mt.annotate_rows(old_to_new=old_to_new, new_to_old=new_to_old)
-    new_locus, new_alleles = hl.min_rep(mt.locus, mt.new_to_old.map(lambda i: mt.alleles[i]))
-    mt = mt.annotate_rows(__new_locus=new_locus, __new_alleles=new_alleles)
+    new_locus_alleles = hl.min_rep(mt.locus, mt.new_to_old.map(lambda i: mt.alleles[i]))
+    mt = mt.annotate_rows(__new_locus=new_locus_alleles.locus, __new_alleles=new_locus_alleles.alleles)
     mt = mt.filter_rows(hl.len(mt.__new_alleles) > 1)
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
@@ -2513,18 +2645,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
       `keep_higher_maf` is true, then in the case of a tie for highest degree,
       the variant with lowest minor allele frequency is removed.
 
-    If you encounter a Hadoop write/replication error, consider:
-
-    - increasing the size of persistent disk, e.g. by increasing the number of
-      persistent workers or the disk size per persistent worker. The
-      locally-pruned matrix table and block matrix are stored as temporary files
-      on persistent disk.
-
-    - limiting the Hadoop write buffer size, e.g. by setting the property on
-      cluster startup: ``--properties 'core:fs.gs.io.buffersize.write=1048576``.
-      This issue arises for very large sample size because, when writing the
-      locally-pruned block matrix, the number of concurrently open files per
-      task is ``n_samples / block_size``.
+    Warning
+    -------
+    The locally-pruned matrix table and block matrix are stored as temporary files
+    on persistent disk. See the warnings on `BlockMatrix.from_entry_expr` with
+    regard to memory and Hadoop replication errors.
 
     Parameters
     ----------
@@ -2571,7 +2696,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     else:
         field = Env.get_uid()
         mt = mt.select_entries(**{field: call_expr})
-
+    mt = mt.select_rows().select_cols()
     mt = mt.distinct_by_row()
     locally_pruned_table_path = new_temp_file()
     (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
@@ -2637,3 +2762,11 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     return locally_pruned_table.filter(
         hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()
+
+
+def _warn_if_no_intercept(caller, covariates):
+    if all([e._indices.axes for e in covariates]):
+        warn(f'{caller}: model appears to have no intercept covariate.'
+             '\n    To include an intercept, add 1.0 to the list of covariates.')
+        return True
+    return False

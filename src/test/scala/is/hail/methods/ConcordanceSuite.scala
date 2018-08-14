@@ -15,75 +15,6 @@ import org.testng.annotations.Test
 import scala.language._
 
 class ConcordanceSuite extends SparkSuite {
-  def gen(sc: SparkContext) = for {
-    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
-    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
-    scrambledIds1 <- Gen.shuffle(vds1.stringSampleIds).map(_.iterator)
-    newIds2 <- Gen.parameterized { p =>
-      Gen.const(vds2.stringSampleIds.map { id =>
-        if (scrambledIds1.hasNext && p.rng.nextUniform(0, 1) < .5) {
-          val newId = scrambledIds1.next()
-          if (!vds2.stringSampleIds.contains(newId)) newId else id
-        }
-        else
-          id
-      })
-    }
-    scrambledVariants1 <- Gen.shuffle(vds1.locusAlleles.collect()).map(_.iterator)
-    newVariantMapping <- Gen.parameterized { p => Gen.const(
-      Table.parallelize(
-        hc,
-        vds2.locusAlleles.collect().map { case (locus, alleles) =>
-          if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) {
-            val (locus2, alleles2) = scrambledVariants1.next()
-            Row(locus, alleles, locus2, alleles2)
-          } else
-            Row(locus, alleles, locus, alleles)
-        },
-        TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-          "alleles" -> TArray(TString()),
-          "locus2" -> TLocus(ReferenceGenome.GRCh37),
-          "alleles2" -> TArray(TString())),
-        None,
-        None
-      ).keyBy("locus", "alleles"))
-    }
-  } yield (vds1,
-    {
-      val mt = vds2.annotateRowsTable(newVariantMapping, "newVariant")
-      val valueFields = mt.rowType.fieldNames.filter(!Set("locus", "alleles").contains(_)).map { n => s"`$n`: va.`$n`" }
-      mt.selectRows(s"{locus: va.newVariant.locus2, alleles: va.newVariant.alleles2, ${ valueFields.mkString(", ") }}", Some(IndexedSeq("locus"), IndexedSeq("alleles")))
-        .copy2(colValues = BroadcastIndexedSeq(newIds2.map(Annotation(_)), TArray(TStruct("s" -> TString())), sc),
-      colType = TStruct("s" -> TString()))
-    })
-
-  // FIXME use SnpSift when it's fixed
-  def readSampleConcordance(file: String): Map[String, IndexedSeq[IndexedSeq[Int]]] = {
-    hadoopConf.readLines(file) { lines =>
-      lines.filter(line => !line.value.startsWith("sample") && !line.value.startsWith("#Total"))
-        .map(_.map { line =>
-          val split = line.split("\\s+")
-          val sample = split(0)
-          val data = (split.tail.init.map(_.toInt): IndexedSeq[Int]).grouped(5).toFastIndexedSeq
-          (sample, data)
-        }.value).toMap
-    }
-  }
-
-  //FIXME use SnpSift when it's fixed
-  def readVariantConcordance(file: String): Map[Variant, IndexedSeq[IndexedSeq[Int]]] = {
-    hadoopConf.readLines(file) { lines =>
-      val header = lines.next().value.split("\\s+")
-
-      lines.filter(line => !line.value.startsWith("chr") && !line.value.startsWith("#Total") && !line.value.isEmpty)
-        .map(_.map { line =>
-          val split = line.split("\\s+")
-          val v = Variant(split(0), split(1).toInt, split(2), split(3))
-          val data = (split.drop(4).init.map(_.toInt): IndexedSeq[Int]).grouped(5).toFastIndexedSeq
-          (v, data)
-        }.value).toMap
-    }
-  }
 
   @Test def testCombiner() {
     val comb = new ConcordanceCombiner
@@ -157,63 +88,6 @@ class ConcordanceSuite extends SparkSuite {
         }
       }
       n == comb.nDiscordant
-    }.check()
-  }
-
-  @Test def test() {
-    Prop.forAll(gen(sc).filter { case (vds1, vds2) =>
-      vds1.stringSampleIds.toSet.intersect(vds2.stringSampleIds.toSet).nonEmpty &&
-        vds1.variants.intersection(vds2.variants).count() > 0
-    }) { case (vds1, vds2) =>
-
-      val variants1 = vds1.variants.collect().toSet
-      val variants2 = vds2.variants.collect().toSet
-
-      assert(variants1.forall(_ != null) && variants2.forall(_ != null))
-
-      val commonVariants = variants1.intersect(variants2)
-
-      val uniqueVds1Variants = (variants1 -- commonVariants).size
-      val uniqueVds2Variants = (variants2 -- commonVariants).size
-
-      val innerJoin = vds1.expand().map { case (v, s, g) => ((v, s), g) }
-        .join(vds2.expand().map { case (v, s, g) => ((v, s), g) })
-
-      def getIndex(g: Annotation): Int = {
-        Genotype.call(g)
-          .map(Call.nNonRefAlleles)
-          .getOrElse(-1)
-      }
-
-      val innerJoinSamples = innerJoin.map { case (k, v) => (k._2, v) }
-        .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.merge(getIndex(g1) + 2, getIndex(g2) + 2)
-          comb
-        }, { case (comb1, comb2) => comb1.merge(comb2) })
-        .map { case (s, comb) => (s, comb.toAnnotation.tail.map(_.tail)) }
-        .collectAsMap
-
-      val innerJoinVariants = innerJoin.map { case (k, v) => (k._1, v) }
-        .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.merge(getIndex(g1) + 2, getIndex(g2) + 2)
-          comb
-        }, { case (comb1, comb2) => comb1.merge(comb2) })
-        .collectAsMap
-        .mapValues(_.toAnnotation)
-
-      val (globals, samples, variants) = CalculateConcordance(vds1, vds2)
-
-      samples.rdd.collect().foreach { r =>
-        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).apply(0).sum == uniqueVds2Variants)
-        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).map(_.apply(0)).sum == uniqueVds1Variants)
-        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).map(_.tail).tail == innerJoinSamples(r.getAs[String](0)))
-      }
-
-      variants.rdd.collect()
-        .foreach { r =>
-          assert(innerJoinVariants.get(r.getAs[Variant](0)).forall(r.get(2) == _))
-        }
-      true
     }.check()
   }
 }

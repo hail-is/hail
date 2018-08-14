@@ -1,12 +1,14 @@
 import builtins
 import math
+from typing import *
+from random import randint
 
 import hail
 import hail as hl
-from hail.expr.expr_ast import *
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import *
 from hail.utils import LinkedList
@@ -17,7 +19,13 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+
+
+def _seeded_func(name, ret_type, seed, *args):
+    seed = seed if seed is not None else Env.next_seed()
+    indices, aggregations = unify_all(*args)
+    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -48,7 +56,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(Literal('NA: {}'.format(t._jtype.parsableString())), t)
+    return construct_expr(NA(t), t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
@@ -91,22 +99,31 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     -------
     :class:`.Expression`
     """
-    if dtype:
-        try:
-            dtype._typecheck(x)
-        except TypeError as e:
-            raise TypeError("'literal': object did not match the passed type '{}'"
-                            .format(dtype)) from e
-    else:
+    wrapper = {'has_expr': False}
+    def typecheck_expr(t, x):
+        if isinstance(x, Expression):
+            wrapper['has_expr'] = True
+            if x.dtype != t:
+                raise TypeError(f"'literal': type mismatch: expected '{t}', found '{x.dtype}'")
+            elif x._indices.source is not None:
+                if x._indices.axes:
+                    raise ExpressionException(f"'literal' can only accept scalar or global expression arguments,"
+                                              f" found indices {x._indices.axes}")
+            return False
+        else:
+            t._typecheck_one_level(x)
+            return True
+    if dtype is None:
         dtype = impute_type(x)
 
-    def get_float_str(x):
-        if math.isnan(x):
-            return 'nan'
-        elif math.isinf(x):
-            return 'inf' if x > 0 else 'neginf'
-        else:
-            return builtins.str(builtins.float(x))
+    try:
+        dtype._traverse(x, typecheck_expr)
+    except TypeError as e:
+        raise TypeError("'literal': object did not match the passed type '{}'"
+                        .format(dtype)) from e
+
+    if wrapper['has_expr']:
+        return literal(to_expr(x).value, dtype)
 
     if x is None:
         return hl.null(dtype)
@@ -114,26 +131,26 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         if dtype == tint32:
             assert isinstance(x, builtins.int)
             assert tint32.min_value <= x <= tint32.max_value
-            return construct_expr(Literal('i32#{}'.format(x)), tint32)
+            return construct_expr(I32(x), tint32)
         elif dtype == tint64:
             assert isinstance(x, builtins.int)
             assert tint64.min_value <= x <= tint64.max_value
-            return construct_expr(Literal('i64#{}'.format(x)), tint64)
+            return construct_expr(I64(x), tint64)
         elif dtype == tfloat32:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f32#{}'.format(get_float_str(x))), tfloat32)
+            return construct_expr(F32(x), tfloat32)
         elif dtype == tfloat64:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(Literal('f64#{}'.format(get_float_str(x))), tfloat64)
+            return construct_expr(F64(x), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
-            return construct_expr(Literal('true' if x else 'false'), tbool)
+            return construct_expr(TrueIR() if x else FalseIR(), tbool)
         else:
             assert dtype == tstr
             assert isinstance(x, builtins.str)
-            return construct_expr(Literal('"{}"'.format(escape_str(x))), tstr)
+            return construct_expr(Str(x), tstr)
     else:
-        return construct_expr(Broadcast(x, dtype), dtype)
+        return construct_expr(Literal(dtype, x), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
@@ -196,8 +213,8 @@ def cond(condition,
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
-    return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          consequent.dtype, indices, aggregations)
+    return construct_expr(If(condition._ir, consequent._ir, alternate._ir),
+                              consequent.dtype, indices, aggregations)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
@@ -275,31 +292,8 @@ def bind(f: Callable, *exprs):
     Examples
     --------
 
-    Expressions are "inlined", leading to perhaps unexpected behavior
-    when randomness is involved. For example, let us define a variable
-    `x` from the :meth:`.rand_unif` method:
-
-    >>> x = hl.rand_unif(0, 1)
-
-    Note that evaluating `x` multiple times returns different results.
-    The value of evaluating `x` is unknown when the expression is defined.
-
-    >>> x.value
-    0.3189309481038456
-
-    >>> x.value
-    0.20842918568366375
-
-    What if we evaluate `x` multiple times?
-
-    >>> hl.array([x, x, x]).value
-    [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
-
-    The random number generator is called separately for each inclusion
-    of `x`. This method, :func:`.bind`, is the solution to this problem!
-
-    >>> hl.bind(lambda y: [y, y, y], x).value
-    [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+    >>> add_one = hl.bind(lambda x: x + 1, 1).value
+    2
 
     :func:`.bind` also can take multiple arguments:
 
@@ -320,32 +314,35 @@ def bind(f: Callable, *exprs):
     """
     args = []
     uids = []
-    asts = []
+    irs = []
 
     for expr in exprs:
         uid = Env.get_uid()
-        args.append(construct_expr(VariableReference(uid), expr._type, expr._indices, expr._aggregations))
+        args.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uids.append(uid)
-        asts.append(expr._ast)
-
+        irs.append(expr._ir)
 
     lambda_result = to_expr(f(*args))
     indices, aggregations = unify_all(*exprs, lambda_result)
-    ast = Bind(uids, asts, lambda_result._ast)
-    return construct_expr(ast, lambda_result.dtype, indices, aggregations)
+
+    res_ir = lambda_result._ir
+    for (uid, ir) in builtins.zip(uids, irs):
+        res_ir = Let(uid, ir, res_ir)
+
+    return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def chisq(c1, c2, c3, c4) -> StructExpression:
+def chi_squared_test(c1, c2, c3, c4) -> StructExpression:
     """Performs chi-squared test of independence on a 2x2 contingency table.
 
     Examples
     --------
 
-    >>> hl.chisq(10, 10, 10, 10).value
+    >>> hl.chi_squared_test(10, 10, 10, 10).value
     Struct(p_value=1.0, odds_ratio=1.0)
 
-    >>> hl.chisq(51, 43, 22, 92).value
+    >>> hl.chi_squared_test(51, 43, 22, 92).value
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
     Notes
@@ -372,21 +369,21 @@ def chisq(c1, c2, c3, c4) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("chisq", ret_type, c1, c2, c3, c4)
+    return _func("chi_squared_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
-def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
+def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     """Performs chi-squared or Fisher's exact test of independence on a 2x2
     contingency table.
 
     Examples
     --------
 
-    >>> hl.ctt(51, 43, 22, 92, min_cell_count=22).value
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=22).value
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
-    >>> hl.ctt(51, 43, 22, 92, min_cell_count=23).value
+    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23).value
     Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967)
 
     Notes
@@ -416,7 +413,7 @@ def ctt(c1, c2, c3, c4, min_cell_count) -> StructExpression:
         (:py:data:`.tfloat64`) and `odds_ratio` (:py:data:`.tfloat64`).
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
-    return _func("ctt", ret_type, c1, c2, c3, c4, min_cell_count)
+    return _func("contingency_table_test", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
 @typecheck(collection=expr_oneof(expr_dict(),
@@ -580,7 +577,7 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
                        odds_ratio=tfloat64,
                        ci_95_lower=tfloat64,
                        ci_95_upper=tfloat64)
-    return _func("fet", ret_type, c1, c2, c3, c4)
+    return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
@@ -626,17 +623,17 @@ def ceil(x):
 
 
 @typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
     --------
 
-    >>> hl.hardy_weinberg_p(250, 500, 250).value
-    Struct(r_expected_het_freq=0.5002501250625313, p_hwe=0.9747844394217698)
+    >>> hl.hardy_weinberg_test(250, 500, 250).value
+    Struct(het_freq_hwe=0.5002501250625313, p_value=0.9747844394217698)
 
-    >>> hl.hardy_weinberg_p(37, 200, 85).value
-    Struct(r_expected_het_freq=0.48964964307448583, p_hwe=1.1337210383168987e-06)
+    >>> hl.hardy_weinberg_test(37, 200, 85).value
+    Struct(het_freq_hwe=0.48964964307448583, p_value=1.1337210383168987e-06)
 
     Notes
     -----
@@ -648,7 +645,7 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
 
     The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
     ``n = n_hom_ref + n_het + n_hom_var``. So the expected frequency of heterozygotes
-    under equilibrium, `r_expected_het_freq`, is this mean divided by ``n``.
+    under equilibrium, `het_freq_hwe`, is this mean divided by ``n``.
 
     Parameters
     ----------
@@ -662,32 +659,12 @@ def hardy_weinberg_p(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     Returns
     -------
     :class:`.StructExpression`
-        A struct expression with two fields, `r_expected_het_freq`
+        A struct expression with two fields, `het_freq_hwe`
         (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
     """
-    ret_type = tstruct(r_expected_het_freq=tfloat64,
-                       p_hwe=tfloat64)
-    return _func("hwe", ret_type, n_hom_ref, n_het, n_hom_var)
-
-
-@typecheck(structs=expr_array(expr_struct()),
-           identifier=str)
-def index(structs, identifier):
-    if not isinstance(structs.dtype.element_type, tstruct):
-        raise TypeError("'index' expects an array with element type 'Struct', found '{}'"
-                        .format(structs.dtype))
-    struct_type = structs.dtype.element_type
-
-    if identifier not in struct_type:
-        raise RuntimeError("`structs' does not have a field with identifier `{}'. " \
-                           "Struct type is {}.".format(identifier, struct_type))
-
-    key_type = struct_type[identifier]
-    value_type = tstruct(**{f: t for f, t in struct_type.items() if f != identifier})
-
-    ast = StructOp('index', structs._ast, identifier)
-    return construct_expr(ast, tdict(key_type, value_type),
-                          structs._indices, structs._aggregations)
+    ret_type = tstruct(het_freq_hwe=tfloat64,
+                       p_value=tfloat64)
+    return _func("hardy_weinberg_test", ret_type, n_hom_ref, n_het, n_hom_var)
 
 
 @typecheck(contig=expr_str, pos=expr_int32,
@@ -714,9 +691,8 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     -------
     :class:`.LocusExpression`
     """
-    indices, aggregations = unify_all(contig, pos)
-    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                          tlocus(reference_genome), indices, aggregations)
+    fname = 'Locus({})'.format(reference_genome.name)
+    return _func(fname, tlocus(reference_genome), contig, pos)
 
 
 @typecheck(global_pos=expr_int64,
@@ -748,8 +724,8 @@ def locus_from_global_position(global_pos,
     -------
     :class:`.LocusExpression`
     """
-    return construct_expr(ApplyMethod('globalPosToLocus({})'.format(reference_genome.name), global_pos._ast),
-                          tlocus(reference_genome), global_pos._indices, global_pos._aggregations)
+    fname = 'globalPosToLocus({})'.format(reference_genome.name)
+    return _func(fname, tlocus(reference_genome), global_pos)
 
 
 @typecheck(s=expr_str,
@@ -779,8 +755,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     -------
     :class:`.LocusExpression`
     """
-    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), tlocus(reference_genome),
-                          s._indices, s._aggregations)
+    return _func('Locus({})'.format(reference_genome.name), tlocus(reference_genome), s)
 
 
 @typecheck(s=expr_str,
@@ -816,8 +791,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     """
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
-    return construct_expr(ApplyMethod('LocusAlleles({})'.format(reference_genome.name), s._ast), t,
-                          s._indices, s._aggregations)
+    return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -885,7 +859,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.sum(pl_to_gp(pl) * [0, 1, 2])
+    return hl.sum(pl_to_gp(pl) * [0, 1, 2], filter_missing=False)
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)
@@ -956,12 +930,7 @@ def interval(start,
     if not start.dtype == end.dtype:
         raise TypeError("Type mismatch of start and end points: '{}', '{}'".format(start.dtype, end.dtype))
 
-    indices, aggregations = unify_all(start, end, includes_start, includes_end)
-
-    return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast, includes_start._ast, includes_end._ast), tinterval(start.dtype),
-        indices, aggregations)
-
+    return _func('Interval', tinterval(start.dtype), start, end, includes_start, includes_end)
 
 @typecheck(contig=expr_str, start=expr_int32,
            end=expr_int32, includes_start=expr_bool,
@@ -1000,12 +969,8 @@ def locus_interval(contig,
     -------
     :class:`.IntervalExpression`
     """
-    indices, aggregations = unify_all(contig, start, end, includes_start, includes_end)
-
-    return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name),
-                    contig._ast, start._ast, end._ast, includes_start._ast, includes_end._ast),
-        tinterval(tlocus(reference_genome)), indices, aggregations)
+    fname = 'LocusInterval({})'.format(reference_genome.name)
+    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end)
 
 
 @typecheck(s=expr_str,
@@ -1074,10 +1039,8 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     -------
     :class:`.IntervalExpression`
     """
-    return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast),
-        tinterval(tlocus(reference_genome)),
-        s._indices, s._aggregations)
+    return _func('LocusInterval({})'.format(reference_genome.name),
+                 tinterval(tlocus(reference_genome)), s)
 
 
 @typecheck(alleles=expr_int32,
@@ -1102,10 +1065,9 @@ def call(*alleles, phased=False) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    indices, aggregations = unify_all(phased, *alleles)
     if builtins.len(alleles) > 2:
         raise NotImplementedError("'call' supports a maximum of 2 alleles.")
-    return construct_expr(ApplyMethod('Call', *[a._ast for a in alleles], phased._ast), tcall, indices, aggregations)
+    return _func('Call', tcall, *alleles, phased)
 
 
 @typecheck(gt_index=expr_int32)
@@ -1127,9 +1089,7 @@ def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    gt_index = to_expr(gt_index)
-    return construct_expr(ApplyMethod('UnphasedDiploidGtIndexCall', gt_index._ast), tcall, gt_index._indices,
-                          gt_index._aggregations)
+    return _func('UnphasedDiploidGtIndexCall', tcall, to_expr(gt_index))
 
 
 @typecheck(s=expr_str)
@@ -1169,8 +1129,7 @@ def parse_call(s) -> CallExpression:
     -------
     :class:`.CallExpression`
     """
-    s = to_expr(s)
-    return construct_expr(ApplyMethod('Call', s._ast), tcall, s._indices, s._aggregations)
+    return _func('Call', tcall, s)
 
 
 @typecheck(expression=expr_any)
@@ -1709,8 +1668,8 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     return _func("range", tarray(tint32), start, stop, step)
 
 
-@typecheck(p=expr_float64)
-def rand_bool(p) -> BooleanExpression:
+@typecheck(p=expr_float64, seed=nullable(int))
+def rand_bool(p, seed=None) -> BooleanExpression:
     """Returns ``True`` with probability `p` (RNG).
 
     Examples
@@ -1722,25 +1681,22 @@ def rand_bool(p) -> BooleanExpression:
     >>> hl.rand_bool(0.5).value
     False
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug.
-
     Parameters
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability between 0 and 1.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin", tbool, p)
+    return _seeded_func("pcoin_seeded", tbool, seed, p)
 
 
-@typecheck(mean=expr_float64, sd=expr_float64)
-def rand_norm(mean=0, sd=1) -> Float64Expression:
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
+def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
     Examples
@@ -1752,28 +1708,24 @@ def rand_norm(mean=0, sd=1) -> Float64Expression:
     >>> hl.rand_norm().value
     -0.3006188509144124
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     mean : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Mean of normal distribution.
     sd : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation of normal distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rnorm", tfloat64, mean, sd)
+    return _seeded_func("rnorm_seeded", tfloat64, seed, mean, sd)
 
 
-@typecheck(lamb=expr_float64)
-def rand_pois(lamb) -> Float64Expression:
+@typecheck(lamb=expr_float64, seed=nullable(int))
+def rand_pois(lamb, seed=None) -> Float64Expression:
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
     Examples
@@ -1785,27 +1737,24 @@ def rand_pois(lamb) -> Float64Expression:
     >>> hl.rand_pois(1).value
     3.0
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter for Poisson distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rpois", tfloat64, lamb)
+    return _seeded_func("rpois_seeded", tfloat64, seed, lamb)
 
 
-@typecheck(min=expr_float64, max=expr_float64)
-def rand_unif(min, max) -> Float64Expression:
-    """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
+@typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
+def rand_unif(min, max, seed=None) -> Float64Expression:
+    """Returns a random floating-point number uniformly drawn from the interval
+    [`min`, `max`].
 
     Examples
     --------
@@ -1816,24 +1765,20 @@ def rand_unif(min, max) -> Float64Expression:
     >>> hl.rand_unif(0, 1).value
     0.5161799497741769
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     min : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Left boundary of range.
     max : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Right boundary of range.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("runif", tfloat64, min, max)
+    return _seeded_func("runif_seeded", tfloat64, seed, min, max)
 
 
 @typecheck(x=expr_float64)
@@ -2392,7 +2337,7 @@ def filter(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`.SetExpression`
         Expression of the same type as `collection`.
     """
-    return collection._bin_lambda_method("filter", f, collection.dtype.element_type, lambda _: collection.dtype)
+    return collection.filter(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2430,7 +2375,7 @@ def any(f: Callable, collection) -> BooleanExpression:
         ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("exists", f, collection.dtype.element_type, lambda _: tbool)
+    return collection.any(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2468,7 +2413,7 @@ def all(f: Callable, collection) -> BooleanExpression:
         ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
     """
 
-    return collection._bin_lambda_method("forall", f, collection.dtype.element_type, lambda _: tbool)
+    return collection.all(f)
 
 
 @typecheck(f=func_spec(1, expr_bool),
@@ -2545,7 +2490,7 @@ def flatmap(f: Callable, collection):
             raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
         return t
 
-    return collection._bin_lambda_method("flatMap", f, collection.dtype.element_type, unify_ret)
+    return collection.flatmap(f)
 
 
 @typecheck(f=func_spec(1, expr_any),
@@ -2574,9 +2519,7 @@ def group_by(f: Callable, collection) -> DictExpression:
     :class:`.DictExpression`.
         Dictionary keyed by results of `f`.
     """
-    return collection._bin_lambda_method("groupBy", f,
-                                         collection.dtype.element_type,
-                                         lambda t: tdict(t, collection.dtype))
+    return collection.group_by(f)
 
 
 @typecheck(arrays=expr_array(), fill_missing=bool)
@@ -2676,9 +2619,7 @@ def map(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`SetExpression`.
         Collection where each element has been transformed by `f`.
     """
-    return collection._bin_lambda_method("map", f,
-                                         collection.dtype.element_type,
-                                         lambda t: collection.dtype.__class__(t))
+    return collection.map(f)
 
 
 @typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
@@ -2715,8 +2656,9 @@ def len(x) -> Int32Expression:
         return x._method("size", tint32)
 
 
-@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
-def max(*exprs) -> NumericExpression:
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=bool)
+def max(*exprs, filter_missing: bool = True) -> NumericExpression:
     """Returns the maximum element of a collection or of given numeric expressions.
 
     Examples
@@ -2738,10 +2680,18 @@ def max(*exprs) -> NumericExpression:
     single iterable expression (an array or set of numeric elements), or
     variable-length arguments of numeric expressions.
 
+    Note
+    ----
+    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
+    If `filter_missing` is ``False``, then any missing element causes the result to
+    be missing.
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
@@ -2754,22 +2704,18 @@ def max(*exprs) -> NumericExpression:
         if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._method('max', expr.dtype.element_type)
+        return expr._filter_missing_method(filter_missing, 'max', expr.dtype.element_type)
     else:
         if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
-        ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
-        if builtins.len(exprs) == 2:
-            return exprs[0]._method('max', ret_t, exprs[1])
-        else:
-            return max([e for e in exprs])
+        return max(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
-@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)))
-def min(*exprs) -> NumericExpression:
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=bool)
+def min(*exprs, filter_missing: bool = True) -> NumericExpression:
     """Returns the minimum of a collection or of given numeric expressions.
 
     Examples
@@ -2791,10 +2737,18 @@ def min(*exprs) -> NumericExpression:
     single iterable expression (an array or set of numeric elements), or
     variable-length arguments of numeric expressions.
 
+    Note
+    ----
+    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
+    If `filter_missing` is ``False``, then any missing element causes the result to
+    be missing.
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
@@ -2807,18 +2761,13 @@ def min(*exprs) -> NumericExpression:
         if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._method('min', expr.dtype.element_type)
+        return expr._filter_missing_method(filter_missing, 'min', expr.dtype.element_type)
     else:
         if not builtins.all(is_numeric(e.dtype) for e in exprs):
             raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
                             "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
                 "'{}'".format(e.dtype) for e in exprs)))
-        ret_t = unify_types(*(e.dtype for e in exprs))
-        exprs = tuple(e._promote_numeric(ret_t) for e in exprs)
-        if builtins.len(exprs) == 2:
-            return exprs[0]._method('min', ret_t, exprs[1])
-        else:
-            return min([e for e in exprs])
+        return min(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
@@ -2885,8 +2834,9 @@ def sign(x):
         return x._method('sign', x.dtype)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def mean(collection) -> Float64Expression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=bool)
+def mean(collection, filter_missing: bool = True) -> Float64Expression:
     """Returns the mean of all values in the collection.
 
     Examples
@@ -2899,18 +2849,21 @@ def mean(collection) -> Float64Expression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_missing` is ``True``. If `filter_missing`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return collection._method("mean", tfloat64)
+    return collection._filter_missing_method(filter_missing, "mean", tfloat64)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
@@ -2941,8 +2894,9 @@ def median(collection) -> NumericExpression:
     return collection._method("median", collection.dtype.element_type)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def product(collection) -> NumericExpression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=bool)
+def product(collection, filter_missing: bool = True) -> NumericExpression:
     """Returns the product of values in the collection.
 
     Examples
@@ -2955,22 +2909,26 @@ def product(collection) -> NumericExpression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_missing` is ``True``. If `filter_missing`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    return collection._method("product", collection.dtype.element_type)
+    return collection._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
 
 
-@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
-def sum(collection) -> NumericExpression:
+@typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=bool)
+def sum(collection, filter_missing: bool = True) -> NumericExpression:
     """Returns the sum of values in the collection.
 
     Examples
@@ -2983,18 +2941,21 @@ def sum(collection) -> NumericExpression:
 
     Note
     ----
-    Missing elements are ignored.
+    Missing elements are ignored if `filter_missing` is ``True``. If `filter_missing`
+    is ``False``, then any missing element causes the result to be missing.
 
     Parameters
     ----------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression with numeric element type.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    return collection._method("sum", collection.dtype.element_type)
+    return collection._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
 
 
 @typecheck(kwargs=expr_any)
@@ -3262,21 +3223,14 @@ def sorted(collection,
     """
     ascending = ~reverse
 
-    def can_sort(t):
-        return t == tstr or is_numeric(t)
-
     if key is None:
-        if not can_sort(collection.dtype.element_type):
-            raise TypeError("'sorted' expects an array with element type 'String' or numeric, found '{}'"
-                            .format(collection.dtype))
         return collection._method("sort", collection.dtype, ascending)
     else:
-        def check_f(t):
-            if not can_sort(t):
-                raise TypeError("'sort_by' expects 'key' to return type 'String' or numeric, found '{}'".format(t))
-            return collection.dtype
+        with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
+        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
 
-        return collection._bin_lambda_method("sortBy", key, collection.dtype.element_type, check_f, ascending)
+        indices, aggregations = unify_all(with_key, ascending)
+        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
@@ -3304,6 +3258,10 @@ def argmin(array, unique: bool = False) -> Int32Expression:
     will be returned. If `unique` is ``True``, then the result is missing.
 
     If the array is empty, then the result is missing.
+
+    Note
+    ----
+    Missing elements are ignored.
 
     Parameters
     ----------
@@ -3345,6 +3303,10 @@ def argmax(array, unique: bool = False) -> Int32Expression:
     will be returned. If `unique` is ``True``, then the result is missing.
 
     If the array is empty, then the result is missing.
+
+    Note
+    ----
+    Missing elements are ignored.
 
     Parameters
     ----------
@@ -3799,10 +3761,10 @@ def min_rep(locus, alleles):
     --------
 
     >>> hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']).value
-    (Locus(contig=1, position=100000, reference_genome=GRCh37), ['TA', 'T'])
+    Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['TA', 'T'])
 
     >>> hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']).value
-    (Locus(contig=1, position=100002, reference_genome=GRCh37), ['T', 'C'])
+    Struct(locus=Locus(contig=1, position=100002, reference_genome=GRCh37), alleles=['T', 'C'])
 
     Notes
     -----
@@ -3816,10 +3778,13 @@ def min_rep(locus, alleles):
 
     Returns
     -------
-    :class:`.TupleExpression`
-        Tuple of (:class:`.LocusExpression`, :class:`.ArrayExpression` of type :py:data:`.tstr`)
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `locus`
+        (:class:`.LocusExpression`) and `alleles`
+        (:class:`.ArrayExpression` of type :py:data:`.tstr`).
     """
-    return _func('min_rep', hl.ttuple(locus.dtype, alleles.dtype), locus, alleles)
+    ret_type = tstruct(locus=locus.dtype, alleles=alleles.dtype)
+    return _func('min_rep', ret_type, locus, alleles)
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
@@ -3878,18 +3843,18 @@ def liftover(x, dest_reference_genome, min_match=0.95):
 
     if isinstance(x.dtype, tlocus):
         rg = x.dtype.reference_genome
-        method_name = "liftoverLocus({})".format(rg.name)
+        method_name = "liftoverLocus({})({})".format(rg.name, dest_reference_genome.name)
         rtype = tlocus(dest_reference_genome)
     else:
         rg = x.dtype.point_type.reference_genome
-        method_name = "liftoverLocusInterval({})".format(rg.name)
+        method_name = "liftoverLocusInterval({})({})".format(rg.name, dest_reference_genome.name)
         rtype = tinterval(tlocus(dest_reference_genome))
 
     if not rg.has_liftover(dest_reference_genome.name):
         raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
-    return _func(method_name, rtype, to_expr(dest_reference_genome.name, tstr), x, to_expr(min_match, tfloat))
+    return _func(method_name, rtype, x, to_expr(min_match, tfloat))
 
 
 @typecheck(f=func_spec(1, expr_float64),
@@ -3924,8 +3889,8 @@ def uniroot(f: Callable, min, max):
     """
 
     new_id = Env.get_uid()
-    lambda_result = to_expr(f(construct_expr(VariableReference(new_id), hl.tfloat64)))
+    lambda_result = to_expr(f(construct_variable(new_id, hl.tfloat64)))
 
     indices, aggregations = unify_all(lambda_result, min, max)
-    ast = LambdaFunction("uniroot", new_id, lambda_result._ast, min._ast, max._ast)
-    return hl.expr.expressions.construct_expr(ast, lambda_result._type, indices, aggregations)
+    ir = Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
+    return construct_expr(ir, lambda_result._type, indices, aggregations)

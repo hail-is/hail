@@ -4,13 +4,65 @@ import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
+import is.hail.asm4s.Code
 import is.hail.expr.Parser
+import is.hail.expr.ir.IRSuite.TestFunctions
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
+
+object IRSuite { outer =>
+  var globalCounter: Int = 0
+
+  def incr(): Unit = {
+    globalCounter += 1
+  }
+
+  object TestFunctions extends RegistryFunctions {
+
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[EmitTriplet]) => EmitTriplet) {
+      IRFunctionRegistry.addIRFunction(new SeededIRFunction {
+        val isDeterministic: Boolean = false
+
+        override val name: String = mname
+
+        override val argTypes: Seq[Type] = aTypes
+
+        override val returnType: Type = rType
+
+        def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
+          impl(mb, seed, args.toArray)
+      })
+    }
+
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, EmitTriplet) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType) { case (mb, seed, Array(a1)) => impl(mb, seed, a1) }
+
+    def registerAll() {
+      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
+        EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
+          l.m,
+          l.v)
+      }
+
+      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean()) { (mb, _, l) =>
+        EmitTriplet(l.setup,
+          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
+          l.v)
+      }
+
+      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean()) { (mb, _, l) =>
+        EmitTriplet(l.setup,
+          l.m,
+          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))
+      }
+    }
+  }
+}
 
 class IRSuite extends SparkSuite {
   @Test def testI32() {
@@ -93,6 +145,20 @@ class IRSuite extends SparkSuite {
   @Test def testMakeArray() {
     assertEvalsTo(MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())), FastIndexedSeq(5, null, -3))
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
+  }
+
+  @Test def testMakeStruct() {
+    assertEvalsTo(MakeStruct(FastSeq()), Row())
+    assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
+    //making sure wide structs get emitted without failure
+    assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
+  }
+
+  @Test def testMakeTuple() {
+    assertEvalsTo(MakeTuple(FastSeq()), Row())
+    assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
+    //making sure wide structs get emitted without failure
+    assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
   }
 
   @Test def testArrayRef() {
@@ -304,6 +370,27 @@ class IRSuite extends SparkSuite {
       Row(null, "abc", 3.2))
   }
 
+  @Test def testSelectFields() {
+    assertEvalsTo(
+      SelectFields(
+        NA(TStruct("foo" -> TInt32(), "bar" -> TFloat64())),
+        FastSeq("foo")),
+      null)
+
+    assertEvalsTo(
+      SelectFields(
+        MakeStruct(FastSeq("foo" -> 6, "bar" -> 0.0)),
+        FastSeq("foo")),
+      Row(6))
+
+    assertEvalsTo(
+      SelectFields(
+        MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
+        FastSeq("b", "a")),
+      Row(0.0, 6))
+
+  }
+
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
@@ -311,13 +398,15 @@ class IRSuite extends SparkSuite {
 
   @Test def testGroupByKey() {
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
+
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
+
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
 
     assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
   }
 
-  @DataProvider(name="compareDifferentTypes")
+  @DataProvider(name = "compareDifferentTypes")
   def compareDifferentTypesData(): Array[Array[Any]] = Array(
     Array(FastIndexedSeq(0.0, 0.0), TArray(+TFloat64()), TArray(TFloat64())),
     Array(Set(0, 1), TSet(+TInt32()), TSet(TInt32())),
@@ -328,7 +417,7 @@ class IRSuite extends SparkSuite {
     Array(Row(FastIndexedSeq("foo"), 0.0), TTuple(+TArray(TString()), +TFloat64()), TTuple(TArray(+TString()), +TFloat64()))
   )
 
-  @Test(dataProvider="compareDifferentTypes")
+  @Test(dataProvider = "compareDifferentTypes")
   def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
     assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
@@ -364,6 +453,8 @@ class IRSuite extends SparkSuite {
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
+    val keyedKeyedCollectSig = AggSignature(Keyed(Keyed(Collect())), Seq(), None, Seq(TInt32(), TString(), TBoolean()))
+
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
@@ -393,9 +484,11 @@ class IRSuite extends SparkSuite {
       ApplyAggOp(F64(-2.11), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),
       ApplyAggOp(call, FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), callStatsSig),
       ApplyAggOp(F64(-2.11), FastIndexedSeq(I32(10)), None, takeBySig),
+      ApplyAggOp(Str("foo"), FastIndexedSeq.empty, None, keyedKeyedCollectSig),
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
+      SeqOp(I32(0), FastIndexedSeq(I32(5), Str("hello"), True(), Str("foo")), keyedKeyedCollectSig),
       Begin(IndexedSeq(Void())),
       MakeStruct(Seq("x" -> i)),
       SelectFields(s, Seq("x", "z")),
@@ -410,7 +503,9 @@ class IRSuite extends SparkSuite {
       invoke("&&", b, c), // ApplySpecial
       invoke("toFloat64", i), // Apply
       invoke("isDefined", s), // ApplyIR
-      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)))
+      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
+      Literal(TStruct("x" -> TInt32()), Row(1), "__broadcast1")
+    )
     irs.map(x => Array(x))
   }
 
@@ -434,10 +529,15 @@ class IRSuite extends SparkSuite {
         TableAggregateByKey(read,
           MakeStruct(FastIndexedSeq(
             "a" -> I32(5)))),
+        TableKeyByAndAggregate(read,
+          NA(TStruct()), NA(TStruct()), Some(1), 2),
         TableJoin(read,
           TableRange(100, 10), "inner"),
+        TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
+        TableRepartition(read, 10, false),
+        TableHead(read, 10),
         TableParallelize(
           TableType(
             TStruct("a" -> TInt32()),
@@ -459,7 +559,8 @@ class IRSuite extends SparkSuite {
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
         TableUnkey(read),
-        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending)))
+        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
+        LocalizeEntries(mtRead, " # entries")
       )
       xs.map(x => Array(x))
     } catch {
@@ -479,7 +580,14 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
-      val vcf = hc.importVCF("src/test/resources/sample.vcf").ast.asInstanceOf[MatrixRead]
+      val vcf = hc.importVCF("src/test/resources/sample.vcf")
+        .ast.asInstanceOf[MatrixRead]
+      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+        .ast.asInstanceOf[MatrixRead]
+      val range1 = MatrixTable.range(hc, 20, 2, Some(3))
+        .ast.asInstanceOf[MatrixRead]
+      val range2 = MatrixTable.range(hc, 20, 2, Some(4))
+        .ast.asInstanceOf[MatrixRead]
 
       val b = True()
 
@@ -511,15 +619,25 @@ class IRSuite extends SparkSuite {
         MatrixAggregateRowsByKey(read, newRow),
         range,
         vcf,
+        bgen,
         TableToMatrixTable(
           tableRead,
-          Array("r1", "r2"),
-          Array("c1", "c2"),
-          Array("r1", "r2", "r3"),
-          Array("c1", "c2", "c3"),
-          Array("r1"),
+          Array("astruct", "aset"),
+          Array("d", "ml"),
+          Array("mc"),
+          Array("t"),
+          Array("astruct"),
           None),
-        MatrixExplodeRows(read, FastIndexedSeq("row_mset")))
+        MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
+        MatrixUnionRows(FastIndexedSeq(range1, range2)),
+        MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
+        UnlocalizeEntries(
+          LocalizeEntries(read, "all of the entries"),
+          MatrixColsTable(read),
+          "all of the entries"),
+        MatrixAnnotateColsTable(read, tableRead, "uid_123"),
+        MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
+      )
 
       xs.map(x => Array(x))
     } catch {
@@ -533,7 +651,7 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val s = Pretty(x)
-    val x2 = Parser.parse(Parser.ir_value_expr, s)
+    val x2 = Parser.parse(Parser.ir_value_expr(), s)
     assert(x2 == x)
   }
 
@@ -549,5 +667,84 @@ class IRSuite extends SparkSuite {
     val s = Pretty(x)
     val x2 = Parser.parse(Parser.matrix_ir, s)
     assert(x2 == x)
+  }
+
+  @Test def testEvaluations() {
+    TestFunctions.registerAll()
+    def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
+      val env = Env.empty[(Any, Type)]
+      val args = IndexedSeq((i, TBoolean()))
+
+      IRSuite.globalCounter = 0
+      Interpret[Any](x, env, args, None, optimize = false)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+
+      IRSuite.globalCounter = 0
+      Interpret[Any](x, env, args, None)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+
+      IRSuite.globalCounter = 0
+      eval(x, env, args, None)
+      assert(IRSuite.globalCounter == expectedEvaluations)
+    }
+
+    def i = In(0, TBoolean())
+
+    def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
+
+    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
+
+    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
+
+    // baseline
+    test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
+    test(mt, true, 1); test(mf, true, 1); test(mm, true, 1)
+    test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
+
+    // if
+    // condition
+    test(If(st, i, True()), true, 1)
+    test(If(sf, i, True()), true, 1)
+    test(If(sm, i, True()), true, 1)
+
+    test(If(mt, i, True()), true, 1)
+    test(If(mf, i, True()), true, 1)
+    test(If(mm, i, True()), true, 1)
+
+    test(If(vt, i, True()), true, 1)
+    test(If(vf, i, True()), true, 1)
+    test(If(vm, i, True()), true, 0)
+
+    // consequent
+    test(If(i, st, True()), true, 1)
+    test(If(i, sf, True()), true, 1)
+    test(If(i, sm, True()), true, 1)
+
+    test(If(i, mt, True()), true, 1)
+    test(If(i, mf, True()), true, 1)
+    test(If(i, mm, True()), true, 1)
+
+    test(If(i, vt, True()), true, 1)
+    test(If(i, vf, True()), true, 1)
+    test(If(i, vm, True()), true, 0)
+
+    // alternate
+    test(If(i, True(), st), false, 1)
+    test(If(i, True(), sf), false, 1)
+    test(If(i, True(), sm), false, 1)
+
+    test(If(i, True(), mt), false, 1)
+    test(If(i, True(), mf), false, 1)
+    test(If(i, True(), mm), false, 1)
+
+    test(If(i, True(), vt), false, 1)
+    test(If(i, True(), vf), false, 1)
+    test(If(i, True(), vm), false, 0)
   }
 }

@@ -241,7 +241,7 @@ object ExportVCF {
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
 
-      tg.fields.foreachBetween { f =>
+      tg.fields.foreach { f =>
         val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##FORMAT=<ID=")
         sb.append(f.name)
@@ -251,10 +251,8 @@ object ExportVCF {
         sb.append(formatType(f))
         sb.append(",Description=\"")
         sb.append(attrs.getOrElse("Description", ""))
-        sb.append("\">")
-      }(sb += '\n')
-
-      sb += '\n'
+        sb.append("\">\n")
+      }
 
       val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
       filters.foreach { id =>
