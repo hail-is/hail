@@ -107,7 +107,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       else
         left = mid + 1
     }
-    left // if left > 0 and A[left - 1] == key, rightmost element that equals key. Otherwise, left is the insertion point of key in A.
+    left // if key is present, returns rightmost key's index+1, otherwise returns insertion point
   }
 
   private def queryByKeyAllMatches(key: Annotation, level: Int, offset: Long, ab: ArrayBuilder[LeafChild]) {
