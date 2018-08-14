@@ -655,8 +655,8 @@ object Parser extends JavaTokenParsers {
       } |
       "MatrixMapEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newEntries => ir.MatrixMapEntries(child, newEntries) } |
       "MatrixMapGlobals" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newGlobals => ir.MatrixMapGlobals(child, newGlobals) } |
-      "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
-      "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |
+      "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ~ ir_value_expr ^^ { case child ~ entryExpr ~ colExpr => ir.MatrixAggregateColsByKey(child, entryExpr, colExpr) } |
+      "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ~ ir_value_expr ^^ { case child ~ entryExpr ~ rowExpr => ir.MatrixAggregateRowsByKey(child, entryExpr, rowExpr) } |
       "MatrixRead" ~> matrix_type_expr_opt ~ boolean_literal ~ boolean_literal ~ string_literal ^^ {
         case typ ~ dropCols ~ dropRows ~ readerStr =>
           implicit val formats = ir.MatrixReader.formats
