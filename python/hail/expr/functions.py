@@ -1,17 +1,14 @@
 import builtins
-import math
 from typing import *
-from random import randint
 
-import hail
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
-from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
+from hail.ir import *
 from hail.typecheck import *
-from hail.utils import LinkedList
+from hail.utils.java import Env
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)

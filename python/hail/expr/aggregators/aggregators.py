@@ -1,9 +1,14 @@
+import difflib
+from functools import wraps, update_wrapper
+
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.utils import wrap_to_list
 from hail.ir import *
-import difflib
+from hail.typecheck import *
+from hail.utils import wrap_to_list
+from hail.utils.java import Env
+
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -1314,7 +1319,7 @@ def group_by(group, agg_expr) -> DictExpression:
     Compute linear regression statistics stratified by SEX:
 
     >>> table1.aggregate(agg.group_by(table1.SEX,
-    ...                               agg.linreg(table1.HT, table1.C1, k_null=0)))
+    ...                               agg.linreg(table1.HT, table1.C1, nested_dim=0)))
     {
     'F': Struct(beta=[6.153846153846154],
                 standard_error=[0.7692307692307685],
