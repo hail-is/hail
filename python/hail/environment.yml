@@ -9,5 +9,6 @@ dependencies:
 - jupyter
 - pip
 - pip:
-    - parsimonious
+    - parsimonious==0.8.0
     - ipykernel
+    - decorator==4.2.1

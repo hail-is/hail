@@ -2,7 +2,7 @@ FROM continuumio/miniconda
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
-RUN apt-get -y install \
+RUN apt-get update && apt-get -y install --fix-missing \
     bash \
     cmake \
     curl \
