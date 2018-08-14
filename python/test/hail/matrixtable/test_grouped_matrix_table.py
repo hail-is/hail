@@ -41,14 +41,28 @@ class Tests(unittest.TestCase):
         self.assertRaises(ExpressionException, mt.group_cols_by, foo=mt['group3'])
 
         a = mt.group_rows_by(group5=(mt['group2']['a'] + 1))
-        self.assertRaises(ExpressionException, a.aggregate, group3=hl.agg.sum(mt['c']))
-        self.assertRaises(ExpressionException, a.aggregate, group5=hl.agg.sum(mt['c']))
-        self.assertRaises(ExpressionException, a.aggregate, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_entries, group3=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_entries, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_entries, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_rows, group3=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_rows, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, a.aggregate_rows, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(NotImplementedError, a.aggregate_cols, bar=hl.agg.sum(mt['c']))
 
         b = mt.group_cols_by(group5=(mt['group4']['a'] + 1))
-        self.assertRaises(ExpressionException, b.aggregate, group1=hl.agg.sum(mt['c']))
-        self.assertRaises(ExpressionException, b.aggregate, group5=hl.agg.sum(mt['c']))
-        self.assertRaises(ExpressionException, b.aggregate, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_entries, group1=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_entries, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_entries, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_cols, group1=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_cols, group5=hl.agg.sum(mt['c']))
+        self.assertRaises(ExpressionException, b.aggregate_cols, foo=hl.agg.sum(mt['c']))
+        self.assertRaises(NotImplementedError, b.aggregate_rows, bar=hl.agg.sum(mt['c']))
+
+        c = mt.group_rows_by(group5=(mt['group2']['a'] + 1)).aggregate_rows(x=hl.agg.count())
+        self.assertRaises(ExpressionException, c.aggregate_rows, x=hl.agg.count())
+
+        d = mt.group_cols_by(group5=(mt['group4']['a'] + 1)).aggregate_cols(x=hl.agg.count())
+        self.assertRaises(ExpressionException, d.aggregate_cols, x=hl.agg.count())
 
     def test_fields_work_correctly(self):
         mt = self.get_groupable_matrix()
@@ -126,3 +140,69 @@ class Tests(unittest.TestCase):
         )
 
         self.assertTrue(row_result.entries()._same(row_expected))
+
+    def test_aggregate_rows_adds_row_fields(self):
+        mt = hl.utils.range_matrix_table(4, 4)
+        mt = mt.annotate_globals(glob=5)
+        mt = mt.annotate_cols(c1=3)
+
+        mt2 = hl.utils.range_matrix_table(4, 4)
+        mt2 = mt2.annotate_entries(x=mt2.row_idx + mt2.col_idx)
+        mt2 = mt2.annotate_rows(row_idx2=mt2.row_idx)
+        mt2 = mt2.annotate_cols(col_idx2=mt2.col_idx)
+
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 < 2)
+                      .aggregate_rows(collect=hl.agg.collect(mt.row_idx))
+                      .aggregate_rows(count=hl.agg.count())
+                      .aggregate_entries(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob - 15)
+                      .result())
+
+        row_expected = (
+            hl.Table.parallelize(
+                [{'group': True, 'col_idx': 0, 'sum': 1, 'collect': [0, 1], 'count': 2, 'c1': 3},
+                 {'group': True, 'col_idx': 1, 'sum': 3, 'collect': [0, 1], 'count': 2, 'c1': 3},
+                 {'group': True, 'col_idx': 2, 'sum': 5, 'collect': [0, 1], 'count': 2, 'c1': 3},
+                 {'group': True, 'col_idx': 3, 'sum': 7, 'collect': [0, 1], 'count': 2, 'c1': 3},
+                 {'group': False, 'col_idx': 0, 'sum': 5, 'collect': [2, 3], 'count': 2, 'c1': 3},
+                 {'group': False, 'col_idx': 1, 'sum': 7, 'collect': [2, 3], 'count': 2, 'c1': 3},
+                 {'group': False, 'col_idx': 2, 'sum': 9, 'collect': [2, 3], 'count': 2, 'c1': 3},
+                 {'group': False, 'col_idx': 3, 'sum': 11, 'collect': [2, 3], 'count': 2, 'c1': 3}],
+                hl.tstruct(group=hl.tbool, collect=hl.tarray(hl.tint32), count=hl.tint64,
+                           col_idx=hl.tint32, c1=hl.tint32, sum=hl.tint64)
+            ).annotate_globals(glob=5).key_by('group', 'col_idx')
+        )
+
+        self.assertTrue(row_result.entries()._same(row_expected))
+
+    def test_aggregate_cols_adds_column_fields(self):
+        mt = hl.utils.range_matrix_table(4, 4)
+        mt = mt.annotate_globals(glob=5)
+        mt = mt.annotate_rows(r1=3)
+
+        mt2 = hl.utils.range_matrix_table(4, 4)
+        mt2 = mt2.annotate_entries(x=mt2.row_idx + mt2.col_idx)
+        mt2 = mt2.annotate_rows(row_idx2=mt2.row_idx)
+        mt2 = mt2.annotate_cols(col_idx2=mt2.col_idx)
+
+        col_result = (mt.group_cols_by(group=mt2.cols()[mt.col_idx].col_idx2 < 2)
+                      .aggregate_cols(collect=hl.agg.collect(mt.col_idx))
+                      .aggregate_cols(count=hl.agg.count())
+                      .aggregate_entries(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob - 15)
+                      .result())
+
+        col_expected = (
+            hl.Table.parallelize(
+                [{'group': True, 'row_idx': 0, 'sum': 1, 'collect': [0, 1], 'count': 2, 'r1': 3},
+                 {'group': True, 'row_idx': 1, 'sum': 3, 'collect': [0, 1], 'count': 2, 'r1': 3},
+                 {'group': True, 'row_idx': 2, 'sum': 5, 'collect': [0, 1], 'count': 2, 'r1': 3},
+                 {'group': True, 'row_idx': 3, 'sum': 7, 'collect': [0, 1], 'count': 2, 'r1': 3},
+                 {'group': False, 'row_idx': 0, 'sum': 5, 'collect': [2, 3], 'count': 2, 'r1': 3},
+                 {'group': False, 'row_idx': 1, 'sum': 7, 'collect': [2, 3], 'count': 2, 'r1': 3},
+                 {'group': False, 'row_idx': 2, 'sum': 9, 'collect': [2, 3], 'count': 2, 'r1': 3},
+                 {'group': False, 'row_idx': 3, 'sum': 11, 'collect': [2, 3], 'count': 2, 'r1': 3}],
+                hl.tstruct(row_idx=hl.tint32, r1=hl.tint32, group=hl.tbool, collect=hl.tarray(hl.tint32),
+                           count=hl.tint64, sum=hl.tint64)
+            ).annotate_globals(glob=5).key_by('row_idx', 'group')
+        )
+
+        self.assertTrue(col_result.entries()._same(col_expected))

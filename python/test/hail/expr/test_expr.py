@@ -1682,7 +1682,7 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_agg.call_stats)
                     & (group_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateColsByKey initOp
+        # test MatrixAggregateColsByKey entries initOp
         mt2 = mt.annotate_cols(group=mt.col_idx < 3)
         group_cols_agg = (mt2.group_cols_by(mt2['group'])
                           .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
@@ -1694,10 +1694,38 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateRowsByKey initOp
+        # test MatrixAggregateColsByKey cols initOp
+        mt2 = mt.annotate_cols(group=mt.col_idx < 3, GT_col=hl.call(0, 1))
+        group_cols_agg = (mt2.group_cols_by(mt2['group'])
+                          .aggregate_cols(call_stats=agg.call_stats(mt2.GT_col, mt2.alleles2))
+                          .result()
+                          ).entries()
+
+        self.assertTrue(group_cols_agg.all(
+            hl.cond(group_cols_agg.group,
+                    hl.is_defined(group_cols_agg.call_stats)
+                    & (group_cols_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
+                    hl.is_defined(group_cols_agg.call_stats)
+                    & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
+
+        # test MatrixAggregateRowsByKey entries initOp
         mt2 = mt.annotate_rows(group=mt.row_idx < 3)
         group_rows_agg = (mt2.group_rows_by(mt2['group'])
                           .aggregate(call_stats=agg.call_stats(mt2.GT, mt2.alleles2)).entries())
+
+        self.assertTrue(group_rows_agg.all(
+            hl.cond(group_rows_agg.group,
+                    hl.is_defined(group_rows_agg.call_stats)
+                    & (group_rows_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
+                    hl.is_defined(group_rows_agg.call_stats)
+                    & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
+
+        # test MatrixAggregateRowsByKey rows initOp
+        mt2 = mt.annotate_rows(group=mt.row_idx < 3, GT_row=hl.call(0, 1))
+        group_rows_agg = (mt2.group_rows_by(mt2['group'])
+                          .aggregate_rows(call_stats=agg.call_stats(mt2.GT_row, mt2.alleles2))
+                          .result()
+                          ).entries()
 
         self.assertTrue(group_rows_agg.all(
             hl.cond(group_rows_agg.group,

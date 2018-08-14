@@ -3,13 +3,14 @@ from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id, parsable_strings
 
 class MatrixAggregateRowsByKey(MatrixIR):
-    def __init__(self, child, expr):
+    def __init__(self, child, entry_expr, row_expr):
         super().__init__()
         self.child = child
-        self.expr = expr
+        self.entry_expr = entry_expr
+        self.row_expr = row_expr
 
     def __str__(self):
-        return '(MatrixAggregateRowsByKey {} {})'.format(self.child, self.expr)
+        return '(MatrixAggregateRowsByKey {} {} {})'.format(self.child, self.entry_expr, self.row_expr)
 
 
 class MatrixRead(MatrixIR):
@@ -213,13 +214,14 @@ class MatrixCollectColsByKey(MatrixIR):
         return '(MatrixCollectColsByKey {})'.format(self.child)
 
 class MatrixAggregateColsByKey(MatrixIR):
-    def __init__(self, child, agg_ir):
+    def __init__(self, child, entry_expr, col_expr):
         super().__init__()
         self.child = child
-        self.agg_ir = agg_ir
+        self.entry_expr = entry_expr
+        self.col_expr = col_expr
 
     def __str__(self):
-        return '(MatrixAggregateColsByKey {} {})'.format(self.child, self.agg_ir)
+        return '(MatrixAggregateColsByKey {} {} {})'.format(self.child, self.entry_expr, self.col_expr)
 
 class TableToMatrixTable(MatrixIR):
     def __init__(self, child, row_key, col_key, row_fields, col_fields, partition_key, n_partitions):
