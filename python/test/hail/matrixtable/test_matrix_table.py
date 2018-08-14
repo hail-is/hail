@@ -832,3 +832,41 @@ class Tests(unittest.TestCase):
 
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
+
+    def test_nulls_in_distinct_joins(self):
+
+        # MatrixAnnotateRowsTable uses left distinct join
+        mr = hl.utils.range_matrix_table(7, 3, 4)
+        matrix1 = mr.key_rows_by(new_key=hl.cond((mr.row_idx == 3) | (mr.row_idx == 5),
+                                                hl.null(hl.tint32), mr.row_idx))
+        matrix2 = mr.key_rows_by(new_key=hl.cond((mr.row_idx == 4) | (mr.row_idx == 6),
+                                                hl.null(hl.tint32), mr.row_idx))
+
+        joined = matrix1.select_rows(idx1=matrix1.row_idx,
+                                     idx2=matrix2.rows()[matrix1.new_key].row_idx)
+
+        def row(new_key, idx1, idx2):
+            return hl.Struct(new_key=new_key, idx1=idx1, idx2=idx2)
+
+        expected = [row(0, 0, 0),
+                    row(1, 1, 1),
+                    row(2, 2, 2),
+                    row(4, 4, None),
+                    row(6, 6, None),
+                    row(None, 3, None),
+                    row(None, 5, None)]
+        self.assertEqual(joined.rows().collect(), expected)
+
+        # union_cols uses inner distinct join
+        matrix1 = matrix1.annotate_entries(ridx=matrix1.row_idx,
+                                           cidx=matrix1.col_idx)
+        matrix2 = matrix2.annotate_entries(ridx=matrix2.row_idx,
+                                           cidx=matrix2.col_idx)
+        matrix2 = matrix2.key_cols_by(col_idx=matrix2.col_idx + 3)
+
+        expected = hl.utils.range_matrix_table(3, 6, 1)
+        expected = expected.key_rows_by(new_key=expected.row_idx)
+        expected = expected.annotate_entries(ridx=expected.row_idx,
+                                             cidx=expected.col_idx % 3)
+
+        self.assertTrue(matrix1.union_cols(matrix2)._same(expected))

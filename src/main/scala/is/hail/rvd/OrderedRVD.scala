@@ -107,9 +107,12 @@ class OrderedRVD(
     require(newKey.forall(typ.rowType.fieldNames.contains))
     val orvdType = typ.copy(key = newKey)
     if (OrderedRVDPartitioner.isValid(orvdType.kType, partitioner.rangeBounds))
-      copy(typ = orvdType)
-    else
-      constrainToOrderedPartitioner(orvdType, partitioner.extendKey(orvdType.kType))
+      copy(typ = orvdType, partitioner = partitioner.copy(kType = orvdType.kType))
+    else {
+      val adjustedPartitioner = partitioner.extendKey(typ.kType)
+      constrainToOrderedPartitioner(adjustedPartitioner.extendKey(orvdType.kType))
+        .copy(typ = orvdType, partitioner = adjustedPartitioner.copy(kType = orvdType.kType))
+    }
   }
 
   def truncateKey(newKey: IndexedSeq[String]): OrderedRVD = {
@@ -122,9 +125,9 @@ class OrderedRVD(
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
-  def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD = {
-    mapPartitionsPreservesPartitioning(typ, { (context, it) =>
-      val c = makeContext(context)
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+    mapPartitionsWithIndexPreservesPartitioning(typ, { (i, context, it) =>
+      val c = makeContext(i, context)
       it.filter { rv =>
         if (f(c, rv))
           true
@@ -135,9 +138,6 @@ class OrderedRVD(
       }
     })
   }
-
-  def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
-    OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
 
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): OrderedRVD = {
     assert(!typ.key.contains(name))
@@ -175,12 +175,10 @@ class OrderedRVD(
 
   override def unpersist(): OrderedRVD = this
 
-  // FIXME: don't allow to change type
   def constrainToOrderedPartitioner(
-    ordType: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner
   ): OrderedRVD = {
-    // FIXME: require newPartitioner disjoint
+    require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(newPartitioner.kType isPrefixOf typ.kType)
 
     new OrderedRVD(
@@ -192,7 +190,7 @@ class OrderedRVD(
   def localSort(newKey: IndexedSeq[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
-    require(partitioner.satisfiesPartitionKey(typ.key.length - 1))
+    require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
 
     val (newKType, _) = typ.rowType.select(newKey)
     val oldType = typ
@@ -363,11 +361,11 @@ class OrderedRVD(
       return this
     if (shuffle) {
       val shuffled = stably(_.shuffleCoalesce(maxPartitions))
-      val pki = OrderedRVD.getKeyInfo(typ, typ.key.length, OrderedRVD.getKeys(typ, shuffled))
-      if (pki.isEmpty)
+      val keyInfo = OrderedRVD.getKeyInfo(typ, typ.key.length, OrderedRVD.getKeys(typ, shuffled))
+      if (keyInfo.isEmpty)
         return OrderedRVD.empty(sparkContext, typ)
       val partitioner = OrderedRVD.calculateKeyRanges(
-        typ, pki, shuffled.getNumPartitions, typ.key.length)
+        typ, keyInfo, shuffled.getNumPartitions, typ.key.length)
       OrderedRVD.shuffle(typ, partitioner, shuffled)
     } else {
 
@@ -607,6 +605,18 @@ class OrderedRVD(
   ): ContextRDD[RVDContext, T] =
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper)
 
+
+  def zipPartitionsWithIndex(
+    newTyp: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner,
+    that: RVD,
+    preservesPartitioning: Boolean
+  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    newPartitioner,
+    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd, preservesPartitioning)(zipper))
+
   def zip(
     newTyp: OrderedRVDType,
     that: RVD
@@ -642,8 +652,6 @@ class OrderedRVD(
       partitioner = left.partitioner,
       crdd = left.crddBoundary.czipPartitions(
         that.constrainToOrderedPartitioner(
-          that.typ.copy(
-            key = that.typ.key.take(coarsenedPartitioner.kType.size)),
           coarsenedPartitioner
         ).crddBoundary
       )(zipper))
@@ -755,7 +763,7 @@ object OrderedRVD {
 
     val localType = typ
 
-    val pkis = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
+    val keyInfo = keys.cmapPartitionsWithIndex { (i, ctx, it) =>
       val out = if (it.hasNext)
         Iterator(OrderedRVPartitionInfo(localType, partitionKey, samplesPerPartition, i, it, partitionSeed(i), ctx))
       else
@@ -763,7 +771,7 @@ object OrderedRVD {
       out
     }.collect()
 
-    pkis.sortBy(_.min)(typ.kType.ordering.toOrdering)
+    keyInfo.sortBy(_.min)(typ.kType.ordering.toOrdering)
   }
 
   def coerce(
@@ -779,6 +787,13 @@ object OrderedRVD {
 
   def coerce(
     typ: OrderedRVDType,
+    partitionKey: Int,
+    rvd: RVD,
+    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
+  ): OrderedRVD = coerce(typ, partitionKey, rvd.crdd, fastKeys)
+
+  def coerce(
+    typ: OrderedRVDType,
     rvd: RVD,
     fastKeys: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = coerce(typ, rvd, Some(fastKeys))
@@ -788,34 +803,6 @@ object OrderedRVD {
     rvd: RVD,
     fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
   ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys)
-
-  def coerce(
-    typ: OrderedRVDType,
-    partitionKey: Int,
-    rvd: RVD,
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
-  ): OrderedRVD = coerce(typ, partitionKey, rvd.crdd, fastKeys)
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, None)
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: RDD[RegionValue]
-  ): OrderedRVD = coerce(typ, rdd, Some(fastKeys))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rdd: RDD[RegionValue],
-    fastKeys: Option[RDD[RegionValue]]
-  ): OrderedRVD = coerce(
-    typ,
-    ContextRDD.weaken[RVDContext](rdd),
-    fastKeys.map(ContextRDD.weaken[RVDContext](_))
-    )
 
   def coerce(
     typ: OrderedRVDType,
@@ -866,21 +853,27 @@ object OrderedRVD {
       def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = empty(sc, typ)
     }
 
-    val pkis = getKeyInfo(fullType, partitionKey, keys)
+    val keyInfo = getKeyInfo(fullType, partitionKey, keys)
 
-    if (pkis.isEmpty)
+    if (keyInfo.isEmpty)
       return emptyCoercer
 
-    val bounds = pkis.map(_.interval).toFastIndexedSeq
+    val bounds = keyInfo.map(_.interval).toFastIndexedSeq
     val pkBounds = bounds.map(_.coarsen(partitionKey))
     def orderPartitions = { crdd: CRDD =>
-      val pids = pkis.map(_.partitionIndex)
-      if (pids.isSorted && crdd.getNumPartitions == pids.length)
+      val pids = keyInfo.map(_.partitionIndex)
+      if (pids.isSorted && crdd.getNumPartitions == pids.length) {
+        assert(pids.isEmpty || pids.last < crdd.getNumPartitions)
         crdd
-      else
+      }
+      else {
+        assert(pids.isEmpty || pids.max < crdd.getNumPartitions)
+        if (!pids.isSorted)
+          info("Coerced dataset with out-of-order partitions.")
         crdd.reorderPartitions(pids)
+      }
     }
-    val intraPartitionSortedness = pkis.map(_.sortedness).min
+    val intraPartitionSortedness = keyInfo.map(_.sortedness).min
 
     if (intraPartitionSortedness == OrderedRVPartitionInfo.KSORTED
         && OrderedRVDPartitioner.isValid(fullType.kType, bounds)) {
@@ -898,7 +891,7 @@ object OrderedRVD {
             unfixedPartitioner,
             orderPartitions(crdd))
 
-          unfixedRVD.constrainToOrderedPartitioner(typ, newPartitioner)
+          unfixedRVD.constrainToOrderedPartitioner(newPartitioner)
         }
       }
 
@@ -924,7 +917,7 @@ object OrderedRVD {
             orderPartitions(crdd))
 
           unfixedRVD
-            .constrainToOrderedPartitioner(typ.copy(key = typ.key.take(partitionKey)), newPartitioner)
+            .constrainToOrderedPartitioner(newPartitioner)
             .localSort(typ.key)
         }
       }
@@ -932,7 +925,7 @@ object OrderedRVD {
     } else {
 
       info("Ordering unsorted dataset with network shuffle")
-      val partitioner = calculateKeyRanges(fullType, pkis, keys.getNumPartitions, partitionKey)
+      val partitioner = calculateKeyRanges(fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
       new RVDCoercer(fullType) {
         def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
@@ -955,7 +948,7 @@ object OrderedRVD {
     val max = pInfo.map(_.max).max(kord)
     val samples = pInfo.flatMap(_.samples)
 
-    OrderedRVDPartitioner.fromSampleKeys(typ, min, max, samples, nPartitions, partitionKey)
+    OrderedRVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions, partitionKey)
   }
 
   def adjustBoundsAndShuffle(
@@ -1089,7 +1082,21 @@ object OrderedRVD {
             if (first)
               first = false
             else {
-              assert(localType.kRowOrd.lteq(prevK.value, rv))
+              if (localType.kRowOrd.gt(prevK.value, rv)) {
+                kUR.set(prevK.value)
+                val prevKeyString = kUR.toString()
+
+                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+                kUR.set(prevK.value)
+                val currKeyString = kUR.toString()
+                fatal(
+                  s"""OrderedRVD error! Keys found out of order:
+                     |  Current key:  $currKeyString
+                     |  Previous key: $prevKeyString
+                     |This error can occur after a split_multi if the dataset
+                     |contains both multiallelic variants and duplicated loci.
+                   """.stripMargin)
+              }
             }
 
             prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)

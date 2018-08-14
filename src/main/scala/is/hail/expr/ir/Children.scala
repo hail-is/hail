@@ -13,6 +13,7 @@ object Children {
     case Str(x) => none
     case True() => none
     case False() => none
+    case Literal(_, _, _) => none
     case Void() => none
     case Cast(v, typ) =>
       Array(v)
@@ -94,6 +95,8 @@ object Children {
     case ApplyIR(_, args, _) =>
       args.toFastIndexedSeq
     case Apply(_, args) =>
+      args.toFastIndexedSeq
+    case ApplySeeded(_, args, seed) =>
       args.toFastIndexedSeq
     case ApplySpecial(_, args) =>
       args.toFastIndexedSeq

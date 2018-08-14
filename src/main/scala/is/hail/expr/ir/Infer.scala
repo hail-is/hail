@@ -7,7 +7,7 @@ object Infer {
     ir match {
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"mismatch:\n  ${ cnsq.typ }\n  ${ altr.typ }\n  $cond")
+        assert(cnsq.typ == altr.typ, s"mismatch:\n  ${ cnsq.typ.parsableString() }\n  ${ altr.typ.parsableString() }\n  $cond")
         cnsq.typ
 
       case Let(name, value, body) =>

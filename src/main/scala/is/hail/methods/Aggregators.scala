@@ -495,8 +495,8 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggregator[Any] {
-  var combiner = new LinearRegressionCombiner(nxs)
+class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int) extends TypedAggregator[Any] {
+  var combiner = new LinearRegressionCombiner(k, k0)
 
   def seqOp(a: Any) = {
     if (a != null) {
@@ -520,7 +520,7 @@ class LinearRegressionAggregator(xF: (Any) => Any, nxs: Int) extends TypedAggreg
   def result: Annotation = combiner.result()
 
   def copy() = {
-    val lra = new LinearRegressionAggregator(xF, nxs)
+    val lra = new LinearRegressionAggregator(xF, k, k0)
     lra.combiner = combiner.copy()
     lra
   }
@@ -569,4 +569,33 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
   }
 
   def copy() = new KeyedAggregator(aggregator.copy())
+}
+
+class DownsampleAggregator(nDivisions: Int, getYL: Any => (Any, Any)) extends TypedAggregator[IndexedSeq[Row]] {
+  require(nDivisions > 0)
+
+  var _state = new DownsampleCombiner(nDivisions)
+
+  def result: IndexedSeq[Row] = _state.toRes
+
+  def seqOp(x: Any, y: Any, l: Any) = {
+    if (x != null && y != null) {
+      val labelArgs = l.asInstanceOf[IndexedSeq[String]]
+      _state.merge(x.asInstanceOf[Double], y.asInstanceOf[Double], labelArgs)
+    }
+  }
+
+  def seqOp(x: Any) = {
+    if (x != null) {
+      val y = getYL(x)._1
+      val l = getYL(x)._2
+      val labelArgs = l.asInstanceOf[IndexedSeq[String]]
+      if (y != null)
+        _state.merge(x.asInstanceOf[Double], y.asInstanceOf[Double], labelArgs)
+    }
+  }
+
+  def combOp(agg2: this.type) = _state.merge(agg2._state)
+
+  def copy() = new DownsampleAggregator(nDivisions, getYL)
 }

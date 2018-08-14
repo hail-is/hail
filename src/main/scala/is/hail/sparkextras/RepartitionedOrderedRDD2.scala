@@ -9,10 +9,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 class OrderedDependency[T](
-  oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
-  newIntervalListBc: Broadcast[IndexedSeq[Interval]],
-  rdd: RDD[T])
-  extends NarrowDependency[T](rdd) {
+    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    newIntervalListBc: Broadcast[IndexedSeq[Interval]],
+    rdd: RDD[T]
+) extends NarrowDependency[T](rdd) {
 
   override def getParents(partitionId: Int): Seq[Int] =
     oldPartitionerBc.value.getPartitionRange(newIntervalListBc.value(partitionId))
@@ -74,5 +74,5 @@ class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Inte
 case class RepartitionedOrderedRDD2Partition(
     index: Int,
     parents: Array[Partition],
-    range: Interval)
-  extends Partition
+    range: Interval
+) extends Partition

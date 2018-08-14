@@ -40,7 +40,7 @@ case class OrderedRVIterator(
       other.t.kRowOrdView(ctx.freshRegion),
       null,
       null,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
 
   def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
@@ -50,7 +50,7 @@ case class OrderedRVIterator(
       other.t.kRowOrdView(ctx.freshRegion),
       null,
       null,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
 
   def innerJoin(
@@ -64,7 +64,7 @@ case class OrderedRVIterator(
       null,
       null,
       rightBuffer,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
   }
 
@@ -79,7 +79,7 @@ case class OrderedRVIterator(
       null,
       null,
       rightBuffer,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
   }
 
@@ -94,7 +94,7 @@ case class OrderedRVIterator(
       null,
       null,
       rightBuffer,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
   }
 
@@ -109,7 +109,7 @@ case class OrderedRVIterator(
       null,
       null,
       rightBuffer,
-      this.t.kComp(other.t).compare
+      this.t.joinComp(other.t).compare
     )
   }
 

@@ -1,9 +1,14 @@
+import difflib
+from functools import wraps, update_wrapper
+
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.utils import wrap_to_list
 from hail.ir import *
-import difflib
+from hail.typecheck import *
+from hail.utils import wrap_to_list
+from hail.utils.java import Env
+
 
 class AggregableChecker(TypeChecker):
     def __init__(self, coercer):
@@ -33,6 +38,7 @@ class AggregableChecker(TypeChecker):
             x = coercer.check(x, caller, param)
             return _to_agg(x)
 
+
 def _to_agg(x):
     return Aggregable(x._ir, x._type, x._indices, x._aggregations)
 
@@ -49,9 +55,11 @@ class AggFunc(object):
                       ret_type=hail_type,
                       constructor_args=sequenceof(expr_any),
                       init_op_args=nullable(sequenceof(expr_any)),
-                      f=nullable(func_spec(1, expr_any)))
-    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, f=None):
+                      seq_op_args=nullable(sequenceof(oneof(expr_any, func_spec(1, expr_any)))))
+    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, seq_op_args=None):
         args = constructor_args if init_op_args is None else constructor_args + init_op_args
+        if seq_op_args is None:
+            seq_op_args = [lambda x: x]
         indices, aggregations = unify_all(aggregable, *args)
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
@@ -59,37 +67,32 @@ class AggFunc(object):
             _check_agg_bindings(a)
         _check_agg_bindings(aggregable)
 
+        uid = Env.get_uid()
+
         def get_type(expr):
             return expr.dtype
 
         def get_ir(expr):
             return expr._ir
 
-        def agg_sig(*seq_op_args):
+        def apply_seq_ops(seq_op_args, agg):
+            ref = construct_variable(uid, get_type(agg), agg._indices)
+            return [x(ref) if callable(x) else x for x in seq_op_args]
+
+        def agg_sig(applied_seq_ops):
             return AggSignature(name,
                                 list(map(get_type, constructor_args)),
                                 None if init_op_args is None else list(map(get_type, init_op_args)),
-                                list(map(get_type, seq_op_args)))
+                                list(map(get_type, applied_seq_ops)))
 
-        if name == "Count":
-            def make_seq_op(_):
-                return construct_expr(SeqOp(I32(0), [], agg_sig()), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig()
-        elif f is None:
-            def make_seq_op(agg):
-                return construct_expr(SeqOp(I32(0), [get_ir(agg)], agg_sig(aggregable)), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig(aggregable)
-        else:
-            def make_seq_op(agg):
-                uid = Env.get_uid()
-                ref = construct_variable(uid, get_type(agg), agg._indices)
-                result = f(ref)
-                body = Let(uid, get_ir(agg), get_ir(result))
-                return construct_expr(SeqOp(I32(0), [get_ir(agg), body], agg_sig(agg, result)), None)
-            seq_op = aggregable._transformations(aggregable, make_seq_op)
-            signature = agg_sig(aggregable, f(aggregable))
+        def make_seq_op(agg):
+            applied_seq_ops = apply_seq_ops(seq_op_args, agg)
+            return construct_expr(
+                Let(uid, get_ir(agg), SeqOp(I32(0), [get_ir(x) for x in applied_seq_ops], agg_sig(applied_seq_ops))), None)
+
+        seq_op = aggregable._transformations(aggregable, make_seq_op)
+        applied_seq_ops = apply_seq_ops(seq_op_args, aggregable)
+        signature = agg_sig(applied_seq_ops)
 
         if self._as_scan:
             ir = ApplyScanOp(seq_op._ir,
@@ -264,9 +267,9 @@ def count(expr=None) -> Int64Expression:
         Total number of records.
     """
     if expr is not None:
-        return _agg_func('Count', expr, tint64)
+        return _agg_func('Count', expr, tint64, seq_op_args=())
     else:
-        return _agg_func('Count', _to_agg(hl.int32(0)), tint64)
+        return _agg_func('Count', _to_agg(hl.int32(0)), tint64, seq_op_args=())
 
 
 @typecheck(condition=expr_bool)
@@ -292,7 +295,7 @@ def count_where(condition) -> Int64Expression:
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('Count', filter(condition, 0), tint64)
+    return _agg_func('Count', filter(condition, 0), tint64, seq_op_args=())
 
 
 @typecheck(condition=agg_expr(expr_bool))
@@ -469,10 +472,8 @@ def take(expr, n, ordering=None) -> ArrayExpression:
     n = to_expr(n)
     if ordering is None:
         return _agg_func('Take', expr, tarray(expr.dtype), [n])
-    elif callable(ordering):
-        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], f=ordering)
     else:
-        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], f=lambda x: ordering)
+        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], seq_op_args=[lambda expr: expr, ordering])
 
 
 @typecheck(expr=agg_expr(expr_numeric))
@@ -944,7 +945,7 @@ def inbreeding(expr, prior) -> StructExpression:
                 n_called=tint64,
                 expected_homs=tfloat64,
                 observed_homs=tint64)
-    return _agg_func('Inbreeding', expr, t, f=lambda x: prior)
+    return _agg_func('Inbreeding', expr, t, seq_op_args=[lambda expr: expr, prior])
 
 
 @typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
@@ -1059,7 +1060,36 @@ def hist(expr, start, end, bins) -> StructExpression:
                 bin_freq=tarray(tint64),
                 n_smaller=tint64,
                 n_larger=tint64)
-    return _agg_func('Histogram', expr, t, [start, end, bins])
+    return _agg_func('Histogram', expr, t, constructor_args=[start, end, bins])
+
+
+@typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
+def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
+    """Downsample (x, y) coordinate datapoints.
+
+    Parameters
+    ---------
+    x : :class:`.NumericExpression`
+        X-values to be downsampled.
+    y : :class:`.NumericExpression`
+        Y-values to be downsampled.
+    label : :class:`.StringExpression` or :class:`.ArrayExpression`
+        Additional data for each (x, y) coordinate. Can pass in multiple fields in an :class:`.ArrayExpression`.
+    n_divisions : :obj:`int`
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Expression for downsampled coordinate points (x, y). The element type of the array is
+        :py:data:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :py:data:`.tarray` of :py:data:`.tstring`
+    """
+    if label is None:
+        label = hl.null(hl.tarray(hl.tstr))
+    elif isinstance(label, StringExpression):
+        label = hl.array([label])
+    return _agg_func('downsample', _to_agg(x), tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
+                     constructor_args=[n_divisions], seq_op_args=[lambda x: x, y, label])
 
 
 @typecheck(gp=agg_expr(expr_array(expr_float64)))
@@ -1153,8 +1183,9 @@ def info_score(gp) -> StructExpression:
 
 
 @typecheck(y=agg_expr(expr_float64),
-           x=oneof(expr_float64, sequenceof(expr_float64)))
-def linreg(y, x) -> StructExpression:
+           x=oneof(expr_float64, sequenceof(expr_float64)),
+           nested_dim=int)
+def linreg(y, x, nested_dim=1) -> StructExpression:
     """Compute multivariate linear regression statistics.
 
     Examples
@@ -1162,63 +1193,118 @@ def linreg(y, x) -> StructExpression:
     Regress HT against an intercept (1), SEX, and C1:
 
     >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
-    Struct(
-    beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
-    standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
-    t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
-    p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
-    n=4)
+    Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
+           standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
+           t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
+           p_value=[0.10290201427537926, 0.40250974549499974, 0.3888002244284281],
+           multiple_standard_error=4.949747468305833,
+           multiple_r_squared=0.7175792507204611,
+           adjusted_r_squared=0.1527377521613834,
+           f_stat=1.2704081632653061,
+           multiple_p_value=0.5314327326007864,
+           n=4)
 
-    Regress blood pressure against an intercept (1), age, height, and height squared:
+    Regress blood pressure against an intercept (1), genotype, age, and
+    the interaction of genotype and age:
 
-    >>> ds_ann = ds.annotate_rows(
-    ...    linreg = hl.agg.linreg(ds.pheno.blood_pressure,
-    ...                           [1, ds.pheno.age, ds.pheno.height, ds.pheno.height ** 2]))
+    >>> ds_ann = ds.annotate_rows(linreg = 
+    ...     hl.agg.linreg(ds.pheno.blood_pressure,
+    ...                   [1,
+    ...                    ds.GT.n_alt_alleles(),
+    ...                    ds.pheno.age,
+    ...                    ds.GT.n_alt_alleles() * ds.pheno.age]))
+
+    Warning
+    -------
+    As in the example, the intercept covariate ``1`` must be included
+    **explicitly** if desired.
 
     Notes
     -----
-    This aggregator returns a struct expression with five fields:
+    In relation to
+    `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__.
+    in R,
+    ``linreg(y, x = [1, mt.x1, mt.x2])``
+    computes ``summary(lm(y ~ x1 + x2))`` and
+    ``linreg(y, x = [mt.x1, mt.x2], nested_dim=0)`` computes
+    ``summary(lm(y ~ x1 + x2 - 1))``.
 
-     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated regression coefficient
-       for each predictor.
-     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`): Estimated standard error
-       estimate for each predictor.
-     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`): t statistic for each predictor.
-     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`): p-value for each predictor.
-     - `n` (:py:data:`.tint64`): Number of samples included in the regression. A sample is
-       included if and only if `y` and all elements of `x` are non-missing.
+    More generally, `nested_dim` defines the number of effects to fit in the
+    nested (null) model, with the effects on the remaining covariates fixed
+    to zero.
 
-    The first four fields are missing if n is less than or equal to the number of predictors
-    or if the predictors are linearly dependent.
+    The returned struct has ten fields:
+     - `beta` (:class:`.tarray` of :py:data:`.tfloat64`):
+       Estimated regression coefficient for each covariate.
+     - `standard_error` (:class:`.tarray` of :py:data:`.tfloat64`):
+       Estimated standard error for each covariate.
+     - `t_stat` (:class:`.tarray` of :py:data:`.tfloat64`):
+       t-statistic for each covariate.
+     - `p_value` (:class:`.tarray` of :py:data:`.tfloat64`):
+       p-value for each covariate.
+     - `multiple_standard_error` (:py:data:`.tfloat64`):
+       Estimated standard deviation of the random error.
+     - `multiple_r_squared` (:py:data:`.tfloat64`):
+       Coefficient of determination for nested models.
+     - `adjusted_r_squared` (:py:data:`.tfloat64`):
+       Adjusted `multiple_r_squared` taking into account degrees of
+       freedom.
+     - `f_stat` (:py:data:`.tfloat64`):
+       F-statistic for nested models.
+     - `multiple_p_value` (:py:data:`.tfloat64`):
+       p-value for the
+       `F-test <https://en.wikipedia.org/wiki/F-test#Regression_problems>`__ of
+       nested models.
+     - `n` (:py:data:`.tint64`):
+       Number of samples included in the regression. A sample is included if and
+       only if `y` and all elements of `x` are non-missing.
+
+    All but the last field are missing if `n` is less than or equal to the
+    number of covariates or if the covariates are linearly dependent.
 
     Parameters
     ----------
     y : :class:`.Float64Expression`
-        Response variable.
+        Response (dependent variable).
     x : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
-        Independent variables.
+        Covariates (independent variables).
+    nested_dim : :obj:`int`
+        The null model includes the first `nested_dim` covariates.
+        Must be between 0 and `k` (the length of `x`).
 
     Returns
     -------
     :class:`.StructExpression`
-        Struct with fields `beta`, `standard_error`, `t_stat`, `p_value`, and `n`.
+        Struct of regression results.
     """
     x = wrap_to_list(x)
     k = len(x)
     if k == 0:
-        raise ValueError("'linreg' requires at least one predictor in `x`")
+        raise ValueError("linreg: must have at least one covariate in `x`")
 
+    hl.methods.statgen._warn_if_no_intercept('linreg', x)
+
+    k0 = nested_dim
+    if k0 < 0 or k0 > k:
+        raise ValueError("linreg: `nested_dim` must be between 0 and the number "
+                         f"of covariates ({k}), inclusive")
 
     t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
                    standard_error=hl.tarray(hl.tfloat64),
                    t_stat=hl.tarray(hl.tfloat64),
                    p_value=hl.tarray(hl.tfloat64),
+                   multiple_standard_error=hl.tfloat64,
+                   multiple_r_squared=hl.tfloat64,
+                   adjusted_r_squared=hl.tfloat64,
+                   f_stat=hl.tfloat64,
+                   multiple_p_value=hl.tfloat64,
                    n=hl.tint64)
 
     x = hl.array(x)
     k = hl.int32(k)
+    k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', y, t, [k], f=lambda expr: x)
+    return _agg_func('LinearRegression', y, t, [k, k0], seq_op_args=[lambda y: y, x])
 
 
 @typecheck(group=expr_any,
@@ -1232,17 +1318,30 @@ def group_by(group, agg_expr) -> DictExpression:
     --------
     Compute linear regression statistics stratified by SEX:
 
-    >>> table1.aggregate(agg.group_by(table1.SEX, agg.linreg(table1.HT, table1.C1)))
-    {'F': Struct(beta=[6.153846153846154],
-                 standard_error=[0.7692307692307685],
-                 t_stat=[8.000000000000009],
-                 p_value=[0.07916684832113098],
-                 n=2),
-     'M': Struct(beta=[34.25],
-                 standard_error=[1.75],
-                 t_stat=[19.571428571428573],
-                 p_value=[0.03249975499062629],
-                 n=2)}
+    >>> table1.aggregate(agg.group_by(table1.SEX,
+    ...                               agg.linreg(table1.HT, table1.C1, nested_dim=0)))
+    {
+    'F': Struct(beta=[6.153846153846154],
+                standard_error=[0.7692307692307685],
+                t_stat=[8.000000000000009],
+                p_value=[0.07916684832113098],
+                multiple_standard_error=11.4354374979373,
+                multiple_r_squared=0.9846153846153847,
+                adjusted_r_squared=0.9692307692307693,
+                f_stat=64.00000000000014,
+                multiple_p_value=0.07916684832113098,
+                n=2),
+    'M': Struct(beta=[34.25],
+                standard_error=[1.75],
+                t_stat=[19.571428571428573],
+                p_value=[0.03249975499062629],
+                multiple_standard_error=4.949747468305833,
+                multiple_r_squared=0.9973961101073441,
+                adjusted_r_squared=0.9947922202146882,
+                f_stat=383.0408163265306,
+                multiple_p_value=0.03249975499062629,
+                n=2)
+    }
 
     Compute call statistics stratified by population group and case status:
 

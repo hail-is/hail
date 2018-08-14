@@ -397,7 +397,7 @@ task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
 }
 
 task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
-    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
+    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
@@ -406,7 +406,7 @@ task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
 }
 
 task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
-    commandLine 'sh', 'python/hail/docs/makeDocs.sh'
+    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'

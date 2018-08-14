@@ -44,6 +44,10 @@ This is the list of things you need to do to add a new IR node.
 
  - Define copy, partitionCounts, columnCount, typ, and execute
 
+ - add to LiftLiterals if necessary
+
 * TableIR
 
  - Define copy, partitionCounts, typ, and execute
+
+ - add to LiftLiterals if necessary

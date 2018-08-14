@@ -21,7 +21,8 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, spark_context, default_reference, get_reference
+from .context import init, stop, spark_context, default_reference, \
+    get_reference, set_global_seed
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -46,6 +47,7 @@ __all__ = [
     'spark_context',
     'default_reference',
     'get_reference',
+    'set_global_seed',
     'Table',
     'GroupedTable',
     'MatrixTable',

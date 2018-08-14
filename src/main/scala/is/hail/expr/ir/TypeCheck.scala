@@ -25,6 +25,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
+      case Literal(_, _, _) =>
       case Void() =>
 
       case Cast(v, typ) =>
@@ -222,14 +223,9 @@ object TypeCheck {
       case Die(msg, typ) =>
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
-      case x@Apply(fn, args) =>
-        val impl = x.implementation
-        args.foreach(check(_))
-        assert(x.implementation.unify(args.map(_.typ)))
-      case x@ApplySpecial(fn, args) =>
-        val impl = x.implementation
-        args.foreach(check(_))
-        assert(x.implementation.unify(args.map(_.typ)))
+      case x: AbstractApplyNode[_] =>
+        x.args.foreach(check(_))
+        assert(x.implementation.unify(x.args.map(_.typ)))
       case Uniroot(_, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])

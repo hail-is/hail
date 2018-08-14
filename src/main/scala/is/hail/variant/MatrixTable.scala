@@ -429,7 +429,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     .toArray
 
   lazy val value: MatrixValue = {
-    val opt = ir.Optimize(ast)
+    val opt = LiftLiterals(ir.Optimize(ast)).asInstanceOf[MatrixIR]
     val v = opt.execute(hc)
     assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
     v
@@ -519,15 +519,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
-  def annotateGlobalJSON(data: String, t: TStruct): MatrixTable = {
-    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(data), t)
-    val value = BroadcastRow(ann.asInstanceOf[Row], t, hc.sc)
-    new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", matrixType.globalType),
-        t.fieldNames.map(name => name -> ir.GetField(ir.Ref("value", t), name))),
-      value))
-  }
-
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
     val (t, ins) = insertSA(signature, path)
 
@@ -542,39 +533,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
-    require(kt.keyFields.isDefined)
-
-    val (finalType, inserter) = colType.structInsert(
-      kt.valueSignature,
-      List(root))
-
-    val keyTypes = kt.keyFields.get.map(_.typ)
-
-    val keyedRDD = kt.keyedRDD().filter { case (k, v) => k.toSeq.forall(_ != null) }
-
-    assert(keyTypes.length == colKeyTypes.length
-      && keyTypes.zip(colKeyTypes).forall { case (l, r) => l.isOfType(r) },
-      s"MT col key: ${ colKeyTypes.mkString(", ") }, TB key: ${ keyTypes.mkString(", ") }")
-    val r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
-
-    val m = r.collectAsMap()
-
-    annotateCols(finalType, inserter) { case (ck, _) => m.getOrElse(ck, null) }
-  }
-
-  def annotateCols(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
-    val newAnnotations = colKeys.zip(colValues.value)
-      .zipWithIndex
-      .map { case ((ck, sa), i) =>
-        val newAnnotation = inserter(sa, f(ck, i))
-        newSignature.typeCheck(newAnnotation)
-        newAnnotation
-      }
-
-    val newFields = newSignature.fieldNames.toSet
-    copy2(colValues = colValues.copy(value = newAnnotations, t = TArray(newSignature)),
-      colType = newSignature,
-      colKey = colKey.filter(newFields.contains))
+    new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
   def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
@@ -829,10 +788,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         right.rowKeyTypes.map(_.toString).mkString(", "))
     }
 
-    val leftRVType = rvRowType
+
+    val newMatrixType = matrixType.copyParts() // move entries to the end
+    val newRVRowType = newMatrixType.rvRowType
+    val leftRVRowType = rvRowType
+    val rightRVRowType = right.rvRowType
     val localLeftSamples = numCols
     val localRightSamples = right.numCols
-    val rightRVRowType = right.rvRowType
     val leftEntriesIndex = entriesIndex
     val rightEntriesIndex = right.entriesIndex
     val localEntriesType = matrixType.entryArrayType
@@ -846,17 +808,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        rvb.start(leftRVType)
+        rvb.start(newRVRowType)
         rvb.startStruct()
         var i = 0
-        while (i < leftRVType.size) {
+        while (i < leftRVRowType.size) {
           if (i != leftEntriesIndex)
-            rvb.addField(leftRVType, lrv, i)
+            rvb.addField(leftRVRowType, lrv, i)
           i += 1
         }
         rvb.startArray(localLeftSamples + localRightSamples)
 
-        val leftEntriesOffset = leftRVType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
+        val leftEntriesOffset = leftRVRowType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
         val leftEntriesLength = localEntriesType.loadLength(lrv.region, leftEntriesOffset)
         assert(leftEntriesLength == localLeftSamples)
 
@@ -883,11 +845,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
     }
 
-    val newMatrixType = matrixType.copyParts() // move entries to the end
-
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.orvdType))
   }
 
   def makeTable(separator: String = "."): Table = {
@@ -1166,7 +1126,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     metadataSame &&
       rvd.crdd.czip(
         that.rvd.constrainToOrderedPartitioner(
-          that.rvd.typ,
           rvd.partitioner.enlargeToRange(that.rvd.partitioner.range)
         ).crdd) { (ctx, rv1, rv2) =>
         var partSame = true
@@ -1211,11 +1170,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     colValues.value.zip(that.colValues.value)
       .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance, absolute)
       }
-  }
-
-  def sampleRows(p: Double, seed: Int = 1): MatrixTable = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copyMT(rvd = rvd.sample(withReplacement = false, p, seed))
   }
 
   def copy2(rvd: OrderedRVD = rvd,

@@ -37,7 +37,7 @@ class OrderedRVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(OrderedRVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
-  def satisfiesPartitionKey(testAllowedOverlap: Int): Boolean =
+  def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
   val numPartitions: Int = rangeBounds.length
@@ -64,6 +64,9 @@ class OrderedRVDPartitioner(
       coarsenedRangeBounds(newKeyLen)
     )
 
+  // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
+  // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still
+  // adjusts 'rangeBounds'.
   def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
     require(kType isPrefixOf newKType)
     OrderedRVDPartitioner.generate(newKType.fieldNames, newKType, rangeBounds)
@@ -77,17 +80,21 @@ class OrderedRVDPartitioner(
       kType.relaxedTypeCheck(row)
     })
     require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-    require(satisfiesPartitionKey(allowedOverlap))
+    require(satisfiesAllowedOverlap(allowedOverlap))
 
     val kord = kType.ordering
     val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
     val sorted = cutPoints.map(_.coarsenRight(allowedOverlap + 1)).sorted(eord)
 
     var i = 0
+    def firstPast(threshold: IntervalEndpoint, start: Int): Int = {
+      val iw = sorted.indexWhere(eord.gt(_, threshold), start)
+      if (iw == -1) sorted.length else iw
+    }
     val newBounds = rangeBounds.flatMap { interval =>
-      val first = sorted.indexWhere(eord.gt(_, interval.left), i)
-      val last = sorted.indexWhere(eord.gt(_, interval.right), first)
-      val cuts = sorted.slice(first, if (last == -1) sorted.length else last)
+      val first = firstPast(interval.left, i)
+      val last = firstPast(interval.right, first)
+      val cuts = sorted.slice(first, last)
       i = last
       for {
         (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
@@ -109,7 +116,7 @@ class OrderedRVDPartitioner(
   // keys.
   def getPartitionRange(query: Interval): Seq[Int] = {
     require(kType.isComparableAt(query.start) && kType.isComparableAt(query.end))
-    if (!rangeTree.probablyOverlaps(kType.ordering, query))
+    if (!rangeTree.overlaps(kType.ordering, query))
       FastSeq.empty[Int]
     else
       rangeTree.queryOverlappingValues(kType.ordering, query)
@@ -156,13 +163,13 @@ class OrderedRVDPartitioner(
     enlargeToRange(Some(newRange))
 
   def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
-    require(newRange.forall{i => kType.relaxedTypeCheck(i.start) && kType.relaxedTypeCheck(i.end)})
+    require(newRange.forall(i => kType.relaxedTypeCheck(i.start) && kType.relaxedTypeCheck(i.end)))
 
     if (newRange.isEmpty)
       return this
     if (range.isEmpty)
       return copy(rangeBounds = FastIndexedSeq(newRange.get))
-    val pord: IntervalEndpointOrdering = kType.ordering.intervalEndpointOrdering
+    val pord = kType.ordering.intervalEndpointOrdering
     val newLeft = pord.min(range.get.left, newRange.get.left).asInstanceOf[IntervalEndpoint]
     val newRight = pord.max(range.get.right, newRange.get.right).asInstanceOf[IntervalEndpoint]
     val newRangeBounds =
@@ -268,7 +275,7 @@ object OrderedRVDPartitioner {
     new OrderedRVDPartitioner(kType, rangeBounds, allowedOverlap)
   }
 
-  def fromSampleKeys(
+  def fromKeySamples(
     typ: OrderedRVDType,
     min: Any,
     max: Any,

@@ -523,6 +523,7 @@ object Parser extends JavaTokenParsers {
       "Str" ~> string_literal ^^ { x => ir.Str(x) } |
       "True" ^^ { x => ir.True() } |
       "False" ^^ { x => ir.False() } |
+      "Literal" ~> ir_value ~ string_literal ^^ { case (value ~ id) => ir.Literal(value._1, value._2, id)} |
       "Void" ^^ { x => ir.Void() } |
       "Cast" ~> type_expr ~ expr_with_map ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |
@@ -565,6 +566,7 @@ object Parser extends JavaTokenParsers {
       "StringLength" ~> expr_with_map ^^ { s => ir.StringLength(s) } |
       "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
+      "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(ref_map) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(ref_map) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ expr_with_map ~ expr_with_map ~ expr_with_map ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
   }
@@ -603,6 +605,7 @@ object Parser extends JavaTokenParsers {
       "TableHead" ~> int64_literal ~ table_ir ^^ { case n ~ child => ir.TableHead(child, n) } |
       "TableJoin" ~> ir_identifier ~ int32_literal ~ table_ir ~ table_ir ^^ { case joinType ~ joinKey ~ left ~ right =>
         ir.TableJoin(left, right, joinType, joinKey) } |
+      "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
         ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)
       } |
@@ -662,6 +665,10 @@ object Parser extends JavaTokenParsers {
         case uid ~ hasKey ~ child ~ table ~ key =>
           val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
           ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
+      } |
+      "MatrixAnnotateColsTable" ~> string_literal ~ matrix_ir ~ table_ir ^^ {
+        case root ~ child ~ table =>
+          ir.MatrixAnnotateColsTable(child, table, root)
       } |
       "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path)} |
       "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path)} |
