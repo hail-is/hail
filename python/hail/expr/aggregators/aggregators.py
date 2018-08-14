@@ -1224,9 +1224,8 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     -----
     In relation to
     `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__
-    in R,
-    ``linreg(y, x = [1, mt.x1, mt.x2])``
-    computes ``summary(lm(y ~ x1 + x2))`` and
+    in R, ``linreg(y, x = [1, mt.x1, mt.x2])`` computes
+    ``summary(lm(y ~ x1 + x2))`` and
     ``linreg(y, x = [mt.x1, mt.x2], nested_dim=0)`` computes
     ``summary(lm(y ~ x1 + x2 - 1))``.
 
