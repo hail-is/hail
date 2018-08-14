@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import com.sun.jna._
+import is.hail.nativecode.NativeCode
 
 case class IBS (N0: Long, N1: Long, N2: Long) { }
 
@@ -12,7 +13,7 @@ object IBSFFI {
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
-  Native.register("hail")
+  Native.register(NativeCode.getHailName())
 
   val genotypesPerPack = 32
 

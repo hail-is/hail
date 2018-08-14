@@ -1,14 +1,13 @@
-// src/main/c/NativeModule.cpp - native funcs for Scala NativeModule
 #include "hail/NativeModule.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"
-#include <assert.h>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <jni.h>
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -16,19 +15,11 @@
 #include <memory>
 #include <mutex>
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
-
-#if 0
-#define D(fmt, ...) { \
-  char buf[1024]; \
-  sprintf(buf, fmt, ##__VA_ARGS__); \
-  fprintf(stderr, "DEBUG: %s,%d: %s", __FILE__, __LINE__, buf); \
-}
-#else
-#define D(fmt, ...) { }
-#endif
 
 namespace hail {
 
@@ -38,14 +29,23 @@ namespace {
 const int kFilePollMicrosecs = 50000;
 
 // Timeout for compile/link of a DLL
-const int kBuildTimeoutSecs = 120;
+const int kBuildTimeoutSecs = 300;
 
 // A quick-and-dirty way to get a hash of two strings, take 80bits,
-// and produce a 20byte string of hex digits.
+// and produce a 20byte string of hex digits.  We also sprinkle
+// in some "salt" from a checksum of a tar of all header files, so
+// that any change to header files will force recompilation.
+
 std::string hash_two_strings(const std::string& a, const std::string& b) {
-  auto hashA = std::hash<std::string>()(a);
-  auto hashB = std::hash<std::string>()(b);
-  hashA ^= (0x3ac5*hashB);
+  uint64_t hashA = std::hash<std::string>()(a);
+  uint64_t hashB = std::hash<std::string>()(b);
+  if (sizeof(size_t) < 8) {
+    // On a 32bit machine we need to work harder to get 80 bits
+    uint64_t hashC = std::hash<std::string>()(a+"SmallChangeForThirdHash");
+    hashA += (hashC << 32);
+  }
+  hashA ^= ALL_HEADER_CKSUM; // checksum from all header files
+  hashA ^= (0x3ac5*hashB); // mix low bits of hashB into hashA
   hashB &= 0xffff;
   char buf[128];
   char* out = buf;
@@ -137,17 +137,30 @@ std::string strip_suffix(const std::string& s, const char* suffix) {
 std::string get_cxx_name() {
   char* p = ::getenv("CXX");
   if (p) return std::string(p);
-  // We prefer clang because it has faster compile
-  auto s = run_shell_get_first_line("which clang");
-  if (strstr(s.c_str(), "clang")) return s;
-  s = run_shell_get_first_line("which g++");
-  if (strstr(s.c_str(), "g++")) return s;
+  auto s = run_shell_get_first_line("which c++");
+  if (strstr(s.c_str(), "c++")) return s;
   // The last guess is to just say "c++"
   return std::string("c++");
 }
 
+std::string get_cxx_std(const std::string& cxx) {
+  const char* standards[] = { "-std=c++17", "-std=c++14" };
+  int fd = ::open("/tmp/.hail_empty.cc", O_WRONLY|O_CREAT|O_TRUNC, 0666);
+  if (fd >= 0) ::close(fd);
+  for (int j = 0; j < 2; ++j) {
+    std::stringstream ss;
+    ss << cxx << " " << standards[j] << " /tmp/.hail_empty.cc 2>1";
+    auto s = run_shell_get_first_line(ss.str().c_str());
+    if (!strstr(s.c_str(), "unrecognized") && !strstr(s.c_str(), "invalid")) {
+      return standards[j];
+    }
+  }
+  // Default to pass "-std=c++11", a minimum requirement
+  return "-std=c++11";
+}
+
 class ModuleConfig {
-public:
+ public:
   bool is_darwin_;
   std::string ext_cpp_;
   std::string ext_lib_;
@@ -155,10 +168,11 @@ public:
   std::string ext_new_;
   std::string module_dir_;
   std::string cxx_name_;
+  std::string cxx_std_;
   std::string java_home_;
   std::string java_md_;
 
-public:
+ public:
   ModuleConfig() :
 #if defined(__APPLE__) && defined(__MACH__)
     is_darwin_(true),
@@ -171,6 +185,7 @@ public:
     ext_new_(".new"),
     module_dir_(getenv_with_default("HOME", "/tmp")+"/hail_modules"),
     cxx_name_(get_cxx_name()),
+    cxx_std_(get_cxx_std(cxx_name_)),
     java_home_(get_java_home()),
     java_md_(is_darwin_ ? "darwin" : "linux") {
   }
@@ -204,6 +219,52 @@ public:
 };
 
 ModuleConfig config;
+
+class ModuleCache {
+ public:
+  std::mutex mutex_;
+  size_t capacity_;
+  std::unordered_map<std::string, NativeModulePtr> modules_;
+  std::queue<NativeModulePtr> evictq_;
+
+ public:
+  ModuleCache(ssize_t capacity) :
+    mutex_(),
+    capacity_(capacity),
+    modules_(),
+    evictq_() {
+  }
+  
+  void try_to_evict() {
+    for (int phase = 0; phase < 2; ++phase) {
+      if (phase == 1) {
+        for (auto& pair : modules_) {
+          if (pair.second.use_count() <= 1) evictq_.push(pair.second);
+        }
+      }
+      for (auto n = evictq_.size(); n > 0; --n) {
+        auto mod = evictq_.front();
+        evictq_.pop();
+        if (mod.use_count() <= 2) {
+          modules_.erase(mod->key_);
+          if ((phase == 0) || (evictq_.size() <= capacity_)) return;
+        }
+      }
+    }
+  }
+  
+  void insert(const NativeModulePtr& mod) {
+    modules_[mod->key_] = mod;
+    if (modules_.size() > capacity_) try_to_evict();
+  }
+  
+  NativeModulePtr find(const std::string& key) {
+    auto iter = modules_.find(key);
+    return ((iter == modules_.end()) ? NativeModulePtr() : iter->second);
+  }
+};
+
+ModuleCache module_cache(32);
 
 } // end anon
 
@@ -264,10 +325,8 @@ private:
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
     fprintf(f, "CXX       := %s\n", config.cxx_name_.c_str());
-    // Downgrading from -std=c++14 to -std=c++11 for CI w/ old compilers
-    const char* cxxstd = (strstr(config.cxx_name_.c_str(), "clang") ? "-std=c++17" : "-std=c++11");
     fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall \\\n", cxxstd);
+    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall \\\n", config.cxx_std_.c_str());
     auto java_include = strip_suffix(config.java_home_, "/jre") + "/include";
     fprintf(f, "  -I%s \\\n", java_include.c_str());
     fprintf(f, "  -I%s/%s \\\n", java_include.c_str(), config.java_md_.c_str());
@@ -559,9 +618,7 @@ void NativeModule::find_LongFuncL(
     NATIVE_ERROR(st, 1001, "ErrModuleNotFound");
   } else {
     auto qualName = to_qualified_name(env, key_, nameJ, numArgs, is_global_, true);
-    D("is_global %s qualName \"%s\"\n", is_global_ ? "true" : "false", qualName.c_str());    
     funcAddr = ::dlsym(is_global_ ? RTLD_DEFAULT : dlopen_handle_, qualName.c_str());
-    D("dlsym -> funcAddr %p\n", funcAddr);
     if (!funcAddr) {
       fprintf(stderr, "ErrLongFuncNotFound \"%s\"\n", qualName.c_str());
       NATIVE_ERROR(st, 1003, "ErrLongFuncNotFound dlsym(\"%s\")", qualName.c_str());
@@ -624,10 +681,16 @@ NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
 ) {
   bool is_global = (is_globalJ != JNI_FALSE);
   JString key(env, keyJ);
-  long binary_size = env->GetArrayLength(binaryJ);
-  auto binary = env->GetByteArrayElements(binaryJ, 0);
-  NativeObjPtr ptr = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
-  env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
+  std::lock_guard<std::mutex> mylock(module_cache.mutex_);
+  auto mod = module_cache.find(std::string(key));
+  if (!mod) {
+    long binary_size = env->GetArrayLength(binaryJ);
+    auto binary = env->GetByteArrayElements(binaryJ, 0);
+    mod = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
+    module_cache.insert(mod);
+    env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
+  }
+  NativeObjPtr ptr = mod;
   init_NativePtr(env, thisJ, &ptr);
 }
 

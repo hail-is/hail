@@ -1,4 +1,3 @@
-// src/main/c/NativeFunc.cpp - native funcs for Scala NativeLongFunc
 #include "hail/NativePtr.h"
 #include "hail/NativeStatus.h"
 #include <cassert>

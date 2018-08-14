@@ -11,29 +11,54 @@ import org.apache.log4j.*;
 
 public class NativeCode {
   private static String includeDir;
+  private static String hailName;
   
   static {
     try {
-      String libHail = libToLocalFile("libhail");
+      // libboot.so has native methods to call dlopen/dlclose
+      String libBoot = libToLocalFile("libboot");
+      System.load(libBoot);
       if (isLinux()) {
-        // libboot.so has native methods to call dlopen/dlclose
-        String libBoot = libToLocalFile("libboot");
-        System.load(libBoot);
-        // We need libhail.so to be loaded with RTLD_GLOBAL so that its symbols
-        // are visible to dynamic-generated code in other DLLs ...
-        long handle = dlopenGlobal(libHail);
-        // ... but we also need System.load to let the JVM see it
-        System.load(libHail);
+        // libhail_abi_v9 works with libstdc++ 6.0.21 (g++-5.x) and later.
+        // libhail_abi_v2 works with systems based on g++-3.4.x to g++-4.9.x
+        Process child = Runtime.getRuntime().exec("/usr/bin/c++ -dumpversion");
+        BufferedReader s = new BufferedReader(new InputStreamReader(child.getInputStream()));
+        String version = s.readLine();
+        child.waitFor();
+        hailName = "hail_abi_v9";
+        if (version != null) {
+          int idx = version.indexOf(".", 0);
+          if (idx > 0) {
+            int major = Integer.parseInt(version.substring(0, idx));
+            if (major <= 4) { // Use abi_v2 for g++-3.4.0 to g++-4.9.x
+              hailName = "hail_abi_v2";
+            }
+          }
+        }
       } else {
-        // MacOS System.load uses RTLD_GLOBAL, so it just works
-        System.load(libHail);
-      }
+        // Since MacOS 10.9 Mavericks (Oct 2013) the default library is libc++
+        // rather than libstdc++.  I believe all versions of libc++ support
+        // at least abi_v9.
+        hailName = "hail_abi_v9";
+      } 
+      String libHail = libToLocalFile("lib"+hailName);
+      // We need libhail.so to be loaded with RTLD_GLOBAL so that its symbols
+      // are visible to dynamic-generated code in other DLLs ...
+      long handle = dlopenGlobal(libHail);
+      // ... but we also need System.load to let the JVM see it
+      System.load(libHail);
       includeDir = unpackHeadersToTmpIncludeDir();
     } catch (Throwable err) {
       System.err.println("FATAL: caught exception " + err.toString());
       err.printStackTrace();
       System.exit(1);
     }
+  }
+
+  // Scala classes using jna and Native.register(libname) need to use
+  // this to get either "hail_abi_v2" or "hail_abi_v9"
+  public static String getHailName() {
+    return hailName;
   }
   
   private static Boolean isLinux() {
