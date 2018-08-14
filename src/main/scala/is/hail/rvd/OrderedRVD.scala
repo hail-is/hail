@@ -829,8 +829,13 @@ object OrderedRVD {
       val pids = keyInfo.map(_.partitionIndex)
       if (pids.isSorted && crdd.getNumPartitions == pids.length)
         crdd
-      else
+      else {
+        if (crdd.getNumPartitions != pids.length)
+          info(s"Coerced fewer partitions than expected: data had ${crdd.getNumPartitions} while keys had ${pids.length}.")
+        if (!pids.isSorted)
+          info("Coerced dataset with out-of-order partitions.")
         crdd.reorderPartitions(pids)
+      }
     }
     val intraPartitionSortedness = keyInfo.map(_.sortedness).min
 
