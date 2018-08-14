@@ -566,6 +566,7 @@ object Parser extends JavaTokenParsers {
       "StringLength" ~> expr_with_map ^^ { s => ir.StringLength(s) } |
       "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
+      "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(ref_map) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(ref_map) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ expr_with_map ~ expr_with_map ~ expr_with_map ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) }
   }
@@ -603,6 +604,7 @@ object Parser extends JavaTokenParsers {
       "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
       "TableHead" ~> int64_literal ~ table_ir ^^ { case n ~ child => ir.TableHead(child, n) } |
       "TableJoin" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case joinType ~ left ~ right => ir.TableJoin(left, right, joinType) } |
+      "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
         ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)
       } |

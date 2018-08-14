@@ -788,10 +788,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         right.rowKeyTypes.map(_.toString).mkString(", "))
     }
 
-    val leftRVType = rvRowType
+
+    val newMatrixType = matrixType.copyParts() // move entries to the end
+    val newRVRowType = newMatrixType.rvRowType
+    val leftRVRowType = rvRowType
+    val rightRVRowType = right.rvRowType
     val localLeftSamples = numCols
     val localRightSamples = right.numCols
-    val rightRVRowType = right.rvRowType
     val leftEntriesIndex = entriesIndex
     val rightEntriesIndex = right.entriesIndex
     val localEntriesType = matrixType.entryArrayType
@@ -805,17 +808,17 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        rvb.start(leftRVType)
+        rvb.start(newRVRowType)
         rvb.startStruct()
         var i = 0
-        while (i < leftRVType.size) {
+        while (i < leftRVRowType.size) {
           if (i != leftEntriesIndex)
-            rvb.addField(leftRVType, lrv, i)
+            rvb.addField(leftRVRowType, lrv, i)
           i += 1
         }
         rvb.startArray(localLeftSamples + localRightSamples)
 
-        val leftEntriesOffset = leftRVType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
+        val leftEntriesOffset = leftRVRowType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
         val leftEntriesLength = localEntriesType.loadLength(lrv.region, leftEntriesOffset)
         assert(leftEntriesLength == localLeftSamples)
 
@@ -842,11 +845,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
     }
 
-    val newMatrixType = matrixType.copyParts() // move entries to the end
-
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, rvd.typ))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.orvdType))
   }
 
   def makeTable(separator: String = "."): Table = {
@@ -1169,11 +1170,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     colValues.value.zip(that.colValues.value)
       .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance, absolute)
       }
-  }
-
-  def sampleRows(p: Double, seed: Int = 1): MatrixTable = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copyMT(rvd = rvd.sample(withReplacement = false, p, seed))
   }
 
   def copy2(rvd: OrderedRVD = rvd,

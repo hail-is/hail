@@ -52,7 +52,16 @@ class OrderedRVDType(
       this.rowType,
       this.kRowFieldIdx,
       other.rowType,
-      other.kRowFieldIdx)
+      other.kRowFieldIdx,
+      true)
+
+  def joinComp(other: OrderedRVDType): UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(
+      this.rowType,
+      this.kRowFieldIdx,
+      other.rowType,
+      other.kRowFieldIdx,
+      false)
 
   def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
     val wrv = WritableRegionValue(kType, region)
@@ -124,7 +133,7 @@ class OrderedRVDType(
 object OrderedRVDType {
 
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
-    t2: TStruct, fields2: Array[Int]): UnsafeOrdering = {
+    t2: TStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
     require(fields1.length == fields2.length)
     require((fields1, fields2).zipped.forall { case (f1, f2) =>
       t1.types(f1) isOfType t2.types(f2)
@@ -138,6 +147,7 @@ object OrderedRVDType {
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         var i = 0
+        var hasMissing=false
         while (i < nFields) {
           val f1 = fields1(i)
           val f2 = fields2(i)
@@ -151,12 +161,11 @@ object OrderedRVDType {
           } else if (leftDefined != rightDefined) {
             val c = if (leftDefined) -1 else 1
             return c
-          }
+          } else hasMissing = true
 
           i += 1
         }
-
-        0
+        if (!missingEqual && hasMissing) -1 else 0
       }
     }
   }

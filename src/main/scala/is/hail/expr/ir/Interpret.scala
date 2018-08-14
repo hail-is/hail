@@ -362,6 +362,9 @@ object Interpret {
               }
             }
             aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
+          case Downsample() =>
+            val IndexedSeq(x, y, label) = seqOpArgs
+            aggregator.get.asInstanceOf[DownsampleAggregator].seqOp(interpret(x), interpret(y), interpret(label))
           case _ =>
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
@@ -458,11 +461,17 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case LinearRegression() =>
-            val Seq(nxs) = constructorArgs
-            val nxsValue = interpret(nxs, Env.empty[Any], null, null).asInstanceOf[Int]
-            new LinearRegressionAggregator(null, nxsValue)
+            val Seq(k, k0) = constructorArgs
+            val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
+            val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
+            new LinearRegressionAggregator(null, kValue, k0Value)
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
+          case Downsample() =>
+            assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64(), TArray(TString())))
+            val Seq(nDivisions) = constructorArgs
+            val nDivisionsValue = interpret(nDivisions, Env.empty[Any], null, null).asInstanceOf[Int]
+            new DownsampleAggregator(nDivisionsValue, null)
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
@@ -533,45 +542,21 @@ object Interpret {
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
-      case ir@Apply(function, functionArgs) =>
+      case ir: AbstractApplyNode[_] =>
+        val argTuple = TTuple(ir.args.map(_.typ): _*)
+        val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
+          GetTupleElement(Ref("in", argTuple), i)
+        }.toFastIndexedSeq
+        val wrappedIR = Copy(ir, wrappedArgs).asInstanceOf[IR]
 
-        val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(Apply(function,
-          functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
-          }))))
-
-        val f = makeFunction()
+        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)))
+        val f = makeFunction(0)
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
           rvb.start(argTuple)
           rvb.startTuple()
-          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
-            val argValue = interpret(arg, env, args, agg)
-            rvb.addAnnotation(t, argValue)
-          }
-          rvb.endTuple()
-          val offset = rvb.end()
-
-          val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
-            .get(0)
-        }
-      case ir@ApplySpecial(function, functionArgs) =>
-        val argTuple = TTuple(functionArgs.map(_.typ): _*)
-        val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(FastSeq(ApplySpecial(function,
-          functionArgs.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
-          }))))
-
-        val f = makeFunction()
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder()
-          rvb.set(region)
-          rvb.start(argTuple)
-          rvb.startTuple()
-          functionArgs.zip(argTuple.types).foreach { case (arg, t) =>
+          ir.args.zip(argTuple.types).foreach { case (arg, t) =>
             val argValue = interpret(arg, env, args, agg)
             rvb.addAnnotation(t, argValue)
           }
@@ -633,7 +618,7 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
-            initOps()(region, rvAggs, globals, false)
+            initOps(0)(region, rvAggs, globals, false)
           }
 
           val zval = rvAggs
@@ -641,14 +626,14 @@ object Interpret {
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
           }
-          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+          value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
             rvb.start(localGlobalSignature)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
-            val seqOpsFunction = seqOps()
+            val seqOpsFunction = seqOps(i)
             (globalsOffset, seqOpsFunction)
           })( { case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
@@ -670,7 +655,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
           SafeRow(coerce[TTuple](t), region, resultOffset)
             .get(0)
@@ -716,7 +701,7 @@ object Interpret {
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
-            initOps()(region, rvAggs, globals, false)
+            initOps(0)(region, rvAggs, globals, false)
           }
 
           val zval = rvAggs
@@ -725,7 +710,7 @@ object Interpret {
             rvAggs1
           }
 
-          value.rvd.aggregateWithPartitionOp(rvAggs, ctx => {
+          value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
@@ -735,7 +720,7 @@ object Interpret {
             rvb.start(localColsType)
             rvb.addAnnotation(localColsType, colValuesBc.value)
             val colsOffset = rvb.end()
-            val seqOpsFunction = seqOps()
+            val seqOpsFunction = seqOps(i)
             (globalsOffset, colsOffset, seqOpsFunction)
           })( { case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, colsOffset, false, rv.offset, false)
@@ -757,7 +742,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f()(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
           SafeRow(coerce[TTuple](t), region, resultOffset)
             .get(0)

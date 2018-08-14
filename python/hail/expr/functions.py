@@ -1,16 +1,14 @@
 import builtins
-import math
 from typing import *
 
-import hail
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
-from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
+from hail.ir import *
 from hail.typecheck import *
-from hail.utils import LinkedList
+from hail.utils.java import Env
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -19,6 +17,12 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
     return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+
+
+def _seeded_func(name, ret_type, seed, *args):
+    seed = seed if seed is not None else Env.next_seed()
+    indices, aggregations = unify_all(*args)
+    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(t=hail_type)
@@ -285,31 +289,8 @@ def bind(f: Callable, *exprs):
     Examples
     --------
 
-    Expressions are "inlined", leading to perhaps unexpected behavior
-    when randomness is involved. For example, let us define a variable
-    `x` from the :meth:`.rand_unif` method:
-
-    >>> x = hl.rand_unif(0, 1)
-
-    Note that evaluating `x` multiple times returns different results.
-    The value of evaluating `x` is unknown when the expression is defined.
-
-    >>> x.value
-    0.3189309481038456
-
-    >>> x.value
-    0.20842918568366375
-
-    What if we evaluate `x` multiple times?
-
-    >>> hl.array([x, x, x]).value
-    [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
-
-    The random number generator is called separately for each inclusion
-    of `x`. This method, :func:`.bind`, is the solution to this problem!
-
-    >>> hl.bind(lambda y: [y, y, y], x).value
-    [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+    >>> add_one = hl.bind(lambda x: x + 1, 1).value
+    2
 
     :func:`.bind` also can take multiple arguments:
 
@@ -1684,8 +1665,8 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     return _func("range", tarray(tint32), start, stop, step)
 
 
-@typecheck(p=expr_float64)
-def rand_bool(p) -> BooleanExpression:
+@typecheck(p=expr_float64, seed=nullable(int))
+def rand_bool(p, seed=None) -> BooleanExpression:
     """Returns ``True`` with probability `p` (RNG).
 
     Examples
@@ -1697,25 +1678,22 @@ def rand_bool(p) -> BooleanExpression:
     >>> hl.rand_bool(0.5).value
     False
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug.
-
     Parameters
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability between 0 and 1.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.BooleanExpression`
     """
-    return _func("pcoin", tbool, p)
+    return _seeded_func("pcoin_seeded", tbool, seed, p)
 
 
-@typecheck(mean=expr_float64, sd=expr_float64)
-def rand_norm(mean=0, sd=1) -> Float64Expression:
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
+def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
     Examples
@@ -1727,28 +1705,24 @@ def rand_norm(mean=0, sd=1) -> Float64Expression:
     >>> hl.rand_norm().value
     -0.3006188509144124
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     mean : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Mean of normal distribution.
     sd : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation of normal distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rnorm", tfloat64, mean, sd)
+    return _seeded_func("rnorm_seeded", tfloat64, seed, mean, sd)
 
 
-@typecheck(lamb=expr_float64)
-def rand_pois(lamb) -> Float64Expression:
+@typecheck(lamb=expr_float64, seed=nullable(int))
+def rand_pois(lamb, seed=None) -> Float64Expression:
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
     Examples
@@ -1760,27 +1734,24 @@ def rand_pois(lamb) -> Float64Expression:
     >>> hl.rand_pois(1).value
     3.0
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter for Poisson distribution.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("rpois", tfloat64, lamb)
+    return _seeded_func("rpois_seeded", tfloat64, seed, lamb)
 
 
-@typecheck(min=expr_float64, max=expr_float64)
-def rand_unif(min, max) -> Float64Expression:
-    """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
+@typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
+def rand_unif(min, max, seed=None) -> Float64Expression:
+    """Returns a random floating-point number uniformly drawn from the interval
+    [`min`, `max`].
 
     Examples
     --------
@@ -1791,24 +1762,20 @@ def rand_unif(min, max) -> Float64Expression:
     >>> hl.rand_unif(0, 1).value
     0.5161799497741769
 
-    Warning
-    -------
-    This function is non-deterministic, meaning that successive runs of the same
-    pipeline including RNG expressions may return different results. This is a known
-    bug.
-
     Parameters
     ----------
     min : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Left boundary of range.
     max : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Right boundary of range.
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("runif", tfloat64, min, max)
+    return _seeded_func("runif_seeded", tfloat64, seed, min, max)
 
 
 @typecheck(x=expr_float64)
@@ -3791,10 +3758,10 @@ def min_rep(locus, alleles):
     --------
 
     >>> hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']).value
-    (Locus(contig=1, position=100000, reference_genome=GRCh37), ['TA', 'T'])
+    Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['TA', 'T'])
 
     >>> hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']).value
-    (Locus(contig=1, position=100002, reference_genome=GRCh37), ['T', 'C'])
+    Struct(locus=Locus(contig=1, position=100002, reference_genome=GRCh37), alleles=['T', 'C'])
 
     Notes
     -----
@@ -3808,10 +3775,13 @@ def min_rep(locus, alleles):
 
     Returns
     -------
-    :class:`.TupleExpression`
-        Tuple of (:class:`.LocusExpression`, :class:`.ArrayExpression` of type :py:data:`.tstr`)
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `locus`
+        (:class:`.LocusExpression`) and `alleles`
+        (:class:`.ArrayExpression` of type :py:data:`.tstr`).
     """
-    return _func('min_rep', hl.ttuple(locus.dtype, alleles.dtype), locus, alleles)
+    ret_type = tstruct(locus=locus.dtype, alleles=alleles.dtype)
+    return _func('min_rep', ret_type, locus, alleles)
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,

@@ -124,9 +124,9 @@ class OrderedRVD(
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
-  def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD = {
-    mapPartitionsPreservesPartitioning(typ, { (context, it) =>
-      val c = makeContext(context)
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+    mapPartitionsWithIndexPreservesPartitioning(typ, { (i, context, it) =>
+      val c = makeContext(i, context)
       it.filter { rv =>
         if (f(c, rv))
           true
@@ -137,9 +137,6 @@ class OrderedRVD(
       }
     })
   }
-
-  def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
-    OrderedRVD(typ, partitioner, crdd.sample(withReplacement, p, seed))
 
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): OrderedRVD = {
     assert(!typ.key.contains(name))
@@ -613,6 +610,18 @@ class OrderedRVD(
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] =
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper)
+
+
+  def zipPartitionsWithIndex(
+    newTyp: OrderedRVDType,
+    newPartitioner: OrderedRVDPartitioner,
+    that: RVD,
+    preservesPartitioning: Boolean
+  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    newPartitioner,
+    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd, preservesPartitioning)(zipper))
 
   def zip(
     newTyp: OrderedRVDType,

@@ -472,6 +472,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
 
+  def leftJoinRightDistinct(other: Table, root: String): Table =
+    new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
+
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType))
   }
@@ -628,11 +631,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
-
-  def sample(p: Double, seed: Int = 1): Table = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
-  }
 
   def index(name: String): Table = {
     if (fieldNames.contains(name))

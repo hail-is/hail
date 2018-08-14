@@ -465,7 +465,7 @@ class Table(ExprContainer):
 
     @classmethod
     @typecheck_method(rows=anytype,
-                      schema=nullable(tstruct),
+                      schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int))
     def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
@@ -1366,7 +1366,7 @@ class Table(ExprContainer):
                 if is_interval:
                     left = Table(left._jt.intervalJoin(self._jt, uid))
                 else:
-                    left = Table(left._jt.join(self.select(**{uid: self.row_value}).distinct()._jt, 'left'))
+                    left = Table(left._jt.leftJoinRightDistinct(self._jt, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)
@@ -1756,8 +1756,8 @@ class Table(ExprContainer):
         return Table(self._jt.head(n))
 
     @typecheck_method(p=numeric,
-                      seed=int)
-    def sample(self, p, seed=0):
+                      seed=nullable(int))
+    def sample(self, p, seed=None):
         """Downsample the table by keeping each row with probability ``p``.
 
         Examples
@@ -1783,7 +1783,7 @@ class Table(ExprContainer):
         if not (0 <= p <= 1):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return Table(self._jt.sample(p, seed))
+        return self.filter(hl.rand_bool(p, seed))
 
     @typecheck_method(n=int,
                       shuffle=bool)

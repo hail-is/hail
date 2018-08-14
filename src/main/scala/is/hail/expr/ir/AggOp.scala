@@ -40,6 +40,8 @@ final case class CallStats() extends AggOp { }
 // what to do about InbreedingAggregator
 final case class Inbreeding() extends AggOp { }
 
+final case class Downsample() extends AggOp { }
+
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
 // Count === map(x => 1).sum
@@ -199,6 +201,12 @@ object AggOp {
         constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]),
         seqOpArgTypes = Array(classOf[Double]))
 
+    case (Downsample(), constArgs@Seq(_: TInt32), None, seqOpArgs@Seq(_: TFloat64, _: TFloat64, _: TArray)) =>
+      CodeAggregator[RegionValueDownsampleAggregator](
+        RegionValueDownsampleAggregator.typ,
+        constrArgTypes = Array(classOf[Int]),
+        seqOpArgTypes = Array(classOf[Double], classOf[Double], classOf[Long]))
+
     case (CallStats(), Seq(), initOpArgs@Some(Seq(_: TInt32)), Seq(_: TCall)) =>
       CodeAggregator[RegionValueCallStatsAggregator](
         RegionValueCallStatsAggregator.typ,
@@ -210,10 +218,10 @@ object AggOp {
         RegionValueInbreedingAggregator.typ,
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
 
-    case (LinearRegression(), constArgs@Seq(_: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
+    case (LinearRegression(), constArgs@Seq(_: TInt32, _: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
       CodeAggregator[RegionValueLinearRegressionAggregator](
         RegionValueLinearRegressionAggregator.typ,
-        constrArgTypes = Array(classOf[Int]),
+        constrArgTypes = Array(classOf[Int], classOf[Int]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
     case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
@@ -246,5 +254,6 @@ object AggOp {
     case "inbreeding" | "Inbreeding" => Inbreeding()
     case "hardyWeinberg" | "HardyWeinberg" => HardyWeinberg()
     case "linreg" | "LinearRegression" => LinearRegression()
+    case "downsample" | "Downsample" => Downsample()
   }
 }

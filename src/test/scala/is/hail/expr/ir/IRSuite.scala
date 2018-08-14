@@ -6,7 +6,8 @@ import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.Parser
-import is.hail.expr.ir.functions.RegistryFunctions
+import is.hail.expr.ir.IRSuite.TestFunctions
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
@@ -22,28 +23,45 @@ object IRSuite { outer =>
   }
 
   object TestFunctions extends RegistryFunctions {
+
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[EmitTriplet]) => EmitTriplet) {
+      IRFunctionRegistry.addIRFunction(new SeededIRFunction {
+        val isDeterministic: Boolean = false
+
+        override val name: String = mname
+
+        override val argTypes: Seq[Type] = aTypes
+
+        override val returnType: Type = rType
+
+        def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
+          impl(mb, seed, args.toArray)
+      })
+    }
+
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, EmitTriplet) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType) { case (mb, seed, Array(a1)) => impl(mb, seed, a1) }
+
     def registerAll() {
-      registerCodeWithMissingness("incr_s", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           l.v)
       }
 
-      registerCodeWithMissingness("incr_m", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean()) { (mb, _, l) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
           l.v)
       }
 
-      registerCodeWithMissingness("incr_v", TBoolean(), TBoolean(), isDeterministic = false) { (mb, l) =>
+      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean()) { (mb, _, l) =>
         EmitTriplet(l.setup,
           l.m,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))
       }
     }
   }
-
-  TestFunctions.registerAll()
 }
 
 class IRSuite extends SparkSuite {
@@ -515,6 +533,7 @@ class IRSuite extends SparkSuite {
           NA(TStruct()), NA(TStruct()), Some(1), 2),
         TableJoin(read,
           TableRange(100, 10), "inner"),
+        TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, false),
@@ -651,6 +670,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testEvaluations() {
+    TestFunctions.registerAll()
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
       val args = IndexedSeq((i, TBoolean()))
@@ -670,17 +690,17 @@ class IRSuite extends SparkSuite {
 
     def i = In(0, TBoolean())
 
-    def st = ApplySpecial("incr_s", Seq(True()))
-    def sf = ApplySpecial("incr_s", Seq(False()))
-    def sm = ApplySpecial("incr_s", Seq(NA(TBoolean())))
+    def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
 
-    def mt = ApplySpecial("incr_m", Seq(True()))
-    def mf = ApplySpecial("incr_m", Seq(False()))
-    def mm = ApplySpecial("incr_m", Seq(NA(TBoolean())))
+    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
 
-    def vt = ApplySpecial("incr_v", Seq(True()))
-    def vf = ApplySpecial("incr_v", Seq(False()))
-    def vm = ApplySpecial("incr_v", Seq(NA(TBoolean())))
+    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)

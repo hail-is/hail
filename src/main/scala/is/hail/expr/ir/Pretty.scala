@@ -181,6 +181,7 @@ object Pretty {
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
+            case ApplySeeded(function, _, seed) => prettyIdentifier(function) + " " + seed.toString
             case ApplySpecial(function, _) => prettyIdentifier(function)
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
@@ -260,6 +261,7 @@ object Pretty {
             case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType) => joinType
+            case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableMapRows(_, _, newKey, preservedKeyFields) =>
               prettyIdentifiersOpt(newKey) + " " + prettyIntOpt(preservedKeyFields)
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
