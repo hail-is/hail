@@ -1,8 +1,20 @@
-.PHONY: hail-ci-build-image push-hail-ci-build-image
+.PHONY: hail-ci-build-image push-hail-ci-build-image clean
 .DEFAULT_GOAL := default
+
+PR_BUILDER_FILES := \
+	build.gradle \
+	gradle \
+	gradlew \
+	python/hail/dev-environment.yml \
+	settings.gradle
+
+clean:
+	[ -e pr-builder ] && cd pr-builder && rm -rf $(notdir ${PR_BUILDER_FILES})
 
 hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 hail-ci-build-image:
+	mkdir -p pr-builder
+	cp -R ${PR_BUILDER_FILES} pr-builder
 	docker build . -t hail-pr-builder/0.1:${GIT_SHA} -f Dockerfile.pr-builder
 
 push-hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
