@@ -2059,7 +2059,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
-    ...          af_dist=hl.rand_beta(a=0.01, b=2.0, min=0.05, max=1.0))
+    ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
+    ...          seed=1)
 
     Notes
     -----
@@ -2169,6 +2170,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
         Ancestral allele frequency distribution.
         Default is ``UniformDist(0.1, 0.9)``.
+    seed : :obj:`int`
+        Random seed.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2203,7 +2206,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                             reference_genome._jrep,
                                             mixture)
     return MatrixTable(jmt)
-
 
 @typecheck(mt=MatrixTable,f=anytype)
 def filter_alleles(mt: MatrixTable,
