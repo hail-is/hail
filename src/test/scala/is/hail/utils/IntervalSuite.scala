@@ -66,7 +66,7 @@ class IntervalSuite extends TestNGSuite {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.mayOverlap(pord, interval2), set_interval1.probablyOverlaps(set_interval2))
+      assertEquals(interval1.overlaps(pord, interval2), set_interval1.probablyOverlaps(set_interval2))
     }
   }
 
@@ -74,7 +74,7 @@ class IntervalSuite extends TestNGSuite {
     for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.definitelyDisjoint(pord, interval2), set_interval1.definitelyDisjoint(set_interval2))
+      assertEquals(interval1.isDisjointFrom(pord, interval2), set_interval1.definitelyDisjoint(set_interval2))
     }
   }
 
@@ -142,8 +142,8 @@ class IntervalSuite extends TestNGSuite {
       val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
       val interval = set_interval.interval
-      assertEquals(itree.probablyOverlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
-      assertEquals(atree.probablyOverlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
+      assertEquals(itree.overlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
+      assertEquals(atree.overlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
     }
   }
 
@@ -151,8 +151,8 @@ class IntervalSuite extends TestNGSuite {
     for (set_itree <- test_itrees) {
       val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
-      assertEquals(itree.definitelyEmpty(pord), set_itree.definitelyEmpty())
-      assertEquals(atree.definitelyEmpty(pord), set_itree.definitelyEmpty())
+      assertEquals(itree.isEmpty(pord), set_itree.definitelyEmpty())
+      assertEquals(atree.isEmpty(pord), set_itree.definitelyEmpty())
     }
   }
 
@@ -164,8 +164,8 @@ class IntervalSuite extends TestNGSuite {
       val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
       val interval = set_interval.interval
-      assertEquals(itree.definitelyDisjoint(pord, interval), set_itree.definitelyDisjoint(set_interval))
-      assertEquals(atree.definitelyDisjoint(pord, interval), set_itree.definitelyDisjoint(set_interval))
+      assertEquals(itree.isDisjointFrom(pord, interval), set_itree.definitelyDisjoint(set_interval))
+      assertEquals(atree.isDisjointFrom(pord, interval), set_itree.definitelyDisjoint(set_interval))
     }
   }
 

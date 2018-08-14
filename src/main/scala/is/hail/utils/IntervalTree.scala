@@ -67,7 +67,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
 
-  def mayOverlap(pord: ExtendedOrdering, other: Interval): Boolean =
+  def overlaps(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)
 
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
@@ -76,8 +76,8 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def isBelowPosition(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).lt(right, p)
 
-  def definitelyDisjoint(pord: ExtendedOrdering, other: Interval): Boolean =
-    !mayOverlap(pord, other)
+  def isDisjointFrom(pord: ExtendedOrdering, other: Interval): Boolean =
+    !overlaps(pord, other)
 
   def copy(start: Any = start, end: Any = end, includesStart: Boolean = includesStart, includesEnd: Boolean = includesEnd): Interval =
     Interval(start, end, includesStart, includesEnd)
@@ -115,7 +115,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
       ext(pord).max(this.right, other.right).asInstanceOf[IntervalEndpoint])
 
   def intersect(pord: ExtendedOrdering, other: Interval): Option[Interval] =
-    if (mayOverlap(pord, other)) {
+    if (overlaps(pord, other)) {
       Some(Interval(
         ext(pord).max(this.left, other.left).asInstanceOf[IntervalEndpoint],
         ext(pord).min(this.right, other.right).asInstanceOf[IntervalEndpoint]))
@@ -209,13 +209,13 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
   Traversable[(Interval, U)] with Serializable {
   override def size: Int = root.map(_.size).getOrElse(0)
 
-  def definitelyEmpty(pord: ExtendedOrdering): Boolean = root.isEmpty
+  def isEmpty(pord: ExtendedOrdering): Boolean = root.isEmpty
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = root.exists(_.contains(pord, position))
 
-  def probablyOverlaps(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.probablyOverlaps(pord, interval))
+  def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.overlaps(pord, interval))
 
-  def definitelyDisjoint(pord: ExtendedOrdering, interval: Interval): Boolean = root.forall(_.definitelyDisjoint(pord, interval))
+  def isDisjointFrom(pord: ExtendedOrdering, interval: Interval): Boolean = root.forall(_.isDisjointFrom(pord, interval))
 
   def queryIntervals(pord: ExtendedOrdering, position: Any): Array[Interval] = {
     val b = Array.newBuilder[Interval]
@@ -318,15 +318,15 @@ case class IntervalTreeNode[U](i: Interval,
             right.exists(_.contains(pord, position)))))
   }
 
-  def probablyOverlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
-    !definitelyDisjoint(pord, interval)
+  def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
+    !isDisjointFrom(pord, interval)
   }
 
-  def definitelyDisjoint(pord: ExtendedOrdering, interval: Interval): Boolean =
-    range.definitelyDisjoint(pord, interval) ||
-      (left.forall(_.definitelyDisjoint(pord, interval)) &&
-        i.definitelyDisjoint(pord, interval) &&
-        right.forall(_.definitelyDisjoint(pord, interval)))
+  def isDisjointFrom(pord: ExtendedOrdering, interval: Interval): Boolean =
+    range.isDisjointFrom(pord, interval) ||
+      (left.forall(_.isDisjointFrom(pord, interval)) &&
+        i.isDisjointFrom(pord, interval) &&
+        right.forall(_.isDisjointFrom(pord, interval)))
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
     if (range.contains(pord, position)) {
@@ -347,9 +347,9 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def queryOverlappingValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], interval: Interval) {
-    if (range.mayOverlap(pord, interval)) {
+    if (range.overlaps(pord, interval)) {
       left.foreach(_.queryOverlappingValues(pord, b, interval))
-      if (i.mayOverlap(pord, interval))
+      if (i.overlaps(pord, interval))
         b += value
       right.foreach(_.queryOverlappingValues(pord, b, interval))
     }

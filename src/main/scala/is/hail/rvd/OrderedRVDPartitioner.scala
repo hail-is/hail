@@ -122,7 +122,7 @@ class OrderedRVDPartitioner(
   // keys.
   def getPartitionRange(query: Interval): Seq[Int] = {
     require(kType.isComparableAt(query.start) && kType.isComparableAt(query.end))
-    if (!rangeTree.probablyOverlaps(kType.ordering, query))
+    if (!rangeTree.overlaps(kType.ordering, query))
       FastSeq.empty[Int]
     else
       rangeTree.queryOverlappingValues(kType.ordering, query)

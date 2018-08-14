@@ -130,8 +130,8 @@ class RowIntervalSuite extends TestNGSuite {
     assert(!iTree.contains(pord, Row(10)))
     assert(!iTree.contains(pord, Row(1, -1, 2)))
 
-    assert(iTree.probablyOverlaps(pord, Interval(Row(10), Row(11), true, true)))
-    assert(!iTree.probablyOverlaps(pord, Interval(Row(10), Row(11), false, true)))
+    assert(iTree.overlaps(pord, Interval(Row(10), Row(11), true, true)))
+    assert(!iTree.overlaps(pord, Interval(Row(10), Row(11), false, true)))
 
     assertResult(Array(1)) {
       iTree.queryOverlappingValues(pord, Interval(Row(1), Row(2), true, true))
