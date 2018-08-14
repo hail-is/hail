@@ -63,8 +63,8 @@ COPY gradle gradle
 RUN mkdir -p /gradle-cache
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
 
-COPY python/hail/dev-environment.yml python/hail/dev-environment.yml
-RUN conda env create -f ./python/hail/dev-environment.yml && \
+COPY dev-environment.yml dev-environment.yml
+RUN conda env create -f ./dev-environment.yml && \
     rm -rf /opt/conda/pkgs/*
 
 RUN chown -R hail:hail /hail /gradle-cache
