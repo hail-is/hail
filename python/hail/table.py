@@ -1646,7 +1646,7 @@ class Table(ExprContainer):
             Table with a new index field.
         """
 
-        return Table(self._jt.index(name))
+        return self.annotate(**{name: hl.scan.count()})
 
     @typecheck_method(tables=table_type)
     def union(self, *tables):
