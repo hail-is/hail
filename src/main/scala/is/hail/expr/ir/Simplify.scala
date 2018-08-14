@@ -300,22 +300,23 @@ object Simplify {
         val row = Ref("row", child.typ.rowType)
         val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
         val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
-        val te = TableExplode(
-          TableKeyByAndAggregate(child,
-            MakeStruct(Seq(
-              "row" -> ApplyAggOp(
-                SeqOp(I32(0), Array(row, keyStruct), aggSig),
-                FastIndexedSeq(I32(n.toInt)),
-                None,
-                aggSig))),
-            MakeStruct(Seq()), // aggregate to one row
-            Some(1), 10),
-          "row")
+        val te = TableUnkey(
+          TableExplode(
+            TableKeyByAndAggregate(child,
+              MakeStruct(Seq(
+                "row" -> ApplyAggOp(
+                  SeqOp(I32(0), Array(row, keyStruct), aggSig),
+                  FastIndexedSeq(I32(n.toInt)),
+                  None,
+                  aggSig))),
+              MakeStruct(Seq()), // aggregate to one row
+              Some(1), 10),
+            "row"))
         TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
-        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+        TableDistinct(TableKeyBy(TableMapRows(TableUnkey(child), k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
       case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
         MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
         TableAggregateByKey(child, expr)

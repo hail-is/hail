@@ -489,7 +489,10 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 // Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
 // partition bounds will remain valid.
 case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]) extends TableIR {
-  require(!(newKey.isDefined ^ preservedKeyFields.isDefined))
+  require(newKey.isDefined == preservedKeyFields.isDefined)
+  require(preservedKeyFields.forall(p => p == child.typ.key.get.length))
+  require(newKey.isDefined == child.typ.key.isDefined)
+  require(newKey.forall(_.length == child.typ.key.get.length))
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {

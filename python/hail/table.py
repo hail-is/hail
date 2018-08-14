@@ -432,6 +432,9 @@ class Table(ExprContainer):
 
     def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
         jt = self._jt
+        if self.key is None:
+            preserved_key = None
+            preserved_key_new = None
         if self.key is not None and preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
         jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key) if preserved_key is not None else None)
@@ -1355,7 +1358,7 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = None if left.key is None else list(left.key)
-                    left = Table(left._jt.select(str(Apply('annotate',
+                    left = Table(left.key_by()._jt.select(str(Apply('annotate',
                                                              left._row._ir,
                                                              hl.struct(**dict(zip(uids, exprs)))._ir)), None, None)
                                  ).key_by(*uids)

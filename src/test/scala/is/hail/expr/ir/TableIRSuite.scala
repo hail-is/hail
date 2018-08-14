@@ -19,7 +19,7 @@ class TableIRSuite extends SparkSuite {
     kt
   }
 
-  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).tir
+  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
   @Test def testFilter() {
     val kt = getKT
