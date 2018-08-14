@@ -74,8 +74,8 @@ case class UnpartitionedRVDSpec(
   rowType: TStruct,
   codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): UnpartitionedRVD =
-    new UnpartitionedRVD(
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD =
+    UnpartitionedRVD(
       requestedType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
 
@@ -269,7 +269,7 @@ trait RVD {
 
   def filter(f: (RegionValue) => Boolean): RVD
 
-  def filterWithContext[C](makeContext: RVDContext => C, f: (C, RegionValue) => Boolean): RVD
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD
 
   def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): RVD =
     UnpartitionedRVD(newRowType, crdd.map(f))
@@ -331,11 +331,25 @@ trait RVD {
     crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
   }
 
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](zeroValue: U)(
+    makePC: (Int, RVDContext) => PC,
+    seqOp: (PC, U, RegionValue) => U,
+    combOp: (U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
+      val u2 = seqOp(pc, u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
+  }
+
   def aggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U, makePC: RVDContext => PC
+    zeroValue: U, makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit, combOp: (U, U) => U): U = {
-    crdd.cmapPartitions[U] { (ctx, it) =>
-      val pc = makePC(ctx)
+    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      val pc = makePC(i, ctx)
       var comb = zeroValue
       it.foreach { rv =>
         seqOp(pc, comb, rv)
@@ -378,9 +392,9 @@ trait RVD {
       Iterator.single(count)
     }.collect()
 
-  def collectPerPartition[T : ClassTag](f: (RVDContext, Iterator[RegionValue]) => T): Array[T] =
-    crdd.cmapPartitions { (ctx, it) =>
-      Iterator.single(f(ctx, it))
+  def collectPerPartition[T : ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
+    crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      Iterator.single(f(i, ctx, it))
     }.collect()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
@@ -414,8 +428,6 @@ trait RVD {
   def unpersist(): RVD = this
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD
-
-  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD
 

@@ -43,7 +43,7 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def rpois() {
-    val res0 = eval(invoke("rpois", I32(5), F64(1)))
+    val res0 = eval(ApplySeeded("rpois_seeded", FastSeq(I32(5), F64(1)), 0))
     assert(TArray(TFloat64()).typeCheck(res0))
     val res = res0.asInstanceOf[IndexedSeq[Double]]
     assert(res.length == 5)

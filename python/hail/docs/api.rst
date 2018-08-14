@@ -44,3 +44,4 @@ Use ``import hail as hl`` to access this functionality.
 .. autofunction:: hail.spark_context
 .. autofunction:: hail.default_reference
 .. autofunction:: hail.get_reference
+.. autofunction:: hail.set_global_seed

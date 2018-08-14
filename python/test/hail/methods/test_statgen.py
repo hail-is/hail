@@ -877,6 +877,14 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    def test_split_multi_table(self):
+        ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
+        ds1 = hl.split_multi(ds1)
+        ds2 = hl.import_vcf(resource('split_test_b.vcf')).rows()
+        self.assertTrue(ds1.all((ds1.locus.position == 1180) | ds1.was_split))
+        ds1 = ds1.drop('was_split', 'a_index', 'old_locus', 'old_alleles')
+        self.assertTrue(ds1._same(ds2))
+
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5

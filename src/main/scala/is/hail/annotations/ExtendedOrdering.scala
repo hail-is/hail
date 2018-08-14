@@ -137,10 +137,10 @@ object ExtendedOrdering {
         // Returns true if for any rows r1 and r2 with r1 < x and r2 > y,
         // the length of the largest common prefix of r1 and r2 is less than
         // or equal to 'allowedOverlap'
-        override def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: Any, y: Any): Boolean = {
+        override def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
           require(allowedOverlap <= fieldOrd.length)
-          val xp = x.asInstanceOf[IntervalEndpoint]
-          val yp = y.asInstanceOf[IntervalEndpoint]
+          val xp = x
+          val yp = y
           val xpp = xp.point.asInstanceOf[Row]
           val ypp = yp.point.asInstanceOf[Row]
           val l = fieldOrd.length
@@ -388,11 +388,11 @@ abstract class ExtendedOrdering extends Serializable {
           xs compare ys
       }
 
-      override def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: Any, y: Any): Boolean = {
-        val xp = x.asInstanceOf[IntervalEndpoint].point
-        val xs = x.asInstanceOf[IntervalEndpoint].sign
-        val yp = y.asInstanceOf[IntervalEndpoint].point
-        val ys = y.asInstanceOf[IntervalEndpoint].sign
+      override def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
+        val xp = x.point
+        val xs = x.sign
+        val yp = y.point
+        val ys = y.sign
 
         val c = outer.compare(xp, yp, missingGreatest)
         if (c != 0)
@@ -406,7 +406,7 @@ abstract class ExtendedOrdering extends Serializable {
 abstract class IntervalEndpointOrdering extends ExtendedOrdering {
   def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int, missingGreatest: Boolean): Int
 
-  def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: Any, y: Any): Boolean
+  def lteqWithOverlap(allowedOverlap: Int, missingGreatest: Boolean = true)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean
 
   override def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
     val xp = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].point else x

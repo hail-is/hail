@@ -1,3 +1,5 @@
+from typing import *
+
 from hail.expr import expressions
 from hail.expr.types import *
 from hail.genetics import Locus, Call
@@ -7,6 +9,7 @@ from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
+
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
@@ -175,8 +178,8 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-            ir = MakeArray([e._ir for e in exprs], tarray(dtype.element_type))
-            return hl.set(expressions.construct_expr(ir, dtype, indices, aggregations))
+            ir = ToSet(MakeArray([e._ir for e in exprs], tarray(dtype.element_type)))
+            return expressions.construct_expr(ir, dtype, indices, aggregations)
     elif isinstance(dtype, ttuple):
         elements = []
         found_expr = False
@@ -217,6 +220,7 @@ def _to_expr(e, dtype):
             return hl.dict(hl.zip(key_array, value_array))
     else:
         raise NotImplementedError(dtype)
+
 
 def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
     if len(exprs) == 0:

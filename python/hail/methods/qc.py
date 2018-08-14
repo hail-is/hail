@@ -428,225 +428,59 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     .. include:: ../_templates/req_tvariant.rst
 
     :func:`.vep` runs `Variant Effect Predictor
-    <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
-    plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
-    adds the result as a row field.
+    <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ on the
+    current dataset and adds the result as a row field.
 
     Examples
     --------
 
     Add VEP annotations to the dataset:
 
-    >>> result = hl.vep(dataset, "data/vep.properties") # doctest: +SKIP
+    >>> result = hl.vep(dataset, "data/vep-configuration.json") # doctest: +SKIP
 
     Notes
     -----
 
     **Configuration**
 
-    :func:`.vep` needs a configuration file to tell it
-    how to run VEP. The format is a `.properties file
-    <https://en.wikipedia.org/wiki/.properties>`__. Roughly, each line defines a
-    property as a key-value pair of the form `key = value`. :func:`.vep` supports the
-    following properties:
+    :func:`.vep` needs a configuration file to tell it how to run VEP.
+    The format of the configuration file is JSON, and :func:`.vep`
+    expects a JSON object with three fields:
 
-    - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
-    - **hail.vep.perl5lib** -- Value for the PERL5LIB environment variable when
-      invoking VEP. Optional, by default PERL5LIB is not set.
-    - **hail.vep.path** -- Value of the PATH environment variable when invoking
-      VEP.  Optional, by default PATH is not set.
-    - **hail.vep.location** -- Location of the VEP Perl script.  Required.
-    - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP
-      with the ``--dir`` option. Required.
-    - **hail.vep.fasta** -- Location of the FASTA file to use to look up the
-      reference sequence, passed to VEP with the `--fasta` option. Required.
-    - **hail.vep.assembly** -- Genome assembly version to use. Optional,
-      default: GRCh37
-    - **hail.vep.plugin** -- VEP plugin, passed to VEP with the `--plugin`
-      option. Optional. Overrides `hail.vep.lof.human_ancestor` and
-      `hail.vep.lof.conservation_file`.
-    - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for
-      the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required otherwise.
-    - **hail.vep.lof.conservation_file** -- Location of the conservation file
-      for the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required
-      otherwise.
+    - `command` (array of string) -- The VEP command line to run.  The string literal `__OUTPUT_FORMAT_FLAG__` is replaced with `--json` or `--vcf` depending on `csq`.
+    - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
+    - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
 
-    Here is an example ``vep.properties`` configuration file
+    Here is an example configuration file for invoking VEP release 81
+    installed in `/vep` with the Loftee plugin:
 
     .. code-block:: text
 
-        hail.vep.perl = /usr/bin/perl
-        hail.vep.path = /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-        hail.vep.location = /path/to/vep/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl
-        hail.vep.cache_dir = /path/to/vep
-        hail.vep.lof.human_ancestor = /path/to/loftee_data/human_ancestor.fa.gz
-        hail.vep.lof.conservation_file = /path/to/loftee_data/phylocsf.sql
-
-    **VEP Invocation**
-
-    .. code-block:: text
-
-        <hail.vep.perl>
-        <hail.vep.location>
-        --format vcf
-        --json
-        --everything
-        --allele_number
-        --no_stats
-        --cache --offline
-        --dir <hail.vep.cache_dir>
-        --fasta <hail.vep.fasta>
-        --minimal
-        --assembly <hail.vep.assembly>
-        --plugin LoF,\
-        human_ancestor_fa:$<hail.vep.lof.human_ancestor>,\
-        filter_position:0.05,\
-        min_intron_size:15,\
-        conservation_file:<hail.vep.lof.conservation_file>
-        -o STDOUT
+        {"command": [
+            "/usr/bin/perl",
+            "/vep/variant_effect_predictor/variant_effect_predictor.pl",
+            "--format", "vcf",
+            "__OUTPUT_FORMAT_FLAG__",
+            "--everything",
+            "--allele_number",
+            "--no_stats",
+            "--cache", "--offline",
+            "--dir", "/vep",
+            "--fasta", "/vep/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+            "--minimal",
+            "--assembly", "GRCh37",
+            "--plugin", "LoF,human_ancestor_fa:/vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/vep/loftee_data/phylocsf.sql",
+            "-o", "STDOUT"
+        ],
+         "env": {
+             "PERL5LIB": "/vep/loftee"
+         },
+         "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
+        }
 
     **Annotations**
 
-    A new row field is added in the location specified by `name` with the
-    following schema:
-
-    .. code-block:: text
-
-        struct {
-            assembly_name: str,
-            allele_string: str,
-            ancestral: str,
-            colocated_variants: array<struct {
-                aa_allele: str,
-                aa_maf: float64,
-                afr_allele: str,
-                afr_maf: float64,
-                allele_string: str,
-                amr_allele: str,
-                amr_maf: float64,
-                clin_sig: array<str>,
-                end: int32,
-                eas_allele: str,
-                eas_maf: float64,
-                ea_allele: str,
-                ea_maf: float64,
-                eur_allele: str,
-                eur_maf: float64,
-                exac_adj_allele: str,
-                exac_adj_maf: float64,
-                exac_allele: str,
-                exac_afr_allele: str,
-                exac_afr_maf: float64,
-                exac_amr_allele: str,
-                exac_amr_maf: float64,
-                exac_eas_allele: str,
-                exac_eas_maf: float64,
-                exac_fin_allele: str,
-                exac_fin_maf: float64,
-                exac_maf: float64,
-                exac_nfe_allele: str,
-                exac_nfe_maf: float64,
-                exac_oth_allele: str,
-                exac_oth_maf: float64,
-                exac_sas_allele: str,
-                exac_sas_maf: float64,
-                id: str,
-                minor_allele: str,
-                minor_allele_freq: float64,
-                phenotype_or_disease: int32,
-                pubmed: array<int32>,
-                sas_allele: str,
-                sas_maf: float64,
-                somatic: int32,
-                start: int32,
-                strand: int32
-            }>,
-            context: str,
-            end: int32,
-            id: str,
-            input: str,
-            intergenic_consequences: array<struct {
-                allele_num: int32,
-                consequence_terms: array<str>,
-                impact: str,
-                minimised: int32,
-                variant_allele: str
-            }>,
-            most_severe_consequence: str,
-            motif_feature_consequences: array<struct {
-                allele_num: int32,
-                consequence_terms: array<str>,
-                high_inf_pos: str,
-                impact: str,
-                minimised: int32,
-                motif_feature_id: str,
-                motif_name: str,
-                motif_pos: int32,
-                motif_score_change: float64,
-                strand: int32,
-                variant_allele: str
-            }>,
-            regulatory_feature_consequences: array<struct {
-                allele_num: int32,
-                biotype: str,
-                consequence_terms: array<str>,
-                impact: str,
-                minimised: int32,
-                regulatory_feature_id: str,
-                variant_allele: str
-            }>,
-            seq_region_name: str,
-            start: int32,
-            strand: int32,
-            transcript_consequences: array<struct {
-                allele_num: int32,
-                amino_acids: str,
-                biotype: str,
-                canonical: int32,
-                ccds: str,
-                cdna_start: int32,
-                cdna_end: int32,
-                cds_end: int32,
-                cds_start: int32,
-                codons: str,
-                consequence_terms: array<str>,
-                distance: int32,
-                domains: array<struct {
-                    db: str,
-                    name: str
-                }>,
-                exon: str,
-                gene_id: str,
-                gene_pheno: int32,
-                gene_symbol: str,
-                gene_symbol_source: str,
-                hgnc_id: str,
-                hgvsc: str,
-                hgvsp: str,
-                hgvs_offset: int32,
-                impact: str,
-                intron: str,
-                lof: str,
-                lof_flags: str,
-                lof_filter: str,
-                lof_info: str,
-                minimised: int32,
-                polyphen_prediction: str,
-                polyphen_score: float64,
-                protein_end: int32,
-                protein_start: int32,
-                protein_id: str,
-                sift_prediction: str,
-                sift_score: float64,
-                strand: int32,
-                swissprot: str,
-                transcript_id: str,
-                trembl: str,
-                uniparc: str,
-                variant_allele: str
-            }>,
-            variant_class: str
-        }
+    A new row field is added in the location specified by `name` with type given by the type given by the `json_vep_schema` (if `csq` is ``False``) or :py:data:`.tstr` (if `csq` is ``True``).
 
     Parameters
     ----------
@@ -659,13 +493,14 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     name : :obj:`str`
         Name for resulting row field.
     csq : :obj:`bool`
-        If ``True``, annotates VCF CSQ field as a :py:data:`.tstr`.
-        If ``False``, annotates with the full nested struct schema.
+        If ``True``, annotates with the VCF CSQ field as a :py:data:`.tstr`.
+        If ``False``, annotates as the `vep_json_schema`.
 
     Returns
     -------
     :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing VEP annotations.
+
     """
     if isinstance(dataset, MatrixTable):
         require_row_key_variant(dataset, 'vep')

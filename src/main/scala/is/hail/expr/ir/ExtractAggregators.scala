@@ -98,7 +98,7 @@ object ExtractAggregators {
               AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
                 .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
 
-            Region.scoped(fb.result()()(_))
+            Region.scoped(fb.resultWithIndex()(0)(_))
         }
 
       getAggregator(x.op, aggSig)

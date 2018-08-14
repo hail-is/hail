@@ -332,10 +332,6 @@ package object stats {
 
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
-  def rpois(lambda: Double): Double = new Poisson(lambda).random()
-
-  def rpois(n: Int, lambda: Double): Array[Double] = new Poisson(lambda).random(n)
-
   def dpois(x: Double, lambda: Double, logP: Boolean): Double = new Poisson(lambda).density(x, logP)
 
   def dpois(x: Double, lambda: Double): Double = dpois(x, lambda, logP = false)

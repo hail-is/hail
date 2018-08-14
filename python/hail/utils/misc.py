@@ -341,11 +341,10 @@ def get_annotate_exprs(caller, named_exprs, indices):
         check_collisions(indices.source._fields, k, indices)
     return named_exprs
 
-def process_joins(obj, exprs, broadcast_f):
+def process_joins(obj, exprs):
     all_uids = []
     left = obj
     used_joins = set()
-    broadcasts = []
 
     for e in exprs:
         joins = e._ir.search(lambda a: isinstance(a, hail.ir.Join))
@@ -354,14 +353,6 @@ def process_joins(obj, exprs, broadcast_f):
                 left = j.join_func(left)
                 all_uids.extend(j.temp_vars)
                 used_joins.add(j)
-        broadcasts.extend(e._ir.search(lambda a: isinstance(a, hail.ir.Broadcast)))
-
-    if broadcasts:
-        t = hail.tstruct(**{b.uid: b.dtype for b in broadcasts})
-        all_uids.extend(list(t))
-        data = hail.Struct(**{b.uid: b.value for b in broadcasts})
-        data_json = t._to_json(data)
-        left = broadcast_f(left, data_json, t)
 
     def cleanup(table):
         remaining_uids = [uid for uid in all_uids if uid in table._fields]

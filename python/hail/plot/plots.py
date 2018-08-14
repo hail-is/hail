@@ -124,8 +124,9 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
-           source_fields=nullable(dictof(str, sequenceof(anytype))))
-def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True, source_fields=None):
+           source_fields=nullable(dictof(str, sequenceof(anytype))), collect_all=nullable(bool), n_divisions=int)
+def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True,
+            collect_all=False, n_divisions=500, source_fields=None):
     """Create a scatterplot.
 
     Parameters
@@ -146,6 +147,11 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
         Size of markers in screen space units.
     legend : bool
         Whether or not to show the legend in the resulting figure.
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
+        This parameter will be ignored if x and y are Python objects.
+    n_divisions : int
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
     source_fields : Dict[str, List[Any]]
         Extra fields for the ColumnDataSource of the plot.
 
@@ -154,13 +160,23 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
     :class:`bokeh.plotting.figure.Figure`
     """
     if isinstance(x, Expression) and isinstance(y, Expression):
+        agg_f = x._aggregation_method()
         if isinstance(label, Expression):
-            res = hail.tuple([x, y, label]).collect()
+            if collect_all:
+                res = hail.tuple([x, y, label]).collect()
+                label = [point[2] for point in res]
+            else:
+                res = agg_f(aggregators.downsample(x, y, label=label, n_divisions=n_divisions))
+                label = [point[2][0] for point in res]
+
             x = [point[0] for point in res]
             y = [point[1] for point in res]
-            label = [point[2] for point in res]
         else:
-            res = hail.tuple([x, y]).collect()
+            if collect_all:
+                res = hail.tuple([x, y]).collect()
+            else:
+                res = agg_f(aggregators.downsample(x, y, n_divisions=n_divisions))
+
             x = [point[0] for point in res]
             y = [point[1] for point in res]
     elif isinstance(x, Expression) or isinstance(y, Expression):
@@ -200,14 +216,19 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
     return p
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64))
-def qq(pvals):
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), collect_all=bool, n_divisions=int)
+def qq(pvals, collect_all=False, n_divisions=500):
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
     Parameters
     ----------
     pvals : List[float] or :class:`.Float64Expression`
         P-values to be plotted.
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
+        This parameter will be ignored if pvals is a Python object.
+    n_divisions : int
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
 
     Returns
     -------
@@ -215,13 +236,27 @@ def qq(pvals):
     """
     if isinstance(pvals, Expression):
         if pvals._indices.source is not None:
-            pvals = pvals.collect()
+            if collect_all:
+                pvals = pvals.collect()
+                spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
+                exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+                obs = [-log(p, 10) for p in spvals]
+            else:
+                ht = pvals._indices.source.select_rows(pval=pvals).rows()
+                n = ht.count()
+                ht = ht.order_by('pval').add_index()
+                ht = ht.annotate(expected_p=(ht.idx + 1) / n)
+                pvals = ht.aggregate(
+                    aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
+                exp = [point[0] for point in pvals if not isnan(point[1])]
+                obs = [point[1] for point in pvals if not isnan(point[1])]
         else:
             return ValueError('Invalid input')
+    else:
+        spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
+        exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+        obs = [-log(p, 10) for p in spvals]
 
-    spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
-    exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-    obs = [-log(p, 10) for p in spvals]
     p = figure(
         title='Q-Q Plot',
         x_axis_label='Expected p-value (-log10 scale)',
@@ -233,8 +268,8 @@ def qq(pvals):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
+           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int)
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -249,6 +284,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         Size of markers in screen space units.
     hover_fields : Dict[str, :class:`.Expression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
+    n_divisions : int
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
 
     Returns
     -------
@@ -277,11 +316,20 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None):
         hover_fields = {}
 
     hover_fields['locus'] = hail.str(locus)
-    res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
-    hf_struct = [point[2] for point in res]
 
-    for key in hover_fields:
-        hover_fields[key] = [item[key] for item in hf_struct]
+    if collect_all:
+        res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
+        hf_struct = [point[2] for point in res]
+        for key in hover_fields:
+            hover_fields[key] = [item[key] for item in hf_struct]
+    else:
+        agg_f = pvals._aggregation_method()
+        res = agg_f(aggregators.downsample(locus.global_position(), pvals,
+                                           label=hail.array([hail.str(x) for x in hover_fields.values()]),
+                                           n_divisions=n_divisions))
+        fields = [point[2] for point in res]
+        for idx, key in enumerate(list(hover_fields.keys())):
+            hover_fields[key] = [field[idx] for field in fields]
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]

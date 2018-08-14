@@ -22,11 +22,13 @@ class HailContext(object):
                       branching_factor=int,
                       tmp_dir=nullable(str),
                       default_reference=str,
-                      idempotent=bool)
+                      idempotent=bool,
+                      global_seed=nullable(int))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37", idempotent=False):
+                 default_reference="GRCh37", idempotent=False,
+                 global_seed=6348563392232659379):
 
         if Env._hc:
             if idempotent:
@@ -66,7 +68,6 @@ class HailContext(object):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, jsqlContext=self._jsql_context)
-        self._counter = 1
 
         super(HailContext, self).__init__()
 
@@ -101,6 +102,7 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
 
         install_exception_handler()
+        Env.set_seed(global_seed)
 
     @property
     def default_reference(self):
@@ -117,6 +119,7 @@ class HailContext(object):
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None
+        Env._seed_generator = None
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
@@ -129,11 +132,13 @@ class HailContext(object):
            branching_factor=int,
            tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'),
-           idempotent=bool)
+           idempotent=bool,
+           global_seed=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
-             log='hail.log', quiet=False, append=False,
-             min_block_size=1, branching_factor=50, tmp_dir='/tmp',
-             default_reference='GRCh37', idempotent=False):
+         log='hail.log', quiet=False, append=False,
+         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+         default_reference='GRCh37', idempotent=False,
+         global_seed=6348563392232659379):
     """Initialize Hail and Spark.
 
     Parameters
@@ -168,7 +173,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference, idempotent)
+                default_reference, idempotent, global_seed)
 
 def stop():
     """Stop the currently running Hail session."""
@@ -225,3 +230,20 @@ def get_reference(name) -> 'hail.ReferenceGenome':
             name,
             ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
         )
+
+
+@typecheck(seed=int)
+def set_global_seed(seed):
+    """Sets Hail's global seed to `seed`.
+
+    Parameters
+    ----------
+    seed : :obj:`int`
+        Integer used to seed Hail's random number generator
+
+    Returns
+    -------
+    :class:`.ReferenceGenome`
+    """
+
+    Env.set_seed(seed)

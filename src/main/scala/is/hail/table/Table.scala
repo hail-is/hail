@@ -3,7 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir._
+import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
@@ -207,7 +207,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
-    val opt = ir.Optimize(tir)
+    val opt = LiftLiterals(ir.Optimize(tir)).asInstanceOf[TableIR]
     opt.execute(hc)
   }
 
@@ -420,15 +420,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
   }
 
-  def annotateGlobalJSON(data: String, t: TStruct): Table = {
-    val ann = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(data), t)
-    val value = BroadcastRow(ann.asInstanceOf[Row], t, hc.sc)
-    new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType),
-        t.fieldNames.map(name => name -> ir.GetField(ir.Ref("value", t), name))),
-      value))
-  }
-
   def selectGlobal(expr: String): Table = {
     val ir = Parser.parse_value_ir(expr, typ.refMap)
     new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
@@ -481,6 +472,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType))
+
+  def leftJoinRightDistinct(other: Table, root: String): Table =
+    new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType))
@@ -639,24 +633,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def take(n: Int): Array[Row] = {
-    val head = TableHead(tir, n)
-    ir.Optimize(head)
-      .execute(hc)
-      .rvd
-      .collect(RVD.wireCodec)
-  }
-
-  def takeJSON(n: Int): String = {
-    val r = JSONAnnotationImpex.exportAnnotation(take(n).toFastIndexedSeq, TArray(signature))
-    JsonMethods.compact(r)
-  }
-
-  def sample(p: Double, seed: Int = 1): Table = {
-    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
-  }
-
   def index(name: String): Table = {
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
@@ -681,7 +657,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val (data, hasMoreData) = if (n < 0)
       collect() -> false
     else {
-      val takeResult = take(n + 1)
+      val takeResult = head(n + 1).collect()
       val hasMoreData = takeResult.length > n
       takeResult.take(n) -> hasMoreData
     }

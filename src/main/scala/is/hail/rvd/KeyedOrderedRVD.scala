@@ -92,16 +92,13 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   }
 
   def orderedZipJoin(right: KeyedOrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {
+    checkJoinCompatability(right)
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key.length) ++
       right.rvd.partitioner.coarsenedRangeBounds(key.length)
     val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
 
-    val repartitionedLeft = this.rvd.constrainToOrderedPartitioner(
-      this.realType.copy(key = key),
-      newPartitioner)
-    val repartitionedRight = right.rvd.constrainToOrderedPartitioner(
-      right.realType.copy(key = key),
-      newPartitioner)
+    val repartitionedLeft = this.rvd.constrainToOrderedPartitioner(newPartitioner)
+    val repartitionedRight = right.rvd.constrainToOrderedPartitioner(newPartitioner)
 
     val leftType = this.virtType
     val rightType = right.virtType
@@ -120,9 +117,8 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
       right.rvd.partitioner.coarsenedRangeBounds(key.length)
     val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
 
-    val repartitionedLeft = this.rvd.constrainToOrderedPartitioner(
-        this.realType.copy(key = key),
-        newPartitioner)
+    val repartitionedLeft =
+      this.rvd.constrainToOrderedPartitioner(newPartitioner)
     val lType = this.virtType
     val rType = right.virtType
 

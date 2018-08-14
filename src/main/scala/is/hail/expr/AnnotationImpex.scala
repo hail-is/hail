@@ -167,7 +167,7 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val fieldIDs = jfields.map{ case (name, jv2) => t.selfField(name).map(_.index).getOrElse(-1) }
+          val fieldIDs = jfields.map { case (name, jv2) => t.selfField(name).map(_.index).getOrElse(-1) }
           val a = Array.fill[Any](fieldIDs.max + 1)(null)
 
           for ((name, jv2) <- jfields) {
@@ -176,7 +176,7 @@ object JSONAnnotationImpex {
                 a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
 
               case None =>
-                warn(s"$t has no field $name at $parent")
+                warn(s"$t has no field $name at $parent for value $jv2")
             }
           }
 

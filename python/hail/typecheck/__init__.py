@@ -19,4 +19,6 @@ __all__ = ['TypeChecker',
            'identity',
            'transformed',
            'func_spec',
-           'table_key_type']
+           'table_key_type',
+           'TypecheckFailure',
+           ]

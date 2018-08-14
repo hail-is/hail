@@ -301,8 +301,7 @@ class GroupedMatrixTable(ExprContainer):
         elif self._row_keys is not None:
             if self._partition_key is None:
                 self._partition_key = self._row_keys.keys()
-            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs),
-                                                   pk_size=len(self._partition_key))
+            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(str(hl.struct(**named_exprs)._ir)))
         else:
             raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
@@ -664,7 +663,7 @@ class MatrixTable(ExprContainer):
                 raise ValueError("cannot have two row key fields with the same name: '{}'".format(k))
 
         key_fields = dict(pk_dict, **rest_of_keys_dict)
-        row = self._row.annotate(**key_fields)
+        row = self._rvrow.annotate(**key_fields)
 
         return self._select_rows(caller, row, list(key_fields.keys()), pk_size=len(pk_dict))
 
@@ -877,7 +876,7 @@ class MatrixTable(ExprContainer):
 
         caller = "MatrixTable.annotate_rows"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select_rows(caller, self.row.annotate(**e))
+        return self._select_rows(caller, self._rvrow.annotate(**e))
 
     def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
@@ -2541,8 +2540,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     def _process_joins(self, *exprs):
-        broadcast_f = lambda left, data, t: MatrixTable(left._jvds.annotateGlobalJSON(data, t._jtype))
-        return process_joins(self, exprs, broadcast_f)
+        return process_joins(self, exprs)
 
     def describe(self):
         """Print information about the fields in the matrix."""
@@ -3134,8 +3132,8 @@ class MatrixTable(ExprContainer):
         return MatrixTable(jmt)
 
     @typecheck_method(p=numeric,
-                      seed=int)
-    def sample_rows(self, p: float, seed: int = 0) -> 'MatrixTable':
+                      seed=nullable(int))
+    def sample_rows(self, p: float, seed=None) -> 'MatrixTable':
         """Downsample the matrix table by keeping each row with probability ``p``.
 
         Examples
@@ -3161,7 +3159,7 @@ class MatrixTable(ExprContainer):
         if not (0 <= p <= 1):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return MatrixTable(self._jvds.sampleRows(p, seed))
+        return self.filter_rows(hl.rand_bool(p, seed))
 
     @typecheck_method(fields=dictof(str, str))
     def rename(self, fields: Dict[str, str]) -> 'MatrixTable':

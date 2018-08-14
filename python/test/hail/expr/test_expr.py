@@ -11,6 +11,44 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def test_key_by_random(self):
+        ht = hl.utils.range_table(10, 4)
+        ht = ht.annotate(new_key=hl.rand_unif(0, 1))
+        ht = ht.key_by('new_key')
+        self.assertEqual(ht._force_count(), 10)
+
+    def test_seeded_same(self):
+
+        def test_random_function(rand_f):
+            ht = hl.utils.range_table(10, 4)
+            sample1 = rand_f()
+            ht = ht.annotate(x=sample1, y=sample1, z=rand_f())
+            self.assertTrue(ht.aggregate(agg.all((ht.x == ht.y)) & ~agg.all((ht.x == ht.z))))
+
+        test_random_function(lambda: hl.rand_unif(0, 1))
+        test_random_function(lambda: hl.rand_bool(0.5))
+        test_random_function(lambda: hl.rand_norm(0, 1))
+        test_random_function(lambda: hl.rand_pois(1))
+
+    def test_seeded_sampling(self):
+        sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
+        sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
+
+        set1 = set(sampled1.idx.collect())
+        set2 = set(sampled2.idx.collect())
+        expected = set1 & set2
+
+        for i in range(10):
+            s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
+            s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
+            self.assertEqual(set(s1.idx.collect()), expected)
+            self.assertEqual(set(s2.idx.collect()), expected)
+
+    def test_order_by_head_optimization_with_randomness(self):
+        ht = hl.utils.range_table(10, 6).annotate(x=hl.rand_unif(0, 1))
+        expected = sorted(ht.collect(), key=lambda x: x['x'])[:5]
+        self.assertEqual(ht.order_by(ht.x).take(5), expected)
+
     def test_operators(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -301,6 +339,18 @@ class Tests(unittest.TestCase):
         r = table.aggregate(agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    # Tested against R code
+    # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
+    # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
+    # df = data.frame(y, x)
+    # fit <- lm(y ~ x, data=df)
+    # sumfit = summary(fit)
+    # coef = sumfit$coefficients
+    # mse = sumfit$sigma
+    # r2 = sumfit$r.squared
+    # r2adj = sumfit$adj.r.squared
+    # f = sumfit$fstatistic
+    # p = pf(f[1],f[2],f[3],lower.tail=F)
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -321,7 +371,30 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.t_stat[1], 0.52956181)
         self.assertAlmostEqual(r.p_value[0], 0.82805147)
         self.assertAlmostEqual(r.p_value[1], 0.63310173)
+        self.assertAlmostEqual(r.multiple_standard_error, 1.3015652)
+        self.assertAlmostEqual(r.multiple_r_squared, 0.08548734)
+        self.assertAlmostEqual(r.adjusted_r_squared, -0.2193502)
+        self.assertAlmostEqual(r.f_stat, 0.2804357)
+        self.assertAlmostEqual(r.multiple_p_value, 0.6331017)
         self.assertAlmostEqual(r.n, 5)
+
+    def test_aggregators_downsample(self):
+        xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
+        label1 = ["2", "6", "4", "9", "1", "8", "5", "10", "3", "7"]
+        label2 = ["two", "six", "four", "nine", "one", "eight", "five", "ten", "three", "seven"]
+        table = hl.Table.parallelize([hl.struct(x=x, y=y, label1=label1, label2=label2)
+                                      for x, y, label1, label2 in zip(xs, ys, label1, label2)])
+        r = table.aggregate(agg.downsample(table.x, table.y, label=hl.array([table.label1, table.label2]), n_divisions=10))
+        xs = [x for (x, y, l) in r]
+        ys = [y for (x, y, l) in r]
+        label = [tuple(l) for (x, y, l) in r]
+        expected = set([(1.0, 1.0, ('1', 'one')), (2.0, 2.0, ('2', 'two')), (3.0, 3.0, ('3', 'three')),
+                        (4.0, 4.0, ('4', 'four')), (5.0, 5.0, ('5', 'five')), (6.0, 6.0, ('6', 'six')),
+                        (7.0, 7.0, ('7', 'seven')), (8.0, 8.0, ('8', 'eight')), (9.0, 9.0, ('9', 'nine')),
+                        (10.0, 10.0, ('10', 'ten'))])
+        for point in zip(xs, ys, label):
+            self.assertTrue(point in expected)
 
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
@@ -1439,7 +1512,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
         self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
-        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [None, 4, 3, 2, 1, 0])
+        # FIXME: this next line triggers a bug: None should be sorted last!
+        # self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.eval_expr(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval_expr(hl.literal(True) & True))
@@ -1725,7 +1800,7 @@ class Tests(unittest.TestCase):
         def assert_min_reps_to(old, new, pos_change=0):
             self.assertEqual(
                 hl.min_rep(hl.locus('1', 10), old).value,
-                (hl.Locus('1', 10 + pos_change), new)
+                hl.Struct(locus=hl.Locus('1', 10 + pos_change), alleles=new)
             )
 
         assert_min_reps_to(['TAA', 'TA'], ['TA', 'T'])
@@ -1839,3 +1914,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.sum(a).value, 1)
         self.assertIsNone(hl.sum(a, filter_missing=False).value)
+
+    def test_literal_with_nested_expr(self):
+        self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
+        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})

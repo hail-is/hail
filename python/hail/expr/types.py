@@ -1,6 +1,6 @@
 import abc
 import json
-from collections import Mapping
+from collections import Mapping, Sequence
 
 import hail as hl
 from hail import genetics
@@ -172,14 +172,26 @@ class HailType(object):
     def _has_jtype(self):
         return self._cached_jtype is not None
 
-    @abc.abstractmethod
-    def _typecheck(self, annotation):
-        """
-        Raise an exception if the given annotation is not the appropriate type.
+    def typecheck(self, value):
+        """Check that `value` matches a type.
 
-        :param annotation: value to check
+        Parameters
+        ----------
+        value
+            Value to check.
+
+        Raises
+        ------
+        :obj:`TypeError`
         """
-        return
+        def check(t, obj):
+            t._typecheck_one_level(obj)
+            return True
+        self._traverse(value, check)
+
+    @abc.abstractmethod
+    def _typecheck_one_level(self, annotation):
+        pass
 
     def _to_json(self, x):
         converted = self._convert_to_json_na(x)
@@ -208,6 +220,19 @@ class HailType(object):
         return x
 
 
+    def _traverse(self, obj, f):
+        """Traverse a nested type and object.
+
+        Parameters
+        ----------
+        obj : Any
+        f : Callable[[HailType, Any], bool]
+            Function to evaluate on the type and object. Traverse children if
+            the function returns ``True``.
+        """
+        f(self, obj)
+
+
 hail_type = oneof(HailType, transformed((str, dtype)))
 
 
@@ -233,7 +258,7 @@ class _tint32(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
                 raise TypeError("type 'tint32' expected Python 'int', but found type '%s'" % type(annotation))
@@ -274,7 +299,7 @@ class _tint64(HailType):
     def _convert_to_j(self, annotation):
         raise NotImplementedError('int64 conversion from Python to JVM')
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
                 raise TypeError("type 'int64' expected Python 'int', but found type '%s'" % type(annotation))
@@ -319,7 +344,7 @@ class _tfloat32(HailType):
         # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
         raise NotImplementedError('float32 is currently unsupported in certain operations, use float64 instead')
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float32' expected Python 'float', but found type '%s'" % type(annotation))
 
@@ -352,7 +377,7 @@ class _tfloat64(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float64' expected Python 'float', but found type '%s'" % type(annotation))
     def __str__(self):
@@ -380,7 +405,7 @@ class _tstr(HailType):
     def _convert_to_j(self, annotation):
         return annotation
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation and not isinstance(annotation, str):
             raise TypeError("type 'str' expected Python 'str', but found type '%s'" % type(annotation))
 
@@ -407,7 +432,7 @@ class _tbool(HailType):
     def _convert_to_j(self, annotation):
         return annotation
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, bool):
             raise TypeError("type 'bool' expected Python 'bool', but found type '%s'" % type(annotation))
 
@@ -473,12 +498,15 @@ class tarray(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for elt in obj:
+                self.element_type._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, list):
+            if not isinstance(annotation, Sequence):
                 raise TypeError("type 'array' expected Python 'list', but found type '%s'" % type(annotation))
-            for elt in annotation:
-                self.element_type._typecheck(elt)
 
     def __str__(self):
         return "array<{}>".format(self.element_type)
@@ -553,12 +581,15 @@ class tset(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for elt in obj:
+                self.element_type._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, set):
                 raise TypeError("type 'set' expected Python 'set', but found type '%s'" % type(annotation))
-            for elt in annotation:
-                self.element_type._typecheck(elt)
 
     def __str__(self):
         return "set<{}>".format(self.element_type)
@@ -651,13 +682,16 @@ class tdict(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
-        if annotation:
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for k, v in obj.items():
+                self.key_type._traverse(k, f)
+                self.value_type._traverse(v, f)
+
+    def _typecheck_one_level(self, annotation):
+        if annotation is not None:
             if not isinstance(annotation, dict):
                 raise TypeError("type 'dict' expected Python 'dict', but found type '%s'" % type(annotation))
-            for k, v in annotation.items():
-                self.key_type._typecheck(k)
-                self.value_type._typecheck(v)
 
     def __str__(self):
         return "dict<{}, {}>".format(self.key_type, self.value_type)
@@ -737,7 +771,13 @@ class tstruct(HailType, Mapping):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for k, v in obj.items():
+                t = self[k]
+                t._traverse(v, f)
+
+    def _typecheck_one_level(self, annotation):
         if annotation:
             if isinstance(annotation, Mapping):
                 s = set(self)
@@ -745,10 +785,8 @@ class tstruct(HailType, Mapping):
                     if f not in s:
                         raise TypeError("type '%s' expected fields '%s', but found fields '%s'" %
                                         (self, list(self), list(annotation)))
-                for f, t in self.items():
-                    t._typecheck(annotation.get(f))
             else:
-                raise TypeError("type 'struct' expected type Mapping (e.g. hail.genetics.Struct or dict), but found '%s'" %
+                raise TypeError("type 'struct' expected type Mapping (e.g. dict or hail.utils.Struct), but found '%s'" %
                                 type(annotation))
 
     def _add_jtypes(self):
@@ -851,7 +889,12 @@ class ttuple(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for t, elt in zip(self.types, obj):
+                t._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
         if annotation:
             if not isinstance(annotation, tuple):
                 raise TypeError("type 'tuple' expected Python tuple, but found '%s'" %
@@ -859,8 +902,6 @@ class ttuple(HailType):
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
-            for i, t in enumerate(self.types):
-                t._typecheck((annotation[i]))
 
     def __str__(self):
         return "tuple({})".format(", ".join([str(t) for t in self.types]))
@@ -914,7 +955,7 @@ class _tcall(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, genetics.Call):
             raise TypeError("type 'call' expected Python hail.genetics.Call, but found %s'" %
                             type(annotation))
@@ -967,7 +1008,7 @@ class tlocus(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, genetics.Locus):
                 raise TypeError("type '{}' expected Python hail.genetics.Locus, but found '{}'"
@@ -1053,7 +1094,12 @@ class tinterval(HailType):
         else:
             return None
 
-    def _typecheck(self, annotation):
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            self.point_type._traverse(obj.start, f)
+            self.point_type._traverse(obj.end, f)
+
+    def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, Interval):
                 raise TypeError("type '{}' expected Python hail.utils.Interval, but found {}"
