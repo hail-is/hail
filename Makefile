@@ -15,7 +15,7 @@ hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 hail-ci-build-image:
 	mkdir -p pr-builder
 	cp -R ${PR_BUILDER_FILES} pr-builder
-	docker build . -t hail-pr-builder/0.1:${GIT_SHA} -f Dockerfile.pr-builder
+	cd pr-builder && docker build . -t hail-pr-builder/0.1:${GIT_SHA}
 
 push-hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 push-hail-ci-build-image: hail-ci-build-image
