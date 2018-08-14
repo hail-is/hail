@@ -836,11 +836,12 @@ object OrderedRVD {
     val pkBounds = bounds.map(_.coarsen(fullType.partitionKey.length))
     def orderPartitions = { crdd: CRDD =>
       val pids = keyInfo.map(_.partitionIndex)
-      if (pids.isSorted && crdd.getNumPartitions == pids.length)
+      if (pids.isSorted && crdd.getNumPartitions == pids.length) {
+        assert(pids.isEmpty || pids.last < crdd.getNumPartitions)
         crdd
+      }
       else {
-        if (crdd.getNumPartitions != pids.length)
-          info(s"Coerced fewer partitions than expected: data had ${crdd.getNumPartitions} while keys had ${pids.length}.")
+        assert(pids.isEmpty || pids.max < crdd.getNumPartitions)
         if (!pids.isSorted)
           info("Coerced dataset with out-of-order partitions.")
         crdd.reorderPartitions(pids)

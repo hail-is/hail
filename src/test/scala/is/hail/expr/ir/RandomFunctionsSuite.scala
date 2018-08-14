@@ -81,7 +81,7 @@ class RandomFunctionsSuite extends SparkSuite {
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
       Interval(Row(10), Row(14), false, true))
-    val newPartitioner = mapped.partitioner.copy(numPartitions=newRangeBounds.length, rangeBounds=newRangeBounds)
+    val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
     val repartitioned = mapped.constrainToOrderedPartitioner(mapped.typ, newPartitioner)
     val cachedAndRepartitioned = mapped.cache().constrainToOrderedPartitioner(mapped.typ, newPartitioner)
