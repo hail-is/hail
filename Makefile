@@ -20,7 +20,7 @@ hail-ci-build-image:
 push-hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
 push-hail-ci-build-image: hail-ci-build-image
 	docker tag hail-pr-builder/0.1:${GIT_SHA} gcr.io/broad-ctsa/hail-pr-builder/0.1:${GIT_SHA}
-	docker push gcr.io/broad-ctsa/hail-pr-builder/0.1
+	docker push gcr.io/broad-ctsa/hail-pr-builder/0.1:${GIT_SHA}
 	echo gcr.io/broad-ctsa/hail-pr-builder/0.1:${GIT_SHA} > hail-ci-build-image
 
 default:
