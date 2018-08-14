@@ -2,21 +2,30 @@ FROM continuumio/miniconda
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
-RUN apt-get -y install \
+
+RUN apt-get update && apt-get -y install \
     bash \
     cmake \
     curl \
     g++ \
     git \
+    libcurl4-openssl-dev \
+    libnlopt-dev \
+    libxml2-dev \
     openjdk-8-jdk-headless \
     r-base \
+    r-cran-ncdf4 \
+    r-cran-rnetcdf \
     tar \
-    unzip
+    unzip \
+    xsltproc \
+    pandoc \
+    && apt-get clean
 
-RUN apt-get -y install libnlopt-dev # https://github.com/jyypma/nloptr/issues/40
-RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")'
-RUN apt-get -y install r-cran-ncdf4 r-cran-rnetcdf libcurl4-openssl-dev libxml2-dev
-RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
+RUN useradd --create-home --shell /bin/bash hail
+
+RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
+    Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
 
 WORKDIR /plink
 ADD http://www.cog-genomics.org/static/bin/plink/plink_linux_x86_64.zip /plink
@@ -30,18 +39,11 @@ RUN tar --strip-components=1 -xvzf qctool_v2.0.1-CentOS6.8-x86_64.tgz -C /qctool
     rm -rf qctool_v2.0.1-CentOS6.8-x86_64.tgz && \
     ln -s /qctool/qctool /bin/qctool
 
-# cache (almost all) gradle dependencies (and gradle itself)
-#
-# Some plugin we use hides its dependencies in a so-called "detached
-# configuration" so there is no way for us to ensure it gets cached.
-WORKDIR /hail
-COPY gradlew build.gradle settings.gradle ./
-COPY gradle gradle
-RUN mkdir -p /gradle-cache
-RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
-COPY python/hail/dev-environment.yml python/hail/dev-environment.yml
-RUN conda env create -f ./python/hail/dev-environment.yml && \
-    rm -rf /opt/conda/pkgs/*
+WORKDIR /spark
+ADD https://archive.apache.org/dist/spark/spark-2.0.2/spark-2.0.2-bin-hadoop2.7.tgz /spark
+RUN tar --strip-components=1 -xvzf spark-2.0.2-bin-hadoop2.7.tgz -C /spark && \
+    rm -rf spark-2.0.2-bin-hadoop2.7.tgz
+ENV SPARK_HOME /spark/
 
 # this seems easier than getting the keys right for apt
 #
@@ -51,12 +53,20 @@ ENV PATH $PATH:/root/google-cloud-sdk/bin
 # gcloud iam key files will be stored here
 VOLUME /secrets
 
-WORKDIR /spark
-ADD https://archive.apache.org/dist/spark/spark-2.0.2/spark-2.0.2-bin-hadoop2.7.tgz /spark
-RUN tar --strip-components=1 -xvzf spark-2.0.2-bin-hadoop2.7.tgz -C /spark && \
-    rm -rf spark-2.0.2-bin-hadoop2.7.tgz
-ENV SPARK_HOME /spark/
-
-RUN apt-get -y install xsltproc pandoc
-
+# cache (almost all) gradle dependencies (and gradle itself)
+#
+# Some plugin we use hides its dependencies in a so-called "detached
+# configuration" so there is no way for us to ensure it gets cached.
 WORKDIR /hail
+COPY gradlew build.gradle settings.gradle ./
+COPY gradle gradle
+RUN mkdir -p /gradle-cache
+RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
+
+COPY python/hail/dev-environment.yml python/hail/dev-environment.yml
+RUN conda env create -f ./python/hail/dev-environment.yml && \
+    rm -rf /opt/conda/pkgs/*
+
+RUN chown -R hail:hail /hail /gradle-cache
+
+USER hail
