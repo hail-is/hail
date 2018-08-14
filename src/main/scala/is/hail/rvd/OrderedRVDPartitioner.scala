@@ -37,7 +37,7 @@ class OrderedRVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(OrderedRVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
-  def satisfiesPartitionKey(testAllowedOverlap: Int): Boolean =
+  def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
   val numPartitions: Int = rangeBounds.length
@@ -70,6 +70,9 @@ class OrderedRVDPartitioner(
       math.min(newKeyLen, allowedOverlap)
     )
 
+  // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
+  // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still
+  // adjusts 'rangeBounds'.
   def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
     require(kType isPrefixOf newKType)
     OrderedRVDPartitioner.generate(newKType.fieldNames, newKType, rangeBounds)
@@ -83,7 +86,7 @@ class OrderedRVDPartitioner(
       kType.relaxedTypeCheck(row)
     })
     require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-    require(satisfiesPartitionKey(allowedOverlap))
+    require(satisfiesAllowedOverlap(allowedOverlap))
 
     val kord = kType.ordering
     val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
@@ -290,7 +293,6 @@ object OrderedRVDPartitioner {
     require(typ.kType.relaxedTypeCheck(min))
     require(typ.kType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.relaxedTypeCheck))
-    require(keys.length >= nPartitions)
 
     val sortedKeys = keys.sorted(typ.kType.ordering.toOrdering)
     val step = (sortedKeys.length - 1).toDouble / nPartitions

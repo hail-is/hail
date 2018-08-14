@@ -74,8 +74,8 @@ case class UnpartitionedRVDSpec(
   rowType: TStruct,
   codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): UnpartitionedRVD =
-    new UnpartitionedRVD(
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD =
+    UnpartitionedRVD(
       requestedType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
 

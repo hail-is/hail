@@ -1125,7 +1125,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     metadataSame &&
       rvd.crdd.czip(
         that.rvd.constrainToOrderedPartitioner(
-          that.rvd.typ,
           rvd.partitioner.enlargeToRange(that.rvd.partitioner.range)
         ).crdd) { (ctx, rv1, rv2) =>
         var partSame = true

@@ -99,7 +99,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 15), Row(11, 0, 20), true, false))
 
     val p3 = OrderedRVDPartitioner.generate(Array("A", "B", "C"), kType, intervals)
-    assert(p3.satisfiesPartitionKey(2))
+    assert(p3.satisfiesAllowedOverlap(2))
     assert(p3.rangeBounds sameElements
       Array(
         Interval(Row(1, 0, 4), Row(4, 3, 2), true, false),
@@ -110,7 +110,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     )
 
     val p2 = OrderedRVDPartitioner.generate(Array("A", "B"), kType, intervals)
-    assert(p2.satisfiesPartitionKey(1))
+    assert(p2.satisfiesAllowedOverlap(1))
     assert(p2.rangeBounds sameElements
       Array(
         Interval(Row(1, 0, 4), Row(4, 3), true, true),
@@ -120,7 +120,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     )
 
     val p1 = OrderedRVDPartitioner.generate(Array("A"), kType, intervals)
-    assert(p1.satisfiesPartitionKey(0))
+    assert(p1.satisfiesAllowedOverlap(0))
     assert(p1.rangeBounds sameElements
       Array(
         Interval(Row(1, 0, 4), Row(4), true, true),
