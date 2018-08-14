@@ -963,7 +963,7 @@ def refresh_batch_state():
                     build_state = 'failure'
                 if status.state == 'pending' or status.state == 'running' or status.state != build_state:
                     log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
-                             f'to {build_state} {status.review_state} {target_sha} <- {source_sha} (was: {status.to_json if status else status})')
+                             f'to {build_state} {status.review_state} {target_sha} <- {source_sha} (was: {status.to_json() if status else status})')
                     build_finished(pr_number,
                                    source_url,
                                    source_ref,
