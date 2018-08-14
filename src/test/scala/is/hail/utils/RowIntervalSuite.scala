@@ -67,41 +67,50 @@ class RowIntervalSuite extends TestNGSuite {
 
   @Test def testLteqWithOverlap() {
     val eord = pord.intervalEndpointOrdering
-    assert(eord.lteqWithOverlap(3)(
-      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
-    ))
-    assert(eord.lteqWithOverlap(3)(
-      IntervalEndpoint(Row(0, 1), 1), IntervalEndpoint(Row(0, 1), 1)
-    ))
     assert(!eord.lteqWithOverlap(3)(
       IntervalEndpoint(Row(0, 1, 6), -1), IntervalEndpoint(Row(0, 1, 5), 1)
+    ))
+
+    assert(eord.lteqWithOverlap(3)(
+      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
     ))
     assert(!eord.lteqWithOverlap(2)(
       IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
     ))
+
     assert(eord.lteqWithOverlap(2)(
       IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
     ))
     assert(!eord.lteqWithOverlap(1)(
       IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
     ))
+
+    assert(eord.lteqWithOverlap(2)(
+      IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
     assert(!eord.lteqWithOverlap(1)(
       IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
     ))
+
     assert(eord.lteqWithOverlap(1)(
       IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
-    ))
-    assert(eord.lteqWithOverlap(1)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2, 3), -1)
     ))
     assert(!eord.lteqWithOverlap(0)(
       IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
     ))
-    assert(!eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2, 3), -1)
+
+    assert(eord.lteqWithOverlap(1)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
     ))
+    assert(!eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
+    ))
+
     assert(eord.lteqWithOverlap(0)(
       IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0), -1)
+    ))
+    assert(eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0, 1, 2), 1)
     ))
     assert(eord.lteqWithOverlap(0)(
       IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
