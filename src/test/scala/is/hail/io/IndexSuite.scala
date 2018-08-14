@@ -43,4 +43,14 @@ class IndexSuite extends SparkSuite {
       ir.close()
     }
   }
+
+  @Test def testEmptyKeys() {
+    val file = tmpDir.createTempFile("empty", "idx")
+    val iw = new IndexWriter(hc.hadoopConf, file, TString(), TStruct("a" -> TBoolean()), 2)
+    iw.close()
+
+    val ir = new IndexReader(hc.hadoopConf, file)
+    intercept[IllegalArgumentException](ir.queryByIndex(0L))
+    ir.close()
+  }
 }

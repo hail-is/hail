@@ -43,8 +43,6 @@ class IndexWriter(
   require(branchingFactor > 1)
 
   private var elementIdx = 0L
-  private var rootOffset = 0L
-
   private val region = new Region()
   private val rvb = new RegionValueBuilder(region)
 
@@ -130,11 +128,11 @@ class IndexWriter(
         internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
       internalNodeBuilders(0) += info
       writeInternalNodes(0)
-    } else if (flush)
+    } else if (flush && internalNodeBuilders.size > 0)
       writeInternalNodes(0)
   }
 
-  private def writeMetadata() = {
+  private def writeMetadata(rootOffset: Long) = {
     hConf.writeTextFile(path + "/metadata.json.gz") { out =>
       val metadata = IndexMetadata(IndexWriter.version.rep, branchingFactor, height, keyType._toPretty, annotationType._toPretty, elementIdx, "index", rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
@@ -152,12 +150,15 @@ class IndexWriter(
 
   def close(): Unit = {
     write(flush = true)
-    val rootNodeBuilder = internalNodeBuilders.last
-    assert(rootNodeBuilder.size == 1)
-    rootOffset = rootNodeBuilder.indexFileOffsets(0)
     trackedOS.close()
     region.close()
 
-    writeMetadata()
+    val rootOffset = if (elementIdx > 0) {
+      val rootNodeBuilder = internalNodeBuilders.last
+      assert(rootNodeBuilder.size == 1)
+      rootNodeBuilder.indexFileOffsets(0)
+    } else 0L // default value
+    
+    writeMetadata(rootOffset)
   }
 }
