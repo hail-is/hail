@@ -242,12 +242,15 @@ class Tests(unittest.TestCase):
                                       arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
                                       bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                                       mean=agg.mean(table.idx),
+                                      mean2=agg.mean(hl.cond(table.idx == 9, table.idx, hl.null(tint32))),
                                       foo=hl.min(3, agg.sum(table.idx))))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
         self.assertEqual(r.arr_sum, [10, 20, 0])
+        self.assertEqual(r.mean, 4.5)
+        self.assertEqual(r.mean2, 9)
         self.assertEqual(r.bind_agg, 5)
         self.assertEqual(r.foo, 3)
 
