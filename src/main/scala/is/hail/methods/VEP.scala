@@ -56,6 +56,30 @@ object VEP {
     (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
   }
 
+  def getCSQHeaderDefinition(cmd: Array[String], confEnv: Map[String, String]): Option[String] = {
+    val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
+    val pb = new ProcessBuilder(cmd.toList.asJava)
+    val env = pb.environment()
+    confEnv.foreach { case (key, value) => env.put(key, value) }
+    
+    val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
+      printContext,
+      printElement,
+      _ => ())
+
+    val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
+    val rc = proc.waitFor()
+    if (rc != 0)
+      fatal(s"VEP command failed with non-zero exit status $rc")
+
+    if (csqHeader.hasNext)
+      Some(csqHeader.next())
+    else {
+      warn("could not get VEP CSQ header")
+      None
+    }
+  }
+  
   def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
     assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
     assert(ht.typ.rowType.size == 2)
@@ -69,6 +93,8 @@ object VEP {
       else
         s)
 
+    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, conf.env) else None
+    
     val inputQuery = vepSignature.query("input")
 
     val csqRegex = "CSQ=[^;^\\t]+".r
@@ -184,7 +210,10 @@ object VEP {
 
     new Table(ht.hc, TableLiteral(TableValue(
         TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
-        BroadcastRow(Row(), TStruct(), ht.hc.sc),
+        if (csq)
+          BroadcastRow(Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()), ht.hc.sc)
+        else
+          BroadcastRow(Row(), TStruct(), ht.hc.sc),
         vepRVD)))
   }
 
