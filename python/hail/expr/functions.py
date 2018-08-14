@@ -1692,7 +1692,7 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _seeded_func("pcoin_seeded", tbool, seed, p)
+    return _seeded_func("rand_bool", tbool, seed, p)
 
 
 @typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
@@ -1721,7 +1721,7 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _seeded_func("rnorm_seeded", tfloat64, seed, mean, sd)
+    return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
@@ -1748,7 +1748,7 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _seeded_func("rpois_seeded", tfloat64, seed, lamb)
+    return _seeded_func("rand_pois", tfloat64, seed, lamb)
 
 
 @typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
@@ -1778,7 +1778,7 @@ def rand_unif(min, max, seed=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _seeded_func("runif_seeded", tfloat64, seed, min, max)
+    return _seeded_func("rand_unif", tfloat64, seed, min, max)
 
 
 @typecheck(a=expr_float64,
@@ -1802,10 +1802,10 @@ def rand_beta(a, b, min=None, max=None, seed=None) -> Float64Expression:
     --------
 
     >>> hl.rand_beta(0, 1).value
-    0.7983073825816226
+    0.6696807666871818
 
     >>> hl.rand_beta(0, 1).value
-    0.5161799497741769
+    0.8512985039011525
 
     Parameters
     ----------
@@ -1823,20 +1823,21 @@ def rand_beta(a, b, min=None, max=None, seed=None) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     if min is None and max is None:
-        return _seeded_func("rbeta_seeded", tfloat64, seed, a, b)
+        return _seeded_func("rand_beta", tfloat64, seed, a, b)
     if min is None:
         min = hl.literal(0)
     if max is None:
         max = hl.literal(1)
 
-    return _seeded_func("rtruncatedbeta_seeded", tfloat64, seed, a, b, min, max)
+    return _seeded_func("rand_beta", tfloat64, seed, a, b, min, max)
 
 
-@typecheck(a=expr_array(expr_float64),
+@typecheck(a=expr_float64,
+           scale=expr_float64,
            seed=nullable(int))
-def multinomial(a, seed=None) -> Int32Expression:
-    """Returns a random floating-point number drawn from a beta distribution
-    with parameters a and b.
+def rand_gamma(a, scale, seed=None) -> Float64Expression:
+    """Returns a random floating-point number drawn from a gamma distribution
+    with parameters `a` and `scale`.
 
     Notes
     -----
@@ -1849,15 +1850,16 @@ def multinomial(a, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.rand_beta(0, 1).value
-    0.7983073825816226
+    >>> hl.rand_gamma(1, 1).value
+    2.3915947710237537
 
-    >>> hl.rand_beta(0, 1).value
-    0.5161799497741769
+    >>> hl.rand_gamma(1, 1).value
+    0.1339939936379711
 
     Parameters
     ----------
     a : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
     seed : :obj:`int` or `None`
         If not `None`, function will be seeded with provided seed.
 
@@ -1865,35 +1867,30 @@ def multinomial(a, seed=None) -> Int32Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _seeded_func("rmultinomial_seeded", tint32, seed, a)
+    return _seeded_func("rand_gamma", tfloat64, seed, a, scale)
 
 
-@typecheck(a=expr_array(expr_float64),
+@typecheck(probabilities=expr_array(expr_float64),
            seed=nullable(int))
-def dirichlet(a, seed=None) -> ArrayExpression:
-    """Returns a random floating-point number drawn from a beta distribution
-    with parameters a and b.
+def rand_draw(probabilities, seed=None) -> Int32Expression:
+    """Returns a random index from an array of unnormalized probabilities.
 
-    Notes
-    -----
-    The optional parameters `min` and `max` represent a truncated beta
-    distribution with parameters a and b and support `[min, max]`. Draws are
-    made via rejection sampling, i.e. returning the first draw from Beta(a,b)
-    that falls in range `[min, max]`. This procedure may be slow if the
-    probability mass of Beta(a,b) over `[min, max]` is small.
+    Warning
+    -------
+    This function may be slow over very large arrays.
 
     Examples
     --------
 
-    >>> hl.rand_beta(0, 1).value
-    0.7983073825816226
+    >>> hl.rand_draw([0, 1.7, 2]).value
+    2
 
-    >>> hl.rand_beta(0, 1).value
-    0.5161799497741769
+    >>> hl.rand_draw([0, 1.7, 2]).value
+    1
 
     Parameters
     ----------
-    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    probabilities : float or :class:`.Expression` of type :py:data:`.tfloat64`
     seed : :obj:`int` or `None`
         If not `None`, function will be seeded with provided seed.
 
@@ -1901,7 +1898,40 @@ def dirichlet(a, seed=None) -> ArrayExpression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _seeded_func("rdirichlet_seeded", tarray(tfloat64), seed, a)
+    return _seeded_func("rand_draw", tint32, seed, probabilities)
+
+
+@typecheck(a=expr_array(expr_float64),
+           seed=nullable(int))
+def rand_dirichlet(a, seed=None) -> ArrayExpression:
+    """Returns a sample from the Dirichlet distribution parameterized by vector
+    `a`.
+
+    Examples
+    --------
+
+    >>> hl.rand_dirichlet([1, 1, 1]).value
+    [0.4630197581640282,0.18207753442497876,0.3549027074109931]
+
+    >>> hl.rand_dirichlet([1, 1, 1]).value
+    [0.20851948405364765,0.7873859423649898,0.004094573581362475]
+
+    Parameters
+    ----------
+    a : :obj:`list` of float or :class:`.ArrayExpression` of type :py:data:`.tfloat64`
+    seed : :obj:`int` or `None`
+        If not `None`, function will be seeded with provided seed.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return hl.bind(lambda x: x / hl.sum(x),
+                   a.map(lambda p:
+                         hl.cond(p == 0.0,
+                                 0.0,
+                                 hl.rand_gamma(p, 1, seed=seed))))
+
 
 @typecheck(x=expr_float64)
 def sqrt(x) -> Float64Expression:

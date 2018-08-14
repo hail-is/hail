@@ -2204,6 +2204,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                             mixture)
     return MatrixTable(jmt)
 
+
 @typecheck(mt=MatrixTable,f=anytype)
 def filter_alleles(mt: MatrixTable,
                    f: Callable) -> MatrixTable:
