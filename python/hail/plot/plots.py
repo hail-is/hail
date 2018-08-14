@@ -57,12 +57,12 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
         p.quad(
             bottom=0, top=data.n_larger,
             left=data.bin_edges[-1], right=(data.bin_edges[-1] + (data.bin_edges[1] - data.bin_edges[0])),
-            line_color='black', fill_color='green', legend='Large Outliers')
+            line_color='black', fill_color='green', legend='Outliers Above')
     if data.n_smaller > 0:
         p.quad(
             bottom=0, top=data.n_smaller,
             left=data.bin_edges[0] - (data.bin_edges[1] - data.bin_edges[0]), right=data.bin_edges[0],
-            line_color='black', fill_color='red', legend='Small Outliers')
+            line_color='black', fill_color='red', legend='Outliers Below')
     return p
 
 
