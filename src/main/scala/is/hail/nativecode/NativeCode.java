@@ -21,9 +21,9 @@ public class NativeCode {
       if (isLinux()) {
         // libhail_abi_v9 works with libstdc++ 6.0.21 (g++-5.x) and later.
         // libhail_abi_v2 works with systems based on g++-3.4.x to g++-4.9.x
-        Process child = Runtime.getRuntime().exec(
-          "if [ -n \"$CXX\" ]; then $CXX --version; else; c++ --version; fi"
-        );
+        String cxx = System.getenv("CXX");
+        if (cxx == null) cxx = "c++";
+        Process child = Runtime.getRuntime().exec(cxx + " --version");
         BufferedReader s = new BufferedReader(new InputStreamReader(child.getInputStream()));
         String version = s.readLine();
         child.waitFor();
