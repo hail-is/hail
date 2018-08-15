@@ -118,12 +118,20 @@ guaranteed to have the same results if the global seed is set right beforehand:
 .. autosummary::
 
     rand_bool
+    rand_beta
+    rand_cat
+    rand_dirichlet
+    rand_gamma
     rand_norm
     rand_pois
     rand_unif
 
 
 .. autofunction:: rand_bool
+.. autofunction:: rand_beta
+.. autofunction:: rand_cat
+.. autofunction:: rand_dirichlet
+.. autofunction:: rand_gamma
 .. autofunction:: rand_norm
 .. autofunction:: rand_pois
 .. autofunction:: rand_unif
