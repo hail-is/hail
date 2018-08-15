@@ -896,7 +896,7 @@ def refresh_github_state():
                                 target_url,
                                 target_ref,
                                 new_status)
-                        except CalledProcessError as e:
+                        except (FileNotFoundError, CalledProcessError) as e:
                             log.exception(f'could not get docker image due to {e}, will ignore this PR for now')
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
