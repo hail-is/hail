@@ -96,7 +96,6 @@ object PruneDeadFields {
     { (bcBase, env) =>
       (env.lookupOption("bc"), env.lookupOption("sa")) match {
         case (Some((_, bcDep)), Some((_, saDep))) =>
-          assert(!bcDep.asInstanceOf[TStruct].hasField("colValues"))
           env.bind("bc", (bcBase, unify(bcBase, bcDep, TStruct("colValues" -> TArray(saDep)))))
         case (None, Some((_, saDep))) =>
           env.bind("bc", (bcBase, TStruct("colValues" -> TArray(saDep))))
