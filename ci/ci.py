@@ -436,16 +436,25 @@ def github_push():
         for (source_url, source_ref), status in pr_statuses.items():
             if (status.target_sha != new_sha and status.state != 'merged'):
                 cancel_existing_jobs(source_url, source_ref, target_url, target_ref)
-                post_repo(
-                    repo_from_url(target_url),
-                    'statuses/' + status.source_sha,
-                    json={
-                        'state': 'pending',
-                        'description': f'build merged into {new_sha} pending',
-                        'context': CONTEXT
-                    },
-                    status_code=201
-                )
+                try:
+                    post_repo(
+                        repo_from_url(target_url),
+                        'statuses/' + status.source_sha,
+                        json={
+                            'state': 'pending',
+                            'description': f'build merged into {new_sha} pending',
+                            'context': CONTEXT
+                        },
+                        status_code=201
+                    )
+                except BadStatus as e:
+                    if e.status_code == 422:
+                        log.exception(
+                            f'Too many statuses applied to {source_sha}! This is a '
+                            f'dangerous situation because I can no longer block merging '
+                            f'of failing PRs.')
+                    else:
+                        raise e
                 docker_image = get_build_image(target_url, target_ref, new_sha,
                                                source_url, source_ref, status.source_sha)
                 update_pr_status(
@@ -482,16 +491,25 @@ def github_pull_request():
                         pr_number,
                         docker_image=docker_image)
         update_pr_status(source_url, source_ref, target_url, target_ref, status)
-        post_repo(
-            repo_from_url(target_url),
-            'statuses/' + source_sha,
-            json={
-                'state': 'pending',
-                'description': f'build merged into {target_sha} pending',
-                'context': CONTEXT
-            },
-            status_code=201
-        )
+        try:
+            post_repo(
+                repo_from_url(target_url),
+                'statuses/' + source_sha,
+                json={
+                    'state': 'pending',
+                    'description': f'build merged into {target_sha} pending',
+                    'context': CONTEXT
+                },
+                status_code=201
+            )
+        except BadStatus as e:
+            if e.status_code == 422:
+                log.exception(
+                    f'Too many statuses applied to {source_sha}! This is a '
+                    f'dangerous situation because I can no longer block merging '
+                    f'of failing PRs.')
+            else:
+                raise e
         # eagerly trigger a build (even if master has other pending PRs
         # building) since the requester introduced new changes
         test_pr(source_url, source_ref, target_url, target_ref, status)
@@ -755,16 +773,25 @@ def force_retest_pr_endpoint():
                                    source_url, source_ref, source_sha)
     status = Status('pending', review_status['state'], source_sha, target_sha, pr_number, docker_image=docker_image)
     update_pr_status(source_url, source_ref, target_url, target_ref, status)
-    post_repo(
-        repo_from_url(target_url),
-        'statuses/' + source_sha,
-        json={
-            'state': 'pending',
-            'description': f'(MANUALLY FORCED REBUILD) build merged into {target_sha} pending',
-            'context': CONTEXT
-        },
-        status_code=201
-    )
+    try:
+        post_repo(
+            repo_from_url(target_url),
+            'statuses/' + source_sha,
+            json={
+                'state': 'pending',
+                'description': f'(MANUALLY FORCED REBUILD) build merged into {target_sha} pending',
+                'context': CONTEXT
+            },
+            status_code=201
+        )
+    except BadStatus as e:
+        if e.status_code == 422:
+            log.exception(
+                f'Too many statuses applied to {source_sha}! This is a '
+                f'dangerous situation because I can no longer block merging '
+                f'of failing PRs.')
+        else:
+            raise e
     test_pr(source_url, source_ref, target_url, target_ref, status)
     return '', 200
 
@@ -817,16 +844,25 @@ def test_pr(source_url, source_ref, target_url, target_ref, status):
         }]
     )
     log.info(f'successfully created job {job.id} with attributes {attributes}')
-    post_repo(
-        repo_from_url(target_url),
-        'statuses/' + status.source_sha,
-        json={
-            'state': 'pending',
-            'description': f'build merged into {status.target_sha} running {job.id}',
-            'context': CONTEXT
-        },
-        status_code=201
-    )
+    try:
+        post_repo(
+            repo_from_url(target_url),
+            'statuses/' + status.source_sha,
+            json={
+                'state': 'pending',
+                'description': f'build merged into {status.target_sha} running {job.id}',
+                'context': CONTEXT
+            },
+            status_code=201
+        )
+    except BadStatus as e:
+        if e.status_code == 422:
+            log.exception(
+                f'Too many statuses applied to {source_sha}! This is a '
+                f'dangerous situation because I can no longer block merging '
+                f'of failing PRs.')
+        else:
+            raise e
     log.info(f'successfully updated github #{status.pr_number} ({status.source_sha}) about job {job.id}')
     update_pr_status(
         source_url,
@@ -1003,16 +1039,25 @@ def refresh_batch_state():
                 if status.state != 'pending':
                     log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                              f'to pending {status.review_state} {target_sha} <- {source_sha}')
-                    post_repo(
-                        repo_from_url(target_url),
-                        'statuses/' + source_sha,
-                        json={
-                            'state': 'pending',
-                            'description': f'build merged into {target_sha} pending (job {job_id} was cancelled)',
-                            'context': CONTEXT
-                        },
-                        status_code=201
-                    )
+                    try:
+                        post_repo(
+                            repo_from_url(target_url),
+                            'statuses/' + source_sha,
+                            json={
+                                'state': 'pending',
+                                'description': f'build merged into {target_sha} pending (job {job_id} was cancelled)',
+                                'context': CONTEXT
+                            },
+                            status_code=201
+                        )
+                    except BadStatus as e:
+                        if e.status_code == 422:
+                            log.exception(
+                                f'Too many statuses applied to {source_sha}! This is a '
+                                f'dangerous situation because I can no longer block merging '
+                                f'of failing PRs.')
+                        else:
+                            raise e
                     update_pr_status(
                         source_url, source_ref, target_url, target_ref,
                         status.pending()
@@ -1025,16 +1070,25 @@ def refresh_batch_state():
                     log.info(f'updating knowledge of {target_url}:{target_ref} <- {source_url}:{source_ref} '
                              f'to running {status.review_state} {target_sha} <- {source_sha}')
                     assert job_state == 'Created', f'{job_state}'
-                    post_repo(
-                        repo_from_url(target_url),
-                        'statuses/' + status.source_sha,
-                        json={
-                            'state': 'pending',
-                            'description': f'build merged into {status.target_sha} running {job_id}',
-                            'context': CONTEXT
-                        },
-                        status_code=201
-                    )
+                    try:
+                        post_repo(
+                            repo_from_url(target_url),
+                            'statuses/' + status.source_sha,
+                            json={
+                                'state': 'pending',
+                                'description': f'build merged into {status.target_sha} running {job_id}',
+                                'context': CONTEXT
+                            },
+                            status_code=201
+                        )
+                    except BadStatus as e:
+                        if e.status_code == 422:
+                            log.exception(
+                                f'Too many statuses applied to {source_sha}! This is a '
+                                f'dangerous situation because I can no longer block merging '
+                                f'of failing PRs.')
+                        else:
+                            raise e
                     update_pr_status(
                         source_url, source_ref, target_url, target_ref,
                         Status('running',
