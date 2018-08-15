@@ -562,17 +562,25 @@ def build_finished(pr_number,
             target_ref,
             status.build_succeeded(pr_number, job_id)
         )
-        post_repo(
-            repo_from_url(target_url),
-            'statuses/' + source_sha,
-            json={
-                'state': 'success',
-                'description': 'successful build after merge with ' + target_sha,
-                'context': CONTEXT,
-                'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
-            },
-            status_code=201
-        )
+        try:
+            post_repo(
+                repo_from_url(target_url),
+                'statuses/' + source_sha,
+                json={
+                    'state': 'success',
+                    'description': 'successful build after merge with ' + target_sha,
+                    'context': CONTEXT,
+                    'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
+                },
+                status_code=201
+            )
+        except BadStatus as e:
+            if e.status_code == 422:
+                log.exception(
+                    f'Too many statuses applied to {source_sha}! This is a '
+                    f'dangerous situation because I can no longer block merging '
+                    f'of failing PRs.')
+                raise e
     else:
         log.info(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
         update_pr_status(
@@ -583,17 +591,25 @@ def build_finished(pr_number,
             status.build_failed(pr_number, job_id)
         )
         status_message = f'failing build ({exit_code}) after merge with {target_sha}'
-        post_repo(
-            repo_from_url(target_url),
-            'statuses/' + source_sha,
-            json={
-                'state': 'failure',
-                'description': status_message,
-                'context': CONTEXT,
-                'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
-            },
-            status_code=201
-        )
+        try:
+            post_repo(
+                repo_from_url(target_url),
+                'statuses/' + source_sha,
+                json={
+                    'state': 'failure',
+                    'description': status_message,
+                    'context': CONTEXT,
+                    'target_url': f'https://storage.googleapis.com/{GCS_BUCKET}/{source_sha}/{target_sha}/index.html'
+                },
+                status_code=201
+            )
+        except BadStatus as e:
+            if e.status_code == 422:
+                log.exception(
+                    f'Too many statuses applied to {source_sha}! This is a '
+                    f'dangerous situation because I can no longer block merging '
+                    f'of failing PRs.')
+                raise e
 
 @app.route('/heal', methods=['POST'])
 def heal_endpoint():
@@ -897,7 +913,10 @@ def refresh_github_state():
                                 target_ref,
                                 new_status)
                         except (FileNotFoundError, CalledProcessError) as e:
-                            log.exception(f'could not get docker image due to {e}, will ignore this PR for now')
+                            log.exception(
+                                f'could not get docker image due to {e}, will '
+                                f'ignore this PR for now '
+                                f'{target_url}:{target_ref} <- {source_url}:{source_ref}')
                 if len(known_prs) != 0:
                     known_prs_json = [(x, status.to_json()) for (x, status) in known_prs.items()]
                     log.info(f'some PRs have been invalidated by github state refresh: {known_prs_json}')
