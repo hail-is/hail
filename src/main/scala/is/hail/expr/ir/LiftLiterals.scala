@@ -119,11 +119,13 @@ object LiftLiterals {
         removeLiterals(
           MatrixFilterEntries(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType)),
           literals)
-      case MatrixAggregateRowsByKey(child, aggIR) =>
-        val literals = getLiterals(aggIR)
+      case MatrixAggregateRowsByKey(child, entryAggIR, rowAggIR) =>
+        val literals = getLiterals(entryAggIR, rowAggIR)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
-          MatrixAggregateRowsByKey(rewriteChild, rewriteIR(aggIR, rewriteChild.typ.globalType)),
+          MatrixAggregateRowsByKey(rewriteChild,
+            rewriteIR(entryAggIR, rewriteChild.typ.globalType),
+            rewriteIR(rowAggIR, rewriteChild.typ.globalType)),
           literals)
       case MatrixAggregateColsByKey(child, aggIR) =>
         val literals = getLiterals(aggIR)

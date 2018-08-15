@@ -603,20 +603,20 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
   }
 }
 
-case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR {
+case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR) extends MatrixIR {
   require(child.typ.rowKey.nonEmpty)
 
-  def children: IndexedSeq[BaseIR] = Array(child, expr)
+  def children: IndexedSeq[BaseIR] = Array(child, entryExpr, rowExpr)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = {
-    assert(newChildren.length == 2)
-    val IndexedSeq(newChild: MatrixIR, newExpr: IR) = newChildren
-    MatrixAggregateRowsByKey(newChild, newExpr)
+    assert(newChildren.length == 3)
+    val IndexedSeq(newChild: MatrixIR, newEntryExpr: IR, newRowExpr: IR) = newChildren
+    MatrixAggregateRowsByKey(newChild, newEntryExpr, newRowExpr)
   }
 
   val typ: MatrixType = child.typ.copyParts(
-    rowType = child.typ.orvdType.kType,
-    entryType = coerce[TStruct](expr.typ)
+    rowType = child.typ.orvdType.kType ++ coerce[TStruct](rowExpr.typ),
+    entryType = coerce[TStruct](entryExpr.typ)
   )
 
   override def columnCount: Option[Int] = child.columnCount
@@ -626,9 +626,27 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
     val nCols = prev.nCols
 
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, expr)
+    // Setup row aggregations
+    val (rvAggsRow, makeInitRow, makeSeqRow, aggResultTypeRow, postAggIRRow) = ir.CompileWithAggregators[Long, Long, Long](
+      "global", child.typ.globalType,
+      "global", child.typ.globalType,
+      "va", child.typ.rvRowType,
+      rowExpr, "AGGR",
+      { (nAggs, initializeIR) => initializeIR },
+      { (nAggs, sequenceIR) => sequenceIR }
+    )
 
-    val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long, Long](
+    val (rTypRow, makeAnnotateRow) = Compile[Long, Long, Long](
+      "AGGR", aggResultTypeRow,
+      "global", child.typ.globalType,
+      postAggIRRow)
+
+    assert(coerce[TStruct](rTypRow) == typ.rowValueStruct, s"$rTypRow, ${ typ.rowType }")
+
+    // Setup entry aggregations
+    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, entryExpr)
+
+    val (rvAggsEntry, makeInitEntry, makeSeqEntry, aggResultTypeEntry, postAggIREntry) = ir.CompileWithAggregators[Long, Long, Long, Long](
       "global", child.typ.globalType,
       "global", child.typ.globalType,
       "colValues", TArray(minColType),
@@ -680,17 +698,19 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
               rewrite(sequenceIR))))
       })
 
-    val (rTyp, makeAnnotate) = Compile[Long, Long, Long](
-      "AGGR", aggResultType,
+    val (rTypEntry, makeAnnotateEntry) = Compile[Long, Long, Long](
+      "AGGR", aggResultTypeEntry,
       "global", child.typ.globalType,
-      postAggIR)
+      postAggIREntry)
 
-    val nAggs = rvAggs.length
+    val nAggsEntry = rvAggsEntry.length
 
-    assert(coerce[TStruct](rTyp) == typ.entryType, s"$rTyp, ${ typ.entryType }")
+    assert(coerce[TStruct](rTypEntry) == typ.entryType, s"$rTypEntry, ${ typ.entryType }")
 
+    // Iterate through rows and aggregate
     val newRVType = typ.rvRowType
     val newRowType = typ.rowType
+    val nKeys = typ.rowKey.length
     val rvType = prev.typ.rvRowType
     val selectIdx = prev.typ.orvdType.kRowFieldIdx
     val keyOrd = prev.typ.orvdType.kRowOrd
@@ -711,9 +731,13 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
       rvb.addAnnotation(localColsType, colValuesBc.value)
       val cols = rvb.end()
 
-      val initialize = makeInit(i)
-      val sequence = makeSeq(i)
-      val annotate = makeAnnotate(i)
+      val initRow = makeInitRow(i)
+      val sequenceRow = makeSeqRow(i)
+      val annotateRow = makeAnnotateRow(i)
+
+      val initEntry = makeInitEntry(i)
+      val sequenceEntry = makeSeqEntry(i)
+      val annotateEntry = makeAnnotateEntry(i)
 
       new Iterator[RegionValue] {
         var isEnd = false
@@ -722,14 +746,14 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
         val consumerRegion = ctx.region
         val newRV = RegionValue(consumerRegion)
 
-        val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
+        val colRVAggs = new Array[RegionValueAggregator](nAggsEntry * nCols)
 
         {
           var i = 0
           while (i < nCols) {
             var j = 0
-            while (j < nAggs) {
-              colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
+            while (j < nAggsEntry) {
+              colRVAggs(i * nAggsEntry + j) = rvAggsEntry(j).newInstance()
               j += 1
             }
             i += 1
@@ -753,25 +777,44 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           rvRowKey.setSelect(rvType, selectIdx, current)
 
           colRVAggs.foreach(_.clear())
+          rvAggsRow.foreach(_.clear())
 
-          initialize(current.region, colRVAggs, globals, false)
+          initEntry(current.region, colRVAggs, globals, false)
+          initRow(current.region, rvAggsRow, globals, false)
 
           do {
-            sequence(current.region, colRVAggs,
+            sequenceEntry(current.region, colRVAggs,
               globals, false,
               cols, false,
               current.offset, false)
+
+            sequenceRow(current.region, rvAggsRow,
+              globals, false,
+              current.offset, false)
+
             current = null
           } while (hasNext && keyOrd.equiv(rvRowKey.value, current))
 
           rvb.set(consumerRegion)
 
-          val aggResultsOffsets = Array.tabulate(nCols) { i =>
-            rvb.start(aggResultType)
+          val rowAggResultsOffset = {
+            rvb.start(aggResultTypeRow)
             rvb.startStruct()
             var j = 0
-            while (j < nAggs) {
-              colRVAggs(i * nAggs + j).result(rvb)
+            while (j < rvAggsRow.length) {
+              rvAggsRow(j).result(rvb)
+              j += 1
+            }
+            rvb.endStruct()
+            rvb.end()
+          }
+
+          val entryAggResultsOffsets = Array.tabulate(nCols) { i =>
+            rvb.start(aggResultTypeEntry)
+            rvb.startStruct()
+            var j = 0
+            while (j < nAggsEntry) {
+              colRVAggs(i * nAggsEntry + j).result(rvb)
               j += 1
             }
             rvb.endStruct()
@@ -783,10 +826,14 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
 
           {
             var i = 0
-            while (i < newRowType.size) {
+            while (i < nKeys) {
               rvb.addField(newRowType, rvRowKey.value, i)
               i += 1
             }
+            val newRowOff = annotateRow(consumerRegion,
+              rowAggResultsOffset, false,
+              globals, false)
+            rvb.addAllFields(coerce[TStruct](rTypRow), consumerRegion, newRowOff)
           }
 
           rvb.startArray(nCols)
@@ -794,11 +841,11 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
           {
             var i = 0
             while (i < nCols) {
-              val newEntryOff = annotate(consumerRegion,
-                aggResultsOffsets(i), false,
+              val newEntryOff = annotateEntry(consumerRegion,
+                entryAggResultsOffsets(i), false,
                 globals, false)
 
-              rvb.addRegionValue(rTyp, consumerRegion, newEntryOff)
+              rvb.addRegionValue(rTypEntry, consumerRegion, newEntryOff)
 
               i += 1
             }
