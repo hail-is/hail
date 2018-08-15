@@ -1670,7 +1670,7 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
 
 @typecheck(p=expr_float64, seed=nullable(int))
 def rand_bool(p, seed=None) -> BooleanExpression:
-    """Returns ``True`` with probability `p` (RNG).
+    """Returns ``True`` with probability `p`.
 
     Examples
     --------
@@ -1683,10 +1683,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
 
     Parameters
     ----------
-    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    p : :obj:`float` or :class:`.Float64Expression`
         Probability between 0 and 1.
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
@@ -1697,7 +1697,8 @@ def rand_bool(p, seed=None) -> BooleanExpression:
 
 @typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
 def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
-    """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
+    """Samples from a normal distribution with mean `mean` and standard
+    deviation `sd`.
 
     Examples
     --------
@@ -1710,23 +1711,23 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
 
     Parameters
     ----------
-    mean : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    mean : :obj:`float` or :class:`.Float64Expression`
         Mean of normal distribution.
     sd : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation of normal distribution.
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
     return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
 def rand_pois(lamb, seed=None) -> Float64Expression:
-    """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
+    """Samples from a Poisson distribution with rate parameter `lamb`.
 
     Examples
     --------
@@ -1739,22 +1740,22 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
 
     Parameters
     ----------
-    lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    lamb :  :obj:`float` or :class:`.Float64Expression`
         Rate parameter for Poisson distribution.
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
     return _seeded_func("rand_pois", tfloat64, seed, lamb)
 
 
-@typecheck(min=expr_float64, max=expr_float64, seed=nullable(int))
-def rand_unif(min, max, seed=None) -> Float64Expression:
-    """Returns a random floating-point number uniformly drawn from the interval
-    [`min`, `max`].
+@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int))
+def rand_unif(lower, upper, seed=None) -> Float64Expression:
+    """Samples from a uniform distribution within the interval
+    [`lower`, `upper`].
 
     Examples
     --------
@@ -1767,36 +1768,37 @@ def rand_unif(min, max, seed=None) -> Float64Expression:
 
     Parameters
     ----------
-    min : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    lower : :obj:`float` or :class:`.Float64Expression`
         Left boundary of range.
-    max : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    upper : :obj:`float` or :class:`.Float64Expression`
         Right boundary of range.
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
-    return _seeded_func("rand_unif", tfloat64, seed, min, max)
+    return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
 
 
 @typecheck(a=expr_float64,
            b=expr_float64,
-           min=nullable(expr_float64),
-           max=nullable(expr_float64),
+           lower=nullable(expr_float64),
+           upper=nullable(expr_float64),
            seed=nullable(int))
-def rand_beta(a, b, min=None, max=None, seed=None) -> Float64Expression:
-    """Returns a random floating-point number drawn from a beta distribution
-    with parameters a and b.
+def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
+    """Samples from a `beta distribution
+    <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
+    (alpha) and `b` (beta).
 
     Notes
     -----
-    The optional parameters `min` and `max` represent a truncated beta
-    distribution with parameters a and b and support `[min, max]`. Draws are
+    The optional parameters `lower` and `upper` represent a truncated beta
+    distribution with parameters a and b and support `[lower, upper]`. Draws are
     made via rejection sampling, i.e. returning the first draw from Beta(a,b)
-    that falls in range `[min, max]`. This procedure may be slow if the
-    probability mass of Beta(a,b) over `[min, max]` is small.
+    that falls in range `[lower, upper]`. This procedure may be slow if the
+    probability mass of Beta(a,b) over `[lower, upper]` is small.
 
     Examples
     --------
@@ -1809,43 +1811,36 @@ def rand_beta(a, b, min=None, max=None, seed=None) -> Float64Expression:
 
     Parameters
     ----------
-    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
-    b : float or :class:`.Expression` of type :py:data:`.tfloat64`
-    min : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        (Optional) Left boundary of truncated beta distribution.
-    max : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        (Optional) Right boundary of truncated beta distribution.
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    a : :obj:`float` or :class:`.Float64Expression`
+    b : :obj:`float` or :class:`.Float64Expression`
+    lower : :obj:`float` or :class:`.Float64Expression`, optional
+        Lower boundary of truncated beta distribution.
+    upper : :obj:`float` or :class:`.Float64Expression`, optional
+        Upper boundary of truncated beta distribution.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
-    if min is None and max is None:
+    if lower is None and upper is None:
         return _seeded_func("rand_beta", tfloat64, seed, a, b)
-    if min is None:
-        min = hl.literal(0)
-    if max is None:
-        max = hl.literal(1)
+    if lower is None:
+        lower = hl.literal(0)
+    if upper is None:
+        upper = hl.literal(1)
 
-    return _seeded_func("rand_beta", tfloat64, seed, a, b, min, max)
+    return _seeded_func("rand_beta", tfloat64, seed, a, b, lower, upper)
 
 
-@typecheck(a=expr_float64,
+@typecheck(shape=expr_float64,
            scale=expr_float64,
            seed=nullable(int))
-def rand_gamma(a, scale, seed=None) -> Float64Expression:
-    """Returns a random floating-point number drawn from a gamma distribution
-    with parameters `a` and `scale`.
-
-    Notes
-    -----
-    The optional parameters `min` and `max` represent a truncated beta
-    distribution with parameters a and b and support `[min, max]`. Draws are
-    made via rejection sampling, i.e. returning the first draw from Beta(a,b)
-    that falls in range `[min, max]`. This procedure may be slow if the
-    probability mass of Beta(a,b) over `[min, max]` is small.
+def rand_gamma(shape, scale, seed=None) -> Float64Expression:
+    """Samples from a `gamma distribution
+    <https://en.wikipedia.org/wiki/Gamma_distribution>`__
+    with parameters `shape` and `scale`.
 
     Examples
     --------
@@ -1858,54 +1853,61 @@ def rand_gamma(a, scale, seed=None) -> Float64Expression:
 
     Parameters
     ----------
-    a : float or :class:`.Expression` of type :py:data:`.tfloat64`
-    scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+    shape : :obj:`float` or :class:`.Float64Expression`
+    scale : :obj:`float` or :class:`.Float64Expression`
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
-    return _seeded_func("rand_gamma", tfloat64, seed, a, scale)
+    return _seeded_func("rand_gamma", tfloat64, seed, shape, scale)
 
 
-@typecheck(probabilities=expr_array(expr_float64),
+@typecheck(prob=expr_array(expr_float64),
            seed=nullable(int))
-def rand_draw(probabilities, seed=None) -> Int32Expression:
-    """Returns a random index from an array of unnormalized probabilities.
+def rand_cat(prob, seed=None) -> Int32Expression:
+    """Samples from a `categorical distribution
+    <https://en.wikipedia.org/wiki/Categorical_distribution>`__
+
+    Notes
+    -----
+    The categories correspond to the indices of `prob`, an unnormalized
+    probability mass function. The probability of drawing index ``i`` is
+    ``prob[i]/sum(prob)``.
 
     Warning
     -------
-    This function may be slow over very large arrays.
+    This function may be slow when the number of categories is large.
 
     Examples
     --------
 
-    >>> hl.rand_draw([0, 1.7, 2]).value
+    >>> hl.rand_cat([0, 1.7, 2]).value
     2
 
-    >>> hl.rand_draw([0, 1.7, 2]).value
+    >>> hl.rand_cat([0, 1.7, 2]).value
     1
 
     Parameters
     ----------
-    probabilities : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    prob : :obj:`list` of float or :class:`.ArrayExpression` of type :py:data:`.tfloat64`
     seed : :obj:`int` or `None`
         If not `None`, function will be seeded with provided seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Int32Expression`
     """
-    return _seeded_func("rand_draw", tint32, seed, probabilities)
+    return _seeded_func("rand_cat", tint32, seed, prob)
 
 
 @typecheck(a=expr_array(expr_float64),
            seed=nullable(int))
 def rand_dirichlet(a, seed=None) -> ArrayExpression:
-    """Returns a sample from the Dirichlet distribution parameterized by vector
-    `a`.
+    """Samples from a `Dirichlet distribution
+    <https://en.wikipedia.org/wiki/Dirichlet_distribution>__`.
 
     Examples
     --------
@@ -1919,12 +1921,13 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Parameters
     ----------
     a : :obj:`list` of float or :class:`.ArrayExpression` of type :py:data:`.tfloat64`
-    seed : :obj:`int` or `None`
-        If not `None`, function will be seeded with provided seed.
+        Array of non-negative concentration parameters.
+    seed : :obj:`int`, optional
+        Random seed.
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Float64Expression`
     """
     return hl.bind(lambda x: x / hl.sum(x),
                    a.map(lambda p:

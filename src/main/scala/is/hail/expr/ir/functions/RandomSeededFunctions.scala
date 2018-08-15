@@ -32,15 +32,14 @@ class IRRandomness(seed: Long) {
 
   def rbeta(a: Double, b: Double): Double = Beta.random(a, b, random)
 
-  def rgamma(a: Double, scale: Double): Double = Gamma.random(a, scale, random)
+  def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
 
-  def rdraw(a: Array[Double]): Int = {
-    val sum = a.sum
-    val probs = Array.tabulate(a.length)(i => a(i) / sum)
-    var draw = random.nextDouble()
+  def rcat(prob: Array[Double]): Int = {
+    val sum = prob.sum
+    var draw = random.nextDouble() * sum
     var i = 0
-    while (draw > probs(i)) {
-      draw -= probs(i)
+    while (draw > prob(i)) {
+      draw -= prob(i)
       i += 1
     }
     i
@@ -101,7 +100,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       mb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a, scale)
     }
 
-    registerSeeded("rand_draw", TArray(TFloat64()), TInt32()) { case (mb, seed, a) =>
+    registerSeeded("rand_cat", TArray(TFloat64()), TInt32()) { case (mb, seed, a) =>
       val tarray = TArray(TFloat64())
       val array = mb.newLocal[Array[Double]]
       val aoff = mb.newLocal[Long]
@@ -115,7 +114,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         Code.whileLoop(i < length,
           array.load().update(i, getRegion(mb).loadDouble(tarray.elementOffset(aoff, length, i))),
           i += 1),
-        mb.newRNG(seed).invoke[Array[Double], Int]("rdraw", array))
+        mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))
     }
   }
 }
