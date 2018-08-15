@@ -3891,3 +3891,42 @@ def uniroot(f: Callable, min, max):
     indices, aggregations = unify_all(lambda_result, min, max)
     ir = Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
     return construct_expr(ir, lambda_result._type, indices, aggregations)
+
+
+@typecheck(f=expr_str, args=expr_any)
+def format(f, *args):
+    """Returns a formatted string using a specified format string and arguments.
+
+    Examples
+    --------
+
+    >>> hl.format('%.3e', 0.09345332).value
+    '9.345e-02'
+
+    >>> hl.format('%.4f', hl.null(hl.tfloat64)).value
+    'null'
+
+    >>> hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True).value
+    'hello [3,1:2453] true'
+
+    Notes
+    -----
+    See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#format-java.lang.String-java.lang.Object...->`__
+    for valid format specifiers and arguments.
+
+    Missing values are printed as ``'null'`` except when using the
+    format flags `'b'` and `'B'` (printed as ``'false'`` instead).
+
+    Parameters
+    ----------
+    f : :class:`.StringExpression`
+        Java `format string <https://docs.oracle.com/javase/8/docs/api/java/util/Formatter.html#syntax>`__.
+    args : variable-length arguments of :class:`.Expression`
+        Arguments to format.
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+
+    return _func("format", hl.tstr, f, hl.tuple(args))

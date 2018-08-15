@@ -1921,3 +1921,9 @@ class Tests(unittest.TestCase):
     def test_literal_with_nested_expr(self):
         self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
         self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})
+
+    def test_format(self):
+        self.assertEqual(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114).value, '0.2500 hello 1.140e-01')
+        self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)).value, 'null null')
+        self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
+        self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
