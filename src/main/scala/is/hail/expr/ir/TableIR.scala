@@ -910,7 +910,7 @@ case class TableKeyByAndAggregate(
       .mapPartitionsWithIndex { (i, ctx, it) =>
       val rvb = new RegionValueBuilder(ctx.freshRegion)
       rvb.start(bcType)
-      rvb.addAnnotation(bcType, bc.value)
+      rvb.addAnnotation(bcType, bcBroadcast.value)
       val bcOffset = rvb.end()
 
         val makeKey = {
