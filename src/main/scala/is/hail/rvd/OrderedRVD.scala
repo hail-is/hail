@@ -1106,6 +1106,7 @@ object OrderedRVD {
               fatal(
                 s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Range of partition IDs for key: [${ partitionerBc.value.getSafePartitionLowerBound(kUR) }, ${ partitionerBc.value.getSafePartitionUpperBound(kUR) })
                    |  Invalid key: ${ kUR.toString() }""".stripMargin)
 
             rv

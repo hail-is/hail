@@ -42,15 +42,6 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(ir, -3.0)
   }
 
-  @Test def rpois() {
-    val res0 = eval(ApplySeeded("rpois_seeded", FastSeq(I32(5), F64(1)), 0))
-    assert(TArray(TFloat64()).typeCheck(res0))
-    val res = res0.asInstanceOf[IndexedSeq[Double]]
-    assert(res.length == 5)
-    assert(res.forall(_ >= 0))
-    assert(res.forall(x => x == x.floor))
-  }
-
   @Test def isnan() {
     assertEvalsTo(invoke("isnan", F32(0)), false)
     assertEvalsTo(invoke("isnan", F32(Float.NaN)), true)

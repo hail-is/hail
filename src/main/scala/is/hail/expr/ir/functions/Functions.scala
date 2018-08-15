@@ -379,6 +379,13 @@ abstract class RegistryFunctions {
         case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, seed, a1, a2)
       }
     }
+
+  def registerSeeded[A1, A2, A3, A4](mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1, arg2, arg3, arg4), rType) { (emb, seed, array) =>
+      (emb: @unchecked, array: @unchecked) match {
+        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(mb, seed, a1, a2, a3, a4)
+      }
+    }
 }
 
 sealed abstract class IRFunction {

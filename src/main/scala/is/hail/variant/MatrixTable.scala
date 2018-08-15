@@ -1517,22 +1517,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 
-  def indexRows(name: String): MatrixTable = {
-    val indexedRVD = rvd.zipWithIndex(name)
-    copyMT(
-      matrixType = matrixType.copy(rvRowType = indexedRVD.typ.rowType),
-      rvd = indexedRVD)
-  }
-
-  def indexCols(name: String): MatrixTable = {
-    val (newColType, inserter) = colType.structInsert(TInt32(), List(name))
-    val newColValues = Array.tabulate(numCols) { i =>
-      inserter(colValues.value(i), i)
-    }
-    copy2(colType = newColType,
-      colValues = colValues.copy(value = newColValues, t = TArray(newColType)))
-  }
-
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
     filterPartitions(parts.asScala.toArray, keep)
 

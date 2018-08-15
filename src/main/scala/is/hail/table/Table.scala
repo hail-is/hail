@@ -633,13 +633,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
-  def index(name: String): Table = {
-    if (fieldNames.contains(name))
-      fatal(s"name collision: cannot index table, because column '$name' already exists")
-    val newRvd = rvd.zipWithIndex(name)
-    copy2(signature = newRvd.rowType, rvd = newRvd)
-  }
-
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
     println(showString(n, truncate, printTypes, maxWidth))
   }
