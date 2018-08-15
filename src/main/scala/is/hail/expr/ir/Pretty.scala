@@ -253,9 +253,8 @@ object Pretty {
               }(sb += '\n')
 
               ""
-            case TableKeyBy(_, keys, nPartitionKeys, sort) =>
+            case TableKeyBy(_, keys, sort) =>
               prettyIdentifiers(keys) + " " +
-                prettyIntOpt(nPartitionKeys) + " " +
                 prettyBooleanLiteral(sort)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)

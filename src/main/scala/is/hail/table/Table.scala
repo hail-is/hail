@@ -456,7 +456,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
-    new Table(hc, TableKeyBy(tir, keys, Option(partitionKeys).map(_.length), sort))
+    new Table(hc, TableKeyBy(tir, keys, sort))
   }
 
   def unkey(): Table =
