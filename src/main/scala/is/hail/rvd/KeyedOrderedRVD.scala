@@ -7,11 +7,11 @@ import org.apache.spark.rdd.RDD
 
 import scala.collection.generic.Growable
 
-class KeyedOrderedRVD(val rvd: OrderedRVD, val key: IndexedSeq[String]) {
+class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
+  require(key <= rvd.typ.key.length && key >= 0)
   val realType: OrderedRVDType = rvd.typ
-  val virtType = new OrderedRVDType(key, realType.rowType)
-  val (kType, _) = rvd.rowType.select(key)
-  require(kType isPrefixOf rvd.typ.kType)
+  val virtType = new OrderedRVDType(realType.key.take(key), realType.rowType)
+  val (kType, _) = rvd.rowType.select(virtType.key)
 
   private def checkJoinCompatability(right: KeyedOrderedRVD) {
     if (!(kType isIsomorphicTo right.kType))
@@ -93,9 +93,9 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: IndexedSeq[String]) {
 
   def orderedZipJoin(right: KeyedOrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {
     checkJoinCompatability(right)
-    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key.length) ++
-      right.rvd.partitioner.coarsenedRangeBounds(key.length)
-    val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
+    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
+      right.rvd.partitioner.coarsenedRangeBounds(key)
+    val newPartitioner = OrderedRVDPartitioner.generate(virtType.key, kType, ranges)
 
     val repartitionedLeft = this.rvd.constrainToOrderedPartitioner(newPartitioner)
     val repartitionedRight = right.rvd.constrainToOrderedPartitioner(newPartitioner)
@@ -113,9 +113,9 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: IndexedSeq[String]) {
     checkJoinCompatability(right)
     require(this.realType.rowType == right.realType.rowType)
 
-    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key.length) ++
-      right.rvd.partitioner.coarsenedRangeBounds(key.length)
-    val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
+    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
+      right.rvd.partitioner.coarsenedRangeBounds(key)
+    val newPartitioner = OrderedRVDPartitioner.generate(virtType.key, kType, ranges)
 
     val repartitionedLeft =
       this.rvd.constrainToOrderedPartitioner(newPartitioner)

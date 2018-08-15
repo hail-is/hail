@@ -592,8 +592,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length)).orderedJoinDistinct(
-      right.keyBy(),
+    val joinedRVD = this.rvd.orderedJoinDistinct(
+      right,
+      right.typ.key.length,
       "left",
       joiner,
       newMatrixType.orvdType

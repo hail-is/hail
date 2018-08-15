@@ -444,10 +444,11 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   def execute(hc: HailContext): TableValue = {
     val leftTV = left.execute(hc)
     val rightTV = right.execute(hc)
-    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD].keyBy(leftTV.typ.key.get.take(joinKey))
-    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD].keyBy(rightTV.typ.key.get.take(joinKey))
+    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
+      joinKey,
       joinType,
       rvMerger,
       new OrderedRVDType(newKey, newRowType))
