@@ -107,12 +107,21 @@ this case a row field of table `ht`.
     <Int32Expression of type int32>
 
 
-Common Operations
-=================
+Updating Fields
+===============
 
-The main operations on a table are :meth:`.Table.select` and :meth:`.Table.drop` to add or remove row fields,
-:meth:`.Table.filter` to either keep or remove rows based on a condition, and :meth:`.Table.annotate` to add
-new row fields or update the values of existing row fields. For example:
+Add or remove row fields from a Table with :meth:`.Table.select` and
+:meth:`.Table.drop`.
+
+    >>> ht.drop('C1', 'C2')
+    >>> ht.drop(*['C1', 'C2'])
+
+    >>> ht.select(ht.ID, ht.SEX)
+    >>> ht.select(*['ID', 'C3'])
+
+Use :meth:`.Table.annotate` to add new row fields or update the values of
+existing row fields and use :meth:`.Table.filter` to either keep or remove
+rows based on a condition:
 
     >>> ht_new = ht.filter(ht['C1'] >= 10)
     >>> ht_new = ht_new.annotate(id_times_2 = ht_new.ID * 2)
@@ -121,12 +130,11 @@ new row fields or update the values of existing row fields. For example:
 Aggregation
 ===========
 
-A commonly used operation is to compute an aggregate statistic over the rows of
-the dataset. Hail provides an :meth:`.Table.aggregate` method along with many
-aggregator functions (see :ref:`sec-aggregators`) to return the result of a
-query:
+To compute an aggregate statistic over the rows of
+a dataset, Hail provides an :meth:`.Table.aggregate` method which can be passed
+a wide variety of aggregator functions (see :ref:`sec-aggregators`):
 
-    >>> ht.aggregate(agg.fraction(ht.SEX == 'F'))
+    >>> ht.aggregate(hl.agg.fraction(ht.SEX == 'F'))
     0.5
 
 We also might want to compute the mean value of `HT` for each sex. This is
@@ -134,7 +142,7 @@ possible with a combination of :meth:`Table.group_by` and
 :meth:`.GroupedTable.aggregate`:
 
     >>> ht_agg = (ht.group_by(ht.SEX)
-    ...             .aggregate(mean = agg.mean(ht.HT)))
+    ...             .aggregate(mean = hl.agg.mean(ht.HT)))
     >>> ht_agg.show()
     +-----+-------------+
     | SEX |        mean |
@@ -179,10 +187,13 @@ appended with a unique identifier "_N".
     +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
 
 In addition to using the :meth:`.Table.join` method, Hail provides an additional
-join syntax using Python's bracket notation. This syntax does a left join, like
-looking up values in a dictionary. Instead of returning a :class:`.Table`, this
-syntax returns an :class:`.Expression` which can be used in expressions of the
-left table. For example, below we add the field 'B' from `ht2` to `ht`:
+join syntax using Python's bracket indexing syntax. The syntax looks like
+``right_table[left_table.key]``, which will return an :class:`.Expression`
+instead of a :class:`.Table`. This expression is a dictionary mapping the
+keys in the left table to the rows in the right table.
+We can annotate the left table with this expression to perform a left join:
+``left_table.annotate(x = right_table[left_table.key].x]``. For example, below
+we add the field 'B' from `ht2` to `ht`:
 
     >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
     >>> ht1.show()

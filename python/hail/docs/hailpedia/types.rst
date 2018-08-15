@@ -64,7 +64,8 @@ Entering just the object will also give you some type information.
     >>> hl.int32(3)
     <Int32Expression of type int32>
 
-We can see that `hl.int32(3)` is of type `int32`, but what does Expression mean?
+We can see that ``hl.int32(3)`` is of type :py:data:`.tint32`, but what does
+Expression mean?
 Each data type in Hail is represented by its own Expression class. Data of
 type :py:data:`.tint32` is represented by an :class:`.Int32Expression`. Data
 of type :class:`.tstruct` is represented by a :class:`.StructExpression`.

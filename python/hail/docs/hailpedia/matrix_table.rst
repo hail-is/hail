@@ -75,7 +75,7 @@ Likewise, ``mt.DP`` is an :class:`.Int32Expression` with type ``int32``
 and is an entry field of ``mt``.
 
 Hail expressions can also :meth:`.Expression.describe` themselves, providing
-information on their source matrix table or table and which keys index the
+information about their source matrix table or table and which keys index the
 expression, if any. For example, ``mt.DP.describe()`` tells us that ``mt.DP``
 has type ``int32`` and is an entry field of ``mt``, since it is indexed
 by both rows and columns:
@@ -263,7 +263,6 @@ One use case of explode is to duplicate rows:
     346
     >>> mt_new.count_rows()
     692
-
     >>> mt_new.replicate_num.show()
     +---------------+------------+---------------+
     | locus         | alleles    | replicate_num |
@@ -331,7 +330,6 @@ Next we group the columns by `case_status` and aggregate:
 
     >>> mt_grouped = (mt_ann.group_cols_by(mt_ann.case_status)
     ...                 .aggregate(gq_stats = agg.stats(mt_ann.GQ)))
-
     >>> print(mt_grouped.entry.dtype.pretty())
     struct {
         gq_stats: struct {
@@ -343,7 +341,6 @@ Next we group the columns by `case_status` and aggregate:
             sum: float64
         }
     }
-
     >>> print(mt_grouped.col.dtype)
     struct{status: str}
 
