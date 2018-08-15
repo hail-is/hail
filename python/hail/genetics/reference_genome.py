@@ -23,7 +23,8 @@ class ReferenceGenome(object):
     ----------
     name : :obj:`str`
         Name of reference. Must be unique and NOT one of Hail's
-        predefined references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
+        predefined references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, and
+        ``'default'``.
     contigs : :obj:`list` of :obj:`str`
         Contig names.
     lengths : :obj:`dict` of :obj:`str` to :obj:`int`
@@ -224,11 +225,11 @@ class ReferenceGenome(object):
 
 
         `name` must be unique and not overlap with Hail's pre-instantiated
-        references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.The contig
-        names in `xContigs`, `yContigs`, and `mtContigs` must be present in
-        `contigs`. The intervals listed in `par` must have contigs in either
-        `xContigs` or `yContigs` and must have positions between 0 and the
-        contig length given in `contigs`.
+        references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, and ``'default'``.
+        The contig names in `xContigs`, `yContigs`, and `mtContigs` must be
+        present in `contigs`. The intervals listed in `par` must have contigs in
+        either `xContigs` or `yContigs` and must have positions between 0 and
+        the contig length given in `contigs`.
 
         Parameters
         ----------
@@ -275,7 +276,7 @@ class ReferenceGenome(object):
         This method can only be run once per reference genome. Use
         :meth:`~has_sequence` to test whether a sequence is loaded.
 
-        FASTA and index files are hosted on google cloud for Hail's built-in
+        FASTA and index files are hosted on google cloud for some of Hail's built-in
         references:
 
         **GRCh37**
@@ -396,7 +397,7 @@ class ReferenceGenome(object):
         The chain file format is described
         `here <https://genome.ucsc.edu/goldenpath/help/chain.html>`__.
 
-        Chain files are hosted on google cloud for Hail's built-in
+        Chain files are hosted on google cloud for some of Hail's built-in
         references:
 
         **GRCh37 to GRCh38**
