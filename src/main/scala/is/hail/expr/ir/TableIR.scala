@@ -484,11 +484,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 }
 
-// Must not modify key ordering.
-// newKey is key of resulting Table, if newKey=None then result is unkeyed.
-// preservedKeyFields is length of initial sequence of key fields whose values are unchanged.
-// Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
-// partition bounds will remain valid.
+// Must leave key fields unchanged. 'newKey' is used to rename key fields only.
 case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
   require(newKey.isDefined == child.typ.key.isDefined)
   require(newKey.forall(_.length == child.typ.key.get.length))
