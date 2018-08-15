@@ -167,7 +167,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Temporary directory for Hail files. Must be a network-visible
         file path.
     default_reference : :obj:`str`
-        Default reference genome. Either ``'GRCh37'`` or ``'GRCh38'``.
+        Default reference genome. Either ``'GRCh37'``, ``'GRCh38'``,
+        or ``'GRCm38'``.
     idempotent : :obj:`bool`
         If ``True``, calling this function is a no-op if Hail has already been initialized.
     """
@@ -204,10 +205,13 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     Notes
     -----
 
-    Hail's built-in references are ``'GRCh37'`` and ``GRCh38'``. The contig names
-    and lengths come from the GATK resource bundle:
-    `human_g1k_v37.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
-    and `Homo_sapiens_assembly38.dict <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
+    Hail's built-in references are ``'GRCh37'``, ``GRCh38'``, and ``'GRCm38'``.
+    The contig names and lengths come from the GATK resource bundle:
+    `human_g1k_v37.dict
+    <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
+    and `Homo_sapiens_assembly38.dict
+    <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
+
 
     If ``name='default'``, the value of :func:`.default_reference` is returned.
 
@@ -215,20 +219,18 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     ----------
     name : :obj:`str`
         Name of a previously loaded reference genome or one of Hail's built-in
-        references: ``'GRCh37'``, ``'GRCh38'``, and ``'default'``.
+        references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, and ``'default'``.
 
     Returns
     -------
     :class:`.ReferenceGenome`
     """
-    from hail import ReferenceGenome
-
     if name == 'default':
         return default_reference()
     else:
-        return ReferenceGenome._references.get(
+        return hail.ReferenceGenome._references.get(
             name,
-            ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
+            hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
         )
 
 
