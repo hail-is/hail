@@ -3,7 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
+import is.hail.expr.ir.{IR, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
@@ -207,7 +207,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def typ: TableType = tir.typ
   
   lazy val value: TableValue = {
-    val opt = LiftLiterals(ir.Optimize(tir)).asInstanceOf[TableIR]
+    val opt = ir.Optimize(tir)
     opt.execute(hc)
   }
 

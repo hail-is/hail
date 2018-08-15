@@ -228,7 +228,7 @@ object CompileWithAggregators {
   T0: ClassTag,
   S0: ClassTag,
   S1: ClassTag
-  ](name0: String, typ0: Type,
+  ](name0: String, typ0: Type)(
     aggName0: String, aggTyp0: Type,
     aggName1: String, aggTyp1: Type,
     body: IR, aggResultName: String,
@@ -255,7 +255,7 @@ object CompileWithAggregators {
   S1: ClassTag,
   S2: ClassTag
   ](name0: String, typ0: Type,
-    name1: String, typ1: Type,
+    name1: String, typ1: Type)(
     aggName0: String, aggType0: Type,
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
@@ -284,7 +284,7 @@ object CompileWithAggregators {
     S0: ClassTag,
     S1: ClassTag,
     S2: ClassTag
-  ](name0: String, typ0: Type,
+  ](name0: String, typ0: Type)(
     aggName0: String, aggTyp0: Type,
     aggName1: String, aggTyp1: Type,
     aggName2: String, aggTyp2: Type,
@@ -301,9 +301,36 @@ object CompileWithAggregators {
     val aggScopeArgs = FastSeq(
       (aggName0, aggTyp0, classTag[S0]),
       (aggName1, aggTyp1, classTag[S1]),
-      (aggName2, aggTyp2, classTag[S1]))
+      (aggName2, aggTyp2, classTag[S2]))
 
     apply[IRAggFun1[T0], IRAggFun3[S0, S1, S2]](args, aggScopeArgs, body, aggResultName, transformInitOp, transformSeqOp)
+  }
+
+  def apply22[
+  T0: ClassTag,
+  T1: ClassTag,
+  S0: ClassTag,
+  S1: ClassTag
+  ](name0: String, typ0: Type,
+    name1: String, typ1: Type)(
+    aggName0: String, aggTyp0: Type,
+    aggName1: String, aggTyp1: Type,
+    body: IR, aggResultName: String,
+    transformInitOp: (Int, IR) => IR,
+    transformSeqOp: (Int, IR) => IR
+  ): (Array[RegionValueAggregator],
+    Int => IRAggFun2[T0, T1],
+    Int => IRAggFun2[S0, S1],
+    Type,
+    IR) = {
+    val args = FastSeq((name0, typ0, classTag[T0]),
+      (name1, typ1, classTag[T1]))
+
+    val aggScopeArgs = FastSeq(
+      (aggName0, aggTyp0, classTag[S0]),
+      (aggName1, aggTyp1, classTag[S1]))
+
+    apply[IRAggFun2[T0, T1], IRAggFun2[S0, S1]](args, aggScopeArgs, body, aggResultName, transformInitOp, transformSeqOp)
   }
 
   def apply[
@@ -312,21 +339,19 @@ object CompileWithAggregators {
   T2: ClassTag,
   S0: ClassTag,
   S1: ClassTag,
-  S2: ClassTag,
-  S3: ClassTag
+  S2: ClassTag
   ](name0: String, typ0: Type,
     name1: String, typ1: Type,
-    name2: String, typ2: Type,
+    name2: String, typ2: Type)(
     aggName0: String, aggType0: Type,
     aggName1: String, aggType1: Type,
     aggName2: String, aggType2: Type,
-    aggName3: String, aggType3: Type,
     body: IR, aggResultName: String,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
     Int => IRAggFun3[T0, T1, T2],
-    Int => IRAggFun4[S0, S1, S2, S3],
+    Int => IRAggFun3[S0, S1, S2],
     Type,
     IR) = {
     val args = FastSeq(
@@ -337,10 +362,9 @@ object CompileWithAggregators {
     val aggArgs = FastSeq(
       (aggName0, aggType0, classTag[S0]),
       (aggName1, aggType1, classTag[S1]),
-      (aggName2, aggType2, classTag[S2]),
-      (aggName3, aggType3, classTag[S3]))
+      (aggName2, aggType2, classTag[S2]))
 
-    apply[IRAggFun3[T0, T1, T2], IRAggFun4[S0, S1, S2, S3]
+    apply[IRAggFun3[T0, T1, T2], IRAggFun3[S0, S1, S2]
     ](args, aggArgs, body, aggResultName, transformInitOp, transformSeqOp)
   }
 }
