@@ -186,7 +186,7 @@ appended with a unique identifier "_N".
     |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |    65 | cat    |
     +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
 
-In addition to using the :meth:`.Table.join` method, Hail provides an additional
+In addition to the :meth:`.Table.join` method, Hail provides another
 join syntax using Python's bracket indexing syntax. The syntax looks like
 ``right_table[left_table.key]``, which will return an :class:`.Expression`
 instead of a :class:`.Table`. This expression is a dictionary mapping the
