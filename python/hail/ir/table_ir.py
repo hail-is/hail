@@ -82,17 +82,15 @@ class TableKeyBy(TableIR):
 
 
 class TableMapRows(TableIR):
-    def __init__(self, child, new_row, new_key, preserved_key_fields):
+    def __init__(self, child, new_row, new_key):
         super().__init__()
         self.child = child
         self.new_row = new_row
         self.new_key = new_key
-        self.preserved_key_fields = preserved_key_fields
 
     def __str__(self):
-        return '(TableMapRows {} {} {} {})'.format(
+        return '(TableMapRows {} {} {})'.format(
             ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
-            self.preserved_key_fields,
             self.child, self.new_row)
 
 

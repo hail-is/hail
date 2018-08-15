@@ -135,7 +135,7 @@ class TableIRTests(unittest.TestCase):
                 ir.MakeStruct([
                     ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
                     ('b', ir.F64(-2.11))]),
-                None, None),
+                None),
             ir.TableMapGlobals(
                 table_read,
                 ir.MakeStruct([

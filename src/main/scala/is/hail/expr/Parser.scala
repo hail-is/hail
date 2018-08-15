@@ -609,8 +609,8 @@ object Parser extends JavaTokenParsers {
       "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
         ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)
       } |
-      "TableMapRows" ~> string_literals_opt ~ int32_literal_opt ~ table_ir ~ ir_value_expr() ^^ { case newKey ~ preservedKeyFields ~ child ~ newRow =>
-        ir.TableMapRows(child, newRow, newKey, preservedKeyFields)
+      "TableMapRows" ~> string_literals_opt ~ table_ir ~ ir_value_expr() ^^ { case newKey ~ child ~ newRow =>
+        ir.TableMapRows(child, newRow, newKey)
       } |
       "TableMapGlobals" ~> ir_value ~ table_ir ~ ir_value_expr() ^^ { case ((t, v)) ~ child ~ newRow =>
         ir.TableMapGlobals(child, newRow,

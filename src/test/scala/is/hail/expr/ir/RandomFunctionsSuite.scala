@@ -55,7 +55,7 @@ class RandomFunctionsSuite extends SparkSuite {
       FastSeq(
         "pi" -> ApplySeeded("pi_seeded", FastSeq(), 0L),
         "counter" -> ApplySeeded("counter_seeded", FastSeq(), 0L))),
-    Some(FastIndexedSeq("idx")), Some(1))
+    Some(FastIndexedSeq("idx")))
 
   @BeforeClass def registerFunctions() {
     TestRandomFunctions.registerAll()

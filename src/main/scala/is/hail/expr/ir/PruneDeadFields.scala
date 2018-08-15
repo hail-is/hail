@@ -298,7 +298,7 @@ object PruneDeadFields {
           globalType = requestedType.globalType), memo)
       case TableDistinct(child) =>
         memoizeTableIR(child, requestedType, memo)
-      case TableMapRows(child, newRow, newKey, preservedKeyFields) =>
+      case TableMapRows(child, newRow, newKey) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, minimal(child.typ).copy(globalType = requestedType.globalType), rowDep), memo)
       case TableMapGlobals(child, newRow, value) =>
@@ -764,10 +764,10 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         val pred2 = rebuild(pred, child2.typ, memo)
         TableFilter(child2, pred2)
-      case TableMapRows(child, newRow, newKey, preservedKeyFields) =>
+      case TableMapRows(child, newRow, newKey) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuild(newRow, child2.typ, memo)
-        TableMapRows(child2, newRow2, newKey, preservedKeyFields)
+        TableMapRows(child2, newRow2, newKey)
       case TableMapGlobals(child, newRow, value) =>
         // fixme push down into value
         val child2 = rebuild(child, memo)
@@ -1047,7 +1047,7 @@ object PruneDeadFields {
     else {
       var table = ir
       if (upcastRow && ir.typ.rowType != rType.rowType) {
-        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key, rType.key.map(_.length))
+        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key)
       }
       if (upcastGlobals && ir.typ.globalType != rType.globalType) {
         table = TableMapGlobals(table,

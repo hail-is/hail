@@ -180,7 +180,8 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
     val tv = child.execute(hc)
     val orvd = tv.enforceOrderingRVD.toOrderedRVD
     val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
-    assert(sort || nPreservedFields > 0 || (orvd.typ.key.isEmpty && keys.isEmpty))
+    assert(sort || nPreservedFields > 0 || keys.isEmpty)
+
     val rvd = if (nPreservedFields == keys.length) {
       orvd
     } else if (!sort) {
@@ -488,11 +489,10 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 // preservedKeyFields is length of initial sequence of key fields whose values are unchanged.
 // Thus if number of partition keys of underlying OrderedRVD is <= preservedKeyFields,
 // partition bounds will remain valid.
-case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]) extends TableIR {
-  require(newKey.isDefined == preservedKeyFields.isDefined)
-  require(preservedKeyFields.forall(p => p == child.typ.key.get.length))
+case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
   require(newKey.isDefined == child.typ.key.isDefined)
   require(newKey.forall(_.length == child.typ.key.get.length))
+  val preservedKeyFields = child.typ.key.map(_.length)
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
@@ -502,7 +502,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
-    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey, preservedKeyFields)
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts

@@ -175,7 +175,7 @@ object Simplify {
 
       case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
 
-      case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
+      case TableCount(TableMapRows(child, _, _)) => TableCount(child)
 
       case TableCount(TableRepartition(child, _, _)) => TableCount(child)
 
@@ -262,8 +262,7 @@ object Simplify {
         TableMapRows(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
-          Some(child.typ.colKey),
-          Some(child.typ.colKey.length))
+          Some(child.typ.colKey))
       case MatrixColsTable(MatrixFilterCols(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
         val mct = MatrixColsTable(child)
@@ -277,8 +276,8 @@ object Simplify {
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
 
-      case TableHead(TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
-        TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
+      case TableHead(TableMapRows(child, newRow, newKey), n) =>
+        TableMapRows(TableHead(child, n), newRow, newKey)
       case TableHead(TableRepartition(child, nPar, shuffle), n) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
       case TableHead(tr@TableRange(nRows, nPar), n) =>
@@ -312,11 +311,11 @@ object Simplify {
               MakeStruct(Seq()), // aggregate to one row
               Some(1), 10),
             "row"))
-        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
+        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
-        TableDistinct(TableKeyBy(TableMapRows(TableUnkey(child), k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+        TableDistinct(TableKeyBy(TableMapRows(TableUnkey(child), k, None), keyFields.map(_._1).toFastIndexedSeq, None))
       case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
         MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
         TableAggregateByKey(child, expr)

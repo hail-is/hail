@@ -173,7 +173,6 @@ abstract sealed class MatrixIR extends BaseIR {
           TableMapRows(
             TableUnkey(MatrixRowsTable(this)),
             MakeStruct(FastIndexedSeq()),
-            None,
             None
           ))
           .execute(HailContext.get)

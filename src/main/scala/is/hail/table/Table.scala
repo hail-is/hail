@@ -467,7 +467,16 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ir = Parser.parse_value_ir(expr, typ.refMap)
-    new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
+    select(ir, newKey, preservedKeyFields)
+  }
+
+  def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+    val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take(_)))
+    val preservedKeyNew = newKey.map(_.take(preservedKeyFields.get))
+    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get, None, false) else tir
+    val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
+    val lengthenedKey = if (newKey.isDefined) TableKeyBy(mapped, newKey.get, None, false) else mapped
+    new Table(hc, lengthenedKey)
   }
 
   def join(other: Table, joinType: String): Table =
@@ -577,7 +586,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     })
     val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
 
-    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields))
+    select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
   }
 
   // expandTypes must be called before toDF
