@@ -580,6 +580,7 @@ def build_finished(pr_number,
                     f'Too many statuses applied to {source_sha}! This is a '
                     f'dangerous situation because I can no longer block merging '
                     f'of failing PRs.')
+            else:
                 raise e
     else:
         log.info(f'test job {job_id} failed for pr #{pr_number} ({source_sha}) with exit code {exit_code} after merge with {target_sha}')
@@ -609,6 +610,7 @@ def build_finished(pr_number,
                     f'Too many statuses applied to {source_sha}! This is a '
                     f'dangerous situation because I can no longer block merging '
                     f'of failing PRs.')
+            else:
                 raise e
 
 @app.route('/heal', methods=['POST'])
