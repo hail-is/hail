@@ -1727,7 +1727,9 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
 def rand_pois(lamb, seed=None) -> Float64Expression:
-    """Samples from a Poisson distribution with rate parameter `lamb`.
+    """Samples from a `Poisson distribution
+    <https://en.wikipedia.org/wiki/Poisson_distribution>__` with rate parameter
+    `lamb`.
 
     Examples
     --------
@@ -1869,7 +1871,7 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
            seed=nullable(int))
 def rand_cat(prob, seed=None) -> Int32Expression:
     """Samples from a `categorical distribution
-    <https://en.wikipedia.org/wiki/Categorical_distribution>`__
+    <https://en.wikipedia.org/wiki/Categorical_distribution>`__.
 
     Notes
     -----

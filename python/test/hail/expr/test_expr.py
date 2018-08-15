@@ -32,7 +32,7 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_beta(1, 1))
         test_random_function(lambda: hl.rand_beta(1, 1, 0, 1))
         test_random_function(lambda: hl.rand_gamma(1, 1))
-        test_random_function(lambda: hl.rand_draw(hl.array([1, 1, 1, 1])))
+        test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
     def test_seeded_sampling(self):
