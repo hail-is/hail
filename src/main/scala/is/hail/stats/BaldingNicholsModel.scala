@@ -128,7 +128,6 @@ object BaldingNicholsModel {
       colKey = Array("sample_idx"),
       rowType = TStruct("locus" -> TLocus(rg), "alleles" -> TArray(TString())) ++ vaSignature,
       rowKey = Array("locus", "alleles"),
-      rowPartitionKey = Array("locus"),
       entryType = TStruct("GT" -> TCall()))
 
     val rvType = matrixType.rvRowType

@@ -334,7 +334,6 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
-    rowPartitionKey = Array("row_idx"),
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32()),
     entryType = TStruct.empty())
@@ -361,7 +360,7 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
       OrderedRVD.empty(hc.sc, fullType.orvdType)
     else {
       OrderedRVD(fullType.orvdType,
-        new OrderedRVDPartitioner(fullType.rowPartitionKey.toArray,
+        new OrderedRVDPartitioner(
           fullType.rowKeyStruct,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -1136,8 +1135,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
 
   val typ: MatrixType = {
     val newRowKey = newKey.map { case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
-    val newPartitionKey = newKey.map { case (pk, _) => pk }.getOrElse(child.typ.rowPartitionKey)
-    child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+    child.typ.copy(rowKey = newRowKey, rvRowType = newRVRow.typ)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -1808,8 +1806,9 @@ case class MatrixAnnotateRowsTable(
     val tv = table.execute(hc)
     key match {
       // annotateRowsIntervals
-      case None if child.typ.rowPartitionKey.length == 1 &&
-        table.typ.keyType.exists(k => k.size == 1 && k.types(0) == TInterval(child.typ.rowKeyStruct.types(0))) =>
+      case None if table.typ.keyType.exists { k =>
+        k.size == 1 && k.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
+      } =>
         val typOrdering = child.typ.rowKeyStruct.types(0).ordering
 
         val typToInsert: Type = table.typ.valueType
@@ -1825,12 +1824,10 @@ case class MatrixAnnotateRowsTable(
             val r = SafeRow(tableRowType, rv)
             val interval = r.getAs[Interval](tableKeyIdx)
             if (interval != null) {
-              val rangeTree = partBc.value.rangeTree
-              val kOrd = partBc.value.kType.ordering
               val wrappedInterval = interval.copy(
                 start = Row(interval.start),
                 end = Row(interval.end))
-              rangeTree.queryOverlappingValues(kOrd, wrappedInterval).map(i => (i, r))
+              partBc.value.getPartitionRange(wrappedInterval).map(i => (i, r))
             } else
               Iterator()
           }
@@ -1843,7 +1840,7 @@ case class MatrixAnnotateRowsTable(
         }).values
 
         val rvRowType = child.typ.rvRowType
-        val pkIndex = rvRowType.fieldIdx(child.typ.rowPartitionKey(0))
+        val kIndex = child.typ.rowKeyFieldIdx(0)
         val newMatrixType = child.typ.copy(rvRowType = newRVType)
         val newRVD = prev.rvd.zipPartitionsPreservesPartitioning(
           newMatrixType.orvdType,
@@ -1862,8 +1859,8 @@ case class MatrixAnnotateRowsTable(
 
           it.map { rv =>
             val ur = new UnsafeRow(rvRowType, rv)
-            val pk = ur.get(pkIndex)
-            val queries = iTree.queryValues(typOrdering, pk)
+            val key = ur.get(kIndex)
+            val queries = iTree.queryValues(typOrdering, key)
             val value: Annotation = if (queries.isEmpty)
               null
             else
@@ -1999,7 +1996,6 @@ case class TableToMatrixTable(
     child.typ.globalType,
     colKey,
     colType,
-    partitionKey,
     rowKey,
     rowType,
     entryType)
@@ -2345,13 +2341,11 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
   }
 
   val typ: MatrixType = MatrixType(
-      rowsEntries.typ.globalType,
-      cols.typ.keyOrEmpty,
-      cols.typ.rowType,
-      rowsEntries.typ.keyOrEmpty,
-      rowsEntries.typ.keyOrEmpty,
-      newRowType
-    )
+    rowsEntries.typ.globalType,
+    cols.typ.keyOrEmpty,
+    cols.typ.rowType,
+    rowsEntries.typ.keyOrEmpty,
+    newRowType)
 
   def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)
 

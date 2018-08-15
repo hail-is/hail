@@ -192,12 +192,12 @@ def require_row_key_variant_w_struct_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 
-def require_partition_key_locus(dataset, method):
-    if (len(dataset.partition_key) != 1 or
-            not isinstance(dataset.partition_key[0].dtype, tlocus)):
-        raise ValueError("Method '{}' requires partition key to be one field of type 'locus<any>'.\n"
+def require_first_row_key_field_locus(dataset, method):
+    if (len(dataset.partition_key) == 0 or
+            not isinstance(dataset.row_key[0].dtype, tlocus)):
+        raise ValueError("Method '{}' requires first row key field of type 'locus<any>'.\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.partition_key)))
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
 
 def require_first_key_field_locus(table, method):
@@ -403,5 +403,5 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    require_partition_key_locus(mt, 'window_by_locus')
+    require_first_row_key_field_locus(mt, 'window_by_locus')
     return MatrixTable(mt._jvds.windowVariants(bp_window_size))

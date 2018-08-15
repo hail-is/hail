@@ -81,6 +81,8 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
   @Test def testGetPartitionRange() {
     assert(partitioner.getPartitionRange(Interval(Row(3, 4), Row(7, 11), true, true)) == Seq(0, 1, 2))
     assert(partitioner.getPartitionRange(Interval(Row(3, 4), Row(7, 9), true, false)) == Seq(0, 1))
+    assert(partitioner.getPartitionRange(Interval(Row(4), Row(5), true, true)) == Seq(0, 1))
+    assert(partitioner.getPartitionRange(Interval(Row(4), Row(5), false, true)) == Seq(1))
     assert(partitioner.getPartitionRange(Interval(Row(-1, 7), Row(0, 9), true, false)) == Seq())
   }
 

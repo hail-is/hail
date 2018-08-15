@@ -963,7 +963,6 @@ case class MatrixVCFReader(
     colKey = Array("s"),
     rowType = kType ++ vaSignature,
     rowKey = Array("locus", "alleles"),
-    rowPartitionKey = Array("locus"),
     entryType = genotypeSignature)
 
   private lazy val lines = {
@@ -974,7 +973,7 @@ case class MatrixVCFReader(
 
   private lazy val coercer = OrderedRVD.makeCoercer(
     fullType.orvdType,
-    fullType.rowPartitionKey.length,
+    1,
     parseLines(
       () => ()
     )((c, l, rvb) => ()

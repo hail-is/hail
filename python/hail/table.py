@@ -1388,12 +1388,8 @@ class Table(ExprContainer):
                 raise NotImplementedError('entry-based matrix joins')
             elif indices == src._row_indices:
 
-                is_row_key = len(exprs) == len(src.row_key) and all(
-                    expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-                is_partition_key = len(exprs) == len(src.partition_key) and all(
-                    expr is key_field for expr, key_field in zip(exprs, src.partition_key.values()))
-
-                if is_row_key or is_partition_key:
+                if len(exprs) <= len(src.row_key) and all(
+                    expr is key_field for expr, key_field in zip(exprs, src.row_key.values())):
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]

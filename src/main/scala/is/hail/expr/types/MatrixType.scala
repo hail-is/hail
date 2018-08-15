@@ -16,15 +16,15 @@ class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
 
-  def fromParts(globalType: TStruct,
+  def fromParts(
+    globalType: TStruct,
     colKey: IndexedSeq[String],
     colType: TStruct,
-    rowPartitionKey: IndexedSeq[String],
     rowKey: IndexedSeq[String],
     rowType: TStruct,
-    entryType: TStruct): MatrixType = {
-    MatrixType(globalType, colKey,
-      colType, rowPartitionKey, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
+    entryType: TStruct
+  ): MatrixType = {
+    MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
   }
 }
 
@@ -32,9 +32,9 @@ case class MatrixType(
   globalType: TStruct,
   colKey: IndexedSeq[String],
   colType: TStruct,
-  rowPartitionKey: IndexedSeq[String],
   rowKey: IndexedSeq[String],
-  rvRowType: TStruct) extends BaseType {
+  rvRowType: TStruct
+) extends BaseType {
   assert({
     val colFields = colType.fieldNames.toSet
     colKey.forall(colFields.contains)
@@ -52,8 +52,6 @@ case class MatrixType(
     val rowFields = rowType.fieldNames.toSet
     rowKey.forall(rowFields.contains)
   }, s"$rowKey: $rowType")
-
-  assert(rowKey.startsWith(rowPartitionKey))
 
   val (rowKeyStruct, _) = rowType.select(rowKey)
   def extractRowKey: Row => Row = rowType.select(rowKey)._2
@@ -161,14 +159,8 @@ case class MatrixType(
     newline()
 
     sb.append(s"row_key:$space[[")
-    rowPartitionKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    sb += ']'
-    val rowRestKey = rowKey.drop(rowPartitionKey.length)
-    if (rowRestKey.nonEmpty) {
-      sb += ','
-      rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    }
-    sb += ']'
+    rowKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+    sb ++= "]]"
     sb += ','
     newline()
 
@@ -185,18 +177,14 @@ case class MatrixType(
     sb += '}'
   }
 
-  def copyParts(globalType: TStruct = globalType,
+  def copyParts(
+    globalType: TStruct = globalType,
     colKey: IndexedSeq[String] = colKey,
     colType: TStruct = colType,
-    rowPartitionKey: IndexedSeq[String] = rowPartitionKey,
     rowKey: IndexedSeq[String] = rowKey,
     rowType: TStruct = rowType,
-    entryType: TStruct = entryType): MatrixType = {
-    if (this.rowPartitionKey.nonEmpty && rowPartitionKey.isEmpty) {
-      warn(s"deleted row partition key [${ this.rowPartitionKey.mkString(", ") }], " +
-        s"all downstream operations will be single-threaded")
-    }
-
-    MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey, rowKey, rowType, entryType)
+    entryType: TStruct = entryType
+  ): MatrixType = {
+    MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
   }
 }

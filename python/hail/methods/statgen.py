@@ -10,7 +10,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_first_row_key_field_locus, require_col_key_str
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
@@ -2688,7 +2688,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
     require_row_key_variant(mt, 'ld_prune')
-    require_partition_key_locus(mt, 'ld_prune')
+    require_first_row_key_field_locus(mt, 'ld_prune')
 
     #  FIXME: remove once select_entries on a field is free
     if call_expr in mt._fields_inverse:

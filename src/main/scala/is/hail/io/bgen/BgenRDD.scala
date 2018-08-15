@@ -55,7 +55,6 @@ case class BgenSettings(
     colType = TStruct("s" -> TString()),
     rowType = TStruct(typedRowFields: _*),
     rowKey = Array("locus", "alleles"),
-    rowPartitionKey = Array("locus"),
     entryType = TStruct(typedEntryFields: _*))
 
   val typ: TStruct = entries match {
