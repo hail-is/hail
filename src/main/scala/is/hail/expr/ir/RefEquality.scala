@@ -33,5 +33,7 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
 
   def get(ir: BaseIR): Option[T] = m.get(RefEquality(ir))
 
+  def getOrElseUpdate(ir: BaseIR, t: => T): T = m.getOrElseUpdate(RefEquality(ir), t)
+
 }
 
