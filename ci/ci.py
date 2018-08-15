@@ -35,7 +35,7 @@ except Exception as e:
 assert isinstance(INITIAL_WATCHED_REPOS, list), INITIAL_WATCHED_REPOS
 assert all(isinstance(repo, str) for repo in INITIAL_WATCHED_REPOS), INITIAL_WATCHED_REPOS
 GITHUB_URL = 'https://api.github.com/'
-CONTEXT = 'hail-ci'
+CONTEXT = 'hail-ci-0-1'
 SELF_HOSTNAME = os.environ['SELF_HOSTNAME'] # 'http://35.232.159.176:3000'
 BATCH_SERVER_URL = os.environ['BATCH_SERVER_URL'] # 'http://localhost:8888'
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
