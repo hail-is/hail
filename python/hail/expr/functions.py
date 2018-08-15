@@ -1725,7 +1725,7 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
 @typecheck(lamb=expr_float64, seed=nullable(int))
 def rand_pois(lamb, seed=None) -> Float64Expression:
     """Samples from a `Poisson distribution
-    <https://en.wikipedia.org/wiki/Poisson_distribution>__` with rate parameter
+    <https://en.wikipedia.org/wiki/Poisson_distribution>`__ with rate parameter
     `lamb`.
 
     Examples
@@ -1906,7 +1906,7 @@ def rand_cat(prob, seed=None) -> Int32Expression:
            seed=nullable(int))
 def rand_dirichlet(a, seed=None) -> ArrayExpression:
     """Samples from a `Dirichlet distribution
-    <https://en.wikipedia.org/wiki/Dirichlet_distribution>__`.
+    <https://en.wikipedia.org/wiki/Dirichlet_distribution>`__.
 
     Examples
     --------
