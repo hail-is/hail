@@ -17,4 +17,4 @@ dependencies:
     - parsimonious
     - ipykernel
     - pytest-xdist
-    - decorator>=4.3.0
+    - decorator==4.2.1
