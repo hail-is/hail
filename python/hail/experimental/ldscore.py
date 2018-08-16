@@ -51,6 +51,22 @@ def ld_score(entry_expr,
     ...                                      annotation_exprs=[mt.binary_annotation,
     ...                                                        mt.continuous_annotation])
 
+    >>> # Show results
+    >>> ht_scores.show(3)
+
+    .. code-block:: text
+
+        +---------------+-------------------+-----------------------+-------------+
+        | locus         | binary_annotation | continuous_annotation |  univariate |
+        +---------------+-------------------+-----------------------+-------------+
+        | locus<GRCh37> |           float64 |               float64 |     float64 |
+        +---------------+-------------------+-----------------------+-------------+
+        | 20:82079      |       1.15183e+00 |           7.30145e+01 | 1.60117e+00 |
+        | 20:103517     |       2.04604e+00 |           2.75392e+02 | 4.69239e+00 |
+        | 20:108286     |       2.06585e+00 |           2.86453e+02 | 5.00124e+00 |
+        +---------------+-------------------+-----------------------+-------------+
+
+
     Warning
     -------
         :func:`.ld_score` will fail if ``entry_expr`` results in any missing
@@ -73,16 +89,17 @@ def ld_score(entry_expr,
         Row-indexed locus expression on a table or matrix table that is
         row-aligned with the matrix table of `entry_expr`.
     radius : :obj:`int` or :obj:`float`
-        Radius of window for row values (in units of `coord_expr`).
+        Radius of window for row values (in units of `coord_expr` if set,
+        otherwise in units of basepairs).
+    coord_expr: :class:`.Float64Expression`, optional
+        Row-indexed numeric expression for the row value on the same table or
+        matrix table as `locus_expr`.
+        By default, the row value is given by the locus position.
     annotation_exprs : :class:`.NumericExpression` or
                        :obj:`list` of :class:`.NumericExpression`, optional
         Annotation expression(s) to partition LD scores. Univariate
         annotation will always be included and does not need to be
         specified.
-    coord_expr: :class:`.Float64Expression`, optional
-        Row-indexed numeric expression for the row value on the same table or
-        matrix table as `locus_expr`.
-        By default, the row value is given by the locus position.
     block_size : :obj:`int`, optional
         Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
 
@@ -94,53 +111,53 @@ def ld_score(entry_expr,
         the univariate (all SNPs) annotation."""
 
     mt = entry_expr._indices.source
-    N = mt.count_cols()
+    n = mt.count_cols()
 
-    R2 = hl.row_correlation(entry_expr, block_size) ** 2
-    R2_adj = (N - 1.0)/(N - 2.0) * R2 - 1.0/(N - 2.0)
+    r2 = hl.row_correlation(entry_expr, block_size) ** 2
+    r2_adj = ((n-1.0) / (n-2.0)) * r2 - (1.0 / (n-2.0))
 
     starts, stops = hl.linalg.utils.locus_windows(locus_expr,
                                                   radius,
                                                   coord_expr)
-    R2_adj_sparse = R2_adj.sparsify_row_intervals(starts, stops)
+    r2_adj_sparse = r2_adj.sparsify_row_intervals(starts, stops)
 
-    tmp_R2_adj_sparse_file = new_temp_file()
-    R2_adj_sparse.write(tmp_R2_adj_sparse_file, force_row_major=True)
-    R2_adj_sparse = BlockMatrix.read(tmp_R2_adj_sparse_file)
+    r2_adj_sparse_tmp = new_temp_file()
+    r2_adj_sparse.write(r2_adj_sparse_tmp)
+    r2_adj_sparse = BlockMatrix.read(r2_adj_sparse_tmp)
 
     if not annotation_exprs:
         cols = ['univariate']
         col_idxs = {0: 'univariate'}
-        L2 = R2_adj_sparse.sum(axis=1)
+        l2 = r2_adj_sparse.sum(axis=1)
     else:
         ht = mt.select_rows(*wrap_to_list(annotation_exprs)).rows()
         ht = ht.annotate(univariate=hl.literal(1.0))
-        names = [x for x in ht.row if x not in ht.key]
+        names = [name for name in ht.row if name not in ht.key]
 
         ht_union = hl.Table.union(
             *[(ht.annotate(name=hl.str(x),
                            value=hl.float(ht[x]))
                  .select('name', 'value')) for x in names])
         mt_annotations = ht_union.to_matrix_table(
-            row_key=[x for x in ht_union.key],
+            row_key=list(ht_union.key),
             col_key=['name'])
 
         cols = mt_annotations['name'].collect()
         col_idxs = {i: cols[i] for i in range(len(cols))}
 
-        A = BlockMatrix.from_entry_expr(mt_annotations.value)
-        tmp_A_file = new_temp_file()
-        BlockMatrix.write_from_entry_expr(mt_annotations.value, tmp_A_file)
+        a = BlockMatrix.from_entry_expr(mt_annotations.value)
+        a_tmp = new_temp_file()
+        BlockMatrix.write_from_entry_expr(mt_annotations.value, a_tmp)
 
-        A = BlockMatrix.read(tmp_A_file)
-        L2 = R2_adj_sparse @ A
+        a = BlockMatrix.read(a_tmp)
+        l2 = r2_adj_sparse @ a
 
-    tmp_L2_bm_file = new_temp_file()
-    tmp_L2_tsv_file = new_temp_file()
-    L2.write(tmp_L2_bm_file, force_row_major=True)
-    BlockMatrix.export(tmp_L2_bm_file, tmp_L2_tsv_file)
+    l2_bm_tmp = new_temp_file()
+    l2_tsv_tmp = new_temp_file()
+    l2.write(l2_bm_tmp, force_row_major=True)
+    BlockMatrix.export(l2_bm_tmp, l2_tsv_tmp)
 
-    ht_scores = hl.import_table(tmp_L2_tsv_file, no_header=True, impute=True)
+    ht_scores = hl.import_table(l2_tsv_tmp, no_header=True, impute=True)
     ht_scores = ht_scores.add_index()
     ht_scores = ht_scores.key_by('idx')
     ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i]

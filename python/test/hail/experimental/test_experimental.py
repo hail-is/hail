@@ -13,7 +13,7 @@ class Tests(unittest.TestCase):
         ht = hl.import_table(doctest_resource('ldsc.annot'),
                              types={'BP': hl.tint,
                                     'CM': hl.tfloat,
-                                    'binary': hl.tfloat,
+                                    'binary': hl.tint,
                                     'continuous': hl.tfloat})
         ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))
         ht = ht.key_by('locus')
