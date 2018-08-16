@@ -6,6 +6,7 @@ import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.TestUtils._
+import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
@@ -79,8 +80,8 @@ class RandomFunctionsSuite extends SparkSuite {
     assert(asArray(joined) sameElements expected)
   }
 
-  @Test def testRepartitioning() {
-    val mapped = mapped2(15, 4).execute(hc).rvd.asInstanceOf[OrderedRVD]
+  @Test def testRepartitioningAfterRandomness() {
+    val mapped = mapped2(15, 4).execute(hc).enforceOrderingRVD.asInstanceOf[OrderedRVD]
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
@@ -112,5 +113,14 @@ class RandomFunctionsSuite extends SparkSuite {
         "i",
         MakeArray(FastSeq(counter, counter, counter), TArray(TInt32()))),
       FastIndexedSeq(0, 0, 0, 1, 1, 1, 2, 2, 2))
+  }
+
+  @Test def testRepartitioningSimplifyRules() {
+    val tir = TableHead(mapped2(10, 3), 5L)
+
+    val expected = tir.execute(hc).rvd.toRows.collect()
+    val actual = new Table(hc, tir).rdd.collect()
+
+    assert(expected.sameElements(actual))
   }
 }

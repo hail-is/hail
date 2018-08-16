@@ -736,5 +736,4 @@ class Tests(unittest.TestCase):
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
-        print(ht1.x.collect()[:5])
-        print(ht1.head(5).x.collect())
+        self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())

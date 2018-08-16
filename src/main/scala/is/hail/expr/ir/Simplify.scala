@@ -9,13 +9,13 @@ object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
     x match {
       case _: Apply |
-        _: ApplyUnaryPrimOp |
-        _: ApplyBinaryPrimOp |
-        _: ArrayRange |
-        _: ArrayRef |
-        _: ArrayLen |
-        _: GetField |
-        _: GetTupleElement => true
+           _: ApplyUnaryPrimOp |
+           _: ApplyBinaryPrimOp |
+           _: ArrayRange |
+           _: ArrayRef |
+           _: ArrayLen |
+           _: GetField |
+           _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
       case f: ApplySeeded => f.implementation.isStrict
       case _ => false
@@ -47,17 +47,35 @@ object Simplify {
     }
   }
 
-  private[this] def canRepartitionUpstream(x: BaseIR): Boolean = {
-    x.children.forall {
-      case ApplySeeded(_, _, _) => false
-      case child => canRepartitionUpstream(child)
+  private[this] def memoizeRepartitioning(
+    x: BaseIR,
+    memo: Memo[Boolean] = Memo.empty[Boolean],
+    parentCanRepartition: Boolean = true
+  ): Memo[Boolean] = {
+    val canRepartition = parentCanRepartition && x.children.forall {
+      case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
+      case _ => true
     }
+    if (!memo.get(x).contains(canRepartition)) {
+      x.children.foreach { child => memoizeRepartitioning(child, memo, canRepartition) }
+      memo.update(x, canRepartition)
+    }
+    memo
   }
 
   def apply(ir: BaseIR): BaseIR = {
-    type CanRepartition = Boolean
-    val memo = Memo.empty[CanRepartition]
-    val rules: BaseIR => Option[BaseIR] = matchErrorToNone {
+    val canRepartition = memoizeRepartitioning(ir, Memo.empty[Boolean])
+
+    RewriteBottomUp(ir, { ast =>
+      rules(canRepartition)(ast).map { rewritten =>
+        memoizeRepartitioning(rewritten, canRepartition)
+        rewritten
+      }
+    })
+  }
+
+  def rules(canRepartition: Memo[Boolean]): BaseIR => Option[BaseIR] =
+    matchErrorToNone {
       // optimize IR
 
       // propagate NA
@@ -176,10 +194,10 @@ object Simplify {
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
 
-      case TableFilter(TableOrderBy(child, sortFields), pred) =>
+      case t@TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition(t) =>
         TableOrderBy(TableFilter(child, pred), sortFields)
 
-      case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
+      case t@TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition(t) =>
         TableKeyBy(child, keys, false)
 
       case TableCount(TableMapGlobals(child, _)) => TableCount(child)
@@ -210,13 +228,13 @@ object Simplify {
         SelectFields(old, fields)
 
       // flatten unions
-      case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
+      case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) & children.forall(canRepartition(_)) =>
         TableUnion(children.flatMap {
           case u: TableUnion => u.children
           case c => Some(c)
         })
 
-      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) =>
+      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) & children.forall(canRepartition(_)) =>
         MatrixUnionRows(children.flatMap {
           case u: MatrixUnionRows => u.children
           case c => Some(c)
@@ -226,7 +244,7 @@ object Simplify {
       //      case MatrixRowsTable(MatrixUnionRows(children)) =>
       //        TableUnion(children.map(MatrixRowsTable))
 
-      case MatrixColsTable(MatrixUnionRows(children)) =>
+      case MatrixColsTable(MatrixUnionRows(children)) if children.forall(canRepartition(_)) =>
         MatrixColsTable(children(0))
 
       // optimize MatrixIR
@@ -288,9 +306,9 @@ object Simplify {
 
       case TableHead(TableMapRows(child, newRow, newKey, preservedKeyFields), n) =>
         TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
-      case TableHead(TableRepartition(child, nPar, shuffle), n) =>
+      case t@TableHead(TableRepartition(child, nPar, shuffle), n) if canRepartition(t) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
-      case th@TableHead(tr@TableRange(nRows, nPar), n) if memo.lookup(th) =>
+      case t@TableHead(tr@TableRange(nRows, nPar), n) if canRepartition(t) =>
         if (n < nRows)
           TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
         else
@@ -302,8 +320,8 @@ object Simplify {
           x
       case TableHead(TableMapGlobals(child, newRow), n) =>
         TableMapGlobals(TableHead(child, n), newRow)
-      case TableHead(TableOrderBy(child, sortFields), n)
-        if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
+      case t@TableHead(TableOrderBy(child, sortFields), n)
+        if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition(t) =>
         // n < 256 is arbitrary for memory concerns
         val uid = genUID()
         val row = Ref("row", child.typ.rowType)
@@ -323,24 +341,12 @@ object Simplify {
         TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None, None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
-      case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
+      case t@TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition(t) =>
         TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq))
-      case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
-        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
+      case t@TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
+        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) && canRepartition(t) =>
         TableAggregateByKey(child, expr)
-      case TableAggregateByKey(TableKeyBy(child, keys, _), expr) =>
+      case t@TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition(t) =>
         TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
     }
-    def addMemo(ir: BaseIR) {
-      val canRepartition = canRepartitionUpstream(ir)
-      log.info(s"adding repartition=$canRepartition for: \n${Pretty(ir)}")
-      ir.children.foreach { child =>
-        memo.get(child) match {
-          case Some(rp) =>
-          case None => memo.bind(child, canRepartition)
-        }
-      }
-    }
-    RewriteBottomUp(ir, { ast => addMemo(ast); rules(ast) })
-  }
 }
