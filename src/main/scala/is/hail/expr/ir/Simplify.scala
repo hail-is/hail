@@ -47,8 +47,17 @@ object Simplify {
     }
   }
 
+  private[this] def canRepartitionUpstream(x: BaseIR): Boolean = {
+    x.children.forall {
+      case ApplySeeded(_, _, _) => false
+      case child => canRepartitionUpstream(child)
+    }
+  }
+
   def apply(ir: BaseIR): BaseIR = {
-    RewriteBottomUp(ir, matchErrorToNone {
+    type CanRepartition = Boolean
+    val memo = Memo.empty[CanRepartition]
+    val rules: BaseIR => Option[BaseIR] = matchErrorToNone {
       // optimize IR
 
       // propagate NA
@@ -200,7 +209,7 @@ object Simplify {
       case SelectFields(SelectFields(old, _), fields) =>
         SelectFields(old, fields)
 
-        // flatten unions
+      // flatten unions
       case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
         TableUnion(children.flatMap {
           case u: TableUnion => u.children
@@ -214,8 +223,8 @@ object Simplify {
         })
 
       // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
-//      case MatrixRowsTable(MatrixUnionRows(children)) =>
-//        TableUnion(children.map(MatrixRowsTable))
+      //      case MatrixRowsTable(MatrixUnionRows(children)) =>
+      //        TableUnion(children.map(MatrixRowsTable))
 
       case MatrixColsTable(MatrixUnionRows(children)) =>
         MatrixColsTable(children(0))
@@ -281,7 +290,7 @@ object Simplify {
         TableMapRows(TableHead(child, n), newRow, newKey, preservedKeyFields)
       case TableHead(TableRepartition(child, nPar, shuffle), n) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
-      case TableHead(tr@TableRange(nRows, nPar), n) =>
+      case th@TableHead(tr@TableRange(nRows, nPar), n) if memo.lookup(th) =>
         if (n < nRows)
           TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
         else
@@ -321,6 +330,17 @@ object Simplify {
         TableAggregateByKey(child, expr)
       case TableAggregateByKey(TableKeyBy(child, keys, _), expr) =>
         TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
-    })
+    }
+    def addMemo(ir: BaseIR) {
+      val canRepartition = canRepartitionUpstream(ir)
+      log.info(s"adding repartition=$canRepartition for: \n${Pretty(ir)}")
+      ir.children.foreach { child =>
+        memo.get(child) match {
+          case Some(rp) =>
+          case None => memo.bind(child, canRepartition)
+        }
+      }
+    }
+    RewriteBottomUp(ir, { ast => addMemo(ast); rules(ast) })
   }
 }
