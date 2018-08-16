@@ -44,15 +44,15 @@ object MathFunctions extends RegistryFunctions {
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
-  def approxEqual(x: java.lang.Double, y: java.lang.Double, tolerance: Double, absolute: Boolean): Boolean = {
-    x == y || (x != null && y != null && {
+  def approxEqual(x: Double, y: Double, tolerance: Double, absolute: Boolean): Boolean = {
+    x == y || {
       (if (absolute)
         math.abs(x - y) <= tolerance
       else
         D_==(x, y, tolerance)) ||
         (x.isNaN && y.isNaN) ||
         (x.isInfinite && y.isInfinite && ((x > 0 && y > 0) || (x < 0 && y < 0)))
-    })
+    }
   }
 
   def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
@@ -144,24 +144,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
-
-    registerCodeWithMissingness("approxEqual", TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean()){ case (mb, x, y, tolerance, absolute) =>
-      val xBoxed =  x.m.mux(Code._null, boxArg(mb, TFloat64())(x.v))
-      val yBoxed = y.m.mux(Code._null, boxArg(mb, TFloat64())(y.v))
-
-      val setup = Code(x.setup, y.setup, tolerance.setup, absolute.setup)
-
-      val missing = tolerance.m || absolute.m
-
-      val value = Code.invokeScalaObject[java.lang.Double, java.lang.Double, Double, Boolean, Boolean](thisClass, "approxEqual",
-        asm4s.coerce[java.lang.Double](xBoxed),
-        asm4s.coerce[java.lang.Double](yBoxed),
-        asm4s.coerce[Double](tolerance.v),
-        asm4s.coerce[Boolean](absolute.v)
-      )
-
-      EmitTriplet(setup, missing, value)
-    }
+    
+    registerScalaFunction("approxEqual", TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean())(thisClass, "approxEqual")
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
 

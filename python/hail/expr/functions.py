@@ -4099,9 +4099,6 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False):
     >>> hl.approx_equal(0.25, 0.2500001).value
     True
 
-    >>> hl.approx_equal(hl.null(hl.tint64), hl.null(hl.tint64)).value
-    True
-
     >>> hl.approx_equal(0.25, 0.251, tolerance=1e-3, absolute=True).value
     False
 
