@@ -4050,6 +4050,7 @@ def uniroot(f: Callable, min, max):
     return construct_expr(ir, lambda_result._type, indices, aggregations)
 
 
+<<<<<<< HEAD
 @typecheck(f=expr_str, args=expr_any)
 def format(f, *args):
     """Returns a formatted string using a specified format string and arguments.
@@ -4087,3 +4088,35 @@ def format(f, *args):
     """
 
     return _func("format", hl.tstr, f, hl.tuple(args))
+
+
+@typecheck(x=expr_float64, y=expr_float64, tolerance=expr_float64, absolute=expr_bool)
+def approx_equal(x, y, tolerance=1e-6, absolute=False):
+    """Tests whether two numbers are approximately equal.
+
+    Examples
+    --------
+    >>> hl.approx_equal(0.25, 0.2500001).value
+    True
+
+    >>> hl.approx_equal(hl.null(hl.tint64), hl.null(hl.tint64)).value
+    True
+
+    >>> hl.approx_equal(0.25, 0.251, tolerance=1e-3, absolute=True).value
+    False
+
+    Parameters
+    ----------
+    x : :class:`.NumericExpression`
+    y : :class:`.NumericExpression`
+    tolerance : :class:`.NumericExpression`
+    absolute : :class:`.BooleanExpression`
+        If ``True``, compute ``abs(x - y) <= tolerance``. Otherwise, compute
+        ``abs(x - y) <= tolerance * max(x, y)``.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+
+    return _func("approxEqual", hl.tbool, x, y, tolerance, absolute)

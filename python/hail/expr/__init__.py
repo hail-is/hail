@@ -139,5 +139,6 @@ __all__ = ['HailType',
            'liftover',
            'min_rep',
            'uniroot',
-           'format'
+           'format',
+           'approx_equal'
            ]

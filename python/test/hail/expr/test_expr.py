@@ -1990,3 +1990,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(math.isinf(round_trip[1]))
         self.assertTrue(math.isinf(round_trip[2]))
         self.assertEqual(round_trip[-2:], [0, 1])
+
+    def test_approx_equal(self):
+        self.assertTrue(hl.approx_equal(0.25, 0.25000001).value)
+        self.assertTrue(hl.approx_equal(hl.null(hl.tint64), hl.null(hl.tint32)).value)
+        self.assertFalse(hl.approx_equal(hl.null(hl.tint64), 5).value)
+        self.assertFalse(hl.approx_equal(5, hl.null(hl.tint32)).value)
+        self.assertFalse(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3).value)
