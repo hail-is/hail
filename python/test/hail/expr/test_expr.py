@@ -1927,3 +1927,4 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)).value, 'null null')
         self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
         self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
+        self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").value, "false FALSE true true")
