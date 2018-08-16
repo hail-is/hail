@@ -49,7 +49,6 @@ ENV SPARK_HOME /spark/
 #
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash'
-ENV PATH $PATH:/root/google-cloud-sdk/bin
 # gcloud iam key files will be stored here
 VOLUME /secrets
 
@@ -70,3 +69,4 @@ RUN conda env create -f ./dev-environment.yml && \
 RUN chown -R hail:hail /hail /gradle-cache
 
 USER hail
+ENV PATH $PATH:/root/google-cloud-sdk/bin
