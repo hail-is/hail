@@ -47,18 +47,18 @@ object Simplify {
     }
   }
 
-  private[this] def memoizeRepartitioning(
+  private[this] def storeRepartitionability(
     x: BaseIR,
-    memo: Memo[Boolean] = Memo.empty[Boolean],
-    parentCanRepartition: Boolean = true
+    repartitionability: Memo[Boolean],
+    fromDownstream: Boolean
   ): Unit = {
-    val canRepartition = parentCanRepartition && x.children.forall {
+    val canRepartition = fromDownstream && x.children.forall {
       case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
       case _ => true
     }
-    if (!memo.get(x).contains(canRepartition)) {
-      x.children.foreach { child => memoizeRepartitioning(child, memo, canRepartition) }
-      memo.update(x, canRepartition)
+    if (!repartitionability.get(x).contains(canRepartition)) {
+      x.children.foreach(storeRepartitionability(_, repartitionability, canRepartition))
+      repartitionability.update(x, canRepartition)
     }
   }
 
@@ -66,7 +66,7 @@ object Simplify {
     val canRepartition = Memo.empty[Boolean]
 
     RewriteBottomUp(ir, { node =>
-      memoizeRepartitioning(node, canRepartition, canRepartition.get(node).getOrElse(true))
+      storeRepartitionability(node, canRepartition, canRepartition.getOrElse(node, true))
       rules(canRepartition)(node)
     })
   }
