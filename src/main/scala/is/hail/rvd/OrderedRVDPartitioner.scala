@@ -105,6 +105,33 @@ class OrderedRVDPartitioner(
     new OrderedRVDPartitioner(kType, newBounds, allowedOverlap)
   }
 
+  def intersect(other: OrderedRVDPartitioner): OrderedRVDPartitioner = {
+    require(kType isIsomorphicTo other.kType)
+
+    val kord = kType.ordering
+    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+
+    val left = this.rangeBounds.iterator.buffered
+    val right = other.rangeBounds.iterator.buffered
+    val ab = new ArrayBuilder[Interval]()
+
+    while (left.hasNext && right.hasNext) {
+      val (leader, lagger) =
+        if (eord.gt(left.head.left, right.head.left))
+          (left, right)
+        else
+          (right, left)
+      // leader.head.left >= lagger.head.left
+      if (eord.lteq(lagger.head.right, leader.head.left))
+        lagger.next()
+      else if (eord.lteq(lagger.head.right, leader.head.right))
+        ab += Interval(leader.head.left, lagger.next().right)
+      else
+        ab += leader.next()
+    }
+    new OrderedRVDPartitioner(kType, ab.result())
+  }
+
   def range: Option[Interval] = rangeTree.root.map(_.range)
 
   def contains(index: Int, key: Any): Boolean = {
