@@ -42,6 +42,8 @@ To get started using Hail `0.2 beta` on your own data or on [public data](https:
 - follow the [Tutorials](https://hail.is/docs/devel/overview.html) for examples of how to use Hail
 - check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
 
+You can download phase 3 of the [1000 Genomes dataset](http://www.internationalgenome.org/about) in Hail's native matrix table format [here](https://console.cloud.google.com/storage/browser/hail-datasets/hail-data/?project=broad-ctsa).
+
 As we work toward a stable `0.2` release, additional improvements to the interface may require users to modify their pipelines
 when updating to the latest patch. All such breaking changes will be logged [here](http://discuss.hail.is/t/log-of-breaking-changes-in-0-2-beta/454).
 
