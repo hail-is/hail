@@ -211,6 +211,10 @@ object Pretty {
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixMapRows(_, _, newKey) =>
               prettyStringsOpt(newKey.map(_._1)) + " " + prettyStringsOpt(newKey.map(_._2))
+            case MatrixMapGlobals(_, _, value) =>
+              value.t.parsableString() + " " +
+                prettyStringLiteral(
+                  JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value.value, value.t)))
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head
@@ -253,9 +257,8 @@ object Pretty {
               }(sb += '\n')
 
               ""
-            case TableKeyBy(_, keys, nPartitionKeys, sort) =>
+            case TableKeyBy(_, keys, sort) =>
               prettyIdentifiers(keys) + " " +
-                prettyIntOpt(nPartitionKeys) + " " +
                 prettyBooleanLiteral(sort)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)

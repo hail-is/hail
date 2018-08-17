@@ -13,8 +13,8 @@ Contents
 
     Installation <getting_started>
     Tutorials <tutorials-landing>
-    Hail Overview <overview>
-    Python API <api>
+    Reference (Python API) <api>
+    Hailpedia <overview>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
 

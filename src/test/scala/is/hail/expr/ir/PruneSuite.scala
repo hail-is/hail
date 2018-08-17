@@ -193,8 +193,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableJoinMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"), None)
-    val tk2 = TableKeyBy(tab, Array("3"), None)
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableJoin(tk1, tk2, "inner", 1)
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.1_1"),
@@ -206,8 +206,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"), None)
-    val tk2 = TableKeyBy(tab, Array("3"), None)
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
@@ -233,7 +233,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableKeyByMemo() {
-    val tk = TableKeyBy(tab, Array("1"), None)
+    val tk = TableKeyBy(tab, Array("1"))
     checkMemo(tk, subsetTable(tk.typ, "row.2"), Array(subsetTable(tab.typ, "row.1", "row.2")))
   }
 
@@ -289,7 +289,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableUnkeyMemo() {
-    val tk = TableKeyBy(tab, Array("1"), None)
+    val tk = TableKeyBy(tab, Array("1"))
     val tu = TableUnkey(tk)
     checkMemo(tu, subsetTable(tu.typ, "row.2"),
       Array(subsetTable(tk.typ, "row.2")))
@@ -561,8 +561,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctRebuild() {
-    val tk1 = TableKeyBy(tab, Array("1"), None)
-    val tk2 = TableKeyBy(tab, Array("3"), None)
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),

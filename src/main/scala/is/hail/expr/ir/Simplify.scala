@@ -170,8 +170,8 @@ object Simplify {
       case TableFilter(TableOrderBy(child, sortFields), pred) =>
         TableOrderBy(TableFilter(child, pred), sortFields)
 
-      case TableKeyBy(TableOrderBy(child, sortFields), keys, nPartitionKeys, true) =>
-        TableKeyBy(child, keys, nPartitionKeys, true)
+      case TableKeyBy(TableOrderBy(child, sortFields), keys, true) =>
+        TableKeyBy(child, keys, true)
 
       case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
 
@@ -182,7 +182,7 @@ object Simplify {
       case TableCount(TableUnion(children)) =>
         children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
 
-      case TableCount(TableKeyBy(child, _, _, _)) => TableCount(child)
+      case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
 
       case TableCount(TableOrderBy(child, _)) => TableCount(child)
 
@@ -315,11 +315,11 @@ object Simplify {
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
-        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq, None))
+        TableDistinct(TableKeyBy(TableMapRows(child, k, None, None), keyFields.map(_._1).toFastIndexedSeq))
       case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
         MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
         TableAggregateByKey(child, expr)
-      case TableAggregateByKey(TableKeyBy(child, keys, _, _), expr) =>
+      case TableAggregateByKey(TableKeyBy(child, keys, _), expr) =>
         TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
     })
   }

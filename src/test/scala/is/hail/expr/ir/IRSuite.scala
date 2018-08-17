@@ -522,7 +522,7 @@ class IRSuite extends SparkSuite {
       val xs: Array[TableIR] = Array(
         TableUnkey(read),
         TableDistinct(read),
-        TableKeyBy(read, Array("m", "d"), Some(1)),
+        TableKeyBy(read, Array("m", "d")),
         TableFilter(read, b),
         read,
         MatrixColsTable(mtRead),

@@ -162,10 +162,9 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
-case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: Option[Int], sort: Boolean = true) extends TableIR {
+case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = true) extends TableIR {
   private val fields = child.typ.rowType.fieldNames.toSet
   assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
-  assert(nPartitionKeys.forall(_ <= keys.length))
 
   val children: IndexedSeq[BaseIR] = Array(child)
 
@@ -173,7 +172,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
-    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, nPartitionKeys, sort)
+    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, sort)
   }
 
   def execute(hc: HailContext): TableValue = {

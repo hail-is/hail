@@ -65,5 +65,5 @@ Scans over column fields can be done in a similar manner.
     :func:`.agg.hardy_weinberg`, can be very expensive when done for every row
     in a scan."
 
-See the aggregators <aggregators> module for documentation on the behavior
+See the :ref:`sec-aggregators` module for documentation on the behavior
 of specific aggregators.

@@ -83,7 +83,7 @@ class MatrixImportVCF(MatrixIR):
             gzAsBGZ=self.force_bgz,
             forceGZ=self.force
         )
-        return f'(MatrixRead "{json.dumps(config)}" {self.drop_samples} False None)'
+        return f'(MatrixRead None {self.drop_samples} False "{escape_str(json.dumps(config))}")'
 
 class MatrixImportBGEN(MatrixIR):
     def __init__(self,
@@ -113,14 +113,14 @@ class MatrixImportBGEN(MatrixIR):
         config = dict(
             name='MatrixBGENReader',
             files=self.paths,
-            sampleFile=self.sampleFile,
+            sampleFile=self.sample_file,
             nPartitions=self.n_partitions,
             blockSizeInMB=self.block_size,
             rg=self.reference_genome.name if self.reference_genome else None,
             contigRecoding=self.contig_recoding,
             skipInvalidLoci=self.skip_invalid_loci,
             includedVariantsPerUnresolvedFilePath=self.variants_per_file)
-        return f'(MatrixRead "{json.dumps(config)}" False False None)'
+        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
@@ -139,7 +139,7 @@ class MatrixChooseCols(MatrixIR):
 
     def __str__(self):
         return '(MatrixChooseCols ({}) {})'.format(
-            self.child, ' '.join([str(i) for i in self.old_entries]))
+            ' '.join([str(i) for i in self.old_entries]), self.child)
 
 class MatrixMapCols(MatrixIR):
     def __init__(self, child, new_col, new_key):
@@ -150,7 +150,7 @@ class MatrixMapCols(MatrixIR):
 
     def __str__(self):
         return '(MatrixMapCols {} {} {})'.format(
-            '(' + ' '.join([escape_id(f) for f in self.new_col]) + ')' if self.new_col else 'None',
+            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
             self.child, self.new_col)
 
 class MatrixMapEntries(MatrixIR):
@@ -179,22 +179,21 @@ class MatrixMapRows(MatrixIR):
         self.new_key = new_key
 
     def __str__(self):
-        return '(MatrixMapEntries {} {} {})'.format(
-            '(' + ' '.join([escape_id(f) for (f, _) in self.new_key]) if self.new_key else 'None',
-            '(' + ' '.join([escape_id(f) for (_, f) in self.new_key]) if self.new_key else 'None',
+        return '(MatrixMapRows {} {} {} {})'.format(
+            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[0]) + ')' if self.new_key is not None else 'None',
+            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[1]) + ')' if self.new_key is not None else 'None',
             self.child, self.new_row)
 
 class MatrixMapGlobals(MatrixIR):
-    def __init__(self, child, new_row, value):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.value = value
 
     def __str__(self):
         return '(MatrixMapGlobals {} {} {})'.format(
-            escape_str(json.dumps(self.value)),
-            self.child, self.pred)
+            'Struct{} "null"',
+            self.child, self.new_row)
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
@@ -302,7 +301,7 @@ class MatrixAnnotateRowsTable(MatrixIR):
     def __str__(self):
         if self.key is None:
             key_bool = False
-            key_strs = ()
+            key_strs = ''
         else:
             key_bool = True
             key_strs = ' '.join(str(x) for x in self.key)

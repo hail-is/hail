@@ -1,12 +1,12 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.expr.types.coerce
+import org.apache.spark.sql.Row
 
 object UtilFunctions extends RegistryFunctions {
 
@@ -14,6 +14,9 @@ object UtilFunctions extends RegistryFunctions {
 
   def min(a: IR, b: IR): IR = If(ApplyComparisonOp(LT(a.typ), a, b), a, b)
   def max(a: IR, b: IR): IR = If(ApplyComparisonOp(GT(a.typ), a, b), a, b)
+
+  def format(f: String, args: Row): String =
+    String.format(f, args.toSeq.map(_.asInstanceOf[java.lang.Object]): _*)
 
   def registerAll() {
     val thisClass = getClass
@@ -68,6 +71,13 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIR("min", tv("T"), tv("T"))(min)
     registerIR("max", tv("T"), tv("T"))(max)
+
+    registerCode("format", TString(), tv("T", _.isInstanceOf[TTuple]), TString()) { (mb, format: Code[Long], args: Code[Long]) =>
+      val typ = tv("T").subst()
+      getRegion(mb).appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
+        asm4s.coerce[String](wrapArg(mb, TString())(format)),
+        Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(mb, typ)(args)))))
+    }
 
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (mb, l, r) =>
       val lm = Code(l.setup, l.m)
