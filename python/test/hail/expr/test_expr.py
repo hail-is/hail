@@ -386,6 +386,25 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.6331017)
         self.assertAlmostEqual(r.n, 5)
 
+        # weighted OLS
+        t = t.add_index()
+        r = t.aggregate(hl.struct(
+            linreg=hl.agg.linreg(t.y, [1, t.x], weight=t.idx))).linreg
+        self.assertAlmostEqual(r.beta[0], 0.2339059)
+        self.assertAlmostEqual(r.beta[1], 0.4275577)
+        self.assertAlmostEqual(r.standard_error[0], 0.6638324)
+        self.assertAlmostEqual(r.standard_error[1], 0.6662581)
+        self.assertAlmostEqual(r.t_stat[0], 0.3523569)
+        self.assertAlmostEqual(r.t_stat[1], 0.6417299)
+        self.assertAlmostEqual(r.p_value[0], 0.7478709)
+        self.assertAlmostEqual(r.p_value[1], 0.5667139)
+        self.assertAlmostEqual(r.multiple_standard_error, 3.26238997)
+        self.assertAlmostEqual(r.multiple_r_squared, 0.12070321)
+        self.assertAlmostEqual(r.adjusted_r_squared, -0.17239572)
+        self.assertAlmostEqual(r.f_stat, 0.41181729)
+        self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
+        self.assertAlmostEqual(r.n, 5)
+
     def test_aggregators_downsample(self):
         xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
@@ -1926,3 +1945,10 @@ class Tests(unittest.TestCase):
     def test_literal_with_nested_expr(self):
         self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
         self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})
+
+    def test_format(self):
+        self.assertEqual(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114).value, '0.2500 hello 1.140e-01')
+        self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)).value, 'null null')
+        self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
+        self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
+        self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").value, "false FALSE true true")

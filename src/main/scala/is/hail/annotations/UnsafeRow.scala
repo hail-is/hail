@@ -74,6 +74,8 @@ class UnsafeIndexedSeq(
     } else
       null
   }
+
+  override def toString: String = s"[${this.mkString(",")}]"
 }
 
 object UnsafeRow {
