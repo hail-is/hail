@@ -117,6 +117,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
+    format
     json
     hamming
     delimit
@@ -144,6 +145,10 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     rand_bool
+    rand_beta
+    rand_cat
+    rand_dirichlet
+    rand_gamma
     rand_norm
     rand_pois
     rand_unif

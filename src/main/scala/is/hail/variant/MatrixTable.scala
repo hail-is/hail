@@ -592,8 +592,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val joinedRVD = this.rvd.keyBy(rowKey.take(right.typ.key.length)).orderedJoinDistinct(
-      right.keyBy(),
+    val joinedRVD = this.rvd.orderedJoinDistinct(
+      right,
+      right.typ.key.length,
       "left",
       joiner,
       newMatrixType.orvdType
@@ -1515,22 +1516,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
-  }
-
-  def indexRows(name: String): MatrixTable = {
-    val indexedRVD = rvd.zipWithIndex(name)
-    copyMT(
-      matrixType = matrixType.copy(rvRowType = indexedRVD.typ.rowType),
-      rvd = indexedRVD)
-  }
-
-  def indexCols(name: String): MatrixTable = {
-    val (newColType, inserter) = colType.structInsert(TInt32(), List(name))
-    val newColValues = Array.tabulate(numCols) { i =>
-      inserter(colValues.value(i), i)
-    }
-    copy2(colType = newColType,
-      colValues = colValues.copy(value = newColValues, t = TArray(newColType)))
   }
 
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =

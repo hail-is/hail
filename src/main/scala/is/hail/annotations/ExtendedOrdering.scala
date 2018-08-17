@@ -124,7 +124,7 @@ object ExtendedOrdering {
           val l = fieldOrd.length
 
           val c = outer.compare(xpp, ypp, missingGreatest)
-          if (c != 0 || (l < xpp.length && l < ypp.length))
+          if (c != 0 || xpp == null || ypp == null || (l < xpp.length && l < ypp.length))
             c
           else {
             val cl = xpp.length compare ypp.length

@@ -624,7 +624,7 @@ def mean(expr) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    return sum(expr)/count(expr)
+    return sum(expr)/count(filter(lambda x: hl.is_defined(x), expr))
 
 
 @typecheck(expr=agg_expr(expr_float64))
@@ -1182,10 +1182,11 @@ def info_score(gp) -> StructExpression:
     return _agg_func('InfoScore', gp, t)
 
 
-@typecheck(y=agg_expr(expr_float64),
+@typecheck(y=expr_float64,
            x=oneof(expr_float64, sequenceof(expr_float64)),
-           nested_dim=int)
-def linreg(y, x, nested_dim=1) -> StructExpression:
+           nested_dim=int,
+           weight=nullable(expr_float64))
+def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     """Compute multivariate linear regression statistics.
 
     Examples
@@ -1222,10 +1223,9 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
     Notes
     -----
     In relation to
-    `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__.
-    in R,
-    ``linreg(y, x = [1, mt.x1, mt.x2])``
-    computes ``summary(lm(y ~ x1 + x2))`` and
+    `lm.summary <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.lm.html>`__
+    in R, ``linreg(y, x = [1, mt.x1, mt.x2])`` computes
+    ``summary(lm(y ~ x1 + x2))`` and
     ``linreg(y, x = [mt.x1, mt.x2], nested_dim=0)`` computes
     ``summary(lm(y ~ x1 + x2 - 1))``.
 
@@ -1257,10 +1257,18 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
        nested models.
      - `n` (:py:data:`.tint64`):
        Number of samples included in the regression. A sample is included if and
-       only if `y` and all elements of `x` are non-missing.
+       only if `y`, all elements of `x`, and `weight` (if set) are non-missing.
 
     All but the last field are missing if `n` is less than or equal to the
     number of covariates or if the covariates are linearly dependent.
+
+    If set, the `weight` parameter generalizes the model to `weighted least
+    squares <https://en.wikipedia.org/wiki/Weighted_least_squares>`__, useful
+    for heteroscedastic (diagonal but non-constant) variance.
+
+    Warning
+    -------
+    If any weight is negative, the resulting statistics will be ``nan``.
 
     Parameters
     ----------
@@ -1271,6 +1279,8 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
     nested_dim : :obj:`int`
         The null model includes the first `nested_dim` covariates.
         Must be between 0 and `k` (the length of `x`).
+    weight : :class:`.Float64Expression`, optional
+        Non-negative weight for weighted least squares.
 
     Returns
     -------
@@ -1278,6 +1288,11 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
         Struct of regression results.
     """
     x = wrap_to_list(x)
+    if weight is not None:
+        return linreg(hl.sqrt(weight) * y,
+                      [hl.sqrt(weight) * xi for xi in x],
+                      nested_dim)
+
     k = len(x)
     if k == 0:
         raise ValueError("linreg: must have at least one covariate in `x`")
@@ -1304,7 +1319,7 @@ def linreg(y, x, nested_dim=1) -> StructExpression:
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', y, t, [k, k0], seq_op_args=[lambda y: y, x])
+    return _agg_func('LinearRegression', _to_agg(y), t, [k, k0], seq_op_args=[lambda y: y, x])
 
 
 @typecheck(group=expr_any,
