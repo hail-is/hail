@@ -378,10 +378,24 @@ def verb_github(verb,
     full_url = f'{GITHUB_URL}{url}'
     if verb == 'get':
         r = requests.get(full_url, headers=headers, timeout=5)
+        output = r.json()
+        log.info(r.headers)
+        if 'Link' in r.headers:
+            assert isinstance(output, list), output
+            link = r.headers['Link']
+            log.info(link)
+            url = github_link_header_to_maybe_next(link)
+            while url is not None:
+                r = requests.get(url, headers=headers, timeout=5)
+                link = r.headers['Link']
+                output.extend(r.json())
+                url = github_link_header_to_maybe_next(link)
     elif verb == 'post':
         r = requests.post(full_url, headers=headers, data=data, json=json, timeout=5)
+        output = r.json()
     elif verb == 'put':
         r = requests.put(full_url, headers=headers, data=data, json=json, timeout=5)
+        output = r.json()
     if status_codes and r.status_code not in status_codes:
         raise BadStatus({
             'method': verb,
@@ -393,13 +407,25 @@ def verb_github(verb,
             'message': 'github error',
             'data': data,
             'json': json,
-            'github_json': r.json()
+            'github_json': output
         }, r.status_code)
     else:
         if isinstance(status_code, list):
-            return (r.json(), r.status_code)
+            return (output, r.status_code)
         else:
-            return r.json()
+            return output
+
+github_link = re.compile('\s*<(http.+page=[0-9]+)>; rel="([A-z]+)"\s*')
+def github_link_header_to_maybe_next(link):
+    # I cannot find rigorous documentation on the format, but this seems to
+    # work?
+    link_texts = link.split(',')
+    links = {}
+    for t in link_texts:
+        m = github_link.match(t)
+        assert m is not None, f'{m} {t}'
+        links[m[2]] = m[1]
+    return links.get('next', None)
 
 ###############################################################################
 ### Error Handlers
