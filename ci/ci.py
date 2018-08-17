@@ -974,6 +974,7 @@ def refresh_batch_state():
     latest_jobs = {}
     for job in jobs:
         t = job.attributes.get('type', None)
+        assert 'target_url' in job.attributes, job.attributes
         repo = repo_from_url(job.attributes['target_url'])
         if t and t == 'hail-ci-' + VERSION and repo in watched_repos:
             key = (job.attributes['source_url'],
