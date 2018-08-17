@@ -379,11 +379,9 @@ def verb_github(verb,
     if verb == 'get':
         r = requests.get(full_url, headers=headers, timeout=5)
         output = r.json()
-        log.info(r.headers)
         if 'Link' in r.headers:
             assert isinstance(output, list), output
             link = r.headers['Link']
-            log.info(link)
             url = github_link_header_to_maybe_next(link)
             while url is not None:
                 r = requests.get(url, headers=headers, timeout=5)
@@ -1325,13 +1323,13 @@ def polling_event_loop():
     time.sleep(1)
     while True:
         try:
-           r = requests.post('http://127.0.0.1:5000/refresh_github_state', timeout=5)
+           r = requests.post('http://127.0.0.1:5000/refresh_github_state', timeout=120)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/refresh_batch_state', timeout=5)
+           r = requests.post('http://127.0.0.1:5000/refresh_batch_state', timeout=120)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/heal', timeout=5)
+           r = requests.post('http://127.0.0.1:5000/heal', timeout=120)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/gc', timeout=5)
+           r = requests.post('http://127.0.0.1:5000/gc', timeout=120)
            r.raise_for_status()
         except Exception as e:
             log.error(f'Could not poll due to exception: {e}')
