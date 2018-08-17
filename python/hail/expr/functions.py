@@ -4050,7 +4050,6 @@ def uniroot(f: Callable, min, max):
     return construct_expr(ir, lambda_result._type, indices, aggregations)
 
 
-<<<<<<< HEAD
 @typecheck(f=expr_str, args=expr_any)
 def format(f, *args):
     """Returns a formatted string using a specified format string and arguments.
