@@ -377,11 +377,11 @@ def verb_github(verb,
     headers['Authorization'] = 'token ' + oauth_token
     full_url = f'{GITHUB_URL}{url}'
     if verb == 'get':
-        r = requests.get(full_url, headers=headers)
+        r = requests.get(full_url, headers=headers, timeout=5)
     elif verb == 'post':
-        r = requests.post(full_url, headers=headers, data=data, json=json)
+        r = requests.post(full_url, headers=headers, data=data, json=json, timeout=5)
     elif verb == 'put':
-        r = requests.put(full_url, headers=headers, data=data, json=json)
+        r = requests.put(full_url, headers=headers, data=data, json=json, timeout=5)
     if status_codes and r.status_code not in status_codes:
         raise BadStatus({
             'method': verb,
@@ -1298,13 +1298,13 @@ def polling_event_loop():
     time.sleep(1)
     while True:
         try:
-           r = requests.post('http://127.0.0.1:5000/refresh_github_state')
+           r = requests.post('http://127.0.0.1:5000/refresh_github_state', timeout=5)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/refresh_batch_state')
+           r = requests.post('http://127.0.0.1:5000/refresh_batch_state', timeout=5)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/heal')
+           r = requests.post('http://127.0.0.1:5000/heal', timeout=5)
            r.raise_for_status()
-           r = requests.post('http://127.0.0.1:5000/gc')
+           r = requests.post('http://127.0.0.1:5000/gc', timeout=5)
            r.raise_for_status()
         except Exception as e:
             log.error(f'Could not poll due to exception: {e}')
