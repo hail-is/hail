@@ -37,6 +37,9 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
 
   val size: Int = types.length
 
+  override def truncate(newSize: Int): TTuple =
+    TTuple(types.take(newSize), required)
+
   val missingIdx = new Array[Int](size)
   val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3

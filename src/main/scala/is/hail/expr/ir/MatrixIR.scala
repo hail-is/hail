@@ -1827,11 +1827,11 @@ case class MatrixAnnotateRowsTable(
             val interval = r.getAs[Interval](tableKeyIdx)
             if (interval != null) {
               val rangeTree = partBc.value.rangeTree
-              val pkOrd = partBc.value.pkType.ordering
+              val kOrd = partBc.value.kType.ordering
               val wrappedInterval = interval.copy(
                 start = Row(interval.start),
                 end = Row(interval.end))
-              rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+              rangeTree.queryOverlappingValues(kOrd, wrappedInterval).map(i => (i, r))
             } else
               Iterator()
           }
@@ -1927,7 +1927,6 @@ case class MatrixAnnotateRowsTable(
         // At this point 'joined' is sorted by the foreign key, so need to resort by row key
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
-          partitionKey = child.typ.rowPartitionKey.toArray,
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
         val oType = joined.typ.copy(partitionKey = child.typ.rowPartitionKey.toArray, key = prevRowKeys ++ Array(indexUID))
         val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)
@@ -1936,9 +1935,9 @@ case class MatrixAnnotateRowsTable(
 
         val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
         // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
-        val newRVD = indexedMtRVD.copy(typ = mtOType, orderedPartitioner = indexedPartitioner)
+        val newRVD = indexedMtRVD.copy(typ = mtOType, partitioner = indexedPartitioner)
           .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
-          .copy(orderedPartitioner = prevPartitioner)
+          .copy(partitioner = prevPartitioner)
         MatrixValue(typ, prev.globals, prev.colValues, newRVD)
 
       // annotateRowsTable using key

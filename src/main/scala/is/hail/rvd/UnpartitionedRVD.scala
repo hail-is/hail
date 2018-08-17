@@ -10,12 +10,24 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 object UnpartitionedRVD {
-  def empty(sc: SparkContext, rowType: TStruct): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
+  def empty(sc: SparkContext, rowType: TStruct): RVD =
+    UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
+
+  def apply(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD = {
+    new UnpartitionedRVD(rowType, crdd)
+  }
 }
 
-class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
+class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
+
+  override def toOrderedRVD: OrderedRVD = {
+    new OrderedRVD(
+      typ = new OrderedRVDType(Array(), Array(), rowType),
+      partitioner = OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
+      crdd = crdd
+    )
+  }
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
@@ -80,28 +92,6 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
       else
         crdd.noShuffleCoalesce(maxPartitions))
 
-  def constrainToOrderedPartitioner(
-    ordType: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner
-  ): OrderedRVD = {
-
-    assert(ordType.rowType == rowType)
-
-    val localRowType = rowType
-    val pkOrdering = ordType.pkType.ordering
-    val rangeTree = newPartitioner.rangeTree
-    val filtered = crdd.mapPartitions { it =>
-      val ur = new UnsafeRow(localRowType, null, 0)
-      val key = new KeyedRow(ur, ordType.pkRowFieldIdx)
-      it.filter { rv =>
-        ur.set(rv)
-        rangeTree.contains(pkOrdering, key)
-      }
-    }
-
-    OrderedRVD.shuffle(ordType, newPartitioner, filtered)
-  }
-
   def subsetPartitions(keep: Array[Int]): UnpartitionedRVD = {
     require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
@@ -110,5 +100,5 @@ class UnpartitionedRVD(val rowType: TStruct, val crdd: ContextRDD[RVDContext, Re
     new UnpartitionedRVD(rowType, crdd.subsetPartitions(keep))
   }
 
-  override def toUnpartitionedRVD: UnpartitionedRVD = this
+  override def toUnpartitionedRVD: RVD = this
 }

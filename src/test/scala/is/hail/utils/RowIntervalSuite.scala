@@ -65,6 +65,58 @@ class RowIntervalSuite extends TestNGSuite {
       Interval(Row(1, 2), Row(1, 3), true, true)))
   }
 
+  @Test def testLteqWithOverlap() {
+    val eord = pord.intervalEndpointOrdering
+    assert(!eord.lteqWithOverlap(3)(
+      IntervalEndpoint(Row(0, 1, 6), -1), IntervalEndpoint(Row(0, 1, 5), 1)
+    ))
+
+    assert(eord.lteqWithOverlap(3)(
+      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+    assert(!eord.lteqWithOverlap(2)(
+      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+
+    assert(eord.lteqWithOverlap(2)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+    assert(!eord.lteqWithOverlap(1)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+
+    assert(eord.lteqWithOverlap(2)(
+      IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+    assert(!eord.lteqWithOverlap(1)(
+      IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+    ))
+
+    assert(eord.lteqWithOverlap(1)(
+      IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
+    ))
+    assert(!eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
+    ))
+
+    assert(eord.lteqWithOverlap(1)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
+    ))
+    assert(!eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
+    ))
+
+    assert(eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0), -1)
+    ))
+    assert(eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0, 1, 2), 1)
+    ))
+    assert(eord.lteqWithOverlap(0)(
+      IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
+    ))
+  }
+
   @Test def testIsValid() {
     assert(Interval.isValid(pord, Row(0, 1, 5), Row(0, 2), false, false))
     assert(!Interval.isValid(pord, Row(0, 1, 5), Row(0, 0), false, false))
@@ -87,8 +139,8 @@ class RowIntervalSuite extends TestNGSuite {
     assert(!iTree.contains(pord, Row(10)))
     assert(!iTree.contains(pord, Row(1, -1, 2)))
 
-    assert(iTree.probablyOverlaps(pord, Interval(Row(10), Row(11), true, true)))
-    assert(!iTree.probablyOverlaps(pord, Interval(Row(10), Row(11), false, true)))
+    assert(iTree.overlaps(pord, Interval(Row(10), Row(11), true, true)))
+    assert(!iTree.overlaps(pord, Interval(Row(10), Row(11), false, true)))
 
     assertResult(Array(1)) {
       iTree.queryOverlappingValues(pord, Interval(Row(1), Row(2), true, true))

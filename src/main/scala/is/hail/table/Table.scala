@@ -164,7 +164,7 @@ object Table {
       TableValue(
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, crdd2)))
+        UnpartitionedRVD(signature, crdd2)))
     ).keyBy(key.map(_.toArray), sort)
   }
 
@@ -202,7 +202,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableValue(
         TableType(signature, key, globalSignature),
         BroadcastRow(globals, globalSignature, hc.sc),
-        new UnpartitionedRVD(signature, crdd))))
+        UnpartitionedRVD(signature, crdd))))
 
   def typ: TableType = tir.typ
   
@@ -380,8 +380,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
         leftCount == rightCount
       } else {
-        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
-          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
+        keyBy(signature.fieldNames, sort = false).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames, sort = false).keyedRDD().groupByKey()
         ).forall { case (k, (v1, v2)) =>
           (v1, v2) match {
             case (Some(x), Some(y)) => x.size == y.size
@@ -550,7 +550,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     copy2(
-      rvd = new UnpartitionedRVD(newRowType, rvd.crdd),
+      rvd = UnpartitionedRVD(newRowType, rvd.crdd),
       signature = newRowType)
   }
 
@@ -786,12 +786,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
   }
-  def toOrderedRVD(hintPartitioner: Option[OrderedRVDPartitioner], partitionKeys: Int): OrderedRVD = {
-    require(key.isDefined)
-    val orderedKTType = new OrderedRVDType(key.get.take(partitionKeys).toArray, key.get.toArray, signature)
-    assert(hintPartitioner.forall(p => p.pkType.types.sameElements(orderedKTType.pkType.types)))
-    OrderedRVD.coerce(orderedKTType, rvd, None, hintPartitioner)
-  }
 
   def intervalJoin(other: Table, fieldName: String): Table = {
     assert(other.keySignature.exists(s => s.size == 1 && s.types(0).isInstanceOf[TInterval]))
@@ -822,11 +816,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
         val interval = r.getAs[Interval](rightKeyFieldIdx)
         if (interval != null) {
           val rangeTree = partBc.value.rangeTree
-          val pkOrd = partBc.value.pkType.ordering
+          val kOrd = partBc.value.kType.ordering
           val wrappedInterval = interval.copy(
             start = Row(interval.start),
             end = Row(interval.end))
-          rangeTree.queryOverlappingValues(pkOrd, wrappedInterval).map(i => (i, r))
+          rangeTree.queryOverlappingValues(kOrd, wrappedInterval).map(i => (i, r))
         } else
           Iterator()
       }

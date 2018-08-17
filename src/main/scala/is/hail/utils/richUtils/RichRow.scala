@@ -30,6 +30,11 @@ class RichRow(r: Row) {
     (i until r.size).foreach(ab += r.get(_))
     Row.fromSeq(ab.result())
   }
+
+  def truncate(newSize: Int): Row = {
+    require(newSize <= r.size)
+    Row.fromSeq(Array.tabulate(newSize){ i => r.get(i) })
+  }
 }
 
 class RowWithDeletedField(parent: Row, deleteIdx: Int) extends Row {

@@ -98,12 +98,12 @@ object JSONAnnotationImpex {
         case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
         case TStruct(fields, _) =>
           val row = a.asInstanceOf[Row]
-          JObject(fields
-            .map(f => (f.name, exportAnnotation(row.get(f.index), f.typ)))
-            .toList)
+          JObject(List.tabulate(row.size) { i =>
+            (fields(i).name, exportAnnotation(row.get(i), fields(i).typ))
+          })
         case TTuple(types, _) =>
           val row = a.asInstanceOf[Row]
-          JArray(types.zipWithIndex.map { case (typ, i) => exportAnnotation(row.get(i), typ) }.toList)
+          JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i)) })
       }
     }
 
@@ -167,7 +167,8 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val a = Array.fill[Any](t.size)(null)
+          val fieldIDs = jfields.map { case (name, jv2) => t.selfField(name).map(_.index).getOrElse(-1) }
+          val a = Array.fill[Any](fieldIDs.max + 1)(null)
 
           for ((name, jv2) <- jfields) {
             t.selfField(name) match {
@@ -185,7 +186,7 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val a = Array.fill[Any](t.size)(null)
+          val a = Array.fill[Any](elts.length)(null)
           var i = 0
           for (jvelt <- elts) {
             a(i) = importAnnotation(jvelt, t.types(i), parent)

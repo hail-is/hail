@@ -1420,8 +1420,8 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
 
             return mt._select_rows('split_multi',
                                    new_row_expr,
-                                   new_key=['locus', 'alleles'] if rekey else None,
-                                   pk_size=1 if rekey else None)
+                                   new_key=['locus', 'alleles'],
+                                   pk_size=1)
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -1434,8 +1434,8 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
                                            old_alleles=ht.alleles).drop(new_id)
 
             return ht._select_scala(new_row_expr,
-                                    preserved_key=['locus', 'alleles'] if not rekey else [],
-                                    preserved_key_new=['locus', 'alleles'],
+                                    preserved_key=['locus'] if not rekey else [],
+                                    preserved_key_new=['locus'] if not rekey else [],
                                     new_key=['locus', 'alleles'])
 
 

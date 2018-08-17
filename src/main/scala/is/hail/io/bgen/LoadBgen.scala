@@ -311,7 +311,7 @@ case class MatrixBGENReader(
       contigRecoding,
       skipInvalidLoci))
 
-  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType, fastKeys, None)
+  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType, fastKeys)
 
   def apply(mr: MatrixRead): MatrixValue = {
     require(inputs.nonEmpty)

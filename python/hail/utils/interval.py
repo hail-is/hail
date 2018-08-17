@@ -210,6 +210,6 @@ class Interval(object):
 
         if self.point_type != interval.point_type:
             raise TypeError("'interval' must have the point type '{}', but found '{}'".format(self.point_type, interval.point_type))
-        return self._jrep.mayOverlap(self.point_type._jtype.ordering(), interval._jrep)
+        return self._jrep.overlaps(self.point_type._jtype.ordering(), interval._jrep)
 
 interval_type.set(Interval)

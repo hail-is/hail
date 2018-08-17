@@ -88,7 +88,7 @@ case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: 
     val rowTyp = typ.rowType
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
   }
 }
 
@@ -158,7 +158,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       }
     }
 
-    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), new UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
   }
 }
 
@@ -181,14 +181,14 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
     val rvd = if (sort) {
       def resort: OrderedRVD = {
         val orvdType = new OrderedRVDType(nPartitionKeys.map(keys.take).getOrElse(keys).toArray, keys.toArray, typ.rowType)
-        OrderedRVD.coerce(orvdType, tv.rvd, None, None)
+        OrderedRVD.coerce(orvdType, tv.rvd)
       }
 
       tv.rvd match {
         case ordered: OrderedRVD =>
           if (ordered.typ.key.startsWith(keys) &&
             nPartitionKeys.getOrElse(keys.length) == ordered.typ.partitionKey.length)
-            ordered.copy(typ = ordered.typ.copy(key = keys.toArray))
+            ordered
           else resort
         case _: UnpartitionedRVD =>
           resort
@@ -440,9 +440,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
         val ordType =
           new OrderedRVDType(right.typ.key.get.toArray, right.typ.key.get.toArray, rightRowType)
         if (joinType == "left" || joinType == "inner")
-          unordered.constrainToOrderedPartitioner(ordType, leftORVD.partitioner)
+          OrderedRVD.shuffle(ordType, leftORVD.partitioner, unordered)
         else
-          OrderedRVD.coerce(ordType, unordered, leftORVD.partitioner)
+          OrderedRVD.coerce(ordType, unordered)
     }
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
@@ -1181,7 +1181,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val rdd = prev.rdd.sortBy(identity[Annotation], ascending = true)(ord, act)
     val rvd = ContextRDD.weaken[RVDContext](rdd)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
-    TableValue(typ, prev.globals, new UnpartitionedRVD(rowType, rvd))
+    TableValue(typ, prev.globals, UnpartitionedRVD(rowType, rvd))
   }
 }
 

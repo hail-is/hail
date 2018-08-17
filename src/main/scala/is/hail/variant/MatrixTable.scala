@@ -139,7 +139,7 @@ object MatrixTable {
 
     val localNCols = colValues.length
 
-    var ds = new MatrixTable(hc, matrixType,
+    val ds = new MatrixTable(hc, matrixType,
       BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
       OrderedRVD.coerce(matrixType.orvdType,
@@ -1040,7 +1040,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       rvd
     else {
       val newType = newMatrixType.orvdType
-      val newPartitioner = rvd.partitioner.withKType(pk.toArray, newType.kType)
       rvd.updateType(newType)
     }
 
@@ -1126,11 +1125,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     metadataSame &&
       rvd.crdd.czip(
-        OrderedRVD.adjustBoundsAndShuffle(
-          that.rvd.typ,
-          rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
-          that.rvd)
-          .crdd) { (ctx, rv1, rv2) =>
+        that.rvd.constrainToOrderedPartitioner(
+          rvd.partitioner.enlargeToRange(that.rvd.partitioner.range)
+        ).crdd) { (ctx, rv1, rv2) =>
         var partSame = true
 
         val fullRow1 = new UnsafeRow(leftRVType)
@@ -1547,7 +1544,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       .zipWithIndex
       .map { case (bound, i) =>
         val startLocus = bound.start.asInstanceOf[Row].getAs[Locus](0)
-        val minPartitionNeeded = partitioner.getPartitionPK(
+        val minPartitionNeeded = partitioner.getSafePartitionLowerBound(
           Row(startLocus.copy(position = startLocus.position - basePairs)))
         (minPartitionNeeded to i)
           .map(Adjustment[RegionValue](_, identity))
