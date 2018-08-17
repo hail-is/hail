@@ -44,6 +44,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     assert(partitioner.getSafePartitionUpperBound(Row(4, 3)) == 2)
 
     assert(partitioner.getSafePartitionLowerBound(Row(5, -10259)) == 1)
+    assert(partitioner.getSafePartitionUpperBound(Row(5, -10259)) == 2)
 
     assert(partitioner.getSafePartitionLowerBound(Row(7, 9)) == 2)
     assert(partitioner.getSafePartitionUpperBound(Row(7, 9)) == 2)

@@ -2842,7 +2842,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with new field.
         """
-        return MatrixTable(self._jvds.indexRows(name))
+        return self.annotate_rows(**{name: hl.scan.count()})
 
     @typecheck_method(name=str)
     def add_col_index(self, name: str = 'col_idx') -> 'MatrixTable':
@@ -2870,7 +2870,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with new field.
         """
-        return MatrixTable(self._jvds.indexCols(name))
+        return self.annotate_cols(**{name: hl.scan.count()})
 
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric,

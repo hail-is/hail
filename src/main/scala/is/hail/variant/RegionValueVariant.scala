@@ -22,8 +22,10 @@ class RegionValueVariant(rowType: TStruct) extends View {
   def setRegion(region: Region, offset: Long) {
     this.region = region
 
-    assert(rowType.isFieldDefined(region, offset, locusIdx))
-    assert(rowType.isFieldDefined(region, offset, allelesIdx))
+    if (!rowType.isFieldDefined(region, offset, locusIdx))
+      fatal(s"The row field 'locus' cannot have missing values.")
+    if (!rowType.isFieldDefined(region, offset, allelesIdx))
+      fatal(s"The row field 'alleles' cannot have missing values.")
     this.locusOffset = rowType.loadField(region, offset, locusIdx)
     this.allelesOffset = rowType.loadField(region, offset, allelesIdx)
     cachedContig = null

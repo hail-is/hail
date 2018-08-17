@@ -1913,7 +1913,7 @@ case class MatrixAnnotateRowsTable(
                 newKeyUIDs
                   .map(k => IsNA(GetField(Ref("row", mrt.typ.rowType), k)))
                   .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
-            newKeyUIDs, None, sort = true)).execute(hc)
+            newKeyUIDs, sort = true)).execute(hc)
 
         val left = sortedTL.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         val right = tv.enforceOrderingRVD.asInstanceOf[OrderedRVD]

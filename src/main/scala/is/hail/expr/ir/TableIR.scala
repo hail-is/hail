@@ -162,10 +162,9 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
-case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: Option[Int], sort: Boolean = true) extends TableIR {
+case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = true) extends TableIR {
   private val fields = child.typ.rowType.fieldNames.toSet
   assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
-  assert(nPartitionKeys.forall(_ <= keys.length))
 
   val children: IndexedSeq[BaseIR] = Array(child)
 
@@ -173,7 +172,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], nPartitionKeys: 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
-    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, nPartitionKeys, sort)
+    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, sort)
   }
 
   def execute(hc: HailContext): TableValue = {
@@ -362,12 +361,19 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     OrderedRVDType(left.typ.key.get.take(joinKey), left.typ.rowType)
   private val rightRVDType =
     OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
+
   private val joinedFields =
     leftRVDType.kType.fields ++
       leftRVDType.valueType.fields ++
       rightRVDType.valueType.fields
   private val preNames = joinedFields.map(_.name).toArray
   private val (finalColumnNames, remapped) = mangle(preNames)
+
+  private val joinedGlobalFields = left.typ.globalType.fields ++ right.typ.globalType.fields
+  private val (finalGlobalNames, _) = mangle(joinedGlobalFields.map(_.name).toArray)
+  val newGlobalType = TStruct(joinedGlobalFields.zipWithIndex.map {
+    case (fd, i) => (finalGlobalNames(i), fd.typ)
+  }: _*)
 
   val rightFieldMapping: Map[String, String] = {
     val remapMap = remapped.toMap
@@ -445,15 +451,22 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   def execute(hc: HailContext): TableValue = {
     val leftTV = left.execute(hc)
     val rightTV = right.execute(hc)
-    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD].keyBy(leftTV.typ.key.get.take(joinKey))
-    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD].keyBy(rightTV.typ.key.get.take(joinKey))
+
+    val newGlobals = BroadcastRow(
+      Row.merge(leftTV.globals.value, rightTV.globals.value),
+      newGlobalType,
+      leftTV.rvd.sparkContext)
+
+    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
+      joinKey,
       joinType,
       rvMerger,
       new OrderedRVDType(newKey, newRowType))
 
-    TableValue(typ, leftTV.globals, joinedRVD)
+    TableValue(typ, newGlobals, joinedRVD)
   }
 }
 

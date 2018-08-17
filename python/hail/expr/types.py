@@ -162,15 +162,16 @@ class HailType(object):
     @classmethod
     def _from_java(cls, jtype):
         t = hl.dtype(jtype.toString())
-        t._cached_jtype = jtype
+        t._add_jtype(jtype)
         return t
 
     def _add_jtype(self, jtype):
-        if self not in _interned_types:
+        if self.__class__ not in _interned_types:
             self._cached_jtype = jtype
+        self._propagate_jtypes(jtype)
 
-    def _has_jtype(self):
-        return self._cached_jtype is not None
+    def _propagate_jtypes(self, jtype):
+        pass
 
     def typecheck(self, value):
         """Check that `value` matches a type.
@@ -479,8 +480,6 @@ class tarray(HailType):
         :class:`.HailType`
             Element type.
         """
-        if not self._element_type._has_jtype() and self._has_jtype():
-            self._element_type._add_jtype(self._jtype.elementType())
         return self._element_type
 
     def _convert_to_py(self, annotation):
@@ -525,6 +524,9 @@ class tarray(HailType):
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
+    def _propagate_jtypes(self, jtype):
+        self._element_type._add_jtype(jtype.elementType())
+
 
 class tset(HailType):
     """Hail type for collections of distinct elements.
@@ -562,8 +564,6 @@ class tset(HailType):
         :class:`.HailType`
             Element type.
         """
-        if not self._element_type._has_jtype() and self._has_jtype():
-            self._element_type._add_jtype(self._jtype.elementType())
         return self._element_type
 
     def _convert_to_py(self, annotation):
@@ -608,6 +608,10 @@ class tset(HailType):
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
+    def _propagate_jtypes(self, jtype):
+        self._element_type._add_jtype(jtype.elementType())
+
+
 class tdict(HailType):
     """Hail type for key-value maps.
 
@@ -647,8 +651,6 @@ class tdict(HailType):
         :class:`.HailType`
             Key type.
         """
-        if not self._key_type._has_jtype() and self._has_jtype():
-            self._key_type._add_jtype(self._jtype.keyType())
         return self._key_type
 
     @property
@@ -660,8 +662,6 @@ class tdict(HailType):
         :class:`.HailType`
             Value type.
         """
-        if not self._value_type._has_jtype() and self._has_jtype():
-            self._value_type._add_jtype(self._jtype.valueType())
         return self._value_type
 
     def _convert_to_py(self, annotation):
@@ -714,6 +714,9 @@ class tdict(HailType):
         return [{'key': self.key_type._convert_to_json(k),
                  'value':self.value_type._convert_to_json(v)} for k, v in x.items()]
 
+    def _propagate_jtypes(self, jtype):
+        self._key_type._add_jtype(jtype.keyType())
+        self._value_type._add_jtype(jtype.valueType())
 
 class tstruct(HailType, Mapping):
     """Hail type for structured groups of heterogeneous fields.
@@ -751,7 +754,6 @@ class tstruct(HailType, Mapping):
         :obj:`tuple` of :class:`.Field`
             Struct fields.
         """
-        self._add_jtypes()
         return self._fields
 
     def _convert_to_py(self, annotation):
@@ -789,18 +791,14 @@ class tstruct(HailType, Mapping):
                 raise TypeError("type 'struct' expected type Mapping (e.g. dict or hail.utils.Struct), but found '%s'" %
                                 type(annotation))
 
-    def _add_jtypes(self):
-        if self._has_jtype():
-            for (n, t) in self._field_types.items():
-                if not t._has_jtype():
-                    t._add_jtype(self._jtype.field(n).typ())
-        self._fields = tuple(self._field_types)
+    def _propagate_jtypes(self, jtype):
+        for (n, t) in self._field_types.items():
+            t._add_jtype(self._jtype.field(n).typ())
 
     @typecheck_method(item=oneof(int, str))
     def __getitem__(self, item):
         if not isinstance(item, str):
             item = self._fields[item]
-        self._add_jtypes()
         return self._field_types[item]
 
     def __iter__(self):
@@ -869,10 +867,6 @@ class ttuple(HailType):
         -------
         :obj:`tuple` of :class:`.HailType`
         """
-        if self._has_jtype():
-            for i, t in enumerate(self._types):
-                if not t._has_jtype():
-                    t._add_jtype(self._jtype._types().apply(i))
         return self._types
 
     def _convert_to_py(self, annotation):
@@ -930,6 +924,11 @@ class ttuple(HailType):
 
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
+
+    def _propagate_jtypes(self, jtype):
+        jtypes = jtype._types()
+        for i, t in enumerate(self._types):
+            t._add_jtype(jtypes.apply(i))
 
 class _tcall(HailType):
     """Hail type for a diploid genotype.
@@ -1077,10 +1076,10 @@ class tinterval(HailType):
         :class:`.HailType`
             Interval point type.
         """
-        if self._has_jtype() and not self._point_type._has_jtype():
-            self._point_type._add_jtype(self._jtype.pointType())
-
         return self._point_type
+
+    def _propagate_jtypes(self, jtype):
+        self._point_type._add_jtype(jtype.pointType())
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
@@ -1217,19 +1216,19 @@ See Also
 
 hts_entry_schema = tstruct(GT=tcall, AD=tarray(tint32), DP=tint32, GQ=tint32, PL=tarray(tint32))
 
-_numeric_types = {tbool, tint32, tint64, tfloat32, tfloat64}
-_primitive_types = _numeric_types.union({tstr})
-_interned_types = _primitive_types.union({tcall})
+_numeric_types = {_tbool, _tint32, _tint64, _tfloat32, _tfloat64}
+_primitive_types = _numeric_types.union({_tstr})
+_interned_types = _primitive_types.union({_tcall})
 
 
 @typecheck(t=HailType)
 def is_numeric(t) -> bool:
-    return t in _numeric_types
+    return t.__class__ in _numeric_types
 
 
 @typecheck(t=HailType)
 def is_primitive(t) -> bool:
-    return t in _primitive_types
+    return t.__class__ in _primitive_types
 
 
 @typecheck(t=HailType)

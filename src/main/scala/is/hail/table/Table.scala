@@ -456,7 +456,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table = {
-    new Table(hc, TableKeyBy(tir, keys, Option(partitionKeys).map(_.length), sort))
+    new Table(hc, TableKeyBy(tir, keys, sort))
   }
 
   def unkey(): Table =
@@ -473,9 +473,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take(_)))
     val preservedKeyNew = newKey.map(_.take(preservedKeyFields.get))
-    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get, None, false) else tir
+    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get) else tir
     val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
-    val lengthenedKey = if (newKey.isDefined) TableKeyBy(mapped, newKey.get, None, false) else mapped
+    val lengthenedKey = if (newKey.isDefined) TableKeyBy(mapped, newKey.get) else mapped
     new Table(hc, lengthenedKey)
   }
 
@@ -641,13 +641,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
   def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
-
-  def index(name: String): Table = {
-    if (fieldNames.contains(name))
-      fatal(s"name collision: cannot index table, because column '$name' already exists")
-    val newRvd = rvd.zipWithIndex(name)
-    copy2(signature = newRvd.rowType, rvd = newRvd)
-  }
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
     println(showString(n, truncate, printTypes, maxWidth))

@@ -210,7 +210,7 @@ class OrderedRVD(
     new OrderedRVD(newType, newPartitioner, sortedRDD)
   }
 
-  def keyBy(key: IndexedSeq[String] = typ.key): KeyedOrderedRVD =
+  private def keyBy(key: Int = typ.key.length): KeyedOrderedRVD =
     new KeyedOrderedRVD(this, key)
 
   def orderedLeftJoinDistinctAndInsert(
@@ -264,8 +264,9 @@ class OrderedRVD(
       }
     }
     assert(typ.key.length >= right.typ.key.length, s"$typ >= ${ right.typ }\n  $this\n  $right")
-    keyBy(typ.key.take(right.typ.key.length)).orderedJoinDistinct(
-      right.keyBy(),
+    orderedJoinDistinct(
+      right,
+      right.typ.key.length,
       "left",
       joiner,
       typ.copy(rowType = newRowType,
@@ -279,7 +280,16 @@ class OrderedRVD(
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD =
-    keyBy().orderedJoin(right.keyBy(), joinType, joiner, joinedType)
+    orderedJoin(right, typ.key.length, joinType, joiner, joinedType)
+
+  def orderedJoin(
+    right: OrderedRVD,
+    joinKey: Int,
+    joinType: String,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: OrderedRVDType
+  ): OrderedRVD =
+    keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType)
 
   def orderedJoinDistinct(
     right: OrderedRVD,
@@ -287,10 +297,22 @@ class OrderedRVD(
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: OrderedRVDType
   ): OrderedRVD =
-    keyBy().orderedJoinDistinct(right.keyBy(), joinType, joiner, joinedType)
+    orderedJoinDistinct(right, typ.key.length, joinType, joiner, joinedType)
+
+  def orderedJoinDistinct(
+    right: OrderedRVD,
+    joinKey: Int,
+    joinType: String,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: OrderedRVDType
+  ): OrderedRVD =
+    keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
 
   def orderedZipJoin(right: OrderedRVD): ContextRDD[RVDContext, JoinedRegionValue] =
-    keyBy().orderedZipJoin(right.keyBy())
+    orderedZipJoin(right, typ.key.length)
+
+  def orderedZipJoin(right: OrderedRVD, joinKey: Int): ContextRDD[RVDContext, JoinedRegionValue] =
+    keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey))
 
   def orderedMerge(right: OrderedRVD): OrderedRVD =
     keyBy().orderedMerge(right.keyBy())
@@ -1106,6 +1128,7 @@ object OrderedRVD {
               fatal(
                 s"""OrderedRVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Range of partition IDs for key: [${ partitionerBc.value.getSafePartitionLowerBound(kUR) }, ${ partitionerBc.value.getSafePartitionUpperBound(kUR) })
                    |  Invalid key: ${ kUR.toString() }""".stripMargin)
 
             rv
