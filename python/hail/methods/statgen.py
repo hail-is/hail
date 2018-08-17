@@ -7,10 +7,9 @@ import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
-from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus, require_col_key_str
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -2053,12 +2052,11 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
     ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
 
-    >>> from hail.stats import TruncatedBetaDist
     >>>
     >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
-    ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
+    ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0),
     ...          seed=1)
 
     Notes
@@ -2072,8 +2070,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
       ``1:M:A:C``.
     - The default distribution for population assignment :math:`\pi` is uniform.
     - The default ancestral frequency distribution :math:`P_0` is uniform on
-      ``[0.1, 0.9]``. Other options are :class:`.UniformDist`,
-      :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
+      ``[0.1, 0.9]``.
       All three classes are located in ``hail.stats``.
     - The default :math:`F_{ST}` values are all 0.1.
 
@@ -2166,9 +2163,9 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     fst : :obj:`list` of :obj:`float`, optional
         :math:`F_{ST}` values, a list of length ``n_populations`` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
-    af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
+    af_dist : :class:`.Float64Expression` representing a random function.
         Ancestral allele frequency distribution.
-        Default is ``UniformDist(0.1, 0.9)``.
+        Default is :func:`.rand_unif` over the range `[0.1, 0.9]`.
     seed : :obj:`int`
         Random seed.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
