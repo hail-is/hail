@@ -2034,7 +2034,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            seed=nullable(int),
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
-                          pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9),
+                          pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
                           reference_genome='default', seed=0, mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
@@ -2166,9 +2166,10 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
     af_dist : :class:`.Float64Expression` representing a random function.
         Ancestral allele frequency distribution.
-        Default is :func:`.rand_unif` over the range `[0.1, 0.9]`.
+        Default is :func:`.rand_unif` over the range `[0.1, 0.9]` with seed 0.
     seed : :obj:`int`
-        Random seed.
+        Random seed. The seed for the `af_dist` function is set independently
+        from within the function expression.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2267,7 +2268,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
-    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx)).partition_rows_by(['locus'], 'locus', 'alleles')
 
 
 @typecheck(mt=MatrixTable, f=anytype)

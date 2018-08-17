@@ -44,6 +44,7 @@ class Tests(unittest.TestCase):
                                       n_samples=n_samples,
                                       n_variants=n_variants,
                                       fst=fst,
+                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
                                       seed=seed)
 
         pa_t_path = utils.new_temp_file(suffix='bm')
@@ -141,6 +142,7 @@ class Tests(unittest.TestCase):
                                       n_samples=n_samples,
                                       n_variants=n_variants,
                                       fst=fst,
+                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
                                       seed=seed)
 
         pa_t_path = utils.new_temp_file(suffix='bm')
