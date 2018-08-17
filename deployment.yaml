@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: hail-ci
-          image: gcr.io/broad-ctsa/hail-ci:ffb44fdf5c77554b0e4fe8d2456e00ac56ff05e9
+          image: gcr.io/broad-ctsa/hail-ci:a5a394215f3256c39ca96ac23c5bc065f00ae2e1
           env:
             - name: SELF_HOSTNAME
               value: http://hail-ci
