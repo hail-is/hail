@@ -968,7 +968,7 @@ class Tests(unittest.TestCase):
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
-                                      af_dist=hl.rand_beta(a=0.01, b=2.0, min=0.05, max=0.95),
+                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
                                       seed=1)
 
         ds.entries().show(100, width=200)
@@ -985,17 +985,55 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.fst.value, [.02, .06])
         self.assertEqual(glob.seed.value, 1)
         self.assertEqual(glob.ancestral_af_dist.value,
-                         hl.Struct(type='rand_beta', a=0.01, b=2.0, min=0.05, max=0.95))
+                         hl.Struct(type='rand_beta', a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1))
 
-    def test_balding_nichols_model_2(self):
-        ds = hl.balding_nichols_model(3, 7, 7, 3,
-                                      pop_dist=[1.0, 2.0, 3.0],
-                                      fst=[.02, .06, .01],
-                                      mixture=True,
-                                      # af_dist=hl.rand_beta(a=0.01, b=2.0, min=0.05, max=0.95, seed=1),
-                                      seed=1)
+    def test_balding_nichols_model_af_ranges(self):
+        def test_af_range(rand_func, min, max, seed):
+            bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func, seed=seed)
+            self.assertTrue(
+                bn.aggregate_rows(
+                    hl.agg.all((bn.ancestral_af > min) &
+                               (bn.ancestral_af < max))))
 
-        ds.entries().show(100, width=200)
+        test_af_range(hl.rand_beta(.01, 2, .2, .8), .2, .8, 0)
+        test_af_range(hl.rand_beta(3, 3, .4, .6), .4, .6, 1)
+        test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
+        test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
+
+    def test_balding_nichols_stats(self):
+        def test_stat(k, n, m, seed):
+            bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9), seed=seed)
+
+            # test pop distribution
+            pop_counts = bn.aggregate_cols(hl.agg.group_by(bn.pop, hl.agg.count()))
+            for i, count in pop_counts.items():
+                self.assertAlmostEqual(count / n, 1 / k, delta=0.1 * n / k)
+
+            # test af distribution
+            def variance(expr):
+                return hl.bind(lambda mean: hl.mean(hl.map(lambda elt: (elt - mean) ** 2, expr)), hl.mean(expr))
+            delta_mean = 0.2 # consider alternatives to 0.2
+            delta_var = 0.1
+            per_row = hl.bind(lambda mean, var, ancestral:
+                              (ancestral > mean - delta_mean) &
+                              (ancestral < mean + delta_mean) &
+                              (.1 * ancestral * (1 - ancestral) > var - delta_var) &
+                              (.1 * ancestral * (1 - ancestral) < var + delta_var),
+                              hl.mean(bn.af),
+                              variance(bn.af),
+                              bn.ancestral_af)
+            self.assertTrue(bn.aggregate_rows(hl.agg.all(per_row)))
+
+            # test genotype distribution
+            stats_gt_by_pop = hl.agg.group_by(bn.pop, hl.agg.stats(hl.float(bn.GT.n_alt_alleles()))).values()
+            bn = bn.select_rows(sum_af=hl.sum(bn.af),
+                                sum_mean_gt_by_pop=hl.sum(hl.map(lambda x: x.mean, stats_gt_by_pop)))
+            sum_af = bn.aggregate_rows(hl.agg.sum(bn.sum_af))
+            sum_mean_gt = bn.aggregate_rows(hl.agg.sum(bn.sum_mean_gt_by_pop))
+            self.assertAlmostEqual(sum_mean_gt, 2 * sum_af, delta=0.1 * m * k)
+
+        test_stat(10, 100, 100, 0)
+        test_stat(40, 400, 20, 12)
 
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))
