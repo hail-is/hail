@@ -4,7 +4,6 @@
 #include "hail/NativeObj.h"
 #include <cstdarg>
 #include <cstdio>
-#include <string>
 
 // NativeStatus is not in the "hail" namespace, because that would complicate
 // the mangled names of functions which have a "NativeStatus*" parameter
@@ -12,8 +11,8 @@
 class NativeStatus : public hail::NativeObj {
 public:
   int errno_;
-  std::string msg_;
-  std::string location_;
+  hail::hstring msg_;
+  hail::hstring location_;
   
 public:
   inline NativeStatus() : errno_(0) { }
