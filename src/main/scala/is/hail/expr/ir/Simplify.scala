@@ -66,8 +66,12 @@ object Simplify {
     val canRepartition = Memo.empty[Boolean]
 
     RewriteBottomUp(ir, { node =>
-      storeRepartitionability(node, canRepartition, canRepartition.getOrElse(node, true))
-      rules(canRepartition)(node)
+      val repartitionability = canRepartition.getOrElse(node, true)
+      storeRepartitionability(node, canRepartition, repartitionability)
+      rules(canRepartition)(node).map { rewritten =>
+        storeRepartitionability(rewritten, canRepartition, repartitionability)
+        rewritten
+      }
     })
   }
 
