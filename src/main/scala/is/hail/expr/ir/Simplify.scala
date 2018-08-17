@@ -51,7 +51,7 @@ object Simplify {
     x: BaseIR,
     memo: Memo[Boolean] = Memo.empty[Boolean],
     parentCanRepartition: Boolean = true
-  ): Memo[Boolean] = {
+  ): Unit = {
     val canRepartition = parentCanRepartition && x.children.forall {
       case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
       case _ => true
@@ -60,17 +60,14 @@ object Simplify {
       x.children.foreach { child => memoizeRepartitioning(child, memo, canRepartition) }
       memo.update(x, canRepartition)
     }
-    memo
   }
 
   def apply(ir: BaseIR): BaseIR = {
-    val canRepartition = memoizeRepartitioning(ir, Memo.empty[Boolean])
+    val canRepartition = Memo.empty[Boolean]
 
     RewriteBottomUp(ir, { ast =>
-      rules(canRepartition)(ast).map { rewritten =>
-        memoizeRepartitioning(rewritten, canRepartition)
-        rewritten
-      }
+      memoizeRepartitioning(ast, canRepartition)
+      rules(canRepartition)(ast)
     })
   }
 
