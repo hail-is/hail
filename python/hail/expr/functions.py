@@ -4108,7 +4108,7 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False):
     tolerance : :class:`.NumericExpression`
     absolute : :class:`.BooleanExpression`
         If ``True``, compute ``abs(x - y) <= tolerance``. Otherwise, compute
-        ``abs(x - y) <= max(tolerance * max(abs(x), abs(y)), :math:`2{-1022}`)``.
+        ``abs(x - y) <= max(tolerance * max(abs(x), abs(y)), 2 ** -1022)``.
 
     Returns
     -------
