@@ -65,9 +65,9 @@ object Simplify {
   def apply(ir: BaseIR): BaseIR = {
     val canRepartition = Memo.empty[Boolean]
 
-    RewriteBottomUp(ir, { ast =>
-      memoizeRepartitioning(ast, canRepartition)
-      rules(canRepartition)(ast)
+    RewriteBottomUp(ir, { node =>
+      memoizeRepartitioning(node, canRepartition, canRepartition.get(node).getOrElse(true))
+      rules(canRepartition)(node)
     })
   }
 
