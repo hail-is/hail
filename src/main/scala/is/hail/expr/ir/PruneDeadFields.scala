@@ -4,6 +4,10 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
+
+import scala.collection.mutable
 
 object PruneDeadFields {
   def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {
@@ -73,6 +77,84 @@ object PruneDeadFields {
     } catch {
       case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
     }
+  }
+
+  def extractAndPrune(tv: TableValue, irs: IR*): (BroadcastRow, TStruct, Array[IR]) = {
+    extractAndPruneLocalValues(tv.rvd.sparkContext,
+      Map("global" -> (tv.globals.value, tv.typ.globalType)),
+      irs.toArray,
+      { (_, env) => env },
+      Set())
+  }
+
+  def extractAndPrune(mv: MatrixValue, irs: IR*): (BroadcastRow, TStruct, Array[IR]) = {
+    val mentionsSA = irs.foldLeft(false)(_ || Mentions(_, "sa"))
+    val mentionsColValues = irs.foldLeft(false)(_ || Mentions(_, "colValues"))
+    assert(!(mentionsSA && mentionsColValues))
+    extractAndPruneLocalValues(mv.rvd.sparkContext,
+      Map("global" -> (mv.globals.value, mv.typ.globalType), "colValues" -> (mv.colValues.value, TArray(mv.typ.colType))), irs.toArray,
+    { (bcBase, env) =>
+      (env.lookupOption("bc"), env.lookupOption("sa")) match {
+        case (Some((_, bcDep)), Some((_, saDep))) =>
+          env.bind("bc", (bcBase, unify(bcBase, bcDep, TStruct("colValues" -> TArray(saDep)))))
+        case (None, Some((_, saDep))) =>
+          env.bind("bc", (bcBase, TStruct("colValues" -> TArray(saDep))))
+        case (_, None) => env
+      }
+    }, Set("sa"))
+  }
+
+  def extractAndPruneLocalValues(
+    sc: SparkContext,
+    toReplace: Map[String, (Annotation, Type)],
+    irs: Array[IR],
+    modify: (Type, Env[(Type, Type)]) => Env[(Type, Type)],
+    usePruned: Set[String]): (BroadcastRow, TStruct, Array[IR]) = {
+    val literals = mutable.Set.empty[Literal]
+    irs.foreach(Visit(_, {
+      case l: Literal => literals += l
+      case _ =>
+    }))
+
+    val trArray = toReplace.toArray
+    val trStruct = TStruct(trArray.map { case (id, (_, t)) => id -> t }: _*)
+    val literalsArray = literals.toArray
+    val litType = TStruct(literalsArray.map(l => l.id -> l.typ): _*)
+    val bcType = trStruct ++ litType
+
+    val irs1 = irs.map { ir =>
+      MapIR.mapBaseIR(ir, {
+        case l: Literal => GetField(Ref("bc", bcType), l.id)
+        case r: Ref if toReplace.contains(r.name) => GetField(Ref("bc", bcType), r.name)
+        case x => x
+      }).asInstanceOf[IR]
+    }
+
+    val memo = Memo.empty[BaseType]
+    val dep = modify(bcType, unifyEnvsSeq(
+      irs1.map(ir => memoizeValueIR(ir, ir.typ, memo)) ++
+        Seq(Env.empty[(Type, Type)]
+          .bind("bc" -> (bcType, TStruct(trStruct.fields.map(f => f.name -> minimal(f.typ)): _*))))))
+    val (_, bcDep: TStruct) = dep.lookupOption("bc").getOrElse((bcType, minimal(bcType)))
+    val upcastValue = Interpret[Row](
+      upcast(
+        Literal(
+          bcType,
+          Row.fromSeq(trArray.map(_._2._1) ++ literalsArray.map(_.value)),
+          genUID()),
+        bcDep),
+      optimize = false)
+
+    val refMap = Env.empty[Type]
+      .bind("bc", bcDep)
+      .bind(dep.m
+        .iterator
+        .filter(_._1 != "bc")
+        .map { case (k, (full, pruned)) => (k, if (usePruned(k)) pruned else full) }
+        .toArray: _*)
+    assert(refMap.lookup("bc") == bcDep)
+
+    (BroadcastRow(upcastValue, bcDep, sc), bcDep, irs1.map(rebuild(_, refMap, memo)))
   }
 
   def pruneColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {

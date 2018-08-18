@@ -352,6 +352,11 @@ class Tests(unittest.TestCase):
         mt = self.get_vds().filter_rows(False)
         self.assertEqual(mt.repartition(1).count_rows(), 0)
 
+    def test_literals_rebuild(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt._force_count_rows()
+
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 

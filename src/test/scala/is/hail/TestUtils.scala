@@ -230,7 +230,7 @@ object TestUtils {
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsType,
+          argsVar, argsType)(
           argsVar, argsType,
           aggVar, aggType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",

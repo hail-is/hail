@@ -41,7 +41,6 @@ object Literal {
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
       case _: TString => Str(x.asInstanceOf[String])
       case _ => Literal(t, x, genUID())
-      case _ => throw new RuntimeException(s"Unsupported literal type: $t")
     }
   }
 }

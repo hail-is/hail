@@ -429,7 +429,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     .toArray
 
   lazy val value: MatrixValue = {
-    val opt = LiftLiterals(ir.Optimize(ast)).asInstanceOf[MatrixIR]
+    val opt = ir.Optimize(ast)
     val v = opt.execute(hc)
     assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
     v
