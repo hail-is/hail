@@ -208,13 +208,16 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
+    val (globalValue, globalType) =
+      if (csq)
+        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))
+      else
+        (Row(), TStruct())
+    
     new Table(ht.hc, TableLiteral(TableValue(
-        TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
-        if (csq)
-          BroadcastRow(Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()), ht.hc.sc)
-        else
-          BroadcastRow(Row(), TStruct(), ht.hc.sc),
-        vepRVD)))
+      TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), globalType),
+      BroadcastRow(globalValue, globalType, ht.hc.sc),
+      vepRVD)))
   }
 
   def apply(ht: Table, config: String, csq: Boolean = false, blockSize: Int = 1000): Table =
