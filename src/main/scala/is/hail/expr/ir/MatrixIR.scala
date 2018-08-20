@@ -1547,11 +1547,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         (seqOps(i), globals, cols)
       }, { case ((seqOpF, globals, cols), colRVAggs, rv) =>
 
-        val region = rv.region
-        val oldRow = rv.offset
-
-
-        seqOpF(region, colRVAggs, globals, false, cols, false, oldRow, false)
+        seqOpF(rv.region, colRVAggs, globals, false, cols, false, rv.offset, false)
 
         colRVAggs
       }, { (rvAggs1, rvAggs2) =>
