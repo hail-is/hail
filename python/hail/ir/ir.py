@@ -1145,27 +1145,6 @@ class TableAggregate(IR):
                other.query == self.query
 
 
-class MatrixAggregate(IR):
-    @typecheck_method(child=MatrixIR, query=IR)
-    def __init__(self, child, query):
-        super().__init__(child, query)
-        self.child = child
-        self.query = query
-
-    @typecheck_method(child=MatrixIR, query=IR)
-    def copy(self, child, query):
-        new_instance = self.__class__
-        return new_instance(child, query)
-
-    def __str__(self):
-        return '(MatrixAggregate {} {})'.format(self.child, self.query)
-
-    def __eq__(self, other):
-        return isinstance(other, MatrixAggregate) and \
-               other.child == self.child and \
-               other.query == self.query
-
-
 class TableWrite(IR):
     @typecheck_method(child=TableIR, path=str, overwrite=bool)
     def __init__(self, child, path, overwrite):
