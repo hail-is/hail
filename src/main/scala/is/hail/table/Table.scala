@@ -380,8 +380,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
         leftCount == rightCount
       } else {
-        keyBy(signature.fieldNames, sort = false).keyedRDD().groupByKey().fullOuterJoin(
-          other.keyBy(other.signature.fieldNames, sort = false).keyedRDD().groupByKey()
+        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
         ).forall { case (k, (v1, v2)) =>
           (v1, v2) match {
             case (Some(x), Some(y)) => x.size == y.size

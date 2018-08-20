@@ -72,7 +72,7 @@ class OrderedRVDType(
 
   def toJSON: JValue =
     JObject(List(
-//      "partitionKey" -> JArray(partitionKey.map(JString).toList),
+      "partitionKey" -> JArray(key.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
       "rowType" -> JString(rowType.parsableString())))
 

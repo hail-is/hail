@@ -192,22 +192,23 @@ class OrderedRVD(
     require(newKey.forall(typ.rowType.fieldNames.contains))
     require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
 
-    val (newKType, _) = typ.rowType.select(newKey)
-    val oldType = typ
-    val newType = typ.copy(key = newKey)
-    val newPartitioner = partitioner.copy(kType = newKType)
+    val localTyp = typ
     val sortedRDD = crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext
       OrderedRVD.localKeySort(
         consumerCtx.region,
         producerCtx.region,
         consumerCtx,
-        oldType,
-        newType,
+        localTyp,
+        newKey,
         it.flatMap(_ (producerCtx)))
     }
 
-    new OrderedRVD(newType, newPartitioner, sortedRDD)
+    val (newKType, _) = typ.rowType.select(newKey)
+    new OrderedRVD(
+      typ.copy(key = newKey),
+      partitioner.copy(kType = newKType),
+      sortedRDD)
   }
 
   def keyBy(key: Array[String] = typ.key): KeyedOrderedRVD =
@@ -684,25 +685,28 @@ object OrderedRVD {
   }
 
   /**
-    * Precondition: the iterator it is PK-sorted.  We lazily K-sort each block
-    * of PK-equivalent elements.
+    * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each
+    * block of 'typ.key'-equivalent elements by 'newKey'.
     */
   def localKeySort(
     consumerRegion: Region,
     producerRegion: Region,
     ctx: RVDContext,
-    oldType: OrderedRVDType,
-    newType: OrderedRVDType,
+    typ: OrderedRVDType,
+    newKey: IndexedSeq[String],
     // it: Iterator[RegionValue[rowType]]
     it: Iterator[RegionValue]
-  ): Iterator[RegionValue] =
+  ): Iterator[RegionValue] = {
+    require(newKey startsWith typ.key)
+    require(newKey.forall(typ.rowType.fieldNames.contains))
+
     new Iterator[RegionValue] {
       private val bit = it.buffered
 
-      private val q = new mutable.PriorityQueue[RegionValue]()(newType.kInRowOrd.reverse)
+      private val q = new mutable.PriorityQueue[RegionValue]()(
+        typ.copy(key = newKey.toArray).kInRowOrd.reverse)
 
       private val rvb = new RegionValueBuilder(consumerRegion)
-
       private val rv = RegionValue()
 
       def hasNext: Boolean = bit.hasNext || q.nonEmpty
@@ -713,22 +717,23 @@ object OrderedRVD {
             val rv = bit.next()
             val r = ctx.freshRegion
             rvb.set(r)
-            rvb.start(newType.rowType)
-            rvb.addRegionValue(newType.rowType, rv)
+            rvb.start(typ.rowType)
+            rvb.addRegionValue(typ.rowType, rv)
             q.enqueue(RegionValue(rvb.region, rvb.end()))
             producerRegion.clear()
-          } while (bit.hasNext && oldType.kInRowOrd.compare(q.head, bit.head) == 0)
+          } while (bit.hasNext && typ.kInRowOrd.compare(q.head, bit.head) == 0)
         }
 
         rvb.set(consumerRegion)
-        rvb.start(newType.rowType)
+        rvb.start(typ.rowType)
         val fromQueue = q.dequeue()
-        rvb.addRegionValue(newType.rowType, fromQueue)
+        rvb.addRegionValue(typ.rowType, fromQueue)
         ctx.closeChild(fromQueue.region)
         rv.set(consumerRegion, rvb.end())
         rv
       }
     }
+  }
 
   def getKeys(
     typ: OrderedRVDType,
@@ -747,6 +752,8 @@ object OrderedRVD {
 
   def getKeyInfo(
     typ: OrderedRVDType,
+    // 'partitionKey' is used to check whether the rows are ordered by the first
+    // 'partitionKey' key fields, even if they aren't ordered by the full key.
     partitionKey: Int,
     keys: ContextRDD[RVDContext, RegionValue]
   ): Array[OrderedRVPartitionInfo] = {
