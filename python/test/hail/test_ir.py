@@ -109,7 +109,7 @@ class TableIRTests(unittest.TestCase):
         range = ir.TableRange(10, 4)
         table_irs = [
             ir.TableUnkey(table_read),
-            ir.TableKeyBy(table_read, ['m', 'd'], True),
+            ir.TableKeyBy(table_read, ['m', 'd'], False),
             ir.TableFilter(table_read, b),
             table_read,
             ir.MatrixColsTable(matrix_read),
