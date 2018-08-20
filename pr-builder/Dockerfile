@@ -66,7 +66,7 @@ COPY dev-environment.yml dev-environment.yml
 RUN conda env create -f ./dev-environment.yml && \
     rm -rf /opt/conda/pkgs/*
 
-RUN chown -R hail:hail /hail /gradle-cache
+RUN chown -R hail:hail /hail /root/google-cloud-sdk /gradle-cache
 
 USER hail
 ENV PATH $PATH:/root/google-cloud-sdk/bin
