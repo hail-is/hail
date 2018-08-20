@@ -238,20 +238,6 @@ object TypeCheck {
               env.bind(n, t)
           }))
         assert(x.typ == query.typ)
-      case x@MatrixAggregate(child, query) =>
-        val aggregationST = Map(
-          "global" -> (0, child.typ.globalType),
-          "g" -> (1, child.typ.entryType),
-          "va" -> (2, child.typ.rvRowType),
-          "sa" -> (3, child.typ.colType))
-        val env = Env.empty[Type]
-          .bind("global" -> child.typ.globalType)
-          .bind("AGG" -> TAggregable(child.typ.entryType, aggregationST))
-        val aggEnv = Env.empty[Type].bind(aggregationST.toArray.map { case (name, (_, t)) => name -> t }: _*)
-        check(query,
-          env = env,
-          aggEnv = Some(aggEnv))
-        assert(x.typ == query.typ)
       case TableWrite(_, _, _, _, _) =>
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>

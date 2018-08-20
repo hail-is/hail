@@ -200,7 +200,6 @@ final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extend
 
 final case class TableCount(child: TableIR) extends IR { val typ: Type = TInt64() }
 final case class TableAggregate(child: TableIR, query: IR) extends InferIR
-final case class MatrixAggregate(child: MatrixIR, query: IR) extends InferIR
 final case class TableWrite(
   child: TableIR,
   path: String,

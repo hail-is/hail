@@ -512,12 +512,6 @@ class PruneSuite extends SparkSuite {
       Array(subsetTable(tab.typ, "global.g1"), null))
   }
 
-  @Test def testMatrixAggregateMemo() {
-    checkMemo(MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
-      TBoolean(),
-      Array(subsetMatrixTable(mat.typ, "global.g1"), null))
-  }
-
   @Test def testTableImportRebuild() {
     val tt = TableType(
       TStruct("a" -> TInt32(), "b" -> TFloat64()),
@@ -795,15 +789,6 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[TableAggregate]
         ir.child.typ == subsetTable(tr.typ, "row.2")
-      })
-  }
-
-  @Test def testMatrixAggregateRebuild() {
-    val ma = MatrixAggregate(mr, matrixRefBoolean(mr.typ, "va.r2"))
-    checkRebuild(ma, TBoolean(),
-      (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[MatrixAggregate]
-        ir.child.typ == subsetMatrixTable(mr.typ, "va.r2")
       })
   }
 }

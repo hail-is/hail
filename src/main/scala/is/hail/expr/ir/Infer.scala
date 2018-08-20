@@ -77,8 +77,6 @@ object Infer {
         -t.types(idx)
       case TableAggregate(child, query) =>
         query.typ
-      case MatrixAggregate(child, query) =>
-        query.typ
     }
   }
 }

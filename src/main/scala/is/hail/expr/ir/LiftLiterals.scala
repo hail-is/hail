@@ -160,10 +160,6 @@ object LiftLiterals {
         val literals = getLiterals(expr)
         val rewriteChild = addLiterals(child, literals)
         TableAggregate(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType))
-      case MatrixAggregate(child, expr) =>
-        val literals = getLiterals(expr)
-        val rewriteChild = addLiterals(child, literals)
-        MatrixAggregate(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType))
       case ir => ir
     })
   }
