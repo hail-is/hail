@@ -1288,17 +1288,21 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
         Struct of regression results.
     """
     x = wrap_to_list(x)
-    if weight is not None:
-        return linreg(hl.sqrt(weight) * y,
-                      [hl.sqrt(weight) * xi for xi in x],
-                      nested_dim)
-
-    k = len(x)
-    if k == 0:
+    if len(x) == 0:
         raise ValueError("linreg: must have at least one covariate in `x`")
 
     hl.methods.statgen._warn_if_no_intercept('linreg', x)
 
+    if weight is None:
+        return _linreg(y, x, nested_dim)
+    else:
+        return _linreg(hl.sqrt(weight) * y,
+                       [hl.sqrt(weight) * xi for xi in x],
+                       nested_dim)
+
+
+def _linreg(y, x, nested_dim):
+    k = len(x)
     k0 = nested_dim
     if k0 < 0 or k0 > k:
         raise ValueError("linreg: `nested_dim` must be between 0 and the number "
