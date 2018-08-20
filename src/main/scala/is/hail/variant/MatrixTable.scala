@@ -944,16 +944,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def aggregateEntries(expr: String): (Annotation, Type) = {
     val qir = Parser.parse_value_ir(expr, matrixType.refMap)
-    val et = entriesTable()
-
-    val entriesRowType = et.typ.rowType
-    val aggEnv = new ir.Env[ir.IR].bind(
-      "g" -> ir.SelectFields(ir.Ref("row", entriesRowType), entryType.fieldNames),
-      "va" -> ir.SelectFields(ir.Ref("row", entriesRowType), rowType.fieldNames),
-      "sa" -> ir.SelectFields(ir.Ref("row", entriesRowType), colType.fieldNames))
-
-    val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
-    et.aggregate(sqir)
+    (Interpret(MatrixAggregate(ast, qir)), qir.typ)
   }
 
   def aggregateCols(expr: String): (Annotation, Type) = {
