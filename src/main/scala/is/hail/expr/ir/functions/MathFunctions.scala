@@ -46,12 +46,10 @@ object MathFunctions extends RegistryFunctions {
 
   def approxEqual(x: Double, y: Double, tolerance: Double, absolute: Boolean): Boolean = {
     x == y || {
-      (if (absolute)
+      if (absolute)
         math.abs(x - y) <= tolerance
       else
-        D_==(x, y, tolerance)) ||
-        (x.isNaN && y.isNaN) ||
-        (x.isInfinite && y.isInfinite && ((x > 0 && y > 0) || (x < 0 && y < 0)))
+        D_==(x, y, tolerance)
     }
   }
 
