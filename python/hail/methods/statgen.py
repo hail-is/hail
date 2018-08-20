@@ -1,5 +1,6 @@
 import itertools
 import math
+import numpy as np
 from typing import *
 
 import hail as hl
@@ -243,9 +244,10 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
     Examples
     --------
 
-    >>> dataset_result = hl.linear_regression(y=dataset.pheno.height,
-    ...                                       x=dataset.GT.n_alt_alleles(),
-    ...                                       covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+    >>> result_ds = hl.linear_regression(
+    ...     y=dataset.pheno.height,
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
@@ -389,7 +391,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     phenotype, intercept and two covariates stored in column-indexed
     fields:
 
-    >>> ds_result = hl.logistic_regression(
+    >>> result_ds = hl.logistic_regression(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
@@ -622,6 +624,320 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
         root)
 
     return MatrixTable(jmt).drop(*fields_to_drop)
+
+
+@typecheck(y=expr_float64,
+           x=sequenceof(expr_float64),
+           z_t=nullable(expr_float64),
+           k=nullable(np.ndarray),
+           p_path=nullable(str),
+           standardize=bool,
+           mean_impute=bool)
+def linear_mixed_model(y,
+                       x,
+                       z_t=None,
+                       k=None,
+                       p_path=None,
+                       standardize=True,
+                       mean_impute=True):
+    r"""Initialize a linear mixed model from a matrix table.
+
+    Examples
+    --------
+    Initialize a model using three fixed effects (including intercept) and
+    genetic marker random effects:
+
+    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker)
+    >>> model, _ = hl.linear_mixed_model(
+    ...     y=marker_ds.pheno.height,
+    ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
+    ...     z=marker_ds.n_alt_alleles(),
+    ...     p_path='output/p.bm')
+
+    Fit the model and examine :math:`h^2`:
+
+    >>> model.fit()  # doctest: +SKIP
+    >>> model.h_sq   # doctest: +SKIP
+
+    Sanity-check the normalized likelihood of :math:`h^2` over the percentile
+    grid:
+
+    >>> import matplotlib.pyplot as plt                     # doctest: +SKIP
+    >>> plt.plot(range(101), model.h_sq_normalized_lkhd())  # doctest: +SKIP
+
+    For this value of :math:`h^2`, test each variant for association:
+
+    >>> result_ds = hl.linear_mixed_regression(dataset.n_alt_alleles(), model)  # doctest: +SKIP
+
+    Alternatively, one can define a full-rank model using a pre-computed kinship
+    matrix :math:`K` in ndarray form. When :math:`K` is the realized
+    relationship matrix defined by the genetic markers, we obtain the same model
+    as above with :math:`P` written as a block matrix but returned as an
+    ndarray:
+
+    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()
+    >>> model, p = hl.linear_mixed_model(
+    ...     y=dataset.pheno.height,
+    ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
+    ...     k=rrm,
+    ...     p_path='output/p.bm')
+
+    Notes
+    -----
+    See :meth:`.LinearMixedModel` for details on the model and notation.
+
+    If `z_t` is set and `standardize` is true, each random effect is first
+    standardized to have mean 0 and variance :math:`\frac{1}{m}`, so that the
+    diagonal values of the kinship matrix `K = ZZ^T` are 1.0 in expectation.
+    This kinship matrix corresponds to the :meth:`realized_relationship_matrix`
+    in genetics. The model is low-rank if the number samples :math:`n` exceeds
+    the number of random effects :math:`m`. At least one dimension must be less
+    than or equal to 46300. See :meth:`.LinearMixedModel.from_random_effects`
+    and :meth:`.BlockMatrix.svd` for more details.
+
+    Alternatively, if `k` is set, be sure that the row and column indices of `k`
+    correspond to the columns of the source of `y`. `k` must be positive
+    semi-definite; symmetry is not checked as only the lower triangle is used.
+    The model is full-rank. See :meth:`.LinearMixedModel.from_kinship` for more
+    details.
+
+    Missing, nan, or infinite values in `y` or `x` will raise an error.
+    If set, `z_t` may only have missing values if `mean_impute` is true, in
+    which case missing values of are set to the row mean. We recommend setting
+    `mean_impute` to false if you expect no missing values, both for performance
+    and as a sanity check.
+
+    Parameters
+    ----------
+    y: :class:`.Float64Expression`
+        Column-indexed expression for the observations (rows of :math:`y`).
+        Must have no missing values.
+    x: :obj:`list` of :class:`.Float64Expression`
+        List of column-indexed expressions for the fixed effects (rows of :math:`X`).
+        Each expression must have the same source as `y` or no source
+        (e.g., the intercept ``1.0``).
+        Must have no missing values.
+    z_t: :class:`.Float64Expression`, optional
+        Entry-indexed expression for each mixed effect. These values are
+        row-standardized to variance :math:`1 / m` to form the entries of
+        :math:`Z^T`. If `mean_impute` is false, must have no missing values.
+        Exactly one of `z_t` and `k` must be set.
+    k: :class:`ndarray`, optional
+        Kinship matrix :math:`K`.
+        Exactly one of `z_t` and `k` must be set.
+    p_path: :obj:`str`, optional
+        Path at which to write the projection :math:`P` as a block matrix.
+        Required if `z_t` is set.
+    standardize: :obj:`bool`
+        If true, standardize `z_t` by row to mean 0 and variance
+        :math:`\frac{1}{m}`.
+    mean_impute: :obj:`bool`
+        If true, mean-impute missing values of `z_t` by row.
+
+    Returns
+    -------
+    model: :class:`.LinearMixedModel`
+        Linear mixed model ready to be fit.
+    p: :class:`ndarray` or :class:`.BlockMatrix`
+        Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
+        The type is ndarray if `k` is set.
+    """
+    if ((z_t is None and k is None) or 
+       (z_t is not None and k is not None)):
+        raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
+
+    y_source = matrix_table_source('linear_mixed_model', y)
+    x_source = matrix_table_source('linear_mixed_model', x)
+    if y_source != x_source:
+        raise ValueError("linear_mixed_model: 'y' and 'x' must "
+                         "have the same source")
+
+    # collect x and y in one pass
+    xy = np.array(hl.array(x.append(y)).collect(), dtype=np.float64)
+    xy = xy.reshape(xy.size / (len(x) + 1), len(x) + 1)
+    x_nd = np.copy(xy[:, :-1])
+    y_nd = np.copy(xy[:, -1])
+    n = y_nd.size
+    del xy
+
+    if not np.all(np.isfinite(y)):
+        raise ValueError("linear_mixed_model: 'y' has missing, nan, or infinite values")
+    if not np.all(np.isfinite(x)):
+        raise ValueError("linear_mixed_model: 'x' has missing, nan, or infinite values")
+
+    if z_t is None:
+        model, p = hl.stats.LinearMixedModel.from_kinship(y_nd, x_nd, k, p_path)
+    else:
+        check_entry_indexed('from_matrix_table: z_t', z_t)
+        if matrix_table_source(z_t) != y_source:
+            raise ValueError("linear_mixed_model: 'y' and 'z_t' must "
+                             "have the same source")
+        z_bm = BlockMatrix.from_entry_expr(z_t,
+                                           mean_impute=mean_impute,
+                                           center=standardize,
+                                           normalize=standardize).T  # variance is 1 / n
+        m = z_bm.shape[1]
+        model, p = hl.stats.LinearMixedModel.from_random_effects(y_nd, x_nd, z_bm, p_path)
+        if standardize:
+            model.s = model.s * (n / m)  # now variance is 1 / m
+    return model, p
+
+
+@typecheck(entry_expr=expr_float64,
+           model=hl.stats.LinearMixedModel,
+           pa_t_path=nullable(str),
+           a_t_path=nullable(str),
+           mean_impute=bool,
+           root=str,
+           partition_size=nullable(int))
+def linear_mixed_regression(entry_expr,
+                            model,
+                            pa_t_path=None,
+                            a_t_path=None,
+                            mean_impute=True,
+                            root='lmmreg',
+                            partition_size=None):
+    """For each row, test an input variable for association using a linear
+    mixed model.
+
+    Examples
+    --------
+    See the example in :meth:`linear_mixed_model` and section below on
+    efficiently testing multiple responses or sets of fixed effects.
+
+    Notes
+    -----
+    See :meth:`LinearMixedModel` for details on the model and notation.
+
+    This method packages up several steps for convenience:
+
+    1. Read the transformation :math:`P` from ``model.p_path``.
+
+    2. Write `entry_expr` at `a_t_path` as the block matrix :math:`A^T` with
+       block size that of :math:`P`. The parallelism is ``n_rows / block_size``.
+
+    3. Multiply and write :math:`A^T P^T` at `pa_t_path`. The parallelism is the
+       number of blocks in :math:`(PA)^T`, which equals
+       ``(n_rows / block_size) * (model.r / block_size)``.
+
+    4. Compute regression results per row with
+       :meth:`.LinearMixedModel.fit_alternatives` and row-annotate the statistics
+       at `root`. The parallelism is ``n_rows / partition_size``.
+
+    If `pa_t_path` and `a_t_path` are not set, temporary files is used.
+
+    `entry_expr` may only have missing values if `mean_impute` is true, in
+    which case missing values of are set to the row mean. We recommend setting
+    `mean_impute` to false if you expect no missing values, both for performance
+    and as a sanity check.
+
+    **Efficiently varying the response or set of fixed effects**
+
+    Computing :math:`K`, :math:`P`, :math:`S`, :math:`A^T`, and especially the
+    product :math:`(PA)^T` may require significant compute when :math:`n` and/or
+    :math:`m` is large. However these quantities are all independent of the
+    response :math:`y` or fixed effects :math:`X`! And with the model
+    diagonalized, Step 4 above is fast and scalable.
+
+    So having run linear mixed regression once, we can
+    compute :math:`h^2` and regression statistics for another response or set of
+    fixed effects on the **same samples** at the speed of
+    :meth:`linear_regression`.
+
+    For example, suppose we've collected another `y` and `x` as ndarrays.
+    Supposing the model is full-rank and `p` is an ndarray:
+
+    >>> model = hl.stats.LinearMixedModel(p @ y, p @ x, s)  # doctest: +SKIP
+    >>> model.fit()                                         # doctest: +SKIP
+    >>> result_ht = model.fit_alternatives(pa_t_path)       # doctest: +SKIP
+
+    Supposing the model is low-rank and `p` is a block matrix:
+
+    >>> p = BlockMatrix.read(p_path)                             # doctest: +SKIP
+    >>> py, px = (p @ y).to_numpy(), (p @ x).to_numpy()          # doctest: +SKIP
+    >>> model = hl.stats.LinearMixedModel(py, px, s, y, x)       # doctest: +SKIP
+    >>> model.fit()                                              # doctest: +SKIP
+    >>> result_ht = model.fit_alternatives(pa_t_path, a_t_path)  # doctest: +SKIP
+
+    In either case, one can easily loop through many responses or conditional
+    analyses. To join results back to the matrix table:
+
+    >>> dataset = dataset.add_row_index()                                    # doctest: +SKIP
+    >>> dataset = dataset.annotate_rows(lmmreg=result_ht[dataset.row_idx]])  # doctest: +SKIP
+
+    Warning
+    -------
+    For correct results, the column-index of `entry_expr` must correspond to the
+    sample index of the model. This will be true, for example, if `model`
+    was created with :meth:`linear_mixed_model` using (a possibly row-filtered
+    version of) the source of `entry_expr`, or if `y` and `x` were collected to
+    arrays from this source. Hail will raise an error if the number of columns
+    does not match ``model.n``, but will not detect, for example, permuted
+    samples.
+
+    The warning on :meth:`.write_from_entry_expr` applies to this
+    method when the number of samples is large.
+
+    Parameters
+    ----------
+    entry_expr: :class:`.Float64Expression`
+        Entry-indexed expression for input variable.
+        If mean_impute is false, must have no missing values.
+    model: :class:`.LinearMixedModel`
+        Fit linear mixed model with ``path_p`` set.
+    pa_t_path: :obj:`str`, optional
+        Path at which to store the transpose of :math:`PA`.
+        If not set, a temporary file is used.
+    a_t_path: :obj:`str`, optional
+        Path at which to store the transpose of :math:`A`.
+        If not set, a temporary file is used.
+    mean_impute: :obj:`bool`
+        Mean-impute missing values of `entry_expr` by row.
+    root: :obj:`str`
+        Name of resulting row-indexed field.
+    partition_size: :obj:`int`
+        Number of rows to process per partition.
+        Default given by block size of :math:`P`.
+
+    Returns
+    -------
+    :class:`MatrixTable`
+        Matrix table with regression results in a new row-indexed field.
+    """
+    check_entry_indexed('linear_mixed_regression', entry_expr)
+    if not model._is_fitted:
+        raise ValueError("linear_mixed_regression: 'model' has not been fit "
+                         "using 'fit()'")
+    if model.p_path is None:
+        raise ValueError("linear_mixed_regression: 'model' property 'p_path' "
+                         "was not set at initialization")
+
+    mt = entry_expr._indices.source
+    n = mt.count_cols()
+
+    if model.n != n:
+        raise ValueError(f"linear_mixed_regression: linear mixed model expects {model.n} samples, "
+                         f"\n    but 'entry_expr' source has {n} columns.")
+
+    pa_t_path = new_temp_file() if pa_t_path is None else pa_t_path
+    a_t_path = new_temp_file() if a_t_path is None else a_t_path
+    p = BlockMatrix.read(model.p_path)
+
+    BlockMatrix.write_from_entry_expr(entry_expr,
+                                      a_t_path,
+                                      mean_impute=mean_impute,
+                                      force_row_major=True,
+                                      block_size=p.block_size)
+    a_t = BlockMatrix.read(a_t_path)
+    (a_t @ p.T).write(pa_t_path, force_row_major=True)
+
+    ht = model.fit_alternatives(pa_t_path,
+                                a_t_path if model.low_rank else None,
+                                partition_size)
+    mt = mt.add_row_index('__row_idx')
+    mt = mt.annotate_rows(**{root: ht[mt['__row_idx']]})
+    mt = mt.drop('__row_idx')
+    return mt
 
 
 @typecheck(key_expr=expr_any,

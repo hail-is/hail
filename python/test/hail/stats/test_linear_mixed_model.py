@@ -405,7 +405,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
 
         # test low-rank fit
-        model, p = LinearMixedModel.from_mixed_effects(y, x, z)
+        model, p = LinearMixedModel.from_random_effects(y, x, z)
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
         self.assertAlmostEqual(model.sigma_sq, sigma_sq)
