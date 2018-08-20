@@ -40,34 +40,54 @@ UNAME_P :=$(shell uname -p)
 # use of non-system executables will be visible in the build log.
 
 CAT :=$(shell which cat 2>/dev/null)
-CAT ?=cat
+ifeq ($(CAT),)
+  CAT :=cat
+endif
 
 CKSUM :=$(shell which cksum 2>/dev/null)
-CKSUM ?=cksum
+ifeq ($(CKSUM),)
+  CKSUM :=cksum
+endif
 
 CP :=$(shell which cp 2>/dev/null)
-CP ?=cp
+ifeq ($(CP),)
+  CP :=cp
+endif
 
 CURL :=$(shell which curl 2>/dev/null)
-CURL ?=curl
+ifeq ($(CURL),)
+  CURL :=curl
+endif
 
 CUT :=$(shell which cut 2>/dev/null)
-CUT ?=cut
+ifeq ($(CUT),)
+  CUT :=cut
+endif
 
 FIND :=$(shell which find 2>/dev/null)
-FIND ?=curl
+ifeq ($(FIND),)
+  FIND :=find
+endif
 
 MKDIR :=$(shell which mkdir 2>/dev/null)
-MKDIR ?=mkdir
+ifeq ($(MKDIR),)
+  MKDIR :=mkdir
+endif
 
 RM :=$(shell which rm 2>/dev/null)
-RM ?=rm
+ifeq ($(RM),)
+  RM :=rm
+endif
 
 TAR :=$(shell which tar 2>/dev/null)
-TAR ?=tar
+ifeq ($(TAR),)
+  TAR :=tar
+endif
 
 TOUCH :=$(shell which touch 2>/dev/null)
-TOUCH ?=touch
+ifeq ($(TOUCH),)
+  TOUCH :=touch
+endif
 
 .PHONY: all clean debug test libsimdpp
 
