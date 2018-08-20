@@ -356,7 +356,7 @@ class Expression(object):
         raise NotImplementedError("'>=' comparison with expression of type {}".format(str(self._type)))
 
     def __nonzero__(self):
-        raise NotImplementedError(
+        raise ExpressionException(
             "The truth value of an expression is undefined\n"
             "    Hint: instead of 'if x', use 'hl.cond(x, ...)'\n"
             "    Hint: instead of 'x and y' or 'x or y', use 'x & y' or 'x | y'\n"
