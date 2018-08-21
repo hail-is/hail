@@ -10,7 +10,7 @@
 # compiler doesn't accept the -fabi-version=N option.  We still use the 
 # name "libhail.dylib" to mean "libhail compatible with recent abi
 
-ifndef SUBMAKE_NAME
+ifndef IS_SUBMAKE
 
 .PHONY: top all clean debug prebuilt test
 
@@ -30,9 +30,9 @@ CXX_ABI_V9_ERRS :=$(shell echo "" >a.cpp; $(CXX) -fabi-version=9 -c a.cpp 2>a.er
 
 all clean debug prebuilt test:
 ifeq ($(CXX_ABI_V9_ERRS),)
-	@$(MAKE) --no-print-directory SUBMAKE_NAME= SUBMAKE_CXXFLAGS=-fabi-version=9 $@
+	@$(MAKE) --no-print-directory IS_SUBMAKE=1 SUBMAKE_NAME= SUBMAKE_CXXFLAGS=-fabi-version=9 $@
 else
-	@$(MAKE) --no-print-directory SUBMAKE_NAME= SUBMAKE_CXXFLAGS= $@
+	@$(MAKE) --no-print-directory IS_SUBMAKE=1 SUBMAKE_NAME= SUBMAKE_CXXFLAGS= $@
 endif
 
 else
@@ -171,16 +171,16 @@ PREBUILT := ../../../prebuilt
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
   LIBBOOT := lib/linux-x86-64/libboot.so
-  LIBHAIL := lib/linux-x86-64/libhail_$(SUBMAKE_NAME).so
+  LIBHAIL := lib/linux-x86-64/libhail$(SUBMAKE_NAME).so
   ifneq ($(filter %86,$(UNAME_P)),)
     LIBBOOT := lib/linux-x86/libboot.so
-    LIBHAIL := lib/linux-x86/libhail_$(SUBMAKE_NAME).so
+    LIBHAIL := lib/linux-x86/libhail$(SUBMAKE_NAME).so
   endif
 endif
 ifeq ($(UNAME_S),Darwin)
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
   LIBBOOT := lib/darwin/libboot.dylib
-  LIBHAIL := lib/darwin/libhail_$(SUBMAKE_NAME).dylib
+  LIBHAIL := lib/darwin/libhail$(SUBMAKE_NAME).dylib
 endif
 
 all: libsimdpp-2.0-rc2 $(BUILD) $(LIBBOOT) $(LIBHAIL)

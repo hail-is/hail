@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <atomic>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <iostream>
@@ -177,6 +178,16 @@ std::string get_cxx_std(const std::string& cxx) {
   return "-std=c++11";
 }
 
+std::string get_module_dir() {
+  // This gives us a distinct temp directory for each process, so that
+  // we can manage synchronization between different of the files in the
+  // temp directory using only in-memory std::mutex'es, rather than
+  // dealing with complexities of file locking.
+  char buf[512];
+  strcpy(buf, "/tmp/hail_XXXXXX");
+  return ::mkdtemp(buf);
+}
+
 std::string get_perl_name() {
   std::string name("/usr/bin/perl");
   if (file_exists(name)) return name;
@@ -211,7 +222,7 @@ class ModuleConfig {
     ext_lib_(is_darwin_ ? ".dylib" : ".so"),
     ext_mak_(".mak"),
     ext_new_(".new"),
-    module_dir_(getenv_with_default("HOME", "/tmp")+"/hail_modules"),
+    module_dir_(get_module_dir()),
     cxx_name_(get_cxx_name()),
     cxx_std_(get_cxx_std(cxx_name_)),
     java_home_(get_java_home()),
@@ -295,46 +306,23 @@ class ModuleCache {
 
 ModuleCache module_cache(32);
 
-// If there are multiple file descriptors referring to the same file, then
-// flock behavior depends on whether the filesystem is local or NFS.
-// To keep to the safe core functions of flock(), we map each filename to
-// a single LockFileState protected by a mutex, and guarantee that we'll
-// have at most one file descriptor on each lock file.
+// All files are in a temporary directory accesses only by this process,
+// so instead of file locking we can just just an in-memory std::mutex 
+// corresponding to each distinct filename.
 
-class LockFileState {
- public:
-  std::mutex mutex_;
-  int fd_;
- public:
-  LockFileState() :
-    mutex_(),
-    fd_(-1) {
-  }
-  
-  ~LockFileState() {
-    if (fd_ >= 0) ::close(fd_);
-  }
-};
-
-class AllLockFiles {
+class AllLocks {
  private:
   std::mutex mutex_;
-  std::unordered_map<std::string, std::shared_ptr<LockFileState>> map_;
+  std::map<std::string, std::mutex> map_;
   
  public:
-  std::shared_ptr<LockFileState> find(const std::string& file) {
+  std::mutex& get_mutex(const std::string& file) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto& ptr = map_[file];
-    if (!ptr) {
-      ptr = std::make_shared<LockFileState>();
-    }
-    return ptr;
+    return map_[file];
   }
-public:
-  
 };
 
-AllLockFiles all_lock_files;
+AllLocks all_locks;
 
 } // end anon
 
@@ -586,23 +574,11 @@ NativeModule::~NativeModule() {
 // "rm ~/hail_modules/*" to clear the cache and start again.
 
 void NativeModule::lock() {
-  auto state = all_lock_files.find(lock_name_);
-  state->mutex_.lock(); // mutex from threads in this process
-  if (state->fd_ < 0) {
-    state->fd_ = ::open(lock_name_.c_str(), O_WRONLY|O_CREAT, 0666);
-    ::fcntl(state->fd_, F_SETFD, FD_CLOEXEC); // not inherited by children
-  }
-  ::flock(state->fd_, LOCK_EX); // mutex from other processes
+  all_locks.get_mutex(lock_name_).lock();
 }
 
 void NativeModule::unlock() {
-  auto state = all_lock_files.find(lock_name_);
-  // It seems this ought to work just by closing the fd, but
-  // tests (on Linux) show this explicit unlock is needed. 
-  ::flock(state->fd_, LOCK_UN);
-  ::close(state->fd_);
-  state->fd_ = -1;
-  state->mutex_.unlock();
+  all_locks.get_mutex(lock_name_).unlock();
 }
 
 void NativeModule::usleep_without_lock(int64_t usecs) {
