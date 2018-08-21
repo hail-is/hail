@@ -285,7 +285,7 @@ object Parser extends JavaTokenParsers {
   def ordered_rvd_type_expr: Parser[OrderedRVDType] =
     (("OrderedRVDType" ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case partitionKey ~ restKey ~ rowType =>
-      new OrderedRVDType(partitionKey, partitionKey ++ restKey, rowType)
+      new OrderedRVDType(partitionKey ++ restKey, rowType)
     }
 
   def table_type_expr: Parser[TableType] =
@@ -587,8 +587,8 @@ object Parser extends JavaTokenParsers {
   def table_ir_1: Parser[ir.TableIR] =
   // FIXME TableImport
     "TableUnkey" ~> table_ir ^^ { t => ir.TableUnkey(t) } |
-      "TableKeyBy" ~> ir_identifiers ~ int32_literal_opt ~ boolean_literal ~ table_ir ^^ { case key ~ nPartKeys ~ sort ~ child =>
-        ir.TableKeyBy(child, key, nPartKeys, sort)
+      "TableKeyBy" ~> ir_identifiers ~ boolean_literal ~ table_ir ^^ { case key ~ isSorted ~ child =>
+        ir.TableKeyBy(child, key, isSorted)
       } |
       "TableDistinct" ~> table_ir ^^ { t => ir.TableDistinct(t) } |
       "TableFilter" ~> table_ir ~ ir_value_expr() ^^ { case child ~ pred => ir.TableFilter(child, pred) } |

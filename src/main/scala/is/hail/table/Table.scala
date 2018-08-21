@@ -85,29 +85,29 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct
-  ): Table = apply(hc, rdd, signature, None, sort = true)
+  ): Table = apply(hc, rdd, signature, None, isSorted = false)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    sort: Boolean
-  ): Table = apply(hc, rdd, signature, None, sort)
+    isSorted: Boolean
+  ): Table = apply(hc, rdd, signature, None, isSorted)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
     key: Option[IndexedSeq[String]]
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, sort = true)
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, isSorted = false)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
     key: Option[IndexedSeq[String]],
-    sort: Boolean
-  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, sort)
+    isSorted: Boolean
+  ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, isSorted)
 
   def apply(
     hc: HailContext,
@@ -123,7 +123,7 @@ object Table {
     key,
     globalSignature,
     globals,
-    sort = true)
+    isSorted = false)
 
   def apply(
     hc: HailContext,
@@ -132,7 +132,7 @@ object Table {
     key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Annotation,
-    sort: Boolean
+    isSorted: Boolean
   ): Table = apply(
     hc,
     ContextRDD.weaken[RVDContext](rdd),
@@ -140,15 +140,15 @@ object Table {
     key,
     globalSignature,
     globals,
-    sort)
+    isSorted)
 
   def apply(
     hc: HailContext,
     crdd: ContextRDD[RVDContext, Row],
     signature: TStruct,
     key: Option[IndexedSeq[String]],
-    sort: Boolean
-  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty, sort)
+    isSorted: Boolean
+  ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty, isSorted)
 
   def apply(
     hc: HailContext,
@@ -157,7 +157,7 @@ object Table {
     key: Option[IndexedSeq[String]],
     globalSignature: TStruct,
     globals: Annotation,
-    sort: Boolean
+    isSorted: Boolean
   ): Table = {
     val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
     new Table(hc, TableLiteral(
@@ -165,7 +165,7 @@ object Table {
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
         UnpartitionedRVD(signature, crdd2)))
-    ).keyBy(key.map(_.toArray), sort)
+    ).keyBy(key.map(_.toArray), isSorted)
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -380,8 +380,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
           info(s"EMPTY SCHEMAS, BUT DIFFERENT LENGTHS: left=$leftCount\n  right=$rightCount")
         leftCount == rightCount
       } else {
-        keyBy(signature.fieldNames, sort = false).keyedRDD().groupByKey().fullOuterJoin(
-          other.keyBy(other.signature.fieldNames, sort = false).keyedRDD().groupByKey()
+        keyBy(signature.fieldNames).keyedRDD().groupByKey().fullOuterJoin(
+          other.keyBy(other.signature.fieldNames).keyedRDD().groupByKey()
         ).forall { case (k, (v1, v2)) =>
           (v1, v2) match {
             case (Some(x), Some(y)) => x.size == y.size
@@ -436,27 +436,28 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def keyBy(key: String*): Table = keyBy(key.toArray, null)
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(Option(keys).map(_.asScala.toArray), true)
+    keyBy(Option(keys).map(_.asScala.toArray), false)
 
   def keyBy(
     keys: java.util.ArrayList[String],
     partitionKeys: java.util.ArrayList[String]
   ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
 
-  def keyBy(keys: Array[String]): Table = keyBy(keys, sort = true)
+  def keyBy(keys: Array[String]): Table = keyBy(keys, isSorted = false)
 
-  def keyBy(keys: Array[String], sort: Boolean): Table = keyBy(keys, null, sort)
+  def keyBy(keys: Array[String], isSorted: Boolean): Table = keyBy(keys, null, isSorted)
 
-  def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, true)
+  def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, false)
 
-  def keyBy(maybeKeys: Option[Array[String]], sort: Boolean): Table =
+  def keyBy(maybeKeys: Option[Array[String]], isSorted: Boolean): Table =
     maybeKeys match {
-      case Some(keys) => keyBy(keys, sort)
+      case Some(keys) => keyBy(keys, isSorted)
       case None => unkey()
     }
 
-  def keyBy(keys: Array[String], partitionKeys: Array[String], sort: Boolean = true): Table =
-    new Table(hc, TableKeyBy(tir, keys, Option(partitionKeys).map(_.length), sort))
+  def keyBy(keys: Array[String], partitionKeys: Array[String], isSorted: Boolean = false): Table = {
+    new Table(hc, TableKeyBy(tir, keys, isSorted))
+  }
 
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))
@@ -485,7 +486,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def groupByKey(name: String): Table = {
     require(key.isDefined)
-    val sorted = keyBy(key.get.toArray, sort = true)
+    val sorted = keyBy(key.get.toArray)
     sorted.copy2(
       rvd = sorted.rvd.asInstanceOf[OrderedRVD].groupByKey(name),
       signature = keySignature.get ++ TStruct(name -> TArray(valueSignature)))
@@ -796,7 +797,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case ordered: OrderedRVD => ordered
       case unordered =>
         OrderedRVD.coerce(
-          new OrderedRVDType(key.get.toArray, key.get.toArray, signature),
+          new OrderedRVDType(key.get.toArray, signature),
           unordered)
     }
 
@@ -835,7 +836,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val localRVRowType = signature
     val pkIndex = signature.fieldIdx(key.get(0))
     val newTableType = typ.copy(rowType = newRVType)
-    val newOrderedRVType = new OrderedRVDType(key.get.toArray, key.get.toArray, newRVType)
+    val newOrderedRVType = new OrderedRVDType(key.get.toArray, newRVType)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD

@@ -9,7 +9,7 @@ import scala.collection.generic.Growable
 
 class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
   val realType: OrderedRVDType = rvd.typ
-  val virtType = new OrderedRVDType(key.take(realType.partitionKey.length), key, realType.rowType)
+  val virtType = new OrderedRVDType(key, realType.rowType)
   val (kType, _) = rvd.rowType.select(key)
   require(kType isPrefixOf rvd.typ.kType)
 
@@ -115,11 +115,13 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Array[String]) {
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key.length) ++
       right.rvd.partitioner.coarsenedRangeBounds(key.length)
-    val newPartitioner = OrderedRVDPartitioner.generate(this.virtType.partitionKey, kType, ranges)
+    val newPartitioner = OrderedRVDPartitioner.generate(key, kType, ranges)
+
     val repartitionedLeft =
       this.rvd.constrainToOrderedPartitioner(newPartitioner)
     val lType = this.virtType
     val rType = right.virtType
+
     repartitionedLeft.alignAndZipPartitions(
       this.virtType,
       right.rvd,

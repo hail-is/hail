@@ -115,6 +115,12 @@ class RowIntervalSuite extends TestNGSuite {
     assert(eord.lteqWithOverlap(0)(
       IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
     ))
+    assert(!eord.lteqWithOverlap(-1)(
+      IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
+    ))
+    assert(!eord.lteqWithOverlap(-1)(
+      IntervalEndpoint(Row(), 1), IntervalEndpoint(Row(), -1)
+    ))
   }
 
   @Test def testIsValid() {

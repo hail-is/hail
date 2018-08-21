@@ -27,6 +27,7 @@ object OrderedRVPartitionInfo {
 
   def apply(
     typ: OrderedRVDType,
+    partitionKey: Int,
     sampleSize: Int,
     partitionIndex: Int,
     it: Iterator[RegionValue],
@@ -34,6 +35,7 @@ object OrderedRVPartitionInfo {
     producerContext: RVDContext
   ): OrderedRVPartitionInfo = {
     using(RVDContext.default) { localctx =>
+      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
       val minF = WritableRegionValue(typ.kType, localctx.freshRegion)
       val maxF = WritableRegionValue(typ.kType, localctx.freshRegion)
       val prevF = WritableRegionValue(typ.kType, localctx.freshRegion)
@@ -62,7 +64,7 @@ object OrderedRVPartitionInfo {
         val f = it.next()
 
         if (typ.kOrd.lt(f, prevF.value)) {
-          if (typ.pkOrd.lt(f, prevF.value))
+          if (pkOrd.lt(f, prevF.value))
             sortedness = UNSORTED
           else
             sortedness = sortedness.min(TSORTED)

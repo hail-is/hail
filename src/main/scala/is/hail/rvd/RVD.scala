@@ -90,13 +90,11 @@ case class OrderedRVDSpec(
   jRangeBounds: JValue) extends RVDSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
     val requestedORVDType = orvdType.copy(rowType = requestedType)
-    assert(requestedORVDType.pkType == orvdType.pkType)
     assert(requestedORVDType.kType == orvdType.kType)
-    assert(requestedORVDType.partitionKey sameElements orvdType.partitionKey)
 
     val rangeBoundsType = TArray(TInterval(requestedORVDType.kType))
     OrderedRVD(requestedORVDType,
-      new OrderedRVDPartitioner(requestedORVDType.partitionKey, requestedORVDType.kType,
+      new OrderedRVDPartitioner(requestedORVDType.kType,
         JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles, requestedType))
   }

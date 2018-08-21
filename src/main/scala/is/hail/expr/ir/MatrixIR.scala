@@ -1923,7 +1923,7 @@ case class MatrixAnnotateRowsTable(
                 newKeyUIDs
                   .map(k => IsNA(GetField(Ref("row", mrt.typ.rowType), k)))
                   .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
-            newKeyUIDs, None, sort = true)).execute(hc)
+            newKeyUIDs)).execute(hc)
 
         val left = sortedTL.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         val right = tv.enforceOrderingRVD.asInstanceOf[OrderedRVD]
@@ -1934,7 +1934,7 @@ case class MatrixAnnotateRowsTable(
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
-        val oType = joined.typ.copy(partitionKey = child.typ.rowPartitionKey.toArray, key = prevRowKeys ++ Array(indexUID))
+        val oType = joined.typ.copy(key = prevRowKeys ++ Array(indexUID))
         val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)
 
         val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
@@ -2075,18 +2075,16 @@ case class TableToMatrixTable(
       }
     }
 
-    val ordType = new OrderedRVDType(partitionKey.toArray, rowKey.toArray ++ Array(INDEX_UID), rowEntryStruct)
-    val ordTypeNoIndex = new OrderedRVDType(partitionKey.toArray, rowKey.toArray, rowEntryStruct)
-    val ordered = OrderedRVD.coerce(ordType, rowEntryRVD)
+    val ordType = new OrderedRVDType(rowKey.toArray ++ Array(INDEX_UID), rowEntryStruct)
+    val ordTypeNoIndex = new OrderedRVDType(rowKey.toArray, rowEntryStruct)
+    val ordered = OrderedRVD.coerce(ordType, rowKey.length, rowEntryRVD)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
-    val orderedRKIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)
 
     val idxIndex = rowEntryStruct.fieldIdx(INDEX_UID)
     assert(idxIndex == rowEntryStruct.size - 1)
 
     val newRVType = typ.rvRowType
-    val orderedRKStruct = typ.rowKeyStruct
 
     val newRVD = ordered.boundary.mapPartitionsPreservesPartitioning(typ.orvdType, { (ctx, it) =>
       val region = ctx.region

@@ -230,11 +230,11 @@ object LoadMatrix {
            """.stripMargin)
   }
 
-  def makePartitionerFromCounts(partitionCounts: Array[Long], pkType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
+  def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
     var includesStart = true
     val keepPartitions = new ArrayBuilder[Int]()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
-      val interval = Interval.orNone(pkType.ordering,
+      val interval = Interval.orNone(kType.ordering,
         Row(if (includesStart) s else s - 1),
         Row(e - 1),
         includesStart, true)
@@ -243,7 +243,7 @@ object LoadMatrix {
       interval
     }
     val ranges = rangeBoundIntervals
-    (new OrderedRVDPartitioner(Array(pkType.fieldNames(0)), pkType, ranges), keepPartitions.result())
+    (new OrderedRVDPartitioner(Array(kType.fieldNames(0)), kType, ranges), keepPartitions.result())
   }
 
   def verifyRowFields(fieldNames: Array[String], fieldTypes: Map[String, Type]): TStruct = {
@@ -388,7 +388,7 @@ object LoadMatrix {
       }
 
     val orderedRVD = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.pkType)
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.kType)
       OrderedRVD(matrixType.orvdType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
       OrderedRVD.coerce(matrixType.orvdType, rdd)

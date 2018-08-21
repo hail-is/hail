@@ -287,7 +287,7 @@ object LocalLDPrune {
     val typ = mt.rvd.typ
 
     val standardizedRDD = mt.rvd
-      .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType))({ it =>
+      .mapPartitionsPreservesPartitioning(typ.copy(rowType = bpvType))({ it =>
         val hcView = new HardCallView(fullRowType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -320,23 +320,23 @@ object LocalLDPrune {
       key = Some(mt.rowKey), globalType = TStruct.empty())
 
     val sitesOnly = rvdLP.mapPartitionsPreservesPartitioning(
-      new OrderedRVDType(typ.partitionKey, typ.key, tableType.rowType))({
-      it =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val newRV = RegionValue(region)
+      typ.copy(rowType = tableType.rowType)
+    )({ it =>
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val newRV = RegionValue(region)
 
-        it.map { rv =>
-          region.clear()
-          rvb.set(region)
-          rvb.start(tableType.rowType)
-          rvb.startStruct()
-          rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "centered_length_rec")
-            .map(field => bpvType.fieldIdx(field)))
-          rvb.endStruct()
-          newRV.setOffset(rvb.end())
-          newRV
-        }
+      it.map { rv =>
+        region.clear()
+        rvb.set(region)
+        rvb.start(tableType.rowType)
+        rvb.startStruct()
+        rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "centered_length_rec")
+          .map(field => bpvType.fieldIdx(field)))
+        rvb.endStruct()
+        newRV.setOffset(rvb.end())
+        newRV
+      }
     })
 
     new Table(hc = mt.hc, crdd = sitesOnly.crdd, signature = tableType.rowType, key = tableType.key)

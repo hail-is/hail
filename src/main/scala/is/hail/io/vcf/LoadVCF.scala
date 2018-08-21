@@ -972,7 +972,9 @@ case class MatrixVCFReader(
     }
   }
 
-  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType,
+  private lazy val coercer = OrderedRVD.makeCoercer(
+    fullType.orvdType,
+    fullType.rowPartitionKey.length,
     parseLines(
       () => ()
     )((c, l, rvb) => ()

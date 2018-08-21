@@ -12,8 +12,13 @@ class OrderedRVDPartitioner(
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
   val rangeBounds: IndexedSeq[Interval],
-  val allowedOverlap: Int
+  allowedOverlap: Int
 ) {
+  def this(
+    kType: TStruct,
+    rangeBounds: IndexedSeq[Interval]
+  ) = this(kType, rangeBounds, kType.size)
+
   def this(
     partitionKey: Array[String],
     kType: TStruct,
@@ -26,11 +31,6 @@ class OrderedRVDPartitioner(
     rangeBounds: IndexedSeq[Interval]
   ) = this(kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
 
-  def this(
-    kType: TStruct,
-    rangeBounds: IndexedSeq[Interval]
-  ) = this(kType, rangeBounds, kType.size)
-
   require(rangeBounds.forall { case Interval(l, r, _, _) =>
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
@@ -42,11 +42,6 @@ class OrderedRVDPartitioner(
 
   val numPartitions: Int = rangeBounds.length
 
-  def partitionKey = if (allowedOverlap < kType.size)
-    Some(allowedOverlap + 1)
-  else
-    None
-  val pkType = partitionKey.map(pk => TStruct(kType.fields.take(pk)))
   val rangeBoundsType = TArray(TInterval(kType))
 
   val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(kType.ordering,
@@ -66,8 +61,7 @@ class OrderedRVDPartitioner(
   def coarsen(newKeyLen: Int): OrderedRVDPartitioner =
     new OrderedRVDPartitioner(
       kType.truncate(newKeyLen),
-      coarsenedRangeBounds(newKeyLen),
-      math.min(newKeyLen, allowedOverlap)
+      coarsenedRangeBounds(newKeyLen)
     )
 
   // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
@@ -108,7 +102,7 @@ class OrderedRVDPartitioner(
       } yield interval
     }
 
-    copy(rangeBounds = newBounds)
+    new OrderedRVDPartitioner(kType, newBounds, allowedOverlap)
   }
 
   def range: Option[Interval] = rangeTree.root.map(_.range)
@@ -161,10 +155,9 @@ class OrderedRVDPartitioner(
 
   def copy(
     kType: TStruct = kType,
-    rangeBounds: IndexedSeq[Interval] = rangeBounds,
-    allowedOverlap: Int = allowedOverlap
+    rangeBounds: IndexedSeq[Interval] = rangeBounds
   ): OrderedRVDPartitioner =
-    new OrderedRVDPartitioner(kType, rangeBounds, allowedOverlap)
+    new OrderedRVDPartitioner(kType, rangeBounds)
 
   def enlargeToRange(newRange: Interval): OrderedRVDPartitioner =
     enlargeToRange(Some(newRange))
@@ -227,7 +220,7 @@ class OrderedRVDPartitioner(
 
 object OrderedRVDPartitioner {
   def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(typ.partitionKey, typ.kType, Array.empty[Interval])
+    new OrderedRVDPartitioner(typ.kType, Array.empty[Interval])
   }
 
   def unkeyed(numPartitions: Int): OrderedRVDPartitioner = {
@@ -287,7 +280,8 @@ object OrderedRVDPartitioner {
     min: Any,
     max: Any,
     keys: IndexedSeq[Any],
-    nPartitions: Int
+    nPartitions: Int,
+    partitionKey: Int
   ): OrderedRVDPartitioner = {
     require(nPartitions > 0)
     require(typ.kType.relaxedTypeCheck(min))
@@ -302,10 +296,9 @@ object OrderedRVDPartitioner {
 
     val interval = Interval(min, max, true, true)
     new OrderedRVDPartitioner(
-      typ.partitionKey,
       typ.kType,
       FastIndexedSeq(interval)
-    ).subdivide(partitionEdges, math.max(typ.partitionKey.length - 1, 0))
+    ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))
   }
 
   def isValid(kType: TStruct, rangeBounds: IndexedSeq[Interval]): Boolean =

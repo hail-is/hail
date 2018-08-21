@@ -67,16 +67,16 @@ class TableExplode(TableIR):
 
 
 class TableKeyBy(TableIR):
-    def __init__(self, child, keys, n_partitions, sort):
+    def __init__(self, child, keys, is_sorted):
         super().__init__()
         self.child = child
         self.keys = keys
-        self.n_partitions = n_partitions
-        self.sort = sort
+        self.is_sorted = is_sorted
 
     def __str__(self):
-        return '(TableKeyBy ({}) {} {} {})'.format(
-            ' '.join([escape_id(x) for x in self.keys]), self.n_partitions, self.sort,
+        return '(TableKeyBy ({}) {} {})'.format(
+            ' '.join([escape_id(x) for x in self.keys]),
+            self.is_sorted,
             self.child)
 
 
