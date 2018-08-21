@@ -40,6 +40,10 @@ class OrderedRVDPartitioner(
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
+  def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
+
+  def strictify: OrderedRVDPartitioner = extendKey(kType)
+
   val numPartitions: Int = rangeBounds.length
 
   val rangeBoundsType = TArray(TInterval(kType))
@@ -69,7 +73,7 @@ class OrderedRVDPartitioner(
   // adjusts 'rangeBounds'.
   def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
     require(kType isPrefixOf newKType)
-    OrderedRVDPartitioner.generate(newKType.fieldNames, newKType, rangeBounds)
+    OrderedRVDPartitioner.generate(newKType, rangeBounds)
   }
 
   def subdivide(
@@ -256,6 +260,9 @@ object OrderedRVDPartitioner {
       Array.fill(numPartitions)(Interval(Row(), Row(), true, true)),
       0)
   }
+
+  def generate(kType: TStruct, intervals: IndexedSeq[Interval]): OrderedRVDPartitioner =
+    generate(kType.fieldNames, kType, intervals)
 
   def generate(
     partitionKey: IndexedSeq[String],

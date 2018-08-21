@@ -109,8 +109,8 @@ class OrderedRVD(
     if (OrderedRVDPartitioner.isValid(orvdType.kType, partitioner.rangeBounds))
       copy(typ = orvdType, partitioner = partitioner.copy(kType = orvdType.kType))
     else {
-      val adjustedPartitioner = partitioner.extendKey(typ.kType)
-      constrainToOrderedPartitioner(adjustedPartitioner.extendKey(orvdType.kType))
+      val adjustedPartitioner = partitioner.strictify
+      constrainToOrderedPartitioner(adjustedPartitioner)
         .copy(typ = orvdType, partitioner = adjustedPartitioner.copy(kType = orvdType.kType))
     }
   }
@@ -184,7 +184,7 @@ class OrderedRVD(
     new OrderedRVD(
       typ.copy(key = typ.key.take(newPartitioner.kType.size)),
       newPartitioner,
-      ContextRDD(new RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds)))
+      RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds))
   }
 
   def localSort(newKey: IndexedSeq[String]): OrderedRVD = {
@@ -673,9 +673,7 @@ class OrderedRVD(
       typ = newTyp,
       partitioner = left.partitioner,
       crdd = left.crddBoundary.czipPartitions(
-        that.constrainToOrderedPartitioner(
-          coarsenedPartitioner
-        ).crddBoundary
+        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey.size))
       )(zipper))
   }
 
