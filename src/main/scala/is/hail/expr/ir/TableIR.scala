@@ -146,7 +146,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
                 rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
             } catch {
               case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """)
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
             }
             i += 1
           }
