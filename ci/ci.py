@@ -998,29 +998,30 @@ def refresh_batch_state():
     latest_jobs = {}
     for job in jobs:
         t = job.attributes.get('type', None)
-        assert 'target_url' in job.attributes, job.attributes
-        repo = repo_from_url(job.attributes['target_url'])
-        if t and t == 'hail-ci-' + VERSION and repo in watched_repos:
-            key = (job.attributes['source_url'],
-                   job.attributes['source_ref'],
-                   job.attributes['source_sha'],
-                   job.attributes['target_url'],
-                   job.attributes['target_ref'],
-                   job.attributes['target_sha'])
-            job2 = latest_jobs.get(key, None)
-            if job2 is None:
-                latest_jobs[key] = job
-            else:
-                job2_state = job2.cached_status()['state']
-                job_state = job.cached_status()['state']
-                if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
-                    job2.id < job.id):
-                    log.info(f'cancelling {job2.id}, preferring {job.id}, {job2.attributes} {job.attributes} ')
-                    try_to_cancel_job(job2)
+        if t and t == 'hail-ci-' + VERSION:
+            assert 'target_url' in job.attributes, job.attributes
+            repo = repo_from_url(job.attributes['target_url'])
+            if repo in watched_repos:
+                key = (job.attributes['source_url'],
+                       job.attributes['source_ref'],
+                       job.attributes['source_sha'],
+                       job.attributes['target_url'],
+                       job.attributes['target_ref'],
+                       job.attributes['target_sha'])
+                job2 = latest_jobs.get(key, None)
+                if job2 is None:
                     latest_jobs[key] = job
                 else:
-                    log.info(f'cancelling {job.id}, preferring {job2.id}, {job2.attributes} {job.attributes} ')
-                    try_to_cancel_job(job)
+                    job2_state = job2.cached_status()['state']
+                    job_state = job.cached_status()['state']
+                    if (batch_job_state_smaller_is_closer_to_complete(job2_state, job_state) < 0 or
+                        job2.id < job.id):
+                        log.info(f'cancelling {job2.id}, preferring {job.id}, {job2.attributes} {job.attributes} ')
+                        try_to_cancel_job(job2)
+                        latest_jobs[key] = job
+                    else:
+                        log.info(f'cancelling {job.id}, preferring {job2.id}, {job2.attributes} {job.attributes} ')
+                        try_to_cancel_job(job)
 
     for job in latest_jobs.values():
         job_id = job.id
