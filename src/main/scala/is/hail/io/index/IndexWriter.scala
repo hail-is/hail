@@ -48,7 +48,7 @@ class IndexWriter(
 
   private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
-  internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, 0L)
+  internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
   private val codecSpec = CodecSpec.default
@@ -79,12 +79,11 @@ class IndexWriter(
     internalEncoder.flush()
 
     region.clear()
-    val nElementsPerNodeNextLevel = math.pow(branchingFactor, level + 2).toLong // have an implicit leaf layer to account for
-    node.clear(elementIdx / nElementsPerNodeNextLevel * nElementsPerNodeNextLevel)
+    node.clear()
 
     if (!isRoot) {
       if (level + 1 == internalNodeBuilders.length)
-        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
+        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType) // , info.firstIndex
       val parent = internalNodeBuilders(level + 1)
       if (parent.size == branchingFactor)
         writeInternalNode(parent, level + 1)

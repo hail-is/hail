@@ -16,15 +16,19 @@ object InternalNodeBuilder {
   )
 }
 
-class InternalNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
+class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   val indexFileOffsets = new ArrayBuilder[Long]()
   val firstKeys = new ArrayBuilder[Any]()
   val firstRecordOffsets = new ArrayBuilder[Long]()
   val firstAnnotations = new ArrayBuilder[Any]()
   var size = 0
+  var firstIdx = 0L
   val typ = InternalNodeBuilder.typ(keyType, annotationType)
 
   def +=(info: IndexNodeInfo) {
+    if (size == 0) {
+      firstIdx = info.firstIndex
+    }
     indexFileOffsets += info.indexFileOffset
     firstKeys += info.firstKey
     firstRecordOffsets += info.firstRecordOffset
@@ -53,13 +57,12 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Lon
     rvb.end()
   }
 
-  def clear(idx: Long) {
+  def clear() {
     indexFileOffsets.clear()
     firstKeys.clear()
     firstRecordOffsets.clear()
     firstAnnotations.clear()
     size = 0
-    firstIdx = idx
   }
 
   def getChild(idx: Int): InternalChild = {
