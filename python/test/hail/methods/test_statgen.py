@@ -831,9 +831,9 @@ class Tests(unittest.TestCase):
         rkin = self._R_pc_relate(mt, 0.00).cache()
 
         self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3, absolute=True))
-        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1.3e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2.6e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1.3e-2, absolute=True))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
