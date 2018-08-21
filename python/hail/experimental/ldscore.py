@@ -80,21 +80,28 @@ def ld_score(entry_expr,
     - `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
     - `Partitioning heritability by functional annotation using genome-wide association summary statistics (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
 
+    Notes
+    -----
+
+    `entry_expr`, `locus_expr`, `coord_expr` (if specified), and
+    `annotation_exprs` (if specified) must come from the same
+    MatrixTable.
+
+
     Parameters
     ----------
     entry_expr : :class:`.NumericExpression`
         Expression for entries of genotype matrix
         (e.g. ``mt.GT.n_alt_alleles()``).
     locus_expr : :class:`.LocusExpression`
-        Row-indexed locus expression on a table or matrix table that is
-        row-aligned with the matrix table of `entry_expr`.
+        Row-indexed locus expression.
     radius : :obj:`int` or :obj:`float`
         Radius of window for row values (in units of `coord_expr` if set,
         otherwise in units of basepairs).
     coord_expr: :class:`.Float64Expression`, optional
-        Row-indexed numeric expression for the row value on the same table or
-        matrix table as `locus_expr`.
-        By default, the row value is given by the locus position.
+        Row-indexed numeric expression for the row value used to window
+        variants. By default, the row value is given by the locus
+        position.
     annotation_exprs : :class:`.NumericExpression` or
                        :obj:`list` of :class:`.NumericExpression`, optional
         Annotation expression(s) to partition LD scores. Univariate
@@ -111,8 +118,28 @@ def ld_score(entry_expr,
         the univariate (all SNPs) annotation."""
 
     mt = entry_expr._indices.source
-    n = mt.count_cols()
+    mt_locus_expr = locus_expr._indices.source
 
+    if coord_expr is None:
+        mt_coord_expr = mt_locus_expr
+    else:
+        mt_coord_expr = coord_expr._indices.source
+
+    if not annotation_exprs:
+        check_mts = all([mt == mt_locus_expr,
+                         mt == mt_coord_expr])
+    else:
+        check_mts = all([mt == mt_locus_expr,
+                         mt == mt_coord_expr] +
+                        [mt == x._indices.source
+                         for x in wrap_to_list(annotation_exprs)])
+
+    if not check_mts:
+        raise ValueError("""ld_score: entry_expr, locus_expr, coord_expr
+                            (if specified), and annotation_exprs (if
+                            specified) must come from same MatrixTable.""")
+
+    n = mt.count_cols()
     r2 = hl.row_correlation(entry_expr, block_size) ** 2
     r2_adj = ((n-1.0) / (n-2.0)) * r2 - (1.0 / (n-2.0))
 
