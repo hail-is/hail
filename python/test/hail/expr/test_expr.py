@@ -1965,3 +1965,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
         self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
         self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").value, "false FALSE true true")
+
+    def test_dict_and_set_type_promotion(self):
+        d = hl.literal({5: 5}, dtype='dict<int64, int64>')
+        s = hl.literal({5}, dtype='set<int64>')
+
+        self.assertEqual(d[5].value, 5)
+        self.assertEqual(d.get(5).value, 5)
+        self.assertEqual(d.get(2, 3).value, 3)
+        self.assertTrue(d.contains(5).value)
+        self.assertTrue(~d.contains(2).value)
+
+        self.assertTrue(s.contains(5).value)
+        self.assertTrue(~s.contains(2).value)
+
+
