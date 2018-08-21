@@ -1132,13 +1132,16 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
-  val newRVRow = InsertFields(newRow, Seq(
-    MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
+  val newRVRow = if (newRow.typ.asInstanceOf[TStruct].hasField(MatrixType.entriesIdentifier))
+    newRow
+  else
+    InsertFields(newRow, Seq(
+      MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
 
   val typ: MatrixType = {
     val newRowKey = newKey.map { case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
     val newPartitionKey = newKey.map { case (pk, _) => pk }.getOrElse(child.typ.rowPartitionKey)
-    child.typ.copy(rvRowType = newRVRow.typ, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+    child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct], rowKey = newRowKey, rowPartitionKey = newPartitionKey)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
