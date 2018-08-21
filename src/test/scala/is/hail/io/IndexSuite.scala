@@ -25,7 +25,7 @@ class IndexSuite extends SparkSuite {
     val file = tmpDir.createTempFile("test", "idx")
     val attributes = Map("foo" -> true, "bar" -> 5)
 
-    for (branchingFactor <- 2 to 5) {
+    for (branchingFactor <- 2 to 5) { 
       val iw = new IndexWriter(hc.hadoopConf, file, TString(), TStruct("a" -> TBoolean()), branchingFactor, attributes)
       data.zipWithIndex.foreach { case (s, offset) =>
         iw += (s, offset, Row(offset % 2 == 0))

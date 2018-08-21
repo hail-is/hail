@@ -48,17 +48,14 @@ class IndexWriter(
 
   private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
+  internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, 0L)
 
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
 
-  private def calcDepth: Int =
-    math.max(1, (math.log10(elementIdx) / math.log10(branchingFactor)).ceil.toInt) // max necessary for array of length 1 becomes depth = 0
-
-  // last internal node builder is the root (not written): internal node length - root + leaf node == internalNodes.length
-  private def height: Int = internalNodeBuilders.length
+  private def height: Int = internalNodeBuilders.length + 1 // have one leaf node layer
 
   private def writeInternalNode(node: InternalNodeBuilder): IndexNodeInfo = {
     val indexFileOffset = trackedOS.bytesWritten
@@ -104,32 +101,32 @@ class IndexWriter(
     IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
   }
 
-  private def write(flush: Boolean = false) {
-    val nInternalNodes = math.max(calcDepth - 1, 1)
-
-    def writeInternalNodes(level: Int) {
-      if (level < nInternalNodes) {
-        val node = internalNodeBuilders(level)
-
-        if (node.size == branchingFactor || (flush && node.size > 0)) {
-          val info = writeInternalNode(node)
-          if (level + 1 == internalNodeBuilders.size)
-            internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
-          internalNodeBuilders(level + 1) += info
-          writeInternalNodes(level + 1)
-        } else if (flush)
-          writeInternalNodes(level + 1)
-      }
-    }
+  private def write(flush: Boolean = false): Long = {
+    var offsetLastBlockWritten = 0L
 
     if (leafNodeBuilder.size == branchingFactor || (flush && leafNodeBuilder.size > 0)) {
       val info = writeLeafNode()
-      if (internalNodeBuilders.isEmpty)
-        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
       internalNodeBuilders(0) += info
-      writeInternalNodes(0)
-    } else if (flush && internalNodeBuilders.size > 0)
-      writeInternalNodes(0)
+      offsetLastBlockWritten = info.indexFileOffset
+    }
+
+    var level = 0
+    while (level < internalNodeBuilders.size && (internalNodeBuilders(level).size == branchingFactor || flush)) {
+      val node = internalNodeBuilders(level)
+      if (node.size > 0 || (flush && internalNodeBuilders.size == 1)) { // last case is for empty index
+        val info = writeInternalNode(node)
+        offsetLastBlockWritten = info.indexFileOffset
+        if (level + 1 < internalNodeBuilders.size)
+          internalNodeBuilders(level + 1) += info
+        else if (!flush) {
+          internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType, info.firstIndex)
+          internalNodeBuilders(level + 1) += info
+        }
+      }
+      level += 1
+    }
+
+    offsetLastBlockWritten
   }
 
   private def writeMetadata(rootOffset: Long) = {
@@ -149,16 +146,9 @@ class IndexWriter(
   }
 
   def close(): Unit = {
-    write(flush = true)
+    val rootOffset = write(flush = true)
     trackedOS.close()
     region.close()
-
-    val rootOffset = if (elementIdx > 0) {
-      val rootNodeBuilder = internalNodeBuilders.last
-      assert(rootNodeBuilder.size == 1)
-      rootNodeBuilder.indexFileOffsets(0)
-    } else 0L // default value
-    
     writeMetadata(rootOffset)
   }
 }

@@ -111,7 +111,11 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   }
 }
 
-final case class InternalChild(indexFileOffset: Long, firstKey: Annotation, firstRecordOffset: Long, firstAnnotation: Annotation)
+final case class InternalChild(
+  indexFileOffset: Long,
+  firstKey: Annotation,
+  firstRecordOffset: Long,
+  firstAnnotation: Annotation)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
@@ -121,9 +125,14 @@ object InternalNode {
   }
 }
 
-final case class InternalNode(firstIndex: Long, children: IndexedSeq[InternalChild]) extends IndexNode
+final case class InternalNode(
+  firstIndex: Long,
+  children: IndexedSeq[InternalChild]) extends IndexNode
 
-final case class LeafChild(key: Annotation, recordOffset: Long, annotation: Annotation)
+final case class LeafChild(
+  key: Annotation,
+  recordOffset: Long,
+  annotation: Annotation)
 
 object LeafNode {
   def apply(r: Row): LeafNode = {
@@ -133,6 +142,8 @@ object LeafNode {
   }
 }
 
-final case class LeafNode(firstIndex: Long, children: IndexedSeq[LeafChild]) extends IndexNode
+final case class LeafNode(
+  firstIndex: Long,
+  children: IndexedSeq[LeafChild]) extends IndexNode
 
 sealed trait IndexNode
