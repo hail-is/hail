@@ -95,7 +95,7 @@ case class OrderedRVDSpec(
     val rangeBoundsType = TArray(TInterval(requestedORVDType.kType))
     OrderedRVD(requestedORVDType,
       new OrderedRVDPartitioner(requestedORVDType.kType,
-        JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Interval]]),
+        JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]]),
       hc.readRows(path, orvdType.rowType, codecSpec, partFiles, requestedType))
   }
 

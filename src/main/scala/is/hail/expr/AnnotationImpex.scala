@@ -107,10 +107,10 @@ object JSONAnnotationImpex {
       }
     }
 
-  def importAnnotation(jv: JValue, t: Type): Annotation =
-    importAnnotation(jv, t, "<root>")
+  def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true): Annotation =
+    importAnnotation(jv, t, "<root>", padNulls)
 
-  def importAnnotation(jv: JValue, t: Type, parent: String): Annotation = {
+  def importAnnotation(jv: JValue, t: Type, parent: String, padNulls: Boolean): Annotation = {
     implicit val formats = Serialization.formats(NoTypeHints)
 
     (jv, t) match {
@@ -141,7 +141,7 @@ object JSONAnnotationImpex {
       // back compatibility
       case (JObject(a), TDict(TString(_), valueType, _)) =>
         a.map { case (key, value) =>
-          (key, importAnnotation(value, valueType, parent))
+          (key, importAnnotation(value, valueType, parent, padNulls))
         }
           .toMap
 
@@ -151,7 +151,7 @@ object JSONAnnotationImpex {
             case List(k, v) =>
               (k, v) match {
                 case (("key", ka), ("value", va)) =>
-                  (importAnnotation(ka, keyType, parent), importAnnotation(va, valueType, parent))
+                  (importAnnotation(ka, keyType, parent, padNulls), importAnnotation(va, valueType, parent, padNulls))
               }
             case _ =>
               warn(s"Can't convert JSON value $jv to type $t at $parent.")
@@ -167,13 +167,15 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val fieldIDs = jfields.map { case (name, jv2) => t.selfField(name).map(_.index).getOrElse(-1) }
-          val a = Array.fill[Any](fieldIDs.max + 1)(null)
+          val annotationSize =
+            if (padNulls) t.size
+            else jfields.map { case (name, jv2) => t.selfField(name).map(_.index).getOrElse(-1) }.max + 1
+          val a = Array.fill[Any](annotationSize)(null)
 
           for ((name, jv2) <- jfields) {
             t.selfField(name) match {
               case Some(f) =>
-                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
+                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name, padNulls)
 
               case None =>
                 warn(s"$t has no field $name at $parent for value $jv2")
@@ -186,10 +188,13 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val a = Array.fill[Any](elts.length)(null)
+          val annotationSize =
+            if (padNulls) t.size
+            else elts.length
+          val a = Array.fill[Any](annotationSize)(null)
           var i = 0
           for (jvelt <- elts) {
-            a(i) = importAnnotation(jvelt, t.types(i), parent)
+            a(i) = importAnnotation(jvelt, t.types(i), parent, padNulls)
             i += 1
           }
 
@@ -200,10 +205,10 @@ object JSONAnnotationImpex {
       case (_, TInterval(pointType, _)) =>
         jv match {
           case JObject(List(("start", sjv), ("end", ejv), ("includeStart", isjv), ("includeEnd", iejv))) =>
-            Interval(importAnnotation(sjv, pointType, parent + ".start"),
-              importAnnotation(ejv, pointType, parent + ".end"),
-              importAnnotation(isjv, TBooleanRequired, parent + ".includeStart").asInstanceOf[Boolean],
-              importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd").asInstanceOf[Boolean]
+            Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
+              importAnnotation(ejv, pointType, parent + ".end", padNulls),
+              importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
+              importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
             )
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
@@ -212,10 +217,10 @@ object JSONAnnotationImpex {
       case (JString(x), _: TCall) => Call.parse(x)
 
       case (JArray(a), TArray(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toArray[Any]: IndexedSeq[Any]
 
       case (JArray(a), TSet(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toSet[Any]
+        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toSet[Any]
 
       case _ =>
         warn(s"Can't convert JSON value $jv to type $t at $parent.")
