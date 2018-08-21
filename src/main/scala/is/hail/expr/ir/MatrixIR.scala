@@ -1132,11 +1132,14 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
-  val newRVRow = if (newRow.typ.asInstanceOf[TStruct].hasField(MatrixType.entriesIdentifier))
-    newRow
-  else
-    InsertFields(newRow, Seq(
-      MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
+  val newRVRow = newRow.typ.asInstanceOf[TStruct].fieldOption(MatrixType.entriesIdentifier) match {
+    case Some(f) =>
+      assert(f.typ == child.typ.entryArrayType)
+      newRow
+    case None =>
+      InsertFields(newRow, Seq(
+        MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier))
+  }
 
   val typ: MatrixType = {
     val newRowKey = newKey.map { case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
