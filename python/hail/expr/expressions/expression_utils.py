@@ -193,7 +193,7 @@ def eval_expr_typed(expression):
 
     if expression._indices.source is None:
         return (expression.dtype._from_json(
-            java.Env._hail_package.expr.ir.Interpret.interpretPyIR(str(expression._ir))),
+            java.Env.hail().expr.ir.Interpret.interpretPyIR(str(expression._ir))),
                 expression.dtype)
     else:
         return expression.collect()[0], expression.dtype
