@@ -120,7 +120,7 @@ class Tests(unittest.TestCase):
         assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
         assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
 
-    def test_linear_mixed_model_full_rank(self):
+    def _test_linear_mixed_model_full_rank(self):
         seed = 0
         n_populations = 8
         fst = n_populations * [.9]
