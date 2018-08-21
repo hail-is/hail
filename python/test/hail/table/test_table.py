@@ -617,19 +617,6 @@ class Tests(unittest.TestCase):
         t = mt._localize_entries('__entries')
         self.assertTrue(t._same(ref_tab))
 
-    def test_to_matrix_table_with_duplicate_row_keys(self):
-        ht = hl.Table.parallelize([
-            {'locus': '1:32280610', 'alleles': ['T', 'C'], 'p_value': .5,
-             'phenotype': 'foo'},
-            {'locus': '1:32280610', 'alleles': ['T', 'C'], 'p_value': .6,
-             'phenotype': 'foo'},
-        ], hl.tstruct(locus=hl.tstr, alleles=hl.tarray(hl.tstr),
-                      p_value=hl.tfloat32, phenotype=hl.tstr))
-
-        mt = ht.to_matrix_table(['locus', 'alleles'], ['phenotype'])
-
-        self.assertEqual(mt.count(), (2, 1))
-
     def test_union(self):
         t1 = hl.utils.range_table(5)
 

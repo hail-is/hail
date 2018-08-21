@@ -95,7 +95,7 @@ class TableSuite extends SparkSuite {
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
-  @Test def testTableToMatrixTableWithDuplicateRowKeys(): Unit = {
+  @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
     val table = Table.parallelize(
       hc,
       FastIndexedSeq(
@@ -105,8 +105,9 @@ class TableSuite extends SparkSuite {
         "phenotype" -> TString()),
       None, None)
 
-    assert(table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-      Array(), Array("locus")).count() == (2L, 1L))
+    TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
+      table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
+        Array(), Array("locus")).count())
   }
 
   @Test def testToMatrixTable() {
