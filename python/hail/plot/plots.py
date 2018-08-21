@@ -9,6 +9,7 @@ from hail.expr import aggregators
 from hail.expr.expressions import *
 from hail.expr.expressions import Expression
 from hail.typecheck import *
+from hail import Table
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -235,14 +236,18 @@ def qq(pvals, collect_all=False, n_divisions=500):
     :class:`bokeh.plotting.figure.Figure`
     """
     if isinstance(pvals, Expression):
-        if pvals._indices.source is not None:
+        source = pvals._indices.source
+        if source is not None:
             if collect_all:
                 pvals = pvals.collect()
                 spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
                 exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
                 obs = [-log(p, 10) for p in spvals]
             else:
-                ht = pvals._indices.source.select_rows(pval=pvals).rows()
+                if isinstance(source, Table):
+                    ht = source.select(pval=pvals)
+                else:
+                    ht = source.select_rows(pval=pvals).rows()
                 n = ht.count()
                 ht = ht.order_by('pval').add_index()
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
@@ -251,7 +256,7 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 exp = [point[0] for point in pvals if not isnan(point[1])]
                 obs = [point[1] for point in pvals if not isnan(point[1])]
         else:
-            return ValueError('Invalid input')
+            return ValueError('Invalid input: expression has no source')
     else:
         spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
         exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
