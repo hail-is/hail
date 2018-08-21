@@ -1,11 +1,14 @@
-# This makefile calls itself recursively to build the libraries with
-# different compiler options for different ABI versions:
+# This makefile invokes itself recursively to build the libraries,
+# possibly with different compiler options.
+#
+# If compiling with g++, we can specify the abi-version to keep
+# maximum compatibility when linked against old versions of libstdc++
 #   -fabi-version=2 was the default from g++-3.4 to g++-4.9
 #   -fabi-version=9 was the default in g++-5.x
 
 # On MacOS, libc++ is the default library, and the default clang-based
 # compiler doesn't accept the -fabi-version=N option.  We still use the 
-# name "libhail_abi_v9.dylib" to mean "libhail compatible with recent abi
+# name "libhail.dylib" to mean "libhail compatible with recent abi
 
 ifndef SUBMAKE_NAME
 
@@ -20,15 +23,16 @@ else
   CXX_TYPE :=not_clang
 endif
 
+# If this compiler supports "-fabi-version=9", we will build libhail.so that way.
+# If not, you get whatever you get.
+
 CXX_ABI_V9_ERRS :=$(shell echo "" >a.cpp; $(CXX) -fabi-version=9 -c a.cpp 2>a.err; rm -f a.cpp a.o 2>/dev/null; cat a.err)
-
-
 
 all clean debug prebuilt test:
 ifeq ($(CXX_ABI_V9_ERRS),)
-	@$(MAKE) --no-print-directory SUBMAKE_NAME=abi_new SUBMAKE_CXXFLAGS=-fabi-version=9 $@
+	@$(MAKE) --no-print-directory SUBMAKE_NAME= SUBMAKE_CXXFLAGS=-fabi-version=9 $@
 else
-	@$(MAKE) --no-print-directory SUBMAKE_NAME=abi_new SUBMAKE_CXXFLAGS= $@
+	@$(MAKE) --no-print-directory SUBMAKE_NAME= SUBMAKE_CXXFLAGS= $@
 endif
 
 else
@@ -91,7 +95,7 @@ endif
 
 .PHONY: all clean debug test libsimdpp
 
-BUILD := build_$(SUBMAKE_NAME)
+BUILD := build$(SUBMAKE_NAME)
 BUILD_FORCE := $(shell mkdir -p $(BUILD))
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
@@ -208,12 +212,30 @@ test: $(BUILD)/functional-tests
 	./$(BUILD)/functional-tests
 
 clean:
-	-rm -rf $(BUILD) headers lib libsimdpp-2.0-rc2 $(LIBBOOT) $(LIBHAIL)
+	-rm -rf $(BUILD) lib libsimdpp-2.0-rc2 $(LIBBOOT) $(LIBHAIL)
 
-$(BUILD)/headers: $(shell $(FIND) ../resources/include -name "*.h")
+# The $(BUILD)/headers target is updated whenever any .h file has changed
+# under either the source directory, *or* the ../resources/include tree.
+# Header files under ../resources/include are visible to both libhail.so
+# code and dynamic-generated code; headers under the source are only visible
+# to code that goes into libhail.so
+#
+# We use this as a pessimistic dependency: if any header has changed, all
+# objects will be rebuilt. Since the quantity of code is small and the 
+# clean-rebuild time is short (compared to other parts of the build process),
+# this seems good enough, and simpler than managing precise dependencies.
+
+$(BUILD)/headers: $(shell $(FIND) . -name "*.h"; $(FIND) ../resources/include -name "*.h")
 	$(TOUCH) $@
 
 $(BUILD_OBJECTS) $(BUILD)/NativeBoot.o: $(BUILD)/headers
+
+# We take all headers files visible to dynamic-generated code, together with
+# the output of "$(CXX) --version", to give a checksum $(ALL_HEADER_CKSUM)
+# which is then used to modify NativeModule's hash function.  This gives very
+# high probability that any changes to either the C++ compiler, or the header
+# files, will cause recompilation of dynamic-generated C++ rather than getting
+# an erroneous cache hit on outdated DLL files.
 
 ALL_HEADER_FILES := $(shell $(FIND) ../resources/include -name "*.h")
 ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; $(CAT) .cxx.vsn $(ALL_HEADER_FILES) | $(CKSUM) | $(CUT) -d " " -f 1)

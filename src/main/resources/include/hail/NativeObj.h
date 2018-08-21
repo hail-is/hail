@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <string>
 
 // Declare a function to be exported from a DLL with "C" linkage
 
@@ -41,64 +40,6 @@ class NativeObj :
 // On the Jvm side, we don't have distinct classes/types for NativePtr
 // to different off-heap objects - we treat them all as NativeObjPtr.
 using NativeObjPtr = std::shared_ptr<NativeObj>;
-
-// There are at least three different implementations of std::string,
-// one in libc++, one in libstdc++ for abi-version <= 8, and another
-// for abi-version >= 9.  To avoid possible conflicts between prebuilt
-// libraries and dynamically-generated code, we use our own minimal
-// hail::hstring in public interfaces.
-
-class hstring {
- private:
-  uint32_t length_;
-  uint32_t buf_size_;
-  char* buf_;
-
- private:
-  void init(const char* s, size_t len) {
-    length_ = len;
-    buf_size_ = ((len+1+0xf) & ~0xf);
-    buf_ = (char*)malloc(buf_size_);
-    memcpy(buf_, s, len);
-    buf_[len] = 0;
-  }
-  
-  hstring& reinit(const char* s, size_t len) {
-    length_ = len;
-    if (len+1 > buf_size_) {
-      if (buf_) free(buf_);
-      buf_size_ = ((length_+1+0xf) & ~0xf);
-      buf_ = (char*)malloc(buf_size_);
-    }
-    memcpy(buf_, s, len);
-    buf_[len] = 0;
-    return *this;
-  }
-
- public:
-  hstring() { init(nullptr, 0); }
-  
-  hstring(const hstring& b) { init(b.buf_, b.length_); }
-  
-  hstring(const char* s) { init(s, strlen(s)); }
-  
-  hstring(const std::string& s) { init(s.data(), s.length()); }
-  
-  ~hstring() { if (buf_) free(buf_); }
-
-  hstring& operator=(const hstring& b) { return reinit(b.buf_, b.length_); }
-    
-  hstring& operator=(const char* s) { return reinit(s, strlen(s)); }
-  
-  hstring& operator=(const std::string& s) { return reinit(s.data(), s.length()); }
-  
-  size_t length() { return length_; }
-  
-  const char* c_str() const { return buf_; }
-  
-  // This converts to whatever std::string is being used in the caller
-  operator std::string() const { return std::string(buf_, length_); }
-};
 
 } // end hail
 

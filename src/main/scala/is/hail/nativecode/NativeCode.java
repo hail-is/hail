@@ -14,57 +14,11 @@ public class NativeCode {
   private static String hailName;
   
   static {
-    hailName = "hail_abi_new";
+    hailName = "hail";
     try {
       // libboot.so has native methods to call dlopen/dlclose
       String libBoot = libToLocalFile("libboot");
       System.load(libBoot);
-      if (isLinux()) {
-        // libhail_abi_new works with libstdc++ 6.0.21 (g++-5.x) and later.
-        // libhail_abi_v2 works with systems based on g++-3.4.x to g++-4.9.x
-        String cxx = System.getenv("CXX");
-        if (cxx == null) cxx = "c++";
-        String version = null;
-        try {
-          Process child = Runtime.getRuntime().exec(cxx + " --version");
-          BufferedReader s = new BufferedReader(new InputStreamReader(child.getInputStream()));
-          version = s.readLine();
-          child.waitFor();
-        } catch (Throwable err) {
-          if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
-            System.err.println("WARNING: C++ compiler failed, cannot check version");
-          }
-        }
-        // The following code checks the compiler version, but in the short term we'll only
-        // use that to issue a warning if the compiler appears to be very old.
-        if (version != null) {
-          boolean isClang = (version.indexOf("clang version", 0) >= 0);
-          int idx = version.indexOf(".", 0);
-          if (idx > 0) {
-            int j = idx-1;
-            while ((j >= 0) && ('0' <= version.charAt(j)) && (version.charAt(j) <= '9')) j -= 1;
-            int major = Integer.parseInt(version.substring(j+1, idx));
-            if (isClang) {
-              // We'll try to be conservative for clang-3.x versions, from the really
-              // early days of C++11.  But it's much more likely it will be clang-4.x
-              // or later which will use the newer abi_v9.
-              if (major <= 3) {
-                System.err.println("WARNING: old C++ compiler: " + version);
-              }
-            } else {
-              // Use abi_v2 for g++-3.4.0 to g++-4.9.x
-              if (major <= 4) {
-                System.err.println("WARNING: old C++ compiler: " + version);
-              }
-            }
-          }
-        }
-      } else {
-        // Since MacOS 10.9 Mavericks (Oct 2013) the default library is libc++
-        // rather than libstdc++.  I believe all versions of libc++ support
-        // at least abi_v9.
-        hailName = "hail_abi_new";
-      } 
       String libHail = libToLocalFile("lib"+hailName);
       // We need libhail.so to be loaded with RTLD_GLOBAL so that its symbols
       // are visible to dynamic-generated code in other DLLs ...
@@ -79,9 +33,11 @@ public class NativeCode {
     }
   }
 
-  // Scala classes using jna and Native.register(libname) need to use
-  // this to get either "hail_abi_v2" or "hail_abi_v9"
   public static String getHailName() {
+    // Hail methods implemented with JNA call Native.register(NativeCode.getHailName()),
+    // so that NativeCode gets to choose which DLL to load (though currently there's
+    // only one), *and* to get it loaded with RTLD_GLOBAL so that it also works for
+    // dynamic-generated C++ code.
     return hailName;
   }
   

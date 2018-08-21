@@ -13,6 +13,8 @@ object IBSFFI {
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
+  // NativeCode needs to control the initial loading of the libhail DLL, and
+  // the call to getHailName() guarantees that.
   Native.register(NativeCode.getHailName())
 
   val genotypesPerPack = 32

@@ -330,6 +330,8 @@ object Skat {
     sigma: Double, c1: Double, lim1: Int, acc: Double, trace: Array[Double],
     ifault: IntByReference): Double
 
+  // NativeCode needs to control the initial loading of the libhail DLL, and
+  // the call to getHailName() guarantees that.
   Native.register(NativeCode.getHailName())
   
   // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
