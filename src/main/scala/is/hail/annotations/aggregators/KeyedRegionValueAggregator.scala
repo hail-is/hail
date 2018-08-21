@@ -37,8 +37,9 @@ case class KeyedRegionValueAggregator(
   }
 
   override def result(rvb: RegionValueBuilder): Unit = {
+    val sorted = m.asScala.toArray.sortBy(f => f._1)(keyType.ordering.toOrdering)
     rvb.startArray(m.size)
-    m.asScala.foreach { case (group, rvagg) =>
+    sorted.foreach { case (group, rvagg) =>
       rvb.startStruct()
       rvb.addAnnotation(keyType, group)
       rvagg.result(rvb)

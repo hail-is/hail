@@ -484,7 +484,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding['IBD'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
         self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
-        
+
+    def test_aggregator_group_by_sorts_result(self):
+        t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap
+            {"group": "m", "x": 1},
+            {"group": "s", "x": 2},
+            {"group": "s", "x": 3},
+            {"group": "m", "x": 4},
+            {"group": "m", "x": 5}
+        ], hl.tstruct(group=hl.tstr, x=hl.tint32), n_partitions=1)
+
+        grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
+        self.assertEqual(grouped_expr, hl.sorted(grouped_expr).value)
+
+
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
         table2 = hl.utils.range_table(10)
