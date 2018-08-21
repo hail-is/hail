@@ -57,15 +57,20 @@ class IndexWriter(
 
   private def height: Int = internalNodeBuilders.length + 1 // have one leaf node layer
 
-  private def writeInternalNode(node: InternalNodeBuilder, level: Int, isRoot: Boolean = false): IndexNodeInfo = {
+  private def writeInternalNode(node: InternalNodeBuilder, level: Int, isRoot: Boolean = false): Long = {
     val indexFileOffset = trackedOS.bytesWritten
 
-    assert(node.size > 0)
-    val child = node.getChild(0)
-    val firstIndex = node.firstIdx
-    val firstKey = child.firstKey
-    val firstRecordOffset = child.firstRecordOffset
-    val firstAnnotation = child.firstAnnotation
+    val info = if (node.size > 0) {
+      val child = node.getChild(0)
+      val firstIndex = node.firstIdx
+      val firstKey = child.firstKey
+      val firstRecordOffset = child.firstRecordOffset
+      val firstAnnotation = child.firstAnnotation
+      IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
+    } else {
+      assert(isRoot && level == 0)
+      null
+    }
 
     internalEncoder.writeByte(1)
 
@@ -74,9 +79,8 @@ class IndexWriter(
     internalEncoder.flush()
 
     region.clear()
-    node.clear(elementIdx)
-
-    val info = IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
+    val nElementsPerNodeNextLevel = math.pow(branchingFactor, level + 2).toLong // have an implicit leaf layer to account for
+    node.clear(elementIdx / nElementsPerNodeNextLevel * nElementsPerNodeNextLevel)
 
     if (!isRoot) {
       if (level + 1 == internalNodeBuilders.length)
@@ -87,10 +91,10 @@ class IndexWriter(
       parent += info
     }
 
-    info
+    indexFileOffset
   }
 
-  private def writeLeafNode(): IndexNodeInfo = {
+  private def writeLeafNode(): Long = {
     val indexFileOffset = trackedOS.bytesWritten
 
     assert(leafNodeBuilder.size > 0)
@@ -109,14 +113,12 @@ class IndexWriter(
     region.clear()
     leafNodeBuilder.clear(elementIdx)
 
-    val info = IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
-
     val parent = internalNodeBuilders(0)
     if (parent.size == branchingFactor)
       writeInternalNode(parent, 0)
-    parent += info
+    parent += IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
 
-    info
+    indexFileOffset
   }
 
   private def flush(): Long = {
@@ -130,8 +132,7 @@ class IndexWriter(
       val node = internalNodeBuilders(level)
       val isRoot = level == internalNodeBuilders.size - 1
       if (node.size > 0 || isRoot) {
-        val info = writeInternalNode(node, level, isRoot)
-        offsetLastBlockWritten = info.indexFileOffset
+        offsetLastBlockWritten = writeInternalNode(node, level, isRoot)
       }
       level += 1
     }
