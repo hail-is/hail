@@ -569,7 +569,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
         rt = mt.rows()
-        rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
+        rm = hl.MatrixTable.from_rows_table(rt)
         self.assertTrue(rm._same(mt.drop_cols().select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
@@ -720,7 +720,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.entry.dtype, hl.tstruct())
 
         self.assertEqual(list(mt.row_key), ['row_idx'])
-        self.assertEqual(list(mt.partition_key), ['row_idx'])
         self.assertEqual(list(mt.col_key), ['col_idx'])
 
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))

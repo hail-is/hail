@@ -4,5 +4,3 @@
 
      - `locus` (type :class:`.tlocus`)
      - `alleles` (type :class:`.tarray` of :py:data:`.tstr`)
-
-    Also requires that `locus` is the partition key.

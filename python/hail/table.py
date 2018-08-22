@@ -1422,10 +1422,8 @@ class Table(ExprContainer):
 
                 is_row_key = len(exprs) == len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-                is_partition_key = len(exprs) == len(src.partition_key) and all(
-                    expr is key_field for expr, key_field in zip(exprs, src.partition_key.values()))
 
-                if is_row_key or is_partition_key:
+                if is_row_key:
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
@@ -2289,9 +2287,8 @@ class Table(ExprContainer):
                       col_key=sequenceof(str),
                       row_fields=sequenceof(str),
                       col_fields=sequenceof(str),
-                      partition_key=nullable(sequenceof(str)),
                       n_partitions=nullable(int))
-    def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], partition_key=None, n_partitions=None):
+    def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], n_partitions=None):
         """Construct a matrix table from a table in coordinate representation.
 
         Notes
@@ -2310,8 +2307,6 @@ class Table(ExprContainer):
             Fields to be stored once per row.
         col_fields : Sequence[str]
             Fields to be stored once per column.
-        partition_key : Sequence[str] or None
-            Fields to be used as partition key.
         n_partitions : int or None
             Number of partitions.
 
@@ -2333,20 +2328,10 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        if partition_key is None:
-            partition_key = row_key
-        else:
-            if len(partition_key) == 0:
-                raise ValueError(f"to_matrix_table': require at least one partition key field")
-            if not row_key[:len(partition_key)] == partition_key:
-                raise ValueError(f"'to_matrix_table': partition key must be a prefix of row key, "
-                                 f"found row_key={row_key} and partition_key={partition_key}")
-
         return hl.MatrixTable(self._jt.jToMatrixTable(row_key,
                                                       col_key,
                                                       row_fields,
                                                       col_fields,
-                                                      partition_key,
                                                       n_partitions))
 
     @property

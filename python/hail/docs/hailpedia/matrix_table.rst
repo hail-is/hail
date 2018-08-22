@@ -137,8 +137,6 @@ their types, as well as the keys.
     Row key:
         'locus': locus<GRCh37>
         'alleles': array<str>
-    Partition key:
-        'locus': locus<GRCh37>
     ----------------------------------------
 
 Common Operations
@@ -395,9 +393,9 @@ Some useful methods to interact with matrix tables locally are
 :meth:`.MatrixTable.describe`, :meth:`.MatrixTable.head`, and
 :meth:`.MatrixTable.sample`. `describe` prints out the schema for all row
 fields, column fields, entry fields, and global fields as well as the row keys,
-column keys, and the partition key. `head` returns a new matrix table with only
-the first N rows. `sample` returns a new matrix table where the rows are
-randomly sampled with frequency `p`.
+and column keys. `head` returns a new matrix table with only the first N rows.
+`sample` returns a new matrix table where the rows are randomly sampled with
+frequency `p`.
 
 
 To get the dimensions of the matrix table, use :meth:`.MatrixTable.count_rows`

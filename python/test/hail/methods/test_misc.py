@@ -141,7 +141,7 @@ class Tests(unittest.TestCase):
                      hl.parse_locus_interval('[20:17705793-17716416]').value]
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 4)
 
-    def test_filter_intervals_compound_partition_key(self):
+    def test_filter_intervals_compound_key(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
         ds = (ds.annotate_rows(variant=hl.struct(locus=ds.locus, alleles=ds.alleles))
               .key_rows_by('locus', 'alleles'))
@@ -174,7 +174,7 @@ class Tests(unittest.TestCase):
         variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
                                1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
                                2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT'])})
-        mt = mt.annotate_rows(**variants[mt.row_idx]).partition_rows_by('locus', 'locus', 'alleles')
+        mt = mt.annotate_rows(**variants[mt.row_idx]).key_rows_by('locus', 'alleles')
         r = hl.summarize_variants(mt, show=False)
         self.assertEqual(r.n_variants, 3)
         self.assertEqual(r.contigs, {'1': 1, '2': 2})

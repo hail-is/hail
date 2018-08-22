@@ -188,13 +188,13 @@ object MatrixTable {
     new MatrixTable(datasets.head.hc, MatrixUnionRows(datasets.map(_.ast).toFastIndexedSeq))
   }
 
-  def fromRowsTable(kt: Table, partitionKey: java.util.ArrayList[String] = null): MatrixTable = {
+  def fromRowsTable(kt: Table): MatrixTable = {
     require(!kt.key.isEmpty)
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
-      Option(partitionKey).map(_.asScala.toArray.toFastIndexedSeq).getOrElse(kt.key.get),
+      kt.key.get,
       kt.key.get,
       kt.signature,
       TStruct.empty()
@@ -625,14 +625,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, MatrixMapCols(ast, ir, newKey))
   }
 
-  def selectRows(expr: String, newKey: java.util.ArrayList[java.util.ArrayList[String]]): MatrixTable = {
-    assert(Option(newKey).forall(_.size() == 2))
-    selectRows(expr, Option(newKey).map(k => (k.get(0).asScala.toFastIndexedSeq, k.get(1).asScala.toFastIndexedSeq)))
-  }
+  def selectRows(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
+    selectRows(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
 
-  def selectRows(expr: String, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]): MatrixTable = {
+  def selectRows(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
     val rowsIR = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapRows(ast, rowsIR, newKey))
+    new MatrixTable(hc, MatrixMapRows(ast, rowsIR, newKey.map(a => (a, FastIndexedSeq()))))
   }
 
   def selectEntries(expr: String): MatrixTable = {
@@ -1074,13 +1072,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
            |  left:  ${ globals.value }
            |  right: ${ that.globals.value }""".stripMargin)
     }
-    if (rowKey != that.rowKey || colKey != that.colKey || rowPartitionKey != that.rowPartitionKey) {
+    if (rowKey != that.rowKey || colKey != that.colKey) {
       metadataSame = false
       println(
         s"""
            |different keys:
-           |  left:  rk $rowKey, rpk $rowPartitionKey, ck $colKey
-           |  right: rk ${ that.rowKey }, rpk ${ that.rowPartitionKey }, ck ${ that.colKey }""".stripMargin)
+           |  left:  rk $rowKey, ck $colKey
+           |  right: rk ${ that.rowKey }, ck ${ that.colKey }""".stripMargin)
     }
     if (!metadataSame)
       println("metadata were not the same")

@@ -21,7 +21,7 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'])
         mt = hl.sample_qc(mt, 'sqc')
         r = mt.cols().select('sqc').collect()
 
@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call, GQ: int, DP: int}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'], partition_key=['locus'])
+        mt = ht.to_matrix_table(['locus', 'alleles'], ['s'])
         mt = hl.variant_qc(mt, 'vqc')
         r = mt.rows().collect()
 
