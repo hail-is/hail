@@ -56,7 +56,7 @@ object Simplify {
       val selfOK = repartitionability.getOrElse(x, true -> x.children.forall {
         case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
         case _ => true
-      })._1
+      })._2
       x.children.foreach(storeRepartitionability(_, repartitionability, downstreamOK && selfOK))
       repartitionability.update(x, downstreamOK -> selfOK)
     }
