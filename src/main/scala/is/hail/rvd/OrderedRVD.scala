@@ -668,12 +668,11 @@ class OrderedRVD(
     require(joinKey isPrefixOf that.typ.kType)
 
     val left = this.truncateKey(newTyp.key)
-    val coarsenedPartitioner = this.partitioner.coarsen(joinKey.size)
     OrderedRVD(
       typ = newTyp,
       partitioner = left.partitioner,
       crdd = left.crddBoundary.czipPartitions(
-        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey.size))
+        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey.size)).boundary
       )(zipper))
   }
 
