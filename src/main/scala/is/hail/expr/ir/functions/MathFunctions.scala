@@ -44,12 +44,13 @@ object MathFunctions extends RegistryFunctions {
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
-  def approxEqual(x: Double, y: Double, tolerance: Double, absolute: Boolean): Boolean = {
+  def approxEqual(x: Double, y: Double, tolerance: Double, absolute: Boolean, nanSame: Boolean): Boolean = {
     x == y || {
-      if (absolute)
+      (if (absolute)
         math.abs(x - y) <= tolerance
       else
-        D_==(x, y, tolerance)
+        D_==(x, y, tolerance)) ||
+        (nanSame && x.isNaN && y.isNaN)
     }
   }
 
@@ -143,7 +144,7 @@ object MathFunctions extends RegistryFunctions {
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
     registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
     
-    registerScalaFunction("approxEqual", TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean())(thisClass, "approxEqual")
+    registerScalaFunction("approxEqual", TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean(), TBoolean())(thisClass, "approxEqual")
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
 
