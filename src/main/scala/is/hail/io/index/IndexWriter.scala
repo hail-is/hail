@@ -141,7 +141,16 @@ class IndexWriter(
 
   private def writeMetadata(rootOffset: Long) = {
     hConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      val metadata = IndexMetadata(IndexWriter.version.rep, branchingFactor, height, keyType._toPretty, annotationType._toPretty, elementIdx, "index", rootOffset, attributes)
+      val metadata = IndexMetadata(
+        IndexWriter.version.rep,
+        branchingFactor,
+        height, 
+        keyType.parsableString(),
+        annotationType.parsableString(),
+        elementIdx,
+        "index",
+        rootOffset,
+        attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)
     }
