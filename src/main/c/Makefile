@@ -1,41 +1,6 @@
-# This makefile invokes itself recursively to build the libraries,
-# possibly with different compiler options.
-#
-# If compiling with g++, we can specify the abi-version to keep
-# maximum compatibility when linked against old versions of libstdc++
-#   -fabi-version=2 was the default from g++-3.4 to g++-4.9
-#   -fabi-version=9 was the default in g++-5.x
-
-# On MacOS, libc++ is the default library, and the default clang-based
-# compiler doesn't accept the -fabi-version=N option.  We still use the 
-# name "libhail.dylib" to mean "libhail compatible with recent abi
-
-ifndef IS_SUBMAKE
-
 .PHONY: top all clean debug prebuilt test
 
 top: all
-
-CXX_VERSION :=$(shell $(CXX) --version | head -1)
-ifneq ($(filter clang llvm LLVM,$(CXX_VERSION)),)
-  CXX_TYPE :=clang
-else
-  CXX_TYPE :=not_clang
-endif
-
-# If this compiler supports "-fabi-version=9", we will build libhail.so that way.
-# If not, you get whatever you get.
-
-CXX_ABI_V9_ERRS :=$(shell echo "" >a.cpp; $(CXX) -fabi-version=9 -c a.cpp 2>a.err; rm -f a.cpp a.o 2>/dev/null; cat a.err)
-
-all clean debug prebuilt test:
-ifeq ($(CXX_ABI_V9_ERRS),)
-	@$(MAKE) --no-print-directory IS_SUBMAKE=1 SUBMAKE_NAME= SUBMAKE_CXXFLAGS=-fabi-version=9 $@
-else
-	@$(MAKE) --no-print-directory IS_SUBMAKE=1 SUBMAKE_NAME= SUBMAKE_CXXFLAGS= $@
-endif
-
-else
 
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
@@ -95,7 +60,7 @@ endif
 
 .PHONY: all clean debug test libsimdpp
 
-BUILD := build$(SUBMAKE_NAME)
+BUILD := build
 BUILD_FORCE := $(shell mkdir -p $(BUILD))
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
@@ -113,7 +78,7 @@ OBJECTS := \
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
 
 $(BUILD)/%.o: %.cpp
-	$(CXX) -o $@ $(CXXFLAGS) $(SUBMAKE_CXXFLAGS) -c $<
+	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
@@ -171,16 +136,16 @@ PREBUILT := ../../../prebuilt
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
   LIBBOOT := lib/linux-x86-64/libboot.so
-  LIBHAIL := lib/linux-x86-64/libhail$(SUBMAKE_NAME).so
+  LIBHAIL := lib/linux-x86-64/libhail.so
   ifneq ($(filter %86,$(UNAME_P)),)
     LIBBOOT := lib/linux-x86/libboot.so
-    LIBHAIL := lib/linux-x86/libhail$(SUBMAKE_NAME).so
+    LIBHAIL := lib/linux-x86/libhail.so
   endif
 endif
 ifeq ($(UNAME_S),Darwin)
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
   LIBBOOT := lib/darwin/libboot.dylib
-  LIBHAIL := lib/darwin/libhail$(SUBMAKE_NAME).dylib
+  LIBHAIL := lib/darwin/libhail.dylib
 endif
 
 all: libsimdpp-2.0-rc2 $(BUILD) $(LIBBOOT) $(LIBHAIL)
@@ -189,7 +154,7 @@ $(BUILD):
 	-$(MKDIR) -p $@
 
 debug:
-	echo "make debug SUBMAKE_NAME=$(SUBMAKE_NAME)"
+	echo "make debug"
 ifndef JAVA_HOME
 	echo JAVA_HOME undefined
 endif
@@ -203,9 +168,7 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp
 
 prebuilt: all
 	@echo updating $(PREBUILT) ...
-ifneq ($(LIBBOOT),)
 	$(CP) -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
-endif
 	$(CP) -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests
@@ -254,14 +217,10 @@ libsimdpp-2.0-rc2.tar.gz:
 libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	$(TAR) -xzf libsimdpp-2.0-rc2.tar.gz
 
-ifneq ($(LIBBOOT),)
 $(LIBBOOT): $(BUILD)/NativeBoot.o
 	-$(MKDIR) -p $(basename $(LIBBOOT))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
-endif
 
 $(LIBHAIL): $(BUILD_OBJECTS)
 	-$(MKDIR) -p $(basename $(LIBHAIL))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@ 
-
-endif
