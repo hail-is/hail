@@ -1,7 +1,7 @@
 name: hail
 dependencies:
 - python=3.6
-- Sphinx=1.7
+- Sphinx=1.7.5
 - sphinxcontrib
 - conda-forge::nbsphinx
 - conda-forge::sphinx_rtd_theme
