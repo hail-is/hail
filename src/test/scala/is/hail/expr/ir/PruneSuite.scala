@@ -335,7 +335,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixMapGlobalsMemo() {
-    val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.g1"), null)
+    val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.g1"))
     checkMemo(mmg, subsetMatrixTable(mmg.typ, "global.foo", "va.r3", "sa.c3"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "va.r3", "sa.c3"), null))
   }
