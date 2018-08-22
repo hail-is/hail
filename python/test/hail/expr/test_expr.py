@@ -1897,6 +1897,10 @@ class Tests(unittest.TestCase):
         res = hl.chi_squared_test(51, 43, 22, 92).value
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
+        
+        res = hl.chi_squared_test(61, 17493, 95, 84145).value
+        self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
 
     def test_fisher_exact_test(self):
         res = hl.fisher_exact_test(0, 0, 0, 0).value
