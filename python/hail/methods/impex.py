@@ -326,7 +326,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Notes
     -----
-    :func:`export_vcf` writes the dataset to disk in VCF format as described in the
+    :func:`.export_vcf` writes the dataset to disk in VCF format as described in the
     `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
     Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name

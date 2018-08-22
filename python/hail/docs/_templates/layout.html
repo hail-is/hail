@@ -7,30 +7,13 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['../../bootstrap.min.js'] %}
+{%- set script_files = script_files + ['../../bootstrap.min.js', '_static/toggle.js'] %}
 {%- set css_files = css_files + ['navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotationdb" %}
 {%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
 {%- set script_files = script_files + ['_static/annotationdb/bootstrap-treeview.min.js', '_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
 {% endif %}
-
-{% block extrafooter %}
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-<script type="text/javascript">
-    $(document).ready(function() {
-        $("<p><span class='toggle-button'><span class='toggle-show'>▼ show</span><span class='toggle-hide'>▲ hide</span></span><p>").insertBefore($(".toggle-content"));
-        $(".toggle-button").children(".toggle-hide").hide();
-        $(".toggle-button").children(".toggle-show").show();
-        $(".toggle").children(".toggle-content").hide();
-        $(".toggle-button").click(function() {
-          $(this).children(".toggle-show").toggle();
-          $(this).children(".toggle-hide").toggle();
-          $(this).parent().parent().children(".toggle-content").toggle(200);
-        });
-    });
-</script>
-{% endblock %}
 
 <!DOCTYPE html>
 <!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
