@@ -10,6 +10,7 @@ import org.testng.annotations.Test
 class SimplifySuite extends SparkSuite {
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations() {
+    hc
     val range = TableUnkey(TableRange(10, 3))
     val simplifiableIR =
       If(True(),

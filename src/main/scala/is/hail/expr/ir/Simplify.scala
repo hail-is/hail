@@ -49,33 +49,38 @@ object Simplify {
 
   private[this] def storeRepartitionability(
     x: BaseIR,
-    repartitionability: Memo[Boolean],
-    fromDownstream: Boolean
+    repartitionability: Memo[(Boolean, Boolean)],
+    downstreamOK: Boolean
   ): Unit = {
-    val canRepartition = fromDownstream && x.children.forall {
-      case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
-      case _ => true
-    }
-    if (!repartitionability.get(x).contains(canRepartition)) {
-      x.children.foreach(storeRepartitionability(_, repartitionability, canRepartition))
-      repartitionability.update(x, canRepartition)
+    if (repartitionability.get(x).forall(_._1 != downstreamOK)) {
+      val selfOK = x.children.forall {
+        case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
+        case _ => true
+      }
+      x.children.foreach(storeRepartitionability(_, repartitionability, downstreamOK && selfOK))
+      repartitionability.update(x, downstreamOK -> selfOK)
     }
   }
 
   def apply(ir: BaseIR): BaseIR = {
-    val canRepartition = Memo.empty[Boolean]
+    val repartitionablityMap = Memo.empty[(Boolean, Boolean)]
+
+    val canRepartition = { node: BaseIR =>
+      val (downstream, self) = repartitionablityMap(node)
+      downstream && self
+    }
 
     RewriteBottomUp(ir, { node =>
-      val repartitionability = canRepartition.getOrElse(node, true)
-      storeRepartitionability(node, canRepartition, repartitionability)
+      val (downstream, _) = repartitionablityMap.getOrElse(node, true -> true)
+      storeRepartitionability(node, repartitionablityMap, downstream)
       rules(canRepartition)(node).map { rewritten =>
-        storeRepartitionability(rewritten, canRepartition, repartitionability)
+        storeRepartitionability(rewritten, repartitionablityMap, downstream)
         rewritten
       }
     })
   }
 
-  def rules(canRepartition: Memo[Boolean]): BaseIR => Option[BaseIR] =
+  def rules(canRepartition: BaseIR => Boolean): BaseIR => Option[BaseIR] =
     matchErrorToNone {
       // optimize IR
 
@@ -245,7 +250,7 @@ object Simplify {
       //      case MatrixRowsTable(MatrixUnionRows(children)) =>
       //        TableUnion(children.map(MatrixRowsTable))
 
-      case MatrixColsTable(MatrixUnionRows(children)) if children.forall(canRepartition(_)) =>
+      case MatrixColsTable(MatrixUnionRows(children)) =>
         MatrixColsTable(children(0))
 
       // optimize MatrixIR
@@ -284,8 +289,8 @@ object Simplify {
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
-      case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
+      case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) && canRepartition(x) =>
         val mct = MatrixColsTable(child)
         TableMapRows(
           mct,
