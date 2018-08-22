@@ -696,12 +696,16 @@ object Parser extends JavaTokenParsers {
       "CachedMatrixTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[MatrixIR] }
   }
 
-  def parse_value_ir(s: String, env: IRParserEnvironment = IRParserEnvironment()): IR = parseWithEnv(ir_value_expr, s, env)
+  def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
+  def parse_value_ir(s: String, env: IRParserEnvironment): IR = parseWithEnv(ir_value_expr, s, env)
 
-  def parse_named_value_irs(s: String, env: IRParserEnvironment = IRParserEnvironment()): Array[(String, IR)] =
+  def parse_named_value_irs(s: String): Array[(String, IR)] = parse_named_value_irs(s, IRParserEnvironment())
+  def parse_named_value_irs(s: String, env: IRParserEnvironment): Array[(String, IR)] =
     parseWithEnv(ir_named_value_exprs, s, env).toArray
 
-  def parse_table_ir(s: String, env: IRParserEnvironment = IRParserEnvironment()): TableIR = parseWithEnv(table_ir, s, env)
+  def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
+  def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parseWithEnv(table_ir, s, env)
 
-  def parse_matrix_ir(s: String, env: IRParserEnvironment = IRParserEnvironment()): MatrixIR = parseWithEnv(matrix_ir, s, env)
+  def parse_matrix_ir(s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment())
+  def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parseWithEnv(matrix_ir, s, env)
 }
