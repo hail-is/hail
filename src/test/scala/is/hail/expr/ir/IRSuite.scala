@@ -579,7 +579,7 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val vcf = hc.importVCF("src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
         .ast.asInstanceOf[MatrixRead]
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
