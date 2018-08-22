@@ -414,15 +414,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
-    val at = TStruct(name -> t)
-    val value = BroadcastRow(Row(a), at, hc.sc)
     new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal(t, a, ir.genUID())))))
   }
 
   def selectGlobal(expr: String): Table = {
     val ir = Parser.parse_value_ir(expr, typ.refMap)
-    new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
+    new Table(hc, TableMapGlobals(tir, ir))
   }
 
   def filter(cond: String, keep: Boolean): Table = {

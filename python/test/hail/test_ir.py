@@ -140,8 +140,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableMapGlobals(
                 table_read,
                 ir.MakeStruct([
-                    ('foo', ir.NA(hl.tarray(hl.tint32)))]),
-                ir.Value(hl.tstruct(), {})),
+                    ('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),
             ir.TableRepartition(table_read, 10, False),
             ir.TableUnion(
@@ -221,12 +220,11 @@ class ValueTests(unittest.TestCase):
 
     def test_value_same_after_parsing(self):
         for t, v in self.values():
-            row_v = ir.Value(hl.tstruct(x=t), hl.Struct(x=v))
+            row_v = ir.Literal(hl.tstruct(x=t), hl.Struct(x=v))
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
                     ir.Ref("global", hl.tstruct()),
-                    [("foo", ir.GetField(ir.Ref("value", row_v.typ), "x"))]),
-                row_v)
+                    [("foo", row_v)]))
             new_globals = hl.Table._from_ir(map_globals_ir).globals.value
             self.assertEquals(new_globals, hl.Struct(foo=v))

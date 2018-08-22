@@ -551,7 +551,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMapGlobalsRebuild() {
-    val tmg = TableMapGlobals(tr, tableRefStruct(tr.typ, "global.g1"), BroadcastRow(Row(), TStruct(), sc))
+    val tmg = TableMapGlobals(tr, tableRefStruct(tr.typ, "global.g1"))
     checkRebuild(tmg, subsetTable(tmg.typ, "global.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmg = r.asInstanceOf[TableMapGlobals]
@@ -647,8 +647,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixMapGlobalsRebuild() {
-    val mmg = MatrixMapGlobals(mr, matrixRefStruct(mr.typ, "global.g1"),
-      BroadcastRow(Row(), TStruct(), sc))
+    val mmg = MatrixMapGlobals(mr, matrixRefStruct(mr.typ, "global.g1"))
     checkRebuild(mmg, subsetMatrixTable(mmg.typ, "global.foo", "g.e1", "va.r2"),
       (_: BaseIR, r: BaseIR) => {
         val mmg = r.asInstanceOf[MatrixMapGlobals]

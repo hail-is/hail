@@ -516,7 +516,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val at = TStruct(name -> t)
     val value = BroadcastRow(Row(a), at, hc.sc)
     new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name)))))
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
@@ -614,7 +614,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def selectGlobals(expr: String): MatrixTable = {
     val globalIR = Parser.parse_value_ir(expr, matrixType.refMap)
-    new MatrixTable(hc, MatrixMapGlobals(ast, globalIR, BroadcastRow(Row(), TStruct(), hc.sc)))
+    new MatrixTable(hc, MatrixMapGlobals(ast, globalIR))
   }
 
   def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =

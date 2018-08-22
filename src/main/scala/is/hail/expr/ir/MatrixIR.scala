@@ -1633,7 +1633,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
   }
 }
 
-case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) extends MatrixIR {
+case class MatrixMapGlobals(child: MatrixIR, newRow: IR) extends MatrixIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: MatrixType =
@@ -1641,7 +1641,7 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
-    MatrixMapGlobals(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], value)
+    MatrixMapGlobals(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -1654,8 +1654,7 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR, value: BroadcastRow) ex
     val newGlobals = Interpret[Row](
       newRow,
       Env.empty[(Any, Type)].bind(
-        "global" -> (prev.globals.value, child.typ.globalType),
-        "value" -> (value.value, value.t)),
+        "global" -> (prev.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 

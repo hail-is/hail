@@ -635,7 +635,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
   }
 }
 
-case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) extends TableIR {
+case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType =
@@ -643,7 +643,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
-    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], value)
+    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -654,8 +654,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
     val newGlobals = Interpret[Row](
       newRow,
       Env.empty[(Any, Type)].bind(
-        "global" -> (tv.globals.value, child.typ.globalType),
-        "value" -> (value.value, value.t)),
+        "global" -> (tv.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 
