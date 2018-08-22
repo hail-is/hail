@@ -239,11 +239,11 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableMapRowsMemo() {
     val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"), None, None)
-    checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2"), null))
+    checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2")))
   }
 
   @Test def testTableMapGlobalsMemo() {
-    val tmg = TableMapGlobals(tab, tableRefStruct(tab.typ, "global.g1"), null)
+    val tmg = TableMapGlobals(tab, tableRefStruct(tab.typ, "global.g1"))
     checkMemo(tmg, subsetTable(tmg.typ, "global.foo"), Array(subsetTable(tab.typ, "global.g1"), null))
   }
 

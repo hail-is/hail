@@ -552,8 +552,7 @@ class IRSuite extends SparkSuite {
           None, None),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
-            "foo" -> NA(TArray(TInt32())))),
-          BroadcastRow(Row(), TStruct.empty(), hc.sc)),
+            "foo" -> NA(TArray(TInt32()))))),
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
