@@ -15,9 +15,7 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
-//case class EnvBox(var env: IRParserEnvironment)
 object IRParserEnvironment {
-  //  val theEnv: IRParserEnvironment = EnvBox(null)
   var theEnv: IRParserEnvironment = null
 }
 
@@ -497,22 +495,14 @@ object Parser extends JavaTokenParsers {
     "Keyed(" ~> ir_agg_op <~ ")" ^^ { aggOp => ir.Keyed(aggOp) }
 
   def ir_children: Parser[IndexedSeq[ir.IR]] =
-    rep(ir_value_expr) ^^ {
-      _.toFastIndexedSeq
-    }
+    rep(ir_value_expr) ^^ (_.toFastIndexedSeq)
 
-  def table_ir_children: Parser[IndexedSeq[ir.TableIR]] = rep(table_ir) ^^ {
-    _.toFastIndexedSeq
-  }
+  def table_ir_children: Parser[IndexedSeq[ir.TableIR]] = rep(table_ir) ^^ (_.toFastIndexedSeq)
 
-  def matrix_ir_children: Parser[IndexedSeq[ir.MatrixIR]] = rep(matrix_ir) ^^ {
-    _.toFastIndexedSeq
-  }
+  def matrix_ir_children: Parser[IndexedSeq[ir.MatrixIR]] = rep(matrix_ir) ^^ (_.toFastIndexedSeq)
 
   def ir_value_exprs: Parser[IndexedSeq[ir.IR]] =
-    "(" ~> rep(ir_value_expr) <~ ")" ^^ {
-      _.toFastIndexedSeq
-    }
+    "(" ~> rep(ir_value_expr) <~ ")" ^^ (_.toFastIndexedSeq)
 
   def ir_value_exprs_opt: Parser[Option[IndexedSeq[ir.IR]]] =
     ir_value_exprs ^^ { xs => Some(xs) } |
