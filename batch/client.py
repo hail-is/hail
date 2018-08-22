@@ -5,14 +5,14 @@ import requests
 import batch.api as api
 
 class Job(object):
-    def __init__(self, client, id, attributes=None):
+    def __init__(self, client, id, attributes=None, _status = None):
         if attributes is None:
             attributes = {}
 
         self.client = client
         self.id = id
         self.attributes = attributes
-        self._status = None
+        self._status = _status
 
     def is_complete(self):
         if self._status:
@@ -20,6 +20,10 @@ class Job(object):
             if state == 'Complete' or state == 'Cancelled':
                 return True
         return False
+
+    def cached_status(self):
+        assert self._status != None
+        return self._status
 
     def status(self):
         self._status = self.client._get_job(self.id)
@@ -124,12 +128,12 @@ class BatchClient(object):
 
     def list_jobs(self):
         jobs = api.list_jobs(self.url)
-        return [Job(self, j['id'], j['attributes']) for j in jobs]
+        return [Job(self, j['id'], j['attributes'], j) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = api.get_job(self.url, id)
-        return Job(self, j['id'], j['attributes'])
+        return Job(self, j['id'], j['attributes'], j)
 
     def create_job(self,
                    image,
