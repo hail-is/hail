@@ -63,18 +63,18 @@ object Simplify {
   }
 
   def apply(ir: BaseIR): BaseIR = {
-    val repartitionablityMap = Memo.empty[(Boolean, Boolean)]
+    val repartitionabilityMap = Memo.empty[(Boolean, Boolean)]
 
     val canRepartition = { node: BaseIR =>
-      val (downstream, self) = repartitionablityMap(node)
+      val (downstream, self) = repartitionabilityMap(node)
       downstream && self
     }
 
     RewriteBottomUp(ir, { node =>
-      val (downstream, _) = repartitionablityMap.getOrElse(node, true -> true)
-      storeRepartitionability(node, repartitionablityMap, downstream)
+      val (downstream, _) = repartitionabilityMap.getOrElse(node, true -> true)
+      storeRepartitionability(node, repartitionabilityMap, downstream)
       rules(canRepartition)(node).map { rewritten =>
-        storeRepartitionability(rewritten, repartitionablityMap, downstream)
+        storeRepartitionability(rewritten, repartitionabilityMap, downstream)
         rewritten
       }
     })
