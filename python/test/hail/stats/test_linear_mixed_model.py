@@ -22,7 +22,7 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    def test_linear_mixed_model_low_rank(self):
+    def _test_linear_mixed_model_low_rank(self):
         seed = 0
         n_populations = 8
         fst = n_populations * [.9]
