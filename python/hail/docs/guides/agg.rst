@@ -106,14 +106,14 @@ Multiple aggregations
 .....................
 
 :**description**: Perform multiple aggregations over column-indexed fields by using
-                  a struct expression. The result is a single struct containing two nested fields,
-                  ``fraction_female`` and ``case_ratio``.
+                  a struct expression. The result is a single struct containing
+                  two nested fields, ``fraction_female`` and ``case_ratio``.
 
 :**code**:
 
-    >>> mt.aggregate_cols(
-    ...             hl.struct(fraction_female=hl.agg.fraction(mt.pheno.is_female),
-    ...                       case_ratio=hl.agg.count_where(mt.is_case) / hl.agg.count()))
+    >>> mt.aggregate_cols(hl.struct(
+    ...         fraction_female=hl.agg.fraction(mt.pheno.is_female),
+    ...         case_ratio=hl.agg.count_where(mt.is_case) / hl.agg.count()))
     Struct(fraction_female=0.5, case_ratio=1.0)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_cols`, :func:`.aggregators.fraction`, :func:`.aggregators.count_where`, :class:`.StructExpression`
@@ -181,7 +181,7 @@ Aggregate Per Column Group
 :**code**:
 
     >>> result_mt = (mt.group_cols_by(mt.cohort)
-    ...                      .aggregate(call_rate=hl.agg.fraction(hl.is_defined(mt.GT))))
+    ...              .aggregate(call_rate=hl.agg.fraction(hl.is_defined(mt.GT))))
 
 :**dependencies**: :meth:`.MatrixTable.group_cols_by`, :class:`.GroupedMatrixTable`, :meth:`.GroupedMatrixTable.aggregate`
 
@@ -212,7 +212,7 @@ Aggregate Per Row Group
 :**code**:
 
     >>> result_mt = (mt.group_rows_by(mt.gene)
-    ...                      .aggregate(n_non_ref=hl.agg.count_where(mt.GT.is_non_ref())))
+    ...              .aggregate(n_non_ref=hl.agg.count_where(mt.GT.is_non_ref())))
 
 :**dependencies**: :meth:`.MatrixTable.group_rows_by`, :class:`.GroupedMatrixTable`, :meth:`.GroupedMatrixTable.aggregate`
 
