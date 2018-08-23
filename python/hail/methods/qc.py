@@ -224,7 +224,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     `het_freq_hwe` and `p_value_hwe` are calculated as in
     :func:`.functions.hardy_weinberg_test`, with non-diploid calls
     (``ploidy != 2``) ignored in the counts. As this test is only
-    statistically rigorous in the biallelic setting, :func:`variant_qc`
+    statistically rigorous in the biallelic setting, :func:`.variant_qc`
     sets both fields to missing for multiallelic variants. Consider using
     :func:`~hail.methods.split_multi` to split multi-allelic variants beforehand.
 

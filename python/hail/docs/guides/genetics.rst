@@ -171,32 +171,43 @@ PLINK Conversions
 Polygenic Risk Score Calculation
 ................................
 
+:**plink**:
+
+    >>> plink --bfile data --score scores.txt sum # doctest: +SKIP
+
 :**tags**: PRS
 
-:**description**: Compute a polygenic score for each sample in a matrix table.
+:**description**: This command is analogous to plink's --score command with the
+                  `sum` option. Biallelic variants are required.
 
 :**code**:
 
+    >>> mt = hl.import_plink(
+    ...     bed="data/ldsc.bed", bim="data/ldsc.bim", fam="data/ldsc.fam",
+    ...     quant_pheno=True, missing='-9')
     >>> mt = hl.variant_qc(mt)
+    >>> scores = hl.import_table('data/scores.txt', delimiter=' ', key='rsid',
+    ...                          types={'score': hl.tfloat32})
+    >>> mt = mt.annotate_rows(**scores[mt.rsid])
+    >>> flip = hl.case().when(mt.allele == mt.alleles[0], True).when(
+    ...     mt.allele == mt.alleles[1], False).or_missing()
+    >>> mt = mt.annotate_rows(flip=flip)
+    >>> mt = mt.annotate_rows(
+    ...     prior=2 * hl.cond(mt.flip, mt.variant_qc.AF[0], mt.variant_qc.AF[1]))
     >>> mt = mt.annotate_cols(
     ...     prs=hl.agg.sum(
-    ...         mt.score * hl.coalesce(mt.GT.n_alt_alleles(),
-    ...                                2 * mt.variant_qc.AF[1])) / hl.agg.count())
+    ...         mt.score * hl.coalesce(
+    ...             hl.cond(mt.flip, 2 - mt.GT.n_alt_alleles(),
+    ...                     mt.GT.n_alt_alleles()), mt.prior)))
 
-:**dependencies**: :func:`variant_qc`, :func:`.coalesce`
+:**dependencies**:
 
-:**understanding**:
+    :func:`.import_plink`, :func:`.variant_qc`, :func:`.import_table`,
+    :func:`.coalesce`, :func:`.case`, :func:`.cond`, :meth:`.Call.n_alt_alleles`
 
-    .. container:: toggle
 
-        .. container:: toggle-content
 
-            This command is analogous to plink's --score command. This requires biallelic
-            variants.
 
-            The :func:`.coalesce` function takes any number of arguments and returns the
-            first non-missing one.
 
-            Note that plink will score whichever allele you specify in your input, whereas
-            Hail will score the alternate allele. Flip your alleles if the allele you want
-            to score is not the alternate.
+
+

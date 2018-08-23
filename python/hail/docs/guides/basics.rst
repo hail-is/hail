@@ -16,7 +16,19 @@ one of the :ref:`import_* <methods_impex_import>` methods.
 
 :**code**:
 
+    .. code-block:: python
+
         >>> table = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
 :**dependencies**: :func:`.import_table`
 
@@ -31,7 +43,7 @@ Export Hail data to a non-Hail format, using one of the
 
 :**code**:
 
-    >>> hl.export_vcf(mt, 'output/example') # doctest: +SKIP
+    >>> hl.export_vcf(mt, 'output/example.vcf.bgz') # doctest: +SKIP
 
 :**dependencies**: :func:`.export_vcf`
 
