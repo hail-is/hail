@@ -723,7 +723,7 @@ object OrderedRVD {
       private val bit = it.buffered
 
       private val q = new mutable.PriorityQueue[RegionValue]()(
-        typ.copy(key = newKey.toArray).kInRowOrd.reverse)
+        typ.copy(key = newKey).kInRowOrd.reverse)
 
       private val rvb = new RegionValueBuilder(consumerRegion)
       private val rv = RegionValue()

@@ -537,14 +537,15 @@ class LinearMixedModel(object):
 
         self.gamma = np.exp(self.log_gamma)
         self.h_sq = self.sigma_sq / (self.sigma_sq + self.tau_sq)
-        if fit_log_gamma:
-            self.h_sq_standard_error = self._estimate_h_sq_standard_error()
 
         self._residual_sq = self.sigma_sq * self._dof
         self._d_alt = self._d
         self._ydy_alt = self._ydy
         self._xdy_alt[1:] = self._xdy
         self._xdx_alt[1:, 1:] = self._xdx
+
+        if fit_log_gamma:
+            self.h_sq_standard_error = self._estimate_h_sq_standard_error()
 
         self._fitted = True
 

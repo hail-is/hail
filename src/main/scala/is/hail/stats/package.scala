@@ -124,14 +124,19 @@ package object stats {
   
   val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
   
-  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int): Array[Double] = {
-    if (a < 0 || b < 0 || c < 0 || d < 0)
-      fatal(s"chi_squared_test: all arguments must be non-negative, got $a, $b, $c, $d")
+  def chiSquaredTest(a0: Int, b0: Int, c0: Int, d0: Int): Array[Double] = {
+    if (a0 < 0 || b0 < 0 || c0 < 0 || d0 < 0)
+      fatal(s"chi_squared_test: all arguments must be non-negative, got $a0, $b0, $c0, $d0")
 
+    val a = a0.toDouble
+    val b = b0.toDouble
+    val c = c0.toDouble
+    val d = d0.toDouble
+    
     val ad = a * d
-    val bc = (b * c).toDouble
+    val bc = b * c
     val det = ad - bc
-    val chiSquare = (det * det * (a + b + c + d)) / ((a + b) * (c + d) * (b + d) * (a + c))
+    val chiSquare = (a + b + c + d) * (det / ((a + b) * (c + d))) * (det / ((b + d) * (a + c)))
     
     Array(chiSquaredTail(chiSquare, 1), ad / bc)
   }

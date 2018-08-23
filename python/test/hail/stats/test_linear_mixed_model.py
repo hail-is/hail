@@ -103,6 +103,7 @@ class Tests(unittest.TestCase):
 
         # compare NumPy and Hail LMM per alternative
         df_numpy = model.fit_alternatives_numpy(pa, a).to_pandas()
+        assert np.min(df_numpy['chi_sq']) > 0
 
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)
@@ -183,6 +184,7 @@ class Tests(unittest.TestCase):
 
         # compare NumPy and Hail LMM per alternative
         df_numpy = model.fit_alternatives_numpy(pa, a).to_pandas()
+        assert np.min(df_numpy['chi_sq']) > 0
 
         na_numpy = df_numpy.isna().any(axis=1)
         na_lmm = df_lmm.isna().any(axis=1)

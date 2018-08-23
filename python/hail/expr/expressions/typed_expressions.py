@@ -56,12 +56,6 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
-
-        def unify_ret(t):
-            if t != tbool:
-                raise TypeError("'exists' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
-            return t
-
         f2 = lambda accum, elt: accum | f(elt)
         return hl.array(self).fold(False, f2)
 
@@ -234,12 +228,6 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
-
-        def unify_ret(t):
-            if t != tbool:
-                raise TypeError("'all' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
-            return t
-
         f2 = lambda accum, elt: accum & f(elt)
         return hl.array(self).fold(True, f2)
 
@@ -724,6 +712,12 @@ class SetExpression(CollectionExpression):
     :class:`.CollectionExpression`
     """
 
+    @typecheck_method(ir=IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(SetExpression, self).__init__(ir, type, indices, aggregations)
+        assert isinstance(type, tset)
+        self._ec = coercer_from_dtype(type.element_type)
+
     @typecheck_method(item=expr_any)
     def add(self, item):
         """Returns a new set including `item`.
@@ -744,11 +738,11 @@ class SetExpression(CollectionExpression):
         :class:`.SetExpression`
             Set with `item` added.
         """
-        if not item._type == self._type.element_type:
+        if not self._ec.can_coerce(item.dtype):
             raise TypeError("'SetExpression.add' expects 'item' to be the same type as its elements\n"
                             "    set element type:   '{}'\n"
-                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
-        return self._method("add", self._type, item)
+                            "    type of arg 'item': '{}'".format(self.dtype.element_type, item.dtype))
+        return self._method("add", self.dtype, self._ec.coerce(item))
 
     @typecheck_method(item=expr_any)
     def remove(self, item):
@@ -770,11 +764,11 @@ class SetExpression(CollectionExpression):
         :class:`.SetExpression`
             Set with `item` removed.
         """
-        if not item._type == self._type.element_type:
+        if not self._ec.can_coerce(item.dtype):
             raise TypeError("'SetExpression.remove' expects 'item' to be the same type as its elements\n"
                             "    set element type:   '{}'\n"
-                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
-        return self._method("remove", self._type, item)
+                            "    type of arg 'item': '{}'".format(self.dtype.element_type, item.dtype))
+        return self._method("remove", self._type, self._ec.coerce(item))
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -799,11 +793,11 @@ class SetExpression(CollectionExpression):
         :class:`.BooleanExpression`
             ``True`` if `item` is in the set.
         """
-        if not item._type == self._type.element_type:
+        if not self._ec.can_coerce(item.dtype):
             raise TypeError("'SetExpression.contains' expects 'item' to be the same type as its elements\n"
                             "    set element type:   '{}'\n"
-                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
-        return self._method("contains", tbool, item)
+                            "    type of arg 'item': '{}'".format(self.dtype.element_type, item.dtype))
+        return self._method("contains", tbool, self._ec.coerce(item))
 
     @typecheck_method(s=expr_set())
     def difference(self, s):
@@ -922,6 +916,13 @@ class DictExpression(Expression):
     >>> d = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
+    @typecheck_method(ir=IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(DictExpression, self).__init__(ir, type, indices, aggregations)
+        assert isinstance(type, tdict)
+        self._kc = coercer_from_dtype(type.key_type)
+        self._vc = coercer_from_dtype(type.value_type)
+
     @typecheck_method(item=expr_any)
     def __getitem__(self, item):
         """Get the value associated with key `item`.
@@ -947,11 +948,11 @@ class DictExpression(Expression):
         :class:`.Expression`
             Value associated with key `item`.
         """
-        if not item._type == self._type.key_type:
+        if not self._kc.can_coerce(item.dtype):
             raise TypeError("dict encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
-                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._index(self.dtype.value_type, item)
+                            "    type of 'item': '{}'".format(self.dtype.key_type, item.dtype))
+        return self._index(self.dtype.value_type, self._kc.coerce(item))
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -976,11 +977,11 @@ class DictExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if `item` is a key of the dictionary, ``False`` otherwise.
         """
-        if not item._type == self._type.key_type:
+        if not self._kc.can_coerce(item.dtype):
             raise TypeError("'DictExpression.contains' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
-                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
-        return self._method("contains", tbool, item)
+                            "    type of 'item': '{}'".format(self._type.key_type, item.dtype))
+        return self._method("contains", tbool, self._kc.coerce(item))
 
     @typecheck_method(item=expr_any, default=nullable(expr_any))
     def get(self, item, default=None):
@@ -1010,18 +1011,20 @@ class DictExpression(Expression):
         :class:`.Expression`
             The value associated with `item`, or `default`.
         """
-        if not item.dtype == self.dtype.key_type:
+        if not self._kc.can_coerce(item.dtype):
             raise TypeError("'DictExpression.get' encountered an invalid key type\n"
                             "    dict key type:  '{}'\n"
-                            "    type of 'item': '{}'".format(self.dtype.key_type, item._type))
+                            "    type of 'item': '{}'".format(self.dtype.key_type, item.dtype))
+        key = self._kc.coerce(item)
+
         if default is not None:
-            if not self.dtype.value_type == default.dtype:
+            if not self._vc.can_coerce(default.dtype):
                 raise TypeError("'get' expects parameter 'default' to have the "
                                 "same type as the dictionary value type, found '{}' and '{}'"
                                 .format(self.dtype, default.dtype))
-            return self._method("get", self.dtype.value_type, item, default)
+            return self._method("get", self.dtype.value_type, key, self._vc.coerce(default))
         else:
-            return self._method("get", self.dtype.value_type, item)
+            return self._method("get", self.dtype.value_type, key)
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
@@ -1061,7 +1064,7 @@ class DictExpression(Expression):
 
         Examples
         --------
-        
+
         >>> d.map_values(lambda x: x * 10).value
         {'Alice': 430, 'Bob': 330, 'Charles': 440}
 

@@ -74,11 +74,11 @@ object LiftLiterals {
   }
 
   def rewriteIR(ir: IR, newGlobalType: Type): IR = {
-    MapIR.mapBaseIR(ir, {
-      case Ref("global", _) => Ref("global", newGlobalType)
+    ir match {
+      case Ref("global", t) => SelectFields(Ref("global", newGlobalType), t.asInstanceOf[TStruct].fieldNames)
       case Literal(_, _, id) => GetField(Ref("global", newGlobalType), id)
-      case ir => ir
-    }).asInstanceOf[IR]
+      case _ => MapIR(rewriteIR(_, newGlobalType))(ir)
+    }
   }
 
   def apply(ir: BaseIR): BaseIR = {
