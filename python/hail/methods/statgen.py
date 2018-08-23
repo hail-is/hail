@@ -1,4 +1,3 @@
-import itertools
 import math
 import numpy as np
 from typing import *
@@ -11,6 +10,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant
+from hail.stats import LinearMixedModel
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -631,6 +631,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
            z_t=nullable(expr_float64),
            k=nullable(np.ndarray),
            p_path=nullable(str),
+           overwrite=bool,
            standardize=bool,
            mean_impute=bool)
 def linear_mixed_model(y,
@@ -638,6 +639,7 @@ def linear_mixed_model(y,
                        z_t=None,
                        k=None,
                        p_path=None,
+                       overwrite=False,
                        standardize=True,
                        mean_impute=True):
     r"""Initialize a linear mixed model from a matrix table.
@@ -651,13 +653,13 @@ def linear_mixed_model(y,
     >>> model, _ = hl.linear_mixed_model(
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
-    ...     z=marker_ds.n_alt_alleles(),
+    ...     z_t=marker_ds.GT.n_alt_alleles(),
     ...     p_path='output/p.bm')
 
     Fit the model and examine :math:`h^2`:
 
-    >>> model.fit()  # doctest: +SKIP
-    >>> model.h_sq   # doctest: +SKIP
+    >>> model.fit()
+    >>> model.h_sq
 
     Sanity-check the normalized likelihood of :math:`h^2` over the percentile
     grid:
@@ -667,7 +669,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_ds = hl.linear_mixed_regression(dataset.n_alt_alleles(), model)  # doctest: +SKIP
+    >>> result_ds = hl.linear_mixed_regression(dataset.GT.n_alt_alleles(), model)
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -680,25 +682,29 @@ def linear_mixed_model(y,
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
-    ...     p_path='output/p.bm')
+    ...     p_path='output/p.bm',
+    ...     overwrite=True)
 
     Notes
     -----
     See :meth:`.LinearMixedModel` for details on the model and notation.
 
-    If `z_t` is set and `standardize` is true, each random effect is first
+    Exactly one of `z_t` and `k` must be set.
+
+    If `z_t` is set, the model is low-rank if the number samples :math:`n` exceeds
+    the number of random effects :math:`m`. At least one dimension must be less
+    than or equal to 46300. If `standardize` is true, each random effect is first
     standardized to have mean 0 and variance :math:`\frac{1}{m}`, so that the
     diagonal values of the kinship matrix `K = ZZ^T` are 1.0 in expectation.
     This kinship matrix corresponds to the :meth:`realized_relationship_matrix`
-    in genetics. The model is low-rank if the number samples :math:`n` exceeds
-    the number of random effects :math:`m`. At least one dimension must be less
-    than or equal to 46300. See :meth:`.LinearMixedModel.from_random_effects`
+    in genetics. See :meth:`.LinearMixedModel.from_random_effects`
     and :meth:`.BlockMatrix.svd` for more details.
 
-    Alternatively, if `k` is set, be sure that the row and column indices of `k`
-    correspond to the columns of the source of `y`. `k` must be positive
-    semi-definite; symmetry is not checked as only the lower triangle is used.
-    The model is full-rank. See :meth:`.LinearMixedModel.from_kinship` for more
+    If `k` is set, the model is full-rank. **For correct results, the indices of
+    `k` must be aligned with columns of the source of `y`.**
+    Set `p_path` if you plan to use the model in :meth:`linear_mixed_regression`.
+    `k` must be positive semi-definite; symmetry is not checked as only the
+    lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
     details.
 
     Missing, nan, or infinite values in `y` or `x` will raise an error.
@@ -713,7 +719,7 @@ def linear_mixed_model(y,
         Column-indexed expression for the observations (rows of :math:`y`).
         Must have no missing values.
     x: :obj:`list` of :class:`.Float64Expression`
-        List of column-indexed expressions for the fixed effects (rows of :math:`X`).
+        Non-empty list of column-indexed expressions for the fixed effects (rows of :math:`X`).
         Each expression must have the same source as `y` or no source
         (e.g., the intercept ``1.0``).
         Must have no missing values.
@@ -728,11 +734,13 @@ def linear_mixed_model(y,
     p_path: :obj:`str`, optional
         Path at which to write the projection :math:`P` as a block matrix.
         Required if `z_t` is set.
+    overwrite: :obj:`bool`
+        If ``True``, overwrite an existing file at `p_path`.
     standardize: :obj:`bool`
-        If true, standardize `z_t` by row to mean 0 and variance
+        If ``True``, standardize `z_t` by row to mean 0 and variance
         :math:`\frac{1}{m}`.
     mean_impute: :obj:`bool`
-        If true, mean-impute missing values of `z_t` by row.
+        If ``True``, mean-impute missing values of `z_t` by row.
 
     Returns
     -------
@@ -740,36 +748,38 @@ def linear_mixed_model(y,
         Linear mixed model ready to be fit.
     p: :class:`ndarray` or :class:`.BlockMatrix`
         Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
-        The type is ndarray if `k` is set.
+        The type is block matrix if the model is low rank (i.e., if `z_t` is set
+        and :math:`n > m`).
     """
+    source = matrix_table_source('linear_mixed_model/y', y)
+
     if ((z_t is None and k is None) or 
        (z_t is not None and k is not None)):
         raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
 
-    y_source = matrix_table_source('linear_mixed_model', y)
-    x_source = matrix_table_source('linear_mixed_model', x)
-    if y_source != x_source:
-        raise ValueError("linear_mixed_model: 'y' and 'x' must "
-                         "have the same source")
+    if len(x) == 0:
+        raise ValueError("linear_mixed_model: 'x' must include at least one fixed effect")
+
+    _warn_if_no_intercept('linear_mixed_model', x)
 
     # collect x and y in one pass
-    xy = np.array(hl.array(x.append(y)).collect(), dtype=np.float64)
-    xy = xy.reshape(xy.size / (len(x) + 1), len(x) + 1)
+    xy = np.array(hl.array(x + [y]).collect(), dtype=np.float64)
+    xy = xy.reshape(xy.size // (len(x) + 1), len(x) + 1)
     x_nd = np.copy(xy[:, :-1])
     y_nd = np.copy(xy[:, -1])
     n = y_nd.size
     del xy
 
-    if not np.all(np.isfinite(y)):
+    if not np.all(np.isfinite(y_nd)):
         raise ValueError("linear_mixed_model: 'y' has missing, nan, or infinite values")
-    if not np.all(np.isfinite(x)):
+    if not np.all(np.isfinite(x_nd)):
         raise ValueError("linear_mixed_model: 'x' has missing, nan, or infinite values")
 
     if z_t is None:
-        model, p = hl.stats.LinearMixedModel.from_kinship(y_nd, x_nd, k, p_path)
+        model, p = LinearMixedModel.from_kinship(y_nd, x_nd, k, p_path, overwrite)
     else:
         check_entry_indexed('from_matrix_table: z_t', z_t)
-        if matrix_table_source(z_t) != y_source:
+        if matrix_table_source('linear_mixed_model/z_t', z_t) != source:
             raise ValueError("linear_mixed_model: 'y' and 'z_t' must "
                              "have the same source")
         z_bm = BlockMatrix.from_entry_expr(z_t,
@@ -777,14 +787,17 @@ def linear_mixed_model(y,
                                            center=standardize,
                                            normalize=standardize).T  # variance is 1 / n
         m = z_bm.shape[1]
-        model, p = hl.stats.LinearMixedModel.from_random_effects(y_nd, x_nd, z_bm, p_path)
+        model, p = LinearMixedModel.from_random_effects(y_nd, x_nd, z_bm, p_path, overwrite)
         if standardize:
             model.s = model.s * (n / m)  # now variance is 1 / m
+        if model.low_rank and isinstance(p, np.ndarray):
+            assert n > m
+            p = BlockMatrix.read(p_path)
     return model, p
 
 
 @typecheck(entry_expr=expr_float64,
-           model=hl.stats.LinearMixedModel,
+           model=LinearMixedModel,
            pa_t_path=nullable(str),
            a_t_path=nullable(str),
            mean_impute=bool,
@@ -841,21 +854,25 @@ def linear_mixed_regression(entry_expr,
 
     So having run linear mixed regression once, we can
     compute :math:`h^2` and regression statistics for another response or set of
-    fixed effects on the **same samples** at the speed of
+    fixed effects on the **same samples** at the roughly the speed of
     :meth:`linear_regression`.
 
-    For example, suppose we've collected another `y` and `x` as ndarrays.
+    For example, having collected another `y` and `x` as ndarrays, one can
+    construct a new linear mixed model directly using:
+
+    >>> from hail.stats import LinearMixedModel
+
     Supposing the model is full-rank and `p` is an ndarray:
 
-    >>> model = hl.stats.LinearMixedModel(p @ y, p @ x, s)  # doctest: +SKIP
-    >>> model.fit()                                         # doctest: +SKIP
-    >>> result_ht = model.fit_alternatives(pa_t_path)       # doctest: +SKIP
+    >>> model = LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
+    >>> model.fit()                                    # doctest: +SKIP
+    >>> result_ht = model.fit_alternatives(pa_t_path)  # doctest: +SKIP
 
     Supposing the model is low-rank and `p` is a block matrix:
 
     >>> p = BlockMatrix.read(p_path)                             # doctest: +SKIP
     >>> py, px = (p @ y).to_numpy(), (p @ x).to_numpy()          # doctest: +SKIP
-    >>> model = hl.stats.LinearMixedModel(py, px, s, y, x)       # doctest: +SKIP
+    >>> model = LinearMixedModel(py, px, s, y, x)                # doctest: +SKIP
     >>> model.fit()                                              # doctest: +SKIP
     >>> result_ht = model.fit_alternatives(pa_t_path, a_t_path)  # doctest: +SKIP
 
@@ -904,16 +921,16 @@ def linear_mixed_regression(entry_expr,
     :class:`MatrixTable`
         Matrix table with regression results in a new row-indexed field.
     """
+    mt = matrix_table_source('linear_mixed_regression', entry_expr)
+    n = mt.count_cols()
+
     check_entry_indexed('linear_mixed_regression', entry_expr)
-    if not model._is_fitted:
+    if not model._fitted:
         raise ValueError("linear_mixed_regression: 'model' has not been fit "
                          "using 'fit()'")
     if model.p_path is None:
         raise ValueError("linear_mixed_regression: 'model' property 'p_path' "
                          "was not set at initialization")
-
-    mt = entry_expr._indices.source
-    n = mt.count_cols()
 
     if model.n != n:
         raise ValueError(f"linear_mixed_regression: linear mixed model expects {model.n} samples, "
@@ -926,7 +943,6 @@ def linear_mixed_regression(entry_expr,
     BlockMatrix.write_from_entry_expr(entry_expr,
                                       a_t_path,
                                       mean_impute=mean_impute,
-                                      force_row_major=True,
                                       block_size=p.block_size)
     a_t = BlockMatrix.read(a_t_path)
     (a_t @ p.T).write(pa_t_path, force_row_major=True)
