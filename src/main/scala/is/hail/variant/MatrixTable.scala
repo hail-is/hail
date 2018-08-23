@@ -520,7 +520,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
-    val (t, ins) = insertSA(signature, path)
+    val (t, ins) = colType.structInsert(signature, path)
 
     val newAnnotations = new Array[Annotation](numCols)
 
