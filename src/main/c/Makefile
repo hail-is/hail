@@ -97,9 +97,9 @@ Region.o: headers
 # it in the same directory as this Makefile. If you do so, the build will
 # succeed without attempting to access the Internet.
 # WGET ?= wget
-WGET ?= curl -L
+WGET ?= curl -L -O
 libsimdpp-2.1.tar.gz:
-	${WGET} https://github.com/p12tic/libsimdpp/archive/v2.1.tar.gz -o $@
+	${WGET} https://storage.googleapis.com/hail-common/$@
 
 libsimdpp-2.1: libsimdpp-2.1.tar.gz
 	tar -xzf $<
