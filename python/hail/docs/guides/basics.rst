@@ -19,6 +19,7 @@ one of the :ref:`import_* <methods_impex_import>` methods.
     .. code-block:: python
 
         >>> table = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
+        >>> table.show()
         +-------+-------+-----+-------+-------+-------+-------+-------+
         |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
