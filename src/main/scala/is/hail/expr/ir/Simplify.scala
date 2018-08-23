@@ -170,8 +170,8 @@ object Simplify {
       case TableFilter(TableOrderBy(child, sortFields), pred) =>
         TableOrderBy(TableFilter(child, pred), sortFields)
 
-      case TableKeyBy(TableOrderBy(child, sortFields), keys, true) =>
-        TableKeyBy(child, keys, true)
+      case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
+        TableKeyBy(child, keys, false)
 
       case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
 

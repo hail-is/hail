@@ -162,7 +162,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
-case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = true) extends TableIR {
+case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends TableIR {
   private val fields = child.typ.rowType.fieldNames.toSet
   assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
 
@@ -172,17 +172,17 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
-    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, sort)
+    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
   }
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
     val orvd = tv.enforceOrderingRVD.toOrderedRVD
     val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
-    assert(sort || nPreservedFields > 0 || (orvd.typ.key.isEmpty && keys.isEmpty))
+    assert(!isSorted || nPreservedFields > 0 || (orvd.typ.key.isEmpty && keys.isEmpty))
     val rvd = if (nPreservedFields == keys.length) {
       orvd
-    } else if (!sort) {
+    } else if (isSorted) {
       orvd.truncateKey(keys.take(nPreservedFields))
         .extendKeyPreservesPartitioning(keys)
     } else {
