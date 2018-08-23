@@ -97,154 +97,115 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     left // if left < n and A[left] == key, leftmost element that equals key. Otherwise, left is the insertion point of key in A.
   }
 
-  private def binarySearchRightmost(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
-    var left = 0
-    var right = n
-    while (left < right) {
-      val mid = left + (right - left) / 2
-      if (ordering.gt(f(mid), key))
-        right = mid
-      else
-        left = mid + 1
-    }
-    left // if key is present, returns rightmost key's index+1, otherwise returns insertion point
-  }
-
-  private def queryByKeyAllMatches(key: Annotation, level: Int, offset: Long, ab: ArrayBuilder[LeafChild]) {
+  private def findStartIndex(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val n = node.children.length
-      var idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).key })
-      while (idx < n && ordering.equiv(node.children(idx).key, key)) {
-        ab += node.children(idx)
-        idx += 1
-      }
-    } else {
-      val node = readInternalNode(offset)
-      val n = node.children.length
-
-      var idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).lastKey })
-      while (idx < n && {
-        val child = node.children(idx)
-        ordering.gteq(key, child.firstKey) && ordering.lteq(key, child.lastKey)
-      }) {
-        queryByKeyAllMatches(key, level - 1, node.children(idx).indexFileOffset, ab)
-        idx += 1
-      }
-    }
-  }
-
-  private def queryByKeyGtEq(key: Annotation, level: Int, offset: Long): Option[LeafChild] = {
-    if (level == 0) {
-      val node = readLeafNode(offset)
-      val n = node.children.length
-      val idx = binarySearchRightmost(node.children.length, key, { i => node.children(i).key })
-      if (idx > 0 && ordering.equiv(node.children(idx - 1).key, key))
-        Some(node.children(idx - 1))
-      else if (idx == n)
-        None
-      else
-        Some(node.children(idx))
-    } else {
-      val node = readInternalNode(offset)
-      val n = node.children.length
-      val idx = binarySearchRightmost(node.children.length, key, { i => node.children(i).firstKey })
-      if (idx > 0 && ordering.lteq(key, node.children(idx - 1).lastKey))
-        queryByKeyGtEq(key, level - 1, node.children(idx - 1).indexFileOffset)
-      else if (idx == n)
-        None
-      else
-        queryByKeyGtEq(key, level - 1, node.children(idx).indexFileOffset)
-    }
-  }
-
-  private def queryByKeyGt(key: Annotation, level: Int, offset: Long): Option[LeafChild] = {
-    if (level == 0) {
-      val node = readLeafNode(offset)
-      val n = node.children.length
-      val idx = binarySearchRightmost(node.children.length, key, { i => node.children(i).key })
-      if (idx == n)
-        None
-      else
-        Some(node.children(idx))
-    } else {
-      val node = readInternalNode(offset)
-      val n = node.children.length
-      val idx = binarySearchRightmost(node.children.length, key, { i => node.children(i).firstKey })
-      if (idx > 0 && ordering.lt(key, node.children(idx - 1).lastKey))
-        queryByKeyGt(key, level - 1, node.children(idx - 1).indexFileOffset)
-      else if (idx == n)
-        None
-      else
-        queryByKeyGt(key, level - 1, node.children(idx).indexFileOffset)
-    }
-  }
-
-  private def queryByKeyLtEq(key: Annotation, level: Int, offset: Long): Option[LeafChild] = {
-    if (level == 0) {
-      val node = readLeafNode(offset)
-      val n = node.children.length
       val idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).key })
-      if (idx < n && ordering.equiv(node.children(idx).key, key))
-        Some(node.children(idx))
-      else if (idx == 0)
-        None
+      if (idx == 0 && !ordering.equiv(key, node.children(0).key))
+        -1
       else
-        Some(node.children(idx - 1))
+        node.firstIndex + idx - 1
     } else {
       val node = readInternalNode(offset)
-      val n = node.children.length
-      val idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).lastKey })
-      if (idx < n && ordering.gteq(key, node.children(0).firstKey))
-        queryByKeyLtEq(key, level - 1, node.children(idx).indexFileOffset)
-      else if (idx == 0)
-        None
+      val children = node.children
+      val n = children.length
+      val idx = binarySearchLeftmost(n, key, { i => children(i).lastKey })
+
+      if (idx < n && ordering.gt(key, children(idx).firstKey))
+        findStartIndex(key, level - 1, children(idx).indexFileOffset)
+      else if (idx == 0) // insertion point is first bin but first child key is greater than key
+        -1
       else
-        queryByKeyLtEq(key, level - 1, node.children(idx - 1).indexFileOffset)
+        findStartIndex(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
 
-  private def queryByKeyLt(key: Annotation, level: Int, offset: Long): Option[LeafChild] = {
-    if (level == 0) {
-      val node = readLeafNode(offset)
-      val n = node.children.length
-      val idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).key })
-      if (idx == 0)
-        None
-      else
-        Some(node.children(idx - 1))
-    } else {
-      val node = readInternalNode(offset)
-      val n = node.children.length
-      val idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).lastKey })
-      if (idx < n && ordering.gt(key, node.children(idx).firstKey))
-        queryByKeyLt(key, level - 1, node.children(idx).indexFileOffset)
-      else if (idx == 0)
-        None
-      else
-        queryByKeyLt(key, level - 1, node.children(idx - 1).indexFileOffset)
+  // Returns an iterator starting from the largest leaf child less than key
+  // If no leaf child is larger than key, the first value returned by the iterator is null
+  private def iterateFrom(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
+    var idx = findStartIndex(key, height - 1, metadata.rootOffset)
+    assert(idx >= -1 && idx < nKeys)
+
+    def next(): LeafChild = {
+      val lc = if (idx == -1) null else queryByIndex(idx)
+      idx += 1
+      lc
     }
+
+    def hasNext: Boolean = idx < nKeys
+  }
+
+  private def queryByKeyLt(key: Annotation): Option[LeafChild] = {
+    val it = iterateFrom(key)
+    assert(it.hasNext)
+    Option(it.next())
+  }
+
+  private def queryByKeyGt(key: Annotation): Option[LeafChild] = {
+    val it = iterateFrom(key)
+    assert(it.hasNext)
+    it.next() // need to skip first value
+    var current = if (it.hasNext) it.next() else null
+
+    while (current != null && ordering.lteq(current.key, key)) {
+      current = if (it.hasNext) it.next() else null
+    }
+    Option(current)
+  }
+
+  private def queryByKeyLtEq(key: Annotation): Option[LeafChild] = {
+    val it = iterateFrom(key)
+
+    val current = if (it.hasNext) it.next() else null
+    val next = if (it.hasNext) it.next() else null
+
+    if (next != null && ordering.equiv(next.key, key))
+      Some(next)
+    else
+      Option(current)
+  }
+
+  private def queryByKeyGtEq(key: Annotation): Option[LeafChild] = {
+    val it = iterateFrom(key)
+
+    var current = if (it.hasNext) it.next() else null
+    var next = if (it.hasNext) it.next() else null
+
+    while (next != null && ordering.lteq(next.key, key)) {
+      current = next
+      next = if (it.hasNext) it.next() else null
+    }
+
+    if (current != null && ordering.equiv(current.key, key))
+      Some(current)
+    else
+      Option(next)
   }
 
   def queryByKeyAllMatches(key: Annotation): Array[LeafChild] = {
     val ab = new ArrayBuilder[LeafChild]()
-    if (nKeys != 0)
-      queryByKeyAllMatches(key, height - 1, metadata.rootOffset, ab)
+    val it = iterateFrom(key)
+    assert(it.hasNext)
+    it.next() // need to skip first value
+    var current = if (it.hasNext) it.next() else null
+
+    while (current != null && ordering.equiv(current.key, key)) {
+      ab += current
+      current = if (it.hasNext) it.next() else null
+    }
+
     ab.result()
   }
 
   def queryByKey(key: Annotation, greater: Boolean = true, closed: Boolean = true): Option[LeafChild] = {
-    if (nKeys == 0)
-      return None
-
     if (greater && closed)
-      queryByKeyGtEq(key, height - 1, metadata.rootOffset)
+      queryByKeyGtEq(key)
     else if (greater && !closed)
-      queryByKeyGt(key, height - 1, metadata.rootOffset)
+      queryByKeyGt(key)
     else if (!greater && closed)
-      queryByKeyLtEq(key, height - 1, metadata.rootOffset)
+      queryByKeyLtEq(key)
     else
-      queryByKeyLt(key, height - 1, metadata.rootOffset)
+      queryByKeyLt(key)
   }
 
   private def queryByIndex(index: Long, level: Int, offset: Long): LeafChild = {
@@ -264,6 +225,18 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   def queryByIndex(index: Long): LeafChild = {
     require(index >= 0 && index < nKeys)
     queryByIndex(index, height - 1, metadata.rootOffset)
+  }
+
+  def iterator: Iterator[LeafChild] = new Iterator[LeafChild] {
+    var pos = 0L
+
+    def next(): LeafChild = {
+      val lc = queryByIndex(pos)
+      pos += 1
+      lc
+    }
+
+    def hasNext: Boolean = nKeys > 0 && pos < nKeys
   }
 
   def close() {

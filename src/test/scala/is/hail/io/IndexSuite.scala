@@ -69,6 +69,9 @@ class IndexSuite extends SparkSuite {
         else
           assert(ir.queryByKey(s, greater = false, closed = false).isEmpty)
       }
+
+      assert(ir.iterator.toArray sameElements data.zipWithIndex.map { case (s, i) => LeafChild(s, i, Row(i % 2 == 0)) })
+
       ir.close()
     }
   }
