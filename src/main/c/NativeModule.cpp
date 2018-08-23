@@ -27,6 +27,8 @@ namespace hail {
 
 namespace {
 
+std::mutex big_mutex;
+
 // File-polling interval in usecs
 const int kFilePollMicrosecs = 50000;
 
@@ -134,18 +136,6 @@ std::string run_shell_get_first_line(const char* cmd) {
   return std::string(buf);
 }
 
-std::string get_java_home() {
-  auto s = run_shell_get_first_line(
-    "java -XshowSettings:properties -version 2>&1 | fgrep -i java.home"
-  );
-  auto p = strstr(s.c_str(), "java.home = ");
-  if (p) {
-    return std::string(p+12);
-  } else {
-    return std::string(getenv_with_default("JAVA_HOME", "JAVA_HOME_undefined"));
-  }
-}
-
 std::string strip_suffix(const std::string& s, const char* suffix) {
   size_t len = s.length();
   size_t n = strlen(suffix);
@@ -207,7 +197,6 @@ class ModuleConfig {
   std::string module_dir_;
   std::string cxx_name_;
   std::string cxx_std_;
-  std::string java_home_;
   std::string java_md_;
   std::string perl_name_;
 
@@ -225,7 +214,6 @@ class ModuleConfig {
     module_dir_(get_module_dir()),
     cxx_name_(get_cxx_name()),
     cxx_std_(get_cxx_std(cxx_name_)),
-    java_home_(get_java_home()),
     java_md_(is_darwin_ ? "darwin" : "linux"),
     perl_name_(get_perl_name()) {
   }
@@ -260,69 +248,11 @@ class ModuleConfig {
 
 ModuleConfig config;
 
-class ModuleCache {
- public:
-  std::mutex mutex_;
-  size_t capacity_;
-  std::unordered_map<std::string, NativeModulePtr> modules_;
-  std::queue<NativeModulePtr> evictq_;
+// module_table is used to ensure that several Spark workers will get
+// shared_ptr's to a single NativeModule, rather than each having their
+// own NativeModule.  Callers must hold the big_mutex.
 
- public:
-  ModuleCache(ssize_t capacity) :
-    mutex_(),
-    capacity_(capacity),
-    modules_(),
-    evictq_() {
-  }
-  
-  void try_to_evict() {
-    for (int phase = 0; phase < 2; ++phase) {
-      if (phase == 1) {
-        for (auto& pair : modules_) {
-          if (pair.second.use_count() <= 1) evictq_.push(pair.second);
-        }
-      }
-      for (auto n = evictq_.size(); n > 0; --n) {
-        auto mod = evictq_.front();
-        evictq_.pop();
-        if (mod.use_count() <= 2) {
-          modules_.erase(mod->key_);
-          if ((phase == 0) || (evictq_.size() <= capacity_)) return;
-        }
-      }
-    }
-  }
-  
-  void insert(const NativeModulePtr& mod) {
-    modules_[mod->key_] = mod;
-    if (modules_.size() > capacity_) try_to_evict();
-  }
-  
-  NativeModulePtr find(const std::string& key) {
-    auto iter = modules_.find(key);
-    return ((iter == modules_.end()) ? NativeModulePtr() : iter->second);
-  }
-};
-
-ModuleCache module_cache(32);
-
-// All files are in a temporary directory accesses only by this process,
-// so instead of file locking we can just just an in-memory std::mutex 
-// corresponding to each distinct filename.
-
-class AllLocks {
- private:
-  std::mutex mutex_;
-  std::map<std::string, std::mutex> map_;
-  
- public:
-  std::mutex& get_mutex(const std::string& file) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return map_[file];
-  }
-};
-
-AllLocks all_locks;
+std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
 
 } // end anon
 
@@ -402,6 +332,10 @@ private:
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
     fprintf(f, "PERL      := %s\n", config.perl_name_.c_str());
+    fprintf(f, "ifndef JAVA_HOME\n");
+    fprintf(f, "  TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)\n");
+    fprintf(f, "  JAVA_HOME :=$(shell dirname $(filter-out java.home =,$(TMP)))\n");
+    fprintf(f, "endif\n)
     fprintf(f, "CXX       := %s\n", config.cxx_name_.c_str());
     fprintf(f, "CXXFLAGS  := \\\n");
     fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall \\\n", config.cxx_std_.c_str());
@@ -437,12 +371,11 @@ private:
 
 public:
   bool try_to_start_build() {
-    // Try to create the .new file
-    std::lock_guard<NativeModule> mylock(*parent_);
-    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
+    // Try to create the .new file, we hold the global lock so there is no race
+    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT, 0666);
     if (fd < 0) {
-      // We lost the race to start the build
-      return false;
+      perror("open");
+      assert(false);
     }
     ::close(fd);
     // The .new file may look the same age as the .cpp file, but
@@ -508,7 +441,6 @@ NativeModule::NativeModule(
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
-  auto mylock = std::make_shared< std::lock_guard<NativeModule> >(*this);
   for (;;) {
     struct stat lib_stat;
     if (file_stat(lib_name_, &lib_stat) && (lib_stat.st_size == binary_size)) {
@@ -547,7 +479,6 @@ NativeModule::NativeModule(
       }
     }
   }
-  mylock.reset();
   if (build_state_ == kPass) {
     try_load();
   }
@@ -559,32 +490,10 @@ NativeModule::~NativeModule() {
   }
 }
 
-// We may have many threads across many processes trying to access the shared
-// files in ~/hail_modules.  We protect the files for each module by
-// mutual exclusion based on the existence of a link hm_${key}.lock
-//
-// To achieve disaster recovery after a killed process or crash, a .lock
-// link will be ignored if it is more than 20 seconds old.  The critical
-// sections protected by the lock should be much shorter than this.
-//
-// Permission to build a new file is controlled by the existence of hm_${key}.new,
-// and has a longer timeout (120 sec) to allow for module compile time.
-//
-// The intent is that when hail is not running, it should be ok to do
-// "rm ~/hail_modules/*" to clear the cache and start again.
-
-void NativeModule::lock() {
-  all_locks.get_mutex(lock_name_).lock();
-}
-
-void NativeModule::unlock() {
-  all_locks.get_mutex(lock_name_).unlock();
-}
-
 void NativeModule::usleep_without_lock(int64_t usecs) {
-  unlock();
+  big_mutex.unlock();
   usleep(usecs);
-  lock();
+  big_mutex.lock();
 }
 
 bool NativeModule::try_wait_for_build() {
@@ -593,7 +502,6 @@ bool NativeModule::try_wait_for_build() {
     // followed by exists(new) then the rename could occur between
     // the two tests. This way is safe provided that either rename is atomic,
     // or rename creates the new name before destroying the old name.
-    std::lock_guard<NativeModule> mylock(*this);
     while (file_exists_and_is_recent(new_name_)) {
       usleep_without_lock(kFilePollMicrosecs);
     }
@@ -619,7 +527,6 @@ bool NativeModule::try_load() {
     } else if (!try_wait_for_build()) {
       load_state_ = kFail;
     } else {
-      std::lock_guard<NativeModule> mylock(*this);
       // At first this had no mutex and RTLD_LAZY, but MacOS tests crashed
       // when two threads loaded the same .dylib.
       auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
@@ -720,6 +627,7 @@ NATIVEMETHOD(void, NativeModule, nativeCtorMaster)(
   JString source(env, sourceJ);
   JString include(env, includeJ);
   bool force_build = (force_buildJ != JNI_FALSE);
+  std::lock_guard<std::mutex> mylock(big_mutex);
   NativeObjPtr ptr = std::make_shared<NativeModule>(options, source, include, force_build);
   init_NativePtr(env, thisJ, &ptr);
 }
@@ -733,8 +641,10 @@ NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
 ) {
   bool is_global = (is_globalJ != JNI_FALSE);
   JString key(env, keyJ);
-  std::lock_guard<std::mutex> mylock(module_cache.mutex_);
-  auto mod = module_cache.find(std::string(key));
+  std::lock_guard<std::mutex> mylock(big_mutex);
+  NativeModulePtr mod;
+  auto iter = module_cache[std::string(key)];
+  if (iter != module_cache.end()) mod = iter->second.lock();
   if (!mod) {
     long binary_size = env->GetArrayLength(binaryJ);
     auto binary = env->GetByteArrayElements(binaryJ, 0);
@@ -754,6 +664,7 @@ NATIVEMETHOD(void, NativeModule, nativeFindOrBuild)(
   auto mod = to_NativeModule(env, thisJ);
   auto st = reinterpret_cast<NativeStatus*>(stAddr);
   st->clear();
+  std::lock_guard<std::mutex> mylock(big_mutex);
   if (!mod->try_wait_for_build()) {
     NATIVE_ERROR(st, 1004, "ErrModuleBuildFailed");
   }
@@ -772,8 +683,8 @@ NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   jobject thisJ
 ) {
   auto mod = to_NativeModule(env, thisJ);
+  std::lock_guard<std::mutex> mylock(big_mutex);
   mod->try_wait_for_build();
-  std::lock_guard<NativeModule> mylock(*mod);
   int fd = open(config.get_lib_name(mod->key_).c_str(), O_RDONLY, 0666);
   if (fd < 0) {
     return env->NewByteArray(0);
@@ -802,6 +713,7 @@ NATIVEMETHOD(void, NativeModule, nativeFind##LongOrPtr##FuncL##num_args)( \
   auto mod = to_NativeModule(env, thisJ); \
   auto st = reinterpret_cast<NativeStatus*>(stAddr); \
   st->clear(); \
+  std::lock_guard<std::mutex> mylock(big_mutex); \
   mod->find_##LongOrPtr##FuncL(env, st, funcJ, nameJ, num_args); \
 }
 
