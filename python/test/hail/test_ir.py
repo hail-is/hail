@@ -220,7 +220,7 @@ class ValueTests(unittest.TestCase):
 
     def test_value_same_after_parsing(self):
         for t, v in self.values():
-            row_v = ir.Literal(hl.tstruct(x=t), hl.Struct(x=v))
+            row_v = ir.Literal(t, v)
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
