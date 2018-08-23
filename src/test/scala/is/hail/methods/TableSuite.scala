@@ -113,8 +113,7 @@ class TableSuite extends SparkSuite {
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
       Array("s"),
       vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"),
-      Array("locus"))
+      vds.colType.fieldNames.filter(_ != "s"))
 
     val sampleOrder = vds.colKeys.toArray
 
