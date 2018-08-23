@@ -520,7 +520,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
-    val (t, ins) = insertSA(signature, path)
+    val (t, ins) = colType.structInsert(signature, path)
 
     val newAnnotations = new Array[Annotation](numCols)
 
@@ -674,10 +674,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     chooseCols(ab.result())
   }
 
-  def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
-
-  def deleteVA(path: List[String]): (Type, Deleter) = rowType.delete(path)
-
   def dropCols(): MatrixTable =
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
@@ -722,10 +718,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal(s"n must be non-negative! Found `$n'.")
     copy2(rvd = rvd.head(n, None))
   }
-
-  def insertSA(sig: Type, args: String*): (TStruct, Inserter) = insertSA(sig, args.toList)
-
-  def insertSA(sig: Type, path: List[String]): (TStruct, Inserter) = colType.structInsert(sig, path)
 
   def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
     newColKey: IndexedSeq[String] = colKey,
@@ -1045,7 +1037,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     else
       info(s"No duplicate sample IDs found.")
-    val (newSchema, ins) = insertSA(TString(), id)
+    val (newSchema, ins) = colType.structInsert(TString(), List(id))
     val newAnnotations = colValues.value.zipWithIndex.map { case (sa, i) => ins(sa, newIds(i)) }.toArray
     copy2(colType = newSchema, colValues = colValues.copy(value = newAnnotations, t = TArray(newSchema)))
   }

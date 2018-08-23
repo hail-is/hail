@@ -141,16 +141,6 @@ abstract class Type extends BaseType with Serializable {
 
   def subst(): Type = this.setRequired(false)
 
-  def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
-    getOption(fields: _*)
-      .flatMap { t =>
-        if (ct.runtimeClass.isInstance(t))
-          Some(t.asInstanceOf[T])
-        else
-          None
-      }
-  }
-
   def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = ???
 
   def unsafeOrdering(): UnsafeOrdering = unsafeOrdering(false)
@@ -161,24 +151,6 @@ abstract class Type extends BaseType with Serializable {
   }
 
   def unsafeOrdering(rightType: Type): UnsafeOrdering = unsafeOrdering(rightType, false)
-
-  def getOption(fields: String*): Option[Type] = getOption(fields.toList)
-
-  def getOption(path: List[String]): Option[Type] = {
-    if (path.isEmpty)
-      Some(this)
-    else
-      None
-  }
-
-  def delete(fields: String*): (Type, Deleter) = delete(fields.toList)
-
-  def delete(path: List[String]): (Type, Deleter) = {
-    if (path.nonEmpty)
-      throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
-    else
-      (TStruct.empty(), a => null)
-  }
 
   def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
     TStruct.empty().unsafeInsert(typeToInsert, path)
