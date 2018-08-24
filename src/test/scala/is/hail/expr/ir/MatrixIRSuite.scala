@@ -253,6 +253,6 @@ class MatrixIRSuite extends SparkSuite {
 
     assert(cols < 20 && cols > 0)
     assert(rows < 20 && rows > 0)
-    assert(entries < 20 && entries > 0)
+    assert(entries < 400 && entries > 0)
   }
 }
