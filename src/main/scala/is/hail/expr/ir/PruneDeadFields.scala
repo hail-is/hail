@@ -431,23 +431,25 @@ object PruneDeadFields {
           })
         )
         memoizeMatrixIR(child, explodedDep, memo)
-      case MatrixAggregateRowsByKey(child, expr) =>
-        val irDep = memoizeAndGetDep(expr, requestedType.entryType, child.typ, memo)
-        val childDep = child.typ.copy(
-          globalType = unify(child.typ.globalType, irDep.globalType, requestedType.globalType),
-          rvRowType = irDep.rvRowType,
-          colType = unify(child.typ.colType, irDep.colType, requestedType.colType)
+      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
+        val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
+        val irDepRow = memoizeAndGetDep(rowExpr, requestedType.rowValueStruct, child.typ, memo)
+        val childDep = unify(child.typ,
+          irDepEntry,
+          irDepRow,
+          minimal(child.typ).copy(globalType = requestedType.globalType, colType = requestedType.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
-      case MatrixAggregateColsByKey(child, expr) =>
-        val irDep = memoizeAndGetDep(expr, requestedType.entryType, child.typ, memo)
+      case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
+        val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
+        val irDepCol = memoizeAndGetDep(colExpr, requestedType.colValueStruct, child.typ, memo)
         val rvRowDep = TStruct(
           child.typ.rvRowType.required, child.typ.rvRowType.fields.flatMap { f =>
             if (f.name == MatrixType.entriesIdentifier)
-              Some(f.name -> irDep.entryArrayType)
+              Some(f.name -> irDepEntry.entryArrayType)
             else {
               val requestedFieldDep = requestedType.rvRowType.fieldOption(f.name).map(_.typ)
-              val irFieldDep = irDep.rvRowType.fieldOption(f.name).map(_.typ)
+              val irFieldDep = irDepEntry.rvRowType.fieldOption(f.name).map(_.typ)
               if (requestedFieldDep.isEmpty && irFieldDep.isEmpty)
                 None
               else
@@ -456,9 +458,9 @@ object PruneDeadFields {
           }: _*
         )
         val childDep = child.typ.copy(
-          globalType = unify(child.typ.globalType, irDep.globalType, requestedType.globalType),
+          globalType = unify(child.typ.globalType, irDepEntry.globalType, irDepCol.globalType, requestedType.globalType),
           rvRowType = rvRowDep,
-          colType = irDep.colType
+          colType = unify(child.typ.colType, irDepEntry.colType, irDepCol.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
       case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
@@ -832,12 +834,12 @@ object PruneDeadFields {
       case MatrixMapGlobals(child, newRow, value) =>
         val child2 = rebuild(child, memo)
         MatrixMapGlobals(child2, rebuild(newRow, child2.typ, memo, "value" -> value.t), value)
-      case MatrixAggregateRowsByKey(child, expr) =>
+      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val child2 = rebuild(child, memo)
-        MatrixAggregateRowsByKey(child2, rebuild(expr, child2.typ, memo))
-      case MatrixAggregateColsByKey(child, expr) =>
+        MatrixAggregateRowsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(rowExpr, child2.typ, memo))
+      case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val child2 = rebuild(child, memo)
-        MatrixAggregateColsByKey(child2, rebuild(expr, child2.typ, memo))
+        MatrixAggregateColsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(colExpr, child2.typ, memo))
       case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
         val child2 = rebuild(child, memo)
         val childFieldSet = child2.typ.rowType.fieldNames.toSet

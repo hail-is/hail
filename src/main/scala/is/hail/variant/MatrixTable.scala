@@ -501,15 +501,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
 
-  def aggregateColsByKey(aggExpr: String): MatrixTable = {
-    val aggIR = Parser.parse_value_ir(aggExpr, matrixType.refMap)
-    new MatrixTable(hc, MatrixAggregateColsByKey(ast, aggIR))
+  def aggregateColsByKey(entryExpr: String, colExpr: String): MatrixTable = {
+    val entriesIR = Parser.parse_value_ir(entryExpr, matrixType.refMap)
+    val colsIR = Parser.parse_value_ir(colExpr, matrixType.refMap)
+    new MatrixTable(hc, MatrixAggregateColsByKey(ast, entriesIR, colsIR))
   }
 
-  def aggregateRowsByKey(expr: String): MatrixTable = {
-    log.info(expr)
-    val rowsIR = Parser.parse_value_ir(expr, matrixType.refMap)
-    new MatrixTable(hc, MatrixAggregateRowsByKey(ast, rowsIR))
+  def aggregateRowsByKey(entryExpr: String, rowExpr: String): MatrixTable = {
+    log.info(entryExpr)
+    log.info(rowExpr)
+    val entriesIR = Parser.parse_value_ir(entryExpr, matrixType.refMap)
+    val rowsIR = Parser.parse_value_ir(rowExpr, matrixType.refMap)
+    new MatrixTable(hc, MatrixAggregateRowsByKey(ast, entriesIR, rowsIR))
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {

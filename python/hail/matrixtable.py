@@ -23,12 +23,15 @@ class GroupedMatrixTable(ExprContainer):
     A grouped matrix table with a non-trivial grouping cannot be grouped again.
     """
 
-    def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None):
+    def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None, entry_fields=None, row_fields=None, col_fields=None):
         super(GroupedMatrixTable, self).__init__()
         self._parent = parent
         self._copy_fields_from(parent)
         self._row_keys = row_keys
         self._col_keys = col_keys
+        self._entry_fields = entry_fields
+        self._row_fields = row_fields
+        self._col_fields = col_fields
         self._partitions = None
         self._partition_key = None
 
@@ -251,8 +254,212 @@ class GroupedMatrixTable(ExprContainer):
         return self
 
     @typecheck_method(named_exprs=expr_any)
+    def aggregate_cols(self, **named_exprs) -> 'GroupedMatrixTable':
+        """Aggregate cols by group.
+
+        Examples
+        --------
+        Aggregate to a matrix with cohort as column keys, computing the mean height
+        per cohort as a new column field:
+
+        >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
+        ...                          .aggregate_cols(mean_height = agg.stats(dataset.pheno.height).mean)
+        ...                          .result())
+
+        Parameters
+        ----------
+        named_exprs : varargs of :class:`.Expression`
+            Aggregation expressions.
+
+        Returns
+        -------
+        :class:`.GroupedMatrixTable`
+        """
+
+        if self._row_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by rows. Cannot aggregate over cols.")
+
+        assert self._col_keys is not None
+
+        fixed_fields = list(self._parent.globals.dtype)
+        fixed_fields.extend(self._col_keys.keys())
+        fixed_fields.extend(list(self._parent.row.dtype))
+        if self._entry_fields is not None:
+            fixed_fields.extend(list(self._entry_fields.keys()))
+
+        new_fields = self._col_fields if self._col_fields is not None else {}
+        for k, e in named_exprs.items():
+            if k in fixed_fields or k in new_fields:
+                raise ExpressionException("GroupedMatrixTable.aggregate_cols cannot assign duplicate field '{}'".format(k))
+            analyze('GroupedMatrixTable.aggregate_cols', e, self._fixed_indices(), {self._parent._col_axis})
+            new_fields[k] = e
+
+        return GroupedMatrixTable(self._parent,
+                                  row_keys=self._row_keys,
+                                  col_keys=self._col_keys,
+                                  entry_fields=self._entry_fields,
+                                  row_fields=self._row_fields,
+                                  col_fields=new_fields)
+
+    @typecheck_method(named_exprs=expr_any)
+    def aggregate_rows(self, **named_exprs) -> 'GroupedMatrixTable':
+        """Aggregate rows by group.
+
+        Examples
+        --------
+        Aggregate to a matrix with genes as row keys, collecting the functional
+        consequences per gene as a set as a new row field:
+
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
+        ...                          .result())
+
+        Parameters
+        ----------
+        named_exprs : varargs of :class:`.Expression`
+            Aggregation expressions.
+
+        Returns
+        -------
+        :class:`.GroupedMatrixTable`
+        """
+
+        if self._col_keys:
+            raise NotImplementedError("GroupedMatrixTable is already grouped by cols. Cannot aggregate over rows.")
+
+        assert self._row_keys is not None
+
+        fixed_fields = list(self._parent.globals.dtype)
+        fixed_fields.extend(self._row_keys.keys())
+        fixed_fields.extend(list(self._parent.col.dtype))
+        if self._entry_fields is not None:
+            fixed_fields.extend(list(self._entry_fields.keys()))
+
+        new_fields = self._row_fields if self._row_fields is not None else {}
+        for k, e in named_exprs.items():
+            if k in fixed_fields or k in new_fields:
+                raise ExpressionException("GroupedMatrixTable.aggregate_rows cannot assign duplicate field '{}'".format(k))
+            analyze('GroupedMatrixTable.aggregate_rows', e, self._fixed_indices(), {self._parent._row_axis})
+            new_fields[k] = e
+
+        return GroupedMatrixTable(self._parent,
+                                  row_keys=self._row_keys,
+                                  col_keys=self._col_keys,
+                                  entry_fields=self._entry_fields,
+                                  row_fields=new_fields,
+                                  col_fields=self._col_fields)
+
+    @typecheck_method(named_exprs=expr_any)
+    def aggregate_entries(self, **named_exprs) -> 'GroupedMatrixTable':
+        """Aggregate entries by group.
+
+        Examples
+        --------
+        Aggregate to a matrix with genes as row keys, computing the number of
+        non-reference calls as an entry field:
+
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .result())
+
+        Parameters
+        ----------
+        named_exprs : varargs of :class:`.Expression`
+            Aggregation expressions.
+
+        Returns
+        -------
+        :class:`.GroupedMatrixTable`
+        """
+        assert self._row_keys is not None or self._col_keys is not None
+
+        fixed_fields = list(self._parent.globals.dtype)
+
+        if self._row_keys is not None:
+            fixed_fields.extend(self._row_keys.keys())
+            if self._row_fields is not None:
+                fixed_fields.extend(list(self._row_fields.keys()))
+        else:
+            fixed_fields.extend(list(self._parent.row.dtype))
+
+        if self._col_keys is not None:
+            fixed_fields.extend(self._col_keys.keys())
+            if self._col_fields is not None:
+                fixed_fields.extend(list(self._col_fields.keys()))
+        else:
+            fixed_fields.extend(list(self._parent.col.dtype))
+
+        new_fields = self._entry_fields if self._entry_fields is not None else {}
+        for k, e in named_exprs.items():
+            if k in fixed_fields or k in new_fields:
+                raise ExpressionException("GroupedMatrixTable.aggregate_entries cannot assign duplicate field '{}'".format(k))
+            analyze('GroupedMatrixTable.aggregate_entries', e, self._fixed_indices(), {self._parent._row_axis, self._parent._col_axis})
+            new_fields[k] = e
+
+        return GroupedMatrixTable(self._parent,
+                                  row_keys=self._row_keys,
+                                  col_keys=self._col_keys,
+                                  entry_fields=new_fields,
+                                  row_fields=self._row_fields,
+                                  col_fields=self._col_fields)
+
+    def result(self) -> 'MatrixTable':
+        """Return the result of aggregating by group.
+
+        Examples
+        --------
+        Aggregate to a matrix with genes as row keys, collecting the functional
+        consequences per gene as a row field and computing the number of
+        non-reference calls as an entry field:
+
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
+        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .result())
+
+        Aggregate to a matrix with cohort as column keys, computing the mean height
+        per cohort as a column field and computing the number of non-reference calls
+        as an entry field:
+
+        >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
+        ...                          .aggregate_cols(mean_height = agg.stats(dataset.pheno.height).mean)
+        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .result())
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Aggregated matrix table.
+        """
+        group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
+        entry_exprs = dict(self._entry_fields) if self._entry_fields is not None else {}
+        row_exprs = dict(self._row_fields) if self._row_fields is not None else {}
+        col_exprs = dict(self._col_fields) if self._col_fields is not None else {}
+
+        base, cleanup = self._parent._process_joins(*group_exprs.values(),
+                                                    *entry_exprs.values(),
+                                                    *row_exprs.values(),
+                                                    *col_exprs.values())
+
+        if self._col_keys is not None:
+            keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
+            mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(str(hl.struct(**entry_exprs)._ir),
+                                                               str(hl.struct(**col_exprs)._ir)))
+        elif self._row_keys is not None:
+            if self._partition_key is None:
+                self._partition_key = self._row_keys.keys()
+            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
+            mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(str(hl.struct(**entry_exprs)._ir),
+                                                               str(hl.struct(**row_exprs)._ir)))
+        else:
+            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
+
+        return cleanup(mt)
+
+    @typecheck_method(named_exprs=expr_any)
     def aggregate(self, **named_exprs) -> 'MatrixTable':
-        """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
+        """Aggregate entries by group, used after :meth:`.MatrixTable.group_rows_by`
+        or :meth:`.MatrixTable.group_cols_by`.
 
         Examples
         --------
@@ -261,6 +468,10 @@ class GroupedMatrixTable(ExprContainer):
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
         ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+
+        Notes
+        -----
+        Alias for :meth:`~.GroupedMatrixTable.aggregate_entries`~.:meth:`.GroupedMatrixTable.result`.
 
         Parameters
         ----------
@@ -273,40 +484,7 @@ class GroupedMatrixTable(ExprContainer):
             Aggregated matrix table.
         """
 
-        assert self._row_keys is not None or self._col_keys is not None
-
-        fixed_fields = list(self._parent.globals.dtype)
-        if self._row_keys is not None:
-            fixed_fields.extend(self._row_keys.keys())
-        else:
-            fixed_fields.extend(list(self._parent.row.dtype))
-        if self._col_keys is not None:
-            fixed_fields.extend(self._col_keys.keys())
-        else:
-            fixed_fields.extend(list(self._parent.col.dtype))
-
-        for k, v in named_exprs.items():
-            if k in fixed_fields:
-                raise ExpressionException("GroupedMatrixTable.aggregate cannot assign duplicate field '{}'".format(k))
-            analyze('GroupedMatrixTable.aggregate', v, self._fixed_indices(),
-                    {self._parent._row_axis, self._parent._col_axis})
-
-        group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
-
-        base, cleanup = self._parent._process_joins(*named_exprs.values(), *group_exprs.values())
-
-        if self._col_keys is not None:
-            keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
-            mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(str(hl.struct(**named_exprs)._ir)))
-        elif self._row_keys is not None:
-            if self._partition_key is None:
-                self._partition_key = self._row_keys.keys()
-            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
-            mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(str(hl.struct(**named_exprs)._ir)))
-        else:
-            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
-
-        return cleanup(mt)
+        return self.aggregate_entries(**named_exprs).result()
 
 
 matrix_table_type = lazy()
