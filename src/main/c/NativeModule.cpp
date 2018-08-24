@@ -273,7 +273,7 @@ private:
     fprintf(f, "\n");
     // top target is the .so
     fprintf(f, "$(MODULE_SO): $(MODULE).o\n");
-    fprintf(f, "\t$(PERL) -e 'rename \"$(MODULE).new\", \"$@\"'\n");
+    fprintf(f, "\tperl -e 'rename \"$(MODULE).new\", \"$@\"'\n");
     fprintf(f, "\n");
     // build .o from .cpp
     fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
