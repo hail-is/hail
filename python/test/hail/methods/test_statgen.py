@@ -998,7 +998,6 @@ class Tests(unittest.TestCase):
                                        fst=[.02, .06],
                                        af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
                                        seed=1)
-        ds1.annotate_entries(GT2=ds2[ds1.row_key, ds1.col_key]).entries().show()
         self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):

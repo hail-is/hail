@@ -2216,17 +2216,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                          .format(fst))
 
     # verify af_dist and seed
-    if not af_dist._is_constant:
+    if not af_dist._is_scalar:
         raise ExpressionException('balding_nichols_model expects af_dist to ' +
-                                  'have constant arguments: found expression ' +
+                                  'have scalar arguments: found expression ' +
                                   'from source {}'
                                   .format(af_dist._indices.source))
 
-    if not isinstance(af_dist._ir, hl.ir.ApplySeeded) or af_dist.dtype != tfloat64:
-        raise ValueError("af_dist must be a random function with return type tfloat64.")
-
-    fn = af_dist._ir.function
-    struct_af_dist = hl.struct(type=fn, seed=af_dist._ir.seed)
+    if af_dist.dtype != tfloat64:
+        raise ValueError("af_dist must be a hail function with return type tfloat64.")
 
     info("balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants..."
          .format(n_populations, n_samples, n_variants))
@@ -2241,7 +2238,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                              n_partitions=n_partitions,
                              pop_dist=pop_dist,
                              fst=fst,
-                             ancestral_af_dist=struct_af_dist,
                              seed=seed,
                              mixture=mixture)
     # col info
@@ -2262,7 +2258,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                    af_dist))
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
-    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
+    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2], seed=rand.next_seed())
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 

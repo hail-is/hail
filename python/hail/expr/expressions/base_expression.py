@@ -365,7 +365,7 @@ class Expression(object):
     def __iter__(self):
         raise ExpressionException(f"{repr(self)} object is not iterable")
 
-    def _is_constant(self):
+    def _is_scalar(self):
         return self._indices.source is None
 
     def _promote_scalar(self, typ):
