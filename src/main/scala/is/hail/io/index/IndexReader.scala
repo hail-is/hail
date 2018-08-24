@@ -22,7 +22,7 @@ object IndexReader {
 }
 
 class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) extends AutoCloseable {
-  private val metadata = IndexReader.readMetadata(hConf, path + "/metadata.json.gz")
+  private[io] val metadata = IndexReader.readMetadata(hConf, path + "/metadata.json.gz")
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
@@ -44,14 +44,14 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private val region = new Region()
   private val rv = RegionValue(region)
 
-  var cacheHits = 0L
-  var cacheMisses = 0L
+  private var cacheHits = 0L
+  private var cacheMisses = 0L
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Long, IndexNode](cacheCapacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Long, IndexNode]): Boolean = size() > cacheCapacity
   }
 
-  private def readInternalNode(offset: Long): InternalNode = {
+  private[io] def readInternalNode(offset: Long): InternalNode = {
     if (cache.containsKey(offset)) {
       cacheHits += 1
       cache.get(offset).asInstanceOf[InternalNode]
@@ -67,7 +67,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-  private def readLeafNode(offset: Long): LeafNode = {
+  private[io] def readLeafNode(offset: Long): LeafNode = {
     if (cache.containsKey(offset)) {
       cacheHits += 1
       cache.get(offset).asInstanceOf[LeafNode]
@@ -115,12 +115,13 @@ final case class InternalChild(
   indexFileOffset: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation)
+  firstAnnotation: Annotation,
+  lastKey: Annotation)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
     val firstKeyIndex = r.getLong(0)
-    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3)))
+    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3), r.get(4)))
     InternalNode(firstKeyIndex, children)
   }
 }
