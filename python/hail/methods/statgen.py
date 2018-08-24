@@ -2207,11 +2207,11 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
             raise ValueError("{} must be of length n_populations={}, got length {}"
                              .format(name, n_populations, len(var)))
 
-    if any(map(lambda x: x < 0, pop_dist)):
+    if any(x < 0 for x in pop_dist):
         raise ValueError("pop_dist must be non-negative, got {}"
                          .format(pop_dist))
 
-    if any(map(lambda x: x <= 0 or x >= 1, fst)):
+    if any(x <= 0 or x >= 1 for x in fst):
         raise ValueError("elements of fst must satisfy 0 < x < 1, got {}"
                          .format(fst))
 
@@ -2226,12 +2226,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         raise ValueError("af_dist must be a random function with return type tfloat64.")
 
     fn = af_dist._ir.function
-    import inspect
-    params = eval('list(inspect.signature(hl.{}).parameters.keys())'.format(fn))
-    args = list(map(lambda arg: construct_expr(arg, tfloat64).value, af_dist._ir.args))
-    assert params[-1] == 'seed'
-    params = params[:-1]
-    struct_af_dist = hl.struct(type=fn, **{p: a for p, a in zip(params, args)}, seed=af_dist._ir.seed)
+    struct_af_dist = hl.struct(type=fn, seed=af_dist._ir.seed)
 
     info("balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants..."
          .format(n_populations, n_samples, n_variants))

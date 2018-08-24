@@ -987,6 +987,19 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.ancestral_af_dist.value,
                          hl.Struct(type='rand_beta', a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1))
 
+    def test_balding_nichols_model_same_results(self):
+        ds1 = hl.balding_nichols_model(2, 20, 25, 3,
+                                      pop_dist=[1.0, 2.0],
+                                      fst=[.02, .06],
+                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
+                                      seed=1)
+        ds2 = hl.balding_nichols_model(2, 20, 25, 3,
+                                       pop_dist=[1.0, 2.0],
+                                       fst=[.02, .06],
+                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
+                                       seed=1)
+        self.assertTrue(ds1._same(ds2))
+
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
             bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func, seed=seed)

@@ -378,4 +378,4 @@ class HailSeedGenerator(object):
         self.__init__(seed)
 
     def next_seed(self):
-        return self.generator.randint(0, 9223372036854775807)
+        return self.generator.randint(0, (1 << 63) - 1)
