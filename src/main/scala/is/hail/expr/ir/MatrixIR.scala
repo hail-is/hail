@@ -1534,15 +1534,11 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         initOps(0)(region, colRVAggs, globals, false, cols, false)
       }
 
-      prev.rvd.treeAggregateWithPartitionOp(colRVAggs)( { (i, _) =>
-        seqOps(i)
-      }, { (seqOpF: CompileWithAggregators.IRAggFun3[Long, Long, Long], colRVAggs: Array[RegionValueAggregator], rv: RegionValue) =>
-        val rvb = new RegionValueBuilder()
-        val region = rv.region
-        val oldRow = rv.offset
+      type PC = (CompileWithAggregators.IRAggFun3[Long, Long, Long], Long, Long)
+      prev.rvd.treeAggregateWithPartitionOp[PC, Array[RegionValueAggregator]](colRVAggs)({ (i, ctx) =>
+        val rvb = new RegionValueBuilder(ctx.freshRegion)
 
         val globals = if (seqOpNeedsGlobals) {
-          rvb.set(region)
           rvb.start(localGlobalsType)
           rvb.addAnnotation(localGlobalsType, globalsBc.value)
           rvb.end()
@@ -1554,7 +1550,10 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
           rvb.end()
         } else 0L
 
-        seqOpF(region, colRVAggs, globals, false, cols, false, oldRow, false)
+        (seqOps(i), globals, cols)
+      }, { case ((seqOpF, globals, cols), colRVAggs, rv) =>
+
+        seqOpF(rv.region, colRVAggs, globals, false, cols, false, rv.offset, false)
 
         colRVAggs
       }, { (rvAggs1, rvAggs2) =>
@@ -1588,9 +1587,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val colsF = f(0)
     val scanSeqOpF = scanSeqOps(0)
 
-    val mapF = (a: Annotation, i: Int) => {
-      Region.scoped { region =>
-        rvb.set(region)
+    val newColValues = Region.scoped { region =>
+      rvb.set(region)
+      rvb.start(localGlobalsType)
+      rvb.addAnnotation(localGlobalsType, globalsBc.value)
+      val globalRVoffset = rvb.end()
+
+      val mapF = (a: Annotation, i: Int) => {
 
         rvb.start(aggResultType)
         rvb.startStruct()
@@ -1601,10 +1604,6 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
         rvb.endStruct()
         val aggResultsOffset = rvb.end()
-
-        rvb.start(localGlobalsType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        val globalRVoffset = rvb.end()
 
         val colRVb = new RegionValueBuilder(region)
         colRVb.start(prevColType)
@@ -1626,9 +1625,9 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
         SafeRow(coerce[TStruct](rTyp), region, resultOffset)
       }
+      BroadcastIndexedSeq(colValuesBc.value.zipWithIndex.map { case (a, i) => mapF(a, i) }, TArray(typ.colType), hc.sc)
     }
 
-    val newColValues = BroadcastIndexedSeq(colValuesBc.value.zipWithIndex.map { case (a, i) => mapF(a, i) }, TArray(typ.colType), hc.sc)
     prev.copy(typ = typ, colValues = newColValues)
   }
 }
