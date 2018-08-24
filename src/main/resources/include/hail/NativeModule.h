@@ -19,7 +19,6 @@ public:
   std::string key_;
   bool is_global_;
   void* dlopen_handle_;
-  std::string lock_name_;
   std::string lib_name_;
   std::string new_name_;
   
@@ -34,16 +33,6 @@ public:
     return "NativeModule";
   }
   
-  void lock();
-  
-  void unlock();
-  
-  void usleep_without_lock(int64_t usecs);
-  
-  bool try_wait_for_build();
-  
-  bool try_load();
-  
   void find_LongFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
 
   void find_PtrFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
@@ -51,6 +40,12 @@ public:
   NativeModule(const NativeModule& b) = delete;
 
   NativeModule& operator=(const NativeModule& b) = delete;
+
+  // Methods with names ending "_locked" must be called already holding the big_mutex
+
+  bool try_wait_for_build_locked();
+  
+  bool try_load_locked();  
 };
 
 // Each NativeFunc or NativeMaker holds a NativeModulePtr

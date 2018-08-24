@@ -27,13 +27,23 @@ namespace hail {
 
 namespace {
 
-std::mutex big_mutex;
-
 // File-polling interval in usecs
 const int kFilePollMicrosecs = 50000;
 
 // Timeout for compile/link of a DLL
 const int kBuildTimeoutSecs = 300;
+
+// Top-level NativeModule methods lock this mutex *except* while sleeping
+// between polls of some file state.  Helper methods have names ending in
+// "_locked", and must be called only while holding the mutex.  That makes 
+// everything single-threaded.
+std::mutex big_mutex;
+
+void usleep_without_lock(int64_t usecs) {
+  big_mutex.unlock();
+  usleep(usecs);
+  big_mutex.lock();
+}
 
 // A quick-and-dirty way to get a hash of two strings, take 80bits,
 // and produce a 20byte string of hex digits.  We also sprinkle
@@ -115,59 +125,6 @@ std::string read_file_as_string(const std::string& name) {
   return ss.str();
 }
 
-std::string getenv_with_default(const char* name, const char* dval) {
-  const char* s = ::getenv(name);
-  return std::string(s ? s : dval);
-}
-
-std::string run_shell_get_first_line(const char* cmd) {
-  FILE* f = popen(cmd, "r");
-  char buf[1024];
-  size_t len = 0;
-  if (f) {
-    for (;;) {
-      int c = fgetc(f);
-      if (c == EOF) break;
-      if ((c != '\n') && (len+1 < sizeof(buf))) buf[len++] = c;
-    }
-    pclose(f);
-  }
-  buf[len] = 0;
-  return std::string(buf);
-}
-
-std::string strip_suffix(const std::string& s, const char* suffix) {
-  size_t len = s.length();
-  size_t n = strlen(suffix);
-  if ((n > len) || (strncmp(&s[len-n], suffix, n) != 0)) return s;
-  return std::string(s, 0, len-n);
-}
-
-std::string get_cxx_name() {
-  char* p = ::getenv("CXX");
-  if (p) return std::string(p);
-  auto s = run_shell_get_first_line("which c++");
-  if (strstr(s.c_str(), "c++")) return s;
-  // The last guess is to just say "c++"
-  return std::string("c++");
-}
-
-std::string get_cxx_std(const std::string& cxx) {
-  const char* standards[] = { "-std=c++17", "-std=c++14" };
-  int fd = ::open("/tmp/.hail_empty.cc", O_WRONLY|O_CREAT|O_TRUNC, 0666);
-  if (fd >= 0) ::close(fd);
-  for (int j = 0; j < 2; ++j) {
-    std::stringstream ss;
-    ss << cxx << " " << standards[j] << " /tmp/.hail_empty.cc 2>1";
-    auto s = run_shell_get_first_line(ss.str().c_str());
-    if (!strstr(s.c_str(), "unrecognized") && !strstr(s.c_str(), "invalid")) {
-      return standards[j];
-    }
-  }
-  // Default to pass "-std=c++11", a minimum requirement
-  return "-std=c++11";
-}
-
 std::string get_module_dir() {
   // This gives us a distinct temp directory for each process, so that
   // we can manage synchronization between different of the files in the
@@ -178,50 +135,30 @@ std::string get_module_dir() {
   return ::mkdtemp(buf);
 }
 
-std::string get_perl_name() {
-  std::string name("/usr/bin/perl");
-  if (file_exists(name)) return name;
-  name = run_shell_get_first_line("which perl 2>/dev/null");
-  if (strstr(name.c_str(), "perl")) return name;
-  // The last guess is to just say "perl"
-  return std::string("perl");
-}
-
 class ModuleConfig {
  public:
   bool is_darwin_;
+  std::string java_md_;
   std::string ext_cpp_;
   std::string ext_lib_;
   std::string ext_mak_;
   std::string ext_new_;
   std::string module_dir_;
-  std::string cxx_name_;
-  std::string cxx_std_;
-  std::string java_md_;
-  std::string perl_name_;
 
  public:
   ModuleConfig() :
 #if defined(__APPLE__) && defined(__MACH__)
     is_darwin_(true),
+    java_md_("darwin"),
 #else
     is_darwin_(false),
+    java_md_("linux"),
 #endif
     ext_cpp_(".cpp"),
     ext_lib_(is_darwin_ ? ".dylib" : ".so"),
     ext_mak_(".mak"),
     ext_new_(".new"),
-    module_dir_(get_module_dir()),
-    cxx_name_(get_cxx_name()),
-    cxx_std_(get_cxx_std(cxx_name_)),
-    java_md_(is_darwin_ ? "darwin" : "linux"),
-    perl_name_(get_perl_name()) {
-  }
-  
-  std::string get_lock_name(const std::string& key) {
-    std::stringstream ss;
-    ss << module_dir_ << "/hm_" << key << ".lock";
-    return ss.str();
+    module_dir_(get_module_dir()) {
   }
   
   std::string get_lib_name(const std::string& key) {
@@ -262,7 +199,6 @@ std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
 
 class ModuleBuilder {
 private:
-  NativeModule* parent_;
   std::string options_;
   std::string source_;
   std::string include_;
@@ -275,13 +211,11 @@ private:
   
 public:
   ModuleBuilder(
-    NativeModule* parent,
     const std::string& options,
     const std::string& source,
     const std::string& include,
     const std::string& key
   ) :
-    parent_(parent),
     options_(options),
     source_(source),
     include_(include),
@@ -327,21 +261,17 @@ private:
     // only a narrow path to a working solution.
     FILE* f = fopen(hm_mak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
-    std::string javaHome = config.java_home_;
-    std::string javaMD = config.java_md_;
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
-    fprintf(f, "PERL      := %s\n", config.perl_name_.c_str());
     fprintf(f, "ifndef JAVA_HOME\n");
     fprintf(f, "  TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)\n");
     fprintf(f, "  JAVA_HOME :=$(shell dirname $(filter-out java.home =,$(TMP)))\n");
-    fprintf(f, "endif\n)
-    fprintf(f, "CXX       := %s\n", config.cxx_name_.c_str());
+    fprintf(f, "endif\n");
+    fprintf(f, "JAVA_INCLUDE :=$(dir $(JAVA_HOME))/include");
     fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  %s -fPIC -march=native -fno-strict-aliasing -Wall \\\n", config.cxx_std_.c_str());
-    auto java_include = strip_suffix(config.java_home_, "/jre") + "/include";
-    fprintf(f, "  -I%s \\\n", java_include.c_str());
-    fprintf(f, "  -I%s/%s \\\n", java_include.c_str(), config.java_md_.c_str());
+    fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall \\\n");
+    fprintf(f, "  -I$(JAVA_INCLUDE) \\\n");
+    fprintf(f, "  -I$(JAVA_INCLUDE)/%s \\\n", config.java_md_.c_str());
     fprintf(f, "  -I%s \\\n", include_.c_str());
     bool have_oflag = (strstr(options_.c_str(), "-O") != nullptr);
     fprintf(f, "  %s%s \\\n", have_oflag ? "" : "-O3", options_.c_str());
@@ -360,11 +290,11 @@ private:
     fprintf(f, "\t  $(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).tmp $(MODULE).o 2>> $(MODULE).err ; \\\n");
     fprintf(f, "\tstatus=$$? ; \\\n");
     fprintf(f, "\tif [ $$status -ne 0 ] || [ -z $(MODULE).tmp ]; then \\\n");
-    fprintf(f, "\t  /bin/rm -f $(MODULE).new ; \\\n");
+    fprintf(f, "\t  rm -f $(MODULE).new ; \\\n");
     fprintf(f, "\t  echo FAIL ; exit 1 ; \\\n");
     fprintf(f, "\tfi\n");
-    fprintf(f, "\t-/bin/rm -f $(MODULE).err\n");
-    fprintf(f, "\t$(PERL) -e 'rename \"$(MODULE).tmp\", \"$(MODULE).new\"'\n");
+    fprintf(f, "\t-rm -f $(MODULE).err\n");
+    fprintf(f, "\tperl -e 'rename \"$(MODULE).tmp\", \"$(MODULE).new\"'\n");
     fprintf(f, "\n");
     fclose(f);
   }
@@ -389,7 +319,10 @@ public:
     if (rc == -1) {
       fprintf(stderr, "DEBUG: system() -> -1\n");
       perror("system");
-      ::unlink(hm_new_.c_str()); // the build is not running, so recover ASAP
+      // The existence of hm_new means "a build is running".  The build is
+      // *not* running, so we must remove the hm_new file to allow error
+      // detection and recovery without a delay of kBuildTimeoutSeconds
+      ::unlink(hm_new_.c_str());
     }
     return true;
   }
@@ -406,19 +339,17 @@ NativeModule::NativeModule(
   key_(hash_two_strings(options, source)),
   is_global_(false),
   dlopen_handle_(nullptr),
-  lock_name_(config.get_lock_name(key_)),
   lib_name_(config.get_lib_name(key_)),
   new_name_(config.get_new_name(key_)) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
   // Master constructor - try to get module built in local file
   config.ensure_module_dir_exists();
-  lock();
   bool have_lib = (!force_build && file_exists(lib_name_));
-  unlock();
   if (have_lib) {
     build_state_ = kPass;
   } else {
     // The file doesn't exist, let's start building it
-    ModuleBuilder builder(this, options, source, include, key_);
+    ModuleBuilder builder(options, source, include, key_);
     builder.try_to_start_build();
   }
 }
@@ -434,9 +365,9 @@ NativeModule::NativeModule(
   key_(key),
   is_global_(is_global),
   dlopen_handle_(nullptr),
-  lock_name_(config.get_lock_name(key_)),
   lib_name_(config.get_lib_name(key_)),
   new_name_(config.get_new_name(key_)) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
   // Worker constructor - try to get the binary written to local file
   if (is_global_) return;
   int rc = 0;
@@ -480,7 +411,7 @@ NativeModule::NativeModule(
     }
   }
   if (build_state_ == kPass) {
-    try_load();
+    try_load_locked();
   }
 }
 
@@ -490,13 +421,7 @@ NativeModule::~NativeModule() {
   }
 }
 
-void NativeModule::usleep_without_lock(int64_t usecs) {
-  big_mutex.unlock();
-  usleep(usecs);
-  big_mutex.lock();
-}
-
-bool NativeModule::try_wait_for_build() {
+bool NativeModule::try_wait_for_build_locked() {
   if (build_state_ == kInit) {
     // The writer will rename new to lib.  If we tested exists(lib)
     // followed by exists(new) then the rename could occur between
@@ -520,11 +445,11 @@ bool NativeModule::try_wait_for_build() {
   return (build_state_ == kPass);
 }
 
-bool NativeModule::try_load() {
+bool NativeModule::try_load_locked() {
   if (load_state_ == kInit) {
     if (is_global_) {
       load_state_ = kPass;
-    } else if (!try_wait_for_build()) {
+    } else if (!try_wait_for_build_locked()) {
       load_state_ = kFail;
     } else {
       // At first this had no mutex and RTLD_LAZY, but MacOS tests crashed
@@ -557,6 +482,7 @@ static std::string to_qualified_name(
     // No name-mangling for global func names
     strcpy(buf, name);
   } else {
+    // Mangled name for hail::hm_<key>::funcname(NativeStatus* st, some numbers of longs)
     auto moduleName = std::string("hm_") + key;
     sprintf(buf, "_ZN4hail%lu%s%lu%sE%s%s",
       moduleName.length(), moduleName.c_str(), strlen(name), (const char*)name, 
@@ -572,8 +498,9 @@ void NativeModule::find_LongFuncL(
   jstring nameJ,
   int numArgs
 ) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
   void* funcAddr = nullptr;
-  if (!try_load()) {
+  if (!try_load_locked()) {
     NATIVE_ERROR(st, 1001, "ErrModuleNotFound");
   } else {
     auto qualName = to_qualified_name(env, key_, nameJ, numArgs, is_global_, true);
@@ -594,8 +521,9 @@ void NativeModule::find_PtrFuncL(
   jstring nameJ,
   int numArgs
 ) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
   void* funcAddr = nullptr;
-  if (!try_load()) {
+  if (!try_load_locked()) {
     NATIVE_ERROR(st, 1001, "ErrModuleNotFound");
   } else {
     auto qualName = to_qualified_name(env, key_, nameJ, numArgs, is_global_, false);
@@ -627,7 +555,6 @@ NATIVEMETHOD(void, NativeModule, nativeCtorMaster)(
   JString source(env, sourceJ);
   JString include(env, includeJ);
   bool force_build = (force_buildJ != JNI_FALSE);
-  std::lock_guard<std::mutex> mylock(big_mutex);
   NativeObjPtr ptr = std::make_shared<NativeModule>(options, source, include, force_build);
   init_NativePtr(env, thisJ, &ptr);
 }
@@ -641,15 +568,16 @@ NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
 ) {
   bool is_global = (is_globalJ != JNI_FALSE);
   JString key(env, keyJ);
-  std::lock_guard<std::mutex> mylock(big_mutex);
   NativeModulePtr mod;
-  auto iter = module_cache[std::string(key)];
-  if (iter != module_cache.end()) mod = iter->second.lock();
+  auto iter = module_table.find(std::string(key));
+  if (iter != module_table.end()) {
+    mod = iter->second.lock(); // table holds weak_ptr, get a shared_ptr
+  }
   if (!mod) {
     long binary_size = env->GetArrayLength(binaryJ);
     auto binary = env->GetByteArrayElements(binaryJ, 0);
     mod = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
-    module_cache.insert(mod);
+    module_table[std::string(key)] = mod;
     env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
   }
   NativeObjPtr ptr = mod;
@@ -664,8 +592,7 @@ NATIVEMETHOD(void, NativeModule, nativeFindOrBuild)(
   auto mod = to_NativeModule(env, thisJ);
   auto st = reinterpret_cast<NativeStatus*>(stAddr);
   st->clear();
-  std::lock_guard<std::mutex> mylock(big_mutex);
-  if (!mod->try_wait_for_build()) {
+  if (!mod->try_wait_for_build_locked()) {
     NATIVE_ERROR(st, 1004, "ErrModuleBuildFailed");
   }
 }
@@ -683,8 +610,7 @@ NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   jobject thisJ
 ) {
   auto mod = to_NativeModule(env, thisJ);
-  std::lock_guard<std::mutex> mylock(big_mutex);
-  mod->try_wait_for_build();
+  mod->try_wait_for_build_locked();
   int fd = open(config.get_lib_name(mod->key_).c_str(), O_RDONLY, 0666);
   if (fd < 0) {
     return env->NewByteArray(0);
@@ -713,7 +639,6 @@ NATIVEMETHOD(void, NativeModule, nativeFind##LongOrPtr##FuncL##num_args)( \
   auto mod = to_NativeModule(env, thisJ); \
   auto st = reinterpret_cast<NativeStatus*>(stAddr); \
   st->clear(); \
-  std::lock_guard<std::mutex> mylock(big_mutex); \
   mod->find_##LongOrPtr##FuncL(env, st, funcJ, nameJ, num_args); \
 }
 
