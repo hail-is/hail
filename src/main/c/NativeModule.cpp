@@ -89,14 +89,10 @@ std::string hash_two_strings(const std::string& a, const std::string& b) {
 }
 
 bool file_stat(const std::string& name, struct stat* st) {
-  // Open file for reading to avoid inconsistent cached attributes
+  // Open file for reading to avoid inconsistent cached attributes over NFS
   int fd = ::open(name.c_str(), O_RDONLY, 0666);
   if (fd < 0) return false;
-  int rc;
-  do {
-    errno = 0;
-    rc = ::fstat(fd, st);
-  } while ((rc < 0) && (errno == EINTR));
+  int rc = ::fstat(fd, st);
   ::close(fd);
   return (rc == 0);
 }
@@ -127,9 +123,9 @@ std::string read_file_as_string(const std::string& name) {
 
 std::string get_module_dir() {
   // This gives us a distinct temp directory for each process, so that
-  // we can manage synchronization between different of the files in the
-  // temp directory using only in-memory std::mutex'es, rather than
-  // dealing with complexities of file locking.
+  // we can manage synchronization of threads accessing files in
+  // the temp directory using only the in-memory big_mutex, rather than
+  // dealing with the complexity of file locking.
   char buf[512];
   strcpy(buf, "/tmp/hail_XXXXXX");
   return ::mkdtemp(buf);
@@ -185,9 +181,9 @@ class ModuleConfig {
 
 ModuleConfig config;
 
-// module_table is used to ensure that several Spark workers will get
+// module_table is used to ensure that several Spark worker threads will get
 // shared_ptr's to a single NativeModule, rather than each having their
-// own NativeModule.  Callers must hold the big_mutex.
+// own NativeModule.
 
 std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
 
@@ -252,13 +248,8 @@ private:
     //  to other processes throughout the renaming operation and refer either
     //  to the file referred to by new or old before the operation began."
     //
-    // Since perl has a nasty habit of doing funny things to some characters
-    // in non-quoted strings, we take care to quote the filenames.
-    //
-    // It's enormously confusing to be writing C++ to write a makefile
-    // which contains embedded bash scripts which call perl.  That was not
-    // the original design, but issues of MacOS-vs-Linux portability left
-    // only a narrow path to a working solution.
+    // Since perl does funny things to some characters in some non-quoted
+    // strings, we take care to quote the filenames.
     FILE* f = fopen(hm_mak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
