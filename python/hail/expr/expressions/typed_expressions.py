@@ -2339,13 +2339,13 @@ class CallExpression(Expression):
         """
         return self._method("isHet", tbool)
 
-    def is_het_nonref(self):
+    def is_het_non_ref(self):
         """Evaluate whether the call includes two different alleles, neither of which is reference.
 
         Examples
         --------
 
-        >>> call.is_het_nonref().value
+        >>> call.is_het_non_ref().value
         False
 
         Returns

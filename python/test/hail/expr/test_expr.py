@@ -1437,7 +1437,7 @@ class Tests(unittest.TestCase):
         self.check_expr(c2_hetvar[1], 1, tint32)
         self.check_expr(c2_hetvar.phased, True, tbool)
         self.check_expr(c2_hetvar.is_hom_var(), False, tbool)
-        self.check_expr(c2_hetvar.is_het_nonref(), True, tbool)
+        self.check_expr(c2_hetvar.is_het_non_ref(), True, tbool)
 
         self.check_expr(c1.ploidy, 1, tint32)
         self.check_expr(c1[0], 1, tint32)
