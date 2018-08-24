@@ -313,7 +313,7 @@ object OrderedRVDPartitioner {
       rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
         val r = kType.ordering.intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(left.right, right.left)
         if (!r)
-          log.info(s"invalid partitioner: ${ left.right } > ${ right.left }")
+          log.info(s"invalid partitioner: !lteqWithOverlap($allowedOverlap)(${ left }.right, ${ right }.left)")
         r
       }
   }

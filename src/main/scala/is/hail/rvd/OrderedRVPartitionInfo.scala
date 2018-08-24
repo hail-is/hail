@@ -65,10 +65,12 @@ object OrderedRVPartitionInfo {
 
         if (typ.kOrd.lt(f, prevF.value)) {
           if (pkOrd.lt(f, prevF.value)) {
-            log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+            if (sortedness > UNSORTED)
+              log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = UNSORTED
           } else
-            log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+            if (sortedness > TSORTED)
+              log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = sortedness.min(TSORTED)
         }
 
