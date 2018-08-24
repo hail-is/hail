@@ -84,24 +84,6 @@ class Tests(unittest.TestCase):
         vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
         vds.count_rows()
 
-    def test_filter_random(self):
-        mt = hl.utils.range_matrix_table(20, 20, 4).select_entries(x=1)
-
-        rows = mt.filter_rows(hl.rand_bool(0.5) & hl.agg.all(mt.x == 1)).count_rows()
-        print(rows)
-
-        # prevent the (TableFilter (ColsTable ... optimization from kicking in
-        cols = len(set(mt.filter_cols(hl.rand_bool(0.5)).entries().col_idx.collect()))
-        print(cols)
-
-        filtered_entries = mt.filter_entries(hl.rand_bool(0.5))
-        entries = filtered_entries.aggregate_entries(hl.agg.count_where(hl.is_defined(filtered_entries.x)))
-        print(entries)
-
-        self.assertTrue(0 < rows < 20)
-        self.assertTrue(0 < cols < 20)
-        self.assertTrue(0 < entries < 400)
-
     def test_aggregate(self):
         vds = self.get_vds()
 

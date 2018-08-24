@@ -242,4 +242,17 @@ class MatrixIRSuite extends SparkSuite {
       }
     }
   }
+
+  @Test def testMatrixFiltersWorkWithRandomness() {
+    val range = MatrixTable.range(hc, 20, 20, Some(4)).ast
+    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0)
+
+    val cols = MatrixFilterCols(range, rand).execute(hc).nCols
+    val rows = MatrixFilterRows(range, rand).execute(hc).rvd.count()
+    val entries = MatrixEntriesTable(MatrixFilterEntries(range, rand)).execute(hc).rvd.count()
+
+    assert(cols < 20 && cols > 0)
+    assert(rows < 20 && rows > 0)
+    assert(entries < 20 && entries > 0)
+  }
 }
