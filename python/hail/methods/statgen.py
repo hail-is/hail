@@ -2124,8 +2124,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
       population.
     - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - `ancestral_af_dist` (:class:`.tstruct`) -- Description of the ancestral allele
-      frequency distribution.
     - `seed` (:py:data:`.tint32`) -- Random seed.
     - `mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
 
