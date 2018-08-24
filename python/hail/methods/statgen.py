@@ -2031,11 +2031,10 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            fst=nullable(sequenceof(numeric)),
            af_dist=expr_any,
            reference_genome=reference_genome_type,
-           seed=nullable(int),
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
                           pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
-                          reference_genome='default', seed=0, mixture=False) -> MatrixTable:
+                          reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2052,12 +2051,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
     ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
 
-    >>>
+    >>> hl.set_global_seed(1)
     >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
-    ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0),
-    ...          seed=1)
+    ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0))
+
+    Note that in order to guarantee reproducibility, the hail global seed is set
+    with :func:`.set_global_seed` immediately prior to generating the dataset.
 
     Notes
     -----
@@ -2165,9 +2166,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     af_dist : :class:`.Float64Expression` representing a random function.
         Ancestral allele frequency distribution.
         Default is :func:`.rand_unif` over the range `[0.1, 0.9]` with seed 0.
-    seed : :obj:`int`
-        Random seed. The seed for the `af_dist` function is set independently
-        from within the function expression.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2212,7 +2210,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         raise ValueError("elements of fst must satisfy 0 < x < 1, got {}"
                          .format(fst))
 
-    # verify af_dist and seed
+    # verify af_dist
     if not af_dist._is_scalar:
         raise ExpressionException('balding_nichols_model expects af_dist to ' +
                                   'have scalar arguments: found expression ' +
@@ -2226,7 +2224,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
          .format(n_populations, n_samples, n_variants))
 
     # generate matrix table
-    rand = hl.utils.HailSeedGenerator(seed)
 
     bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
     bn = bn.annotate_globals(n_populations=n_populations,
@@ -2235,12 +2232,11 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                              n_partitions=n_partitions,
                              pop_dist=pop_dist,
                              fst=fst,
-                             seed=seed,
                              mixture=mixture)
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
     bn = bn.key_cols_by(sample_idx=bn.col_idx)
-    bn = bn.select_cols(pop=pop_f(pop_dist, seed=rand.next_seed()))
+    bn = bn.select_cols(pop=pop_f(pop_dist))
 
     # row info
     bn = bn.key_rows_by(locus=hl.locus_from_global_position(bn.row_idx, reference_genome=reference_genome),
@@ -2250,12 +2246,11 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                    hl.array([(1 - x) / x for x in fst])
                                    .map(lambda x:
                                         hl.rand_beta(ancestral * x,
-                                                     (1 - ancestral) * x,
-                                                     seed=rand.next_seed())),
+                                                     (1 - ancestral) * x)),
                                    af_dist))
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
-    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2], seed=rand.next_seed())
+    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 

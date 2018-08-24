@@ -965,11 +965,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     def test_balding_nichols_model(self):
+        hl.set_global_seed(1)
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
-                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
-                                      seed=1)
+                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
 
         ds.entries().show(100, width=200)
 
@@ -983,26 +983,24 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.n_variants.value, 25)
         self.assertEqual(glob.pop_dist.value, [1, 2])
         self.assertEqual(glob.fst.value, [.02, .06])
-        self.assertEqual(glob.seed.value, 1)
-        self.assertEqual(glob.ancestral_af_dist.value,
-                         hl.Struct(type='rand_beta', seed=1))
 
     def test_balding_nichols_model_same_results(self):
+        hl.set_global_seed(1)
         ds1 = hl.balding_nichols_model(2, 20, 25, 3,
                                        pop_dist=[1.0, 2.0],
                                        fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
-                                       seed=1)
+                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
+        hl.set_global_seed(1)
         ds2 = hl.balding_nichols_model(2, 20, 25, 3,
                                        pop_dist=[1.0, 2.0],
                                        fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95, seed=1),
-                                       seed=1)
+                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
         self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
-            bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func, seed=seed)
+            hl.set_global_seed(seed)
+            bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func)
             self.assertTrue(
                 bn.aggregate_rows(
                     hl.agg.all((bn.ancestral_af > min) &
@@ -1015,7 +1013,8 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
-            bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9), seed=seed)
+            hl.set_global_seed(seed)
+            bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9))
 
             # test pop distribution
             pop_counts = bn.aggregate_cols(hl.agg.group_by(bn.pop, hl.agg.count()))
