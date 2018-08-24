@@ -587,8 +587,8 @@ object Parser extends JavaTokenParsers {
   def table_ir_1: Parser[ir.TableIR] =
   // FIXME TableImport
     "TableUnkey" ~> table_ir ^^ { t => ir.TableUnkey(t) } |
-      "TableKeyBy" ~> ir_identifiers ~ boolean_literal ~ table_ir ^^ { case key ~ sort ~ child =>
-        ir.TableKeyBy(child, key, sort)
+      "TableKeyBy" ~> ir_identifiers ~ boolean_literal ~ table_ir ^^ { case key ~ isSorted ~ child =>
+        ir.TableKeyBy(child, key, isSorted)
       } |
       "TableDistinct" ~> table_ir ^^ { t => ir.TableDistinct(t) } |
       "TableFilter" ~> table_ir ~ ir_value_expr() ^^ { case child ~ pred => ir.TableFilter(child, pred) } |

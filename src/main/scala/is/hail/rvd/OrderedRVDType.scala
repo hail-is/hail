@@ -69,6 +69,7 @@ final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
 
   def toJSON: JValue =
     JObject(List(
+      "partitionKey" -> JArray(key.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
       "rowType" -> JString(rowType.parsableString())))
 

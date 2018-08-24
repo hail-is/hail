@@ -303,6 +303,11 @@ class Table(ExprContainer):
     >>> table1.show()
     """
 
+    @staticmethod
+    def _from_ir(table_ir):
+        jir = Env.hail().expr.Parser.parse_table_ir(str(table_ir))
+        return Table(Env.hail().table.Table(Env.hc()._jhc, jir))
+
     def __init__(self, jt):
         super(Table, self).__init__()
 

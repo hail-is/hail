@@ -97,6 +97,7 @@ class ValueIRTests(unittest.TestCase):
 
 
 class TableIRTests(unittest.TestCase):
+
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
@@ -109,7 +110,7 @@ class TableIRTests(unittest.TestCase):
         range = ir.TableRange(10, 4)
         table_irs = [
             ir.TableUnkey(table_read),
-            ir.TableKeyBy(table_read, ['m', 'd'], True),
+            ir.TableKeyBy(table_read, ['m', 'd'], False),
             ir.TableFilter(table_read, b),
             table_read,
             ir.MatrixColsTable(matrix_read),
@@ -196,3 +197,36 @@ class TableIRTests(unittest.TestCase):
                 Env.hail().expr.Parser.parse_matrix_ir(str(x))
             except Exception as e:
                 raise ValueError(str(x)) from e
+
+
+class ValueTests(unittest.TestCase):
+
+    def values(self):
+        values = [
+            (hl.tbool, True),
+            (hl.tint32, 0),
+            (hl.tint64, 0),
+            (hl.tfloat32, 0.5),
+            (hl.tfloat64, 0.5),
+            (hl.tstr, "foo"),
+            (hl.tstruct(x=hl.tint32), hl.Struct(x=0)),
+            (hl.tarray(hl.tint32), [0, 1, 4]),
+            (hl.tset(hl.tint32), {0, 1, 4}),
+            (hl.tdict(hl.tstr, hl.tint32), {"a": 0, "b": 1, "c": 4}),
+            (hl.tinterval(hl.tint32), hl.Interval(0, 1, True, False)),
+            (hl.tlocus(hl.default_reference()), hl.Locus("1", 1)),
+            (hl.tcall, hl.Call([0, 1]))
+        ]
+        return values
+
+    def test_value_same_after_parsing(self):
+        for t, v in self.values():
+            row_v = ir.Value(hl.tstruct(x=t), hl.Struct(x=v))
+            map_globals_ir = ir.TableMapGlobals(
+                ir.TableRange(1, 1),
+                ir.InsertFields(
+                    ir.Ref("global", hl.tstruct()),
+                    [("foo", ir.GetField(ir.Ref("value", row_v.typ), "x"))]),
+                row_v)
+            new_globals = hl.Table._from_ir(map_globals_ir).globals.value
+            self.assertEquals(new_globals, hl.Struct(foo=v))

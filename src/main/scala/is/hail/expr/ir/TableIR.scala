@@ -162,7 +162,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   }
 }
 
-case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = true) extends TableIR {
+case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends TableIR {
   private val fields = child.typ.rowType.fieldNames.toSet
   assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
 
@@ -172,18 +172,18 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], sort: Boolean = 
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
-    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, sort)
+    TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
   }
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
     val orvd = tv.enforceOrderingRVD.toOrderedRVD
     val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
-    assert(sort || nPreservedFields > 0 || keys.isEmpty)
+    assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
 
     val rvd = if (nPreservedFields == keys.length) {
       orvd
-    } else if (!sort) {
+    } else if (isSorted) {
       orvd.truncateKey(keys.take(nPreservedFields))
         .extendKeyPreservesPartitioning(keys)
     } else {
@@ -340,12 +340,22 @@ object TableJoin {
     TableJoin(left, right, joinType, left.typ.keyOrEmpty.length)
 }
 
-// Suppose 'left' has key [l_1, ..., l_n] and 'right' has key [r_1, ..., r_m].
-// Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
-// j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
-// common prefix of their keys, returning a table with key
-// [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
-// renaming of right field names to avoid collision).
+/**
+  * Suppose 'left' has key [l_1, ..., l_n] and 'right' has key [r_1, ..., r_m].
+  * Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
+  * j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
+  * common prefix of their keys, returning a table with key
+  * [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
+  * renaming of right field names to avoid collision).
+  *
+  * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
+  * and 'right' has multiple rows with the corresponding join key
+  * [k_1, ..., k_j], then the resulting table will have out-of-order keys. To
+  * avoid this, ensure one of the following:
+  *   * j == m
+  *   * 'left' has distinct keys
+  *   * 'right' has distinct join keys (no repeated length j prefix)
+  */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
   extends TableIR {
 
@@ -385,7 +395,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     case (fd, i) => (finalColumnNames(i), fd.typ)
   }: _*)
 
-  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey)
+  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
 
   val typ: TableType = TableType(newRowType, Some(newKey), left.typ.globalType)
 

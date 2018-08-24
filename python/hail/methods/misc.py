@@ -277,7 +277,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     Remove all loci within list of intervals:
 
     >>> intervals = [hl.parse_locus_interval(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
-    >>> ds_result = hl.filter_intervals(dataset, intervals)
+    >>> ds_result = hl.filter_intervals(dataset, intervals, keep=False)
 
     Notes
     -----

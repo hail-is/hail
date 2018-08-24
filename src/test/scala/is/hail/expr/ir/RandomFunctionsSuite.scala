@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
+import is.hail.TestUtils._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
@@ -19,7 +20,7 @@ class TestIRRandomness(val seed: Long) extends IRRandomness(seed) {
     i = -1
   }
 
-  def counter(): Long = {
+  def counter(): Int = {
     i += 1
     i
   }
@@ -33,8 +34,8 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt64()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Long]("counter")
+    registerSeeded("counter_seeded", TInt32()) { case (mb, seed) =>
+      getTestRNG(mb, seed).invoke[Int]("counter")
     }
 
     registerSeeded("seed_seeded", TInt64()) { case (mb, seed) =>
@@ -49,12 +50,15 @@ object TestRandomFunctions extends RegistryFunctions {
 
 class RandomFunctionsSuite extends SparkSuite {
 
+  val counter = ApplySeeded("counter_seeded", FastSeq(), 0L)
+  val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L)
+
   def mapped2(n: Int, npart: Int) = TableMapRows(
     TableRange(n, npart),
     InsertFields(Ref("row", TableRange(1, 1).typ.rowType),
       FastSeq(
-        "pi" -> ApplySeeded("pi_seeded", FastSeq(), 0L),
-        "counter" -> ApplySeeded("counter_seeded", FastSeq(), 0L))),
+        "pi" -> partitionIdx,
+        "counter" -> counter)),
     Some(FastIndexedSeq("idx")))
 
   @BeforeClass def registerFunctions() {
@@ -88,5 +92,25 @@ class RandomFunctionsSuite extends SparkSuite {
 
     assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
     assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
+  }
+
+  @Test def testInterpretIncrementsCorrectly() {
+    assertEvalsTo(
+      ArrayMap(ArrayRange(0, 3, 1), "i", counter * counter),
+      FastIndexedSeq(0, 1, 4))
+
+    assertEvalsTo(
+      ArrayFold(ArrayRange(0, 3, 1), -1, "j", "i", counter + counter),
+      4)
+
+    assertEvalsTo(
+      ArrayFilter(ArrayRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter)),
+      FastIndexedSeq(0, 1, 2))
+
+    assertEvalsTo(
+      ArrayFlatMap(ArrayRange(0, 3, 1),
+        "i",
+        MakeArray(FastSeq(counter, counter, counter), TArray(TInt32()))),
+      FastIndexedSeq(0, 0, 0, 1, 1, 1, 2, 2, 2))
   }
 }

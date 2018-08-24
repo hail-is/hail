@@ -484,7 +484,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding['IBD'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
         self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
-        
+
+    def test_aggregator_group_by_sorts_result(self):
+        t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap
+            {"group": "m", "x": 1},
+            {"group": "s", "x": 2},
+            {"group": "s", "x": 3},
+            {"group": "m", "x": 4},
+            {"group": "m", "x": 5}
+        ], hl.tstruct(group=hl.tstr, x=hl.tint32), n_partitions=1)
+
+        grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
+        self.assertEqual(grouped_expr, hl.sorted(grouped_expr).value)
+
+
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
         table2 = hl.utils.range_table(10)
@@ -1884,6 +1897,10 @@ class Tests(unittest.TestCase):
         res = hl.chi_squared_test(51, 43, 22, 92).value
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
+        
+        res = hl.chi_squared_test(61, 17493, 95, 84145).value
+        self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
+        self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
 
     def test_fisher_exact_test(self):
         res = hl.fisher_exact_test(0, 0, 0, 0).value
@@ -1952,3 +1969,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
         self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
         self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").value, "false FALSE true true")
+
+    def test_dict_and_set_type_promotion(self):
+        d = hl.literal({5: 5}, dtype='dict<int64, int64>')
+        s = hl.literal({5}, dtype='set<int64>')
+
+        self.assertEqual(d[5].value, 5)
+        self.assertEqual(d.get(5).value, 5)
+        self.assertEqual(d.get(2, 3).value, 3)
+        self.assertTrue(d.contains(5).value)
+        self.assertTrue(~d.contains(2).value)
+
+        self.assertTrue(s.contains(5).value)
+        self.assertTrue(~s.contains(2).value)
+
+

@@ -22,6 +22,10 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
          """.stripMargin)
   }
 
+  // 'joinedType.key' must be the join key, followed by the remaining left key,
+  // followed by the remaining right key, with possible renaming. 'joiner'
+  // must copy these 'joinedType.key' fields from the corresponding fields in
+  // the JoinedRegionValue.
   def orderedJoin(
     right: KeyedOrderedRVD,
     joinType: String,
@@ -30,12 +34,19 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
   ): OrderedRVD = {
     checkJoinCompatability(right)
 
-    val newPartitioner = (joinType: @unchecked) match {
-      case "inner" | "left" => this.rvd.partitioner
-      case "outer" | "right" =>
-        this.rvd.partitioner.enlargeToRange(right.rvd.partitioner.range)
+    val newPartitioner = {
+      def leftPart = this.rvd.partitioner.strictify
+      def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType)
+      (joinType: @unchecked) match {
+        case "left" => leftPart
+        case "right" => rightPart
+        case "inner" => leftPart.intersect(rightPart)
+        case "outer" => OrderedRVDPartitioner.generate(
+          realType.kType,
+          leftPart.rangeBounds ++ rightPart.rangeBounds)
+      }
     }
-    val repartitionedLeft = new OrderedRVD(realType, newPartitioner, rvd.crdd)
+    val repartitionedLeft = rvd.constrainToOrderedPartitioner(newPartitioner)
     val compute: (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
         case "inner" => _.innerJoin(_, _)
@@ -48,7 +59,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
     val rRowType = right.realType.rowType
 
     repartitionedLeft.alignAndZipPartitions(
-      joinedType,
+      joinedType.copy(key = joinedType.key.take(realType.key.length)),
       right.rvd,
       kType
     ) { (ctx, leftIt, rightIt) =>
@@ -59,7 +70,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
           OrderedRVIterator(lTyp, leftIt, ctx),
           OrderedRVIterator(rTyp, rightIt, ctx),
           new RegionValueArrayBuffer(rRowType, sideBuffer)))
-    }
+    }.extendKeyPreservesPartitioning(joinedType.key)
   }
 
   def orderedJoinDistinct(

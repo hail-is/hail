@@ -132,4 +132,31 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 2), Row(11, 0, 20), false, false))
     )
   }
+
+  @Test def testIntersect() {
+    val kType = TStruct(("key", TInt32()))
+    val left =
+      new OrderedRVDPartitioner(kType,
+        Array(
+          Interval(Row(1), Row(10), true, false),
+          Interval(Row(12), Row(13), true, false),
+          Interval(Row(14), Row(19), true, false))
+      )
+    val right =
+      new OrderedRVDPartitioner(kType,
+        Array(
+          Interval(Row(0), Row(4), true, false),
+          Interval(Row(4), Row(5), true, false),
+          Interval(Row(7), Row(16), true, true))
+      )
+    assert(left.intersect(right).rangeBounds sameElements
+      Array(
+        Interval(Row(1), Row(4), true, false),
+        Interval(Row(4), Row(5), true, false),
+        Interval(Row(7), Row(10), true, false),
+        Interval(Row(12), Row(13), true, false),
+        Interval(Row(14), Row(16), true, true)
+      )
+    )
+  }
 }
