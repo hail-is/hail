@@ -611,9 +611,8 @@ object Parser extends JavaTokenParsers {
       "TableMapRows" ~> string_literals_opt ~ int32_literal_opt ~ table_ir ~ ir_value_expr() ^^ { case newKey ~ preservedKeyFields ~ child ~ newRow =>
         ir.TableMapRows(child, newRow, newKey, preservedKeyFields)
       } |
-      "TableMapGlobals" ~> ir_value ~ table_ir ~ ir_value_expr() ^^ { case ((t, v)) ~ child ~ newRow =>
-        ir.TableMapGlobals(child, newRow,
-          BroadcastRow(v.asInstanceOf[Row], t.asInstanceOf[TBaseStruct], HailContext.get.sc))
+      "TableMapGlobals" ~> table_ir ~ ir_value_expr() ^^ { case child ~ newRow =>
+        ir.TableMapGlobals(child, newRow)
       } |
       "TableRange" ~> int32_literal ~ int32_literal ^^ { case n ~ nPartitions => ir.TableRange(n, nPartitions) } |
       "TableUnion" ~> table_ir_children ^^ { children => ir.TableUnion(children) } |
@@ -644,9 +643,8 @@ object Parser extends JavaTokenParsers {
         ir.MatrixMapRows(child, newRow, newKPK)
       } |
       "MatrixMapEntries" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ newEntries => ir.MatrixMapEntries(child, newEntries) } |
-      "MatrixMapGlobals" ~> ir_value ~ matrix_ir ~ ir_value_expr() ^^ { case ((t, v)) ~ child ~ newGlobals =>
-        ir.MatrixMapGlobals(child, newGlobals,
-          BroadcastRow(v.asInstanceOf[Row], t.asInstanceOf[TBaseStruct], HailContext.get.sc))
+      "MatrixMapGlobals" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ newGlobals =>
+        ir.MatrixMapGlobals(child, newGlobals)
       } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ agg => ir.MatrixAggregateColsByKey(child, agg) } |
       "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr() ^^ { case child ~ agg => ir.MatrixAggregateRowsByKey(child, agg) } |

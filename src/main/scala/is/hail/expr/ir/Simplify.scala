@@ -173,7 +173,7 @@ object Simplify {
       case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
         TableKeyBy(child, keys, false)
 
-      case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
+      case TableCount(TableMapGlobals(child, _)) => TableCount(child)
 
       case TableCount(TableMapRows(child, _, _, _)) => TableCount(child)
 
@@ -247,7 +247,7 @@ object Simplify {
         TableFilter(
           mrt,
           Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
-      case MatrixRowsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixRowsTable(child), newRow, value)
+      case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
       case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
@@ -270,7 +270,7 @@ object Simplify {
         TableFilter(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
-      case MatrixColsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixColsTable(child), newRow, value)
+      case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
       case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
@@ -291,8 +291,8 @@ object Simplify {
           TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
         else
           x
-      case TableHead(TableMapGlobals(child, newRow, value), n) =>
-        TableMapGlobals(TableHead(child, n), newRow, value)
+      case TableHead(TableMapGlobals(child, newRow), n) =>
+        TableMapGlobals(TableHead(child, n), newRow)
       case TableHead(TableOrderBy(child, sortFields), n)
         if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
         // n < 256 is arbitrary for memory concerns

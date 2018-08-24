@@ -191,9 +191,7 @@ class MatrixMapGlobals(MatrixIR):
         self.new_row = new_row
 
     def __str__(self):
-        return '(MatrixMapGlobals {} {} {})'.format(
-            'Struct{} "null"',
-            self.child, self.new_row)
+        return '(MatrixMapGlobals {} {})'.format(self.child, self.new_row)
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
