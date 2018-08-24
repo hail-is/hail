@@ -339,12 +339,22 @@ object TableJoin {
     TableJoin(left, right, joinType, left.typ.keyOrEmpty.length)
 }
 
-// Suppose 'left' has key [l_1, ..., l_n] and 'right' has key [r_1, ..., r_m].
-// Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
-// j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
-// common prefix of their keys, returning a table with key
-// [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
-// renaming of right field names to avoid collision).
+/**
+  * Suppose 'left' has key [l_1, ..., l_n] and 'right' has key [r_1, ..., r_m].
+  * Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
+  * j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
+  * common prefix of their keys, returning a table with key
+  * [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
+  * renaming of right field names to avoid collision).
+  *
+  * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
+  * and 'right' has multiple rows with the corresponding join key
+  * [k_1, ..., k_j], then the resulting table will have out-of-order keys. To
+  * avoid this, ensure one of the following:
+  *   * j == m
+  *   * 'left' has distinct keys
+  *   * 'right' has distinct join keys (no repeated length j prefix)
+  */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
   extends TableIR {
 
