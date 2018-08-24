@@ -26,15 +26,24 @@ case class IndexNodeInfo(
   firstIndex: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation
+  firstAnnotation: Annotation,
+  lastKey: Annotation
 )
 
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
+
+  def apply(
+    hConf: Configuration,
+    path: String,
+    keyType: Type,
+    annotationType: Type,
+    branchingFactor: Int = 1024,
+    attributes: Map[String, Any] = Map.empty[String, Any]) = new IndexWriter(new SerializableHadoopConfiguration(hConf), path, keyType, annotationType, branchingFactor, attributes)
 }
 
 class IndexWriter(
-  hConf: Configuration,
+  hConf: SerializableHadoopConfiguration,
   path: String,
   keyType: Type,
   annotationType: Type,
@@ -50,7 +59,8 @@ class IndexWriter(
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(hConf.value.unsafeWriter(path + "/index"))
+
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
@@ -61,12 +71,17 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     val info = if (node.size > 0) {
-      val child = node.getChild(0)
       val firstIndex = node.firstIdx
-      val firstKey = child.firstKey
-      val firstRecordOffset = child.firstRecordOffset
-      val firstAnnotation = child.firstAnnotation
-      IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
+
+      val firstChild = node.getChild(0)
+      val firstKey = firstChild.firstKey
+      val firstRecordOffset = firstChild.firstRecordOffset
+      val firstAnnotation = firstChild.firstAnnotation
+
+      val lastChild = node.getChild(node.size - 1)
+      val lastKey = lastChild.lastKey
+
+      IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation, lastKey)
     } else {
       assert(isRoot && level == 0)
       null
@@ -83,7 +98,7 @@ class IndexWriter(
 
     if (!isRoot) {
       if (level + 1 == internalNodeBuilders.length)
-        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType) // , info.firstIndex
+        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
       val parent = internalNodeBuilders(level + 1)
       if (parent.size == branchingFactor)
         writeInternalNode(parent, level + 1)
@@ -97,11 +112,15 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     assert(leafNodeBuilder.size > 0)
-    val child = leafNodeBuilder.getChild(0)
     val firstIndex = leafNodeBuilder.firstIdx
-    val firstKey = child.key
-    val firstRecordOffset = child.recordOffset
-    val firstAnnotation = child.annotation
+
+    val firstChild = leafNodeBuilder.getChild(0)
+    val firstKey = firstChild.key
+    val firstRecordOffset = firstChild.recordOffset
+    val firstAnnotation = firstChild.annotation
+
+    val lastChild = leafNodeBuilder.getChild(leafNodeBuilder.size - 1)
+    val lastKey = lastChild.key
 
     leafEncoder.writeByte(0)
 
@@ -115,7 +134,7 @@ class IndexWriter(
     val parent = internalNodeBuilders(0)
     if (parent.size == branchingFactor)
       writeInternalNode(parent, 0)
-    parent += IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
+    parent += IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation, lastKey)
 
     indexFileOffset
   }
@@ -140,7 +159,7 @@ class IndexWriter(
   }
 
   private def writeMetadata(rootOffset: Long) = {
-    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+    hConf.value.writeTextFile(path + "/metadata.json.gz") { out =>
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
