@@ -629,7 +629,8 @@ class Tests(unittest.TestCase):
 
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
 
@@ -660,7 +661,8 @@ class Tests(unittest.TestCase):
 
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
         g_std = self._filter_and_standardize_cols(g)
@@ -694,7 +696,8 @@ class Tests(unittest.TestCase):
 
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=2)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 
