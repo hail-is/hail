@@ -2032,6 +2032,7 @@ case class TableToMatrixTable(
       .toMap)
 
     val colDataConcat = localColData.map { case (keys, values) => Row.fromSeq(keys.toSeq ++ values.toSeq): Annotation }
+    val colKeysBc = hc.sc.broadcast(localColData.map(_._1))
 
     // allFieldIndices has all row + entry fields
     val allFieldIndices = rowKey.map(localRowType.fieldIdx(_)) ++
@@ -2043,6 +2044,8 @@ case class TableToMatrixTable(
 
     // row and entry fields, plus an integer index
     val rowEntryStruct = rowType ++ entryType ++ TStruct(INDEX_UID -> TInt32Optional)
+    val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
+    val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
     val rowEntryRVD = prev.rvd.mapPartitions(rowEntryStruct) { it =>
       val ur = new UnsafeRow(localRowType)
@@ -2104,8 +2107,14 @@ case class TableToMatrixTable(
         }
         rvb.startArray(nCols)
         i = 0
+        var lastSeen = -1
         for (rv <- rowIt) {
           val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+          if (nextInt == lastSeen) // duplicate (RK, CK) pair
+            fatal(s"'to_matrix_table': duplicate (row key, col key) pairs are not supported\n" +
+              s"  Row key: ${ rowKeyF(new UnsafeRow(rowEntryStruct, rv)) }\n" +
+              s"  Col key: ${ colKeysBc.value(nextInt) }")
+          lastSeen = nextInt
           while (i < nextInt) {
             rvb.setMissing()
             i += 1
