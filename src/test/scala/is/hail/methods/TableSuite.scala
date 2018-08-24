@@ -103,7 +103,7 @@ class TableSuite extends SparkSuite {
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
       table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array(), Array("locus")).count())
+        Array()).count())
   }
 
   @Test def testToMatrixTable() {
