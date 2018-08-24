@@ -69,4 +69,4 @@ RUN conda env create -f ./dev-environment.yml && \
 RUN chown -R hail:hail /hail /google-cloud-sdk /gradle-cache
 
 USER hail
-ENV PATH $PATH:/root/google-cloud-sdk/bin
+ENV PATH $PATH:/google-cloud-sdk/bin
