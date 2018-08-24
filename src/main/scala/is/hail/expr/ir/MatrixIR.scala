@@ -476,6 +476,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
       "sa", typ.colType,
       pred)
 
+    val predF = predCompiledFunc(0)
     val p = (sa: Annotation, i: Int) => {
       Region.scoped { colRegion =>
         // FIXME: it would be nice to only load the globals once per matrix
@@ -488,7 +489,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
         colRVb.start(localColType)
         colRVb.addAnnotation(localColType, sa)
         val colRVoffset = colRVb.end()
-        predCompiledFunc(0)(colRegion, globalRVoffset, false, colRVoffset, false)
+        predF(colRegion, globalRVoffset, false, colRVoffset, false)
       }
     }
 
