@@ -11,9 +11,6 @@ push-hail-ci-build-image: hail-ci-build-image
 	docker push gcr.io/broad-ctsa/hail-pr-builder
 	echo gcr.io/broad-ctsa/hail-pr-builder:${GIT_SHA} > hail-ci-build-image
 
-prime-the-engines:
-	docker --cache-from $(cat hail-ci-build-image)
-
 default:
 	echo Do not use this makefile to build hail, for information on how to \
 	     build hail see: https://hail.is/docs/devel/

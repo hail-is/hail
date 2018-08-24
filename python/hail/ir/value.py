@@ -1,5 +1,6 @@
 import json
-from hail.utils.java import escape_str
+import hail as hl
+
 
 class Value(object):
     def __init__(self, typ, value):
@@ -9,4 +10,5 @@ class Value(object):
     def __str__(self):
         return '{} "{}"'.format(
             self.typ._jtype.parsableString(),
-            escape_str(json.dumps(self.value)))
+            hl.utils.java.escape_str(
+                json.dumps(self.value, default=self.typ._convert_to_json)))

@@ -399,7 +399,7 @@ task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
 task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
-    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYSPARK_SUBMIT_ARGS: '--master local[4] --conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment SPHINXOPTS: '-tchecktutorial'
@@ -408,7 +408,8 @@ task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
 task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
-    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    // makeDocsNoTest does not try to run the notebook contents
+    // so we do not need the PySpark args.
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment SPHINXOPTS: ''
