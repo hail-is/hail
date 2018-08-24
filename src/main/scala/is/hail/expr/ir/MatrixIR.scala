@@ -2055,7 +2055,7 @@ case class TableToMatrixTable(
           if (nextInt == lastSeen) // duplicate (RK, CK) pair
             fatal(s"'to_matrix_table': duplicate (row key, col key) pairs are not supported\n" +
               s"  Row key: ${ rowKeyF(new UnsafeRow(rowEntryStruct, rv)) }\n" +
-              s"  Col key: ${ colKeysBc.value(i) }")
+              s"  Col key: ${ colKeysBc.value(nextInt) }")
           lastSeen = nextInt
           while (i < nextInt) {
             rvb.setMissing()
