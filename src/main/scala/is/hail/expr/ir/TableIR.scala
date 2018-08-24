@@ -384,7 +384,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     case (fd, i) => (finalColumnNames(i), fd.typ)
   }: _*)
 
-  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey)
+  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
 
   val typ: TableType = TableType(newRowType, Some(newKey), left.typ.globalType)
 
