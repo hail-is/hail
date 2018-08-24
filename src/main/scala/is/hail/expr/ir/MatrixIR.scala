@@ -1529,7 +1529,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       }
 
       type PC = (CompileWithAggregators.IRAggFun3[Long, Long, Long], Long, Long)
-      prev.rvd.treeAggregateWithPartitionOp[PC, Array[RegionValueAggregator]](colRVAggs)( { (i, ctx) =>
+      prev.rvd.treeAggregateWithPartitionOp[PC, Array[RegionValueAggregator]](colRVAggs)({ (i, ctx) =>
         val rvb = new RegionValueBuilder(ctx.freshRegion)
 
         val globals = if (seqOpNeedsGlobals) {
@@ -1582,7 +1582,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val scanSeqOpF = scanSeqOps(0)
 
     val newColValues = Region.scoped { region =>
-        rvb.set(region)
+      rvb.set(region)
       rvb.start(localGlobalsType)
       rvb.addAnnotation(localGlobalsType, globalsBc.value)
       val globalRVoffset = rvb.end()
