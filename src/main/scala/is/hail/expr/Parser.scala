@@ -305,12 +305,12 @@ object Parser extends JavaTokenParsers {
       MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey, rowPartitionKey ++ rowRestKey, rowType, entryType)
     }
 
-  def parsePhysicalType(code: String): PhysicalType = parse(physical_type, code)
+  def parsePhysicalType(code: String): PType = parse(physical_type, code)
 
-  def physical_type: Parser[PhysicalType] =
+  def physical_type: Parser[PType] =
     ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => PDefault(t) }
 
-  def parseEncodedType(code: String): PhysicalType = parse(physical_type, code)
+  def parseEncodedType(code: String): PType = parse(physical_type, code)
 
   def encoded_type: Parser[EncodedType] =
     ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => EDefault(t) }
