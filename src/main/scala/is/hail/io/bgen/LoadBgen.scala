@@ -78,18 +78,17 @@ object LoadBgen {
       mt.rvd
     }
 
-    val unionRVD = if (files.length == 1) rvds.head else RVD.union(rvds)
+    val unionRVD = RVD.union(rvds)
     assert(unionRVD.getNumPartitions == files.length)
 
-    unionRVD.mapPartitionsWithIndex({ (i, it) =>
+    unionRVD.boundary.mapPartitionsWithIndex({ (i, it) =>
       val iw = new IndexWriter(hConf, files(i) + ".idx", keyType, TStruct(required = true), attributes = attributes)
       it.foreach { rv =>
         val r = UnsafeRow.readBaseStruct(rowType, rv.region, rv.offset)
         iw += (kf(r), r.getLong(offsetIdx), Row())
-        rv
       }
       iw.close()
-      Iterator.single(1)
+      Iterator.empty
     }).collect()
   }
 

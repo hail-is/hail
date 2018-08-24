@@ -81,7 +81,7 @@ object BgenRDDPartitions extends Logging {
             settings
           )
         } else {
-          using(new IndexReader(hConf, file.path + ".idx")) { ir =>
+          using(new IndexReader(hConf, file.path + ".idx")) { index =>
             val variantIndices = includedVariantsPerFile.get(file.path) match {
               case None => 0 until file.nVariants
               case Some(indices) => indices
@@ -89,7 +89,7 @@ object BgenRDDPartitions extends Logging {
 
             val partNVariants = partition(variantIndices.length, nPartitions)
             val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-            val variantIndexByteOffset = variantIndices.map(ir.queryByIndex(_).recordOffset).toArray
+            val variantIndexByteOffset = variantIndices.map(index.queryByIndex(_).recordOffset).toArray
             var i = 0
             while (i < nPartitions) {
               val firstVariantIndex = partFirstVariantIndex(i)
