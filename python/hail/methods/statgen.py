@@ -2182,7 +2182,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     :class:`.MatrixTable`
         Simulated matrix table of variants, samples, and genotypes.
     """
-    # add default args
     if pop_dist is None:
         pop_dist = [1 for _ in range(n_populations)]
 
