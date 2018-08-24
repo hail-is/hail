@@ -64,9 +64,11 @@ object OrderedRVPartitionInfo {
         val f = it.next()
 
         if (typ.kOrd.lt(f, prevF.value)) {
-          if (pkOrd.lt(f, prevF.value))
+          if (pkOrd.lt(f, prevF.value)) {
+            log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = UNSORTED
-          else
+          } else
+            log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = sortedness.min(TSORTED)
         }
 
