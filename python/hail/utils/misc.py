@@ -7,7 +7,6 @@ import atexit
 import shutil
 import tempfile
 
-import math
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
