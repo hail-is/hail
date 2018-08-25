@@ -476,14 +476,42 @@ class Table(ExprContainer):
                       key=table_key_type,
                       n_partitions=nullable(int))
     def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
-        rows = to_expr(rows, hl.tarray(schema) if schema is not None else None)
+        """Parallelize a local array of structs into a distributed table.
+
+        Examples
+        --------
+        Parallelize a list of dictionaries:
+
+        >>> a = [ {'a': 5, 'b': 10}, {'a': 0, 'b': 200} ]
+        >>> table = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
+        >>> table.show()
+
+        Warning
+        -------
+        Parallelizing very large local arrays will be slow.
+
+        Parameters
+        ----------
+        rows
+            List of row values, or expression of type ``array<struct{...}>``.
+        schema : str or :class:`.HailType:`, optional
+            Value type.
+        key : Union[str, List[str]]], optional
+            Key field(s).
+        n_partitions : int, optional
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        rows = hl.literal(rows, hl.tarray(schema) if schema is not None else None)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        return Table(
-            Env.hail().table.Table.parallelize(
-                Env.hc()._jhc, rows.dtype._to_json(rows.value),
-                rows.dtype.element_type._jtype, joption(key), joption(n_partitions)))
+        table = Table(Env.hail().table.Table.parallelize(str(rows._ir), joption(n_partitions)))
+        if key is not None:
+            table = table.key_by(*key)
+        return table
 
     @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), exactly([])),
                       named_keys=expr_any

@@ -187,17 +187,15 @@ class MatrixColsTable(TableIR):
 
 
 class TableParallelize(TableIR):
-    def __init__(self, typ, rows, n_partitions):
+    def __init__(self, rows, n_partitions):
         super().__init__()
-        self.typ = typ
         self.rows = rows
         self.n_partitions = n_partitions
 
     def __str__(self):
-        return '(TableParallelize {} {} {})'.format(
-            self.typ,
-            self.rows,
-            self.n_partitions)
+        return '(TableParallelize {} {})'.format(
+            self.n_partitions,
+            self.rows)
 
 
 class TableHead(TableIR):

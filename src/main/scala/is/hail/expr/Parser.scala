@@ -624,8 +624,8 @@ object Parser extends JavaTokenParsers {
       "TableJoin" ~> ir_identifier ~ int32_literal ~ table_ir ~ table_ir ^^ { case joinType ~ joinKey ~ left ~ right =>
         ir.TableJoin(left, right, joinType, joinKey) } |
       "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
-      "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
-        ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)
+      "TableParallelize" ~> int32_literal_opt ~ ir_value_expr() ^^ { case nPartitions ~ rows =>
+        ir.TableParallelize(rows, nPartitions)
       } |
       "TableMapRows" ~> string_literals_opt ~ int32_literal_opt ~ table_ir ~ ir_value_expr ^^ { case newKey ~ preservedKeyFields ~ child ~ newRow =>
         ir.TableMapRows(child, newRow, newKey, preservedKeyFields)
