@@ -141,9 +141,9 @@ object JSONAnnotationImpex {
       case (JInt(x), _: TFloat64) => x.toDouble
       case (JInt(x), _: TString) => x.toString
       case (JDouble(x), _: TFloat64) => x
+      case (JDouble(x), _: TFloat32) => x.toFloat
       case (JString(x), _: TFloat64) if doubleConv.contains(x) => doubleConv(x)
       case (JString(x), _: TFloat32) if floatConv.contains(x) => floatConv(x)
-      case (JDouble(x), _: TFloat32) => x.toFloat
       case (JString(x), _: TString) => x
       case (JString(x), _: TInt32) =>
         x.toInt
