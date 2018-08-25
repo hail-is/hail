@@ -80,6 +80,13 @@ task nativeLibClean(type: Exec) {
     outputs.upToDateWhen { false }
 }
 
+task nativeLibPrebuilt(type: Exec) {
+    workingDir 'src/main/c'
+    args('prebuilt')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
 sourceSets {
     main {
         resources {
