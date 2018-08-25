@@ -5,6 +5,7 @@
 #include "hail/NativeStatus.h"
 #include <jni.h>
 #include <string>
+#include <vector>
 
 namespace hail {
 
@@ -32,6 +33,8 @@ public:
   virtual const char* get_class_name() {
     return "NativeModule";
   }
+  
+  std::vector<char> get_binary();
   
   void find_LongFuncL(JNIEnv* env, NativeStatus* st, jobject funcObj, jstring nameJ, int numArgs);
 

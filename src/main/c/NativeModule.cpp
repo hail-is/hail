@@ -258,7 +258,7 @@ private:
     fprintf(f, "  TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)\n");
     fprintf(f, "  JAVA_HOME :=$(shell dirname $(filter-out java.home =,$(TMP)))\n");
     fprintf(f, "endif\n");
-    fprintf(f, "JAVA_INCLUDE :=$(dir $(JAVA_HOME))/include");
+    fprintf(f, "JAVA_INCLUDE :=$(JAVA_HOME)/include\n");
     fprintf(f, "CXXFLAGS  := \\\n");
     fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall \\\n");
     fprintf(f, "  -I$(JAVA_INCLUDE) \\\n");
@@ -277,6 +277,8 @@ private:
     fprintf(f, "\n");
     // build .o from .cpp
     fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
+    fprintf(f, "\t@echo JAVA_HOME '$(JAVA_HOME)'\n");
+    fprintf(f, "\t@echo JAVA_INCLUDE '$(JAVA_INCLUDE)'\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err && \\\n");
     fprintf(f, "\t  $(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).tmp $(MODULE).o 2>> $(MODULE).err ; \\\n");
     fprintf(f, "\tstatus=$$? ; \\\n");
@@ -293,7 +295,7 @@ private:
 public:
   bool try_to_start_build() {
     // Try to create the .new file, we hold the global lock so there is no race
-    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT, 0666);
+    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
       perror("open");
       assert(false);
@@ -312,7 +314,7 @@ public:
       perror("system");
       // The existence of hm_new means "a build is running".  The build is
       // *not* running, so we must remove the hm_new file to allow error
-      // detection and recovery without a delay of kBuildTimeoutSeconds
+      // detection and recovery without a long delay.
       ::unlink(hm_new_.c_str());
     }
     return true;
@@ -369,26 +371,28 @@ NativeModule::NativeModule(
       build_state_ = kPass;
       break;
     }
-    // Race to write the new file
-    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0666);
-    if (fd >= 0) {
-      // Now we're about to write the new file
-      rc = write(fd, binary, binary_size);
-      assert(rc == binary_size);
-      ::close(fd);
-      ::chmod(new_name_.c_str(), 0644);
-      struct stat st;
-      if (file_stat(lib_name_, &st)) {
-        long old_size = st.st_size;
-        if (old_size == binary_size) {
-          ::unlink(new_name_.c_str());
-          break;
-        } else if (old_size == 0) {
-          ::unlink(lib_name_.c_str());
-        } else {
-          auto old = lib_name_ + ".old";
-          ::rename(lib_name_.c_str(), old.c_str());
-        }
+    // We hold big_mutex so there is no race
+    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
+    if (fd < 0) {
+      perror("open");
+      assert(0);
+    }
+    // Now we're about to write the new file
+    rc = write(fd, binary, binary_size);
+    assert(rc == binary_size);
+    ::close(fd);
+    ::chmod(new_name_.c_str(), 0644);
+    struct stat st;
+    if (file_stat(lib_name_, &st)) {
+      long old_size = st.st_size;
+      if (old_size == binary_size) {
+        ::unlink(new_name_.c_str());
+        break;
+      } else if (old_size == 0) {
+        ::unlink(lib_name_.c_str());
+      } else {
+        auto old = lib_name_ + ".old";
+        ::rename(lib_name_.c_str(), old.c_str());
       }
       // Don't let anyone see the file until it is completely written
       rc = ::rename(new_name_.c_str(), lib_name_.c_str());
@@ -443,8 +447,6 @@ bool NativeModule::try_load_locked() {
     } else if (!try_wait_for_build_locked()) {
       load_state_ = kFail;
     } else {
-      // At first this had no mutex and RTLD_LAZY, but MacOS tests crashed
-      // when two threads loaded the same .dylib.
       auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
       if (!handle) {
         fprintf(stderr, "ERROR: dlopen failed: %s\n", dlerror());
@@ -454,6 +456,25 @@ bool NativeModule::try_load_locked() {
     }
   }
   return (load_state_ == kPass);
+}
+
+std::vector<char> NativeModule::get_binary() {
+  std::lock_guard<std::mutex> mylock(big_mutex);
+  try_wait_for_build_locked();
+  int fd = open(config.get_lib_name(key_).c_str(), O_RDONLY, 0666);
+  std::vector<char> vec;
+  if (fd < 0) {
+    return vec;
+  }
+  struct stat st;
+  int rc = fstat(fd, &st);
+  assert(rc == 0);
+  size_t file_size = st.st_size;
+  vec.resize(file_size);
+  rc = read(fd, &vec[0], file_size);
+  assert(rc == (int)file_size);
+  close(fd);
+  return vec;
 }
 
 static std::string to_qualified_name(
@@ -583,6 +604,7 @@ NATIVEMETHOD(void, NativeModule, nativeFindOrBuild)(
   auto mod = to_NativeModule(env, thisJ);
   auto st = reinterpret_cast<NativeStatus*>(stAddr);
   st->clear();
+  std::lock_guard<std::mutex> mylock(big_mutex);
   if (!mod->try_wait_for_build_locked()) {
     NATIVE_ERROR(st, 1004, "ErrModuleBuildFailed");
   }
@@ -601,20 +623,10 @@ NATIVEMETHOD(jbyteArray, NativeModule, getBinary)(
   jobject thisJ
 ) {
   auto mod = to_NativeModule(env, thisJ);
-  mod->try_wait_for_build_locked();
-  int fd = open(config.get_lib_name(mod->key_).c_str(), O_RDONLY, 0666);
-  if (fd < 0) {
-    return env->NewByteArray(0);
-  }
-  struct stat st;
-  int rc = fstat(fd, &st);
-  assert(rc == 0);
-  size_t file_size = st.st_size;
-  jbyteArray result = env->NewByteArray(file_size);
+  auto vec = mod->get_binary();
+  jbyteArray result = env->NewByteArray(vec.size());
   jbyte* rbuf = env->GetByteArrayElements(result, 0);
-  rc = read(fd, rbuf, file_size);
-  assert(rc == (int)file_size);
-  close(fd);
+  memcpy(rbuf, &vec[0], vec.size());
   env->ReleaseByteArrayElements(result, rbuf, 0);
   return result;
 }
