@@ -70,6 +70,24 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
 object JSONAnnotationImpex {
   def exportType(t: Type): Type = t
 
+  val doubleConv = Map(
+    "nan" -> Double.NaN,
+    "NaN" -> Double.NaN,
+    "inf" -> Double.PositiveInfinity,
+    "Infinity" -> Double.PositiveInfinity,
+    "-inf" -> Double.NegativeInfinity,
+    "-Infinity" -> Double.NegativeInfinity
+  )
+
+  val floatConv = Map(
+    "nan" -> Float.NaN,
+    "NaN" -> Float.NaN,
+    "inf" -> Float.PositiveInfinity,
+    "Infinity" -> Float.PositiveInfinity,
+    "-inf" -> Float.NegativeInfinity,
+    "-Infinity" -> Float.NegativeInfinity
+  )
+
   def exportAnnotation(a: Annotation, t: Type): JValue =
     if (a == null)
       JNull
@@ -123,10 +141,8 @@ object JSONAnnotationImpex {
       case (JInt(x), _: TFloat64) => x.toDouble
       case (JInt(x), _: TString) => x.toString
       case (JDouble(x), _: TFloat64) => x
-      case (JString("Infinity"), _: TFloat64) => Double.PositiveInfinity
-      case (JString("-Infinity"), _: TFloat64) => Double.NegativeInfinity
-      case (JString("Infinity"), _: TFloat32) => Float.PositiveInfinity
-      case (JString("-Infinity"), _: TFloat32) => Float.NegativeInfinity
+      case (JString(x), _: TFloat64) if doubleConv.contains(x) => doubleConv(x)
+      case (JString(x), _: TFloat32) if floatConv.contains(x) => floatConv(x)
       case (JDouble(x), _: TFloat32) => x.toFloat
       case (JString(x), _: TString) => x
       case (JString(x), _: TInt32) =>

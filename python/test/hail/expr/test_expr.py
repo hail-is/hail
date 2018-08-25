@@ -1983,4 +1983,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(s.contains(5).value)
         self.assertTrue(~s.contains(2).value)
 
-
+    def test_nan_roundtrip(self):
+        a = [math.nan, math.inf, -math.inf, 0, 1]
+        round_trip = hl.literal(a).value
+        self.assertTrue(math.isnan(round_trip[0]))
+        self.assertTrue(math.isinf(round_trip[1]))
+        self.assertTrue(math.isinf(round_trip[2]))
+        self.assertEqual(round_trip[-2:], [0, 1])
