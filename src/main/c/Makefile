@@ -5,8 +5,6 @@ top: all
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
 
-.PHONY: all clean debug test libsimdpp
-
 BUILD := build
 BUILD_FORCE := $(shell mkdir -p $(BUILD))
 
@@ -74,7 +72,7 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += -O3 $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
+CXXFLAGS += -O3 $(CXXSTD) -Ilibsimdpp-2.1 -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -95,7 +93,7 @@ ifeq ($(UNAME_S),Darwin)
   LIBHAIL := lib/darwin/libhail.dylib
 endif
 
-all: libsimdpp-2.0-rc2 $(BUILD) $(LIBBOOT) $(LIBHAIL)
+all: libsimdpp-2.1 $(BUILD) $(LIBBOOT) $(LIBHAIL)
 
 $(BUILD):
 	-mkdir -p $@
@@ -122,7 +120,7 @@ test: $(BUILD)/functional-tests
 	./$(BUILD)/functional-tests
 
 clean:
-	-rm -rf $(BUILD) lib libsimdpp-2.0-rc2 $(LIBBOOT) $(LIBHAIL)
+	-rm -rf $(BUILD) lib libsimdpp-2.1 $(LIBBOOT) $(LIBHAIL)
 
 # The $(BUILD)/headers target is updated whenever any .h file has changed
 # under either the source directory, *or* the ../resources/include tree.
@@ -158,11 +156,11 @@ $(BUILD)/NativeModule.o: NativeModule.cpp
 # succeed without attempting to access the Internet.
 # WGET ?= wget
 WGET ?= curl -L -O
-libsimdpp-2.0-rc2.tar.gz:
-	$(WGET) https://storage.googleapis.com/hail-common/libsimdpp-2.0-rc2.tar.gz
+libsimdpp-2.1.tar.gz:
+	${WGET} https://storage.googleapis.com/hail-common/$@
 
-libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
-	tar -xzf libsimdpp-2.0-rc2.tar.gz
+libsimdpp-2.1: libsimdpp-2.1.tar.gz
+	tar -xzf $<
 
 $(LIBBOOT): $(BUILD)/NativeBoot.o
 	-mkdir -p $(basename $(LIBBOOT))

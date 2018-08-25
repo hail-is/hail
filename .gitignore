@@ -10,8 +10,7 @@ python/**/*.pyc
 .pytest_cache/
 .*.crc
 python/hail/docs/_build/*
-src/main/c/libsimdpp-2.0-rc2.tar.gz
-src/main/c/libsimdpp-2.0-rc2
+src/main/c/libsimdpp-2*
 src/main/c/headers
 src/main/c/lib
 target
