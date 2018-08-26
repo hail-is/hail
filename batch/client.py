@@ -115,7 +115,7 @@ class BatchClient(object):
             spec['tolerations'] = tolerations
 
         j = api.create_job(self.url, spec, attributes, batch_id, callback)
-        return Job(self, j['id'], j['attributes'])
+        return Job(self, j['id'], j.get('attributes'))
 
     def _get_job(self, id):
         return api.get_job(self.url, id)
@@ -128,12 +128,12 @@ class BatchClient(object):
 
     def list_jobs(self):
         jobs = api.list_jobs(self.url)
-        return [Job(self, j['id'], j['attributes'], j) for j in jobs]
+        return [Job(self, j['id'], j.get('attributes'), j) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = api.get_job(self.url, id)
-        return Job(self, j['id'], j['attributes'], j)
+        return Job(self, j['id'], j.get('attributes'), j)
 
     def create_job(self,
                    image,
