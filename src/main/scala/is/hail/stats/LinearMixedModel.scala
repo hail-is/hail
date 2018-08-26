@@ -128,11 +128,12 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
   
   def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
-    val lmmDataBc = sc.broadcast(lmmData)
+//    val lmmDataBc = sc.broadcast(lmmData)
+    val lmmDataLocal = lmmData
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
-      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
+      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataLocal
       val xdy = xdy0.copy
       val xdx = xdx0.copy
       val n = px.rows
