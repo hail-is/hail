@@ -1,5 +1,6 @@
 import abc
 import json
+import math
 from collections import Mapping, Sequence
 
 import hail as hl
@@ -358,6 +359,12 @@ class _tfloat32(HailType):
     def _convert_from_json(self, x):
         return float(x)
 
+    def _convert_to_json(self, x):
+        if math.isfinite(x):
+            return x
+        else:
+            return str(x)
+
 
 class _tfloat64(HailType):
     """Hail type for 64-bit floating point numbers.
@@ -389,6 +396,13 @@ class _tfloat64(HailType):
 
     def _convert_from_json(self, x):
         return float(x)
+
+    def _convert_to_json(self, x):
+        if math.isfinite(x):
+            return x
+        else:
+            return str(x)
+
 
 class _tstr(HailType):
     """Hail type for text strings.
