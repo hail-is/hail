@@ -183,10 +183,10 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     val rvd = if (nPreservedFields == keys.length) {
       orvd
     } else if (isSorted) {
-      orvd.truncateKey(keys.take(nPreservedFields).toArray)
-        .extendKeyPreservesPartitioning(keys.toArray)
+      orvd.truncateKey(keys.take(nPreservedFields))
+        .extendKeyPreservesPartitioning(keys)
     } else {
-      orvd.changeKey(keys.toArray)
+      orvd.changeKey(keys)
     }.toOldStyleRVD
     tv.copy(typ = typ, rvd = rvd)
   }
@@ -334,50 +334,90 @@ case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends Ta
   }
 }
 
-case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends TableIR {
+object TableJoin {
+  def apply(left: TableIR, right: TableIR, joinType: String): TableJoin =
+    TableJoin(left, right, joinType, left.typ.keyOrEmpty.length)
+}
+
+/**
+  * Suppose 'left' has key [l_1, ..., l_n] and 'right' has key [r_1, ..., r_m].
+  * Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
+  * j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
+  * common prefix of their keys, returning a table with key
+  * [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
+  * renaming of right field names to avoid collision).
+  *
+  * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
+  * and 'right' has multiple rows with the corresponding join key
+  * [k_1, ..., k_j] but distinct full keys, then the resulting table will have
+  * out-of-order keys. To avoid this, ensure one of the following:
+  *   * j == m
+  *   * 'left' has distinct keys
+  *   * 'right' has distinct join keys (length j prefix), or at least no
+  *     distinct keys with the same join key.
+  */
+case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
+  extends TableIR {
+
+  require(joinKey >= 0)
   require(left.typ.keyType.zip(right.typ.keyType).exists { case (leftKey, rightKey) =>
-    leftKey isIsomorphicTo rightKey
+    (leftKey.size >= joinKey) && (rightKey.size >= joinKey) &&
+      (leftKey.truncate(joinKey) isIsomorphicTo rightKey.truncate(joinKey))
   })
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
-  private val joinedFields = left.typ.keyType.get.fields ++
-    left.typ.valueType.fields ++
-    right.typ.valueType.fields
+  private val leftRVDType =
+    OrderedRVDType(left.typ.key.get.take(joinKey), left.typ.rowType)
+  private val rightRVDType =
+    OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
+
+  private val joinedFields =
+    leftRVDType.kType.fields ++
+      leftRVDType.valueType.fields ++
+      rightRVDType.valueType.fields
   private val preNames = joinedFields.map(_.name).toArray
   private val (finalColumnNames, remapped) = mangle(preNames)
 
+  private val joinedGlobalFields = left.typ.globalType.fields ++ right.typ.globalType.fields
+  private val (finalGlobalNames, _) = mangle(joinedGlobalFields.map(_.name).toArray)
+  val newGlobalType = TStruct(joinedGlobalFields.zipWithIndex.map {
+    case (field, i) => (finalGlobalNames(i), field.typ)
+  }: _*)
+
   val rightFieldMapping: Map[String, String] = {
     val remapMap = remapped.toMap
-    (right.typ.key.get.iterator.zip(left.typ.key.get.iterator) ++
-      right.typ.valueType.fieldNames.iterator.map(f => f -> remapMap.getOrElse(f, f))).toMap
+    (rightRVDType.key.iterator.zip(leftRVDType.key.iterator) ++
+      rightRVDType.valueType.fieldNames.iterator.map(f => f -> remapMap.getOrElse(f, f))).toMap
   }
 
   val newRowType = TStruct(joinedFields.zipWithIndex.map {
-    case (fd, i) => (finalColumnNames(i), fd.typ)
+    case (field, i) => (finalColumnNames(i), field.typ)
   }: _*)
 
-  val typ: TableType = left.typ.copy(rowType = newRowType)
+  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
+
+  val typ: TableType = TableType(newRowType, Some(newKey), newGlobalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
     assert(newChildren.length == 2)
     TableJoin(
       newChildren(0).asInstanceOf[TableIR],
       newChildren(1).asInstanceOf[TableIR],
-      joinType)
+      joinType,
+      joinKey)
   }
 
-  def execute(hc: HailContext): TableValue = {
-    val leftTV = left.execute(hc)
-    val rightTV = right.execute(hc)
-    val leftRowType = left.typ.rowType
-    val rightRowType = right.typ.rowType
-    val leftKeyFieldIdx = left.typ.keyFieldIdx.get
-    val rightKeyFieldIdx = right.typ.keyFieldIdx.get
-    val leftValueFieldIdx = left.typ.valueFieldIdx
-    val rightValueFieldIdx = right.typ.valueFieldIdx
+  private val rvMerger = {
+    val leftRowType = leftRVDType.rowType
+    val rightRowType = rightRVDType.rowType
+    val leftKeyFieldIdx = leftRVDType.kFieldIdx
+    val rightKeyFieldIdx = rightRVDType.kFieldIdx
+    val leftValueFieldIdx = leftRVDType.valueFieldIdx
+    val rightValueFieldIdx = rightRVDType.valueFieldIdx
     val localNewRowType = newRowType
-    val rvMerger = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
+
+    { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = new RegionValueBuilder()
       val rv = RegionValue()
       it.map { joined =>
@@ -416,30 +456,27 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String) extends Ta
         rv
       }
     }
-    val leftORVD = leftTV.rvd match {
-      case ordered: OrderedRVD => ordered
-      case unordered =>
-        OrderedRVD.coerce(
-          new OrderedRVDType(left.typ.key.get.toArray, leftRowType),
-          unordered)
-    }
-    val rightORVD = rightTV.rvd match {
-      case ordered: OrderedRVD => ordered
-      case unordered =>
-        val ordType =
-          new OrderedRVDType(right.typ.key.get.toArray, rightRowType)
-        if (joinType == "left" || joinType == "inner")
-          OrderedRVD.shuffle(ordType, leftORVD.partitioner, unordered)
-        else
-          OrderedRVD.coerce(ordType, unordered)
-    }
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val leftTV = left.execute(hc)
+    val rightTV = right.execute(hc)
+
+    val newGlobals = BroadcastRow(
+      Row.merge(leftTV.globals.value, rightTV.globals.value),
+      newGlobalType,
+      leftTV.rvd.sparkContext)
+
+    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
+      joinKey,
       joinType,
       rvMerger,
-      new OrderedRVDType(leftORVD.typ.key, newRowType))
+      new OrderedRVDType(newKey, newRowType))
 
-    TableValue(typ, leftTV.globals, joinedRVD)
+    TableValue(typ, newGlobals, joinedRVD)
   }
 }
 
@@ -620,8 +657,8 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
           case Some(key) =>
             if (preservedKeyFields.get != 0)
               ordered.truncateKey(ordered.typ.key.take(preservedKeyFields.get))
-                .mapPartitionsWithIndexPreservesPartitioning(new OrderedRVDType(key.toArray.take(preservedKeyFields.get), typ.rowType), itF)
-                .extendKeyPreservesPartitioning(key.toArray)
+                .mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(key.take(preservedKeyFields.get), typ.rowType), itF)
+                .extendKeyPreservesPartitioning(key)
             else
               ordered.mapPartitionsWithIndex(typ.rowType, itF)
           case None =>

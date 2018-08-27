@@ -29,7 +29,7 @@ case class OrderedRVIterator(
       leftDefault = null,
       rightDefault = null,
       OrderedRVDType.selectUnsafeOrdering(
-        t.rowType, t.kRowFieldIdx, other.t.rowType, other.t.kRowFieldIdx)
+        t.rowType, t.kFieldIdx, other.t.rowType, other.t.kFieldIdx)
         .compare
     )
 

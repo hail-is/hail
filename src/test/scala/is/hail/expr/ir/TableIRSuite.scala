@@ -3,9 +3,11 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.table.Table
+import is.hail.utils.Interval
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends SparkSuite {
   def getKT: Table = {
@@ -46,5 +48,194 @@ class TableIRSuite extends SparkSuite {
     val newTable = TableMapRows(t, newRow, None, None)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
+  }
+
+  val rowType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
+  val joinedType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()), ("B_1", TInt32()), ("C_1", TInt32()))
+  val kType = TStruct(("A", TInt32()), ("B", TInt32()))
+
+  val leftData = IndexedSeq(
+    ( 3, 1, -1),
+    ( 3, 2, -1),
+    (11, 1, -1),
+    (11, 2, -1),
+    (16, 1, -1),
+    (16, 2, -1),
+    (17, 1, -1),
+    (17, 2, -1),
+    (22, 1, -1),
+    (22, 2, -1),
+    (23, 1, -1),
+    (23, 2, -1),
+    (26, 1, -1),
+    (26, 2, -1),
+    (27, 1, -1),
+    (27, 2, -1),
+    (32, 1, -1),
+    (32, 2, -1),
+    (33, 1, -1),
+    (33, 2, -1),
+    (36, 1, -1),
+    (36, 2, -1),
+    (37, 1, -1),
+    (37, 2, -1)
+  ).map(Row.fromTuple)
+
+  val rightData = IndexedSeq(
+    ( 6, 1, 1),
+    ( 6, 2, 1),
+    (17, 1, 1),
+    (17, 2, 1),
+    (18, 1, 1),
+    (18, 2, 1),
+    (21, 1, 1),
+    (21, 2, 1),
+    (22, 1, 1),
+    (22, 2, 1),
+    (27, 1, 1),
+    (27, 2, 1),
+    (28, 1, 1),
+    (28, 2, 1),
+    (31, 1, 1),
+    (31, 2, 1),
+    (32, 1, 1),
+    (32, 2, 1),
+    (37, 1, 1),
+    (37, 2, 1),
+    (38, 1, 1),
+    (38, 2, 1),
+    (41, 1, 1),
+    (41, 2, 1)
+  ).map(Row.fromTuple)
+
+  val expected = Array(
+    ( 3,    1,  -1, null, null),
+    ( 3,    2,  -1, null, null),
+    ( 6, null,null,    1,    1),
+    ( 6, null,null,    2,    1),
+    (11,    1,  -1, null, null),
+    (11,    2,  -1, null, null),
+    (16,    1,  -1, null, null),
+    (16,    2,  -1, null, null),
+    (17,    1,  -1,    1,    1),
+    (17,    1,  -1,    2,    1),
+    (17,    2,  -1,    1,    1),
+    (17,    2,  -1,    2,    1),
+    (18, null,null,    1,    1),
+    (18, null,null,    2,    1),
+    (21, null,null,    1,    1),
+    (21, null,null,    2,    1),
+    (22,    1,  -1,    1,    1),
+    (22,    1,  -1,    2,    1),
+    (22,    2,  -1,    1,    1),
+    (22,    2,  -1,    2,    1),
+    (23,    1,  -1, null, null),
+    (23,    2,  -1, null, null),
+    (26,    1,  -1, null, null),
+    (26,    2,  -1, null, null),
+    (27,    1,  -1,    1,    1),
+    (27,    1,  -1,    2,    1),
+    (27,    2,  -1,    1,    1),
+    (27,    2,  -1,    2,    1),
+    (28, null,null,    1,    1),
+    (28, null,null,    2,    1),
+    (31, null,null,    1,    1),
+    (31, null,null,    2,    1),
+    (32,    1,  -1,    1,    1),
+    (32,    1,  -1,    2,    1),
+    (32,    2,  -1,    1,    1),
+    (32,    2,  -1,    2,    1),
+    (33,    1,  -1, null, null),
+    (33,    2,  -1, null, null),
+    (36,    1,  -1, null, null),
+    (36,    2,  -1, null, null),
+    (37,    1,  -1,    1,    1),
+    (37,    1,  -1,    2,    1),
+    (37,    2,  -1,    1,    1),
+    (37,    2,  -1,    2,    1),
+    (38, null,null,    1,    1),
+    (38, null,null,    2,    1),
+    (41, null,null,    1,    1),
+    (41, null,null,    2,    1)
+  ).map(Row.fromTuple)
+
+  val leftPartitioners = Array(
+    IndexedSeq(
+      Interval(Row(0, 0), Row(4, 1), true, false),
+      Interval(Row(10, -1), Row(19, 1), true, false),
+      Interval(Row(20, 0), Row(24, 0), true, true),
+      Interval(Row(25, 0), Row(39, 0), true, true))
+//    IndexedSeq(
+//      Interval(Row(0, 0), Row(10), true, false),
+//      Interval(Row(10), Row(44, 0), true, true)),
+//    IndexedSeq(Interval(Row(), Row(), true, true))
+  ).map(new OrderedRVDPartitioner(kType, _))
+
+  val rightPartitioners = Array(
+    IndexedSeq(
+      Interval(Row(5, 0), Row(9, 1), true, false),
+      Interval(Row(15, -1), Row(29, 1), true, false),
+      Interval(Row(30, 0), Row(34, 0), true, true),
+      Interval(Row(35, 0), Row(44, 0), true, true))
+//    IndexedSeq(
+//      Interval(Row(0, 0), Row(10), true, false),
+//      Interval(Row(10), Row(44, 0), true, true)),
+//    IndexedSeq(Interval(Row(), Row(), true, true))
+  ).map(new OrderedRVDPartitioner(kType, _))
+
+  val joinTypes = Array(
+    ("outer", (row: Row) => true),
+    ("left",  (row: Row) => !row.isNullAt(1)),
+    ("right", (row: Row) => !row.isNullAt(3)),
+    ("inner", (row: Row) => !row.isNullAt(1) && !row.isNullAt(3))
+  )
+
+  @DataProvider(name = "join")
+  def joinData(): Array[Array[Any]] =
+    for {
+      l <- leftPartitioners
+      r <- rightPartitioners
+      (j, p) <- joinTypes
+      leftProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
+      rightProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
+      if !leftProject.contains(1) || rightProject.contains(1)
+    } yield Array[Any](l, r, j, p, leftProject, rightProject)
+
+  @Test(dataProvider = "join")
+  def testTableJoin(
+    leftPart: OrderedRVDPartitioner,
+    rightPart: OrderedRVDPartitioner,
+    joinType: String,
+    pred: Row => Boolean,
+    leftProject: Set[Int],
+    rightProject: Set[Int]
+  ) {
+    val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
+    val left = Table.parallelize(
+      hc,
+      leftData.map(leftProjectF.asInstanceOf[Row => Row]),
+      leftType,
+      Some(if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
+      Some(1))
+    val partitionedLeft = left.copy2(
+      rvd = left.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        .constrainToOrderedPartitioner(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1)))
+
+    val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
+    val right = Table.parallelize(
+      hc,
+      rightData.map(rightProjectF.asInstanceOf[Row => Row]),
+      rightType,
+      Some(if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
+      Some(1))
+    val partitionedRight = right.copy2(
+      rvd = right.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        .constrainToOrderedPartitioner(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
+
+    val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
+    val joined = TableJoin(partitionedLeft.tir, partitionedRight.tir, joinType, 1)
+      .execute(hc).rdd.collect()
+    val thisExpected = expected.filter(pred).map(joinProjectF)
+    assert(joined sameElements expected.filter(pred).map(joinProjectF))
   }
 }

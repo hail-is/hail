@@ -281,7 +281,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def nPartitions: Int = rvd.getNumPartitions
 
   def keySignature: Option[TStruct] = key.map { key =>
-    val (t, _) = signature.select(key.toArray)
+    val (t, _) = signature.select(key)
     t
   }
 
@@ -469,7 +469,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def join(other: Table, joinType: String): Table =
-    new Table(hc, TableJoin(this.tir, other.tir, joinType))
+    new Table(hc, TableJoin(this.tir, other.tir, joinType, typ.keyOrEmpty.length))
 
   def leftJoinRightDistinct(other: Table, root: String): Table =
     new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
@@ -795,7 +795,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case ordered: OrderedRVD => ordered
       case unordered =>
         OrderedRVD.coerce(
-          new OrderedRVDType(key.get.toArray, signature),
+          OrderedRVDType(key.get, signature),
           unordered)
     }
 
@@ -803,7 +803,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val typToInsert: Type = other.valueSignature
 
-    val (newRVType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
+    val (newRowType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
 
     val partBc = hc.sc.broadcast(leftORVD.partitioner)
     val rightSignature = other.signature
@@ -833,8 +833,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val localRVRowType = signature
     val pkIndex = signature.fieldIdx(key.get(0))
-    val newTableType = typ.copy(rowType = newRVType)
-    val newOrderedRVType = new OrderedRVDType(key.get.toArray, newRVType)
+    val newOrderedRVType = OrderedRVDType(key.get, newRowType)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD
@@ -861,7 +860,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         assert(typToInsert.typeCheck(value))
 
         rvb.set(rv.region)
-        rvb.start(newRVType)
+        rvb.start(newRowType)
 
         ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
 
@@ -871,7 +870,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     }
 
-    copy2(rvd = newRVD, signature = newRVType)
+    copy2(rvd = newRVD, signature = newRowType)
   }
 
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =

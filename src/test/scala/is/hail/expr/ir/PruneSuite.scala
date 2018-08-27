@@ -195,7 +195,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableJoinMemo() {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
-    val tj = TableJoin(tk1, tk2, "inner")
+    val tj = TableJoin(tk1, tk2, "inner", 1)
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.1_1"),
       Array(

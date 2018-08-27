@@ -40,6 +40,10 @@ class OrderedRVDPartitioner(
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
+  def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
+
+  def strictify: OrderedRVDPartitioner = extendKey(kType)
+
   val numPartitions: Int = rangeBounds.length
 
   val rangeBoundsType = TArray(TInterval(kType))
@@ -69,7 +73,7 @@ class OrderedRVDPartitioner(
   // adjusts 'rangeBounds'.
   def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
     require(kType isPrefixOf newKType)
-    OrderedRVDPartitioner.generate(newKType.fieldNames, newKType, rangeBounds)
+    OrderedRVDPartitioner.generate(newKType, rangeBounds)
   }
 
   def subdivide(
@@ -103,6 +107,33 @@ class OrderedRVDPartitioner(
     }
 
     new OrderedRVDPartitioner(kType, newBounds, allowedOverlap)
+  }
+
+  def intersect(other: OrderedRVDPartitioner): OrderedRVDPartitioner = {
+    require(kType isIsomorphicTo other.kType)
+
+    val kord = kType.ordering
+    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+
+    val left = this.rangeBounds.iterator.buffered
+    val right = other.rangeBounds.iterator.buffered
+    val ab = new ArrayBuilder[Interval]()
+
+    while (left.hasNext && right.hasNext) {
+      val (leader, lagger) =
+        if (eord.gt(left.head.left, right.head.left))
+          (left, right)
+        else
+          (right, left)
+      // leader.head.left >= lagger.head.left
+      if (eord.lteq(lagger.head.right, leader.head.left))
+        lagger.next()
+      else if (eord.lteq(lagger.head.right, leader.head.right))
+        ab += Interval(leader.head.left, lagger.next().right)
+      else
+        ab += leader.next()
+    }
+    new OrderedRVDPartitioner(kType, ab.result())
   }
 
   def range: Option[Interval] = rangeTree.root.map(_.range)
@@ -183,7 +214,7 @@ class OrderedRVDPartitioner(
     copy(rangeBounds = newRangeBounds)
   }
 
-  def coalesceRangeBounds(newPartEnd: Array[Int]): OrderedRVDPartitioner = {
+  def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): OrderedRVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
       rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))
     }
@@ -230,8 +261,11 @@ object OrderedRVDPartitioner {
       0)
   }
 
+  def generate(kType: TStruct, intervals: IndexedSeq[Interval]): OrderedRVDPartitioner =
+    generate(kType.fieldNames, kType, intervals)
+
   def generate(
-    partitionKey: Array[String],
+    partitionKey: IndexedSeq[String],
     kType: TStruct,
     intervals: IndexedSeq[Interval]
   ): OrderedRVDPartitioner = {

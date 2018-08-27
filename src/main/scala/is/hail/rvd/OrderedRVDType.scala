@@ -14,48 +14,45 @@ class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format =
   case orvdType: OrderedRVDType => JString(orvdType.toString)
 }))
 
-class OrderedRVDType(
-  val key: Array[String],
-  val rowType: TStruct) extends Serializable {
-
-  val (kType, _) = rowType.select(key)
+final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
+  extends Serializable {
 
   val keySet: Set[String] = key.toSet
+
+  val (kType, _) = rowType.select(key)
   val (valueType, _) = rowType.filter(f => !keySet.contains(f.name))
 
+  val kFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n)).toArray
   val valueFieldIdx: Array[Int] = (0 until rowType.size)
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  val kRowFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n))
-
   val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
-
-  val kInRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
-  val kRowOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
-
-  def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
+  val kInRowOrd: UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
+  val kRowOrd: UnsafeOrdering =
+    OrderedRVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
 
   def kComp(other: OrderedRVDType): UnsafeOrdering =
     OrderedRVDType.selectUnsafeOrdering(
       this.rowType,
-      this.kRowFieldIdx,
+      this.kFieldIdx,
       other.rowType,
-      other.kRowFieldIdx,
+      other.kFieldIdx,
       true)
 
   def joinComp(other: OrderedRVDType): UnsafeOrdering =
     OrderedRVDType.selectUnsafeOrdering(
       this.rowType,
-      this.kRowFieldIdx,
+      this.kFieldIdx,
       other.rowType,
-      other.kRowFieldIdx,
+      other.kFieldIdx,
       false)
 
   def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
     val wrv = WritableRegionValue(kType, region)
     def setFiniteValue(representative: RegionValue) {
-      wrv.setSelect(rowType, kRowFieldIdx, representative)
+      wrv.setSelect(rowType, kFieldIdx, representative)
     }
     def compareFinite(rv: RegionValue): Int =
       kRowOrd.compare(wrv.value, rv)
@@ -67,7 +64,7 @@ class OrderedRVDType(
 
     val (newRowType, inserter) = rowType.unsafeInsert(typeToInsert, path)
 
-    (new OrderedRVDType(key, newRowType.asInstanceOf[TStruct]), inserter)
+    (OrderedRVDType(key, newRowType.asInstanceOf[TStruct]), inserter)
   }
 
   def toJSON: JValue =
@@ -75,21 +72,6 @@ class OrderedRVDType(
       "partitionKey" -> JArray(key.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
       "rowType" -> JString(rowType.parsableString())))
-
-  override def equals(that: Any): Boolean = that match {
-    case that: OrderedRVDType =>
-      (key sameElements that.key) && rowType == that.rowType
-    case _ => false
-  }
-
-  override def hashCode: Int = {
-    val b = new HashCodeBuilder(43, 19)
-    b.append(key.length)
-    key.foreach(b.append)
-
-    b.append(rowType)
-    b.toHashCode
-  }
 
   override def toString: String = {
     val sb = new StringBuilder()
@@ -102,11 +84,6 @@ class OrderedRVDType(
     sb += '}'
     sb.result()
   }
-
-  def copy(
-    key: Array[String] = key,
-    rowType: TStruct = rowType
-  ): OrderedRVDType = new OrderedRVDType(key, rowType)
 }
 
 object OrderedRVDType {

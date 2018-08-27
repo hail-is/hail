@@ -18,12 +18,17 @@ class OrderedDependency[T](
     oldPartitionerBc.value.getPartitionRange(newIntervalListBc.value(partitionId))
 }
 
+object RepartitionedOrderedRDD2 {
+  def apply(prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[RVDContext, RegionValue] =
+    ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
+}
+
 /**
   * Repartition 'prev' to comply with 'newRangeBounds', using narrow dependencies.
   * Assumes new key type is a prefix of old key type, so no reordering is
   * needed.
   */
-class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval])
+class RepartitionedOrderedRDD2 private (prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[RVDContext, RegionValue] = prev.boundary.crdd
@@ -47,7 +52,7 @@ class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Inte
     val pord = typ.kType.ordering.intervalEndpointOrdering
     val range = ordPartition.range
     val ur = new UnsafeRow(typ.rowType)
-    val key = new KeyedRow(ur, typ.kRowFieldIdx)
+    val key = new KeyedRow(ur, typ.kFieldIdx)
 
     Iterator.single { (ctx: RVDContext) =>
       ordPartition.parents.iterator
