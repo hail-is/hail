@@ -38,7 +38,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
 
   private val is = hConf.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
   private val codecSpec = CodecSpec.default
-  
+
   private val leafDecoder = codecSpec.buildDecoder(leafType, leafType)(is)
   private val internalDecoder = codecSpec.buildDecoder(internalType, internalType)(is)
 
@@ -83,8 +83,8 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       node
     }
   }
-  
-  private def binarySearchLeftmost(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
+
+  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
     var left = 0
     var right = n
     while (left < right) {
@@ -97,115 +97,73 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     left // if left < n and A[left] == key, leftmost element that equals key. Otherwise, left is the insertion point of key in A.
   }
 
-  private def findStartIndex(key: Annotation, level: Int, offset: Long): Long = {
+  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
+    var left = 0
+    var right = n
+    while (left < right) {
+      val mid = left + (right - left) / 2
+      if (ordering.gt(f(mid), key))
+        right = mid
+      else
+        left = mid + 1
+    }
+    left // if left > 0 and A[left - 1] == key, rightmost element that equals key. Otherwise, left is the insertion point of key in A.
+  }
+
+  private def lowerBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val idx = binarySearchLeftmost(node.children.length, key, { i => node.children(i).key })
-      if (idx == 0 && !ordering.equiv(key, node.children(0).key))
-        -1
-      else
-        node.firstIndex + idx - 1
+      val idx = binarySearchLowerBound(node.children.length, key, { i => node.children(i).key })
+      node.firstIndex + idx
     } else {
       val node = readInternalNode(offset)
       val children = node.children
       val n = children.length
-      val idx = binarySearchLeftmost(n, key, { i => children(i).lastKey })
+      if (n == 0)
+        return node.firstIndex
+      val idx = binarySearchLowerBound(n, key, { i => children(i).lastKey })
+      lowerBound(key, level - 1, children(math.min(idx, n - 1)).indexFileOffset)
+    }
+  }
 
-      if (idx < n && ordering.gt(key, children(idx).firstKey))
-        findStartIndex(key, level - 1, children(idx).indexFileOffset)
-      else if (idx == 0) // insertion point is first bin but first child key is greater than key
-        -1
+  private[io] def lowerBound(key: Annotation): Long =
+    lowerBound(key, height - 1, metadata.rootOffset)
+
+  private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
+    if (level == 0) {
+      val node = readLeafNode(offset)
+      val idx = binarySearchUpperBound(node.children.length, key, { i => node.children(i).key })
+      node.firstIndex + idx
+    } else {
+      val node = readInternalNode(offset)
+      val children = node.children
+      val n = children.length
+      if (n == 0)
+        return node.firstIndex
+      val idx = binarySearchUpperBound(n, key, { i => children(i).firstKey })
+      if (idx > 0 && ordering.lteq(key, children(idx - 1).lastKey)) // upper bound returns one past the child index where the key may reside
+        upperBound(key, level - 1, children(idx - 1).indexFileOffset)
       else
-        findStartIndex(key, level - 1, children(idx - 1).indexFileOffset)
+        upperBound(key, level - 1, children(math.min(idx, n - 1)).indexFileOffset)
     }
   }
 
-  // Returns an iterator starting from the largest leaf child less than key
-  // If no leaf child is larger than key, the first value returned by the iterator is null
-  private def iterateFrom(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
-    var idx = findStartIndex(key, height - 1, metadata.rootOffset)
-    assert(idx >= -1 && idx < nKeys)
+  private[io] def upperBound(key: Annotation): Long =
+    upperBound(key, height - 1, metadata.rootOffset)
 
-    def next(): LeafChild = {
-      val lc = if (idx == -1) null else queryByIndex(idx)
-      idx += 1
-      lc
+  def queryByKey(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
+    var pos = lowerBound(key)
+    var current: LeafChild = _
+
+    def next(): LeafChild = current
+
+    def hasNext(): Boolean = {
+      pos < nKeys && {
+        current = queryByIndex(pos)
+        pos += 1
+        ordering.equiv(current.key, key)
+      }
     }
-
-    def hasNext: Boolean = idx < nKeys
-  }
-
-  private def queryByKeyLt(key: Annotation): Option[LeafChild] = {
-    val it = iterateFrom(key)
-    assert(it.hasNext)
-    Option(it.next())
-  }
-
-  private def queryByKeyGt(key: Annotation): Option[LeafChild] = {
-    val it = iterateFrom(key)
-    assert(it.hasNext)
-    it.next() // need to skip first value
-    var current = if (it.hasNext) it.next() else null
-
-    while (current != null && ordering.lteq(current.key, key)) {
-      current = if (it.hasNext) it.next() else null
-    }
-    Option(current)
-  }
-
-  private def queryByKeyLtEq(key: Annotation): Option[LeafChild] = {
-    val it = iterateFrom(key)
-
-    val current = if (it.hasNext) it.next() else null
-    val next = if (it.hasNext) it.next() else null
-
-    if (next != null && ordering.equiv(next.key, key))
-      Some(next)
-    else
-      Option(current)
-  }
-
-  private def queryByKeyGtEq(key: Annotation): Option[LeafChild] = {
-    val it = iterateFrom(key)
-
-    var current = if (it.hasNext) it.next() else null
-    var next = if (it.hasNext) it.next() else null
-
-    while (next != null && ordering.lteq(next.key, key)) {
-      current = next
-      next = if (it.hasNext) it.next() else null
-    }
-
-    if (current != null && ordering.equiv(current.key, key))
-      Some(current)
-    else
-      Option(next)
-  }
-
-  def queryByKeyAllMatches(key: Annotation): Array[LeafChild] = {
-    val ab = new ArrayBuilder[LeafChild]()
-    val it = iterateFrom(key)
-    assert(it.hasNext)
-    it.next() // need to skip first value
-    var current = if (it.hasNext) it.next() else null
-
-    while (current != null && ordering.equiv(current.key, key)) {
-      ab += current
-      current = if (it.hasNext) it.next() else null
-    }
-
-    ab.result()
-  }
-
-  def queryByKey(key: Annotation, greater: Boolean = true, closed: Boolean = true): Option[LeafChild] = {
-    if (greater && closed)
-      queryByKeyGtEq(key)
-    else if (greater && !closed)
-      queryByKeyGt(key)
-    else if (!greater && closed)
-      queryByKeyLtEq(key)
-    else
-      queryByKeyLt(key)
   }
 
   private def queryByIndex(index: Long, level: Int, offset: Long): LeafChild = {
@@ -227,8 +185,21 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     queryByIndex(index, height - 1, metadata.rootOffset)
   }
 
-  def iterator: Iterator[LeafChild] = new Iterator[LeafChild] {
-    var pos = 0L
+  def queryByInterval(interval: Interval): Iterator[LeafChild] =
+    queryByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
+
+  def queryByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): Iterator[LeafChild] = {
+    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
+    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
+    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    iterator(startIdx, endIdx)
+  }
+
+  def iterator: Iterator[LeafChild] = iterator(0, nKeys)
+
+  def iterator(start: Long, end: Long) = new Iterator[LeafChild] {
+    assert(start >= 0 && end <= nKeys && start <= end)
+    var pos = start
 
     def next(): LeafChild = {
       val lc = queryByIndex(pos)
@@ -236,8 +207,14 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       lc
     }
 
-    def hasNext: Boolean = nKeys > 0 && pos < nKeys
+    def hasNext: Boolean = pos < end
   }
+
+  def iterateFrom(key: Annotation): Annotation =
+    iterator(lowerBound(key), nKeys)
+
+  def iterateUntil(key: Annotation): Annotation =
+    iterator(0, lowerBound(key))
 
   def close() {
     region.close()

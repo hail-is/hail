@@ -16,6 +16,15 @@ class IndexSuite extends SparkSuite {
     "skunk", "snail", "squirrel", "vole",
     "weasel", "whale", "yak", "zebra")
 
+  val stringsWithDups = Array(
+    "bear", "bear", "cat", "cat",
+    "cat", "cat", "cat", "cat",
+    "cat", "dog", "mouse", "mouse",
+    "skunk", "skunk", "skunk", "whale",
+    "whale", "zebra", "zebra", "zebra")
+
+  val leafsWithDups = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(s, i, Row()) }
+
   @DataProvider(name = "elements")
   def data(): Array[Array[Array[String]]] = {
     (1 to strings.length).map(i => Array(strings.take(i))).toArray
@@ -39,40 +48,31 @@ class IndexSuite extends SparkSuite {
     val file = tmpDir.createTempFile("test", "idx")
     val attributes = Map("foo" -> true, "bar" -> 5)
 
+    val a: (Int) => Annotation = (i: Int) => Row(i % 2 == 0)
+
     for (branchingFactor <- 2 to 5) {
       writeIndex(file,
         data,
-        data.indices.map(i => Row(i % 2 == 0)).toArray,
+        data.indices.map(i => a(i)).toArray,
         TStruct("a" -> TBoolean()),
         branchingFactor,
         attributes)
       assert(hc.hadoopConf.getFileSize(file) != 0)
 
-      val ir = new IndexReader(hc.hadoopConf, file)
-      assert(ir.attributes == attributes)
+      val index = new IndexReader(hc.hadoopConf, file)
+
+      assert(index.attributes == attributes)
+
       data.zipWithIndex.foreach { case (s, i) =>
-        val a = Row(i % 2 == 0)
-        val result = ir.queryByIndex(i)
-        assert(result.key == s && result.annotation == a)
-
-        assert(ir.queryByKeyAllMatches(s).toFastIndexedSeq == IndexedSeq(LeafChild(s, i, a)))
-        assert(ir.queryByKey(s, greater = true, closed = true).contains(LeafChild(s, i, a)))
-        assert(ir.queryByKey(s, greater = false, closed = true).contains(LeafChild(s, i, a)))
-
-        if (i != data.length - 1)
-          assert(ir.queryByKey(s, greater = true, closed = false).map(_.key).contains(data(i + 1)))
-        else
-          assert(ir.queryByKey(s, greater = true, closed = false).isEmpty)
-
-        if (i != 0)
-          assert(ir.queryByKey(s, greater = false, closed = false).map(_.key).contains(data(i - 1)))
-        else
-          assert(ir.queryByKey(s, greater = false, closed = false).isEmpty)
+        assert({
+          val result = index.queryByIndex(i)
+          result.key == s && result.annotation == a(i)
+        })
       }
 
-      assert(ir.iterator.toArray sameElements data.zipWithIndex.map { case (s, i) => LeafChild(s, i, Row(i % 2 == 0)) })
+      assert(index.iterator.toArray sameElements data.zipWithIndex.map { case (s, i) => LeafChild(s, i, a(i)) })
 
-      ir.close()
+      index.close()
     }
   }
 
@@ -80,14 +80,11 @@ class IndexSuite extends SparkSuite {
     val file = tmpDir.createTempFile("empty", "idx")
     writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean()), 2)
     assert(hc.hadoopConf.getFileSize(file) != 0)
-    val ir = new IndexReader(hc.hadoopConf, file)
-    assert(ir.queryByKey("moo", true, true).isEmpty)
-    assert(ir.queryByKey("moo", true, false).isEmpty)
-    assert(ir.queryByKey("moo", false, true).isEmpty)
-    assert(ir.queryByKey("moo", false, false).isEmpty)
-    assert(ir.queryByKeyAllMatches("moo").isEmpty)
-    intercept[IllegalArgumentException](ir.queryByIndex(0L))
-    ir.close()
+    val index = new IndexReader(hc.hadoopConf, file)
+    intercept[IllegalArgumentException](index.queryByIndex(0L))
+    assert(index.queryByKey("moo").isEmpty)
+    assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)
+    index.close()
   }
 
   @Test def testLastKeyCorrect() {
@@ -96,92 +93,134 @@ class IndexSuite extends SparkSuite {
       strings,
       strings.indices.map(i => Row()).toArray,
       TStruct(required = true))
-    val ir = new IndexReader(hc.hadoopConf, file)
-    val node = ir.readInternalNode(ir.metadata.rootOffset)
+    val index = new IndexReader(hc.hadoopConf, file)
+    val node = index.readInternalNode(index.metadata.rootOffset)
     assert(node.children.length == 2 &&
       node.children(0).firstKey == "bear" && node.children(0).lastKey == "vole" &&
       node.children(1).firstKey == "weasel" && node.children(1).lastKey == "zebra")
   }
 
-  @Test def testDuplicateKeys1() {
-    val strings = Array(
-      "bear", "cat", "cat", "cat",
-      "cat", "cat", "cat", "dog")
-
+  @Test def testLowerBound() {
     for (branchingFactor <- 2 to 5) {
-      val file = tmpDir.createTempFile("dups1", "idx")
-      writeIndex(file, strings, strings.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
-      val ir = new IndexReader(hc.hadoopConf, file)
-      assert(ir.queryByKeyAllMatches("bear").toFastIndexedSeq == IndexedSeq(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKeyAllMatches("cat").toFastIndexedSeq == (1 until 7).map(i => LeafChild("cat", i.toLong, Row())))
-      assert(ir.queryByKeyAllMatches("dog").toFastIndexedSeq == IndexedSeq(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKeyAllMatches("foo").length == 0)
-      assert(ir.queryByKeyAllMatches("aardvark").length == 0)
+      val file = tmpDir.createTempFile("lowerBound", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val index = new IndexReader(hc.hadoopConf, file)
 
-      assert(ir.queryByKey("aardvark", greater = true, closed = true).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("bear", greater = true, closed = true).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("boar", greater = true, closed = true).contains(LeafChild("cat", 1L, Row())))
-      assert(ir.queryByKey("cat", greater = true, closed = true).contains(LeafChild("cat", 6L, Row())))
-      assert(ir.queryByKey("cow", greater = true, closed = true).contains(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKey("dog", greater = true, closed = true).contains(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKey("elk", greater = true, closed = true).isEmpty)
+      val n = stringsWithDups.length
+      val f = { i: Int => stringsWithDups(i) }
 
-      assert(ir.queryByKey("aardvark", greater = true, closed = false).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("bear", greater = true, closed = false).contains(LeafChild("cat", 1L, Row())))
-      assert(ir.queryByKey("boar", greater = true, closed = false).contains(LeafChild("cat", 1L, Row())))
-      assert(ir.queryByKey("cat", greater = true, closed = false).contains(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKey("cow", greater = true, closed = false).contains(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKey("dog", greater = true, closed = false).isEmpty)
-      assert(ir.queryByKey("elk", greater = true, closed = false).isEmpty)
+      val expectedResult = Array(
+        "aardvark" -> 0, "bear" -> 0, "cat" -> 2,
+        "dog" -> 9, "elk" -> 10, "mouse" -> 10,
+        "opossum" -> 12, "skunk" -> 12, "snail" -> 15,
+        "whale" -> 15, "zebra" -> 17, "zoo" -> stringsWithDups.length
+      )
 
-      assert(ir.queryByKey("aardvark", greater = false, closed = true).isEmpty)
-      assert(ir.queryByKey("bear", greater = false, closed = true).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("boar", greater = false, closed = true).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("cat", greater = false, closed = true).contains(LeafChild("cat", 1L, Row())))
-      assert(ir.queryByKey("cow", greater = false, closed = true).contains(LeafChild("cat", 6L, Row())))
-      assert(ir.queryByKey("dog", greater = false, closed = true).contains(LeafChild("dog", 7L, Row())))
-      assert(ir.queryByKey("elk", greater = false, closed = true).contains(LeafChild("dog", 7L, Row())))
-
-      assert(ir.queryByKey("aardvark", greater = false, closed = false).isEmpty)
-      assert(ir.queryByKey("bear", greater = false, closed = false).isEmpty)
-      assert(ir.queryByKey("boar", greater = false, closed = false).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("cat", greater = false, closed = false).contains(LeafChild("bear", 0L, Row())))
-      assert(ir.queryByKey("cow", greater = false, closed = false).contains(LeafChild("cat", 6L, Row())))
-      assert(ir.queryByKey("dog", greater = false, closed = false).contains(LeafChild("cat", 6L, Row())))
-      assert(ir.queryByKey("elk", greater = false, closed = false).contains(LeafChild("dog", 7L, Row())))
+      expectedResult.foreach { case (s, expectedIdx) =>
+        assert(index.binarySearchLowerBound(n, s, f) == expectedIdx) // test single array binary search works
+        assert(index.lowerBound(s) == expectedIdx) // test full b-tree search works
+      }
     }
   }
 
-  @Test def testDuplicateKeys2() {
-    val strings = Array(
-      "bear", "bear", "cat", "cat",
-      "cat", "cat", "cat", "cat",
-      "cat", "dog", "mouse", "mouse",
-      "skunk", "skunk", "skunk", "whale",
-      "whale", "zebra", "zebra", "zebra")
-
+  @Test def testUpperBound() {
     for (branchingFactor <- 2 to 5) {
-      val file = tmpDir.createTempFile("dups2", "idx")
-      writeIndex(file, strings, strings.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor = 2)
-      val ir = new IndexReader(hc.hadoopConf, file)
+      val file = tmpDir.createTempFile("upperBound", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor = 2)
+      val index = new IndexReader(hc.hadoopConf, file)
 
-      val uniqueStrings = strings.distinct
-      uniqueStrings.foreach { s =>
-        assert(ir.queryByKey(s, greater = false, closed = true).contains(LeafChild(s, strings.indexOf(s), Row())))
-        assert(ir.queryByKey(s, greater = true, closed = true).contains(LeafChild(s, strings.lastIndexOf(s), Row())))
+      val n = stringsWithDups.length
+      val f = { i: Int => stringsWithDups(i) }
 
-        if (strings.head == s)
-          assert(ir.queryByKey(s, greater = false, closed = false).isEmpty)
-        else {
-          val idx = strings.indexOf(s) - 1
-          assert(ir.queryByKey(s, greater = false, closed = false).contains(LeafChild(strings(idx), idx, Row())))
-        }
+      val expectedResult = Array(
+        "aardvark" -> 0, "bear" -> 2, "cat" -> 9,
+        "dog" -> 10, "elk" -> 10, "mouse" -> 12,
+        "opossum" -> 12, "skunk" -> 15, "snail" -> 15,
+        "whale" -> 17, "zebra" -> stringsWithDups.length,
+        "zoo" -> stringsWithDups.length
+      )
 
-        if (strings.last == s)
-          assert(ir.queryByKey(s, greater = true, closed = false).isEmpty)
-        else {
-          val idx = strings.lastIndexOf(s) + 1
-          assert(ir.queryByKey(s, greater = true, closed = false).contains(LeafChild(strings(idx), idx, Row())))
+      expectedResult.foreach { case (s, expectedIdx) =>
+        assert(index.binarySearchUpperBound(n, s, f) == expectedIdx) // test single array binary search works
+        assert(index.upperBound(s) == expectedIdx) // test full b-tree search works
+      }
+    }
+  }
+
+  @Test def testRangeIterator() {
+    for (branchingFactor <- 2 to 5) {
+      val file = tmpDir.createTempFile("range", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val index = new IndexReader(hc.hadoopConf, file)
+      val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
+      bounds.foreach(b => index.iterator(b(0), b(1)).toArray sameElements leafsWithDups.slice(b(0), b(1)))
+    }
+  }
+
+  @Test def testQueryByKey() {
+    for (branchingFactor <- 2 to 5) {
+      val file = tmpDir.createTempFile("key", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val index = new IndexReader(hc.hadoopConf, file)
+
+      val stringsNotInList = Array("aardvark", "crow", "elk", "otter", "zoo")
+      assert(stringsNotInList.forall(s => index.queryByKey(s).isEmpty))
+
+      val stringsInList = stringsWithDups.distinct
+      assert(stringsInList.forall(s => index.queryByKey(s).toArray sameElements leafsWithDups.filter(_.key == s)))
+    }
+  }
+
+  @Test def testIntervalIterator() {
+    for (branchingFactor <- 2 to 5) {
+      val file = tmpDir.createTempFile("interval", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val index = new IndexReader(hc.hadoopConf, file)
+
+      // intervals with endpoint in list
+      assert(index.queryByInterval("bear", "bear", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(0, 2).toFastIndexedSeq)
+
+      assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = false).toFastIndexedSeq == index.iterator(0, 2).toFastIndexedSeq)
+      assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(0, 9).toFastIndexedSeq)
+      assert(index.queryByInterval("bear", "cat", includesStart = false, includesEnd = true).toFastIndexedSeq == index.iterator(2, 9).toFastIndexedSeq)
+      assert(index.queryByInterval("bear", "cat", includesStart = false, includesEnd = false).toFastIndexedSeq == index.iterator(2, 2).toFastIndexedSeq)
+
+      // intervals with endpoint(s) not in list
+      assert(index.queryByInterval("cat", "snail", includesStart = true, includesEnd = false).toFastIndexedSeq == index.iterator(2, 15).toFastIndexedSeq)
+      assert(index.queryByInterval("cat", "snail", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(2, 15).toFastIndexedSeq)
+      assert(index.queryByInterval("aardvark", "cat", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(0, 9).toFastIndexedSeq)
+      assert(index.queryByInterval("aardvark", "cat", includesStart = false, includesEnd = true).toFastIndexedSeq == index.iterator(0, 9).toFastIndexedSeq)
+
+      // illegal interval queries
+      intercept[IllegalArgumentException](index.queryByInterval("bear", "bear", includesStart = false, includesEnd = false).toFastIndexedSeq)
+      intercept[IllegalArgumentException](index.queryByInterval("bear", "bear", includesStart = false, includesEnd = true).toFastIndexedSeq)
+      intercept[IllegalArgumentException](index.queryByInterval("bear", "bear", includesStart = true, includesEnd = false).toFastIndexedSeq)
+      intercept[IllegalArgumentException](index.queryByInterval("cat", "bear", includesStart = true, includesEnd = true).toFastIndexedSeq)
+
+      val endPoints = (stringsWithDups.distinct ++ Array("aardvark", "boar", "elk", "oppossum", "snail", "zoo")).combinations(2)
+      val ordering = TString().ordering
+
+      for (bounds <- endPoints) {
+        for (includesStart <- Array(true, false)) {
+          for (includesEnd <- Array(true, false)) {
+            if (Interval.isValid(ordering, bounds(0), bounds(1), includesStart, includesEnd)) {
+              val lowerBoundIdx =
+                if (includesStart)
+                  math.max(0, stringsWithDups.indexWhere(bounds(0) <= _)) // want first index at transition point where lteq to key
+                else
+                  math.max(0, stringsWithDups.lastIndexWhere(bounds(0) >= _) + 1) // want last index at transition point where key is gteq and then want to exclude that point (add 1)
+
+              val upperBoundIdx =
+                if (includesEnd)
+                  math.max(0, stringsWithDups.lastIndexWhere(bounds(1) >= _) + 1) // want last index at transition point and then want to include that value so add 1
+                else
+                  math.max(0, stringsWithDups.lastIndexWhere(bounds(1) > _) + 1) // want last index before transition point and then want to include that value so add 1
+
+              assert(index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd).toFastIndexedSeq ==
+                index.iterator(lowerBoundIdx, upperBoundIdx).toFastIndexedSeq)
+            } else
+              intercept[IllegalArgumentException](index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd))
+          }
         }
       }
     }

@@ -7,7 +7,7 @@ import is.hail.utils.ArrayBuilder
 object LeafNodeBuilder {
   def typ(keyType: Type, annotationType: Type) = TStruct(
     "first_idx" -> +TInt64(),
-    "keys" -> +TArray(TStruct(
+    "keys" -> +TArray(+TStruct(
       "key" -> keyType,
       "offset" -> +TInt64(),
       "annotation" -> annotationType
@@ -43,7 +43,7 @@ class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
     rvb.end()
   }
 
-  def +=(key: Any, offset: Long, annotation: Annotation) {
+  def +=(key: Annotation, offset: Long, annotation: Annotation) {
     keys += key
     recordOffsets += offset
     annotations += annotation
