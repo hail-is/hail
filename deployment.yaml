@@ -21,7 +21,7 @@ spec:
             - name: BATCH_SERVER_URL
               value: http://batch
             - name: WATCHED_REPOS
-              value: '["hail-is/hail"]'
+              value: '["hail-is/hail", "hail-is/batch"]'
           ports:
             - containerPort: 5000
           volumeMounts:
