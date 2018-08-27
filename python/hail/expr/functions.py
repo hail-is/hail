@@ -120,7 +120,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                         .format(dtype)) from e
 
     if wrapper['has_expr']:
-        return literal(to_expr(x).value, dtype)
+        return literal(to_expr(x, dtype).value, dtype)
 
     if x is None:
         return hl.null(dtype)
