@@ -21,7 +21,6 @@ final case class EntriesWithFields (
 sealed case class RowFields (
   varid: Boolean,
   rsid: Boolean,
-  fileRowIndex: Boolean,
   offset: Boolean
 )
 
@@ -39,7 +38,6 @@ case class BgenSettings(
     (true, "alleles" -> TArray(TString())),
     (rowFields.rsid, "rsid" -> TString()),
     (rowFields.varid, "varid" -> TString()),
-    (rowFields.fileRowIndex, "file_row_idx" -> TInt64()),
     (rowFields.offset, "offset" -> TInt64()))
     .withFilter(_._1).map(_._2)
 
@@ -85,11 +83,11 @@ object BgenRDD {
     sc: SparkContext,
     files: Seq[BgenHeader],
     fileNPartitions: Array[Int],
-    includedVariantsPerFile: Map[String, Seq[Int]],
+    includedOffsetsPerFile: Map[String, Array[Long]],
     settings: BgenSettings
   ): ContextRDD[RVDContext, RegionValue] =
     ContextRDD(
-      new BgenRDD(sc, files, fileNPartitions, includedVariantsPerFile, settings))
+      new BgenRDD(sc, files, fileNPartitions, includedOffsetsPerFile, settings))
 
   private[bgen] def decompress(
     input: Array[Byte],
@@ -101,7 +99,7 @@ private class BgenRDD(
   sc: SparkContext,
   files: Seq[BgenHeader],
   fileNPartitions: Array[Int],
-  includedVariantsPerFile: Map[String, Seq[Int]],
+  includedOffsetsPerFile: Map[String, Array[Long]],
   settings: BgenSettings
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
   private[this] val f = CompileDecoder(settings)
@@ -109,7 +107,7 @@ private class BgenRDD(
     sc,
     files,
     fileNPartitions,
-    includedVariantsPerFile,
+    includedOffsetsPerFile,
     settings)
 
   protected def getPartitions: Array[Partition] = parts

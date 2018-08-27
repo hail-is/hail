@@ -511,7 +511,9 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     def test_parallel_import(self):
-        mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
+        bgen_file = resource('parallelBgenExport.bgen')
+        hl.index_bgen(bgen_file)
+        mt = hl.import_bgen(bgen_file,
                             ['GT', 'GP'],
                             resource('parallelBgenExport.sample'))
         self.assertEqual(mt.count(), (16, 10))
@@ -585,39 +587,28 @@ class BGENTests(unittest.TestCase):
                       contig_recoding={'01': '1'})
 
         alleles = ['A', 'G']
-        desired_variants = hl.Table.parallelize([
-            {'locus': hl.Locus('1', 2000), 'alleles': alleles},
-            {'locus': hl.Locus('1', 2001), 'alleles': alleles},
-            {'locus': hl.Locus('1', 4000), 'alleles': alleles},
-            {'locus': hl.Locus('1', 10000), 'alleles': alleles},
-            {'locus': hl.Locus('1', 100001), 'alleles': alleles}
-        ], schema=hl.tstruct(locus=hl.tlocus(), alleles=hl.tarray(hl.tstr)),
-            key=['locus', 'alleles'])
 
-        mt = hl.import_bgen(bgen_file,
-                            [],
-                            contig_recoding={'01': '1'},
-                            n_partitions=10,
-                            _row_fields=['file_row_idx'])
-
-        filtered_rows = mt.filter_rows(hl.is_defined(desired_variants[mt.row_key])).rows()
-        filtered_rows = filtered_rows.key_by()
-        desired_variant_indexes = filtered_rows.select(filtered_rows.file_row_idx).collect()
-        desired_variant_indexes = [r.file_row_idx for r in desired_variant_indexes]
-        assert(len(desired_variant_indexes) == 6)  # 1:10000 is duplicated in the file
+        desired_variants = [
+            hl.Struct(locus=hl.Locus('1', 2000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 2001), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 4000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 100001), alleles=alleles),
+        ]
 
         actual = hl.import_bgen(bgen_file,
                                 ['GT'],
                                 contig_recoding={'01': '1'},
                                 n_partitions=10,
-                                _variants_per_file={bgen_file: desired_variant_indexes})
+                                _variants=desired_variants)
+        self.assertEqual(actual.count_rows(), 6) # Duplicate variants for 1:10000
 
         everything = hl.import_bgen(bgen_file,
                                     ['GT'],
                                     contig_recoding={'01': '1'})
         self.assertEqual(everything.count(), (199, 500))
 
-        expected = everything.filter_rows(hl.is_defined(desired_variants[everything.row_key]))
+        expected = everything.filter_rows(hl.set(desired_variants).contains(everything.row_key))
 
         self.assertTrue(expected._same(actual))
 
@@ -662,32 +653,34 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
-    def test_multiple_files_file_row_idx(self):
+    def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
 
         alleles = ['A', 'G']
-        desired_variants = hl.Table.parallelize([
-            {'locus': hl.Locus('20', 11), 'alleles': alleles},
-            {'locus': hl.Locus('20', 13), 'alleles': alleles},
-            {'locus': hl.Locus('20', 29), 'alleles': alleles},
-            {'locus': hl.Locus('20', 28), 'alleles': alleles},
-            {'locus': hl.Locus('20', 1), 'alleles': alleles},
-            {'locus': hl.Locus('20', 12), 'alleles': alleles}
-        ], schema=hl.tstruct(locus=hl.tlocus(), alleles=hl.tarray(hl.tstr)),
-            key=['locus', 'alleles'])
 
-        mt = hl.import_bgen(bgen_file,
-                            [],
-                            n_partitions=10,
-                            _row_fields=['file_row_idx'])
+        desired_variants = [
+            hl.Struct(locus=hl.Locus('20', 11), alleles=alleles),
+            hl.Struct(locus=hl.Locus('20', 13), alleles=alleles),
+            hl.Struct(locus=hl.Locus('20', 29), alleles=alleles),
+            hl.Struct(locus=hl.Locus('20', 28), alleles=alleles),
+            hl.Struct(locus=hl.Locus('20', 1), alleles=alleles),
+            hl.Struct(locus=hl.Locus('20', 12), alleles=alleles),
+        ]
 
-        filtered_rows = mt.filter_rows(hl.is_defined(desired_variants[mt.row_key])).rows()
-        filtered_rows = filtered_rows.key_by()
-        desired_variant_indexes = filtered_rows.select(position=filtered_rows.locus.position,
-                                                       file_row_idx=filtered_rows.file_row_idx).collect()
-        desired_variant_indexes = dict([(r.position, r.file_row_idx) for r in desired_variant_indexes])
-        self.assertTrue(desired_variant_indexes == {11: 3, 13: 4, 29: 9, 28: 8, 1: 0, 12: 5})
+        actual = hl.import_bgen(bgen_file,
+                                ['GT'],
+                                n_partitions=10,
+                                _variants=desired_variants)
+        self.assertEqual(actual.count_rows(), 6)
+
+        everything = hl.import_bgen(bgen_file,
+                                    ['GT'])
+        self.assertEqual(everything.count(), (30, 10))
+
+        expected = everything.filter_rows(hl.set(desired_variants).contains(everything.row_key))
+
+        self.assertTrue(expected._same(actual))
 
 
 class GENTests(unittest.TestCase):
