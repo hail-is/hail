@@ -246,8 +246,10 @@ def get_pr_status_by_source(source_url, source_ref):
 def get_pr_status_by_target(target_url, target_ref):
     return target_source_pr.get((target_url, target_ref), {})
 
-def get_pr_targets():
-    return target_source_pr.keys()
+def get_pr_targets(target_url):
+    return [(url, ref)
+            for (url, ref) in target_source_pr.keys()
+            if url == target_url]
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
 
@@ -927,7 +929,7 @@ def refresh_github_state():
                 pulls_by_target[target_ref].append(pull)
             log.info(f'found {len(pulls_by_target)} target branches with open PRs in this repo: {pulls_by_target.keys()}')
             gh_targets = set([(target_url, ref) for ref in pulls_by_target.keys()])
-            for (dead_target_url, dead_target_ref) in set(get_pr_targets()) - gh_targets:
+            for (dead_target_url, dead_target_ref) in set(get_pr_targets(target_url)) - gh_targets:
                 prs = pop_prs_for_target(dead_target_url, dead_target_ref, {})
                 if len(prs) != 0:
                     log.info(
