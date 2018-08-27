@@ -45,13 +45,12 @@ object MathFunctions extends RegistryFunctions {
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
   def approxEqual(x: Double, y: Double, tolerance: Double, absolute: Boolean, nanSame: Boolean): Boolean = {
-    x == y || {
-      (if (absolute)
+    val withinTol =
+      if (absolute)
         math.abs(x - y) <= tolerance
       else
-        D_==(x, y, tolerance)) ||
-        (nanSame && x.isNaN && y.isNaN)
-    }
+        D_==(x, y, tolerance)
+    withinTol || (nanSame && x.isNaN && y.isNaN)
   }
 
   def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
