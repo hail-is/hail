@@ -4087,3 +4087,35 @@ def format(f, *args):
     """
 
     return _func("format", hl.tstr, f, hl.tuple(args))
+
+
+@typecheck(x=expr_float64, y=expr_float64, tolerance=expr_float64, absolute=expr_bool, nan_same=expr_bool)
+def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
+    """Tests whether two numbers are approximately equal.
+
+    Examples
+    --------
+    >>> hl.approx_equal(0.25, 0.2500001).value
+    True
+
+    >>> hl.approx_equal(0.25, 0.251, tolerance=1e-3, absolute=True).value
+    False
+
+    Parameters
+    ----------
+    x : :class:`.NumericExpression`
+    y : :class:`.NumericExpression`
+    tolerance : :class:`.NumericExpression`
+    absolute : :class:`.BooleanExpression`
+        If True, compute ``abs(x - y) <= tolerance``. Otherwise, compute
+        ``abs(x - y) <= max(tolerance * max(abs(x), abs(y)), 2 ** -1022)``.
+    nan_same : :class:`.BooleanExpression`
+        If True, then ``NaN == NaN`` will evaluate to True. Otherwise,
+        it will return False.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+
+    return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)

@@ -30,12 +30,13 @@ class TFloat64(override val required: Boolean) extends TNumeric {
       val f1 = a1.asInstanceOf[Double]
       val f2 = a2.asInstanceOf[Double]
 
-      (if (absolute)
-        math.abs(f1 - f2) <= tolerance
-      else
-        D_==(f1, f2, tolerance)) ||
-        (f1.isNaN && f2.isNaN) ||
-        (f1.isInfinite && f2.isInfinite && ((f1 > 0 && f2 > 0) || (f1 < 0 && f2 < 0)))
+      val withinTol =
+        if (absolute)
+          math.abs(f1 - f2) <= tolerance
+        else
+          D_==(f1, f2, tolerance)
+
+      f1 == f2 || withinTol || (f1.isNaN && f2.isNaN)
     })
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]

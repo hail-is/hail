@@ -84,6 +84,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     abs
+    approx_equal
     exp
     is_nan
     log

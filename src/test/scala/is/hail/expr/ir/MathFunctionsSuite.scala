@@ -72,6 +72,17 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("sign", F64(Double.NegativeInfinity)), -1.0)
   }
 
+  @Test def approxEqual() {
+    assertEvalsTo(invoke("approxEqual", F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
+    assertEvalsTo(invoke("approxEqual", F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), True()), true)
+    assertEvalsTo(invoke("approxEqual", F64(Double.PositiveInfinity), F64(Double.PositiveInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", F64(Double.NegativeInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", F64(Double.PositiveInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), false)
+  }
+
   @Test def entropy() {
     assertEvalsTo(invoke("entropy", Str("")), 0.0)
     assertEvalsTo(invoke("entropy", Str("a")), 0.0)

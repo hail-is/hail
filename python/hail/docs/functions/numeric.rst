@@ -7,6 +7,7 @@ Numeric functions
 .. autosummary::
 
     abs
+    approx_equal
     exp
     is_nan
     log
@@ -38,6 +39,7 @@ Numeric functions
 
 
 .. autofunction:: abs
+.. autofunction:: approx_equal
 .. autofunction:: exp
 .. autofunction:: is_nan
 .. autofunction:: log
