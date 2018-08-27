@@ -215,10 +215,10 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     def hasNext: Boolean = pos < end
   }
 
-  def iterateFrom(key: Annotation): Annotation =
+  def iterateFrom(key: Annotation): Iterator[LeafChild] =
     iterator(lowerBound(key), nKeys)
 
-  def iterateUntil(key: Annotation): Annotation =
+  def iterateUntil(key: Annotation): Iterator[LeafChild] =
     iterator(0, lowerBound(key))
 
   def close() {

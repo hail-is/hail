@@ -152,6 +152,7 @@ class IndexSuite extends SparkSuite {
       val file = tmpDir.createTempFile("range", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
       val index = new IndexReader(hc.hadoopConf, file)
+
       val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
       bounds.foreach(b => index.iterator(b(0), b(1)).toArray sameElements leafsWithDups.slice(b(0), b(1)))
     }
@@ -218,11 +219,32 @@ class IndexSuite extends SparkSuite {
 
               assert(index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd).toFastIndexedSeq ==
                 index.iterator(lowerBoundIdx, upperBoundIdx).toFastIndexedSeq)
+
+              if (includesStart)
+                assert(index.iterateFrom(bounds(0)).toFastIndexedSeq ==
+                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length).toFastIndexedSeq)
+              if (!includesEnd)
+                assert(index.iterateUntil(bounds(1)).toFastIndexedSeq ==
+                  leafsWithDups.slice(0, upperBoundIdx).toFastIndexedSeq)
             } else
               intercept[IllegalArgumentException](index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd))
           }
         }
       }
+    }
+  }
+
+  @Test def testFromIterator() {
+    for (branchingFactor <- 2 to 5) {
+      val file = tmpDir.createTempFile("from", "idx")
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val index = new IndexReader(hc.hadoopConf, file)
+
+      val stringsNotInList = Array("aardvark", "crow", "elk", "otter", "zoo")
+      assert(stringsNotInList.forall(s => index.queryByKey(s).isEmpty))
+
+      val stringsInList = stringsWithDups.distinct
+      assert(stringsInList.forall(s => index.queryByKey(s) sameElements leafsWithDups.filter(_.key == s)))
     }
   }
 }
