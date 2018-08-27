@@ -31,6 +31,14 @@ spec:
             - mountPath: /hail-ci/gcloud-token
               readOnly: true
               name: hail-ci-0-1-service-account-key
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            # failure if CI is busy for > 120 seconds
+            failureThreshold: 12
       volumes:
         - name: hail-ci-0-1-service-account-key
           secret:
