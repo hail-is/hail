@@ -796,8 +796,8 @@ def grep(regex, path, max_count=100):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
-           _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')),
-           _variants_per_file=dictof(str, sequenceof(int)))
+           _row_fields=sequenceof(enumeration('varid', 'rsid')),
+           _variants=nullable(expr_array(expr_struct())))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -807,7 +807,7 @@ def import_bgen(path,
                 contig_recoding=None,
                 skip_invalid_loci=False,
                 _row_fields=['varid', 'rsid'],
-                _variants_per_file={}) -> MatrixTable:
+                _variants=None) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -939,11 +939,21 @@ def import_bgen(path,
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
+    if _variants is not None:
+        et = _variants.dtype.element_type
+        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint64)
+        if et != tstruct(locus=lt, alleles=tarray(tstr)):
+            raise ValueError("'import_bgen' requires the expression type for '_variants' must match the BGEN key type: \n" +
+                             f"\tFound: {et}\n" +
+                              f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+
+        _variants = _variants.dtype._convert_to_j(_variants.value)
+
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
-                                    joption(n_partitions), joption(block_size), joption(rg), contig_recoding,
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
+                                    'varid' in row_set, 'rsid' in row_set, joption(n_partitions),
+                                    joption(block_size), joption(rg), contig_recoding,
+                                    skip_invalid_loci, joption(_variants))
     return MatrixTable(jmt)
 
 

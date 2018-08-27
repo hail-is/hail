@@ -65,7 +65,7 @@ object LoadBgen {
         rg,
         Option(contigRecoding).getOrElse(Map.empty[String, String]),
         skipInvalidLoci,
-        Map.empty[String, Seq[Int]],
+        None,
         createIndex = true)
 
       val mt = new MatrixTable(hc, MatrixRead(
@@ -88,7 +88,7 @@ object LoadBgen {
         iw += (kf(r), r.getLong(offsetIdx), Row())
       }
       iw.close()
-      Iterator.empty
+      Iterator.single(1)
     }).collect()
   }
 
@@ -196,7 +196,7 @@ case class MatrixBGENReader(
   rg: Option[String],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
-  includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]],
+  includedVariants: Option[Seq[Annotation]],
   createIndex: Boolean) extends MatrixReader {
   private val hc = HailContext.get
   private val sc = hc.sc
@@ -286,17 +286,16 @@ case class MatrixBGENReader(
     abs
   }
 
-  private val includedVariantsPerFile = toMapIfUnique(
-    includedVariantsPerUnresolvedFilePath
-  )(absolutePath _
-  ) match {
-    case Left(duplicatedPaths) =>
-      fatal(s"""some relative paths in the import_bgen _variants_per_file
-                 |parameter have resolved to the same absolute path
-                 |$duplicatedPaths""".stripMargin)
-    case Right(m) =>
-      log.info(s"variant filters per file after path resolution is $m")
-      m
+  private val includedOffsetsPerFile = includedVariants match {
+    case Some(variants) if !createIndex =>
+      // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
+      files.map { f =>
+        val index = new IndexReader(hConf, f + ".idx")
+        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
+        index.close()
+        (absolutePath(f), offsets)
+      }.toMap
+    case _ => Map.empty[String, Array[Long]]
   }
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
@@ -356,11 +355,11 @@ case class MatrixBGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   lazy val fastKeys = BgenRDD(
-    sc, fileHeaders, inputNPartitions, includedVariantsPerFile,
+    sc, fileHeaders, inputNPartitions, includedOffsetsPerFile,
     BgenSettings(
       nSamples,
       NoEntries,
-      RowFields(false, false, false, false),
+      RowFields(false, false, false),
       referenceGenome,
       contigRecoding,
       skipInvalidLoci,
@@ -381,13 +380,12 @@ case class MatrixBGENReader(
     val requestedRowType = requestedType.rowType
     val includeLid = requestedRowType.hasField("varid")
     val includeRsid = requestedRowType.hasField("rsid")
-    val includeFileRowIdx = requestedRowType.hasField("file_row_idx")
     val includeOffset = requestedRowType.hasField("offset")
 
     val recordsSettings = BgenSettings(
       nSamples,
       EntriesWithFields(includeGT, includeGP, includeDosage),
-      RowFields(includeLid, includeRsid, includeFileRowIdx, includeOffset),
+      RowFields(includeLid, includeRsid, includeOffset),
       referenceGenome,
       contigRecoding,
       skipInvalidLoci,
@@ -398,7 +396,7 @@ case class MatrixBGENReader(
       OrderedRVD.empty(sc, requestedType.orvdType)
     else
       coercer.coerce(requestedType.orvdType,
-        BgenRDD(sc, fileHeaders, inputNPartitions, includedVariantsPerFile, recordsSettings))
+        BgenRDD(sc, fileHeaders, inputNPartitions, includedOffsetsPerFile, recordsSettings))
 
     MatrixValue(mr.typ,
       BroadcastRow(Row.empty, mr.typ.globalType, sc),

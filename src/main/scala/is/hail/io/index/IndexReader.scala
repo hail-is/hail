@@ -151,7 +151,13 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private[io] def upperBound(key: Annotation): Long =
     upperBound(key, height - 1, metadata.rootOffset)
 
-  def queryByKey(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
+  def queryByKey(key: Annotation): Array[LeafChild] = {
+    val ab = new ArrayBuilder[LeafChild]()
+    keyIterator(key).foreach(ab += _)
+    ab.result()
+  }
+
+  def keyIterator(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
     var pos = lowerBound(key)
     var current: LeafChild = _
 
