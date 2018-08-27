@@ -167,7 +167,7 @@ class IndexSuite extends SparkSuite {
       assert(stringsNotInList.forall(s => index.queryByKey(s).isEmpty))
 
       val stringsInList = stringsWithDups.distinct
-      assert(stringsInList.forall(s => index.queryByKey(s).toArray sameElements leafsWithDups.filter(_.key == s)))
+      assert(stringsInList.forall(s => index.queryByKey(s) sameElements leafsWithDups.filter(_.key == s)))
     }
   }
 
