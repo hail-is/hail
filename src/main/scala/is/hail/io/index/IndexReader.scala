@@ -84,31 +84,30 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
+  // Returns smallest i, 0 <= i < n, for which p(i) holds, or returns n if p(i) is false for all i.
+  // Assumes all i for which p(i) is true are greater than all i for which p(i) is false.
+  // Returned value j has the property that p(i) is false for all i in [0, j),
+  // and p(i) is true for all i in [j, n).
+  private def findPartitionPoint(n: Int, p: (Int) => Boolean): Int = {
     var left = 0
     var right = n
     while (left < right) {
       val mid = left + (right - left) / 2
-      if (ordering.lt(f(mid), key))
-        left = mid + 1
-      else
+      if (p(mid))
         right = mid
+      else
+        left = mid + 1
     }
-    left // if left < n and A[left] == key, leftmost element that equals key. Otherwise, left is the insertion point of key in A.
+    left
   }
 
-  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int = {
-    var left = 0
-    var right = n
-    while (left < right) {
-      val mid = left + (right - left) / 2
-      if (ordering.gt(f(mid), key))
-        right = mid
-      else
-        left = mid + 1
-    }
-    left // if left > 0 and A[left - 1] == key, rightmost element that equals key. Otherwise, left is the insertion point of key in A.
-  }
+  // Returns smallest i, 0 <= i < n, for which f(i) >= key, or returns n if f(i) < key for all i
+  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
+    findPartitionPoint(n, i => ordering.gteq(f(i), key))
+
+  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) > key for all i
+  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
+    findPartitionPoint(n, i => ordering.gt(f(i), key))
 
   private def lowerBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
