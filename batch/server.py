@@ -241,12 +241,32 @@ def delete_batch(batch_id):
     batch.delete()
     return jsonify({})
 
+running = True
+kube_watch = None
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    global running, kube_watch
+
+    running = False
+
+    f = request.environ.get('werkzeug.server.shutdown')
+    if f is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    f()
+
+    kube_watch.stop()
+
+    return jsonify({})
+
 def run_forever(target, *args, **kwargs):
+    global running
+    
     # target should be a function
     target_name = target.__name__
 
     expected_retry_interval_ms = 15 * 1000 # 15s
-    while True:
+    while running:
         start = time.time()
         try:
             log.info(f'run_forever: run target {target_name}')
@@ -263,10 +283,13 @@ def run_forever(target, *args, **kwargs):
             time.sleep(t / 1000.0)
 
 def flask_event_loop():
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', use_reloader=False)
 
 def kube_event_loop():
-    stream = kube.watch.Watch().stream(v1.list_namespaced_pod, 'default')
+    global kube_watch
+
+    kube_watch = kube.watch.Watch()
+    stream = kube_watch.stream(v1.list_namespaced_pod, 'default', timeout_seconds=1)
     for event in stream:
         event_type = event['type']
         pod = event['object']
@@ -297,3 +320,5 @@ kube_thread.start()
 # flask_thread = threading.Thread(target=flask_event_loop)
 # flask_thread.start()
 run_forever(flask_event_loop)
+
+kube_thread.join()
