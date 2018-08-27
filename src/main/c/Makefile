@@ -7,8 +7,10 @@ UNAME_P :=$(shell uname -p)
 
 .PHONY: all clean debug test libsimdpp
 
-BUILD := build
-BUILD_FORCE := $(shell mkdir -p $(BUILD))
+BUILD :=build
+
+# Change this setting to update the version of libsimdpp
+LIBSIMDPP :=libsimdpp-2.1
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
@@ -73,13 +75,8 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
   CXXFLAGS += -march=sandybridge
 endif
 
-<<<<<<< HEAD
-# append existing flags so they override our flags
-CXXFLAGS += -O3 -march=native $(CXXSTD) -Ilibsimdpp-2.1 -Wall -Werror
-=======
 # Append to any inherited flags which survived filtering
-CXXFLAGS += -O3 $(CXXSTD) -Ilibsimdpp-2.0-rc2 -Wall -Werror
->>>>>>> f46e059... support for Scala-generated C++
+CXXFLAGS += -O3 $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -100,7 +97,7 @@ ifeq ($(UNAME_S),Darwin)
   LIBHAIL := lib/darwin/libhail.dylib
 endif
 
-all: libsimdpp-2.0-rc2 $(BUILD) $(LIBBOOT) $(LIBHAIL)
+all: $(BUILD) $(LIBBOOT) $(LIBHAIL)
 
 $(BUILD):
 	-mkdir -p $@
@@ -127,7 +124,7 @@ test: $(BUILD)/functional-tests
 	./$(BUILD)/functional-tests
 
 clean:
-	-rm -rf $(BUILD) lib libsimdpp-2.0-rc2 $(LIBBOOT) $(LIBHAIL)
+	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
 
 # The $(BUILD)/headers target is updated whenever any .h file has changed
 # under either the source directory, *or* the ../resources/include tree.
@@ -140,7 +137,7 @@ clean:
 # clean-rebuild time is short (compared to other parts of the build process),
 # this seems good enough, and simpler than managing precise dependencies.
 
-$(BUILD)/headers: $(shell find . -name "*.h"; find ../resources/include -name "*.h")
+$(BUILD)/headers: $(LIBSIMDPP) $(shell find . -name "*.h"; find ../resources/include -name "*.h")
 	touch $@
 
 $(BUILD_OBJECTS) $(BUILD)/NativeBoot.o: $(BUILD)/headers
@@ -163,27 +160,16 @@ $(BUILD)/NativeModule.o: NativeModule.cpp
 # succeed without attempting to access the Internet.
 # WGET ?= wget
 WGET ?= curl -L -O
-<<<<<<< HEAD
-libsimdpp-2.1.tar.gz:
-	${WGET} https://storage.googleapis.com/hail-common/$@
-=======
-libsimdpp-2.0-rc2.tar.gz:
-	$(WGET) https://storage.googleapis.com/hail-common/libsimdpp-2.0-rc2.tar.gz
->>>>>>> f46e059... support for Scala-generated C++
+$(LIBSIMDPP).tar.gz:
+	$(WGET) https://storage.googleapis.com/hail-common/$@
 
-libsimdpp-2.1: libsimdpp-2.1.tar.gz
+$(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
-<<<<<<< HEAD
-$(shared_library): libsimdpp-2.1 ${OBJECTS}
-	mkdir -p $(dir $(shared_library))
-	${CXX} ${LIBFLAGS} ${LIBDIRS} ${CXXFLAGS} ${OBJECTS} -o $@ 
-=======
 $(LIBBOOT): $(BUILD)/NativeBoot.o
 	-mkdir -p $(basename $(LIBBOOT))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
->>>>>>> f46e059... support for Scala-generated C++
 
-$(LIBHAIL): $(BUILD_OBJECTS)
+$(LIBHAIL): $(LIBSIMDPP) $(BUILD_OBJECTS)
 	-mkdir -p $(basename $(LIBHAIL))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@ 
