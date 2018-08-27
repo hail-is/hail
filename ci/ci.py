@@ -259,6 +259,11 @@ def cancel_existing_jobs(source_url, source_ref, target_url, target_ref):
         log.info(f'cancelling existing job {id} due to pr status update')
         try_to_cancel_job_by_id(id)
 
+@app.route('/healthcheck')
+def healthcheck():
+    return '', 200
+
+
 @app.route('/status')
 def status():
     return jsonify({
