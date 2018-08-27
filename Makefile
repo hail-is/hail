@@ -1,3 +1,13 @@
+.PHONY: hail-ci-build-image
+
+hail-ci-build-image:
+	docker build -t batch-pr-builder -f Dockerfile.pr-builder .
+	echo "gcr.io/broad-ctsa/batch-pr-builder:`docker images -q --no-trunc batch-pr-builder | sed -e 's,[^:]*:,,'`" > hail-ci-build-image
+	docker tag batch-pr-builder `cat hail-ci-build-image`
+
+push-hail-ci-build-image: hail-ci-build-image
+	docker push `cat hail-ci-build-image`
+
 build: build-batch build-test
 
 build-batch:
