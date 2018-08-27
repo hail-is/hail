@@ -50,7 +50,7 @@ object MathFunctions extends RegistryFunctions {
         math.abs(x - y) <= tolerance
       else
         D_==(x, y, tolerance)
-    withinTol || (nanSame && x.isNaN && y.isNaN)
+    x == y || withinTol || (nanSame && x.isNaN && y.isNaN)
   }
 
   def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {

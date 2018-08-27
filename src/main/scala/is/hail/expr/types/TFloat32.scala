@@ -36,7 +36,7 @@ class TFloat32(override val required: Boolean) extends TNumeric {
         else
           D_==(f1, f2, tolerance)
 
-      withinTol || (f1.isNaN && f2.isNaN)
+      f1 == f2 || withinTol || (f1.isNaN && f2.isNaN)
     })
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
