@@ -101,8 +101,8 @@ class Job(object):
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
         self.log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
 
-        log.info('job {} complete, exit_code {}, log:\n{}'.format(
-            self.id, self.exit_code, self.log))
+        log.info('job {} complete, exit_code {}'.format(
+            self.id, self.exit_code))
         self.set_state('Complete')
 
         if self.callback:
