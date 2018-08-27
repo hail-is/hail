@@ -146,7 +146,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
                 rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
             } catch {
               case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """)
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
             }
             i += 1
           }
@@ -349,11 +349,12 @@ object TableJoin {
   *
   * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
   * and 'right' has multiple rows with the corresponding join key
-  * [k_1, ..., k_j], then the resulting table will have out-of-order keys. To
-  * avoid this, ensure one of the following:
+  * [k_1, ..., k_j] but distinct full keys, then the resulting table will have
+  * out-of-order keys. To avoid this, ensure one of the following:
   *   * j == m
   *   * 'left' has distinct keys
-  *   * 'right' has distinct join keys (no repeated length j prefix)
+  *   * 'right' has distinct join keys (length j prefix), or at least no
+  *     distinct keys with the same join key.
   */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
   extends TableIR {
@@ -381,7 +382,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   private val joinedGlobalFields = left.typ.globalType.fields ++ right.typ.globalType.fields
   private val (finalGlobalNames, _) = mangle(joinedGlobalFields.map(_.name).toArray)
   val newGlobalType = TStruct(joinedGlobalFields.zipWithIndex.map {
-    case (fd, i) => (finalGlobalNames(i), fd.typ)
+    case (field, i) => (finalGlobalNames(i), field.typ)
   }: _*)
 
   val rightFieldMapping: Map[String, String] = {
@@ -391,12 +392,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 
   val newRowType = TStruct(joinedFields.zipWithIndex.map {
-    case (fd, i) => (finalColumnNames(i), fd.typ)
+    case (field, i) => (finalColumnNames(i), field.typ)
   }: _*)
 
   val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
 
-  val typ: TableType = TableType(newRowType, Some(newKey), left.typ.globalType)
+  val typ: TableType = TableType(newRowType, Some(newKey), newGlobalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
     assert(newChildren.length == 2)

@@ -3,7 +3,6 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.sparkextras._
 import is.hail.utils.fatal
-import org.apache.spark.rdd.RDD
 
 import scala.collection.generic.Growable
 
@@ -16,16 +15,16 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
   private def checkJoinCompatability(right: KeyedOrderedRVD) {
     if (!(kType isIsomorphicTo right.kType))
       fatal(
-        s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ kType.toString }
-           | Right key type: ${ right.kType.toString }
+        s"""Incompatible join keys. Keys must have same length and types, in order:
+           | Left join key type: ${ kType.toString }
+           | Right join key type: ${ right.kType.toString }
          """.stripMargin)
   }
 
   // 'joinedType.key' must be the join key, followed by the remaining left key,
-  // followed by the remaining right key, with possible renaming. 'joiner'
-  // must copy these 'joinedType.key' fields from the corresponding fields in
-  // the JoinedRegionValue.
+  // followed by the (possibly renamed) remaining right key. 'joiner' must copy
+  // these 'joinedType.key' fields from the corresponding fields in the
+  // JoinedRegionValue.
   def orderedJoin(
     right: KeyedOrderedRVD,
     joinType: String,
