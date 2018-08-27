@@ -34,9 +34,9 @@ RUN unzip plink_linux_x86_64.zip && \
     ln -s /plink/plink /bin/plink
 
 WORKDIR /qctool
-ADD http://www.well.ox.ac.uk/~gav/resources/qctool_v2.0.1-CentOS6.8-x86_64.tgz /qctool
-RUN tar --strip-components=1 -xvzf qctool_v2.0.1-CentOS6.8-x86_64.tgz -C /qctool && \
-    rm -rf qctool_v2.0.1-CentOS6.8-x86_64.tgz && \
+ADD http://www.well.ox.ac.uk/~gav/qctool_v1/resources/qctool_v1.4-linux-x86_64.tgz /qctool
+RUN tar --strip-components=1 -xvzf qctool_v1.4-linux-x86_64.tgz -C /qctool && \
+    rm -rf qctool_v1.4-linux-x86_64.tgz && \
     ln -s /qctool/qctool /bin/qctool
 
 WORKDIR /spark
