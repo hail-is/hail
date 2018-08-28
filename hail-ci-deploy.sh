@@ -9,8 +9,8 @@ source activate hail
 GRADLE_OPTS=-Xmx2048m ./gradlew \
            shadowJar \
            archiveZip \
-           makeDocsNoTest \
-           createPackageNoTest \
+           makeDocs \
+           createPackage \
            --gradle-user-home /gradle-cache
 SHA=$(git rev-parse --short=12 HEAD)
 
