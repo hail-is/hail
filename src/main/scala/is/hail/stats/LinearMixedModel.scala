@@ -132,10 +132,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
 
     val rdd = pa_t.rows.mapPartitions { itPAt =>
-      val LMMData(_, nullResidualSq, py0, px0, d0, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
-      val py = py0
-      val px = px0
-      val d = d0
+      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
  
@@ -145,9 +142,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val py0a = py0.toArray
-      val px0a = px0.toArray
-      val d0a = d0.toArray
+      val py0a = py.toArray
+      val px0a = px.toArray
+      val d0a = d.toArray
       val xdy0a = xdy0(1 until f).toArray
       val xdx0a = xdx0(1 until f, 1 until f).toArray
       
@@ -178,11 +175,11 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
             s"i=$i, ${i / 4096}, ${i % 4096}\n\n" +
             s"pa=${pa(0 until 10)}\n\n" +
             s"py=${py(0 until 10)}\n\n" +
-            s"py0=${py0(0 until 10)}\n\n" +
+            s"py0=${py0a.slice(0, 10)}\n\n" +
             s"px=${px(0 until 10, 0 until 10)}\n\n" +
-            s"px0=${px0(0 until 10, 0 until 10)}\n\n" +
+            s"px0=${px0a.slice(0, 10)}\n\n" +
             s"d=${d(0 until 10)}\n\n" +
-            s"d0=${d0(0 until 10)}\n\n" +
+            s"d0=${d0a.slice(0, 10)}\n\n" +
             s"xdy=$xdy\n\n" +
             s"xdy0=$xdy0\n\n" +
             s"xdx=$xdx\n\n" +
