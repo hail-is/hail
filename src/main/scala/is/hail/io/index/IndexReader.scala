@@ -150,6 +150,21 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private[io] def upperBound(key: Annotation): Long =
     upperBound(key, height - 1, metadata.rootOffset)
 
+  private def getLeafNode(index: Long, level: Int, offset: Long): LeafNode = {
+    if (level == 0) {
+      readLeafNode(offset)
+    } else {
+      val node = readInternalNode(offset)
+      val firstIndex = node.firstIndex
+      val nKeysPerChild = math.pow(branchingFactor, level).toLong
+      val localIndex = (index - firstIndex) / nKeysPerChild
+      getLeafNode(index, level - 1, node.children(localIndex.toInt).indexFileOffset)
+    }
+  }
+
+  private def getLeafNode(index: Long): LeafNode =
+    getLeafNode(index, height - 1, metadata.rootOffset)
+
   def queryByKey(key: Annotation): Array[LeafChild] = {
     val ab = new ArrayBuilder[LeafChild]()
     keyIterator(key).foreach(ab += _)
@@ -157,37 +172,24 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   }
 
   def keyIterator(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
-    var pos = lowerBound(key)
+    val it = iterateFrom(key)
     var current: LeafChild = _
 
     def next(): LeafChild = current
 
     def hasNext(): Boolean = {
-      pos < nKeys && {
-        current = queryByIndex(pos)
-        pos += 1
+      it.hasNext && {
+        current = it.next()
         ordering.equiv(current.key, key)
       }
     }
   }
 
-  private def queryByIndex(index: Long, level: Int, offset: Long): LeafChild = {
-    if (level == 0) {
-      val node = readLeafNode(offset)
-      val localIdx = index - node.firstIndex
-      node.children(localIdx.toInt)
-    } else {
-      val node = readInternalNode(offset)
-      val firstIndex = node.firstIndex
-      val nKeysPerChild = math.pow(branchingFactor, level).toLong
-      val localIndex = (index - firstIndex) / nKeysPerChild
-      queryByIndex(index, level - 1, node.children(localIndex.toInt).indexFileOffset)
-    }
-  }
-
   def queryByIndex(index: Long): LeafChild = {
     require(index >= 0 && index < nKeys)
-    queryByIndex(index, height - 1, metadata.rootOffset)
+    val node = getLeafNode(index)
+    val localIdx = index - node.firstIndex
+    node.children(localIdx.toInt)
   }
 
   def queryByInterval(interval: Interval): Iterator[LeafChild] =
@@ -205,11 +207,20 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   def iterator(start: Long, end: Long) = new Iterator[LeafChild] {
     assert(start >= 0 && end <= nKeys && start <= end)
     var pos = start
+    var localPos = 0L
+    var leafNode: LeafNode = _
 
     def next(): LeafChild = {
-      val lc = queryByIndex(pos)
+      if (leafNode == null || localPos >= leafNode.children.length) {
+        leafNode = getLeafNode(pos)
+        assert(leafNode.firstIndex <= pos && pos < leafNode.firstIndex + branchingFactor)
+        localPos = pos - leafNode.firstIndex
+      }
+
+      val child = leafNode.children(localPos.toInt)
       pos += 1
-      lc
+      localPos += 1
+      child
     }
 
     def hasNext: Boolean = pos < end

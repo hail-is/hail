@@ -70,8 +70,6 @@ class IndexSuite extends SparkSuite {
         })
       }
 
-      assert(index.iterator.toArray sameElements data.zipWithIndex.map { case (s, i) => LeafChild(s, i, a(i)) })
-
       index.close()
     }
   }
@@ -150,11 +148,14 @@ class IndexSuite extends SparkSuite {
   @Test def testRangeIterator() {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("range", "idx")
-      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
+      val a = { (i: Int) => Row() }
+      writeIndex(file, stringsWithDups, stringsWithDups.indices.map(a).toArray, TStruct(required = true), branchingFactor)
       val index = new IndexReader(hc.hadoopConf, file)
 
       val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
       bounds.foreach(b => index.iterator(b(0), b(1)).toArray sameElements leafsWithDups.slice(b(0), b(1)))
+
+      assert(index.iterator.toArray sameElements stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(s, i, a(i)) })
     }
   }
 
