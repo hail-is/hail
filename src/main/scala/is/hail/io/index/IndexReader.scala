@@ -105,7 +105,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
     findPartitionPoint(n, i => ordering.gteq(f(i), key))
 
-  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) > key for all i
+  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) <= key for all i
   private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
     findPartitionPoint(n, i => ordering.gt(f(i), key))
 
@@ -118,15 +118,17 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       val node = readInternalNode(offset)
       val children = node.children
       val n = children.length
-      if (n == 0)
-        return node.firstIndex
-      val idx = binarySearchLowerBound(n, key, { i => children(i).lastKey })
-      lowerBound(key, level - 1, children(math.min(idx, n - 1)).indexFileOffset)
+      val idx = binarySearchLowerBound(n, key, { i => children(i).firstKey })
+      lowerBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
 
-  private[io] def lowerBound(key: Annotation): Long =
-    lowerBound(key, height - 1, metadata.rootOffset)
+  private[io] def lowerBound(key: Annotation): Long = {
+    if (nKeys == 0 || ordering.lteq(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+      0
+    else
+      lowerBound(key, height - 1, metadata.rootOffset)
+  }
 
   private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
@@ -137,18 +139,17 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       val node = readInternalNode(offset)
       val children = node.children
       val n = children.length
-      if (n == 0)
-        return node.firstIndex
       val idx = binarySearchUpperBound(n, key, { i => children(i).firstKey })
-      if (idx > 0 && ordering.lteq(key, children(idx - 1).lastKey)) // upper bound returns one past the child index where the key may reside
-        upperBound(key, level - 1, children(idx - 1).indexFileOffset)
-      else
-        upperBound(key, level - 1, children(math.min(idx, n - 1)).indexFileOffset)
+      upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
 
-  private[io] def upperBound(key: Annotation): Long =
-    upperBound(key, height - 1, metadata.rootOffset)
+  private[io] def upperBound(key: Annotation): Long = {
+    if (nKeys == 0 || ordering.lt(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+      0
+    else
+      upperBound(key, height - 1, metadata.rootOffset)
+  }
 
   private def getLeafNode(index: Long, level: Int, offset: Long): LeafNode = {
     if (level == 0) {
