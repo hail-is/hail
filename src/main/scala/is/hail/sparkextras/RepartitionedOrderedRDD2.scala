@@ -56,7 +56,7 @@ class RepartitionedOrderedRDD2(prev: OrderedRVD, newRangeBounds: IndexedSeq[Inte
         }.dropWhile { rv =>
           ur.set(rv)
           pord.lt(key, range.left)
-        }.takeWhile { rv =>
+        }.filter { rv =>
           ur.set(rv)
           pord.lteq(key, range.right)
         }
