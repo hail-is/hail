@@ -326,7 +326,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Notes
     -----
-    :func:`export_vcf` writes the dataset to disk in VCF format as described in the
+    :func:`.export_vcf` writes the dataset to disk in VCF format as described in the
     `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
     Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name
@@ -388,7 +388,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     filtered dataset is exported to VCF without updating `info`, downstream
     tools which may produce erroneous results. The solution is to create new
     fields in `info` or overwrite existing fields. For example, in order to
-    produce an accurate `AC` field, one can run :func:`variant_qc` and copy
+    produce an accurate `AC` field, one can run :func:`.variant_qc` and copy
     the `variant_qc.AC` field to `info.AC` as shown below.
 
     >>> ds = dataset.filter_entries(dataset.GQ >= 20)

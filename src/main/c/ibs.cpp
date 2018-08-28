@@ -15,10 +15,10 @@ uint64_t vector_popcnt(uint64vector x) {
   count += __builtin_popcountll(extract<1>(x));
   #endif
   #elif UINT64_VECTOR_SIZE == 4
-  uint64_t count = __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 0));
-  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 1));
-  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 2));
-  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 3));
+  uint64_t count = __builtin_popcountll(_mm256_extract_epi64(x.native(), 0));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.native(), 1));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.native(), 2));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.native(), 3));
   #else
   #error "we do not support vectors longer than 4, please file an issue"
   #endif

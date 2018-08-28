@@ -406,7 +406,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def aggregate(expr: String): (Any, Type) =
-    aggregate(Parser.parse_value_ir(expr, typ.refMap))
+    aggregate(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
   def aggregate(query: IR): (Any, Type) = {
     val t = ir.TableAggregate(tir, query)
@@ -414,19 +414,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
-    val at = TStruct(name -> t)
-    val value = BroadcastRow(Row(a), at, hc.sc)
     new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal(t, a, ir.genUID())))))
   }
 
   def selectGlobal(expr: String): Table = {
-    val ir = Parser.parse_value_ir(expr, typ.refMap)
-    new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
+    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
+    new Table(hc, TableMapGlobals(tir, ir))
   }
 
   def filter(cond: String, keep: Boolean): Table = {
-    var irPred = Parser.parse_value_ir(cond, typ.refMap)
+    var irPred = Parser.parse_value_ir(cond, IRParserEnvironment(typ.refMap))
     new Table(hc,
       TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
   }
@@ -466,7 +464,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
   def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
-    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     select(ir, newKey, preservedKeyFields)
   }
 
@@ -528,8 +526,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
     new Table(hc, TableKeyByAndAggregate(tir,
-      Parser.parse_value_ir(expr, typ.refMap),
-      Parser.parse_value_ir(key, typ.refMap),
+      Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)),
+      Parser.parse_value_ir(key, IRParserEnvironment(typ.refMap)),
       nPartitions,
       bufferSize
     ))
@@ -539,7 +537,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
 
   def aggregateByKey(expr: String): Table = {
-    val x = Parser.parse_value_ir(expr, typ.refMap)
+    val x = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableAggregateByKey(tir, x))
   }
 

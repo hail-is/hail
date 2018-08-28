@@ -1,5 +1,15 @@
-Import / Export
+.. _methods_impex:
+
+Export / Import
 ---------------
+
+.. _methods_impex_export:
+
+Export
+~~~~~~
+
+Export data from a Hail format into a non-Hail format. There is also
+a :meth:`.Table.export` method for exporting a table to a .tsv file.
 
 .. currentmodule:: hail.methods
 
@@ -13,6 +23,17 @@ Import / Export
     export_plink
     export_vcf
     get_vcf_metadata
+
+
+.. _methods_impex_import:
+
+Import
+~~~~~~
+
+Import data from a non-Hail format into a Hail format.
+
+.. autosummary::
+
     import_bed
     import_bgen
     index_bgen
@@ -23,6 +44,16 @@ Import / Export
     import_plink
     import_table
     import_vcf
+
+.. _methods_impex_read:
+
+Read
+~~~~
+
+Read data from a Hail format.
+
+.. autosummary::
+
     read_matrix_table
     read_table
 

@@ -111,12 +111,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def toTTuple: TTuple = new TTuple(types, required)
 
-  override def getOption(path: List[String]): Option[Type] =
-    if (path.isEmpty)
-      Some(this)
-    else
-      selfField(path.head).map(_.typ).flatMap(t => t.getOption(path.tail))
-
   override def fieldOption(path: List[String]): Option[Field] =
     if (path.isEmpty)
       None
@@ -143,41 +137,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
               q(a.asInstanceOf[Row].get(localIndex)))
         case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
       }
-    }
-  }
-
-  override def delete(p: List[String]): (Type, Deleter) = {
-    if (p.isEmpty)
-      (TStruct.empty(), a => null)
-    else {
-      val key = p.head
-      val f = selfField(key) match {
-        case Some(f) => f
-        case None => throw new AnnotationPathException(s"$key not found")
-      }
-      val index = f.index
-      val (newFieldType, d) = f.typ.delete(p.tail)
-      val newType: Type =
-        if (newFieldType == TStruct.empty())
-          deleteKey(key, f.index)
-        else
-          updateKey(key, f.index, newFieldType)
-
-      val localDeleteFromRow = newFieldType == TStruct.empty()
-
-      val deleter: Deleter = { a =>
-        if (a == null)
-          null
-        else {
-          val r = a.asInstanceOf[Row]
-
-          if (localDeleteFromRow)
-            r.deleteField(index)
-          else
-            r.update(index, d(r.get(index)))
-        }
-      }
-      (newType, deleter)
     }
   }
 
@@ -313,41 +272,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       newFields(i) = fields(i)
     newFields(fields.length) = Field(key, sig, fields.length)
     TStruct(newFields, required)
-  }
-
-  def merge(other: TStruct): (TStruct, Merger) = {
-    val intersect = fields.map(_.name).toSet
-      .intersect(other.fields.map(_.name).toSet)
-
-    if (intersect.nonEmpty)
-      fatal(
-        s"""Invalid merge operation: cannot merge structs with same-name ${ plural(intersect.size, "field") }
-           |  Found these fields in both structs: [ ${
-          intersect.map(s => prettyIdentifier(s)).mkString(", ")
-        } ]
-           |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
-
-    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
-
-    val size1 = size
-    val size2 = other.size
-    val targetSize = newStruct.size
-
-    val merger = (a1: Annotation, a2: Annotation) => {
-      if (a1 == null && a2 == null)
-        null
-      else {
-        val s1 = Option(a1).map(_.asInstanceOf[Row].toSeq)
-          .getOrElse(Seq.fill[Any](size1)(null))
-        val s2 = Option(a2).map(_.asInstanceOf[Row].toSeq)
-          .getOrElse(Seq.fill[Any](size2)(null))
-        val newValues = s1 ++ s2
-        assert(newValues.size == targetSize)
-        Annotation.fromSeq(newValues)
-      }
-    }
-
-    (newStruct, merger)
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
@@ -530,19 +454,5 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
     val f = field(fieldName)
     loadField(region, fieldOffset(offset, f.index), f.index)
-  }
-
-  def uniqueFieldName(base: String): String = {
-    val fieldNames = fields.map(_.name).toSet
-    if (fieldNames.contains(base)) {
-      var i = 0
-      var candidate = base + i.toString
-      while (fieldNames.contains(candidate)) {
-        i += 1
-        candidate = base + i.toString
-      }
-      candidate
-    } else
-      base
   }
 }

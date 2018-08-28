@@ -76,15 +76,13 @@ class Env:
 
     @staticmethod
     def set_seed(seed):
-        from random import Random
-        Env._seed_generator = Random(seed)
+        Env._seed_generator = hail.utils.HailSeedGenerator(seed)
 
     @staticmethod
     def next_seed():
         if Env._seed_generator is None:
             Env.set_seed(None)
-        return Env._seed_generator.randint(0, 9223372036854775807)
-
+        return Env._seed_generator.next_seed()
 
 
 def jarray(jtype, lst):

@@ -74,7 +74,7 @@ case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
 
   def hasNaNs: Boolean = ibd.hasNaNs
 
-  def toAnnotation: Annotation = Annotation(ibd.toAnnotation, ibs0, ibs1, ibs2)
+  def makeRow(i: Any, j: Any): Row = Row(i, j, ibd.toAnnotation, ibs0, ibs1, ibs2)
 
   def toRegionValue(rvb: RegionValueBuilder) {
     rvb.startStruct()
@@ -322,10 +322,10 @@ object IBD {
     new Table(vds.hc, ktRdd2, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 
-  private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
+  private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
 
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
+    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
     Table(sc, ktRdd, ibdSignature, Some(IndexedSeq("i", "j")))
   }
 

@@ -9,13 +9,13 @@ object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
     x match {
       case _: Apply |
-        _: ApplyUnaryPrimOp |
-        _: ApplyBinaryPrimOp |
-        _: ArrayRange |
-        _: ArrayRef |
-        _: ArrayLen |
-        _: GetField |
-        _: GetTupleElement => true
+           _: ApplyUnaryPrimOp |
+           _: ApplyBinaryPrimOp |
+           _: ArrayRange |
+           _: ArrayRef |
+           _: ArrayLen |
+           _: GetField |
+           _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
       case f: ApplySeeded => f.implementation.isStrict
       case _ => false
@@ -47,8 +47,41 @@ object Simplify {
     }
   }
 
+  private[this] def storeRepartitionability(
+    x: BaseIR,
+    repartitionability: Memo[(Boolean, Boolean)],
+    downstreamOK: Boolean
+  ): Unit = {
+    if (repartitionability.get(x).forall(_._1 != downstreamOK)) {
+      val selfOK = repartitionability.getOrElse(x, true -> x.children.forall {
+        case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
+        case _ => true
+      })._2
+      x.children.foreach(storeRepartitionability(_, repartitionability, downstreamOK && selfOK))
+      repartitionability.update(x, downstreamOK -> selfOK)
+    }
+  }
+
   def apply(ir: BaseIR): BaseIR = {
-    RewriteBottomUp(ir, matchErrorToNone {
+    val repartitionabilityMap = Memo.empty[(Boolean, Boolean)]
+
+    val canRepartition = { node: BaseIR =>
+      val (downstream, self) = repartitionabilityMap(node)
+      downstream && self
+    }
+
+    RewriteBottomUp(ir, { node =>
+      val (downstream, _) = repartitionabilityMap.getOrElse(node, true -> true)
+      storeRepartitionability(node, repartitionabilityMap, downstream)
+      rules(canRepartition)(node).map { rewritten =>
+        storeRepartitionability(rewritten, repartitionabilityMap, downstream)
+        rewritten
+      }
+    })
+  }
+
+  def rules(canRepartition: BaseIR => Boolean): BaseIR => Option[BaseIR] =
+    matchErrorToNone {
       // optimize IR
 
       // propagate NA
@@ -167,13 +200,13 @@ object Simplify {
         TableFilter(t,
           ApplySpecial("&&", Array(p1, p2)))
 
-      case TableFilter(TableOrderBy(child, sortFields), pred) =>
+      case t@TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition(t) =>
         TableOrderBy(TableFilter(child, pred), sortFields)
 
-      case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
+      case t@TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition(t) =>
         TableKeyBy(child, keys, false)
 
-      case TableCount(TableMapGlobals(child, _, _)) => TableCount(child)
+      case TableCount(TableMapGlobals(child, _)) => TableCount(child)
 
       case TableCount(TableMapRows(child, _, _)) => TableCount(child)
 
@@ -200,22 +233,22 @@ object Simplify {
       case SelectFields(SelectFields(old, _), fields) =>
         SelectFields(old, fields)
 
-        // flatten unions
-      case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
+      // flatten unions
+      case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) & children.forall(canRepartition(_)) =>
         TableUnion(children.flatMap {
           case u: TableUnion => u.children
           case c => Some(c)
         })
 
-      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) =>
+      case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) & children.forall(canRepartition(_)) =>
         MatrixUnionRows(children.flatMap {
           case u: MatrixUnionRows => u.children
           case c => Some(c)
         })
 
       // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
-//      case MatrixRowsTable(MatrixUnionRows(children)) =>
-//        TableUnion(children.map(MatrixRowsTable))
+      //      case MatrixRowsTable(MatrixUnionRows(children)) =>
+      //        TableUnion(children.map(MatrixRowsTable))
 
       case MatrixColsTable(MatrixUnionRows(children)) =>
         MatrixColsTable(children(0))
@@ -247,7 +280,7 @@ object Simplify {
         TableFilter(
           mrt,
           Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
-      case MatrixRowsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixRowsTable(child), newRow, value)
+      case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
       case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
@@ -256,8 +289,8 @@ object Simplify {
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
-      case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
+      case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) && canRepartition(x) =>
         val mct = MatrixColsTable(child)
         TableMapRows(
           mct,
@@ -269,7 +302,7 @@ object Simplify {
         TableFilter(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
-      case MatrixColsTable(MatrixMapGlobals(child, newRow, value)) => TableMapGlobals(MatrixColsTable(child), newRow, value)
+      case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
       case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
@@ -278,9 +311,9 @@ object Simplify {
 
       case TableHead(TableMapRows(child, newRow, newKey), n) =>
         TableMapRows(TableHead(child, n), newRow, newKey)
-      case TableHead(TableRepartition(child, nPar, shuffle), n) =>
+      case t@TableHead(TableRepartition(child, nPar, shuffle), n) if canRepartition(t) =>
         TableRepartition(TableHead(child, n), nPar, shuffle)
-      case TableHead(tr@TableRange(nRows, nPar), n) =>
+      case t@TableHead(tr@TableRange(nRows, nPar), n) if canRepartition(t) =>
         if (n < nRows)
           TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
         else
@@ -290,10 +323,10 @@ object Simplify {
           TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
         else
           x
-      case TableHead(TableMapGlobals(child, newRow, value), n) =>
-        TableMapGlobals(TableHead(child, n), newRow, value)
-      case TableHead(TableOrderBy(child, sortFields), n)
-        if sortFields.forall(_.sortOrder == Ascending) && n < 256 =>
+      case TableHead(TableMapGlobals(child, newRow), n) =>
+        TableMapGlobals(TableHead(child, n), newRow)
+      case t@TableHead(TableOrderBy(child, sortFields), n)
+        if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition(t) =>
         // n < 256 is arbitrary for memory concerns
         val uid = genUID()
         val row = Ref("row", child.typ.rowType)
@@ -314,13 +347,12 @@ object Simplify {
         TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
-      case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
+      case t@TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition(t) =>
         TableDistinct(TableKeyBy(TableMapRows(TableUnkey(child), k, None), keyFields.map(_._1).toFastIndexedSeq))
-      case TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
-        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) =>
+      case t@TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
+        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) && canRepartition(t) =>
         TableAggregateByKey(child, expr)
-      case TableAggregateByKey(TableKeyBy(child, keys, _), expr) =>
+      case t@TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition(t) =>
         TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
-    })
-  }
+    }
 }

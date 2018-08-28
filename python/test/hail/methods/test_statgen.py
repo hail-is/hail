@@ -629,7 +629,8 @@ class Tests(unittest.TestCase):
 
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
 
@@ -660,7 +661,8 @@ class Tests(unittest.TestCase):
 
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=4)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
         g_std = self._filter_and_standardize_cols(g)
@@ -694,7 +696,8 @@ class Tests(unittest.TestCase):
 
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], seed=0, n_partitions=2)
+        hl.set_global_seed(0)
+        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 
@@ -831,9 +834,9 @@ class Tests(unittest.TestCase):
         rkin = self._R_pc_relate(mt, 0.00).cache()
 
         self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3, absolute=True))
-        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1.3e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2.6e-2, absolute=True))
+        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1.3e-2, absolute=True))
 
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
@@ -965,13 +968,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     def test_balding_nichols_model(self):
-        from hail.stats import TruncatedBetaDist
-
+        hl.set_global_seed(1)
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
-                                      af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
-                                      seed=1)
+                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
+
+        ds.entries().show(100, width=200)
 
         self.assertEqual(ds.count_cols(), 20)
         self.assertEqual(ds.count_rows(), 25)
@@ -983,9 +986,69 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.n_variants.value, 25)
         self.assertEqual(glob.pop_dist.value, [1, 2])
         self.assertEqual(glob.fst.value, [.02, .06])
-        self.assertEqual(glob.seed.value, 1)
-        self.assertEqual(glob.ancestral_af_dist.value,
-                         hl.Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
+
+    def test_balding_nichols_model_same_results(self):
+        hl.set_global_seed(1)
+        ds1 = hl.balding_nichols_model(2, 20, 25, 3,
+                                       pop_dist=[1.0, 2.0],
+                                       fst=[.02, .06],
+                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
+        hl.set_global_seed(1)
+        ds2 = hl.balding_nichols_model(2, 20, 25, 3,
+                                       pop_dist=[1.0, 2.0],
+                                       fst=[.02, .06],
+                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
+        self.assertTrue(ds1._same(ds2))
+
+    def test_balding_nichols_model_af_ranges(self):
+        def test_af_range(rand_func, min, max, seed):
+            hl.set_global_seed(seed)
+            bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func)
+            self.assertTrue(
+                bn.aggregate_rows(
+                    hl.agg.all((bn.ancestral_af > min) &
+                               (bn.ancestral_af < max))))
+
+        test_af_range(hl.rand_beta(.01, 2, .2, .8), .2, .8, 0)
+        test_af_range(hl.rand_beta(3, 3, .4, .6), .4, .6, 1)
+        test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
+        test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
+
+    def test_balding_nichols_stats(self):
+        def test_stat(k, n, m, seed):
+            hl.set_global_seed(seed)
+            bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9))
+
+            # test pop distribution
+            pop_counts = bn.aggregate_cols(hl.agg.group_by(bn.pop, hl.agg.count()))
+            for i, count in pop_counts.items():
+                self.assertAlmostEqual(count / n, 1 / k, delta=0.1 * n / k)
+
+            # test af distribution
+            def variance(expr):
+                return hl.bind(lambda mean: hl.mean(hl.map(lambda elt: (elt - mean) ** 2, expr)), hl.mean(expr))
+            delta_mean = 0.2 # consider alternatives to 0.2
+            delta_var = 0.1
+            per_row = hl.bind(lambda mean, var, ancestral:
+                              (ancestral > mean - delta_mean) &
+                              (ancestral < mean + delta_mean) &
+                              (.1 * ancestral * (1 - ancestral) > var - delta_var) &
+                              (.1 * ancestral * (1 - ancestral) < var + delta_var),
+                              hl.mean(bn.af),
+                              variance(bn.af),
+                              bn.ancestral_af)
+            self.assertTrue(bn.aggregate_rows(hl.agg.all(per_row)))
+
+            # test genotype distribution
+            stats_gt_by_pop = hl.agg.group_by(bn.pop, hl.agg.stats(hl.float(bn.GT.n_alt_alleles()))).values()
+            bn = bn.select_rows(sum_af=hl.sum(bn.af),
+                                sum_mean_gt_by_pop=hl.sum(hl.map(lambda x: x.mean, stats_gt_by_pop)))
+            sum_af = bn.aggregate_rows(hl.agg.sum(bn.sum_af))
+            sum_mean_gt = bn.aggregate_rows(hl.agg.sum(bn.sum_mean_gt_by_pop))
+            self.assertAlmostEqual(sum_mean_gt, 2 * sum_af, delta=0.1 * m * k)
+
+        test_stat(10, 100, 100, 0)
+        test_stat(40, 400, 20, 12)
 
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))

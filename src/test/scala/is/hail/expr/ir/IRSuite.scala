@@ -5,7 +5,7 @@ import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
-import is.hail.expr.Parser
+import is.hail.expr.{IRParserEnvironment, Parser}
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.io.vcf.LoadVCF
@@ -552,8 +552,7 @@ class IRSuite extends SparkSuite {
           None),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
-            "foo" -> NA(TArray(TInt32())))),
-          BroadcastRow(Row(), TStruct.empty(), hc.sc)),
+            "foo" -> NA(TArray(TInt32()))))),
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
@@ -651,22 +650,44 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val s = Pretty(x)
-    val x2 = Parser.parse(Parser.ir_value_expr(), s)
+    val x2 = Parser.parse_value_ir(s, IRParserEnvironment())
     assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse(Parser.table_ir, s)
+    val x2 = Parser.parse_table_ir(s, IRParserEnvironment())
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse(Parser.matrix_ir, s)
+    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment())
     assert(x2 == x)
+  }
+
+  @Test def testCachedIR() {
+    val cached = Literal(TSet(TInt32()), Set(1), "__unique_id")
+    val s = s"(CachedValue __uid1)"
+    val x2 = Parser.parse_value_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    assert(x2 eq cached)
+  }
+
+  @Test def testCachedTableIR() {
+    val cached = TableRange(1, 1)
+    val s = s"(CachedTable __uid1)"
+    val x2 = Parser.parse_table_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    assert(x2 eq cached)
+  }
+
+  @Test def testCachedMatrixIR() {
+    val cached = MatrixTable.range(hc, 3, 7, None).ast
+    val s = s"(CachedMatrixTable __uid1)"
+    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    assert(x2 eq cached)
+
   }
 
   @Test def testEvaluations() {
