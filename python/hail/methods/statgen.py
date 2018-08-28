@@ -1615,13 +1615,13 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
     if vep_root in row_fields:
         update_rows_expression[vep_root] = split[vep_root].annotate(
             intergenic_consequences=split[vep_root].intergenic_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index()),
+                lambda csq: csq.allele_num == split.a_index),
             motif_feature_consequences=split[vep_root].motif_feature_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index()),
+                lambda csq: csq.allele_num == split.a_index),
             regulatory_feature_consequences=split[vep_root].motif_feature_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index()),
+                lambda csq: csq.allele_num == split.a_index),
             transcript_consequences=split[vep_root].transcript_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index()))
+                lambda csq: csq.allele_num == split.a_index))
 
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
@@ -1650,9 +1650,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
 
-    return split.annotate_rows(
-        **update_rows_expression).annotate_entries(
-        **update_entries_expression).drop('old_locus', 'old_alleles')
+    return split._annotate_all(
+        row_exprs=update_rows_expression,
+        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
