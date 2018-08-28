@@ -1211,7 +1211,7 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     val IndexedSeq(newChild) = newChildren
-    LocalizeEntries(child.asInstanceOf[MatrixIR], entriesFieldName)
+    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName)
   }
 
   def execute(hc: HailContext): TableValue = {
