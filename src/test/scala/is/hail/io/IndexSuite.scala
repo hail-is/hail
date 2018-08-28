@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.types.{TBoolean, TString, TStruct, Type}
+import is.hail.expr.types._
 import is.hail.io.index._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -31,17 +31,26 @@ class IndexSuite extends SparkSuite {
   }
 
   def writeIndex(file: String,
-    data: Array[String],
+    data: Array[Any],
     annotations: Array[Annotation],
+    keyType: Type,
     annotationType: Type,
-    branchingFactor: Int = 2,
-    attributes: Map[String, Any] = Map.empty[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), annotationType, branchingFactor, attributes)
+    branchingFactor: Int,
+    attributes: Map[String, Any]) {
+    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
     iw.close()
   }
+
+  def writeIndex(file: String,
+    data: Array[String],
+    annotations: Array[Annotation],
+    annotationType: Type,
+    branchingFactor: Int = 2,
+    attributes: Map[String, Any] = Map.empty[String, Any]): Unit =
+    writeIndex(file, data.map(_.asInstanceOf[Any]), annotations, TString(), annotationType, branchingFactor, attributes)
 
   @Test(dataProvider = "elements")
   def writeReadGivesSameAsInput(data: Array[String]) {
@@ -207,16 +216,20 @@ class IndexSuite extends SparkSuite {
           for (includesEnd <- Array(true, false)) {
             if (Interval.isValid(ordering, bounds(0), bounds(1), includesStart, includesEnd)) {
               val lowerBoundIdx =
-                if (includesStart)
-                  math.max(0, stringsWithDups.indexWhere(bounds(0) <= _)) // want first index at transition point where lteq to key
+                if (includesStart) {
+                  stringsWithDups.indexWhere(bounds(0) <= _) match {
+                    case -1 => stringsWithDups.length
+                    case x: Int => x
+                  }
+                }
                 else
-                  math.max(0, stringsWithDups.lastIndexWhere(bounds(0) >= _) + 1) // want last index at transition point where key is gteq and then want to exclude that point (add 1)
+                  stringsWithDups.lastIndexWhere(bounds(0) >= _) + 1 // want last index at transition point where key is gteq and then want to exclude that point (add 1)
 
               val upperBoundIdx =
                 if (includesEnd)
-                  math.max(0, stringsWithDups.lastIndexWhere(bounds(1) >= _) + 1) // want last index at transition point and then want to include that value so add 1
+                  stringsWithDups.lastIndexWhere(bounds(1) >= _) + 1 // want last index at transition point and then want to include that value so add 1
                 else
-                  math.max(0, stringsWithDups.lastIndexWhere(bounds(1) > _) + 1) // want last index before transition point and then want to include that value so add 1
+                  stringsWithDups.lastIndexWhere(bounds(1) > _) + 1 // want last index before transition point and then want to include that value so add 1
 
               assert(index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd).toFastIndexedSeq ==
                 index.iterator(lowerBoundIdx, upperBoundIdx).toFastIndexedSeq)
@@ -235,17 +248,50 @@ class IndexSuite extends SparkSuite {
     }
   }
 
-  @Test def testFromIterator() {
+  @Test def testIntervalIteratorWorksWithGeneralEndpoints() {
+    for (branchingFactor <- 2 to 5) {
+      val keyType = TStruct("a" -> TString(), "b" -> TInt32())
+      val file = tmpDir.createTempFile("from", "idx")
+      writeIndex(file,
+        stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
+        stringsWithDups.indices.map(i => Row()).toArray,
+        keyType,
+        TStruct(required = true),
+        branchingFactor,
+        Map.empty)
+
+      val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
+
+      val index = new IndexReader(hc.hadoopConf, file)
+      assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
+        leafChildren.slice(3, 5))
+      assert(index.queryByInterval(Row("cat"), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
+        leafChildren.slice(2, 5))
+      assert(index.queryByInterval(Row(), Row(), includesStart = true, includesEnd = true).toFastIndexedSeq ==
+        leafChildren)
+      assert(index.queryByInterval(Row(), Row("cat"), includesStart = true, includesEnd = false).toFastIndexedSeq ==
+        leafChildren.take(2))
+      assert(index.queryByInterval(Row("zebra"), Row(), includesStart = true, includesEnd = true).toFastIndexedSeq ==
+        leafChildren.takeRight(3))
+    }
+  }
+
+  @Test def testIterateFromUntil() {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("from", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
       val index = new IndexReader(hc.hadoopConf, file)
 
-      val stringsNotInList = Array("aardvark", "crow", "elk", "otter", "zoo")
-      assert(stringsNotInList.forall(s => index.queryByKey(s).isEmpty))
+      val uniqueStrings = stringsWithDups.distinct ++ Array("aardvark", "crow", "elk", "otter", "zoo")
+      uniqueStrings.foreach { s =>
+        var start = stringsWithDups.indexWhere(s <= _)
+        if (start == -1)
+          start = stringsWithDups.length
+        assert(index.iterateFrom(s).toFastIndexedSeq == leafsWithDups.slice(start, stringsWithDups.length).toFastIndexedSeq)
 
-      val stringsInList = stringsWithDups.distinct
-      assert(stringsInList.forall(s => index.queryByKey(s) sameElements leafsWithDups.filter(_.key == s)))
+        val end = stringsWithDups.lastIndexWhere(s > _) + 1
+        assert(index.iterateUntil(s).toFastIndexedSeq == leafsWithDups.slice(0, end).toFastIndexedSeq)
+      }
     }
   }
 }

@@ -172,19 +172,8 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     ab.result()
   }
 
-  def keyIterator(key: Annotation): Iterator[LeafChild] = new Iterator[LeafChild] {
-    val it = iterateFrom(key)
-    var current: LeafChild = _
-
-    def next(): LeafChild = current
-
-    def hasNext(): Boolean = {
-      it.hasNext && {
-        current = it.next()
-        ordering.equiv(current.key, key)
-      }
-    }
-  }
+  def keyIterator(key: Annotation): Iterator[LeafChild] =
+    iterateFrom(key).takeWhile(lc => ordering.equiv(lc.key, key))
 
   def queryByIndex(index: Long): LeafChild = {
     require(index >= 0 && index < nKeys)
@@ -208,17 +197,19 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   def iterator(start: Long, end: Long) = new Iterator[LeafChild] {
     assert(start >= 0 && end <= nKeys && start <= end)
     var pos = start
-    var localPos = 0L
+    var localPos = 0
     var leafNode: LeafNode = _
 
     def next(): LeafChild = {
+      assert(hasNext)
+
       if (leafNode == null || localPos >= leafNode.children.length) {
         leafNode = getLeafNode(pos)
         assert(leafNode.firstIndex <= pos && pos < leafNode.firstIndex + branchingFactor)
-        localPos = pos - leafNode.firstIndex
+        localPos = (pos - leafNode.firstIndex).toInt
       }
 
-      val child = leafNode.children(localPos.toInt)
+      val child = leafNode.children(localPos)
       pos += 1
       localPos += 1
       child
