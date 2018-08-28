@@ -4,6 +4,7 @@
 #include "hail/NativeObj.h"
 #include "hail/NativeStatus.h"
 #include <jni.h>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,7 @@ public:
 public:
   NativeModule(const char* options, const char* source, const char* include, bool forceBuild);
   
-  NativeModule(bool isGlobal, const char* key, long binarySize, const void* binary);
+  NativeModule(bool isGlobal, const char* key, ssize_t binarySize, const void* binary);
 
   virtual ~NativeModule();
   
