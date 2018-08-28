@@ -38,7 +38,7 @@ object LinearMixedModel {
     
     val typ = TableType(rowType, Some(FastIndexedSeq("idx")), globalType = TStruct())
     
-    val orderedRVD = new OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
+    val orderedRVD = OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
       orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
     
     new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), orderedRVD)))
@@ -132,9 +132,10 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
-      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
+      val LMMData(_, nullResidualSq, py, px0, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
+      val px = px0.copy
       val n = px.rows
       val f = px.cols + 1
       val dof = n - f
