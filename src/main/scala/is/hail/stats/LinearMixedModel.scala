@@ -180,8 +180,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
             s"pa2=${pa(0 until 10)}\n\n" +
             s"py=${py(0 until 10)}\n\n" +
             s"py0=${py0a.slice(0, 10)}\n\n" +
-            s"px=${px(0 until 10, 0 until 10)}\n\n" +
-            s"px0=${px0a.slice(0, 10)}\n\n" +
+            s"px=${px(0 until 3, 0 until 3)}\n\n" +
+            s"px0=${px0a.slice(0, 3)}\n\n" +
             s"d=${d(0 until 10)}\n\n" +
             s"d0=${d0a.slice(0, 10)}\n\n" +
             s"xdy=$xdy\n\n" +
