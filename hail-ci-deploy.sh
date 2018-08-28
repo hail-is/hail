@@ -36,8 +36,11 @@ gsutil acl set public-read ${HASH_TARGET}
 ## since we're interactive, we explicitly state the fingerprint for ci.hail.is
 mkdir -p ~/.ssh
 printf 'ci.hail.is ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC3tuH5V3ubO7PqQ3gD2G7yFJ4bkwgSFNBqmaLmiuiCF86UpE4Lo4yQryt9VYssoLqsdStIOR0P/Bo3S4Nuj8cHCzAbft3/u25oa8lQKAazoiA0I82d7JXYurV/NvjH7O1MMuPohwjlBp+d4damUA3TO2oIHbYqzmArrvTs/k6DxUonWRRxZa0zW+edv78y6IdLXuSVyN5FPa+jWBMJar9CsvbsWUWtcJ8vHHldg0DJ7TFVecouy4U3hmQxi90OCGSk4N9vi+XC+EjoNeCmGt5/VGAnKCUZntOZluBqKKZ0/TWlC6HJgBWYQllnjAE1tFs9Xrrx+5ADB9quMtYVqk0R\n' \
-  >> ~/.ssh/known_hosts
+       >> ~/.ssh/known_hosts
+
 USER=web-updater
+IDENTITY_FILE=/secrets/ci.hail.is-web-updater-rsa-key
+
 rsync -rlv \
       -e "ssh -i /secrets/ci.hail.is-web-updater-rsa-key" \
       --exclude docs \
@@ -46,15 +49,20 @@ rsync -rlv \
       build/www/ \
       ${USER}@ci.hail.is:/var/www/html/ \
       --delete
+
 DEST=/var/www/html/docs/archive/${BRANCH}/$SHA
-ssh -i /secrets/ci.hail.is-web-updater-rsa-key \
+
+ssh -i ${IDENTITY_FILE} \
     ${USER}@ci.hail.is \
     mkdir -p $DEST
-scp -i /secrets/ci.hail.is-web-updater-rsa-key \
+
+scp -i ${IDENTITY_FILE} \
     -r build/www/docs/${BRANCH}/* \
     ${USER}@ci.hail.is:$DEST
-ssh -i /secrets/ci.hail.is-web-updater-rsa-key \
+
+ssh -i ${IDENTITY_FILE} \
     ${USER}@ci.hail.is \
     "rm -rf /var/www/html/docs/${BRANCH} && \
      ln -s $DEST /var/www/html/docs/${BRANCH} && \
-     chown :www-data $DEST /var/www/html/docs/${BRANCH}"
+     chgrp www-data $DEST /var/www/html/docs/${BRANCH}"
+
