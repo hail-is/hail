@@ -161,8 +161,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
 
         xdy(0) = py dot dpa
         xdx(0, 0) = pa dot dpa
-        xdx(r0, r1) := px.t * dpa
-        xdx(r1, r0) := xdx(r0, r1).t
+        xdx(r1, r0) := (dpa.t * px).t
+        xdx(r0, r1) := xdx(r1, r0).t
         
         region.clear()
         rvb.start(rowType)
@@ -207,7 +207,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
             info(s"xdx changed\n\n${state()}\n\n")
           if (!(xdx(1 until f, 0).toArray sameElements xdx(0, 1 until f).t.toArray))
             info(s"xdx assymetric\n\n${state()}\n\n")
-          
           if (pa != BDV(pa02))
             info(s"pa not equal pa2\n\n${state()}\n\n")
           else if (pValue == 1)
