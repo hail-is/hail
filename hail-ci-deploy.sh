@@ -47,7 +47,7 @@ USER=web-updater
 IDENTITY_FILE=/secrets/ci.hail.is-web-updater-rsa-key
 
 rsync -rlv \
-      -e "ssh -i /secrets/ci.hail.is-web-updater-rsa-key" \
+      -e "ssh -i ${IDENTITY_FILE}" \
       --exclude docs \
       --exclude misc \
       --exclude tools \
