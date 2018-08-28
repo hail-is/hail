@@ -1099,7 +1099,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
 
-        def hasNext = {
+        def hasNext: Boolean = {
           if (!cleared) {
             cleared = true
             producerCtx.region.clear()
@@ -1107,7 +1107,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
           it.hasNext
         }
 
-        def next = {
+        def next: RegionValue = {
           if (!cleared) {
             producerCtx.region.clear()
           }
