@@ -128,22 +128,28 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
   
   def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
-    val LMMData(_, nullResidualSq, py0, px0, d0, ydy, xdy0, xdx0, _, _) = lmmData
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
-    
+
     val rdd = pa_t.rows.mapPartitions { itPAt =>
-      val py = py0.copy
-      val px = px0.copy
-      val d = d0.copy
+      val LMMData(_, nullResidualSq, py0, px0, d0, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
+      val py = py0
+      val px = px0
+      val d = d0
       val xdy = xdy0.copy
       val xdx = xdx0.copy
-      
+ 
       val n = px.rows
       val f = px.cols + 1
       val dof = n - f
       val r0 = 0 to 0
       val r1 = 1 until f
+
+      val py0a = py0.toArray
+      val px0a = px0.toArray
+      val d0a = d0.toArray
+      val xdy0a = xdy0(1 until f).toArray
+      val xdx0a = xdx0(1 until f, 1 until f).toArray
       
       val region = Region()
       val rv = RegionValue(region)
@@ -168,6 +174,35 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
           val chiSq = n * math.log(nullResidualSq / residualSq)
           val pValue = chiSquaredTail(chiSq, 1)
 
+          def state(): String = s"state\n:" +
+            s"i=$i, ${i / 4096}, ${i % 4096}\n\n" +
+            s"pa=${pa(0 until 10)}\n\n" +
+            s"py=${py(0 until 10)}\n\n" +
+            s"py0=${py0(0 until 10)}\n\n" +
+            s"px=${px(0 until 10, 0 until 10)}\n\n" +
+            s"px0=${px0(0 until 10, 0 until 10)}\n\n" +
+            s"d=${d(0 until 10)}\n\n" +
+            s"d0=${d0(0 until 10)}\n\n" +
+            s"xdy=$xdy\n\n" +
+            s"xdy0=$xdy0\n\n" +
+            s"xdx=$xdx\n\n" +
+            s"xdx0=$xdx0\n\n" +
+            s"beta=$beta\n\n" +
+            s"pval=$pValue\n\n\n"
+          
+          if (!(py.toArray sameElements py0a))
+            info(s"py changed\n\n${state()}\n\n")
+          if (!(px.toArray sameElements px0a))
+            info(s"px changed\n\n${state()}\n\n")
+          if (!(d.toArray sameElements d0a))
+            info(s"d changed\n\n${state()}\n\n")
+          if (!(xdy(1 until f).toArray sameElements xdy0a))
+            info(s"xdy changed\n\n${state()}\n\n")
+          if (!(xdx(1 until f, 1 until f).toArray sameElements xdx0a))
+            info(s"xdx changed\n\n${state()}\n\n")
+          if (!(xdx(1 until f, 0).toArray sameElements xdx(0, 1 until f).t.toArray))
+            info(s"xdx assymetric\n\n${state()}\n\n")
+          
           rvb.startStruct()
           rvb.addLong(i)
           rvb.addDouble(beta(0))  // could expand to return all coefficients, or switch to block matrix projection trick
