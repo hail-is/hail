@@ -1598,7 +1598,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
         aligned and have unique loci. This avoids a shuffle. If the assumption
         is violated, an error is generated.
     vep_root : :obj:`str`
-        Top-level location of vep data.
+        Top-level location of vep data. All variable-length VEP fields
+        (intergenic_consequences, motif_feature_consequences,
+        regulatory_feature_consequences, and transcript_consequences)
+        will be split properly (i.e. a_index corresponding to the VEP allele_num).
 
     Returns
     -------
@@ -1614,15 +1617,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
     update_entries_expression = {}
 
     if vep_root in row_fields:
-        update_rows_expression[vep_root] = split[vep_root].annotate(
-            intergenic_consequences=split[vep_root].intergenic_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index),
-            motif_feature_consequences=split[vep_root].motif_feature_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index),
-            regulatory_feature_consequences=split[vep_root].motif_feature_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index),
-            transcript_consequences=split[vep_root].transcript_consequences.filter(
-                lambda csq: csq.allele_num == split.a_index))
+        update_rows_expression[vep_root] = split[vep_root].annotate(**{
+            x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
+            for x in ('intergenic_consequences', 'motif_feature_consequences',
+                      'regulatory_feature_consequences', 'transcript_consequences')})
 
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
