@@ -6,7 +6,7 @@ source activate hail-0.1-dev
 GRADLE_OPTS=-Xmx2048m ./gradlew \
            testAll \
            createDocs \
-           -Dspark.version=${SPARK_VERSION%} \
+           -Dspark.version=${SPARK_VERSION} \
            -Dspark.home=/spark \
            -Dtutorial.home=/usr/local/hail-tutorial-files \
            -Dsphinx-build=sphinx-build2.7 \
