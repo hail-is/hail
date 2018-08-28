@@ -48,8 +48,9 @@ RUN tar --strip-components=1 -xvzf spark-2.2.0-bin-hadoop2.7.tgz -C /spark && \
 ENV SPARK_HOME /spark/
 
 WORKDIR /hail
-RUN useradd --create-home --shell /bin/bash hail && \
-    chown -R hail:hail /hail
+RUN mkdir -p /gradle-cache && \
+    useradd --create-home --shell /bin/bash hail && \
+    chown -R hail:hail /hail /gradle-cache
 USER hail
 
 # cache (almost all) gradle dependencies (and gradle itself)
@@ -58,7 +59,6 @@ USER hail
 # configuration" so there is no way for us to ensure it gets cached.
 COPY gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
 COPY gradle gradle
-RUN mkdir -p /gradle-cache
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
 COPY python/hail/dev-environment.yml python/hail/dev-environment.yml
 RUN conda env create hail -f ./python/hail/dev-environment.yml && \
