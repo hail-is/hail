@@ -440,29 +440,3 @@ task createPackage(type: Zip, dependsOn: ['assemblePackage']) {
     into 'hail'
     baseName 'hail'
 }
-
-task assemblePackageNoTest(type: Copy, dependsOn: ['makeDocsNoTest' , 'shadowJar']) {
-    from('python') {
-        into 'python'
-    }
-    from('build/www/docs') {
-        into 'docs'
-    }
-    from('scripts') {
-        into 'bin'
-    }
-    from('build/libs/hail-all-spark.jar') {
-        into 'jars'
-    }
-    from('python/hail/docs/tutorials') {
-        into 'tutorials'
-        include '*.ipynb'
-    }
-    into 'build/package'
-}
-
-task createPackageNoTest(type: Zip, dependsOn: ['assemblePackageNoTest']) {
-    from 'build/package'
-    into 'hail'
-    baseName 'hail'
-}
