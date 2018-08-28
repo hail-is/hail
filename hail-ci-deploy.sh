@@ -27,9 +27,9 @@ DISTRIBUTION=gs://hail-common/distributions/${BRANCH}/Hail-${BRANCH}-${SHA}-Spar
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
 
-echo ${SHA} > latest-hash-spark${SPARK_VERSION}.txt
+echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
 HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash-spark-${SPARK_VERSION}.txt
-gsutil cp ./latest-hash-spark${SPARK_VERSION}.txt ${HASH_TARGET}
+gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
 gsutil acl set public-read ${HASH_TARGET}
 
 # update website
