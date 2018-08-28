@@ -61,8 +61,8 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     val info = if (node.size > 0) {
-      val firstIndex = node.firstIdx
       val firstChild = node.getChild(0)
+      val firstIndex = firstChild.firstIndex
       val firstKey = firstChild.firstKey
       val firstRecordOffset = firstChild.firstRecordOffset
       val firstAnnotation = firstChild.firstAnnotation
