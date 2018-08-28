@@ -1,0 +1,20 @@
+name: hail-0.1-dev
+dependencies:
+- python=2
+- Sphinx=1.7
+- sphinxcontrib
+- conda-forge::nbsphinx
+- conda-forge::sphinx_rtd_theme
+- numpy
+- pandas
+- matplotlib
+- seaborn
+- bokeh
+- jupyter
+- pip
+- pytest
+- pip:
+    - parsimonious
+    - ipykernel
+    - pytest-xdist
+    - decorator==4.2.1
