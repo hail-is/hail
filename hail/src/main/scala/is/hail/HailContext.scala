@@ -573,7 +573,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
-    val reader = new HtsjdkRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty, Set.empty)
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 

@@ -18,7 +18,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
+class HtsjdkRecordReader(val callFields: Set[String], val dosageFields: Set[String]) extends Serializable {
 
   import HtsjdkRecordReader._
 

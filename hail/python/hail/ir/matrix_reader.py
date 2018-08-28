@@ -58,6 +58,7 @@ class MatrixRangeReader(MatrixReader):
 class MatrixVCFReader(MatrixReader):
     @typecheck_method(path=oneof(str, sequenceof(str)),
                       call_fields=oneof(str, sequenceof(str)),
+                      dosage_fields=oneof(str, sequenceof(str)),
                       header_file=nullable(str),
                       min_partitions=nullable(int),
                       reference_genome=nullable(reference_genome_type),
@@ -70,6 +71,7 @@ class MatrixVCFReader(MatrixReader):
     def __init__(self,
                  path,
                  call_fields,
+                 dosage_fields,
                  header_file,
                  min_partitions,
                  reference_genome,
@@ -83,6 +85,7 @@ class MatrixVCFReader(MatrixReader):
         self.header_file = header_file
         self.min_partitions = min_partitions
         self.call_fields = wrap_to_list(call_fields)
+        self.dosage_fields = wrap_to_list(dosage_fields)
         self.reference_genome = reference_genome
         self.contig_recoding = contig_recoding
         self.array_elements_required = array_elements_required
@@ -95,6 +98,7 @@ class MatrixVCFReader(MatrixReader):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
+                  'dosageFields': self.dosage_fields,
                   'headerFile': self.header_file,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
@@ -110,6 +114,7 @@ class MatrixVCFReader(MatrixReader):
         return isinstance(other, MatrixVCFReader) and \
                other.path == self.path and \
                other.call_fields == self.call_fields and \
+               other.dossage_fields == self.dosage_fields and \
                other.header_file == self.header_file and \
                other.min_partitions == self.min_partitions and \
                other.reference_genome == self.reference_genome and \

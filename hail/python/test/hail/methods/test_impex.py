@@ -1,6 +1,7 @@
+import json
+import os
 import unittest
 
-import json
 import shutil
 
 import hail as hl
@@ -161,6 +162,15 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_set_field_missing(self):
         mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
         mt.aggregate_entries(hl.agg.sum(mt.DP))
+
+    def test_import_vcf_dosages_as_doubles_or_floats(self):
+        mt = hl.import_vcf(resource('small-ds.vcf'))
+        mt32 = hl.import_vcf(resource('small-ds.vcf'),  dosage_fields=['DS'])
+        mt_result = mt.annotate_entries(DS32=mt32.index_entries(mt.row_key, mt.col_key).DS)
+        compare = mt_result.annotate_entries(
+            test=(hl.coalesce(hl.approx_equal(mt_result.DS, mt_result.DS32, nan_same=True), True))
+        )
+        self.assertTrue(all(compare.test.collect()))
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))

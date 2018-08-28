@@ -1,3 +1,4 @@
+import sys
 import unittest
 import numpy as np
 
@@ -326,14 +327,21 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
         p_path = utils.new_temp_file()
 
-        h2_fastlmm = 0.14276125
+        if 'conda' in sys.version:
+            # The Continuum accelerated math libraries produce slightly
+            # different results than the "regular" libraries.
+            h2_fastlmm = 0.14276125
+            h2_places = 7
+        else:
+            h2_fastlmm = 0.142761
+            h2_places = 6
         beta_fastlmm = [0.012202061, 0.037718282, -0.033572693, 0.29171541, -0.045644170]
         pval_hail = [0.84543084, 0.57596760, 0.58788517, 1.4057279e-06, 0.46578204]
 
         mt_chr1 = mt.filter_rows(mt.locus.contig == '1')
         model, _ = hl.linear_mixed_model(y=mt_chr1.y, x=[1, mt_chr1.x], z_t=mt_chr1.GT.n_alt_alleles(), p_path=p_path)
         model.fit()
-        self.assertAlmostEqual(model.h_sq, h2_fastlmm)
+        self.assertAlmostEqual(model.h_sq, h2_fastlmm, places=h2_places)
 
         mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
         mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()))
