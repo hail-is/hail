@@ -227,27 +227,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   if (key.exists(key => !key.forall(fieldNames.contains(_))))
     fatal(s"Key names found that are not column names: ${ key.get.filterNot(fieldNames.contains(_)).mkString(", ") }")
 
-  def rowEvalContext(): EvalContext = {
-    val ec = EvalContext(
-      "global" -> globalSignature,
-      "row" -> signature)
-    ec
-  }
-
-  def aggEvalContext(): EvalContext = {
-    val ec = EvalContext("global" -> globalSignature,
-      "AGG" -> aggType())
-    ec
-  }
-
-  def aggType(): TAggregable = {
-    val aggSymbolTable = Map(
-      "global" -> (0, globalSignature),
-      "row" -> (1, signature)
-    )
-    TAggregable(signature, aggSymbolTable)
-  }
-
   def fields: Array[Field] = signature.fields.toArray
 
   val keyFieldIdx: Option[Array[Int]] =

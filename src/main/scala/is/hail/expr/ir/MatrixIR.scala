@@ -508,15 +508,6 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 
   def typ: MatrixType = child.typ
 
-  val tAggElt: Type = child.typ.entryType
-  val aggSymTab = Map(
-    "global" -> (0, child.typ.globalType),
-    "va" -> (1, child.typ.rvRowType),
-    "g" -> (2, child.typ.entryType),
-    "sa" -> (3, child.typ.colType))
-
-  val tAgg = TAggregable(tAggElt, aggSymTab)
-
   override def columnCount: Option[Int] = child.columnCount
 
   def execute(hc: HailContext): MatrixValue = {
@@ -1354,15 +1345,6 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     assert(newChildren.length == 2)
     MatrixMapCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
-
-  val tAggElt: Type = child.typ.entryType
-  val aggSymTab = Map(
-    "global" -> (0, child.typ.globalType),
-    "va" -> (1, child.typ.rvRowType),
-    "g" -> (2, child.typ.entryType),
-    "sa" -> (3, child.typ.colType))
-
-  val tAgg = TAggregable(tAggElt, aggSymTab)
 
   val typ: MatrixType = {
     val newColType = newCol.typ.asInstanceOf[TStruct]

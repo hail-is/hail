@@ -1,11 +1,10 @@
 package is.hail.expr
 
 import is.hail.HailContext
-import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.{AggSignature, BaseIR, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
-import is.hail.table.{Ascending, Descending, SortField, TableSpec}
+import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -13,7 +12,9 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
-import scala.util.parsing.input.Position
+import scala.util.parsing.input.{Position, Positional}
+
+case class Positioned[T](x: T) extends Positional
 
 object IRParserEnvironment {
   var theEnv: IRParserEnvironment = null

@@ -269,9 +269,6 @@ abstract class Type extends BaseType with Serializable {
       case t: TInterval => t.copy(required = required)
       case t: TStruct => t.copy(required = required)
       case t: TTuple => t.copy(required = required)
-      case t: TAggregable =>
-        assert(t.required == required)
-        t
     }
   }
 

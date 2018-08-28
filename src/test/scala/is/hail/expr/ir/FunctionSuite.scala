@@ -7,12 +7,8 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types._
-import is.hail.TestUtils._
-import org.testng.annotations.Test
-import is.hail.expr.{EvalContext, Parser}
-import is.hail.table.Table
-import is.hail.utils.FastSeq
 import is.hail.variant.Call2
+import org.testng.annotations.Test
 
 object ScalaTestObject {
   def testFunction(): Int = 1
@@ -30,10 +26,6 @@ class ScalaTestCompanion {
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR("addone", TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
-    registerIR("sumaggregator32", TAggregable(TInt32())) { ir =>
-      val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))
-      ApplyAggOp(SeqOp(I32(0), FastSeq(Cast(ir, TInt64())), aggSig), FastSeq(), None, aggSig)
-    }
     registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
@@ -44,7 +36,6 @@ object TestRegisterFunctions extends RegistryFunctions {
 
 class FunctionSuite extends SparkSuite {
 
-  val ec = EvalContext()
   val region = Region()
 
   TestRegisterFunctions.registerAll()
@@ -99,18 +90,6 @@ class FunctionSuite extends SparkSuite {
     val f = toF[Int, Int](ir)
     val actual = f(region, 5, false)
     assert(actual == 6)
-  }
-
-  @Test
-  def testAggregatorConversion() {
-    val t = Table.range(hc, 10)
-
-    val tagg = TAggregable(t.signature)
-    val idxField = GetField(Ref("row", t.signature), "idx")
-    val ir = lookup("sumaggregator32", TAggregable(TInt32()))(idxField)
-
-    val actual = Interpret[Long](TableAggregate(t.tir, ir))
-    assert(actual == 45)
   }
 
   @Test

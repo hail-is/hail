@@ -1,8 +1,6 @@
 package is.hail.annotations
 
 import is.hail.SparkSuite
-import is.hail.annotations._
-import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -114,7 +112,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(addArray(region2, input))
+    rv2.setOffset(ScalaToRegionValue(region2, TInt32(), input))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -155,7 +153,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(addStruct(region2, "a", "hello", "b", input))
+    rv2.setOffset(ScalaToRegionValue(region2, TStruct("a" -> TString(), "b" -> TInt32()), Annotation("hello", input)))
 
     if (showRVInfo) {
       printRegion(region2, "struct")
@@ -327,7 +325,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(addArray[java.lang.Integer](region2, input, null))
+    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input, null)))
 
     if (showRVInfo) {
       printRegion(region2, "missing array")

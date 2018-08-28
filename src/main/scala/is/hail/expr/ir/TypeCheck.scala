@@ -233,24 +233,13 @@ object TypeCheck {
       case MatrixWrite(_, _) =>
       case x@TableAggregate(child, query) =>
         check(query,
-          env = child.typ.aggEnv,
-          aggEnv = Some(child.typ.tAgg.symTab.foldLeft(Env.empty[Type]) { case (env, (n, (i, t))) =>
-              env.bind(n, t)
-          }))
+          env = child.typ.globalEnv,
+          aggEnv = Some(child.typ.rowEnv))
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
-        val aggregationST = Map(
-          "global" -> (0, child.typ.globalType),
-          "g" -> (1, child.typ.entryType),
-          "va" -> (2, child.typ.rvRowType),
-          "sa" -> (3, child.typ.colType))
-        val env = Env.empty[Type]
-          .bind("global" -> child.typ.globalType)
-          .bind("AGG" -> TAggregable(child.typ.entryType, aggregationST))
-        val aggEnv = Env.empty[Type].bind(aggregationST.toArray.map { case (name, (_, t)) => name -> t }: _*)
         check(query,
-          env = env,
-          aggEnv = Some(aggEnv))
+          env = child.typ.globalEnv,
+          aggEnv = Some(child.typ.entryEnv))
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _, _) =>
       case TableExport(_, _, _, _, _) =>

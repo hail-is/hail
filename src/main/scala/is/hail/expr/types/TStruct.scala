@@ -1,16 +1,15 @@
 package is.hail.expr.types
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.asm4s.{Code, _}
+import is.hail.asm4s.Code
+import is.hail.expr.Parser
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.{EvalContext, HailRep, Parser}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 class TStructSerializer extends CustomSerializer[TStruct](format => (
   { case JString(s) => Parser.parseStructType(s) },
