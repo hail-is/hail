@@ -57,10 +57,10 @@ USER hail
 #
 # Some plugin we use hides its dependencies in a so-called "detached
 # configuration" so there is no way for us to ensure it gets cached.
-COPY --chown hail:hail gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
-COPY --chown hail:hail gradle gradle
+COPY --chown=hail:hail gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
+COPY --chown=hail:hail gradle gradle
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
-COPY --chown hail:hail python/hail/dev-environment.yml python/hail/dev-environment.yml
+COPY --chown=hail:hail python/hail/dev-environment.yml python/hail/dev-environment.yml
 RUN conda env create hail -f ./python/hail/dev-environment.yml && \
     rm -rf /home/hail/.conda/pkgs/*
 
