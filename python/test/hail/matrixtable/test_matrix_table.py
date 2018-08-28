@@ -874,3 +874,35 @@ class Tests(unittest.TestCase):
                                              cidx=expected.col_idx % 3)
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
+
+    def test_row_joins_into_table(self):
+        rt = hl.utils.range_matrix_table(9, 13, 3)
+        mt1 = rt.key_rows_by(idx=rt.row_idx)
+        mt1 = mt1.select_rows(v=mt1.idx)
+        mt2 = rt.key_rows_by(idx=rt.row_idx, idx2=rt.row_idx)
+        mt2 = mt2.select_rows(v=mt2.idx)
+
+        t1 = hl.utils.range_table(10, 3)
+        t2 = t1.key_by(t1.idx, idx2=t1.idx)
+        t1 = t1.select(v=t1.idx)
+        t2 = t2.select(v=t2.idx)
+
+        tinterval1 = t1.key_by(k=hl.interval(t1.idx, t1.idx, True, True))
+        tinterval1 = tinterval1.select(v=tinterval1.idx)
+        tinterval2 = t2.key_by(k=hl.interval(t2.idx, t2.idx, True, True))
+        tinterval2 = tinterval2.select(v=tinterval2.idx)
+
+        values = [hl.Struct(v=i) for i in range(9)]
+        # join on mt row key
+        self.assertEqual(t1[mt1.row_key].collect(), values)
+        self.assertEqual(t2[mt2.row_key].collect(), values)
+        self.assertEqual(t1[mt1.idx].collect(), values)
+        self.assertEqual(t2[mt2.idx, mt2.idx2].collect(), values)
+
+        # join on not mt row key
+        self.assertEqual(t1[mt1.v].collect(), values)
+        self.assertEqual(t2[mt2.idx2, mt2.v].collect(), values)
+
+        # join on interval of first field of row key
+        self.assertEqual(tinterval1[mt1.idx].collect(), values)
+        self.assertEqual(tinterval2[mt2.idx].collect(), values)
