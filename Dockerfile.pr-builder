@@ -1,6 +1,6 @@
 FROM alpine:3.8
 
-RUN apk --no-cache add bash git python3 py3-cffi py3-cryptography && \
+RUN apk --no-cache add bash curl git python3 py3-cffi py3-cryptography && \
     pip3 install -U pip && \
     if [[ ! -e /usr/bin/pip ]]; then ln -s /usr/bin/pip3 /usr/bin/pip; fi && \
     if [[ ! -e /usr/bin/python ]]; then ln -sf /usr/bin/python3 /usr/bin/python; fi && \
