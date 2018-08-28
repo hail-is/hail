@@ -11,8 +11,7 @@ object InternalNodeBuilder {
       "index_file_offset" -> +TInt64(),
       "first_key" -> keyType,
       "first_record_offset" -> +TInt64(),
-      "first_annotation" -> annotationType,
-      "last_key" -> keyType
+      "first_annotation" -> annotationType
     ), required = true)
   )
 }
@@ -22,7 +21,6 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   val firstKeys = new ArrayBuilder[Any]()
   val firstRecordOffsets = new ArrayBuilder[Long]()
   val firstAnnotations = new ArrayBuilder[Any]()
-  val lastKeys = new ArrayBuilder[Any]()
 
   var size = 0
   var firstIdx = 0L
@@ -36,7 +34,6 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
     firstKeys += info.firstKey
     firstRecordOffsets += info.firstRecordOffset
     firstAnnotations += info.firstAnnotation
-    lastKeys += info.lastKey
     size += 1
   }
 
@@ -53,7 +50,6 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
       rvb.addAnnotation(keyType, firstKeys(i))
       rvb.addLong(firstRecordOffsets(i))
       rvb.addAnnotation(annotationType, firstAnnotations(i))
-      rvb.addAnnotation(keyType, lastKeys(i))
       rvb.endStruct()
       i += 1
     }
@@ -67,14 +63,13 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
     firstKeys.clear()
     firstRecordOffsets.clear()
     firstAnnotations.clear()
-    lastKeys.clear()
     size = 0
   }
 
   def getChild(idx: Int): InternalChild = {
     assert(idx >= 0 && idx < size)
-    InternalChild(indexFileOffsets(idx), firstKeys(idx), firstRecordOffsets(idx), firstAnnotations(idx), lastKeys(idx))
+    InternalChild(indexFileOffsets(idx), firstKeys(idx), firstRecordOffsets(idx), firstAnnotations(idx))
   }
 
-  override def toString: String = s"InternalNodeBuilder $firstIdx $size [${ (0 until size).map(i => (indexFileOffsets(i), firstKeys(i), firstRecordOffsets(i), firstAnnotations(i), lastKeys(i))).mkString(",") }]"
+  override def toString: String = s"InternalNodeBuilder $firstIdx $size [${ (0 until size).map(i => (indexFileOffsets(i), firstKeys(i), firstRecordOffsets(i), firstAnnotations(i))).mkString(",") }]"
 }

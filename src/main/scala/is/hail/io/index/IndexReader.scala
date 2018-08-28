@@ -237,13 +237,12 @@ final case class InternalChild(
   indexFileOffset: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation,
-  lastKey: Annotation)
+  firstAnnotation: Annotation)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
     val firstKeyIndex = r.getLong(0)
-    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3), r.get(4)))
+    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3)))
     InternalNode(firstKeyIndex, children)
   }
 }
