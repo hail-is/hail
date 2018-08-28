@@ -173,22 +173,26 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
           val chiSq = n * math.log(nullResidualSq / residualSq)
           val pValue = chiSquaredTail(chiSq, 1)
 
-          def state(): String = s"state\n:" +
+          def state(): String = s"state:\n" +
             s"i=$i, ${i / 4096}, ${i % 4096}\n\n" +
             s"i2=$i2, ${i2 / 4096}, ${i2 % 4096}\n\n" +   
-            s"pa=${pa(0 until 10)}\n\n" +
-            s"pa2=${pa(0 until 10)}\n\n" +
-            s"py=${py(0 until 10)}\n\n" +
-            s"py0=${py0a.slice(0, 10)}\n\n" +
-            s"px=${px(0 until 3, 0 until 3)}\n\n" +
-            s"px0=${px0a.slice(0, 3)}\n\n" +
-            s"d=${d(0 until 10)}\n\n" +
-            s"d0=${d0a.slice(0, 10)}\n\n" +
+            s"pa=$pa\n\n" +
+            s"pa2=${BDV(pa02)}\n\n" +
+            s"py=$py\n\n" +
+            s"py0=${py0a.slice(0, 10).mkString("[", ",", "]")}\n\n" +
+            s"px=$px\n\n" +
+            s"px0=${px0a.slice(0, 3).mkString("[", ",", "]")}\n\n" +
+            s"d=$d\n\n" +
+            s"d0=${d0a.slice(0, 10).mkString("[", ",", "]")}\n\n" +
+            s"ydy=$ydy\n\n" +
             s"xdy=$xdy\n\n" +
             s"xdy0=$xdy0\n\n" +
             s"xdx=$xdx\n\n" +
             s"xdx0=$xdx0\n\n" +
+            s"nullResidualSq=$nullResidualSq\n\n" +
             s"beta=$beta\n\n" +
+            s"sigma_sq=$sigmaSq\n\n" +
+            s"chi_sq=$chiSq\n\n" +
             s"pval=$pValue\n\n\n"
           
           if (!(py.toArray sameElements py0a))
