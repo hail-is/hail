@@ -57,13 +57,13 @@ if (sparkVersion ==~ /^2\.[1,2].*/) {
         py4jVersion = '0.10.4'
     if (breezeVersion == null)
         breezeVersion = '0.12'
-    elasticsearchLibVersion = '5.5.1'
+    elasticsearchLibVersion = '6.3.2'
 } else {
     if (py4jVersion == null)
         py4jVersion = '0.10.3'
     if (breezeVersion == null)
         breezeVersion = '0.11.2'
-    elasticsearchLibVersion = '5.1.2'
+    elasticsearchLibVersion = '6.3.2'
 }
 
 String kuduSpark = 'spark2'
