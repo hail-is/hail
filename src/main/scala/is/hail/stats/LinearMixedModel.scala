@@ -131,7 +131,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
 
-    val rdd = pa_t.rows.mapPartitions { itPAt =>
+    val rdd = pa_t.rows.zipPartitions(pa_t.rows) { case (itPAt, itPAt2) =>
+      info("part")
+      
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
@@ -153,8 +155,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val rvb = new RegionValueBuilder(region)
       val rowType = rowTypeBc.value
 
-      itPAt.map { case (i, pa0) =>
-        val pa = BDV(pa0)
+      itPAt.zip(itPAt2).map { case ((i, pa0), (i2, pa02)) =>
+        val pa = BDV(pa0)       
         val dpa = d *:* pa
 
         xdy(0) = py dot dpa
@@ -173,7 +175,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
 
           def state(): String = s"state\n:" +
             s"i=$i, ${i / 4096}, ${i % 4096}\n\n" +
+            s"i2=$i2, ${i2 / 4096}, ${i2 % 4096}\n\n" +   
             s"pa=${pa(0 until 10)}\n\n" +
+            s"pa2=${pa(0 until 10)}\n\n" +
             s"py=${py(0 until 10)}\n\n" +
             s"py0=${py0a.slice(0, 10)}\n\n" +
             s"px=${px(0 until 10, 0 until 10)}\n\n" +
@@ -199,6 +203,11 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
             info(s"xdx changed\n\n${state()}\n\n")
           if (!(xdx(1 until f, 0).toArray sameElements xdx(0, 1 until f).t.toArray))
             info(s"xdx assymetric\n\n${state()}\n\n")
+          
+          if (pa != BDV(pa02))
+            info(s"pa not equal pa2\n\n${state()}\n\n")
+          else if (pValue == 1)
+            info(s"pval is 1\n\n${state()}\n\n")
           
           rvb.startStruct()
           rvb.addLong(i)
