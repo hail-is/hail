@@ -5,8 +5,10 @@ top: all
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
 
-BUILD := build
-BUILD_FORCE := $(shell mkdir -p $(BUILD))
+BUILD :=build
+
+# Change this setting to update the version of libsimdpp
+LIBSIMDPP :=libsimdpp-2.1
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
@@ -72,7 +74,7 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += -O3 $(CXXSTD) -Ilibsimdpp-2.1 -Wall -Werror
+CXXFLAGS += -O3 $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -93,7 +95,7 @@ ifeq ($(UNAME_S),Darwin)
   LIBHAIL := lib/darwin/libhail.dylib
 endif
 
-all: libsimdpp-2.1 $(BUILD) $(LIBBOOT) $(LIBHAIL)
+all: $(BUILD) $(LIBBOOT) $(LIBHAIL)
 
 $(BUILD):
 	-mkdir -p $@
@@ -120,7 +122,7 @@ test: $(BUILD)/functional-tests
 	./$(BUILD)/functional-tests
 
 clean:
-	-rm -rf $(BUILD) lib libsimdpp-2.1 $(LIBBOOT) $(LIBHAIL)
+	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
 
 # The $(BUILD)/headers target is updated whenever any .h file has changed
 # under either the source directory, *or* the ../resources/include tree.
@@ -133,7 +135,7 @@ clean:
 # clean-rebuild time is short (compared to other parts of the build process),
 # this seems good enough, and simpler than managing precise dependencies.
 
-$(BUILD)/headers: $(shell find . -name "*.h"; find ../resources/include -name "*.h")
+$(BUILD)/headers: $(LIBSIMDPP) $(shell find . -name "*.h"; find ../resources/include -name "*.h")
 	touch $@
 
 $(BUILD_OBJECTS) $(BUILD)/NativeBoot.o: $(BUILD)/headers
@@ -156,10 +158,10 @@ $(BUILD)/NativeModule.o: NativeModule.cpp
 # succeed without attempting to access the Internet.
 # WGET ?= wget
 WGET ?= curl -L -O
-libsimdpp-2.1.tar.gz:
-	${WGET} https://storage.googleapis.com/hail-common/$@
+$(LIBSIMDPP).tar.gz:
+	$(WGET) https://storage.googleapis.com/hail-common/$@
 
-libsimdpp-2.1: libsimdpp-2.1.tar.gz
+$(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
 $(LIBBOOT): $(BUILD)/NativeBoot.o

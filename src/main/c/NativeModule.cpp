@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -27,25 +28,12 @@ namespace hail {
 
 namespace {
 
-// File-polling interval in usecs
-const int kFilePollMicrosecs = 50000;
-
-// Timeout for compile/link of a DLL
-const int kBuildTimeoutSecs = 300;
-
-// Top-level NativeModule methods lock this mutex *except* while sleeping
-// between polls of some file state.  Helper methods have names ending in
-// "_locked", and must be called only while holding the mutex.  That makes 
-// everything single-threaded.
+// Top-level NativeModule methods lock this mutex.  Helper methods have 
+// names ending in "_locked", and must be called only while holding the mutex.
+// That makes everything single-threaded.
 std::mutex big_mutex;
 
-void usleep_without_lock(int64_t usecs) {
-  big_mutex.unlock();
-  usleep(usecs);
-  big_mutex.lock();
-}
-
-// A quick-and-dirty way to get a hash of two strings, take 80bits,
+// A simple way to get a hash of two strings, take 80bits,
 // and produce a 20byte string of hex digits.  We also sprinkle
 // in some "salt" from a checksum of a tar of all header files, so
 // that any change to header files will force recompilation.
@@ -95,12 +83,6 @@ bool file_stat(const std::string& name, struct stat* st) {
   int rc = ::fstat(fd, st);
   ::close(fd);
   return (rc == 0);
-}
-
-bool file_exists_and_is_recent(const std::string& name) {
-  time_t now = ::time(nullptr);
-  struct stat st;
-  return (file_stat(name, &st) && (st.st_ctime+kBuildTimeoutSecs > now));
 }
 
 bool file_exists(const std::string& name) {
@@ -194,7 +176,7 @@ std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
 // to all workers.
 
 class ModuleBuilder {
-private:
+ private:
   std::string options_;
   std::string source_;
   std::string include_;
@@ -293,7 +275,7 @@ private:
   }
 
 public:
-  bool try_to_start_build() {
+  bool try_to_build() {
     // Try to create the .new file, we hold the global lock so there is no race
     int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
@@ -306,18 +288,10 @@ public:
     write_mak();
     write_cpp();
     std::stringstream ss;
-    ss << "/usr/bin/make -B -C " << config.module_dir_ << " -f " << hm_mak_;
-    ss << " 1>/dev/null &";
+    ss << "make -B -C " << config.module_dir_ << " -f " << hm_mak_ << " 1>/dev/null";
+    // run the command synchronously, while holding the big_mutex
     int rc = system(ss.str().c_str());
-    if (rc == -1) {
-      fprintf(stderr, "DEBUG: system() -> -1\n");
-      perror("system");
-      // The existence of hm_new means "a build is running".  The build is
-      // *not* running, so we must remove the hm_new file to allow error
-      // detection and recovery without a long delay.
-      ::unlink(hm_new_.c_str());
-    }
-    return true;
+    return (rc == 0);
   }
 };
 
@@ -341,16 +315,16 @@ NativeModule::NativeModule(
   if (have_lib) {
     build_state_ = kPass;
   } else {
-    // The file doesn't exist, let's start building it
+    // The file doesn't exist, let's build it
     ModuleBuilder builder(options, source, include, key_);
-    builder.try_to_start_build();
+    build_state_ = (builder.try_to_build() ? kPass : kFail);
   }
 }
 
 NativeModule::NativeModule(
   bool is_global,
   const char* key,
-  long binary_size,
+  ssize_t binary_size,
   const void* binary
 ) :
   build_state_(is_global ? kPass : kInit),
@@ -365,12 +339,10 @@ NativeModule::NativeModule(
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
-  for (;;) {
-    struct stat lib_stat;
-    if (file_stat(lib_name_, &lib_stat) && (lib_stat.st_size == binary_size)) {
-      build_state_ = kPass;
-      break;
-    }
+  struct stat lib_stat;
+  if (file_stat(lib_name_, &lib_stat) && (lib_stat.st_size == binary_size)) {
+    build_state_ = kPass;
+  } else {
     // We hold big_mutex so there is no race
     int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
@@ -387,7 +359,6 @@ NativeModule::NativeModule(
       long old_size = st.st_size;
       if (old_size == binary_size) {
         ::unlink(new_name_.c_str());
-        break;
       } else if (old_size == 0) {
         ::unlink(lib_name_.c_str());
       } else {
@@ -397,12 +368,6 @@ NativeModule::NativeModule(
       // Don't let anyone see the file until it is completely written
       rc = ::rename(new_name_.c_str(), lib_name_.c_str());
       build_state_ = ((rc == 0) ? kPass : kFail);
-      break;
-    } else {
-      // Someone else is writing to new
-      while (file_exists_and_is_recent(new_name_)) {
-        usleep_without_lock(kFilePollMicrosecs);
-      }
     }
   }
   if (build_state_ == kPass) {
@@ -418,18 +383,10 @@ NativeModule::~NativeModule() {
 
 bool NativeModule::try_wait_for_build_locked() {
   if (build_state_ == kInit) {
-    // The writer will rename new to lib.  If we tested exists(lib)
-    // followed by exists(new) then the rename could occur between
-    // the two tests. This way is safe provided that either rename is atomic,
-    // or rename creates the new name before destroying the old name.
-    while (file_exists_and_is_recent(new_name_)) {
-      usleep_without_lock(kFilePollMicrosecs);
-    }
-    struct stat st;
-    if (file_stat(new_name_, &st) && (st.st_ctime+kBuildTimeoutSecs < time(nullptr))) {
-      fprintf(stderr, "WARNING: force break new %s\n", new_name_.c_str());
-      ::unlink(new_name_.c_str()); // timeout
-    }
+    // Since build or write-binary is performed synchronously while holding
+    // big_mutex, and we are holding big_mutex, we know that neither is 
+    // happening.  The lib_file may or may not exist: we just have to
+    // update the state of this NativeModule to match the filesystem.
     build_state_ = (file_exists(lib_name_) ? kPass : kFail);
     if (build_state_ == kFail) {
       std::string base(config.module_dir_ + "/hm_" + key_);
@@ -586,7 +543,7 @@ NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
     mod = iter->second.lock(); // table holds weak_ptr, get a shared_ptr
   }
   if (!mod) {
-    long binary_size = env->GetArrayLength(binaryJ);
+    ssize_t binary_size = env->GetArrayLength(binaryJ);
     auto binary = env->GetByteArrayElements(binaryJ, 0);
     mod = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
     module_table[std::string(key)] = mod;
