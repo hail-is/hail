@@ -15,7 +15,7 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
 SHA=$(git rev-parse --short=12 HEAD)
 
 # update jar, zip, and distribution
-GS_JAR=gs://hail-common/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
+GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
 gsutil cp build/libs/hail-all-spark.jar ${GS_JAR}
 gsutil acl set public-read ${GS_JAR}
 
