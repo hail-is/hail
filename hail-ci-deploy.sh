@@ -20,7 +20,7 @@ gsutil cp build/libs/hail-all-spark.jar ${GS_JAR}
 gsutil acl set public-read ${GS_JAR}
 
 GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
-gsutil cp build/libs/hail-all-spark.jar ${GS_HAIL_ZIP}
+gsutil cp build/distributions/hail-python.zip ${GS_HAIL_ZIP}
 gsutil acl set public-read ${GS_HAIL_ZIP}
 
 DISTRIBUTION=gs://hail-common/distributions/${BRANCH}/Hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.zip
