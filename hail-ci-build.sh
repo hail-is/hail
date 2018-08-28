@@ -1,5 +1,5 @@
 set -x
-SPARK_VERSION=2.2.0
+SPARK_VERSION=2.0.2
 
 source activate hail-0.1-dev
 
