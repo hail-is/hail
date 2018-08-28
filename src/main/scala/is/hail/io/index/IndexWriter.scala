@@ -38,7 +38,7 @@ class IndexWriter(
   path: String,
   keyType: Type,
   annotationType: Type,
-  branchingFactor: Int = 1024,
+  branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)
 
