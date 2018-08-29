@@ -9,7 +9,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
            -Dspark.version=${SPARK_VERSION} \
            -Dspark.home=/spark \
            -Dtutorial.home=/usr/local/hail-tutorial-files \
-           -Dsphinx-build=sphinx-build2.7 \
            --gradle-user-home /gradle-cache
 EXIT_CODE=$?
 rm -rf artifacts
