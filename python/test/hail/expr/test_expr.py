@@ -1995,3 +1995,16 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.approx_equal(0.25, 0.25000001).value)
         self.assertTrue(hl.approx_equal(hl.null(hl.tint64), 5).value is None)
         self.assertFalse(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3).value)
+
+    def test_issue3729(self):
+        t = hl.utils.range_table(10, 3)
+        fold_expr = hl.cond(t.idx == 3,
+                            [1, 2, 3],
+                            [4, 5, 6]).fold(True,
+                                            lambda accum, i: accum & (i == t.idx))
+
+        # fold_expr = hl.cond(t.idx == 3,
+        #                     hl.range(0, 3),
+        #                     hl.range(0, 3)).fold(True,
+        #                                     lambda accum, i: accum & (i == t.idx))
+        t.aggregate(hl.agg.count_where(fold_expr))
