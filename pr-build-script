@@ -25,5 +25,5 @@ BUILD_EXIT=$? ; ( \
     artifacts/ \
     gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/ && \
   gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ \
-) ) ; \
+) ) && \
 exit $BUILD_EXIT
