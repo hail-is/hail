@@ -11,18 +11,22 @@ push-hail-ci-build-image: hail-ci-build-image
 build: build-batch build-test
 
 build-batch:
-	docker build -t gcr.io/broad-ctsa/batch -t batch .
+	docker build -t batch .
 
 build-test:
-	docker build -t gcr.io/broad-ctsa/batch-test -t batch-test -f Dockerfile.test .
+	docker build -t batch-test -f Dockerfile.test .
 
 push: push-batch push-test
 
+push-batch: HASH=$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
 push-batch:
-	docker push gcr.io/broad-ctsa/batch
+	docker tag batch gcr.io/broad-ctsa/batch:${HASH}
+	docker push gcr.io/broad-ctsa/batch:${HASH}
 
+push-test: HASH=$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
 push-test:
-	docker push gcr.io/broad-ctsa/batch-test
+	docker tag batch gcr.io/broad-ctsa/batch-test:${HASH}
+	docker push gcr.io/broad-ctsa/batch-test:${HASH}
 
 redeploy: build push
 	kubectl delete -f deployment.yaml
