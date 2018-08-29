@@ -132,10 +132,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
-      val LMMData(_, nullResidualSq, py, px0, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
+      val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
-      val px = px0.copy
       val n = px.rows
       val f = px.cols + 1
       val dof = n - f
@@ -153,8 +152,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
 
         xdy(0) = py dot dpa
         xdx(0, 0) = pa dot dpa
-        xdx(r0, r1) := px.t * dpa
-        xdx(r1, r0) := xdx(r0, r1).t
+        xdx(r1, r0) := (dpa.t * px).t // if px is not copied, the form px.t * dpa results in a subtle bug
+        xdx(r0, r1) := xdx(r1, r0).t
         
         region.clear()
         rvb.start(rowType)
