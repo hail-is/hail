@@ -286,8 +286,10 @@ class NoImage(object):
         return 'failure'
 
     def __eq__(self, other):
-        return (isinstance(other,
-                           NoImage) and self.target_sha == other.target_sha)
+        return (
+            isinstance(other, NoImage) and
+            self.target_sha == other.target_sha
+        )
 
     def __ne__(self, other):
         return not self == other

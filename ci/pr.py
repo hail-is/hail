@@ -88,7 +88,7 @@ def try_new_build(source, target):
             log.exception(f'could not start batch job due to {e}')
             return Buildable(img, target.sha)
     else:
-        return NoImage()
+        return NoImage(target.sha)
 
 
 def determine_buildability(source, target):
@@ -96,7 +96,7 @@ def determine_buildability(source, target):
     if img:
         return Buildable(img, target.sha)
     else:
-        return NoImage()
+        return NoImage(target.sha)
 
 
 def get_image_for_target(target):
