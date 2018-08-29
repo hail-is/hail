@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import random
+import uuid
 from collections import Counter
 import logging
 import threading
@@ -22,6 +23,9 @@ if 'BATCH_USE_KUBE_CONFIG' in os.environ:
 else:
     kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
+
+instance_id = uuid.uuid4().hex
+log.info(f'instance_id = {instance_id}')
 
 counter = 0
 def next_id():
@@ -68,7 +72,11 @@ class Job(object):
         self.callback = callback
 
         self.pod_template = kube.client.V1Pod(
-            metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id)),
+            metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id),
+                                                labels = {
+                                                    'app': 'batch-job',
+                                                    'hail.is/batch-instance': instance_id
+                                                }),
             spec = pod_spec)
 
         self._pod_name = None
@@ -296,7 +304,9 @@ def pod_changed():
 
 @app.route('/refresh_k8s_state', methods=['POST'])
 def refresh_k8s_state():
-    pods = v1.list_namespaced_pod('default')
+    pods = v1.list_namespaced_pod(
+        'default',
+        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
 
     seen_pods = set()
     for pod in pods.items:
@@ -339,7 +349,10 @@ def flask_event_loop():
 
 def kube_event_loop():
     w = kube.watch.Watch()
-    stream = w.stream(v1.list_namespaced_pod, 'default')
+    stream = w.stream(
+        v1.list_namespaced_pod,
+        'default',
+        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     for event in stream:
         pod = event['object']
         name = pod.metadata.name
