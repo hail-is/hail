@@ -277,3 +277,30 @@ kubectl create secret \
   ${NAME}-service-account-key \
   --from-file=./${NAME}.key
 ```
+
+Useful Shell Functions
+---
+
+probably need bash or zsh to execute correctly, but I use these to quickly learn
+information about pods in our system:
+
+```
+function hailcipod () {
+    PODS=$(kubectl get pods -l app=hail-ci --no-headers)
+    [[ $(echo $PODS | wc -l) -eq 1 ]] || exit -1
+    echo $PODS | awk '{print $1}'
+}
+
+function jobpod () {
+    PODS=$(kubectl get pods --no-headers | grep -Ee "job-$1-.*(Running|Pending)")
+    [[ $(echo $PODS | wc -l) -eq 1 ]] || exit -1
+    echo $PODS | awk '{print $1}'
+}
+```
+
+Example usage:
+
+```
+kubectl logs -f $(hailcipod) # nb: logs -f doesn't work with -l
+kubectl logs $(jobpod 542)
+```
