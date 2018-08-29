@@ -504,7 +504,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        rows = hl.literal(rows, dtype=hl.tarray(schema) if schema is not None else None)
+        rows = to_expr(rows, dtype=hl.tarray(schema) if schema is not None else None)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
