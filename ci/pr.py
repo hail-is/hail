@@ -136,7 +136,7 @@ def maybe_get_image(source, target):
         with open('hail-ci-build-image', 'r') as f:
             return f.read().strip()
     except (sp.CalledProcessError, FileNotFoundError) as e:
-        os.exception(f'could not get hail-ci-build-image due to {e}')
+        log.exception(f'could not get hail-ci-build-image due to {e}')
         return None
     finally:
         shell('git', 'reset', '--merge')
