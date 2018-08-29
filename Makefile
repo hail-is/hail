@@ -36,4 +36,4 @@ run:
 	BATCH_USE_KUBE_CONFIG=1 python batch/server.py
 
 test-local:
-	POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest test/test_batch.py
+	POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py

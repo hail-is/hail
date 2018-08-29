@@ -44,6 +44,13 @@ class Job(object):
     def cancel(self):
         self.client._cancel_job(self.id)
 
+    def delete(self):
+        self.client._delete_job(self.id)
+        
+        self.id = None
+        self.attributes = None
+        self._status = None
+
 class Batch(object):
     def __init__(self, client, id):
         self.client = client
@@ -119,6 +126,9 @@ class BatchClient(object):
 
     def _get_job(self, id):
         return api.get_job(self.url, id)
+
+    def _delete_job(self, id):
+        api.delete_job(self.url, id)
 
     def _cancel_job(self, id):
         api.cancel_job(self.url, id)

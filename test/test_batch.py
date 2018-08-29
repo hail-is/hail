@@ -77,6 +77,20 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
 
+    def test_delete_job(self):
+        j = self.batch.create_job('alpine', ['sleep', '30'])
+        id = j.id
+        j.delete()
+
+        # verify doesn't exist
+        try:
+            self.batch._get_job(id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
+
     def test_cancel_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
         status = j.status()
@@ -85,6 +99,24 @@ class Test(unittest.TestCase):
         j.cancel()
         status = j.status()
         self.assertTrue(status['state'], 'Cancelled')
+
+    def test_get_nonexistent_job(self):
+        try:
+            self.batch._get_job(666)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
+
+    def test_api_cancel_nonexistent_job(self):
+        try:
+            self.batch._cancel_job(666)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
 
     def test_get_job(self):
         j = self.batch.create_job('alpine', ['true'])
