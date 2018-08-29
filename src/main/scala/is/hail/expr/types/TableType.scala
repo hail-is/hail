@@ -1,9 +1,9 @@
 package is.hail.expr.types
 
 import is.hail.expr.Parser
-import is.hail.utils._
 import is.hail.expr.ir._
 import is.hail.rvd.OrderedRVDType
+import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -23,14 +23,12 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
       .bind(("row", rowType))
   }
 
-  def tAgg: TAggregable = TAggregable(rowType, Map(
-    "global" -> (0, globalType),
-    "row" -> (1, rowType)
-  ))
-
-  def aggEnv: Env[Type] = Env.empty[Type]
+  def globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
-    .bind("AGG" -> tAgg)
+
+  def rowEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+    .bind("row" -> rowType)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,

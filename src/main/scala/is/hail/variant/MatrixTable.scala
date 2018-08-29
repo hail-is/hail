@@ -1236,12 +1236,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal("found one or more type check errors")
   }
 
-  lazy val entryEC: EvalContext = matrixType.genotypeEC
-
-  lazy val rowEC: EvalContext = matrixType.rowEC
-
-  lazy val colEC: EvalContext = matrixType.colEC
-
   def globalsTable(): Table = {
     Table(hc,
       sparkContext.parallelize[Row](Array(globals.value)),

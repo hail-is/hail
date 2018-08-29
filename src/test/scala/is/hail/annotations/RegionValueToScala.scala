@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
-import is.hail.expr.{HailRep, hailType}
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag
@@ -21,9 +20,6 @@ object RegionValueToScala {
     case t => throw new RuntimeException(s"classTagHail does not handle $t")
   }
 
-  def load[T: HailRep](region: Region, off: Long): T =
-    load(hailType[T])(region, off)
-
   def load[T](t: Type)(region: Region, off: Long): T = t match {
     case _: TBoolean => region.loadBoolean(off).asInstanceOf[T]
     case _: TInt32 => region.loadInt(off).asInstanceOf[T]
@@ -33,9 +29,6 @@ object RegionValueToScala {
     case t: TArray => loadArray(t.elementType)(region, off)(classTagHail(t.elementType)).asInstanceOf[T]
     case t => throw new RuntimeException(s"load does not handle $t")
   }
-
-  def loadArray[T : HailRep : ClassTag](region: Region, aOff: Long): Array[T] =
-    loadArray[T](hailType[T])(region, aOff)
 
   def loadArray[T : ClassTag](elementType: Type)(region: Region, aOff: Long): Array[T] = {
     val arrayType = TArray(elementType)
