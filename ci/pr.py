@@ -7,6 +7,7 @@ from ci_logging import log
 from constants import CONTEXT, BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH
 from environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client
 from git_state import FQSHA, FQRef
+from github import latest_sha_for_ref
 from http_helper import get_repo, post_repo, BadStatus
 from sentinel import Sentinel
 from shell_helper import shell
@@ -196,14 +197,7 @@ class GitHubPR(object):
 
     def to_PR(self, start_build=False):
         if self.target_sha is None:
-            d = get_repo(
-                self.target_ref.repo.qname,
-                f'git/refs/heads/{self.target_ref.name}',
-                status_code=200
-            )
-            assert 'object' in d, d
-            assert 'sha' in d['object'], d
-            target_sha = d['object']['sha']
+            target_sha = latest_sha_for_ref(self.target_ref)
         else:
             target_sha = self.target_sha
         target = FQSHA(self.target_ref, target_sha)

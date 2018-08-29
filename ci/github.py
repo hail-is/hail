@@ -23,6 +23,14 @@ def open_pulls(target_repo):
     return get_repo(target_repo.qname, 'pulls?state=open', status_code=200)
 
 
+def latest_sha_for_ref(ref):
+    d = get_repo(ref.repo.qname, f'git/refs/heads/{ref.name}', status_code=200)
+    assert 'object' in d, d
+    assert 'sha' in d['object'], d
+    return d['object']['sha']
+
+
+
 def overall_review_state(reviews):
     latest_state_by_login = {}
     for review in reviews:
