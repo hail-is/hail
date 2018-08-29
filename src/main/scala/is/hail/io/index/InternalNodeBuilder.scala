@@ -7,7 +7,7 @@ import is.hail.utils.ArrayBuilder
 object InternalNodeBuilder {
   def typ(keyType: Type, annotationType: Type) = TStruct(
     "first_idx" -> +TInt64(),
-    "children" -> +TArray(TStruct(
+    "children" -> +TArray(+TStruct(
       "index_file_offset" -> +TInt64(),
       "first_key" -> keyType,
       "first_record_offset" -> +TInt64(),
@@ -23,6 +23,7 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   val firstRecordOffsets = new ArrayBuilder[Long]()
   val firstAnnotations = new ArrayBuilder[Any]()
   val lastKeys = new ArrayBuilder[Any]()
+
   var size = 0
   var firstIdx = 0L
   val typ = InternalNodeBuilder.typ(keyType, annotationType)
