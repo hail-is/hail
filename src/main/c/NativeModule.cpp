@@ -362,6 +362,9 @@ bool NativeModule::try_load_locked() {
 std::vector<char> NativeModule::get_binary() {
   std::lock_guard<std::mutex> mylock(big_mutex);
   std::vector<char> empty;
+  if (build_state_ == kFail) {
+    return empty;
+  }
   int fd = open(config.get_lib_name(key_).c_str(), O_RDONLY, 0666);
   if (fd < 0) {
     return empty; // build failed, no lib, return empty
