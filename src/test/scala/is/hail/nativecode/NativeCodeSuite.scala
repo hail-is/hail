@@ -113,7 +113,7 @@ class NativeCodeSuite extends SparkSuite {
     )
     val options = "-ggdb -O2"
     val st = new NativeStatus()
-    val mod = new NativeModule(options, sb.toString(), true)
+    val mod = new NativeModule(options, sb.toString())
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
     val testFunc1 = mod.findLongFuncL1(st, "testFunc1")

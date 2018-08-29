@@ -28,9 +28,11 @@ namespace hail {
 
 namespace {
 
-// Top-level NativeModule methods lock this mutex.  Helper methods have 
-// names ending in "_locked", and must be called only while holding the mutex.
+// Top-level NativeModule methods lock this mutex.  Constructors, and helper methods
+// with names ending in "_locked", must be called only while holding the mutex.
+//
 // That makes everything single-threaded.
+
 std::mutex big_mutex;
 
 // A simple way to get a hash of two strings, take 80bits,
@@ -76,18 +78,10 @@ std::string hash_two_strings(const std::string& a, const std::string& b) {
   return std::string(buf);
 }
 
-bool file_stat(const std::string& name, struct stat* st) {
-  // Open file for reading to avoid inconsistent cached attributes over NFS
-  int fd = ::open(name.c_str(), O_RDONLY, 0666);
-  if (fd < 0) return false;
-  int rc = ::fstat(fd, st);
-  ::close(fd);
-  return (rc == 0);
-}
-
 bool file_exists(const std::string& name) {
   struct stat st;
-  return file_stat(name, &st);
+  int rc = ::stat(name.c_str(), &st);
+  return (rc == 0);
 }
 
 std::string read_file_as_string(const std::string& name) {
@@ -120,34 +114,25 @@ class ModuleConfig {
   std::string ext_cpp_;
   std::string ext_lib_;
   std::string ext_mak_;
-  std::string ext_new_;
   std::string module_dir_;
 
  public:
   ModuleConfig() :
 #if defined(__APPLE__) && defined(__MACH__)
     is_darwin_(true),
-    java_md_("darwin"),
 #else
     is_darwin_(false),
-    java_md_("linux"),
 #endif
+    java_md_(is_darwin_ ? "darwin" : "linux"),
     ext_cpp_(".cpp"),
     ext_lib_(is_darwin_ ? ".dylib" : ".so"),
     ext_mak_(".mak"),
-    ext_new_(".new"),
     module_dir_(get_module_dir()) {
   }
   
   std::string get_lib_name(const std::string& key) {
     std:: stringstream ss;
     ss << module_dir_ << "/hm_" << key << ext_lib_;
-    return ss.str();
-  }
-  
-  std::string get_new_name(const std::string& key) {
-    std:: stringstream ss;
-    ss << module_dir_ << "/hm_" << key << ext_new_;
     return ss.str();
   }
   
@@ -163,11 +148,41 @@ class ModuleConfig {
 
 ModuleConfig config;
 
-// module_table is used to ensure that several Spark worker threads will get
-// shared_ptr's to a single NativeModule, rather than each having their
-// own NativeModule.
+// module_table contains a single NativeModulePtr for each
+// key that we have ever seen.  We never delete a NativeModule
+// or unload its dynamically-loaded code.
 
 std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
+
+NativeModulePtr module_find_or_make(
+  const char* options,
+  const char* source,
+  const char* include
+) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
+  auto key = hash_two_strings(options, source);
+  auto mod = module_table[key].lock();
+  if (!mod) { // make it while holding the lock
+    mod = std::make_shared<NativeModule>(options, source, include);
+    module_table[key] = mod; // save a weak_ptr
+  }
+  return mod;
+}
+
+NativeModulePtr module_find_or_make(
+  bool is_global,
+  const char* key,
+  ssize_t binary_size,
+  const void* binary
+) {
+  std::lock_guard<std::mutex> mylock(big_mutex);
+  auto mod = module_table[key].lock();
+  if (!mod) { // make it while holding the lock
+    mod = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
+    module_table[key] = mod; // save a weak_ptr
+  }
+  return mod;
+}
 
 } // end anon
 
@@ -184,7 +199,6 @@ class ModuleBuilder {
   std::string hm_base_;
   std::string hm_mak_;
   std::string hm_cpp_;
-  std::string hm_new_;
   std::string hm_lib_;
   
 public:
@@ -203,7 +217,6 @@ public:
     hm_base_ = base;
     hm_mak_ = (base + config.ext_mak_);
     hm_cpp_ = (base + config.ext_cpp_);
-    hm_new_ = (base + config.ext_new_);
     hm_lib_ = (base + config.ext_lib_);
   }
   
@@ -218,22 +231,10 @@ private:
   }
   
   void write_mak() {
-    // When we replace foo.new, or foo.{so,dylib}, that must be done
-    // with an atomic-rename operation which guarantees not to leave any
-    // window when there is no foo.new.  On Linux, "mv -f" is atomic, but
-    // on MacOS it isn't.  After some experimentation, we now use perl's
-    // rename command, with the belief that on POSIX-compatible systems
-    // this will be implemented as a rename() system-call, specified thus:
-    //
-    // "If the link named by the new argument exists, it shall be removed and 
-    //  old renamed to new. In this case, a link named new shall remain visible
-    //  to other processes throughout the renaming operation and refer either
-    //  to the file referred to by new or old before the operation began."
-    //
-    // Since perl does funny things to some characters in some non-quoted
-    // strings, we take care to quote the filenames.
     FILE* f = fopen(hm_mak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
+    fprintf(f, ".PHONY: FORCE\n");
+    fprintf(f, "\n");
     fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
     fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
     fprintf(f, "ifndef JAVA_HOME\n");
@@ -253,23 +254,10 @@ private:
       config.is_darwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
                          : "-rdynamic -shared");
     fprintf(f, "\n");
-    // top target is the .so
-    fprintf(f, "$(MODULE_SO): $(MODULE).o\n");
-    fprintf(f, "\tperl -e 'rename \"$(MODULE).new\", \"$@\"'\n");
-    fprintf(f, "\n");
-    // build .o from .cpp
-    fprintf(f, "$(MODULE).o: $(MODULE).cpp\n");
-    fprintf(f, "\t@echo JAVA_HOME '$(JAVA_HOME)'\n");
-    fprintf(f, "\t@echo JAVA_INCLUDE '$(JAVA_INCLUDE)'\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $@ -c $< 2> $(MODULE).err && \\\n");
-    fprintf(f, "\t  $(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $(MODULE).tmp $(MODULE).o 2>> $(MODULE).err ; \\\n");
-    fprintf(f, "\tstatus=$$? ; \\\n");
-    fprintf(f, "\tif [ $$status -ne 0 ] || [ -z $(MODULE).tmp ]; then \\\n");
-    fprintf(f, "\t  rm -f $(MODULE).new ; \\\n");
-    fprintf(f, "\t  echo FAIL ; exit 1 ; \\\n");
-    fprintf(f, "\tfi\n");
-    fprintf(f, "\t-rm -f $(MODULE).err\n");
-    fprintf(f, "\tperl -e 'rename \"$(MODULE).tmp\", \"$(MODULE).new\"'\n");
+    // build .so from .cpp
+    fprintf(f, "$(MODULE_SO): FORCE\n");
+    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $(MODULE).o -c $< 2> $(MODULE).err\n");
+    fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $@ $(MODULE).o 2>> $(MODULE).err\n");
     fprintf(f, "\n");
     fclose(f);
   }
@@ -277,20 +265,23 @@ private:
 public:
   bool try_to_build() {
     // Try to create the .new file, we hold the global lock so there is no race
-    int fd = ::open(hm_new_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
+    int fd = ::open(hm_lib_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
       perror("open");
       assert(false);
     }
     ::close(fd);
-    // The .new file may look the same age as the .cpp file, but
-    // the makefile is written to ignore the .new timestamp
     write_mak();
     write_cpp();
     std::stringstream ss;
     ss << "make -B -C " << config.module_dir_ << " -f " << hm_mak_ << " 1>/dev/null";
     // run the command synchronously, while holding the big_mutex
     int rc = system(ss.str().c_str());
+    if (rc != 0) {
+      std::string base(config.module_dir_ + "/hm_" + key_);
+      fprintf(stderr, "makefile:\n%s", read_file_as_string(base+".mak").c_str());
+      fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
+    }
     return (rc == 0);
   }
 };
@@ -298,21 +289,17 @@ public:
 NativeModule::NativeModule(
   const char* options,
   const char* source,
-  const char* include,
-  bool force_build
+  const char* include
 ) :
   build_state_(kInit),
   load_state_(kInit),
   key_(hash_two_strings(options, source)),
   is_global_(false),
   dlopen_handle_(nullptr),
-  lib_name_(config.get_lib_name(key_)),
-  new_name_(config.get_new_name(key_)) {
-  std::lock_guard<std::mutex> mylock(big_mutex);
+  lib_name_(config.get_lib_name(key_)) {
   // Master constructor - try to get module built in local file
   config.ensure_module_dir_exists();
-  bool have_lib = (!force_build && file_exists(lib_name_));
-  if (have_lib) {
+  if (file_exists(lib_name_)) {
     build_state_ = kPass;
   } else {
     // The file doesn't exist, let's build it
@@ -332,19 +319,16 @@ NativeModule::NativeModule(
   key_(key),
   is_global_(is_global),
   dlopen_handle_(nullptr),
-  lib_name_(config.get_lib_name(key_)),
-  new_name_(config.get_new_name(key_)) {
-  std::lock_guard<std::mutex> mylock(big_mutex);
+  lib_name_(config.get_lib_name(key_)) {
   // Worker constructor - try to get the binary written to local file
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
-  struct stat lib_stat;
-  if (file_stat(lib_name_, &lib_stat) && (lib_stat.st_size == binary_size)) {
+  if (file_exists(lib_name_)) {
     build_state_ = kPass;
   } else {
     // We hold big_mutex so there is no race
-    int fd = open(new_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
+    int fd = open(lib_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
       perror("open");
       assert(0);
@@ -353,22 +337,8 @@ NativeModule::NativeModule(
     rc = write(fd, binary, binary_size);
     assert(rc == binary_size);
     ::close(fd);
-    ::chmod(new_name_.c_str(), 0644);
-    struct stat st;
-    if (file_stat(lib_name_, &st)) {
-      long old_size = st.st_size;
-      if (old_size == binary_size) {
-        ::unlink(new_name_.c_str());
-      } else if (old_size == 0) {
-        ::unlink(lib_name_.c_str());
-      } else {
-        auto old = lib_name_ + ".old";
-        ::rename(lib_name_.c_str(), old.c_str());
-      }
-      // Don't let anyone see the file until it is completely written
-      rc = ::rename(new_name_.c_str(), lib_name_.c_str());
-      build_state_ = ((rc == 0) ? kPass : kFail);
-    }
+    ::chmod(lib_name_.c_str(), 0644);
+    build_state_ = kPass;
   }
   if (build_state_ == kPass) {
     try_load_locked();
@@ -381,28 +351,10 @@ NativeModule::~NativeModule() {
   }
 }
 
-bool NativeModule::try_wait_for_build_locked() {
-  if (build_state_ == kInit) {
-    // Since build or write-binary is performed synchronously while holding
-    // big_mutex, and we are holding big_mutex, we know that neither is 
-    // happening.  The lib_file may or may not exist: we just have to
-    // update the state of this NativeModule to match the filesystem.
-    build_state_ = (file_exists(lib_name_) ? kPass : kFail);
-    if (build_state_ == kFail) {
-      std::string base(config.module_dir_ + "/hm_" + key_);
-      fprintf(stderr, "makefile:\n%s", read_file_as_string(base+".mak").c_str());
-      fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
-    }
-  }
-  return (build_state_ == kPass);
-}
-
 bool NativeModule::try_load_locked() {
   if (load_state_ == kInit) {
     if (is_global_) {
       load_state_ = kPass;
-    } else if (!try_wait_for_build_locked()) {
-      load_state_ = kFail;
     } else {
       auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
       if (!handle) {
@@ -517,14 +469,12 @@ NATIVEMETHOD(void, NativeModule, nativeCtorMaster)(
   jobject thisJ,
   jstring optionsJ,
   jstring sourceJ,
-  jstring includeJ,
-  jboolean force_buildJ
+  jstring includeJ
 ) {
   JString options(env, optionsJ);
   JString source(env, sourceJ);
   JString include(env, includeJ);
-  bool force_build = (force_buildJ != JNI_FALSE);
-  NativeObjPtr ptr = std::make_shared<NativeModule>(options, source, include, force_build);
+  NativeObjPtr ptr = module_find_or_make(options, source, include);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -537,19 +487,10 @@ NATIVEMETHOD(void, NativeModule, nativeCtorWorker)(
 ) {
   bool is_global = (is_globalJ != JNI_FALSE);
   JString key(env, keyJ);
-  NativeModulePtr mod;
-  auto iter = module_table.find(std::string(key));
-  if (iter != module_table.end()) {
-    mod = iter->second.lock(); // table holds weak_ptr, get a shared_ptr
-  }
-  if (!mod) {
-    ssize_t binary_size = env->GetArrayLength(binaryJ);
-    auto binary = env->GetByteArrayElements(binaryJ, 0);
-    mod = std::make_shared<NativeModule>(is_global, key, binary_size, binary);
-    module_table[std::string(key)] = mod;
-    env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
-  }
-  NativeObjPtr ptr = mod;
+  ssize_t binary_size = env->GetArrayLength(binaryJ);
+  auto binary = env->GetByteArrayElements(binaryJ, 0);
+  NativeObjPtr ptr = module_find_or_make(is_global, key, binary_size, binary);
+  env->ReleaseByteArrayElements(binaryJ, binary, JNI_ABORT);
   init_NativePtr(env, thisJ, &ptr);
 }
 

@@ -25,7 +25,7 @@ public:
   std::string new_name_;
   
 public:
-  NativeModule(const char* options, const char* source, const char* include, bool forceBuild);
+  NativeModule(const char* options, const char* source, const char* include);
   
   NativeModule(bool isGlobal, const char* key, ssize_t binarySize, const void* binary);
 

@@ -15,7 +15,7 @@ import com.sun.jna.Native
 // as Array[Byte].
 
 class NativeModule() extends NativeBase() {
-  @native def nativeCtorMaster(options: String, source: String, inc: String, forceBuild: Boolean): Unit
+  @native def nativeCtorMaster(options: String, source: String, inc: String): Unit
   @native def nativeCtorWorker(isGlobal: Boolean, key: String, binary: Array[Byte]): Unit
 
   // Copy-constructor
@@ -25,10 +25,10 @@ class NativeModule() extends NativeBase() {
   }
 
   // Constructor with master parameters only
-  def this(options: String, source: String, forceBuild: Boolean) {
+  def this(options: String, source: String) {
     this()
     val includeDir = NativeCode.getIncludeDir()
-    nativeCtorMaster(options, source, includeDir, forceBuild)
+    nativeCtorMaster(options, source, includeDir)
   }
 
   // Constructor with worker parameters only  

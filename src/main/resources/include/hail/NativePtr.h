@@ -5,6 +5,7 @@
 #include "hail/NativeStatus.h"
 #include <jni.h>
 #include <memory>
+#include <string>
 
 namespace hail {
 
