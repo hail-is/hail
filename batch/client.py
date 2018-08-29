@@ -136,6 +136,9 @@ class BatchClient(object):
     def _get_batch(self, batch_id):
         return api.get_batch(self.url, batch_id)
 
+    def _refresh_k8s_state(self):
+        api.refresh_k8s_state(self.url)
+
     def list_jobs(self):
         jobs = api.list_jobs(self.url)
         return [Job(self, j['id'], j.get('attributes'), j) for j in jobs]

@@ -53,3 +53,7 @@ def delete_batch(url, batch_id):
     r = requests.delete(url + '/batches/{}'.format(batch_id))
     r.raise_for_status()
     return r.json()
+
+def refresh_k8s_state(url):
+    r = requests.post(url + '/refresh_k8s_state')
+    r.raise_for_status()

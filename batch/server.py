@@ -13,6 +13,10 @@ import requests
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('batch')
 
+REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
+
+log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
+
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
@@ -258,6 +262,57 @@ def delete_batch(batch_id):
     batch.delete()
     return jsonify({})
 
+def update_job_with_pod(job, pod):
+    if pod:
+        if pod.status.container_statuses:
+            assert len(pod.status.container_statuses) == 1
+            container_status = pod.status.container_statuses[0]
+            assert container_status.name == 'default'
+            
+            if container_status.state and container_status.state.terminated:
+                job.mark_complete(pod)
+    else:
+        job.mark_unscheduled()
+
+@app.route('/pod_changed', methods=['POST'])
+def pod_changed():
+    parameters = request.json
+
+    pod_name = parameters['pod_name']
+
+    job = pod_name_job.get(pod_name)
+    if job and not job.is_complete():
+        try:
+            pod = v1.read_namespaced_pod(pod_name, 'default')
+        except kube.client.rest.ApiException as e:
+            if e.status == 404:
+                pod = None
+            else:
+                raise
+
+        update_job_with_pod(job, pod)
+
+    return '', 204
+
+@app.route('/refresh_k8s_state', methods=['POST'])
+def refresh_k8s_state():
+    pods = v1.list_namespaced_pod('default')
+
+    seen_pods = set()
+    for pod in pods.items:
+        pod_name = pod.metadata.name
+        seen_pods.add(pod_name)
+
+        job = pod_name_job.get(pod_name)
+        if job and not job.is_complete():
+            update_job_with_pod(job, pod)
+
+    for pod_name, job in pod_name_job.items():
+        if pod_name not in seen_pods:
+            update_job_with_pod(job, None)
+
+    return '', 204
+
 def run_forever(target, *args, **kwargs):
     # target should be a function
     target_name = target.__name__
@@ -286,29 +341,28 @@ def kube_event_loop():
     w = kube.watch.Watch()
     stream = w.stream(v1.list_namespaced_pod, 'default')
     for event in stream:
-        event_type = event['type']
         pod = event['object']
         name = pod.metadata.name
+        requests.post('http://127.0.0.1:5000/pod_changed', json={'pod_name': name}, timeout=120)
 
-        log.debug(f'kube_event_loop: got event: {event_type} {pod.api_version}/{pod.kind} {name}')
-
-        job = pod_name_job.get(name)
-        if job and not job.is_complete():
-            if event_type == 'DELETE':
-                job.mark_unscheduled()
-            elif event_type == 'ADDED' or event_type == 'MODIFIED':
-                if pod.status.container_statuses:
-                    assert len(pod.status.container_statuses) == 1
-                    container_status = pod.status.container_statuses[0]
-                    assert container_status.name == 'default'
-
-                    if container_status.state and container_status.state.terminated:
-                        job.mark_complete(pod)
-            else:
-                log.error(f'kube_event_loop: saw unexpected event_type {event_type} in {event}')
+def polling_event_loop():
+    time.sleep(1)
+    while True:
+        try:
+           r = requests.post('http://127.0.0.1:5000/refresh_k8s_state', timeout=120)
+           r.raise_for_status()
+        except requests.HTTPError as e: 
+            log.error(f'Could not poll due to exception: {e}, text: {e.response.text}')
+        except Exception as e:
+            log.error(f'Could not poll due to exception: {e}')
+            pass
+        time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
 kube_thread.start()
+
+polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop,))
+polling_thread.start()
 
 # debug/reloader must run in main thread
 # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
