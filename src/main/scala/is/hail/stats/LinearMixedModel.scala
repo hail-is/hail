@@ -38,7 +38,7 @@ object LinearMixedModel {
     
     val typ = TableType(rowType, Some(FastIndexedSeq("idx")), globalType = TStruct())
     
-    val orderedRVD = new OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
+    val orderedRVD = OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
       orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
     
     new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), orderedRVD)))
@@ -130,40 +130,88 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
-    
-    val rdd = pa_t.rows.mapPartitions { itPAt =>
+
+    val rdd = pa_t.rows.zipPartitions(pa_t.rows) { case (itPAt, itPAt2) =>
+      info("part")
+      
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
       val xdx = xdx0.copy
+ 
       val n = px.rows
       val f = px.cols + 1
       val dof = n - f
       val r0 = 0 to 0
       val r1 = 1 until f
+
+      val py0a = py.toArray
+      val px0a = px.toArray
+      val d0a = d.toArray
+      val xdy0a = xdy0(1 until f).toArray
+      val xdx0a = xdx0(1 until f, 1 until f).toArray
       
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val rowType = rowTypeBc.value
 
-      itPAt.map { case (i, pa0) =>
-        val pa = BDV(pa0)
+      itPAt.zip(itPAt2).map { case ((i, pa0), (i2, pa02)) =>
+        val pa = BDV(pa0)       
         val dpa = d *:* pa
 
         xdy(0) = py dot dpa
         xdx(0, 0) = pa dot dpa
-        xdx(r0, r1) := px.t * dpa
-        xdx(r1, r0) := xdx(r0, r1).t
+        xdx(r1, r0) := (dpa.t * px).t
+        xdx(r0, r1) := xdx(r1, r0).t
         
         region.clear()
         rvb.start(rowType)
-        try {          
+        try {
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
           val pValue = chiSquaredTail(chiSq, 1)
 
+          def state(): String = s"state:\n" +
+            s"i=$i, ${i / 4096}, ${i % 4096}\n\n" +
+            s"i2=$i2, ${i2 / 4096}, ${i2 % 4096}\n\n" +   
+            s"pa=$pa\n\n" +
+            s"pa2=${BDV(pa02)}\n\n" +
+            s"py=$py\n\n" +
+            s"py0=${py0a.slice(0, 10).mkString("[", ",", "]")}\n\n" +
+            s"px=$px\n\n" +
+            s"px0=${px0a.slice(0, 3).mkString("[", ",", "]")}\n\n" +
+            s"d=$d\n\n" +
+            s"d0=${d0a.slice(0, 10).mkString("[", ",", "]")}\n\n" +
+            s"ydy=$ydy\n\n" +
+            s"xdy=$xdy\n\n" +
+            s"xdy0=$xdy0\n\n" +
+            s"xdx=$xdx\n\n" +
+            s"xdx0=$xdx0\n\n" +
+            s"nullResidualSq=$nullResidualSq\n\n" +
+            s"beta=$beta\n\n" +
+            s"sigma_sq=$sigmaSq\n\n" +
+            s"chi_sq=$chiSq\n\n" +
+            s"pval=$pValue\n\n\n"
+          
+          if (!(py.toArray sameElements py0a))
+            info(s"py changed\n\n${state()}\n\n")
+          if (!(px.toArray sameElements px0a))
+            info(s"px changed\n\n${state()}\n\n")
+          if (!(d.toArray sameElements d0a))
+            info(s"d changed\n\n${state()}\n\n")
+          if (!(xdy(1 until f).toArray sameElements xdy0a))
+            info(s"xdy changed\n\n${state()}\n\n")
+          if (!(xdx(1 until f, 1 until f).toArray sameElements xdx0a))
+            info(s"xdx changed\n\n${state()}\n\n")
+          if (!(xdx(1 until f, 0).toArray sameElements xdx(0, 1 until f).t.toArray))
+            info(s"xdx assymetric\n\n${state()}\n\n")
+          if (pa != BDV(pa02))
+            info(s"pa not equal pa2\n\n${state()}\n\n")
+          else if (pValue == 1)
+            info(s"pval is 1\n\n${state()}\n\n")
+          
           rvb.startStruct()
           rvb.addLong(i)
           rvb.addDouble(beta(0))  // could expand to return all coefficients, or switch to block matrix projection trick
