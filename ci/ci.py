@@ -230,7 +230,7 @@ def refresh_github_state():
             for pull in pulls:
                 gh_pr = GitHubPR.from_gh_json(pull)
                 pulls_by_target[gh_pr.target_ref].append(gh_pr)
-            refresh_pulls(pulls_by_target)
+            refresh_pulls(target_repo, pulls_by_target)
             refresh_reviews(pulls_by_target)
             # FIXME: I can't fit build state json in the status description
             # refresh_statuses(pulls_by_target)
@@ -240,9 +240,12 @@ def refresh_github_state():
     return '', 200
 
 
-def refresh_pulls(pulls_by_target):
-    open_gh_target_refs = {x for x in pulls_by_target.keys()}
-    for dead_target_ref in set(prs.live_target_refs()) - open_gh_target_refs:
+def refresh_pulls(target_repo, pulls_by_target):
+    dead_targets = (
+        set(prs.live_target_refs_for_repo(target_repo)) -
+        {x for x in pulls_by_target.keys()}
+    )
+    for dead_target_ref in dead_targets:
         prs.forget_target(dead_target_ref)
     for (target_ref, pulls) in pulls_by_target.items():
         for gh_pr in pulls:

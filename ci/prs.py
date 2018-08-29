@@ -96,6 +96,10 @@ class PRS(object):
     def live_target_refs(self):
         return [x for x in self.target_source_pr.keys()]
 
+    def live_target_refs_for_repo(self, repo):
+        return [x for x in self.target_source_pr.keys()
+                if x.repo == repo]
+
     def for_target(self, target):
         return self.target_source_pr.get(target, {}).values()
 
