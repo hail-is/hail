@@ -89,9 +89,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
 
         xdy(0) = (py dot dpa) + gamma * (y dot a)
         xdx(0, 0) = (pa dot dpa) + gamma * (a dot a)
-        xdx(r0, r1) := (px.t * dpa) + gamma * (x.t * a)  // could group rows or compute xtc with block matrix multiply
-        xdx(r1, r0) := xdx(r0, r1).t
-        
+        xdx(r1, r0) := (dpa.t * px).t + gamma * (a.t * x).t // if px and x are not copied, the forms px.t * dpa and x.t * a result in a subtle bug
+        xdx(r0, r1) := xdx(r1, r0).t
+       
         region.clear()
         rvb.start(rowType)
         try {
