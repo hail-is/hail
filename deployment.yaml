@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: batch
-        image: gcr.io/broad-ctsa/batch
+        image: gcr.io/broad-ctsa/batch:be4db2baac746dc389e0cb5baa75bc214d831252b32f78c5bf6595e15dd36aab
         ports:
         - containerPort: 5000
 ---
