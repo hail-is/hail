@@ -247,10 +247,9 @@ def refresh_pulls(pulls_by_target):
     for (target_ref, pulls) in pulls_by_target.items():
         for gh_pr in pulls:
             prs.pr_push(gh_pr)
-        dead_prs = ({x.source.ref
-                     for x in prs.for_target(target_ref)} -
-                    {x.source.ref
-                     for x in pulls})
+        dead_prs = ({x.source.ref for x in prs.for_target(target_ref)} -
+                    {x.source.ref for x in pulls})
+        log.info(f'for {target_ref.short_str()}, forgetting {[x.short_str() for x in dead_prs]}')
         for source_ref in dead_prs:
             prs.forget(source_ref, target_ref)
     return pulls_by_target
