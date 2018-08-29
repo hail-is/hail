@@ -112,7 +112,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, TInt32(), input))
+    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
