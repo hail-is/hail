@@ -139,9 +139,8 @@ class ModuleConfig {
   void ensure_module_dir_exists() {
     int rc = ::access(module_dir_.c_str(), R_OK);
     if (rc < 0) { // create it
-      rc = ::mkdir(module_dir_.c_str(), 0666);
+      rc = ::mkdir(module_dir_.c_str(), 0755);
       if (rc < 0) perror(module_dir_.c_str());
-      rc = ::chmod(module_dir_.c_str(), 0755);
     }
   }
 };
@@ -264,13 +263,6 @@ private:
 
 public:
   bool try_to_build() {
-    // Try to create the .new file, we hold the global lock so there is no race
-    int fd = ::open(hm_lib_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
-    if (fd < 0) {
-      perror("open");
-      assert(false);
-    }
-    ::close(fd);
     write_mak();
     write_cpp();
     std::stringstream ss;
@@ -324,20 +316,26 @@ NativeModule::NativeModule(
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
+  build_state_ = kPass; // unless we get an error after this
   if (!file_exists(lib_name_)) {
     // We hold big_mutex so there is no race
-    int fd = open(lib_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
-    if (fd < 0) {
-      perror("open");
-      assert(0);
+    if (binary_size == 0) {
+      // This binary came from a lib which gave errors during reading
+      build_state_ = kFail;
+    } else {
+      int fd = open(lib_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
+      if (fd < 0) {
+        build_state_ = kFail;
+      } else {
+        rc = write(fd, binary, binary_size);
+        if (rc != binary_size) {
+          build_state_ = kFail;
+        }
+        ::close(fd);
+      }
     }
-    rc = write(fd, binary, binary_size);
-    assert(rc == binary_size);
-    ::close(fd);
-    ::chmod(lib_name_.c_str(), 0644);
   }
-  build_state_ = kPass;
-  try_load_locked();
+  if (build_state_ == kPass) try_load_locked();
 }
 
 NativeModule::~NativeModule() {
@@ -348,15 +346,14 @@ NativeModule::~NativeModule() {
 
 bool NativeModule::try_load_locked() {
   if (load_state_ == kInit) {
-    if (is_global_) {
+    assert(!is_global_);
+    auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
+    if (handle) {
+      dlopen_handle_ = handle;
       load_state_ = kPass;
     } else {
-      auto handle = dlopen(lib_name_.c_str(), RTLD_GLOBAL|RTLD_NOW);
-      if (!handle) {
-        fprintf(stderr, "ERROR: dlopen failed: %s\n", dlerror());
-      }
-      load_state_ = (handle ? kPass : kFail);
-      if (handle) dlopen_handle_ = handle;
+      // Attempts to find a func will give a bad NativeStatus
+      load_state_ = kFail;
     }
   }
   return (load_state_ == kPass);
@@ -364,18 +361,23 @@ bool NativeModule::try_load_locked() {
 
 std::vector<char> NativeModule::get_binary() {
   std::lock_guard<std::mutex> mylock(big_mutex);
+  std::vector<char> empty;
   int fd = open(config.get_lib_name(key_).c_str(), O_RDONLY, 0666);
-  std::vector<char> vec;
   if (fd < 0) {
-    return vec; // build failed, no lib, return empty
+    return empty; // build failed, no lib, return empty
   }
   struct stat st;
   int rc = fstat(fd, &st);
-  assert(rc == 0);
+  if (rc < 0) {
+    return empty;
+  }
+  std::vector<char> vec;
   size_t file_size = st.st_size;
   vec.resize(file_size);
   rc = read(fd, &vec[0], file_size);
-  assert(rc == (int)file_size);
+  if ((size_t)rc != file_size) {
+    return empty;
+  }
   close(fd);
   return vec;
 }
@@ -389,21 +391,23 @@ static std::string to_qualified_name(
   bool is_longfunc
 ) {
   JString name(env, nameJ);
-  char argTypeCodes[32];
-  for (int j = 0; j < numArgs; ++j) argTypeCodes[j] = 'l';
-  argTypeCodes[numArgs] = 0;
-  char buf[512];
+  std::string result;
   if (is_global) {
     // No name-mangling for global func names
-    strcpy(buf, name);
+    result = name;
   } else {
-    // Mangled name for hail::hm_<key>::funcname(NativeStatus* st, some numbers of longs)
-    auto moduleName = std::string("hm_") + key;
-    sprintf(buf, "_ZN4hail%lu%s%lu%sE%s%s",
-      moduleName.length(), moduleName.c_str(), strlen(name), (const char*)name, 
-      "P12NativeStatus", argTypeCodes);
+    // Mangled name for hail::hm_<key>::funcname(NativeStatus* st, some number of longs)
+    std::stringstream ss;
+    auto mod_name = std::string("hm_") + key;
+    ss << "_ZN4hail" 
+       << mod_name.length() << mod_name
+       << strlen(name) << (const char*)name
+       << "E"
+       << "P12NativeStatus";
+    for (int j = 0; j < numArgs; ++j) ss << 'l';
+    result = ss.str();
   }
-  return std::string(buf);
+  return result;
 }
 
 void NativeModule::find_LongFuncL(
