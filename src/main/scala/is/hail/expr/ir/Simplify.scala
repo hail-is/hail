@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
-import is.hail.expr.types.{TInt32, TStruct}
+import is.hail.expr.types.{TInt32, TInt64, TStruct}
 import is.hail.table.{Ascending, SortField}
 
 object Simplify {
@@ -225,7 +225,7 @@ object Simplify {
 
       case TableCount(TableRange(n, _)) => I64(n)
 
-      case TableCount(TableParallelize(rows, _)) => ArrayLen(rows)
+      case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
 
       case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
         InsertFields(s, fields)

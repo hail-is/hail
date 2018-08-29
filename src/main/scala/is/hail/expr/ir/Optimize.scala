@@ -13,7 +13,8 @@ object Optimize {
     ir = PruneDeadFields(ir)
 
     if (ir.typ != ir0.typ)
-      fatal(s"optimization changed type!\n  before: ${ir0.typ}\n  after:  ${ir.typ}")
+      fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +
+        s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)
       log.info("optimize: after:\n" + Pretty(ir))
