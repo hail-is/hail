@@ -196,9 +196,9 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def copy() = new CollectAggregator(t)
 }
 
-class InfoScoreAggregator extends TypedAggregator[Annotation] {
+class InfoScoreAggregator(t: Type) extends TypedAggregator[Annotation] {
 
-  var _state = new InfoScoreCombiner()
+  var _state = new InfoScoreCombiner(t)
 
   def result = _state.asAnnotation
 
@@ -211,7 +211,7 @@ class InfoScoreAggregator extends TypedAggregator[Annotation] {
     _state.merge(agg2._state)
   }
 
-  def copy() = new InfoScoreAggregator()
+  def copy() = new InfoScoreAggregator(t)
 }
 
 class HWEAggregator() extends TypedAggregator[Annotation] {
@@ -495,8 +495,8 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int) extends TypedAggregator[Any] {
-  var combiner = new LinearRegressionCombiner(k, k0)
+class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type) extends TypedAggregator[Any] {
+  var combiner = new LinearRegressionCombiner(k, k0, xType)
 
   def seqOp(a: Any) = {
     if (a != null) {
@@ -520,7 +520,7 @@ class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int) extends Type
   def result: Annotation = combiner.result()
 
   def copy() = {
-    val lra = new LinearRegressionAggregator(xF, k, k0)
+    val lra = new LinearRegressionAggregator(xF, k, k0, xType)
     lra.combiner = combiner.copy()
     lra
   }

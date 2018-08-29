@@ -449,6 +449,16 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
+    def test_aggregator_info_score_works_with_bgen_import(self):
+        sample_file = resource('random.sample')
+        bgen_file = resource('random.bgen')
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
+        result = bgenmt.annotate_rows(info=hl.agg.info_score(bgenmt.GP)).rows().take(1)
+        result = result[0].info
+        self.assertAlmostEqual(result.score, -0.235041090, places=3)
+        self.assertEqual(result.n_included, 8)
+
     def test_aggregator_group_by(self):
         t = hl.Table.parallelize([
             {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},

@@ -212,6 +212,12 @@ class AggregatorsSuite {
       Row(-0.6654567, 2))
   }
 
+  @Test def infoScoreRequired() {
+    runAggregator(InfoScore(), TArray(+TFloat64()),
+      FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
+      Row(-0.6654567, 2))
+  }
+
   @Test def hardyWeinberg() {
     runAggregator(HardyWeinberg(), TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), Call2(1, 1), null),
@@ -381,6 +387,35 @@ class AggregatorsSuite {
         FastSeq(1L, 33L),
         FastSeq(42L, 3L)),
       FastSeq(43L, 36L)
+    )
+
+  private[this] def assertRequiredArraySumEvalsTo[T: HailRep](
+    a: IndexedSeq[Seq[T]],
+    expected: Seq[T]
+  ): Unit = {
+    val typ = TArray(hailType[T].setRequired(true))
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(typ))
+    val aggregable = a.map(Row(_))
+    assertEvalsTo(
+      ApplyAggOp(SeqOp(I32(0), FastSeq(Ref("a", typ)), aggSig), FastSeq(), None, aggSig),
+      (aggregable, TStruct("a" -> typ)),
+      expected)
+  }
+
+  @Test def arraySumInt64Required(): Unit =
+    assertRequiredArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1L, 33L),
+        FastSeq(42L, 3L)),
+      FastSeq(43L, 36L)
+    )
+
+  @Test def arraySumFloat64Required(): Unit =
+    assertRequiredArraySumEvalsTo(
+      FastIndexedSeq(
+        FastSeq(1D, 33D),
+        FastSeq(42D, 3D)),
+      FastSeq(43D, 36D)
     )
 
   private[this] def assertTakeByEvalsTo(aggType: Type, keyType: Type, n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {
@@ -673,6 +708,31 @@ class AggregatorsSuite {
       constrArgs = FastIndexedSeq(I32(2), I32(1)),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(TFloat64())))
+    )
+  }
+
+  @Test def linearRegression2xRequired() {
+    runAggregator(LinearRegression(),
+      TStruct("y" -> TFloat64(), "x" -> TArray(+TFloat64())),
+      FastIndexedSeq(
+        Row(0.22848042, FastIndexedSeq(1, 0.2575928)),
+        Row(0.09159706, FastIndexedSeq(1, -0.3445442)),
+        Row(-0.43881935, FastIndexedSeq(1, 1.6590146)),
+        Row(-0.99106171, FastIndexedSeq(1, -1.1688806)),
+        Row(2.12823289, FastIndexedSeq(1, 0.5587043))),
+      Row(FastIndexedSeq(0.14069227, 0.32744807),
+        FastIndexedSeq(0.59410817, 0.61833778),
+        FastIndexedSeq(0.23681254, 0.52956181),
+        FastIndexedSeq(0.82805147, 0.63310173),
+        1.301565,
+        0.08548734,
+        -0.2193502,
+        0.2804357,
+        0.6331017,
+        5L),
+      constrArgs = FastIndexedSeq(I32(2), I32(1)),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(+TFloat64())))
     )
   }
 

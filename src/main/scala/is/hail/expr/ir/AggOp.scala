@@ -14,52 +14,29 @@ case class AggSignature(
   seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
-// nulary
-final case class Fraction() extends AggOp { } // remove when prefixes work
-final case class Statistics() extends AggOp { } // remove when prefixes work
+final case class CallStats() extends AggOp { }
 final case class Collect() extends AggOp { }
 final case class CollectAsSet() extends AggOp { }
+final case class Count() extends AggOp { }
+final case class Counter() extends AggOp { }
+final case class Downsample() extends AggOp { }
+final case class Fraction() extends AggOp { }
+final case class HardyWeinberg() extends AggOp { }
+final case class Histogram() extends AggOp { }
+final case class Inbreeding() extends AggOp { }
 final case class InfoScore() extends AggOp { }
-final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
-
-final case class Sum() extends AggOp { }
-final case class Product() extends AggOp { }
+final case class Keyed(x: AggOp) extends AggOp { }
+final case class LinearRegression() extends AggOp { }
 final case class Max() extends AggOp { }
 final case class Min() extends AggOp { }
-
-final case class Count() extends AggOp { }
-
-// unary
+final case class Product() extends AggOp { }
+final case class Statistics() extends AggOp { }
+final case class Sum() extends AggOp { }
 final case class Take() extends AggOp { }
-
-// ternary
-final case class Histogram() extends AggOp { }
-
-final case class CallStats() extends AggOp { }
-
-// what to do about InbreedingAggregator
-final case class Inbreeding() extends AggOp { }
-
-final case class Downsample() extends AggOp { }
+final case class TakeBy() extends AggOp { }
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
-// Count === map(x => 1).sum
-// SumArray === Sum, Sum should work on product or union of summables
-// Fraction === map(x => p(x)).fraction
-// Statistics === map(x => Cast(x, TDouble())).stats
-// Histogram === map(x => Cast(x, TDouble())).hist
-
-// Counter needs Dict
-final case class Counter() extends AggOp { }
-// CollectSet needs Set
-
-// TakeBy needs lambdas
-final case class TakeBy() extends AggOp { }
-
-final case class LinearRegression() extends AggOp { }
-
-final case class Keyed(x: AggOp) extends AggOp { }
 
 object AggOp {
 
@@ -88,12 +65,14 @@ object AggOp {
     }
 
     case (InfoScore(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
-      CodeAggregator[RegionValueInfoScoreAggregator](RegionValueInfoScoreAggregator.typ, seqOpArgTypes = Array(classOf[Long]))
+      CodeAggregator[RegionValueInfoScoreAggregator](RegionValueInfoScoreAggregator.typ, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
 
     case (Sum(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueSumLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
     case (Sum(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueSumDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
     case (Sum(), Seq(), None, Seq(TArray(TInt64(_), _))) =>
-      CodeAggregator[RegionValueArraySumLongAggregator](TArray(TInt64()), seqOpArgTypes = Array(classOf[Long]))
+      CodeAggregator[RegionValueArraySumLongAggregator](TArray(TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
+    case (Sum(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
+      CodeAggregator[RegionValueArraySumDoubleAggregator](TArray(TFloat64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
 
     case (CollectAsSet(), Seq(), None, Seq(in)) =>
       in match {
@@ -104,9 +83,6 @@ object AggOp {
         case _: TFloat64 => CodeAggregator[RegionValueCollectAsSetDoubleAggregator](TSet(TFloat64()), seqOpArgTypes = Array(classOf[Double]))
         case _ => CodeAggregator[RegionValueCollectAsSetAnnotationAggregator](TSet(in), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
       }
-
-    case (Sum(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
-      CodeAggregator[RegionValueArraySumDoubleAggregator](TArray(TFloat64()), seqOpArgTypes = Array(classOf[Long]))
 
     case (Product(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueProductLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
     case (Product(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueProductDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
@@ -221,7 +197,7 @@ object AggOp {
     case (LinearRegression(), constArgs@Seq(_: TInt32, _: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
       CodeAggregator[RegionValueLinearRegressionAggregator](
         RegionValueLinearRegressionAggregator.typ,
-        constrArgTypes = Array(classOf[Int], classOf[Int]),
+        constrArgTypes = Array(classOf[Int], classOf[Int], classOf[Type]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
     case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>

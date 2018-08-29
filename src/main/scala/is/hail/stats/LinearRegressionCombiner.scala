@@ -18,21 +18,19 @@ object LinearRegressionCombiner {
     "f_stat" -> TFloat64(),
     "multiple_p_value" -> TFloat64(),
     "n" -> TInt64())
-
-  val xType = TArray(TFloat64())
 }
 
-class LinearRegressionCombiner(k: Int, k0: Int) extends Serializable {
+class LinearRegressionCombiner(k: Int, k0: Int, t: Type) extends Serializable {
   assert(k > 0)
   assert(k0 >= 0 && k0 <= k)
+  assert(t.isOfType(TArray(TFloat64())))
+  val xType = t.asInstanceOf[TArray]
 
   var n = 0L
   var x = new Array[Double](k)
   var xtx = DenseMatrix.zeros[Double](k, k)
   var xty = DenseVector.zeros[Double](k)
   var yty = 0.0
-
-  val xType = LinearRegressionCombiner.xType
 
   def merge(y: Double, x: IndexedSeq[Double]) {
     assert(k == x.length)
@@ -208,7 +206,7 @@ class LinearRegressionCombiner(k: Int, k0: Int) extends Serializable {
   }
 
   def copy(): LinearRegressionCombiner = {
-    val combiner = new LinearRegressionCombiner(k, k0)
+    val combiner = new LinearRegressionCombiner(k, k0, xType)
     combiner.n = n
     combiner.x = x.clone()
     combiner.xtx = xtx.copy

@@ -8,12 +8,13 @@ object InfoScoreCombiner {
   def signature = TStruct("score" -> TFloat64(), "n_included" -> TInt32())
 }
 
-class InfoScoreCombiner extends Serializable {
+class InfoScoreCombiner(t: Type) extends Serializable {
   var result = 0d
   var expectedAlleleCount = 0d
   var totalDosage = 0d
   var nIncluded = 0
-  val typ = TArray(TFloat64())
+  assert(t.isOfType(TArray(TFloat64())))
+  val typ = t.asInstanceOf[TArray]
 
   def expectedVariance(gp: IndexedSeq[java.lang.Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
@@ -113,7 +114,7 @@ class InfoScoreCombiner extends Serializable {
   }
 
   def copy(): InfoScoreCombiner = {
-    val c = new InfoScoreCombiner()
+    val c = new InfoScoreCombiner(typ)
     c.result = result
     c.expectedAlleleCount = expectedAlleleCount
     c.totalDosage = totalDosage
