@@ -14,14 +14,14 @@ spec:
     spec:
       containers:
         - name: hail-ci
-          image: gcr.io/broad-ctsa/hail-ci:3334ac4badf382cec234f2695d8fe4f8e410ea46
+          image: gcr.io/broad-ctsa/hail-ci:fedef9f48a14b958d8f34896af1f4000a4fe81bc
           env:
             - name: SELF_HOSTNAME
               value: http://hail-ci
             - name: BATCH_SERVER_URL
               value: http://batch
-            - name: WATCHED_REPOS
-              value: '["hail-is/hail", "hail-is/batch"]'
+            - name: WATCHED_TARGETS
+              value: '[["hail-is/hail:master", false], ["hail-is/hail:0.1", false], ["hail-is/batch:master", false]]'
           ports:
             - containerPort: 5000
           volumeMounts:

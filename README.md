@@ -75,14 +75,17 @@ configured appropriately for local testing. There already exist webhooks on the
 ```
 pip install ./batch
 HAIL_CI_REMOTE_PORT=3001 make restart-all-proxies
-BATCH_SERVER_URL='http://localhost:8888' SELF_HOSTNAME='http://35.232.159.176:3001' WATCHED_REPOS='["hail-is/ci-test"]' python ci/ci.py
+BATCH_SERVER_URL='http://localhost:8888' \
+  SELF_HOSTNAME='http://35.232.159.176:3001' \
+  WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
+  python ci/ci.py
 ```
 
 From another terminal with the anaconda environment also activated, the
 following runs the tests:
 
 ```
-pytest ci/test-ci2.py
+pytest test/test-ci.py
 ```
 
 
@@ -246,3 +249,31 @@ External IP Addresses in GKE
 https://stackoverflow.com/a/33830507/6823256
 
 we can allocate one explicitly and then specify it in the `deployment.yaml`
+
+How I Created a PR Deploy Service Account
+---
+
+This has creation privileges to the bucket where we publish Jars. It should
+really only have privileges to create new jars in the `build/` folder. :shrug:.
+
+NB: cannot delete, cannot replace, only create new files in the bucket
+
+```sh
+NAME=ci-deploy-0-1--hail-is-ci-test
+gcloud iam service-accounts create ${NAME}
+gsutil iam ch \
+  serviceAccount:${NAME}@broad-ctsa.iam.gserviceaccount.com:objectCreator \
+  gs://hail-ci-test
+# really should only have list so that you can copy to an object path rather
+# than to the root of a bucket, but, ugh, too many things to do not enough time
+gsutil iam ch \
+  serviceAccount:${NAME}@broad-ctsa.iam.gserviceaccount.com:objectViewer \
+  gs://hail-ci-test
+gcloud iam service-accounts keys create \
+  ${NAME}.key \
+  --iam-account ${NAME}@broad-ctsa.iam.gserviceaccount.com
+kubectl create secret \
+  generic \
+  ${NAME}-service-account-key \
+  --from-file=./${NAME}.key
+```

@@ -1,0 +1,14 @@
+set -x && \
+git clone $DEPLOY_REPO_URL \
+    --branch $DEPLOY_BRANCH \
+    repo && \
+cd repo && \
+echo $(git rev-parse $DEPLOY_BRANCH) && \
+[[ $( git rev-parse $DEPLOY_BRANCH ) == $DEPLOY_SHA ]] && \
+git config user.email hail-ci-pr-builder@hail.is && \
+git config user.name "Hail CI Deployer" && \
+chmod 755 ./hail-ci-deploy.sh && \
+gcloud auth activate-service-account \
+  ${GCLOUD_ACCT_NAME}@broad-ctsa.iam.gserviceaccount.com \
+  --key-file=/secrets/${GCLOUD_ACCT_NAME}.json && \
+./hail-ci-deploy.sh

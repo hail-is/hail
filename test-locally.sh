@@ -7,10 +7,10 @@ function cleanup {
 }
 trap cleanup EXIT
 
-export WATCHED_REPOS='["hail-is/ci-test"]'
+export WATCHED_TARGETS='[["hail-is/ci-test:master", true]]'
 
 source activate hail-ci
 python ci/ci.py & echo $! > ci.pid
 sleep 5
-python -m unittest ci/test-ci2.py ${UNITTEST_ARGS}
+PYTHONPATH=$PYTHONPATH:${PWD}/ci pytest -vv test/test-ci.py
 
