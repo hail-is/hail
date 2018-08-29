@@ -47,8 +47,6 @@ public:
 
   // Methods with names ending "_locked" must be called already holding the big_mutex
 
-  bool try_wait_for_build_locked();
-  
   bool try_load_locked();  
 };
 

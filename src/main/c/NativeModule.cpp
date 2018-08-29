@@ -256,7 +256,7 @@ private:
     fprintf(f, "\n");
     // build .so from .cpp
     fprintf(f, "$(MODULE_SO): FORCE\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $(MODULE).o -c $< 2> $(MODULE).err\n");
+    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $(MODULE).o -c $(MODULE).cpp 2> $(MODULE).err\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $@ $(MODULE).o 2>> $(MODULE).err\n");
     fprintf(f, "\n");
     fclose(f);
@@ -324,25 +324,20 @@ NativeModule::NativeModule(
   if (is_global_) return;
   int rc = 0;
   config.ensure_module_dir_exists();
-  if (file_exists(lib_name_)) {
-    build_state_ = kPass;
-  } else {
+  if (!file_exists(lib_name_)) {
     // We hold big_mutex so there is no race
     int fd = open(lib_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fd < 0) {
       perror("open");
       assert(0);
     }
-    // Now we're about to write the new file
     rc = write(fd, binary, binary_size);
     assert(rc == binary_size);
     ::close(fd);
     ::chmod(lib_name_.c_str(), 0644);
-    build_state_ = kPass;
   }
-  if (build_state_ == kPass) {
-    try_load_locked();
-  }
+  build_state_ = kPass;
+  try_load_locked();
 }
 
 NativeModule::~NativeModule() {
@@ -369,11 +364,10 @@ bool NativeModule::try_load_locked() {
 
 std::vector<char> NativeModule::get_binary() {
   std::lock_guard<std::mutex> mylock(big_mutex);
-  try_wait_for_build_locked();
   int fd = open(config.get_lib_name(key_).c_str(), O_RDONLY, 0666);
   std::vector<char> vec;
   if (fd < 0) {
-    return vec;
+    return vec; // build failed, no lib, return empty
   }
   struct stat st;
   int rc = fstat(fd, &st);
@@ -502,8 +496,7 @@ NATIVEMETHOD(void, NativeModule, nativeFindOrBuild)(
   auto mod = to_NativeModule(env, thisJ);
   auto st = reinterpret_cast<NativeStatus*>(stAddr);
   st->clear();
-  std::lock_guard<std::mutex> mylock(big_mutex);
-  if (!mod->try_wait_for_build_locked()) {
+  if (mod->build_state_ != NativeModule::kPass) {
     NATIVE_ERROR(st, 1004, "ErrModuleBuildFailed");
   }
 }
