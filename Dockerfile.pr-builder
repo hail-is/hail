@@ -68,6 +68,7 @@ RUN conda env create hail -f ./python/hail/dev-environment.yml && \
 #
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash'
+ENV PATH $PATH:/home/hail/google-cloud-sdk/bin
 # gcloud iam key files will be stored here
 VOLUME /secrets
 
