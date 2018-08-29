@@ -15,7 +15,7 @@ COPY environment.yml .
 RUN conda env create -n hail-ci -f environment.yml && \
     rm -rf /opt/conda/pkgs/*
 
-COPY index.html pr-build-script ./
+COPY index.html pr-build-script pr-deploy-script ./
 COPY ci ./ci
 RUN chown -R hail-ci:hail-ci ./
 
