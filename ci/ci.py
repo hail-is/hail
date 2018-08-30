@@ -298,6 +298,16 @@ def healthcheck():
     return '', 200
 
 
+@app.route('/watched_repo', methods=['POST'])
+def set_deployable():
+    d = request.json
+    target_ref = FQRef.from_json(d['target_ref'])
+    action = d['action']
+    assert action in ('unwatch', 'watch', 'deploy')
+    prs.update_watch_state(target_ref, action)
+    return '', 200
+
+
 ###############################################################################
 
 

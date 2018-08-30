@@ -108,6 +108,18 @@ class PRS(object):
     def ready_to_merge(self, target):
         return [pr for pr in self.for_target(target) if pr.is_mergeable()]
 
+    def update_watch_state(self, target_ref, action):
+        assert isinstance(target_ref, FQRef)
+        assert action in ('unwatch', 'watch', 'deploy')
+        if action == 'unwatch':
+            del self._watched_targets[target_ref]
+        elif action == 'watch':
+            self._watched_targets[target_ref] = False
+        else:
+            self._watched_targets[target_ref] = True
+            if target_ref not in self.latest_deployed:
+                self.latest_deployed[target_ref] = None
+
     def heal(self):
         for target in self.live_targets():
             self.heal_target(target)
@@ -265,9 +277,12 @@ class PRS(object):
     def deploy_build_finished(self, target, job):
         assert isinstance(target, FQSHA)
         assert isinstance(job, Job), f'{job.id} {job.attributes}'
-        expected_job = self.deploy_jobs[target.ref]
-        if expected_job is None or expected_job.id != job.id:
-            log.error(f'notified of unexpected deploy job {job.id}, expected {expected_job.id}')
+        expected_job = self.deploy_jobs.get(target.ref, None)
+        if expected_job is None:
+            log.error(f'notified of unexpected deploy job {job.id} (I am not waiting ofr any for {target.short_str()})')
+            return
+        if expected_job.id != job.id:
+            log.error(f'notified of unexpected deploy job {job.id}, expected {expected_job.id} for {target.short_str()}')
             return
         assert job.cached_status()['state'] == 'Complete'
         exit_code = job.cached_status()['exit_code']
