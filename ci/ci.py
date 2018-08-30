@@ -214,7 +214,7 @@ def force_retest():
 def force_redeploy():
     d = request.json
     target = FQSHA.from_json(d)
-    if target in prs.watched_target_refs():
+    if target.ref in prs.watched_target_refs():
         prs.deploy(target)
         return '', 200
     else:
