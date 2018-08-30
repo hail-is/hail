@@ -211,23 +211,21 @@ class TableIRSuite extends SparkSuite {
     rightProject: Set[Int]
   ) {
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
-    val left = Table.parallelize(
-      hc,
-      leftData.map(leftProjectF.asInstanceOf[Row => Row]),
-      leftType,
-      Some(if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
-      Some(1))
+    val left = new Table(hc, TableKeyBy(
+      TableParallelize(
+        Literal(TArray(leftType), leftData.map(leftProjectF.asInstanceOf[Row => Row]), genUID()),
+        Some(1)),
+      if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedLeft = left.copy2(
       rvd = left.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         .constrainToOrderedPartitioner(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1)))
 
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
-    val right = Table.parallelize(
-      hc,
-      rightData.map(rightProjectF.asInstanceOf[Row => Row]),
-      rightType,
-      Some(if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
-      Some(1))
+    val right = new Table(hc, TableKeyBy(
+      TableParallelize(
+        Literal(TArray(rightType), rightData.map(rightProjectF.asInstanceOf[Row => Row]), genUID()),
+        Some(1)),
+      if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedRight = right.copy2(
       rvd = right.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         .constrainToOrderedPartitioner(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
