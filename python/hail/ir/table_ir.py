@@ -9,8 +9,8 @@ class MatrixRowsTable(TableIR):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return '(MatrixRowsTable {})'.format(self.child)
+    def render(self, r):
+        return '(MatrixRowsTable {})'.format(r(self.child))
 
 
 class TableJoin(TableIR):
@@ -21,9 +21,9 @@ class TableJoin(TableIR):
         self.join_type = join_type
         self.join_key = join_key
 
-    def __str__(self):
+    def render(self, r):
         return '(TableJoin {} {} {} {})'.format(
-            escape_id(self.join_type), self.join_key, self.left, self.right)
+            escape_id(self.join_type), self.join_key, r(self.left), r(self.right))
 
 
 class TableUnion(TableIR):
@@ -31,8 +31,8 @@ class TableUnion(TableIR):
         super().__init__()
         self.children = children
 
-    def __str__(self):
-        return '(TableUnion {})'.format(' '.join([str(x) for x in self.children]))
+    def render(self, r):
+        return '(TableUnion {})'.format(' '.join([r(x) for x in self.children]))
 
 
 class TableRange(TableIR):
@@ -41,7 +41,7 @@ class TableRange(TableIR):
         self.n = n
         self.n_partitions = n_partitions
 
-    def __str__(self):
+    def render(self, r):
         return '(TableRange {} {})'.format(self.n, self.n_partitions)
 
 
@@ -51,8 +51,8 @@ class TableMapGlobals(TableIR):
         self.child = child
         self.new_row = new_row
 
-    def __str__(self):
-        return '(TableMapGlobals {} {})'.format(self.child, self.new_row)
+    def render(self, r):
+        return '(TableMapGlobals {} {})'.format(r(self.child), r(self.new_row))
 
 
 class TableExplode(TableIR):
@@ -61,8 +61,8 @@ class TableExplode(TableIR):
         self.child = child
         self.field = field
 
-    def __str__(self):
-        return '(TableExplode {} {})'.format(escape_id(self.field), self.child)
+    def render(self, r):
+        return '(TableExplode {} {})'.format(escape_id(self.field), r(self.child))
 
 
 class TableKeyBy(TableIR):
@@ -72,11 +72,11 @@ class TableKeyBy(TableIR):
         self.keys = keys
         self.is_sorted = is_sorted
 
-    def __str__(self):
+    def render(self, r):
         return '(TableKeyBy ({}) {} {})'.format(
             ' '.join([escape_id(x) for x in self.keys]),
             self.is_sorted,
-            self.child)
+            r(self.child))
 
 
 class TableMapRows(TableIR):
@@ -86,10 +86,10 @@ class TableMapRows(TableIR):
         self.new_row = new_row
         self.new_key = new_key
 
-    def __str__(self):
+    def render(self, r):
         return '(TableMapRows {} {} {})'.format(
             ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
-            self.child, self.new_row)
+            r(self.child), r(self.new_row))
 
 
 class TableUnkey(TableIR):
@@ -97,8 +97,8 @@ class TableUnkey(TableIR):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return '(TableUnkey {})'.format(self.child)
+    def render(self, r):
+        return '(TableUnkey {})'.format(r(self.child))
 
 
 class TableRead(TableIR):
@@ -108,7 +108,7 @@ class TableRead(TableIR):
         self.drop_rows = drop_rows
         self.typ = typ
 
-    def __str__(self):
+    def render(self, r):
         return '(TableRead "{}" {} {})'.format(
             escape_str(self.path),
             self.drop_rows,
@@ -122,7 +122,7 @@ class TableImport(TableIR):
         self.typ = typ
         self.reader_options = reader_options
 
-    def __str__(self):
+    def render(self, r):
         return '(TableImport ({}) {} {})'.format(
             ' '.join([escape_str(path) for path in self.paths]),
             self.typ._jtype.parsableString(),
@@ -134,8 +134,8 @@ class MatrixEntriesTable(TableIR):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return '(MatrixEntriesTable {})'.format(self.child)
+    def render(self, r):
+        return '(MatrixEntriesTable {})'.format(r(self.child))
 
 
 class TableFilter(TableIR):
@@ -144,8 +144,8 @@ class TableFilter(TableIR):
         self.child = child
         self.pred = pred
 
-    def __str__(self):
-        return '(TableFilter {} {})'.format(self.child, self.pred)
+    def render(self, r):
+        return '(TableFilter {} {})'.format(r(self.child), r(self.pred))
 
 
 class TableKeyByAndAggregate(TableIR):
@@ -157,11 +157,11 @@ class TableKeyByAndAggregate(TableIR):
         self.n_partitions = n_partitions
         self.buffer_size = buffer_size
 
-    def __str__(self):
+    def render(self, r):
         return '(TableKeyByAndAggregate {} {} {} {} {})'.format(self.n_partitions,
                                                                 self.buffer_size,
-                                                                self.child,
-                                                                self.expr,
+                                                                r(self.child),
+                                                                r(self.expr),
                                                                 self.new_key)
 
 
@@ -171,8 +171,8 @@ class TableAggregateByKey(TableIR):
         self.child = child
         self.expr = expr
 
-    def __str__(self):
-        return '(TableAggregateByKey {} {})'.format(self.child, self.expr)
+    def render(self, r):
+        return '(TableAggregateByKey {} {})'.format(r(self.child), r(self.expr))
 
 
 class MatrixColsTable(TableIR):
@@ -180,8 +180,8 @@ class MatrixColsTable(TableIR):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return '(MatrixColsTable {})'.format(self.child)
+    def render(self, r):
+        return '(MatrixColsTable {})'.format(r(self.child))
 
 
 class TableParallelize(TableIR):
@@ -190,10 +190,10 @@ class TableParallelize(TableIR):
         self.rows = rows
         self.n_partitions = n_partitions
 
-    def __str__(self):
+    def render(self, r):
         return '(TableParallelize {} {})'.format(
-            self.n_partitions,
-            self.rows)
+            self.rows,
+            self.n_partitions)
 
 
 class TableHead(TableIR):
@@ -202,8 +202,8 @@ class TableHead(TableIR):
         self.child = child
         self.n = n
 
-    def __str__(self):
-        return f'(TableHead {self.n} {self.child})'
+    def render(self, r):
+        return f'(TableHead {self.n} {r(self.child)})'
 
 
 class TableOrderBy(TableIR):
@@ -212,10 +212,10 @@ class TableOrderBy(TableIR):
         self.child = child
         self.sort_fields = sort_fields
 
-    def __str__(self):
+    def render(self, r):
         return '(TableOrderBy ({}) {})'.format(
             ' '.join(['{}{}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
-            self.child)
+            r(self.child))
 
 
 class TableDistinct(TableIR):
@@ -223,8 +223,8 @@ class TableDistinct(TableIR):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return f'(TableDistinct {self.child})'
+    def render(self, r):
+        return f'(TableDistinct {r(self.child)})'
 
 class TableRepartition(TableIR):
     def __init__(self, child, n, shuffle):
@@ -233,8 +233,8 @@ class TableRepartition(TableIR):
         self.n = n
         self.shuffle = shuffle
 
-    def __str__(self):
-        return f'(TableRepartition {self.n} {self.shuffle} {self.child})'
+    def render(self, r):
+        return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
 
 class LocalizeEntries(TableIR):
     def __init__(self, child, entry_field_name):
@@ -242,5 +242,10 @@ class LocalizeEntries(TableIR):
         self.child = child
         self.entry_field_name = entry_field_name
 
-    def __str__(self):
-        return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {self.child})'
+    def render(self, r):
+        return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {r(self.child)})'
+
+class JavaTable(TableIR):
+    def __init__(self, jir):
+        self._jir = jir
+    # render handled by Renderer

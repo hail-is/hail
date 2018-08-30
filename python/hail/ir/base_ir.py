@@ -1,9 +1,13 @@
 import abc
+from .renderer import Renderer
 
 class BaseIR(object):
     def __init__(self):
         super().__init__()
 
+    def __str__(self):
+        r = Renderer(stop_at_jir = False)
+        return r(self)
 
 class IR(BaseIR):
     def __init__(self, *children):
