@@ -729,17 +729,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyAST(MatrixLiteral(newValue))
   }
 
-  def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
-    newColKey: IndexedSeq[String] = colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = globalType,
-    newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    val newValue = value.insertIntoRow(makePartitionContext, newColType, newColKey,
-      newColValues, newGlobalType, newGlobals)(typeToInsert, path, inserter)
-    copyAST(MatrixLiteral(newValue))
-  }
-
   /**
     *
     * @param right right-hand dataset with which to join
