@@ -52,8 +52,8 @@ object HailContext {
         s"  Compatibility is not guaranteed.")
   }
 
-  def configureAndCreateSparkContext(appName: String, master: Option[String],
-    local: String, blockSize: Long): SparkContext = {
+  def createSparkConf(appName: String, master: Option[String],
+    local: String, blockSize: Long): SparkConf = {
     require(blockSize >= 0)
     checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
 
@@ -96,8 +96,12 @@ object HailContext {
           }
         }
     }
+    conf
+  }
 
-    val sc = new SparkContext(conf)
+  def configureAndCreateSparkContext(appName: String, master: Option[String],
+    local: String, blockSize: Long): SparkContext = {
+    val sc = new SparkContext(createSparkConf(appName, master, local, blockSize))
     sc
   }
 
