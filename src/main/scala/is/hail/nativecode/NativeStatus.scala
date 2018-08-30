@@ -31,8 +31,6 @@ class NativeStatus() extends NativeBase() {
   def copyAssign(b: NativeStatus) = super.copyAssign(b)
   def moveAssign(b: NativeStatus) = super.moveAssign(b)
 
-  def clear(): Unit = Memory.storeInt(get()+errnoOffset, 0)
-
   override def toString(): String = {
     if (errno == 0)
       "NoError"
