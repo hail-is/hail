@@ -1,6 +1,14 @@
 set -x
 source activate hail
-GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache
+GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache && \
+    pip install -U cloudtools && \
+    cluster start ci-test-$SOURCE_SHA-$TARGET_SHA \
+            --version devel \
+            --spark 2.2.0 \
+            --jar build/libs/hail-all-spark.jar \
+            --zip build/distributions/hail-python.zip && \
+    cluster submit ci-test-$SOURCE_SHA-$TARGET_SHA \
+            cluster-sanity-check.py
 EXIT_CODE=$?
 rm -rf artifacts
 mkdir -p artifacts
