@@ -13,7 +13,7 @@ class Renderer(object):
 
     def __call__(self, x):
         if self.stop_at_jir and hasattr(x, '_jir'):
-            jir_id = context.add_jir(self._jir)
+            jir_id = self.add_jir(self._jir)
             return f'(JavaMatrix {jir_id})'
         else:
             return x.render(self)
