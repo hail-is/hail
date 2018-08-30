@@ -74,18 +74,32 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
   }
 }
 
-case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: Option[Int] = None) extends TableIR {
-  assert(typ.globalType.size == 0)
-  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends TableIR {
+  require(rows.typ.isInstanceOf[TArray] && rows.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rows)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
-    assert(newChildren.isEmpty)
-    TableParallelize(typ, rows, nPartitions)
+    val IndexedSeq(newRows: IR) = newChildren
+    TableParallelize(newRows, nPartitions)
   }
 
+  val typ: TableType = TableType(
+    rows.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct],
+    None,
+    TStruct())
+
   def execute(hc: HailContext): TableValue = {
+    val rowsValue = Interpret[IndexedSeq[Row]](rows, optimize = false)
+    rowsValue.zipWithIndex.foreach { case (r, idx) =>
+      if (r == null)
+        fatal(s"cannot parallelize null values: found null value at index $idx")
+    }
+
+    log.info(s"parallelized ${ rowsValue.length } rows")
+
     val rowTyp = typ.rowType
-    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
+    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
   }
@@ -1198,7 +1212,7 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     val IndexedSeq(newChild) = newChildren
-    LocalizeEntries(child.asInstanceOf[MatrixIR], entriesFieldName)
+    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName)
   }
 
   def execute(hc: HailContext): TableValue = {

@@ -7,10 +7,15 @@ import org.apache.spark.sql.SQLContext
 import org.scalatest.testng.TestNGSuite
 
 object SparkSuite {
-  lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),
-    appName = "Hail.TestNG",
-    local = "local[2]",
-    minBlockSize = 0, logFile = "/tmp/hail.log")
+  lazy val hc = HailContext(
+    sc = new SparkContext(
+      HailContext.createSparkConf(
+        appName = "Hail.TestNG",
+        master = Option(System.getProperty("hail.master")),
+        local = "local[2]",
+        blockSize = 0)
+        .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
+    logFile = "/tmp/hail.log")
 }
 
 class SparkSuite extends TestNGSuite {

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
-import is.hail.expr.types.{TInt32, TStruct}
+import is.hail.expr.types.{TInt32, TInt64, TStruct}
 import is.hail.table.{Ascending, SortField}
 
 object Simplify {
@@ -225,7 +225,7 @@ object Simplify {
 
       case TableCount(TableRange(n, _)) => I64(n)
 
-      case TableCount(TableParallelize(_, rows, _)) => I64(rows.length)
+      case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
 
       case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
         InsertFields(s, fields)
@@ -318,11 +318,6 @@ object Simplify {
           TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
         else
           tr
-      case TableHead(x@TableParallelize(typ, rows, nPartitions), n) =>
-        if (n < rows.length)
-          TableParallelize(typ, rows.take(n.toInt), nPartitions.map(nPar => (nPar.toFloat * n / rows.length).toInt.max(1)))
-        else
-          x
       case TableHead(TableMapGlobals(child, newRow), n) =>
         TableMapGlobals(TableHead(child, n), newRow)
       case t@TableHead(TableOrderBy(child, sortFields), n)

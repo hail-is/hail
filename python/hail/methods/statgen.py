@@ -1465,8 +1465,9 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
 
 @typecheck(ds=MatrixTable,
            keep_star=bool,
-           left_aligned=bool)
-def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
+           left_aligned=bool,
+           vep_root=str)
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> MatrixTable:
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -1596,6 +1597,11 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
         If ``True``, variants are assumed to be left
         aligned and have unique loci. This avoids a shuffle. If the assumption
         is violated, an error is generated.
+    vep_root : :obj:`str`
+        Top-level location of vep data. All variable-length VEP fields
+        (intergenic_consequences, motif_feature_consequences,
+        regulatory_feature_consequences, and transcript_consequences)
+        will be split properly (i.e. a_index corresponding to the VEP allele_num).
 
     Returns
     -------
@@ -1604,9 +1610,17 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     """
 
+    row_fields = set(ds.row)
     entry_fields = set(ds.entry)
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
+    update_rows_expression = {}
     update_entries_expression = {}
+
+    if vep_root in row_fields:
+        update_rows_expression[vep_root] = split[vep_root].annotate(**{
+            x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
+            for x in ('intergenic_consequences', 'motif_feature_consequences',
+                      'regulatory_feature_consequences', 'transcript_consequences')})
 
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
@@ -1635,7 +1649,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
 
-    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
+    return split._annotate_all(
+        row_exprs=update_rows_expression,
+        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)

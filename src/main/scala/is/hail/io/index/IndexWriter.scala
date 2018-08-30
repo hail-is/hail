@@ -26,8 +26,7 @@ case class IndexNodeInfo(
   firstIndex: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation,
-  lastKey: Annotation
+  firstAnnotation: Annotation
 )
 
 object IndexWriter {
@@ -39,7 +38,7 @@ class IndexWriter(
   path: String,
   keyType: Type,
   annotationType: Type,
-  branchingFactor: Int = 1024,
+  branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)
 
@@ -62,17 +61,12 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     val info = if (node.size > 0) {
-      val firstIndex = node.firstIdx
-
       val firstChild = node.getChild(0)
+      val firstIndex = firstChild.firstIndex
       val firstKey = firstChild.firstKey
       val firstRecordOffset = firstChild.firstRecordOffset
       val firstAnnotation = firstChild.firstAnnotation
-
-      val lastChild = node.getChild(node.size - 1)
-      val lastKey = lastChild.lastKey
-
-      IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation, lastKey)
+      IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
     } else {
       assert(isRoot && level == 0)
       null
@@ -103,15 +97,12 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     assert(leafNodeBuilder.size > 0)
-    val firstIndex = leafNodeBuilder.firstIdx
 
+    val firstIndex = leafNodeBuilder.firstIdx
     val firstChild = leafNodeBuilder.getChild(0)
     val firstKey = firstChild.key
     val firstRecordOffset = firstChild.recordOffset
     val firstAnnotation = firstChild.annotation
-
-    val lastChild = leafNodeBuilder.getChild(leafNodeBuilder.size - 1)
-    val lastKey = lastChild.key
 
     leafEncoder.writeByte(0)
 
@@ -125,7 +116,7 @@ class IndexWriter(
     val parent = internalNodeBuilders(0)
     if (parent.size == branchingFactor)
       writeInternalNode(parent, 0)
-    parent += IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation, lastKey)
+    parent += IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
 
     indexFileOffset
   }

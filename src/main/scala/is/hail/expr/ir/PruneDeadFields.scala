@@ -229,7 +229,8 @@ object PruneDeadFields {
     tir match {
       case TableRead(_, _, _, _) =>
       case TableLiteral(_) =>
-      case TableParallelize(_, _, _) =>
+      case TableParallelize(rowsIR, _) =>
+        memoizeValueIR(rowsIR, TArray(requestedType.rowType), memo)
       case TableImport(paths, typ, readerOpts) =>
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)
@@ -758,6 +759,8 @@ object PruneDeadFields {
         val newTyp = typ.copy(rowType = TStruct(typ.rowType.required,
           fieldsToRead.map(i => readerOpts.originalType.fieldNames(i) -> readerOpts.originalType.types(i)): _*))
         TableImport(paths, newTyp, readerOpts.copy(useColIndices = fieldsToRead))
+      case TableParallelize(rowsIR, nPartitions) =>
+        TableParallelize(upcast(rebuild(rowsIR, Env.empty[Type], memo), TArray(dep.rowType)), nPartitions)
       case TableRead(path, spec, _, dropRows) => TableRead(path, spec, dep, dropRows)
       case TableFilter(child, pred) =>
         val child2 = rebuild(child, memo)

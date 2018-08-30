@@ -55,17 +55,9 @@ object Table {
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
-  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    keyNames: Option[java.util.ArrayList[String]], nPartitions: Option[Int]): Table = {
-    val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
-      .asInstanceOf[IndexedSeq[Row]]
-    parallelize(hc, parsedRows, signature, keyNames.map(_.asScala.toArray.toFastIndexedSeq), nPartitions)
-  }
-
-  def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
-    key: Option[IndexedSeq[String]], nPartitions: Option[Int]): Table = {
-    val typ = TableType(signature, key.map(_.toArray.toFastIndexedSeq), TStruct())
-    new Table(hc, TableParallelize(typ, rows, nPartitions))
+  def parallelize(ir: String, nPartitions: Option[Int]): Table = {
+    val rowsIR = Parser.parse_value_ir(ir)
+    new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
@@ -239,27 +231,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     fatal(s"Key names are not distinct: ${ key.get.duplicates().mkString(", ") }")
   if (key.exists(key => !key.forall(fieldNames.contains(_))))
     fatal(s"Key names found that are not column names: ${ key.get.filterNot(fieldNames.contains(_)).mkString(", ") }")
-
-  def rowEvalContext(): EvalContext = {
-    val ec = EvalContext(
-      "global" -> globalSignature,
-      "row" -> signature)
-    ec
-  }
-
-  def aggEvalContext(): EvalContext = {
-    val ec = EvalContext("global" -> globalSignature,
-      "AGG" -> aggType())
-    ec
-  }
-
-  def aggType(): TAggregable = {
-    val aggSymbolTable = Map(
-      "global" -> (0, globalSignature),
-      "row" -> (1, signature)
-    )
-    TAggregable(signature, aggSymbolTable)
-  }
 
   def fields: Array[Field] = signature.fields.toArray
 

@@ -107,6 +107,8 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                     raise ExpressionException(f"'literal' can only accept scalar or global expression arguments,"
                                               f" found indices {x._indices.axes}")
             return False
+        elif x is None:
+            return False
         else:
             t._typecheck_one_level(x)
             return True
@@ -120,7 +122,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                         .format(dtype)) from e
 
     if wrapper['has_expr']:
-        return literal(to_expr(x).value, dtype)
+        return literal(to_expr(x, dtype).value, dtype)
 
     if x is None:
         return hl.null(dtype)

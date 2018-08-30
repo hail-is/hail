@@ -1,11 +1,10 @@
 package is.hail.expr
 
 import is.hail.HailContext
-import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.{AggSignature, BaseIR, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
 import is.hail.rvd.OrderedRVDType
-import is.hail.table.{Ascending, Descending, SortField, TableSpec}
+import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -13,7 +12,9 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
-import scala.util.parsing.input.Position
+import scala.util.parsing.input.{Position, Positional}
+
+case class Positioned[T](x: T) extends Positional
 
 object IRParserEnvironment {
   var theEnv: IRParserEnvironment = null
@@ -518,7 +519,7 @@ object Parser extends JavaTokenParsers {
 
   def agg_signature: Parser[AggSignature] =
     "(" ~> ir_agg_op ~ type_exprs ~ type_exprs_opt ~ type_exprs <~ ")" ^^ { case op ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
-      AggSignature(op, ctorArgTypes, initOpArgTypes, seqOpArgTypes)
+      AggSignature(op, ctorArgTypes.map(t => -t), initOpArgTypes.map(_.map(t => -t)), seqOpArgTypes.map(t => -t))
     }
 
   def ir_named_value_exprs: Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr)
@@ -624,8 +625,8 @@ object Parser extends JavaTokenParsers {
       "TableJoin" ~> ir_identifier ~ int32_literal ~ table_ir ~ table_ir ^^ { case joinType ~ joinKey ~ left ~ right =>
         ir.TableJoin(left, right, joinType, joinKey) } |
       "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
-      "TableParallelize" ~> table_type_expr ~ ir_value ~ int32_literal_opt ^^ { case typ ~ ((rowsType, rows)) ~ nPartitions =>
-        ir.TableParallelize(typ, rows.asInstanceOf[IndexedSeq[Row]], nPartitions)
+      "TableParallelize" ~> int32_literal_opt ~ ir_value_expr ^^ { case nPartitions ~ rows =>
+        ir.TableParallelize(rows, nPartitions)
       } |
       "TableMapRows" ~> string_literals_opt ~ table_ir ~ ir_value_expr ^^ { case newKey ~ child ~ newRow =>
         ir.TableMapRows(child, newRow, newKey)

@@ -405,7 +405,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
-    def test_aggregators_downsample(self):
+    def test_aggregator_downsample(self):
         xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         label1 = ["2", "6", "4", "9", "1", "8", "5", "10", "3", "7"]
@@ -422,6 +422,12 @@ class Tests(unittest.TestCase):
                         (10.0, 10.0, ('10', 'ten'))])
         for point in zip(xs, ys, label):
             self.assertTrue(point in expected)
+
+    def test_downsample_aggregator_on_empty_table(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(y=ht.idx).filter(False)
+        r = ht.aggregate(agg.downsample(ht.idx, ht.y, n_divisions=10))
+        self.assertTrue(len(r) == 0)
 
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
@@ -448,6 +454,16 @@ class Tests(unittest.TestCase):
         if not violations.count() == 0:
             violations.show()
             self.fail("disagreement between computed info score and truth")
+
+    def test_aggregator_info_score_works_with_bgen_import(self):
+        sample_file = resource('random.sample')
+        bgen_file = resource('random.bgen')
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
+        result = bgenmt.annotate_rows(info=hl.agg.info_score(bgenmt.GP)).rows().take(1)
+        result = result[0].info
+        self.assertAlmostEqual(result.score, -0.235041090, places=3)
+        self.assertEqual(result.n_included, 8)
 
     def test_aggregator_group_by(self):
         t = hl.Table.parallelize([
