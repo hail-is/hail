@@ -213,7 +213,7 @@ def force_retest():
 @app.route('/force_redeploy', methods=['POST'])
 def force_redeploy():
     d = request.json
-    target = FQRef.from_json(d['target'])
+    target = FQSHA.from_json(d)
     if target in prs.watched_target_refs():
         prs.deploy(target)
         return '', 200
