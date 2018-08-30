@@ -94,19 +94,6 @@ class IndexSuite extends SparkSuite {
     index.close()
   }
 
-  @Test def testLastKeyCorrect() {
-    val file = tmpDir.createTempFile("last-key", "idx")
-    writeIndex(file,
-      strings,
-      strings.indices.map(i => Row()).toArray,
-      TStruct(required = true))
-    val index = new IndexReader(hc.hadoopConf, file)
-    val node = index.readInternalNode(index.metadata.rootOffset)
-    assert(node.children.length == 2 &&
-      node.children(0).firstKey == "bear" && node.children(0).lastKey == "vole" &&
-      node.children(1).firstKey == "weasel" && node.children(1).lastKey == "zebra")
-  }
-
   @Test def testLowerBound() {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("lowerBound", "idx")

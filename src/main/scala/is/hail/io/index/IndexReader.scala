@@ -235,22 +235,24 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
 
 final case class InternalChild(
   indexFileOffset: Long,
+  firstIndex: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation,
-  lastKey: Annotation)
+  firstAnnotation: Annotation)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
-    val firstKeyIndex = r.getLong(0)
-    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3), r.get(4)))
-    InternalNode(firstKeyIndex, children)
+    val children = r.get(0).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.getLong(1), r.get(2), r.getLong(3), r.get(4)))
+    InternalNode(children)
   }
 }
 
-final case class InternalNode(
-  firstIndex: Long,
-  children: IndexedSeq[InternalChild]) extends IndexNode
+final case class InternalNode(children: IndexedSeq[InternalChild]) extends IndexNode {
+  def firstIndex: Long = {
+    assert(children.nonEmpty)
+    children.head.firstIndex
+  }
+}
 
 final case class LeafChild(
   key: Annotation,
