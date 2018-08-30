@@ -1,6 +1,5 @@
 package is.hail.nativecode
 
-//
 // NativePtr is a Scala object which stores a C++ std::shared_ptr<NativeObj>
 //
 // This allows off-heap objects to be managed with a consistent ref-count
@@ -15,7 +14,6 @@ package is.hail.nativecode
 // and then hold the reference in a Scala NativePtr, so there are
 // multiple constructors which indirect through a NativePtrFuncL<N>
 // to get that right.
-//
 
 class NativePtr() extends NativeBase() {
   //
@@ -23,25 +21,29 @@ class NativePtr() extends NativeBase() {
   // (usually a wrapper around std::make_shared<SubclassOfNativeObj>), and move 
   // the. fields of the shared_ptr into the Scala NativePtr.
   //  
-  @native def nativePtrFuncL0(func: Long): Unit
-  @native def nativePtrFuncL1(func: Long, a0: Long): Unit
-  @native def nativePtrFuncL2(func: Long, a0: Long, a1: Long): Unit
-  @native def nativePtrFuncL3(func: Long,
+  @native def nativePtrFuncL0(func: Long, st: Long): Unit
+  @native def nativePtrFuncL1(func: Long, st: Long,
+                              a0: Long): Unit
+  @native def nativePtrFuncL2(func: Long, st: Long,
+                              a0: Long, a1: Long): Unit
+  @native def nativePtrFuncL3(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long): Unit
-  @native def nativePtrFuncL4(func: Long,
+  @native def nativePtrFuncL4(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long): Unit
-  @native def nativePtrFuncL5(func: Long,
+  @native def nativePtrFuncL5(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long,
                               a4: Long): Unit
-  @native def nativePtrFuncL6(func: Long,
+  @native def nativePtrFuncL6(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long,
                               a4: Long, a5: Long): Unit
-  @native def nativePtrFuncL7(func: Long,
+  @native def nativePtrFuncL7(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long,
                               a4: Long, a5: Long, a6: Long): Unit
-  @native def nativePtrFuncL8(func: Long,
+  @native def nativePtrFuncL8(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long,
                               a4: Long, a5: Long, a6: Long, a7: Long): Unit
+
+  @native def getFieldOffset(fieldSize: Int, fieldName: String): Long
   
   // copy-constructor
   def this(b: NativePtr) {
@@ -54,78 +56,87 @@ class NativePtr() extends NativeBase() {
   
   // construct by indirect call to a NativeFunc<N>
   final def this(
-    ptrFunc: NativePtrFuncL0
+    ptrFunc: NativePtrFuncL0,
+    status: NativeStatus
   ) {
     this()
-    nativePtrFuncL0(ptrFunc.get());
+    nativePtrFuncL0(ptrFunc.get(), status.get());
   }
   
   final def this(
     ptrFunc: NativePtrFuncL1,
+    status: NativeStatus,
     a0: Long
   ) {
     this()
-    nativePtrFuncL1(ptrFunc.get(), a0);
+    nativePtrFuncL1(ptrFunc.get(), status.get(), a0);
   }
   
   final def this(
     ptrFunc: NativePtrFuncL2,
+    status: NativeStatus,
     a0: Long, a1: Long
   ) {
     this()
-    nativePtrFuncL2(ptrFunc.get(), a0, a1);
+    nativePtrFuncL2(ptrFunc.get(), status.get(), a0, a1);
   }
   
   final def this(
     ptrFunc: NativePtrFuncL3,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long
   ) {
     this()
-    nativePtrFuncL3(ptrFunc.get(), a0, a1, a2);
+    nativePtrFuncL3(ptrFunc.get(), status.get(), a0, a1, a2);
   }
   
   final def this(
     ptrFunc: NativePtrFuncL4,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long, a3: Long
   ) {
     this()
-    nativePtrFuncL4(ptrFunc.get(), a0, a1, a2, a3);
+    nativePtrFuncL4(ptrFunc.get(), status.get(), a0, a1, a2, a3);
   }
       
   final def this(
     ptrFunc: NativePtrFuncL5,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long, a3: Long,
     a4: Long
   ) {
     this()
-    nativePtrFuncL5(ptrFunc.get(), a0, a1, a2, a3, a4);
+    nativePtrFuncL5(ptrFunc.get(), status.get(), a0, a1, a2, a3, a4);
   }
       
   final def this(
     ptrFunc: NativePtrFuncL6,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long, a3: Long,
     a4: Long, a5: Long
   ) {
     this()
-    nativePtrFuncL6(ptrFunc.get(), a0, a1, a2, a3, a4, a5);
+    nativePtrFuncL6(ptrFunc.get(), status.get(), a0, a1, a2, a3, a4, a5);
   }
       
   final def this(
     ptrFunc: NativePtrFuncL7,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long, a3: Long,
     a4: Long, a5: Long, a6: Long
   ) {
     this()
-    nativePtrFuncL7(ptrFunc.get(), a0, a1, a2, a3, a4, a5, a6);
+    nativePtrFuncL7(ptrFunc.get(), status.get(), a0, a1, a2, a3, a4, a5, a6);
   }
       
   final def this(
     ptrFunc: NativePtrFuncL8,
+    status: NativeStatus,
     a0: Long, a1: Long, a2: Long, a3: Long,
     a4: Long, a5: Long, a6: Long, a7: Long
   ) {
     this()
-    nativePtrFuncL8(ptrFunc.get(), a0, a1, a2, a3, a4, a5, a6, a7);
+    nativePtrFuncL8(ptrFunc.get(), status.get(), a0, a1, a2, a3, a4, a5, a6, a7);
   }
       
 }

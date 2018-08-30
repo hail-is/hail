@@ -1,17 +1,31 @@
-.PHONY: all test clean libsimdpp
+.PHONY: top all clean debug prebuilt test
+
+top: all
+
+UNAME_S :=$(shell uname -s)
+UNAME_P :=$(shell uname -p)
+
+BUILD :=build
+
+# Change this setting to update the version of libsimdpp
+LIBSIMDPP :=libsimdpp-2.1
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
 OBJECTS := \
-  ibs.o davies.o \
+  davies.o \
+  ibs.o \
   NativeCodeSuite.o \
   NativeLongFunc.o \
+  NativeModule.o \
   NativePtr.o \
   NativeStatus.o \
   Region.o
 
-UNAME_S := $(shell uname -s)
-UNAME_P := $(shell uname -p)
+BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
+
+$(BUILD)/%.o: %.cpp
+	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
@@ -22,45 +36,69 @@ endif
 
 ifeq ($(UNAME_S),Linux)
   JAVA_MD :=linux
-  CXXSTD := -std=c++11
 else
   JAVA_MD :=darwin
-  CXXSTD := -std=c++14
 endif
 
-# Eventually we would like -std=c++17, but the CI machines have
-# compilers which only go to -std=c++11
+# Currently source code for libboot and libhail only uses features up to C++11.
+# The intention is to support C++17 for dynamic-compiled code eventually, but 
+# to maximize compatibility with different compilers/platforms we don't
+# require that here.
+#
+# The code relies heavily on C++11's std::shared_ptr, so you need a compiler
+# that supports at least the C++11 standard.
 
-ifndef CXX
-  # clang is preferred because a) it's standard on Mac, and b) it compiles faster
-  CXX :=$(shell which clang)
-  ifeq ($(CXX),)
-    CXX :=$(shell which g++)
-    ifeq ($(CXX),)
-      CXX := c++
-    endif
-  endif
+CXXSTD := -std=c++11
+
+# Check for any inherited CXXFLAGS which could interfere with
+# ABI compatibility.  Such flags will cause a warning, then will be
+# ignored.  This list may not be exhaustive: any options affecting the
+# procedure-calling standard or data layout may cause trouble.
+
+BADFLAGS := \
+  -fabi-version=% -f%-struct-return -fshort-enums -fshort-wchar -fpie -fPIE -ffixed-% \
+  -fcall-used-% -fcall-saved-% -fpack-struct% -f%leading-underscore -f%trampolines -fvisibility=% \
+  -f%strict-volatile-bitfields 
+
+WARNFLAGS :=$(filter $(BADFLAGS),$(CXXFLAGS))
+ifneq ($(WARNFLAGS),)
+  $(warning WARNING: ignored CXXFLAGS options affecting binary compatibility: $(WARNFLAGS))
+  CXXFLAGS := $(filter-out $(WARNFLAGS),$(CXXFLAGS))
 endif
 
-# append existing flags so they override our flags
-CXXFLAGS += -O3 -march=native $(CXXSTD) -Ilibsimdpp-2.1 -Wall -Werror
+# If no inherited "-march=%", then use "-march=sandybridge" for ISA compatibility
+# with MacBook Pro's since 2011 (also the earliest cpu with AVX).
+
+ifeq ($(filter -march=%,$(CXXFLAGS)),)
+  CXXFLAGS += -march=sandybridge
+endif
+
+# Append to any inherited flags which survived filtering
+CXXFLAGS += -O3 $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
+PREBUILT := ../../../prebuilt
 
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
-  shared_library = lib/linux-x86-64/libhail.so
+  LIBBOOT := lib/linux-x86-64/libboot.so
+  LIBHAIL := lib/linux-x86-64/libhail.so
   ifneq ($(filter %86,$(UNAME_P)),)
-    shared_library = lib/linux-x86/libhail.so
+    LIBBOOT := lib/linux-x86/libboot.so
+    LIBHAIL := lib/linux-x86/libhail.so
   endif
 endif
 ifeq ($(UNAME_S),Darwin)
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
-  shared_library = lib/darwin/libhail.dylib
+  LIBBOOT := lib/darwin/libboot.dylib
+  LIBHAIL := lib/darwin/libhail.dylib
 endif
 
-all: debug $(shared_library)
+all: $(BUILD) $(LIBBOOT) $(LIBHAIL)
+
+$(BUILD):
+	-mkdir -p $@
 
 debug:
 	echo "make debug"
@@ -71,40 +109,65 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
-build/functional-tests: ibs.cpp test.cpp
-	mkdir -p build
-	${CXX} ${CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
+$(BUILD)/functional-tests: ibs.cpp test.cpp
+	-mkdir -p build
+	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
 
-test: build/functional-tests
-	./build/functional-tests
+prebuilt: all
+	@echo updating $(PREBUILT) ...
+	cp -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
+	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
+
+test: $(BUILD)/functional-tests
+	./$(BUILD)/functional-tests
 
 clean:
-	-rm -rf build lib
-	-rm -rf *.o
-	-rm -f headers
-	echo done
+	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
 
-headers: $(shell /usr/bin/find ../resources/include -name "*.h")
-	touch headers
+# The $(BUILD)/headers target is updated whenever any .h file has changed
+# under either the source directory, *or* the ../resources/include tree.
+# Header files under ../resources/include are visible to both libhail.so
+# code and dynamic-generated code; headers under the source are only visible
+# to code that goes into libhail.so
+#
+# We use this as a pessimistic dependency: if any header has changed, all
+# objects will be rebuilt. Since the quantity of code is small and the 
+# clean-rebuild time is short (compared to other parts of the build process),
+# this seems good enough, and simpler than managing precise dependencies.
 
-NativeCodeSuite.o: headers
-NativeLongFunc.o: headers
-NativePtr.o: headers
-NativeStatus.o: headers
-Region.o: headers
+$(BUILD)/headers: $(LIBSIMDPP) $(shell find . -name "*.h"; find ../resources/include -name "*.h")
+	touch $@
 
-# if your build machine cannot access this URL, download this tar.gz and place
+$(BUILD_OBJECTS) $(BUILD)/NativeBoot.o: $(BUILD)/headers
+
+# We take all headers files visible to dynamic-generated code, together with
+# the output of "$(CXX) --version", to give a checksum $(ALL_HEADER_CKSUM)
+# which is then used to modify NativeModule's hash function.  This gives very
+# high probability that any changes to either the C++ compiler, or the header
+# files, will cause recompilation of dynamic-generated C++ rather than getting
+# an erroneous cache hit on outdated DLL files.
+
+ALL_HEADER_FILES := $(shell find ../resources/include -name "*.h")
+ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; cat .cxx.vsn $(ALL_HEADER_FILES) | cksum | cut -d " " -f 1)
+
+$(BUILD)/NativeModule.o: NativeModule.cpp
+	$(CXX) $(CXXFLAGS) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
+
+# If your build machine cannot access this URL, download this tar.gz and place
 # it in the same directory as this Makefile. If you do so, the build will
 # succeed without attempting to access the Internet.
 # WGET ?= wget
 WGET ?= curl -L -O
-libsimdpp-2.1.tar.gz:
-	${WGET} https://storage.googleapis.com/hail-common/$@
+$(LIBSIMDPP).tar.gz:
+	$(WGET) https://storage.googleapis.com/hail-common/$@
 
-libsimdpp-2.1: libsimdpp-2.1.tar.gz
+$(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
-$(shared_library): libsimdpp-2.1 ${OBJECTS}
-	mkdir -p $(dir $(shared_library))
-	${CXX} ${LIBFLAGS} ${LIBDIRS} ${CXXFLAGS} ${OBJECTS} -o $@ 
+$(LIBBOOT): $(BUILD)/NativeBoot.o
+	-mkdir -p $(basename $(LIBBOOT))
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
 
+$(LIBHAIL): $(BUILD_OBJECTS)
+	-mkdir -p $(basename $(LIBHAIL))
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@ 
