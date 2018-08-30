@@ -272,7 +272,8 @@ class NoImage(object):
         self.target_sha = target_sha
 
     def transition(self, other):
-        if not isinstance(other, Buildable):
+        if (not isinstance(other, Buildable) or
+            not isinstance(other, Building)):
             raise ValueError(f'bad transition {self} to {other}')
         return other
 
