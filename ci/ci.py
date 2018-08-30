@@ -204,8 +204,8 @@ def refresh_deploy_jobs(jobs):
 @app.route('/force_retest', methods=['POST'])
 def force_retest():
     d = request.json
-    source = FQRef.from_json(json.loads(d['source']))
-    target = FQRef.from_json(json.loads(d['target']))
+    source = FQRef.from_json(d['source'])
+    target = FQRef.from_json(d['target'])
     prs.build(source, target)
     return '', 200
 
@@ -213,7 +213,7 @@ def force_retest():
 @app.route('/force_redeploy', methods=['POST'])
 def force_redeploy():
     d = request.json
-    target = FQRef.from_json(json.loads(d['target']))
+    target = FQRef.from_json(d['target'])
     if target in prs.watched_target_refs():
         prs.deploy(target)
         return '', 200
