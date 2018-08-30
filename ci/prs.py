@@ -270,9 +270,10 @@ class PRS(object):
         if pr is None:
             log.warning(f'found new PR during review update {gh_pr.short_str()}')
             pr = gh_pr.to_PR(start_build=True)
-        self._set(gh_pr.source.ref,
-                  gh_pr.target_ref,
-                  pr.update_from_github_review_state(state))
+        pr = pr.update_from_github_review_state(state)
+        self._set(gh_pr.source.ref, gh_pr.target_ref, pr)
+        if pr.is_mergeable():
+            self.heal_target(gh_pr.target_ref)
 
     def deploy_build_finished(self, target, job):
         assert isinstance(target, FQSHA)
