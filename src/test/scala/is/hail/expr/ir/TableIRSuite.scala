@@ -5,7 +5,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.table.Table
-import is.hail.utils.Interval
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -237,5 +237,18 @@ class TableIRSuite extends SparkSuite {
       .execute(hc).rdd.collect()
     val thisExpected = expected.filter(pred).map(joinProjectF)
     assert(joined sameElements expected.filter(pred).map(joinProjectF))
+  }
+
+  @Test def testShuffleAndJoinDoesntMemoryLeak() {
+    val row = Ref("row", TStruct("idx" -> TInt32()))
+    val t1 = TableRange(1, 1)
+    val t2 = TableKeyBy(
+      TableMapRows(
+        TableRange(50000, 1),
+        InsertFields(row,
+          FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx")))),
+        None, None), FastIndexedSeq("k"))
+
+    TableJoin(t1, t2, "left").execute(hc).rvd.count()
   }
 }
