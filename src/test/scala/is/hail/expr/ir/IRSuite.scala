@@ -571,6 +571,8 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] = {
     try {
+      hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
       val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
         .tir.asInstanceOf[TableRead]
       val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
