@@ -818,4 +818,14 @@ class AggregatorsSuite {
       None,
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
   }
+
+  @Test def downsampleWhenEmpty(): Unit = {
+    runAggregator(Downsample(),
+      TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
+      FastIndexedSeq(),
+      FastIndexedSeq(),
+      FastIndexedSeq(10),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
+  }
 }

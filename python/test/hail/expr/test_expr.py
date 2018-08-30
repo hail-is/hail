@@ -405,7 +405,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
-    def test_aggregators_downsample(self):
+    def test_aggregator_downsample(self):
         xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         label1 = ["2", "6", "4", "9", "1", "8", "5", "10", "3", "7"]
@@ -422,6 +422,12 @@ class Tests(unittest.TestCase):
                         (10.0, 10.0, ('10', 'ten'))])
         for point in zip(xs, ys, label):
             self.assertTrue(point in expected)
+
+    def test_downsample_aggregator_on_empty_table(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(y=ht.idx).filter(False)
+        r = ht.aggregate(agg.downsample(ht.idx, ht.y, n_divisions=10))
+        self.assertTrue(len(r) == 0)
 
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')

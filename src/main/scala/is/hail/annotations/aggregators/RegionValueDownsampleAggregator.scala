@@ -23,6 +23,9 @@ class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggreg
   def combOp(agg2: RegionValueAggregator) = combiner.merge(agg2.asInstanceOf[RegionValueDownsampleAggregator].combiner)
 
   def result(rvb: RegionValueBuilder) {
+    if (combiner.binToPoint == null) {
+      combiner.binToPoint = Map.empty
+    }
     rvb.startArray(combiner.binToPoint.size)
     combiner.binToPoint.foreach { case (_, (x, y, a)) =>
       rvb.startTuple()
