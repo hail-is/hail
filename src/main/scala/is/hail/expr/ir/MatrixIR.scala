@@ -1272,7 +1272,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
         rvb.end()
       } else 0L
 
-
       val cols = if (rowIterationNeedsCols) {
         rvb.start(localColsType)
         rvb.addAnnotation(localColsType, colValuesBc.value)

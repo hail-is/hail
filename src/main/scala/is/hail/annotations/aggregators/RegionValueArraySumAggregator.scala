@@ -4,20 +4,21 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.utils._
 
-class RegionValueArraySumLongAggregator extends RegionValueAggregator {
+class RegionValueArraySumLongAggregator(t: Type) extends RegionValueAggregator {
   private var sum: Array[Long] = _
-  private[this] val t = TArray(TInt64())
+  assert(t.isOfType(TArray(TInt64())))
+  private val typ = t.asInstanceOf[TArray]
 
   def seqOp(region: Region, aoff: Long, missing: Boolean) {
     if (!missing)
       if (sum == null)
-        sum = Array.tabulate(t.loadLength(region, aoff)) { i =>
-          if (t.isElementDefined(region, aoff, i)) {
-            region.loadLong(t.loadElement(region, aoff, i))
+        sum = Array.tabulate(typ.loadLength(region, aoff)) { i =>
+          if (typ.isElementDefined(region, aoff, i)) {
+            region.loadLong(typ.loadElement(region, aoff, i))
           } else 0L
         }
       else {
-        val len = t.loadLength(region, aoff)
+        val len = typ.loadLength(region, aoff)
         if (len != sum.length)
           fatal(
             s"""cannot aggregate arrays of unequal length with `sum'
@@ -25,8 +26,8 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
         else {
           var i = 0
           while (i < len) {
-            if (t.isElementDefined(region, aoff, i)) {
-              sum(i) += region.loadLong(t.loadElement(region, aoff, i))
+            if (typ.isElementDefined(region, aoff, i)) {
+              sum(i) += region.loadLong(typ.loadElement(region, aoff, i))
             }
             i += 1
           }
@@ -62,10 +63,10 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
     }
   }
 
-  def newInstance(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator()
+  def newInstance(): RegionValueArraySumLongAggregator = new RegionValueArraySumLongAggregator(t)
 
   def copy(): RegionValueArraySumLongAggregator = {
-    val rva = new RegionValueArraySumLongAggregator()
+    val rva = new RegionValueArraySumLongAggregator(t)
     if (sum != null)
       rva.sum = sum.clone()
     rva
@@ -76,20 +77,21 @@ class RegionValueArraySumLongAggregator extends RegionValueAggregator {
   }
 }
 
-class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
+class RegionValueArraySumDoubleAggregator(t: Type) extends RegionValueAggregator {
   private var sum: Array[Double] = _
-  private[this] val t = TArray(TFloat64())
+  assert(t.isOfType(TArray(TFloat64())))
+  private val typ = t.asInstanceOf[TArray]
 
   def seqOp(region: Region, aoff: Long, missing: Boolean) {
     if (!missing)
       if (sum == null)
-        sum = Array.tabulate(t.loadLength(region, aoff)) { i =>
-          if (t.isElementDefined(region, aoff, i)) {
-            region.loadDouble(t.loadElement(region, aoff, i))
+        sum = Array.tabulate(typ.loadLength(region, aoff)) { i =>
+          if (typ.isElementDefined(region, aoff, i)) {
+            region.loadDouble(typ.loadElement(region, aoff, i))
           } else 0
         }
       else {
-        val len = t.loadLength(region, aoff)
+        val len = typ.loadLength(region, aoff)
         if (len != sum.length)
           fatal(
             s"""cannot aggregate arrays of unequal length with `sum'
@@ -97,8 +99,8 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
         else {
           var i = 0
           while (i < len) {
-            if (t.isElementDefined(region, aoff, i)) {
-              sum(i) += region.loadDouble(t.loadElement(region, aoff, i))
+            if (typ.isElementDefined(region, aoff, i)) {
+              sum(i) += region.loadDouble(typ.loadElement(region, aoff, i))
             }
             i += 1
           }
@@ -134,10 +136,10 @@ class RegionValueArraySumDoubleAggregator extends RegionValueAggregator {
     }
   }
 
-  def newInstance(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator()
+  def newInstance(): RegionValueArraySumDoubleAggregator = new RegionValueArraySumDoubleAggregator(t)
 
   def copy(): RegionValueArraySumDoubleAggregator = {
-    val rva = new RegionValueArraySumDoubleAggregator()
+    val rva = new RegionValueArraySumDoubleAggregator(t)
     if (sum != null)
       rva.sum = sum.clone()
     rva

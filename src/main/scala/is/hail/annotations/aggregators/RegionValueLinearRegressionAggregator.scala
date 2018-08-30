@@ -1,14 +1,15 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.types.Type
 import is.hail.stats.LinearRegressionCombiner
 
 object RegionValueLinearRegressionAggregator {
   def typ = LinearRegressionCombiner.typ
 }
 
-class RegionValueLinearRegressionAggregator(k: Int, k0: Int) extends RegionValueAggregator {
-  var combiner = new LinearRegressionCombiner(k, k0)
+class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: Type) extends RegionValueAggregator {
+  var combiner = new LinearRegressionCombiner(k, k0, xType)
 
   def seqOp(region: Region, y: Double, ym: Boolean, xsOffset: Long, xsMissing: Boolean) {
     if (!ym && !xsMissing) {
@@ -25,10 +26,10 @@ class RegionValueLinearRegressionAggregator(k: Int, k0: Int) extends RegionValue
     combiner.result(rvb)
   }
 
-  def newInstance(): RegionValueLinearRegressionAggregator = new RegionValueLinearRegressionAggregator(k, k0)
+  def newInstance(): RegionValueLinearRegressionAggregator = new RegionValueLinearRegressionAggregator(k, k0, xType)
 
   def copy(): RegionValueLinearRegressionAggregator = {
-    val rva = new RegionValueLinearRegressionAggregator(k, k0)
+    val rva = new RegionValueLinearRegressionAggregator(k, k0, xType)
     rva.combiner = combiner.copy()
     rva
   }

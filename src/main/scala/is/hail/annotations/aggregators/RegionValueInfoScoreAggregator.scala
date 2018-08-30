@@ -1,14 +1,15 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.types.Type
 import is.hail.stats.InfoScoreCombiner
 
 object RegionValueInfoScoreAggregator {
   def typ = InfoScoreCombiner.signature
 }
 
-class RegionValueInfoScoreAggregator extends RegionValueAggregator {
-  var combiner = new InfoScoreCombiner()
+class RegionValueInfoScoreAggregator(typ: Type) extends RegionValueAggregator {
+  var combiner = new InfoScoreCombiner(typ)
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing) {
@@ -24,10 +25,10 @@ class RegionValueInfoScoreAggregator extends RegionValueAggregator {
     combiner.result(rvb)
   }
 
-  override def newInstance(): RegionValueAggregator = new RegionValueInfoScoreAggregator()
+  override def newInstance(): RegionValueAggregator = new RegionValueInfoScoreAggregator(typ)
 
   override def copy(): RegionValueInfoScoreAggregator = {
-    val rva = new RegionValueInfoScoreAggregator()
+    val rva = new RegionValueInfoScoreAggregator(typ)
     rva.combiner = combiner.copy()
     rva
   }
