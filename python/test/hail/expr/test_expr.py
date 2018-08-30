@@ -2002,9 +2002,4 @@ class Tests(unittest.TestCase):
                             [1, 2, 3],
                             [4, 5, 6]).fold(True,
                                             lambda accum, i: accum & (i == t.idx))
-
-        # fold_expr = hl.cond(t.idx == 3,
-        #                     hl.range(0, 3),
-        #                     hl.range(0, 3)).fold(True,
-        #                                     lambda accum, i: accum & (i == t.idx))
-        t.aggregate(hl.agg.count_where(fold_expr))
+        t.annotate(foo=hl.cond(fold_expr, 1, 3))._force_count()
