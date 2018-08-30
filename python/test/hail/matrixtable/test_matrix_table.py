@@ -398,8 +398,8 @@ class Tests(unittest.TestCase):
         indices = list(range(ds.count_cols()))
         random.shuffle(indices)
 
-        old_order = ds.s.collect()
-        self.assertEqual(ds.choose_cols(indices).s.collect(),
+        old_order = ds.key_cols_by()['s'].collect()
+        self.assertEqual(ds.choose_cols(indices).key_cols_by()['s'].collect(),
                          [old_order[i] for i in indices])
 
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),

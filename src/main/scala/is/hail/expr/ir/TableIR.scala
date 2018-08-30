@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.{RegionValueAggregator, RegionValueCountAggregator}
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
@@ -10,7 +10,6 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{Ascending, SortField, TableSpec}
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.HashPartitioner
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -650,22 +649,11 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       }
     }
 
-    val newRVD = tv.rvd match {
-      case ordered: OrderedRVD =>
-        typ.key match {
-          case Some(key) =>
-            if (preservedKeyFields.get != 0)
-              ordered.truncateKey(ordered.typ.key.take(preservedKeyFields.get))
-                .mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(key.take(preservedKeyFields.get), typ.rowType), itF)
-                .extendKeyPreservesPartitioning(key)
-            else
-              ordered.mapPartitionsWithIndex(typ.rowType, itF)
-          case None =>
-            ordered.mapPartitionsWithIndex(typ.rowType, itF)
-        }
-      case unordered: UnpartitionedRVD =>
-        unordered.mapPartitionsWithIndex(typ.rowType, itF)
-    }
+    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val newRVD = orvd
+      .truncateKey(orvd.typ.key.take(typ.rvdType.key.length))
+      .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
+      .toOldStyleRVD
 
     TableValue(typ, tv.globals, newRVD)
   }

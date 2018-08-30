@@ -295,7 +295,7 @@ object Simplify {
         TableMapRows(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
-          Some(child.typ.colKey))
+          mct.typ.key)
       case MatrixColsTable(MatrixFilterCols(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
         val mct = MatrixColsTable(child)

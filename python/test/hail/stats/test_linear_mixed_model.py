@@ -223,8 +223,8 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(x=x_table[mt.col_key].f2)
         mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
 
-        x = np.array([np.ones(n), mt.x.collect()]).T
-        y = np.array(mt.y.collect())
+        x = np.array([np.ones(n), mt.key_cols_by()['x'].collect()]).T
+        y = np.array(mt.key_cols_by()['y'].collect())
 
         mt_chr1 = mt.filter_rows(mt.locus.contig == '1')
         mt_chr3 = mt.filter_rows(mt.locus.contig == '3')

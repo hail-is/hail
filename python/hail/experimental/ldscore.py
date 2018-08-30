@@ -169,10 +169,9 @@ def ld_score(entry_expr,
             row_key=list(ht_union.key),
             col_key=['name'])
 
-        cols = mt_annotations['name'].collect()
+        cols = mt_annotations.key_cols_by()['name'].collect()
         col_idxs = {i: cols[i] for i in range(len(cols))}
 
-        a = BlockMatrix.from_entry_expr(mt_annotations.value)
         a_tmp = new_temp_file()
         BlockMatrix.write_from_entry_expr(mt_annotations.value, a_tmp)
 

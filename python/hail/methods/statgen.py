@@ -1323,7 +1323,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     elif statistics == 'kin20':
         ht = ht.drop('ibd1')
 
-    col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
+    col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
 
