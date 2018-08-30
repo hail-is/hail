@@ -82,7 +82,7 @@ object LoadBgen {
     assert(unionRVD.getNumPartitions == files.length)
 
     unionRVD.boundary.mapPartitionsWithIndex({ (i, it) =>
-      val iw = new IndexWriter(hConf, files(i) + ".idx", keyType, TStruct(required = true), attributes = attributes)
+      val iw = new IndexWriter(hConf, files(i) + ".idx2", keyType, TStruct(required = true), attributes = attributes)
       it.foreach { rv =>
         val r = UnsafeRow.readBaseStruct(rowType, rv.region, rv.offset)
         iw += (kf(r), r.getLong(offsetIdx), Row())
@@ -286,35 +286,23 @@ case class MatrixBGENReader(
     abs
   }
 
-  private val includedOffsetsPerFile = includedVariants match {
-    case Some(variants) if !createIndex =>
-      // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
-      files.map { f =>
-        val index = new IndexReader(hConf, f + ".idx")
-        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
-        index.close()
-        (absolutePath(f), offsets)
-      }.toMap
-    case _ => Map.empty[String, Array[Long]]
-  }
-
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
   if (!createIndex) {
-    val outdatedIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isFile(f + ".idx"))
+    val outdatedIdxFiles = inputs.filter(f => !hConf.exists(f + ".idx2") && hConf.exists(f + ".idx") && hConf.isFile(f + ".idx"))
     if (outdatedIdxFiles.length > 0)
       fatal(
         s"""The following BGEN files have index files that are no longer supported. Use 'index_bgen' to recreate the index file once before calling 'import_bgen':
             |  ${ outdatedIdxFiles.mkString("\n  ") })""".stripMargin)
 
-    val missingIdxFiles = inputs.filterNot(f => hConf.exists(f + ".idx"))
+    val missingIdxFiles = inputs.filterNot(f => hConf.exists(f + ".idx2"))
     if (missingIdxFiles.length > 0)
       fatal(
         s"""The following BGEN files have missing index files. Use 'index_bgen' to create the index file once before calling 'import_bgen':
             |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
 
-    val mismatchIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isDir(f + ".idx")).flatMap { f =>
-      val ir = new IndexReader(hConf, f + ".idx")
+    val mismatchIdxFiles = inputs.filter(f => hConf.exists(f + ".idx2") && hConf.isDir(f + ".idx2")).flatMap { f =>
+      val ir = new IndexReader(hConf, f + ".idx2")
       val idxAttr = ir.attributes
       val attr = Map("reference_genome" -> rg.orNull, "contig_recoding" -> contigRecoding, "skip_invalid_loci" -> skipInvalidLoci)
       if (idxAttr != attr) {
@@ -330,6 +318,18 @@ case class MatrixBGENReader(
     }
     if (mismatchIdxFiles.length > 0)
       fatal(mismatchIdxFiles.mkString(""))
+  }
+
+  private val includedOffsetsPerFile = includedVariants match {
+    case Some(variants) if !createIndex =>
+      // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
+      files.map { f =>
+        val index = new IndexReader(hConf, f + ".idx2")
+        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
+        index.close()
+        (absolutePath(f), offsets)
+      }.toMap
+    case _ => Map.empty[String, Array[Long]]
   }
 
   val fullType: MatrixType = MatrixType.fromParts(

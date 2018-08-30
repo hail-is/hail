@@ -50,7 +50,7 @@ object BgenRDDPartitions extends Logging {
           header.nVariants
         else {
           // This is needed because invalid loci can be skipped when creating the index
-          val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx/metadata.json.gz").nKeys.toInt
+          val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx2/metadata.json.gz").nKeys.toInt
           assert(nIndexKeys <= header.nVariants)
           nIndexKeys
         }
@@ -81,8 +81,8 @@ object BgenRDDPartitions extends Logging {
             settings
           )
         } else {
-          using(new IndexReader(hConf, file.path + ".idx")) { index =>
-            val variantOffsets = includedOffsetsPerFile.get(file.path) match { // FIXME: rewrite??
+          using(new IndexReader(hConf, file.path + ".idx2")) { index =>
+            val variantOffsets = includedOffsetsPerFile.get(file.path) match {
               case None => index.iterator.map(_.recordOffset).toArray
               case Some(indices) => indices
             }
