@@ -174,6 +174,7 @@ def refresh_deploy_jobs(jobs):
         (FQSHA.from_json(json.loads(job.attributes['target'])),
          job)
         for job in jobs
+        if 'target' in job.attributes
     ]
     jobs = [
         (target, job)
@@ -213,9 +214,9 @@ def force_retest():
 @app.route('/force_redeploy', methods=['POST'])
 def force_redeploy():
     d = request.json
-    target = FQSHA.from_json(d)
-    if target.ref in prs.watched_target_refs():
-        prs.deploy(target)
+    target = FQRef.from_json(d)
+    if target in prs.watched_target_refs():
+        prs.try_deploy(target)
         return '', 200
     else:
         return f'{target.short_str()} not in {[ref.short_str() for ref in prs.watched_target_refs()]}', 400

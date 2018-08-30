@@ -8,6 +8,7 @@ import json
 def try_to_cancel_job(job):
     try:
         job.cancel()
+        job.delete()
     except requests.exceptions.HTTPError as e:
         log.warning(f'could not cancel job {job.id} due to {e}')
 
