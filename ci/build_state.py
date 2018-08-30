@@ -273,12 +273,13 @@ class NoImage(object):
 
     def transition(self, other):
         if (not isinstance(other, Buildable) or
-            not isinstance(other, Building)):
+            not isinstance(other, Building) or
+            not (isinstance(other, NoImage) and self != other)):
             raise ValueError(f'bad transition {self} to {other}')
         return other
 
     def __str__(self):
-        return f'no hail-ci-build-image found'
+        return f'no hail-ci-build-image found {self.target_sha[:12]}'
 
     def to_json(self):
         return {'type': 'NoImage', 'target_sha': self.target_sha}
