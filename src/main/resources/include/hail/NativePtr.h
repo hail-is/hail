@@ -2,20 +2,18 @@
 #define HAIL_NATIVEPTR_H 1
 
 #include "hail/NativeObj.h"
-#include "hail/NativeStatus.h"
 #include <jni.h>
 #include <memory>
-#include <string>
 
 namespace hail {
 
-using LongFuncN = int64_t(NativeStatus*, ...);
-using PtrFuncN = NativeObjPtr(NativeStatus*, ...);
+using LongFuncN = int64_t(...);
+using PtrFuncN = NativeObjPtr(...);
 
 template<typename ReturnT>
 class NativeFuncObj : public NativeObj {
 public:
-  using FuncType = ReturnT(NativeStatus*, ...);
+  using FuncType = ReturnT(...);
 public:
   NativeObjPtr module_; // keep-alive for the loaded module
   FuncType *func_;

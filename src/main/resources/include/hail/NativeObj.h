@@ -2,8 +2,6 @@
 #define HAIL_NATIVEOBJ_H 1
 
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
 
 // Declare a function to be exported from a DLL with "C" linkage

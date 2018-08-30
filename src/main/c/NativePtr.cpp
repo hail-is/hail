@@ -1,14 +1,12 @@
 #include "hail/NativePtr.h"
 #include "hail/NativeObj.h"
 #include <cassert>
-#include <csignal>
 #include <cstdio>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 #include <jni.h>
-#include <execinfo.h>
 
 namespace hail {
 
@@ -20,28 +18,6 @@ namespace hail {
 namespace {
 
 void check_assumptions();
-
-void on_signal(int sig) {
-  const char* signame = "UNKNOWN";
-  if      (sig == SIGSEGV) signame = "SIGSEGV";
-  else if (sig == SIGFPE)  signame = "SIGFPE";
-  else if (sig == SIGBUS)  signame = "SIGBUS";
-  else if (sig == SIGILL)  signame = "SIGILL";
-  else if (sig == SIGABRT) signame = "SIGABRT";
-  fprintf(stderr, "FATAL: caught signal %d %s\n", sig, signame);
-  void* callstack[20];
-  int depth = backtrace(callstack, 20);
-  backtrace_symbols_fd(callstack, depth, 2);
-  exit(1);
-}
-
-void catch_signals() {
-  signal(SIGABRT, on_signal);
-  //signal(SIGBUS,  on_signal);
-  signal(SIGFPE,  on_signal);
-  signal(SIGILL,  on_signal);
-  //signal(SIGSEGV, on_signal);
-}
 
 class NativePtrInfo {
 public:
@@ -57,7 +33,6 @@ public:
     addrA_id_ = env->GetFieldID(class_ref_, "addrA", "J");
     addrB_id_ = env->GetFieldID(class_ref_, "addrB", "J");
     check_assumptions();
-    catch_signals();
   }
 };
 
@@ -66,16 +41,6 @@ public:
 // extremely weird, but by putting all the initialization into the constructor
 // we make sure that both get correctly initialized.  But that behavior might
 // cause trouble in other code, so we need to watch out for it.
-//
-// I suspect this may be related to gcc's use of STB_GNU_UNIQUE for static
-// data, though from this description it shouldn't be used for data in a 
-// non-inline function:
-//
-// "On systems with recent GNU assembler and C library, the C++ compiler uses 
-// the STB_GNU_UNIQUE binding to make sure that definitions of template static 
-// data members and static local variables in inline functions are unique even 
-// in the presence of RTLD_LOCAL"
-
 
 // We could in theory do the initialization from a JNI_OnLoad() function, but
 // don't want to take time experimenting with that now.
@@ -228,17 +193,12 @@ NATIVEMETHOD(jlong, NativeBase, nativeUseCount)(
 // We have constructors corresponding to std::make_shared<T>(...)
 // with various numbers of int64_t arguments.
 
-inline NativeStatus* to_status(jlong st) {
-  return reinterpret_cast<NativeStatus*>(st);
-}
-
 NATIVEMETHOD(void, NativePtr, nativePtrFuncL0)(
   JNIEnv* env,
   jobject thisJ,
-  jlong funcObjAddr,
-  jlong st
+  jlong funcObjAddr
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st));
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)();
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -246,10 +206,9 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL1)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -257,11 +216,10 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL2)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -269,12 +227,11 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL3)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -282,13 +239,12 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL4)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
   jlong a3
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -296,14 +252,13 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL5)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
   jlong a3,
   jlong a4
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -311,7 +266,6 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -319,7 +273,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL6)(
   jlong a4,
   jlong a5
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -327,7 +281,6 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -336,7 +289,7 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL7)(
   jlong a5,
   jlong a6
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5, a6);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -344,7 +297,6 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   JNIEnv* env,
   jobject thisJ,
   jlong funcObjAddr,
-  jlong st,
   jlong a0,
   jlong a1,
   jlong a2,
@@ -354,19 +306,8 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
   jlong a6,
   jlong a7
 ) {
-  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5, a6, a7);
+  NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(a0, a1, a2, a3, a4, a5, a6, a7);
   init_NativePtr(env, thisJ, &ptr);
-}
-
-NATIVEMETHOD(jlong, NativePtr, getFieldOffset)(
-  JNIEnv* env,
-  jobject thisJ,
-  jlong fieldSize,
-  jstring fieldNameJ
-) {
-  auto obj = get_from_NativePtr(env, thisJ);
-  JString fieldName(env, fieldNameJ);
-  return(obj ? obj->get_field_offset(fieldSize, fieldName) : -1L);
 }
 
 // Test code for nativePtrFunc
@@ -402,23 +343,23 @@ public:
   }
 };
 
-NativeObjPtr nativePtrFuncTestObjA0(NativeStatus*) {
+NativeObjPtr nativePtrFuncTestObjA0() {
   return std::make_shared<TestObjA>();
 }
 
-NativeObjPtr nativePtrFuncTestObjA1(NativeStatus*, int64_t a0) {
+NativeObjPtr nativePtrFuncTestObjA1(int64_t a0) {
   return std::make_shared<TestObjA>(a0);
 }
 
-NativeObjPtr nativePtrFuncTestObjA2(NativeStatus*, int64_t a0, int64_t a1) {
+NativeObjPtr nativePtrFuncTestObjA2(int64_t a0, int64_t a1) {
   return std::make_shared<TestObjA>(a0, a1);
 }
 
-NativeObjPtr nativePtrFuncTestObjA3(NativeStatus*, int64_t a0, int64_t a1, int64_t a2) {
+NativeObjPtr nativePtrFuncTestObjA3(int64_t a0, int64_t a1, int64_t a2) {
   return std::make_shared<TestObjA>(a0, a1, a2);
 }
 
-NativeObjPtr nativePtrFuncTestObjA4(NativeStatus*, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
+NativeObjPtr nativePtrFuncTestObjA4(NativeObjPtr* out, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
   return std::make_shared<TestObjA>(a0, a1, a2, a3);
 }
 
