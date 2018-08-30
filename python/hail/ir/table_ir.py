@@ -193,7 +193,7 @@ class TableParallelize(TableIR):
     def render(self, r):
         return '(TableParallelize {} {})'.format(
             self.n_partitions,
-            self.rows)
+            r(self.rows))
 
 
 class TableHead(TableIR):
