@@ -194,7 +194,7 @@ def main(args):
         '--worker-machine-type={}'.format(args.worker_machine_type),
         '--zone={}'.format(args.zone),
         '--properties={}'.format(",".join(properties)),
-        '--initialization-actions={}'.format(','.join(init_actions))
+        '--initialization-actions={}'.format(','.join(init_actions)),
         '--initialization-action-timeout={}'.format(args.init_timeout)
     ]
 
