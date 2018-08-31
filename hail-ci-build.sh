@@ -1,6 +1,7 @@
+#!/bin/bash
 set -ex
 
-CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
+CLUSTER_NAME=ci-test-${SOURCE_SHA:0:12}-${SOURCE_SHA:0:12}
 
 time source activate hail
 time pip search cloudtools
