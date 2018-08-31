@@ -21,7 +21,7 @@ spec:
             - name: BATCH_SERVER_URL
               value: http://batch
             - name: WATCHED_TARGETS
-              value: '[["hail-is/hail:master", false], ["hail-is/hail:0.1", false], ["hail-is/batch:master", false]]'
+              value: '[["hail-is/hail:master", true], ["hail-is/hail:0.1", false], ["hail-is/batch:master", false]]'
           ports:
             - containerPort: 5000
           volumeMounts:
