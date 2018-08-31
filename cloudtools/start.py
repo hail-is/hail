@@ -77,6 +77,7 @@ def init_parser(parser):
 
     # initialization action flags
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
+    parser.add_argument('--init_timeout', default='20m', help='Flag to specify a timeout period for the initialization action')
     parser.add_argument('--vep', action='store_true', help='Configure the cluster to run VEP.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
@@ -194,6 +195,7 @@ def main(args):
         '--zone={}'.format(args.zone),
         '--properties={}'.format(",".join(properties)),
         '--initialization-actions={}'.format(','.join(init_actions))
+        '--initialization-action-timeout={}'.format(args.init_timeout)
     ]
 
     if args.max_idle:

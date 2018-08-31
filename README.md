@@ -162,7 +162,7 @@ usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.2.0}]
                      [--worker-machine-type WORKER_MACHINE_TYPE] [--zone ZONE]
                      [--properties PROPERTIES] [--metadata METADATA]
                      [--packages PACKAGES] [--jar JAR] [--zip ZIP]
-                     [--init INIT] [--vep] [--dry-run]
+                     [--init INIT] [--init_timeout INIT_TIMEOUT] [--vep] [--dry-run]
                      name
 Start a Dataproc cluster configured for Hail.
 
@@ -214,6 +214,9 @@ optional arguments:
   --jar JAR             Hail jar to use for Jupyter notebook.
   --zip ZIP             Hail zip to use for Jupyter notebook.
   --init INIT           Comma-separated list of init scripts to run.
+  --init_timeout INIT_TIMEOUT
+                        Flag to specify a timeout period for the
+                        initialization action
   --vep                 Configure the cluster to run VEP.
   --dry-run             Print gcloud dataproc command, but don't run it.```
 
