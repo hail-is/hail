@@ -350,7 +350,7 @@ class HailContext private(val sc: SparkContext,
 
   def indexBgen(files: Seq[String],
     rg: Option[String] = None,
-    contigRecoding: Map[String, String] = null,
+    contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false) {
 
     var statuses = hadoopConf.globAllStatuses(files)

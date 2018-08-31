@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.io.index.IndexReader
-import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader, OnDiskBTreeIndexToValue}
+import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
 import org.apache.hadoop.fs.Path
@@ -44,22 +44,23 @@ object BgenRDDPartitions extends Logging {
   ): Array[Partition] = {
     val hConf = sc.hadoopConfiguration
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+
     val filesWithVariantFilters = files.map { header =>
-      val nVariants =
-        if (settings.createIndex)
-          header.nVariants
-        else {
-          // This is needed because invalid loci can be skipped when creating the index
-          val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx2/metadata.json.gz").nKeys.toInt
-          assert(nIndexKeys <= header.nVariants)
-          nIndexKeys
-        }
+      val nVariants = {
+        // This is needed because invalid loci can be skipped when creating the index
+        val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx2/metadata.json.gz").nKeys.toInt
+        assert(nIndexKeys <= header.nVariants)
+        nIndexKeys
+      }
+
       val nKeptVariants = includedOffsetsPerFile.get(header.path)
         .map(_.length)
         .getOrElse(nVariants)
       header.copy(nVariants = nKeptVariants)
     }
+
     val nonEmptyFilesAfterFilter = filesWithVariantFilters.filter(_.nVariants > 0)
+
     if (nonEmptyFilesAfterFilter.isEmpty) {
       Array.empty
     } else {
@@ -68,19 +69,6 @@ object BgenRDDPartitions extends Logging {
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         val nPartitions = fileNPartitions(fileIndex)
-        if (settings.createIndex) {
-          assert(nPartitions == 1)
-          partitions += StreamBgenPartition(
-            file.path,
-            file.compressed,
-            0,
-            file.dataStart,
-            file.fileByteSize,
-            partitions.length,
-            sHadoopConfBc,
-            settings
-          )
-        } else {
           using(new IndexReader(hConf, file.path + ".idx2")) { index =>
             val variantOffsets = includedOffsetsPerFile.get(file.path) match {
               case None => index.iterator.map(_.recordOffset).toArray
@@ -104,42 +92,11 @@ object BgenRDDPartitions extends Logging {
               i += 1
             }
           }
+          fileIndex += 1
         }
-        fileIndex += 1
+        partitions.result()
       }
-      partitions.result()
     }
-  }
-
-  private case class StreamBgenPartition(
-    path: String,
-    compressed: Boolean,
-    firstRecordIndex: Long,
-    startByteOffset: Long,
-    endByteOffset: Long,
-    partitionIndex: Int,
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration],
-    settings: BgenSettings
-  ) extends BgenPartition {
-    private[this] var records = firstRecordIndex - 1
-
-    def index = partitionIndex
-
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-      bfis.seek(startByteOffset)
-      bfis
-    }
-
-    def advance(bfis: HadoopFSDataBinaryReader) {
-      records += 1
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
-      bfis.getPosition < endByteOffset
-  }
 
   private case class SeekBgenPartition(
     path: String,

@@ -9,7 +9,6 @@ import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.hadoop.fs.Path
-import org.apache.spark.Partition
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
@@ -39,12 +38,6 @@ private case class IndexBgenPartition(
 }
 
 object IndexBgen {
-  def makePartitions(files: Array[BgenHeader]): Array[Partition] = {
-    files.zipWithIndex.map { case (f, i) =>
-      IndexBgenPartition(f.path, f.compressed, f.dataStart, f.fileByteSize, i, ???)
-    }
-  }
-
   def apply(
     hc: HailContext,
     files: Array[String],
@@ -53,22 +46,23 @@ object IndexBgen {
     skipInvalidLoci: Boolean = false) {
     val hConf = hc.hadoopConf
 
+    val recoding = Option(contigRecoding).getOrElse(Map.empty[String, String])
     val referenceGenome = rg.map(ReferenceGenome.getReference)
-    referenceGenome.foreach(_.validateContigRemap(contigRecoding))
+    referenceGenome.foreach(_.validateContigRemap(recoding))
 
     val headers = LoadBgen.getFileHeaders(hConf, files)
     LoadBgen.checkVersionTwo(headers)
 
     val settings: BgenSettings = BgenSettings(
-      0, // not used if there are no entries
+      0, // nSamples not used if there are no entries
       NoEntries,
-      RowFields(false, false, false),
+      RowFields(false, false, true),
       referenceGenome,
-      contigRecoding,
+      recoding,
       skipInvalidLoci
     )
 
-    val typ: OrderedRVDType = settings.matrixType.orvdType
+    val typ = new OrderedRVDType(Array("locus", "alleles"), settings.typ)
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -90,7 +84,7 @@ object IndexBgen {
     val (keyType, kf) = rowType.select(Array("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,
-      "contig_recoding" -> Option(contigRecoding).getOrElse(Map.empty[String, String]),
+      "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
     val unionRVD = RVD.union(rvds)

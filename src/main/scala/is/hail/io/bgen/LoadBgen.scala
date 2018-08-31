@@ -286,15 +286,6 @@ case class MatrixBGENReader(
   info(s"Number of samples in BGEN files: $nSamples")
   info(s"Number of variants across all BGEN files: $nVariants")
 
-  def absolutePath(rel: String): String = {
-    val matches = hConf.glob(rel)
-    if (matches.length != 1)
-      fatal(s"""found more than one match for variant filter path: $rel:
-                 |${ matches.mkString(",") }""".stripMargin)
-    val abs = matches(0).getPath.toString
-    abs
-  }
-
   private val paths = headers.map(_.path)
 
   val outdatedIdxFiles = paths.filter(f => !hConf.exists(f + ".idx2") && hConf.exists(f + ".idx") && hConf.isFile(f + ".idx"))
@@ -327,6 +318,15 @@ case class MatrixBGENReader(
 
   if (mismatchIdxFiles.length > 0)
     fatal(mismatchIdxFiles.mkString(""))
+
+  def absolutePath(rel: String): String = {
+    val matches = hConf.glob(rel)
+    if (matches.length != 1)
+      fatal(s"""found more than one match for variant filter path: $rel:
+                 |${ matches.mkString(",") }""".stripMargin)
+    val abs = matches(0).getPath.toString
+    abs
+  }
 
   private val includedOffsetsPerFile = includedVariants match {
     case Some(variants) =>
@@ -363,7 +363,7 @@ case class MatrixBGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   lazy val fastKeys = BgenRDD(
-    sc, fileHeaders, inputNPartitions, includedOffsetsPerFile,
+    sc, headers, inputNPartitions, includedOffsetsPerFile,
     BgenSettings(
       nSamples,
       NoEntries,
@@ -375,7 +375,7 @@ case class MatrixBGENReader(
   private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType, fullType.rowPartitionKey.length, fastKeys)
 
   def apply(mr: MatrixRead): MatrixValue = {
-    require(inputs.nonEmpty)
+    require(headers.nonEmpty)
 
     val requestedType = mr.typ
     val requestedEntryType = requestedType.entryType
@@ -389,20 +389,20 @@ case class MatrixBGENReader(
     val includeRsid = requestedRowType.hasField("rsid")
     val includeOffset = requestedRowType.hasField("offset")
 
-    val recordsSettings = BgenSettings(
+    val settings = BgenSettings(
       nSamples,
       EntriesWithFields(includeGT, includeGP, includeDosage),
       RowFields(includeLid, includeRsid, includeOffset),
       referenceGenome,
       contigRecoding,
       skipInvalidLoci)
-    assert(mr.typ == recordsSettings.matrixType)
+    assert(mr.typ == settings.matrixType)
 
     val rvd = if (mr.dropRows)
       OrderedRVD.empty(sc, requestedType.orvdType)
     else
       coercer.coerce(requestedType.orvdType,
-        BgenRDD(sc, fileHeaders, inputNPartitions, includedOffsetsPerFile, recordsSettings))
+        BgenRDD(sc, headers, inputNPartitions, includedOffsetsPerFile, settings))
 
     MatrixValue(mr.typ,
       BroadcastRow(Row.empty, mr.typ.globalType, sc),

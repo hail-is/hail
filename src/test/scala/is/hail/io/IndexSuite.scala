@@ -281,4 +281,8 @@ class IndexSuite extends SparkSuite {
       }
     }
   }
+
+  @Test def indexBgen() {
+    hc.indexBgen(Array("src/test/resources/example.8bits.bgen"), Some("src/test/resources/example.sample"))
+  }
 }
