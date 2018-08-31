@@ -96,7 +96,8 @@ class MatrixImportBGEN(MatrixIR):
                  contig_recoding,
                  skip_invalid_loci,
                  row_fields,
-                 variants):
+                 included_variants,
+                 create_index):
         super().__init__()
         self.paths = paths
         self.entry_fields = entry_fields
@@ -107,7 +108,8 @@ class MatrixImportBGEN(MatrixIR):
         self.contig_recoding = contig_recoding
         self.skip_invalid_loci = skip_invalid_loci
         self.row_fields = row_fields
-        self.variants = variants
+        self.included_variants = included_variants
+        self.create_index = create_index
 
     def __str__(self):
         config = dict(
@@ -119,7 +121,8 @@ class MatrixImportBGEN(MatrixIR):
             rg=self.reference_genome.name if self.reference_genome else None,
             contigRecoding=self.contig_recoding,
             skipInvalidLoci=self.skip_invalid_loci,
-            includedVariants=self.variants)
+            includedVariants=self.included_variants,
+            createIndex=self.create_index)
         return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):

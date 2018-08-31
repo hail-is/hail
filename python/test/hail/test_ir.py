@@ -156,9 +156,14 @@ class TableIRTests(unittest.TestCase):
             Env.hail().expr.Parser.parse_table_ir(str(x))
 
     def test_matrix_ir_parses(self):
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      reference_genome=hail.get_reference('GRCh37'),
+                      contig_recoding={'01': '1'})
+
         matrix_read = ir.MatrixRead(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
         table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+
         matrix_irs = [
             ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
             ir.UnlocalizeEntries(
@@ -171,7 +176,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixImportVCF([resource('sample.vcf')], False, False, None, None, False, ['GT'],
                                hail.get_reference('GRCh37'), {}, True, False),
             ir.MatrixImportBGEN([resource('example.8bits.bgen')], ['GP'], resource('example.sample'), 10, 1,
-                                hail.get_reference('GRCh37'), {}, False, ['varid'], {}),
+                                hail.get_reference('GRCh37'), {'01': '1'}, False, ['varid'], None, False),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),
             ir.MatrixFilterEntries(matrix_read, ir.FalseIR()),
