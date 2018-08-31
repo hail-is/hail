@@ -28,7 +28,7 @@ both = {
 devel = {
     'vars': {
         'version': 'devel',
-        'supported_spark': {'2.2.0': '1.2-deb'}
+        'supported_spark': {'2.2.0': '1.2-deb9'}
     },
     'flags': {
         'image-version': '{image}',
