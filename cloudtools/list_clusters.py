@@ -1,4 +1,4 @@
-from subprocess import call
+from subprocess import check_call
 
 def main(args):
-    call(['gcloud', 'dataproc', 'clusters', 'list'])
+    check_call(['gcloud', 'dataproc', 'clusters', 'list'])

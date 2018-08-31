@@ -1,4 +1,4 @@
-from subprocess import check_output, call
+from subprocess import check_call
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
@@ -46,4 +46,4 @@ def main(args):
     print(' '.join(cmd[:6]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
     # submit job
-    call(cmd)
+    check_call(cmd)

@@ -1,4 +1,4 @@
-from subprocess import call, check_output
+from subprocess import check_call, check_output
 import sys
 
 
@@ -209,4 +209,4 @@ def main(args):
     # spin up cluster
     if not args.dry_run:
         print("Starting cluster '{}'...".format(args.name))
-        call(cmd)
+        check_call(cmd)
