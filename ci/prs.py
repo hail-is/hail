@@ -184,9 +184,22 @@ class PRS(object):
                 'DEPLOY_BRANCH': target_ref.name,
                 'DEPLOY_SHA': latest_sha
             }
+            volumes = [{
+                'volume': {
+                    'name': 'docker-sock-volume',
+                    'hostPath': {
+                        'path': '/var/run/docker.sock',
+                        'type': 'File'
+                    }
+                },
+                'volume_mount': {
+                    'mountPath': '/var/run/docker.sock',
+                    'name': 'docker-sock-volume'
+                }
+            }]
             svc_acct = PRS._deploy_service_accounts.get(target_ref.repo, None)
             if svc_acct:
-                volumes = [{
+                volumes.append({
                     'volume': {
                         'name': f'{svc_acct}-service-account-key',
                         'secret': {
@@ -200,10 +213,8 @@ class PRS(object):
                         'name': f'{svc_acct}-service-account-key',
                         'readOnly': True
                     }
-                }]
+                })
                 env['GCLOUD_ACCT_NAME'] = svc_acct
-            else:
-                volumes = []
             job = batch_client.create_job(
                 img,
                 command=['/bin/bash', '-c', PR_DEPLOY_SCRIPT],
