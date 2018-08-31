@@ -4,6 +4,9 @@ CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
 
 time source activate hail
 time pip install -U cloudtools
+gcloud auth activate-service-account \
+    hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
+    --key-file=/secrets/hail-ci-0-1.key && \
 
 shutdown_cluster() {
     set +e
