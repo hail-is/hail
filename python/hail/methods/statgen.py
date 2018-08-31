@@ -2266,7 +2266,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
-    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx)).partition_rows_by(['locus'], 'locus', 'alleles')
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
 @typecheck(mt=MatrixTable, f=anytype)

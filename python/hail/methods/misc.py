@@ -191,12 +191,17 @@ def require_row_key_variant_w_struct_locus(dataset, method):
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
-def require_first_key_field_locus(table, method):
-    if (len(table.key) == 0 or
-            not isinstance(table.key[0].dtype, tlocus)):
+def require_first_key_field_locus(dataset, method):
+    if isinstance(dataset, Table):
+        key = dataset.key
+    else:
+        assert isinstance(dataset, MatrixTable)
+        key = dataset.row_key
+    if (len(key) == 0 or
+            not isinstance(key[0].dtype, tlocus)):
         raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(table[k].dtype)) for k in table.key)))
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
 @typecheck(table=Table, method=str)
