@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
-import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
+import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
@@ -376,7 +376,7 @@ class HailContext private(val sc: SparkContext,
         hadoopConf.delete(f + ".idx", recursive = true)
     }
 
-    LoadBgen.index(this, globbedFiles, rg, contigRecoding, skipInvalidLoci)
+    IndexBgen(this, globbedFiles, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
@@ -428,8 +428,7 @@ class HailContext private(val sc: SparkContext,
       rg,
       Option(contigRecoding).getOrElse(Map.empty[String, String]),
       skipInvalidLoci,
-      includedVariants,
-      createIndex = false)
+      includedVariants)
     new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 

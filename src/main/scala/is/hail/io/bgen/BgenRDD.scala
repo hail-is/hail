@@ -30,8 +30,7 @@ case class BgenSettings(
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
   private val userContigRecoding: Map[String, String],
-  skipInvalidLoci: Boolean,
-  createIndex: Boolean
+  skipInvalidLoci: Boolean
 ) {
   private[this] val typedRowFields = Array(
     (true, "locus" -> TLocus.schemaFromRG(rg)),
@@ -85,9 +84,24 @@ object BgenRDD {
     fileNPartitions: Array[Int],
     includedOffsetsPerFile: Map[String, Array[Long]],
     settings: BgenSettings
-  ): ContextRDD[RVDContext, RegionValue] =
-    ContextRDD(
-      new BgenRDD(sc, files, fileNPartitions, includedOffsetsPerFile, settings))
+  ): ContextRDD[RVDContext, RegionValue] = {
+    val partitions = BgenRDDPartitions(
+      sc,
+      files,
+      fileNPartitions,
+      includedOffsetsPerFile,
+      settings)
+
+    ContextRDD(new BgenRDD(sc, partitions, settings))
+  }
+
+  def apply(
+    sc: SparkContext,
+    partitions: Array[Partition],
+    settings: BgenSettings
+  ): ContextRDD[RVDContext, RegionValue] = {
+    ContextRDD(new BgenRDD(sc, partitions, settings))
+  }
 
   private[bgen] def decompress(
     input: Array[Byte],
@@ -97,18 +111,10 @@ object BgenRDD {
 
 private class BgenRDD(
   sc: SparkContext,
-  files: Seq[BgenHeader],
-  fileNPartitions: Array[Int],
-  includedOffsetsPerFile: Map[String, Array[Long]],
+  parts: Array[Partition],
   settings: BgenSettings
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
   private[this] val f = CompileDecoder(settings)
-  private[this] val parts = BgenRDDPartitions(
-    sc,
-    files,
-    fileNPartitions,
-    includedOffsetsPerFile,
-    settings)
 
   protected def getPartitions: Array[Partition] = parts
 
