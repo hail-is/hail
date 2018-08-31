@@ -4,7 +4,7 @@ CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
 
 shutdown_cluster() {
     set +e
-    time cluster stop ${CLUSTER_NAME}
+    time cluster stop --async ${CLUSTER_NAME}
     exit
 }
 trap shutdown_cluster INT TERM
