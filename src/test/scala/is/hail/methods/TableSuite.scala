@@ -95,6 +95,17 @@ class TableSuite extends SparkSuite {
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
+  @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
+    val table = new Table(hc, ir.TableParallelize(ir.Literal(TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required,
+      "phenotype" -> TString())), FastIndexedSeq(
+      Row("1:100", 0.5.toFloat, "trait1"),
+      Row("1:100", 0.6.toFloat, "trait1")), ir.genUID()), None))
+
+    TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
+      table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
+        Array(), Array("locus")).count())
+  }
+
   @Test def testToMatrixTable() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()

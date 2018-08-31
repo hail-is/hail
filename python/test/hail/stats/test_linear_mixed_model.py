@@ -22,7 +22,7 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    def test_linear_mixed_model_low_rank(self):
+    def _test_linear_mixed_model_low_rank(self):
         seed = 0
         n_populations = 8
         fst = n_populations * [.9]
@@ -44,6 +44,7 @@ class Tests(unittest.TestCase):
                                       n_samples=n_samples,
                                       n_variants=n_variants,
                                       fst=fst,
+                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
                                       seed=seed)
 
         pa_t_path = utils.new_temp_file(suffix='bm')
@@ -119,7 +120,7 @@ class Tests(unittest.TestCase):
         assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
         assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
 
-    def test_linear_mixed_model_full_rank(self):
+    def _test_linear_mixed_model_full_rank(self):
         seed = 0
         n_populations = 8
         fst = n_populations * [.9]
@@ -141,6 +142,7 @@ class Tests(unittest.TestCase):
                                       n_samples=n_samples,
                                       n_variants=n_variants,
                                       fst=fst,
+                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
                                       seed=seed)
 
         pa_t_path = utils.new_temp_file(suffix='bm')
@@ -221,8 +223,8 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(x=x_table[mt.col_key].f2)
         mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
 
-        x = np.array([np.ones(n), mt.x.collect()]).T
-        y = np.array(mt.y.collect())
+        x = np.array([np.ones(n), mt.key_cols_by()['x'].collect()]).T
+        y = np.array(mt.key_cols_by()['y'].collect())
 
         mt_chr1 = mt.filter_rows(mt.locus.contig == '1')
         mt_chr3 = mt.filter_rows(mt.locus.contig == '3')

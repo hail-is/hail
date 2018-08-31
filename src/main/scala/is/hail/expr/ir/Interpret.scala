@@ -442,7 +442,9 @@ object Interpret {
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
-          case InfoScore() => new InfoScoreAggregator()
+          case InfoScore() =>
+            val IndexedSeq(aggType) = seqOpArgTypes
+            new InfoScoreAggregator(aggType)
           case Histogram() =>
             val Seq(start, end, bins) = constructorArgs
             val startValue = interpret(start, Env.empty[Any], null, null).asInstanceOf[Double]
@@ -465,7 +467,8 @@ object Interpret {
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
             val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
-            new LinearRegressionAggregator(null, kValue, k0Value)
+            val IndexedSeq(_, xType) = seqOpArgTypes
+            new LinearRegressionAggregator(null, kValue, k0Value, xType)
           case Keyed(op) =>
             new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
           case Downsample() =>

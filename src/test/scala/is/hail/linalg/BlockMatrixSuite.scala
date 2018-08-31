@@ -758,7 +758,7 @@ class BlockMatrixSuite extends SparkSuite {
     val bm = toBM(lm, blockSize = 2)
     
     assert(bm.filterBlocks(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
-      Array(0, 5, 1, 6, 2, 7, 3, 8, 20, 25, 21, 26).map(_.toDouble))
+      Array(0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8).map(_.toDouble))
   }
 
   @Test

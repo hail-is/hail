@@ -5,7 +5,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.table.Table
-import is.hail.utils.Interval
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -211,23 +211,21 @@ class TableIRSuite extends SparkSuite {
     rightProject: Set[Int]
   ) {
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
-    val left = Table.parallelize(
-      hc,
-      leftData.map(leftProjectF.asInstanceOf[Row => Row]),
-      leftType,
-      Some(if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
-      Some(1))
+    val left = new Table(hc, TableKeyBy(
+      TableParallelize(
+        Literal(TArray(leftType), leftData.map(leftProjectF.asInstanceOf[Row => Row]), genUID()),
+        Some(1)),
+      if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedLeft = left.copy2(
       rvd = left.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         .constrainToOrderedPartitioner(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1)))
 
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
-    val right = Table.parallelize(
-      hc,
-      rightData.map(rightProjectF.asInstanceOf[Row => Row]),
-      rightType,
-      Some(if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")),
-      Some(1))
+    val right = new Table(hc, TableKeyBy(
+      TableParallelize(
+        Literal(TArray(rightType), rightData.map(rightProjectF.asInstanceOf[Row => Row]), genUID()),
+        Some(1)),
+      if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedRight = right.copy2(
       rvd = right.value.enforceOrderingRVD.asInstanceOf[OrderedRVD]
         .constrainToOrderedPartitioner(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
@@ -237,5 +235,20 @@ class TableIRSuite extends SparkSuite {
       .execute(hc).rdd.collect()
     val thisExpected = expected.filter(pred).map(joinProjectF)
     assert(joined sameElements expected.filter(pred).map(joinProjectF))
+  }
+
+  @Test def testShuffleAndJoinDoesntMemoryLeak() {
+    val row = Ref("row", TStruct("idx" -> TInt32()))
+    val t1 = TableRange(1, 1)
+    val t2 =
+      TableKeyBy(
+        TableMapRows(
+          TableRange(50000, 1),
+          InsertFields(row,
+            FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx")))),
+          Some(IndexedSeq("idx"))),
+        FastIndexedSeq("k"))
+
+    TableJoin(t1, t2, "left").execute(hc).rvd.count()
   }
 }

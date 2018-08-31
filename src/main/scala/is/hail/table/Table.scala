@@ -55,17 +55,9 @@ object Table {
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
-  def parallelize(hc: HailContext, rowsJSON: String, signature: TStruct,
-    keyNames: Option[java.util.ArrayList[String]], nPartitions: Option[Int]): Table = {
-    val parsedRows = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(rowsJSON), TArray(signature))
-      .asInstanceOf[IndexedSeq[Row]]
-    parallelize(hc, parsedRows, signature, keyNames.map(_.asScala.toArray.toFastIndexedSeq), nPartitions)
-  }
-
-  def parallelize(hc: HailContext, rows: IndexedSeq[Row], signature: TStruct,
-    key: Option[IndexedSeq[String]], nPartitions: Option[Int]): Table = {
-    val typ = TableType(signature, key.map(_.toArray.toFastIndexedSeq), TStruct())
-    new Table(hc, TableParallelize(typ, rows, nPartitions))
+  def parallelize(ir: String, nPartitions: Option[Int]): Table = {
+    val rowsIR = Parser.parse_value_ir(ir)
+    new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
   }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
@@ -165,7 +157,7 @@ object Table {
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
         UnpartitionedRVD(signature, crdd2)))
-    ).keyBy(key.map(_.toArray), isSorted)
+    ).keyBy(key, isSorted)
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -198,11 +190,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty
   ) = this(hc,
-    TableLiteral(
-      TableValue(
-        TableType(signature, key, globalSignature),
-        BroadcastRow(globals, globalSignature, hc.sc),
-        UnpartitionedRVD(signature, crdd))))
+    key match {
+      case Some(key) =>
+        TableKeyBy(
+          TableLiteral(
+            TableValue(
+              TableType(signature, None, globalSignature),
+              BroadcastRow(globals, globalSignature, hc.sc),
+              UnpartitionedRVD(signature, crdd))),
+          key,
+          false)
+      case None =>
+        TableLiteral(
+          TableValue(
+            TableType(signature, None, globalSignature),
+            BroadcastRow(globals, globalSignature, hc.sc),
+            UnpartitionedRVD(signature, crdd)))
+    }
+  )
 
   def typ: TableType = tir.typ
   
@@ -226,27 +231,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     fatal(s"Key names are not distinct: ${ key.get.duplicates().mkString(", ") }")
   if (key.exists(key => !key.forall(fieldNames.contains(_))))
     fatal(s"Key names found that are not column names: ${ key.get.filterNot(fieldNames.contains(_)).mkString(", ") }")
-
-  def rowEvalContext(): EvalContext = {
-    val ec = EvalContext(
-      "global" -> globalSignature,
-      "row" -> signature)
-    ec
-  }
-
-  def aggEvalContext(): EvalContext = {
-    val ec = EvalContext("global" -> globalSignature,
-      "AGG" -> aggType())
-    ec
-  }
-
-  def aggType(): TAggregable = {
-    val aggSymbolTable = Map(
-      "global" -> (0, globalSignature),
-      "row" -> (1, signature)
-    )
-    TAggregable(signature, aggSymbolTable)
-  }
 
   def fields: Array[Field] = signature.fields.toArray
 
@@ -406,7 +390,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def aggregate(expr: String): (Any, Type) =
-    aggregate(Parser.parse_value_ir(expr, typ.refMap))
+    aggregate(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
   def aggregate(query: IR): (Any, Type) = {
     val t = ir.TableAggregate(tir, query)
@@ -414,48 +398,46 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
-    val at = TStruct(name -> t)
-    val value = BroadcastRow(Row(a), at, hc.sc)
     new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.GetField(ir.Ref(s"value", at), name))), value))
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal(t, a, ir.genUID())))))
   }
 
   def selectGlobal(expr: String): Table = {
-    val ir = Parser.parse_value_ir(expr, typ.refMap)
-    new Table(hc, TableMapGlobals(tir, ir, BroadcastRow(Row(), TStruct(), hc.sc)))
+    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
+    new Table(hc, TableMapGlobals(tir, ir))
   }
 
   def filter(cond: String, keep: Boolean): Table = {
-    var irPred = Parser.parse_value_ir(cond, typ.refMap)
+    var irPred = Parser.parse_value_ir(cond, IRParserEnvironment(typ.refMap))
     new Table(hc,
       TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
-  def keyBy(key: String*): Table = keyBy(key.toArray, null)
+  def keyBy(key: String*): Table = keyBy(key.toFastIndexedSeq, null)
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(Option(keys).map(_.asScala.toArray), false)
+    keyBy(Option(keys).map(_.asScala.toFastIndexedSeq), false)
 
   def keyBy(
     keys: java.util.ArrayList[String],
     partitionKeys: java.util.ArrayList[String]
-  ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
+  ): Table = keyBy(keys.asScala.toFastIndexedSeq, partitionKeys.asScala.toFastIndexedSeq)
 
-  def keyBy(keys: Array[String]): Table = keyBy(keys, isSorted = false)
+  def keyBy(keys: IndexedSeq[String]): Table = keyBy(keys, isSorted = false)
 
-  def keyBy(keys: Array[String], isSorted: Boolean): Table = keyBy(keys, null, isSorted)
+  def keyBy(keys: IndexedSeq[String], isSorted: Boolean): Table = keyBy(keys, null, isSorted)
 
-  def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, false)
+  def keyBy(maybeKeys: Option[IndexedSeq[String]]): Table = keyBy(maybeKeys, false)
 
-  def keyBy(maybeKeys: Option[Array[String]], isSorted: Boolean): Table =
+  def keyBy(maybeKeys: Option[IndexedSeq[String]], isSorted: Boolean): Table =
     maybeKeys match {
       case Some(keys) => keyBy(keys, isSorted)
       case None => unkey()
     }
 
-  def keyBy(keys: Array[String], partitionKeys: Array[String], isSorted: Boolean = false): Table = {
+  def keyBy(keys: IndexedSeq[String], partitionKeys: IndexedSeq[String], isSorted: Boolean = false): Table = {
     new Table(hc, TableKeyBy(tir, keys, isSorted))
   }
 
@@ -466,16 +448,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
     select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
 
   def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
-    val ir = Parser.parse_value_ir(expr, typ.refMap)
+    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     select(ir, newKey, preservedKeyFields)
   }
 
   def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
-    val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take(_)))
+    require(newKey.isDefined == preservedKeyFields.isDefined)
+    val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take))
     val preservedKeyNew = newKey.map(_.take(preservedKeyFields.get))
     val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get) else tir
     val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
-    val lengthenedKey = if (newKey.isDefined) TableKeyBy(mapped, newKey.get) else mapped
+    val lengthenedKey =
+      if (newKey.isDefined)
+        TableKeyBy(mapped, newKey.get, isSorted = preservedKeyFields.get > 0)
+      else
+        mapped
     new Table(hc, lengthenedKey)
   }
 
@@ -528,8 +515,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
     new Table(hc, TableKeyByAndAggregate(tir,
-      Parser.parse_value_ir(expr, typ.refMap),
-      Parser.parse_value_ir(key, typ.refMap),
+      Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)),
+      Parser.parse_value_ir(key, IRParserEnvironment(typ.refMap)),
       nPartitions,
       bufferSize
     ))
@@ -539,7 +526,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
 
   def aggregateByKey(expr: String): Table = {
-    val x = Parser.parse_value_ir(expr, typ.refMap)
+    val x = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableAggregateByKey(tir, x))
   }
 

@@ -617,6 +617,19 @@ class Tests(unittest.TestCase):
         t = mt._localize_entries('__entries')
         self.assertTrue(t._same(ref_tab))
 
+    def test_localize_self_join(self):
+        ref_schema = hl.tstruct(row_idx=hl.tint32,
+                                __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
+        ref_data = [{'row_idx': i, '__entries': [{'v': i+j} for j in range(6)]}
+                    for i in range(8)]
+        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        ref_tab = ref_tab.join(ref_tab, how='outer')
+        mt = hl.utils.range_matrix_table(8, 6)
+        mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
+        t = mt._localize_entries('__entries')
+        t = t.join(t, how='outer')
+        self.assertTrue(t._same(ref_tab))
+
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
@@ -732,3 +745,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(right_join.collect(), right_join_expected)
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
+
+    def test_partitioning_rewrite(self):
+        ht = hl.utils.range_table(10, 3)
+        ht1 = ht.annotate(x=hl.rand_unif(0, 1))
+        self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())

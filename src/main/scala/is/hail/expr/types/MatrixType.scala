@@ -1,12 +1,13 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.expr.Parser
+import is.hail.expr.ir.Env
 import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
-import org.apache.spark.sql.Row
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
@@ -88,38 +89,6 @@ case class MatrixType(
 
   def rowORVDType: OrderedRVDType = OrderedRVDType(rowKey, rowType)
 
-  def colEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "g" -> (2, entryType),
-      "va" -> (3, rvRowType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "sa" -> (1, colType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
-
-  def rowEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "g" -> (2, entryType),
-      "sa" -> (3, colType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "AGG" -> (2, TAggregable(entryType, aggregationST))))
-  }
-
-  def genotypeEC: EvalContext = {
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "va" -> (1, rvRowType),
-      "sa" -> (2, colType),
-      "g" -> (3, entryType)))
-  }
-
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
     "va" -> rvRowType,
@@ -187,4 +156,21 @@ case class MatrixType(
   ): MatrixType = {
     MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
   }
+
+  def globalEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+
+  def rowEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+    .bind("va" -> rvRowType)
+
+  def colEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+    .bind("sa" -> colType)
+
+  def entryEnv: Env[Type] = Env.empty[Type]
+    .bind("global" -> globalType)
+    .bind("sa" -> colType)
+    .bind("va" -> rvRowType)
+    .bind("g" -> entryType)
 }

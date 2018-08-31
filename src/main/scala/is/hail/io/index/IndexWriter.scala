@@ -38,7 +38,7 @@ class IndexWriter(
   path: String,
   keyType: Type,
   annotationType: Type,
-  branchingFactor: Int = 1024,
+  branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)
 
@@ -61,11 +61,11 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     val info = if (node.size > 0) {
-      val child = node.getChild(0)
-      val firstIndex = node.firstIdx
-      val firstKey = child.firstKey
-      val firstRecordOffset = child.firstRecordOffset
-      val firstAnnotation = child.firstAnnotation
+      val firstChild = node.getChild(0)
+      val firstIndex = firstChild.firstIndex
+      val firstKey = firstChild.firstKey
+      val firstRecordOffset = firstChild.firstRecordOffset
+      val firstAnnotation = firstChild.firstAnnotation
       IndexNodeInfo(indexFileOffset, firstIndex, firstKey, firstRecordOffset, firstAnnotation)
     } else {
       assert(isRoot && level == 0)
@@ -83,7 +83,7 @@ class IndexWriter(
 
     if (!isRoot) {
       if (level + 1 == internalNodeBuilders.length)
-        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType) // , info.firstIndex
+        internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
       val parent = internalNodeBuilders(level + 1)
       if (parent.size == branchingFactor)
         writeInternalNode(parent, level + 1)
@@ -97,11 +97,12 @@ class IndexWriter(
     val indexFileOffset = trackedOS.bytesWritten
 
     assert(leafNodeBuilder.size > 0)
-    val child = leafNodeBuilder.getChild(0)
+
     val firstIndex = leafNodeBuilder.firstIdx
-    val firstKey = child.key
-    val firstRecordOffset = child.recordOffset
-    val firstAnnotation = child.annotation
+    val firstChild = leafNodeBuilder.getChild(0)
+    val firstKey = firstChild.key
+    val firstRecordOffset = firstChild.recordOffset
+    val firstAnnotation = firstChild.annotation
 
     leafEncoder.writeByte(0)
 

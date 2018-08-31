@@ -6,7 +6,6 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
-import is.hail.expr.{EvalContext, Parser, ir}
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
@@ -15,7 +14,6 @@ import is.hail.io.vcf._
 import is.hail.rvd.RVDContext
 import is.hail.table.Table
 import is.hail.sparkextras.ContextRDD
-import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
 import org.apache.hadoop
@@ -54,8 +52,8 @@ object HailContext {
         s"  Compatibility is not guaranteed.")
   }
 
-  def configureAndCreateSparkContext(appName: String, master: Option[String],
-    local: String, blockSize: Long): SparkContext = {
+  def createSparkConf(appName: String, master: Option[String],
+    local: String, blockSize: Long): SparkConf = {
     require(blockSize >= 0)
     checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
 
@@ -98,8 +96,12 @@ object HailContext {
           }
         }
     }
+    conf
+  }
 
-    val sc = new SparkContext(conf)
+  def configureAndCreateSparkContext(appName: String, master: Option[String],
+    local: String, blockSize: Long): SparkContext = {
+    val sc = new SparkContext(createSparkConf(appName, master, local, blockSize))
     sc
   }
 
@@ -522,7 +524,7 @@ class HailContext private(val sc: SparkContext,
     maybeGZipAsBGZip(forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        skipBlankLines).keyBy(keyNames.map(_.toArray))
+        skipBlankLines).keyBy(keyNames)
     }
   }
 
@@ -725,18 +727,6 @@ class HailContext private(val sc: SparkContext,
 
     info(s"Number of BGEN files indexed: ${ inputs.length }")
   }
-
-  def baldingNicholsModel(populations: Int,
-    samples: Int,
-    variants: Int,
-    nPartitions: Option[Int] = None,
-    popDist: Option[Array[Double]] = None,
-    fst: Option[Array[Double]] = None,
-    afDist: Distribution = UniformDist(0.1, 0.9),
-    seed: Int = 0,
-    rg: ReferenceGenome = ReferenceGenome.defaultReference,
-    mixture: Boolean = false): MatrixTable =
-    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, rg, mixture)
 
   def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
 }

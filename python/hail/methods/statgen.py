@@ -7,11 +7,9 @@ import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
-from hail import ir
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_first_row_key_field_locus, require_col_key_str
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_first_row_key_field_locus
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -1325,7 +1323,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     elif statistics == 'kin20':
         ht = ht.drop('ibd1')
 
-    col_keys = hl.literal(mt.col_key.collect(), dtype=tarray(mt.col_key.dtype))
+    col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
 
 
@@ -1467,8 +1465,9 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
 
 @typecheck(ds=MatrixTable,
            keep_star=bool,
-           left_aligned=bool)
-def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
+           left_aligned=bool,
+           vep_root=str)
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> MatrixTable:
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -1598,6 +1597,11 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
         If ``True``, variants are assumed to be left
         aligned and have unique loci. This avoids a shuffle. If the assumption
         is violated, an error is generated.
+    vep_root : :obj:`str`
+        Top-level location of vep data. All variable-length VEP fields
+        (intergenic_consequences, motif_feature_consequences,
+        regulatory_feature_consequences, and transcript_consequences)
+        will be split properly (i.e. a_index corresponding to the VEP allele_num).
 
     Returns
     -------
@@ -1606,9 +1610,17 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
 
     """
 
+    row_fields = set(ds.row)
     entry_fields = set(ds.entry)
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
+    update_rows_expression = {}
     update_entries_expression = {}
+
+    if vep_root in row_fields:
+        update_rows_expression[vep_root] = split[vep_root].annotate(**{
+            x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
+            for x in ('intergenic_consequences', 'motif_feature_consequences',
+                      'regulatory_feature_consequences', 'transcript_consequences')})
 
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
@@ -1637,7 +1649,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False) -> MatrixTable:
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
 
-    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
+    return split._annotate_all(
+        row_exprs=update_rows_expression,
+        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
@@ -2031,13 +2045,12 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            n_partitions=nullable(int),
            pop_dist=nullable(sequenceof(numeric)),
            fst=nullable(sequenceof(numeric)),
-           af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-           seed=int,
+           af_dist=expr_any,
            reference_genome=reference_genome_type,
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
-                          pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome='default', mixture=False) -> MatrixTable:
+                          pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
+                          reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols model.
 
@@ -2054,13 +2067,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
     ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
 
-    >>> from hail.stats import TruncatedBetaDist
-    >>>
+    >>> hl.set_global_seed(1)
     >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
-    ...          af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
-    ...          seed=1)
+    ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0))
+
+    Note that in order to guarantee reproducibility, the hail global seed is set
+    with :func:`.set_global_seed` immediately prior to generating the dataset.
 
     Notes
     -----
@@ -2073,8 +2087,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
       ``1:M:A:C``.
     - The default distribution for population assignment :math:`\pi` is uniform.
     - The default ancestral frequency distribution :math:`P_0` is uniform on
-      ``[0.1, 0.9]``. Other options are :class:`.UniformDist`,
-      :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
+      ``[0.1, 0.9]``.
       All three classes are located in ``hail.stats``.
     - The default :math:`F_{ST}` values are all 0.1.
 
@@ -2123,12 +2136,11 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     - `n_populations` (:py:data:`.tint32`) -- Number of populations.
     - `n_samples` (:py:data:`.tint32`) -- Number of samples.
     - `n_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `n_partitions` (:py:data:`.tint32`) -- Number of partitions.
     - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
     - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - `ancestral_af_dist` (:class:`.tstruct`) -- Description of the ancestral allele
-      frequency distribution.
     - `seed` (:py:data:`.tint32`) -- Random seed.
     - `mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
 
@@ -2167,11 +2179,9 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     fst : :obj:`list` of :obj:`float`, optional
         :math:`F_{ST}` values, a list of length ``n_populations`` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
-    af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
+    af_dist : :class:`.Float64Expression` representing a random function.
         Ancestral allele frequency distribution.
-        Default is ``UniformDist(0.1, 0.9)``.
-    seed : :obj:`int`
-        Random seed.
+        Default is :func:`.rand_unif` over the range `[0.1, 0.9]` with seed 0.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2186,28 +2196,81 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     :class:`.MatrixTable`
         Simulated matrix table of variants, samples, and genotypes.
     """
-
     if pop_dist is None:
-        jvm_pop_dist_opt = joption(pop_dist)
-    else:
-        jvm_pop_dist_opt = joption(jarray(Env.jvm().double, pop_dist))
+        pop_dist = [1 for _ in range(n_populations)]
 
     if fst is None:
-        jvm_fst_opt = joption(fst)
-    else:
-        jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
+        fst = [0.1 for _ in range(n_populations)]
 
-    jmt = Env.hc()._jhc.baldingNicholsModel(n_populations, n_samples, n_variants,
-                                            joption(n_partitions),
-                                            jvm_pop_dist_opt,
-                                            jvm_fst_opt,
-                                            af_dist._jrep(),
-                                            seed,
-                                            reference_genome._jrep,
-                                            mixture)
-    return MatrixTable(jmt)
+    if n_partitions is None:
+        n_partitions = max(8, int(n_samples * n_variants / 1000000))
 
-@typecheck(mt=MatrixTable,f=anytype)
+    # verify args
+    for name, var in {"populations": n_populations,
+                      "samples": n_samples,
+                      "variants": n_variants,
+                      "partitions": n_partitions}.items():
+        if var < 1:
+            raise ValueError("n_{} must be positive, got {}".format(name, var))
+
+    for name, var in {"pop_dist": pop_dist, "fst": fst}.items():
+        if len(var) != n_populations:
+            raise ValueError("{} must be of length n_populations={}, got length {}"
+                             .format(name, n_populations, len(var)))
+
+    if any(x < 0 for x in pop_dist):
+        raise ValueError("pop_dist must be non-negative, got {}"
+                         .format(pop_dist))
+
+    if any(x <= 0 or x >= 1 for x in fst):
+        raise ValueError("elements of fst must satisfy 0 < x < 1, got {}"
+                         .format(fst))
+
+    # verify af_dist
+    if not af_dist._is_scalar:
+        raise ExpressionException('balding_nichols_model expects af_dist to ' +
+                                  'have scalar arguments: found expression ' +
+                                  'from source {}'
+                                  .format(af_dist._indices.source))
+
+    if af_dist.dtype != tfloat64:
+        raise ValueError("af_dist must be a hail function with return type tfloat64.")
+
+    info("balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants..."
+         .format(n_populations, n_samples, n_variants))
+
+    # generate matrix table
+
+    bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
+    bn = bn.annotate_globals(n_populations=n_populations,
+                             n_samples=n_samples,
+                             n_variants=n_variants,
+                             n_partitions=n_partitions,
+                             pop_dist=pop_dist,
+                             fst=fst,
+                             mixture=mixture)
+    # col info
+    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
+    bn = bn.key_cols_by(sample_idx=bn.col_idx)
+    bn = bn.select_cols(pop=pop_f(pop_dist))
+
+    # row info
+    bn = bn.key_rows_by(locus=hl.locus_from_global_position(bn.row_idx, reference_genome=reference_genome),
+                        alleles=['A', 'C'])
+    bn = bn.select_rows(ancestral_af=af_dist,
+                        af=hl.bind(lambda ancestral:
+                                   hl.array([(1 - x) / x for x in fst])
+                                   .map(lambda x:
+                                        hl.rand_beta(ancestral * x,
+                                                     (1 - ancestral) * x)),
+                                   af_dist))
+    # entry info
+    p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
+    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx)).partition_rows_by(['locus'], 'locus', 'alleles')
+
+
+@typecheck(mt=MatrixTable, f=anytype)
 def filter_alleles(mt: MatrixTable,
                    f: Callable) -> MatrixTable:
     """Filter alternate alleles.

@@ -106,5 +106,10 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
     top = 0.0
   }
 
-  def toRes: IndexedSeq[Row] = binToPoint.map { case (_, (x, y, l)) => Row(x, y, l) }.toFastIndexedSeq
+  def toRes: IndexedSeq[Row] = {
+    if (binToPoint == null) {
+      return IndexedSeq[Row]()
+    }
+    binToPoint.map { case (_, (x, y, l)) => Row(x, y, l) }.toFastIndexedSeq
+  }
 }

@@ -46,15 +46,13 @@ class TableRange(TableIR):
 
 
 class TableMapGlobals(TableIR):
-    def __init__(self, child, new_row, value):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.value = value
 
     def __str__(self):
-        return '(TableMapGlobals {} {} {})'.format(
-            self.value, self.child, self.new_row)
+        return '(TableMapGlobals {} {})'.format(self.child, self.new_row)
 
 
 class TableExplode(TableIR):
@@ -187,17 +185,15 @@ class MatrixColsTable(TableIR):
 
 
 class TableParallelize(TableIR):
-    def __init__(self, typ, rows, n_partitions):
+    def __init__(self, rows, n_partitions):
         super().__init__()
-        self.typ = typ
         self.rows = rows
         self.n_partitions = n_partitions
 
     def __str__(self):
-        return '(TableParallelize {} {} {})'.format(
-            self.typ,
-            self.rows,
-            self.n_partitions)
+        return '(TableParallelize {} {})'.format(
+            self.n_partitions,
+            self.rows)
 
 
 class TableHead(TableIR):

@@ -22,7 +22,7 @@ object IndexReader {
 }
 
 class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) extends AutoCloseable {
-  private val metadata = IndexReader.readMetadata(hConf, path + "/metadata.json.gz")
+  private[io] val metadata = IndexReader.readMetadata(hConf, path + "/metadata.json.gz")
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
@@ -34,6 +34,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   val annotationType = Parser.parseType(metadata.annotationType)
   val leafType = LeafNodeBuilder.typ(keyType, annotationType)
   val internalType = InternalNodeBuilder.typ(keyType, annotationType)
+  val ordering = keyType.ordering
 
   private val is = hConf.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
   private val codecSpec = CodecSpec.default
@@ -44,14 +45,14 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private val region = new Region()
   private val rv = RegionValue(region)
 
-  var cacheHits = 0L
-  var cacheMisses = 0L
+  private var cacheHits = 0L
+  private var cacheMisses = 0L
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Long, IndexNode](cacheCapacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Long, IndexNode]): Boolean = size() > cacheCapacity
   }
 
-  private def readInternalNode(offset: Long): InternalNode = {
+  private[io] def readInternalNode(offset: Long): InternalNode = {
     if (cache.containsKey(offset)) {
       cacheHits += 1
       cache.get(offset).asInstanceOf[InternalNode]
@@ -67,7 +68,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-  private def readLeafNode(offset: Long): LeafNode = {
+  private[io] def readLeafNode(offset: Long): LeafNode = {
     if (cache.containsKey(offset)) {
       cacheHits += 1
       cache.get(offset).asInstanceOf[LeafNode]
@@ -83,24 +84,145 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-  private def queryByIndex(index: Long, level: Int, offset: Long): LeafChild = {
+  // Returns smallest i, 0 <= i < n, for which p(i) holds, or returns n if p(i) is false for all i.
+  // Assumes all i for which p(i) is true are greater than all i for which p(i) is false.
+  // Returned value j has the property that p(i) is false for all i in [0, j),
+  // and p(i) is true for all i in [j, n).
+  private def findPartitionPoint(n: Int, p: (Int) => Boolean): Int = {
+    var left = 0
+    var right = n
+    while (left < right) {
+      val mid = left + (right - left) / 2
+      if (p(mid))
+        right = mid
+      else
+        left = mid + 1
+    }
+    left
+  }
+
+  // Returns smallest i, 0 <= i < n, for which f(i) >= key, or returns n if f(i) < key for all i
+  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
+    findPartitionPoint(n, i => ordering.gteq(f(i), key))
+
+  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) <= key for all i
+  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
+    findPartitionPoint(n, i => ordering.gt(f(i), key))
+
+  private def lowerBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val localIdx = index - node.firstIndex
-      node.children(localIdx.toInt)
+      val idx = binarySearchLowerBound(node.children.length, key, { i => node.children(i).key })
+      node.firstIndex + idx
+    } else {
+      val node = readInternalNode(offset)
+      val children = node.children
+      val n = children.length
+      val idx = binarySearchLowerBound(n, key, { i => children(i).firstKey })
+      lowerBound(key, level - 1, children(idx - 1).indexFileOffset)
+    }
+  }
+
+  private[io] def lowerBound(key: Annotation): Long = {
+    if (nKeys == 0 || ordering.lteq(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+      0
+    else
+      lowerBound(key, height - 1, metadata.rootOffset)
+  }
+
+  private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
+    if (level == 0) {
+      val node = readLeafNode(offset)
+      val idx = binarySearchUpperBound(node.children.length, key, { i => node.children(i).key })
+      node.firstIndex + idx
+    } else {
+      val node = readInternalNode(offset)
+      val children = node.children
+      val n = children.length
+      val idx = binarySearchUpperBound(n, key, { i => children(i).firstKey })
+      upperBound(key, level - 1, children(idx - 1).indexFileOffset)
+    }
+  }
+
+  private[io] def upperBound(key: Annotation): Long = {
+    if (nKeys == 0 || ordering.lt(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+      0
+    else
+      upperBound(key, height - 1, metadata.rootOffset)
+  }
+
+  private def getLeafNode(index: Long, level: Int, offset: Long): LeafNode = {
+    if (level == 0) {
+      readLeafNode(offset)
     } else {
       val node = readInternalNode(offset)
       val firstIndex = node.firstIndex
       val nKeysPerChild = math.pow(branchingFactor, level).toLong
       val localIndex = (index - firstIndex) / nKeysPerChild
-      queryByIndex(index, level - 1, node.children(localIndex.toInt).indexFileOffset)
+      getLeafNode(index, level - 1, node.children(localIndex.toInt).indexFileOffset)
     }
   }
 
+  private def getLeafNode(index: Long): LeafNode =
+    getLeafNode(index, height - 1, metadata.rootOffset)
+
+  def queryByKey(key: Annotation): Array[LeafChild] = {
+    val ab = new ArrayBuilder[LeafChild]()
+    keyIterator(key).foreach(ab += _)
+    ab.result()
+  }
+
+  def keyIterator(key: Annotation): Iterator[LeafChild] =
+    iterateFrom(key).takeWhile(lc => ordering.equiv(lc.key, key))
+
   def queryByIndex(index: Long): LeafChild = {
     require(index >= 0 && index < nKeys)
-    queryByIndex(index, height - 1, metadata.rootOffset)
+    val node = getLeafNode(index)
+    val localIdx = index - node.firstIndex
+    node.children(localIdx.toInt)
   }
+
+  def queryByInterval(interval: Interval): Iterator[LeafChild] =
+    queryByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
+
+  def queryByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): Iterator[LeafChild] = {
+    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
+    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
+    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    iterator(startIdx, endIdx)
+  }
+
+  def iterator: Iterator[LeafChild] = iterator(0, nKeys)
+
+  def iterator(start: Long, end: Long) = new Iterator[LeafChild] {
+    assert(start >= 0 && end <= nKeys && start <= end)
+    var pos = start
+    var localPos = 0
+    var leafNode: LeafNode = _
+
+    def next(): LeafChild = {
+      assert(hasNext)
+
+      if (leafNode == null || localPos >= leafNode.children.length) {
+        leafNode = getLeafNode(pos)
+        assert(leafNode.firstIndex <= pos && pos < leafNode.firstIndex + branchingFactor)
+        localPos = (pos - leafNode.firstIndex).toInt
+      }
+
+      val child = leafNode.children(localPos)
+      pos += 1
+      localPos += 1
+      child
+    }
+
+    def hasNext: Boolean = pos < end
+  }
+
+  def iterateFrom(key: Annotation): Iterator[LeafChild] =
+    iterator(lowerBound(key), nKeys)
+
+  def iterateUntil(key: Annotation): Iterator[LeafChild] =
+    iterator(0, lowerBound(key))
 
   def close() {
     region.close()
@@ -113,21 +235,24 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
 
 final case class InternalChild(
   indexFileOffset: Long,
+  firstIndex: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
   firstAnnotation: Annotation)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
-    val firstKeyIndex = r.getLong(0)
-    val children = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.get(1), r.getLong(2), r.get(3)))
-    InternalNode(firstKeyIndex, children)
+    val children = r.get(0).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.getLong(1), r.get(2), r.getLong(3), r.get(4)))
+    InternalNode(children)
   }
 }
 
-final case class InternalNode(
-  firstIndex: Long,
-  children: IndexedSeq[InternalChild]) extends IndexNode
+final case class InternalNode(children: IndexedSeq[InternalChild]) extends IndexNode {
+  def firstIndex: Long = {
+    assert(children.nonEmpty)
+    children.head.firstIndex
+  }
+}
 
 final case class LeafChild(
   key: Annotation,

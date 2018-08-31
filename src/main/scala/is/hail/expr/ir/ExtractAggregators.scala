@@ -90,6 +90,13 @@ object ExtractAggregators {
               case AggSignature(TakeBy(), _, _, Seq(aggType, keyType)) =>
                 codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
                   EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
+              case AggSignature(InfoScore(), _, _, Seq(t)) =>
+                codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+              case AggSignature(LinearRegression(), _, _, Seq(_, xType)) =>
+                codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(xType)))
+              case AggSignature(Sum(), _, _, Seq(t@(_: TInt64 | _: TFloat64))) =>
+              case AggSignature(Sum(), _, _, Seq(t)) =>
+                codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
               case _ =>
             }
 

@@ -145,9 +145,10 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     val right =
       new OrderedRVDPartitioner(kType,
         Array(
-          Interval(Row(0), Row(4), true, false),
+          Interval(Row(1), Row(4), true, false),
           Interval(Row(4), Row(5), true, false),
-          Interval(Row(7), Row(16), true, true))
+          Interval(Row(7), Row(16), true, true),
+          Interval(Row(19), Row(20), true, true))
       )
     assert(left.intersect(right).rangeBounds sameElements
       Array(

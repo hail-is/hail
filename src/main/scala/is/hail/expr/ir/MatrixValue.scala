@@ -182,10 +182,20 @@ case class MatrixValue(
       val hc = HailContext.get
       val signature = typ.colType
 
-      UnpartitionedRVD(
-        signature,
-        ContextRDD.parallelize(hc.sc, colValues.value.toArray.map(_.asInstanceOf[Row]))
-          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) })
+      if (typ.colKey.isEmpty) {
+        UnpartitionedRVD(
+          signature,
+          ContextRDD.parallelize(hc.sc, colValues.value.toArray.map(_.asInstanceOf[Row]))
+            .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) })
+      } else {
+        val (_, keyF) = typ.colType.select(typ.colKey)
+        val sorted = colValues.value.map(_.asInstanceOf[Row]).sortBy(keyF)(typ.colKeyStruct.ordering.toOrdering.asInstanceOf[Ordering[Row]])
+        OrderedRVD.coerce(
+          typ.colsTableType.rvdType,
+          ContextRDD.parallelize(hc.sc, sorted)
+            .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
+        )
+      }
     }
 
     def entriesRVD(): RVD = {
@@ -199,7 +209,7 @@ case class MatrixValue(
 
       val localColValues = colValues.broadcast
 
-      rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
+      val unpartitioned = rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
         val rv2b = ctx.rvb
         val rv2 = RegionValue(ctx.region)
 
@@ -236,6 +246,10 @@ case class MatrixValue(
             }
         }
       })
+      if (typ.entriesTableType.key.isDefined)
+        OrderedRVD.coerce(typ.entriesTableType.rvdType, unpartitioned)
+      else
+        unpartitioned
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,

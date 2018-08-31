@@ -127,10 +127,7 @@ class TableIRTests(unittest.TestCase):
                 ir.TableRange(100, 10), 'inner', 1),
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
-            ir.TableParallelize(
-                'Table{global:Struct{},key:None,row:Struct{a:Int32}}',
-                ir.Value(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}]),
-                None),
+            ir.TableParallelize(ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}]), None),
             ir.TableMapRows(
                 ir.TableUnkey(table_read),
                 ir.MakeStruct([
@@ -140,8 +137,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableMapGlobals(
                 table_read,
                 ir.MakeStruct([
-                    ('foo', ir.NA(hl.tarray(hl.tint32)))]),
-                ir.Value(hl.tstruct(), {})),
+                    ('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),
             ir.TableRepartition(table_read, 10, False),
             ir.TableUnion(
@@ -221,12 +217,11 @@ class ValueTests(unittest.TestCase):
 
     def test_value_same_after_parsing(self):
         for t, v in self.values():
-            row_v = ir.Value(hl.tstruct(x=t), hl.Struct(x=v))
+            row_v = ir.Literal(t, v)
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
                     ir.Ref("global", hl.tstruct()),
-                    [("foo", ir.GetField(ir.Ref("value", row_v.typ), "x"))]),
-                row_v)
+                    [("foo", row_v)]))
             new_globals = hl.Table._from_ir(map_globals_ir).globals.value
             self.assertEquals(new_globals, hl.Struct(foo=v))

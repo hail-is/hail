@@ -81,12 +81,4 @@ trait HailRepFunctions {
   implicit def unaryHr[T, U](implicit hrt: HailRep[T], hru: HailRep[U]) = new HailRep[(Any) => Any] {
     def typ = TFunction(FastSeq(hrt.typ), hru.typ)
   }
-
-  def aggregableHr[T](implicit hrt: HailRep[T]) = new HailRep[T] {
-    def typ = TAggregable(hrt.typ)
-  }
-
-  def aggregableHr[T](hrt: HailRep[T], b: Box[SymbolTable]) = new HailRep[T] {
-    def typ = TAggregableVariable(hrt.typ, b)
-  }
 }

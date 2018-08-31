@@ -49,7 +49,7 @@ class Tests(unittest.TestCase):
                     {'v': 0, 's': 2, 'x': a[2]}]
             ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, x: float64}'))
             mt = ht.to_matrix_table(['v'], ['s'])
-            ids = mt.col_key[0].collect()
+            ids = mt.key_cols_by()['s'].collect()
             return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
 
         def check(expr, mean_impute, center, normalize, expected):

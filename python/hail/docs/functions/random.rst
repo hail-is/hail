@@ -34,7 +34,7 @@ will generate different values:
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
 
 If the three values in the last expression should be distinct, three separate
-calls to :func`.rand_unif` should be made:
+calls to :func:`.rand_unif` should be made:
 
     >>> a = hl.rand_unif(0, 1)
     >>> b = hl.rand_unif(0, 1)

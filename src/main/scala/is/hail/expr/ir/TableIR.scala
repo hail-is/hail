@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.{RegionValueAggregator, RegionValueCountAggregator}
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
@@ -10,7 +10,6 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{Ascending, SortField, TableSpec}
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.HashPartitioner
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -75,18 +74,32 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
   }
 }
 
-case class TableParallelize(typ: TableType, rows: IndexedSeq[Row], nPartitions: Option[Int] = None) extends TableIR {
-  assert(typ.globalType.size == 0)
-  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends TableIR {
+  require(rows.typ.isInstanceOf[TArray] && rows.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rows)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
-    assert(newChildren.isEmpty)
-    TableParallelize(typ, rows, nPartitions)
+    val IndexedSeq(newRows: IR) = newChildren
+    TableParallelize(newRows, nPartitions)
   }
 
+  val typ: TableType = TableType(
+    rows.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct],
+    None,
+    TStruct())
+
   def execute(hc: HailContext): TableValue = {
+    val rowsValue = Interpret[IndexedSeq[Row]](rows, optimize = false)
+    rowsValue.zipWithIndex.foreach { case (r, idx) =>
+      if (r == null)
+        fatal(s"cannot parallelize null values: found null value at index $idx")
+    }
+
+    log.info(s"parallelized ${ rowsValue.length } rows")
+
     val rowTyp = typ.rowType
-    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
+    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
   }
@@ -146,7 +159,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
                 rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
             } catch {
               case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """)
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
             }
             i += 1
           }
@@ -350,11 +363,12 @@ object TableJoin {
   *
   * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
   * and 'right' has multiple rows with the corresponding join key
-  * [k_1, ..., k_j], then the resulting table will have out-of-order keys. To
-  * avoid this, ensure one of the following:
+  * [k_1, ..., k_j] but distinct full keys, then the resulting table will have
+  * out-of-order keys. To avoid this, ensure one of the following:
   *   * j == m
   *   * 'left' has distinct keys
-  *   * 'right' has distinct join keys (no repeated length j prefix)
+  *   * 'right' has distinct join keys (length j prefix), or at least no
+  *     distinct keys with the same join key.
   */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
   extends TableIR {
@@ -382,7 +396,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   private val joinedGlobalFields = left.typ.globalType.fields ++ right.typ.globalType.fields
   private val (finalGlobalNames, _) = mangle(joinedGlobalFields.map(_.name).toArray)
   val newGlobalType = TStruct(joinedGlobalFields.zipWithIndex.map {
-    case (fd, i) => (finalGlobalNames(i), fd.typ)
+    case (field, i) => (finalGlobalNames(i), field.typ)
   }: _*)
 
   val rightFieldMapping: Map[String, String] = {
@@ -392,12 +406,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 
   val newRowType = TStruct(joinedFields.zipWithIndex.map {
-    case (fd, i) => (finalColumnNames(i), fd.typ)
+    case (field, i) => (finalColumnNames(i), field.typ)
   }: _*)
 
   val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
 
-  val typ: TableType = TableType(newRowType, Some(newKey), left.typ.globalType)
+  val typ: TableType = TableType(newRowType, Some(newKey), newGlobalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
     assert(newChildren.length == 2)
@@ -649,28 +663,17 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       }
     }
 
-    val newRVD = tv.rvd match {
-      case ordered: OrderedRVD =>
-        typ.key match {
-          case Some(key) =>
-            if (preservedKeyFields.get != 0)
-              ordered.truncateKey(ordered.typ.key.take(preservedKeyFields.get))
-                .mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(key.take(preservedKeyFields.get), typ.rowType), itF)
-                .extendKeyPreservesPartitioning(key)
-            else
-              ordered.mapPartitionsWithIndex(typ.rowType, itF)
-          case None =>
-            ordered.mapPartitionsWithIndex(typ.rowType, itF)
-        }
-      case unordered: UnpartitionedRVD =>
-        unordered.mapPartitionsWithIndex(typ.rowType, itF)
-    }
+    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val newRVD = orvd
+      .truncateKey(orvd.typ.key.take(typ.rvdType.key.length))
+      .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
+      .toOldStyleRVD
 
     TableValue(typ, tv.globals, newRVD)
   }
 }
 
-case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) extends TableIR {
+case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType =
@@ -678,7 +681,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
-    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], value)
+    TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -689,8 +692,7 @@ case class TableMapGlobals(child: TableIR, newRow: IR, value: BroadcastRow) exte
     val newGlobals = Interpret[Row](
       newRow,
       Env.empty[(Any, Type)].bind(
-        "global" -> (tv.globals.value, child.typ.globalType),
-        "value" -> (value.value, value.t)),
+        "global" -> (tv.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 
@@ -1210,7 +1212,7 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     val IndexedSeq(newChild) = newChildren
-    LocalizeEntries(child.asInstanceOf[MatrixIR], entriesFieldName)
+    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName)
   }
 
   def execute(hc: HailContext): TableValue = {

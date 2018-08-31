@@ -11,7 +11,7 @@ import scala.collection.mutable
 object LiftLiterals {
   lazy val emptyRow: BroadcastRow = BroadcastRow.empty(HailContext.get.sc)
 
-  def getLiterals(irs: IR*): BroadcastRow = {
+  def getLiterals(irs: IR*): Seq[(String, IR)] = {
     val included = mutable.Set.empty[String]
     val ab = new ArrayBuilder[Literal]()
 
@@ -33,44 +33,37 @@ object LiftLiterals {
     irs.foreach(visit)
     val literals = ab.result()
 
-    BroadcastRow(
-      Row.fromSeq(literals.map(_.value)),
-      TStruct(literals.map(l => l.id -> l.typ): _*),
-      HailContext.get.sc)
+    literals.map(l => l.id -> l)
   }
 
-  def addLiterals(tir: TableIR, literals: BroadcastRow): TableIR = {
+  def addLiterals(tir: TableIR, literals: Seq[(String, IR)]): TableIR = {
     TableMapGlobals(tir,
       InsertFields(
         Ref("global", tir.typ.globalType),
-        literals.t.fields.map(f => f.name -> GetField(Ref("value", literals.t), f.name))),
-      literals)
+        literals))
   }
 
-  def addLiterals(mir: MatrixIR, literals: BroadcastRow): MatrixIR = {
+  def addLiterals(mir: MatrixIR, literals: Seq[(String, IR)]): MatrixIR = {
     MatrixMapGlobals(mir,
       InsertFields(
         Ref("global", mir.typ.globalType),
-        literals.t.fields.map(f => f.name -> GetField(Ref("value", literals.t), f.name))),
-      literals)
+        literals))
   }
 
-  def removeLiterals(tir: TableIR, literals: BroadcastRow): TableIR = {
-    val literalFields = literals.t.fields.map(_.name).toSet
+  def removeLiterals(tir: TableIR, literals: Seq[(String, IR)]): TableIR = {
+    val literalFields = literals.map(_._1).toSet
     TableMapGlobals(tir,
       SelectFields(
         Ref("global", tir.typ.globalType),
-        tir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))),
-      emptyRow)
+        tir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
   }
 
-  def removeLiterals(mir: MatrixIR, literals: BroadcastRow): MatrixIR = {
-    val literalFields = literals.t.fields.map(_.name).toSet
+  def removeLiterals(mir: MatrixIR, literals: Seq[(String, IR)]): MatrixIR = {
+    val literalFields = literals.map(_._1).toSet
     MatrixMapGlobals(mir,
       SelectFields(
         Ref("global", mir.typ.globalType),
-        mir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))),
-      emptyRow)
+        mir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
   }
 
   def rewriteIR(ir: IR, newGlobalType: Type): IR = {

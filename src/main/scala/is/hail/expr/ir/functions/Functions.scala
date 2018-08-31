@@ -57,14 +57,8 @@ object IRFunctionRegistry {
           (ts, t2s).zipped.forall(_.unify(_))
         }
     }
-    val validIR = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
-      case (_, conversion) =>
-        { irs: Seq[IR] =>
-          if (args.forall(!_.isInstanceOf[TAggregable]))
-            ApplyIR(name, irs, conversion)
-          else
-            conversion(irs)
-        }
+    val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
+      case (_, conversion) => args => ApplyIR(name, args, conversion)
     }
 
     val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>
