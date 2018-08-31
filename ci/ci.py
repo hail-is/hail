@@ -258,9 +258,10 @@ def refresh_pulls(target_repo, pulls_by_target):
             prs.pr_push(gh_pr)
         dead_prs = ({x.source.ref for x in prs.for_target(target_ref)} -
                     {x.source.ref for x in pulls})
-        log.info(f'for {target_ref.short_str()}, forgetting {[x.short_str() for x in dead_prs]}')
-        for source_ref in dead_prs:
-            prs.forget(source_ref, target_ref)
+        if len(dead_prs) != 0:
+            log.info(f'for {target_ref.short_str()}, forgetting {[x.short_str() for x in dead_prs]}')
+            for source_ref in dead_prs:
+                prs.forget(source_ref, target_ref)
     return pulls_by_target
 
 

@@ -75,7 +75,7 @@ class PRS(object):
         }
 
     def watched_repos(self):
-        return [ref.repo for ref in self.watched_target_refs()]
+        return {ref.repo for ref in self.watched_target_refs()}
 
     def watched_target_refs(self):
         return self._watched_targets.keys()
