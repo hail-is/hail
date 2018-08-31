@@ -1,15 +1,32 @@
-set -x
+set -ex
+
+CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
+
+shutdown_cluster() {
+    set +e
+    cluster stop ${CLUSTER_NAME}
+    exit
+}
+trap shutdown_cluster INT TERM
+
 source activate hail
 GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache && \
+    gsutil cp \
+           build/libs/hail-all-spark.jar \
+           gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar && \
+    gsutil cp \
+           build/distributions/hail-python.zip \
+           gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip && \
     pip install -U cloudtools && \
-    cluster start ci-test-$SOURCE_SHA-$TARGET_SHA \
+    cluster start ${CLUSTER_NAME} \
             --version devel \
             --spark 2.2.0 \
-            --jar build/libs/hail-all-spark.jar \
-            --zip build/distributions/hail-python.zip && \
-    cluster submit ci-test-$SOURCE_SHA-$TARGET_SHA \
+            --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
+            --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip && \
+    cluster submit ${CLUSTER_NAME} \
             cluster-sanity-check.py
 EXIT_CODE=$?
+shutdown_cluster
 rm -rf artifacts
 mkdir -p artifacts
 cp build/libs/hail-all-spark.jar artifacts/hail-all-spark.jar
