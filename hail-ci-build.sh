@@ -2,7 +2,9 @@ set -ex
 
 CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
 
+time source activate hail
 time pip install -U cloudtools
+
 shutdown_cluster() {
     set +e
     time cluster stop --async ${CLUSTER_NAME}
@@ -10,7 +12,6 @@ shutdown_cluster() {
 }
 trap shutdown_cluster INT TERM
 
-source activate hail
 GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache && \
     time gsutil cp \
            build/libs/hail-all-spark.jar \
