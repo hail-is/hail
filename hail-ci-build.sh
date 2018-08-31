@@ -2,6 +2,7 @@ set -ex
 
 CLUSTER_NAME=ci-test-$SOURCE_SHA-$TARGET_SHA
 
+time pip install -U cloudtools
 shutdown_cluster() {
     set +e
     time cluster stop --async ${CLUSTER_NAME}
@@ -17,7 +18,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /
     time gsutil cp \
            build/distributions/hail-python.zip \
            gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip && \
-    time pip install -U cloudtools && \
     time cluster start ${CLUSTER_NAME} \
             --version devel \
             --spark 2.2.0 \
