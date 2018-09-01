@@ -625,6 +625,9 @@ class Expression(object):
                         m = source.select_rows(**{name: self})
                     to_return = m.rows().select_globals()
                 else:
+                    if source.col_key is not None:
+                        warn("Column expression sorted by 'col_key'. "
+                             "To preserve order, first unkey source with 'key_cols_by()'")
                     field_name = source._fields_inverse.get(self)
                     if field_name is not None:
                         if field_name in source.col_key:
