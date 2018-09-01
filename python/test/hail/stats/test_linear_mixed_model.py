@@ -358,7 +358,7 @@ class Tests(unittest.TestCase):
 
     def test_linear_mixed_model_math(self):
         gamma = 2.0  # testing at fixed value of gamma
-        n, p, m = 4, 2, 3
+        n, f, m = 4, 2, 3
         y = np.array([0.0, 1.0, 8.0, 9.0])
         x = np.array([[1.0, 0.0],
                       [1.0, 2.0],
@@ -374,7 +374,7 @@ class Tests(unittest.TestCase):
 
         beta = np.linalg.solve(x.T @ v_inv @ x, x.T @ v_inv @ y)
         residual = y - x @ beta
-        sigma_sq = 1 / (n - p) * (residual @ v_inv @ residual)
+        sigma_sq = 1 / (n - f) * (residual @ v_inv @ residual)
         sv = sigma_sq * v
         neg_log_lkhd = 0.5 * (np.linalg.slogdet(sv)[1] + np.linalg.slogdet(x.T @ np.linalg.inv(sv) @ x)[1])  # plus C
 
@@ -385,8 +385,13 @@ class Tests(unittest.TestCase):
         residual1 = y - x1 @ beta1
         chi_sq = n * np.log((residual @ v_inv @ residual) / (residual1 @ v_inv @ residual1))
 
-        # test full-rank fit
+        # test from_kinship, full-rank fit
         model, p = LinearMixedModel.from_kinship(y, x, k)
+        s0, u0 = np.linalg.eigh(k)
+        s0 = np.flip(s0, axis=0)
+        p0 = np.fliplr(u0).T
+        self.assertTrue(model._same(LinearMixedModel(p0 @ y, p0 @ x, s0)))
+
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
         self.assertAlmostEqual(model.sigma_sq, sigma_sq)
@@ -404,8 +409,11 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(stats.beta, beta1[0])
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
 
-        # test low-rank fit
+        # test from_random_effects, low-rank fit
         model, p = LinearMixedModel.from_random_effects(y, x, z)
+        s0, p0 = s0[:m], p0[:m, :]
+        self.assertTrue(model._same(LinearMixedModel(p0 @ y, p0 @ x, s0, y, x)))
+
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
         self.assertAlmostEqual(model.sigma_sq, sigma_sq)
@@ -424,3 +432,54 @@ class Tests(unittest.TestCase):
         stats = model.fit_alternatives(pa_t_path, a_t_path).collect()[0]
         self.assertAlmostEqual(stats.beta, beta1[0])
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
+
+    def test_linear_mixed_model_function(self):
+        n, f, m = 4, 2, 3
+        y = np.array([0.0, 1.0, 8.0, 9.0])
+        x = np.array([[1.0, 0.0],
+                      [1.0, 2.0],
+                      [1.0, 1.0],
+                      [1.0, 4.0]])
+        z = np.array([[0.0, 0.0, 1.0],
+                      [0.0, 1.0, 2.0],
+                      [1.0, 2.0, 0.0],
+                      [2.0, 0.0, 1.0]])
+
+        p_path = utils.new_temp_file()
+
+        def make_call(gt):
+            if gt == 0.0:
+                return hl.Call([0, 0])
+            if gt == 1.0:
+                return hl.Call([0, 1])
+            if gt == 2.0:
+                return hl.Call([1, 1])
+
+        data = [{'v': j, 's': i, 'y': y[i], 'x1': x[i, 1], 'zt': make_call(z[i, j])}
+                for i in range(n) for j in range(m)]
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, y: float64, x1: float64, zt: tcall}'))
+        mt = ht.to_matrix_table(row_key=['v'], col_key=['s'], col_fields=['x1', 'y'])
+        colsort = np.argsort(mt.key_cols_by().s.collect()).tolist()
+        mt = mt.choose_cols(colsort)
+
+        rrm = hl.realized_relationship_matrix(mt.zt).to_numpy()
+
+        # kinship path agrees with from_kinship
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], k=rrm, p_path=p_path, overwrite=True)
+        model0, p0 = LinearMixedModel.from_kinship(y, x, rrm, p_path, overwrite=True)
+        assert model0._same(model)
+        assert np.allclose(p0, p)
+
+        # random effects path with standardize=True agrees with low-rank rrm
+        s0, u0 = np.linalg.eigh(rrm)
+        s0 = np.flip(s0, axis=0)[:m]
+        p0 = np.fliplr(u0).T[:m, :]
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], z_t=mt.zt.n_alt_alleles(), p_path=p_path, overwrite=True)
+        model0 = LinearMixedModel(p0 @ y, p0 @ x, s0, y, x, p_path=p_path)
+        assert model0._same(model)
+
+        # random effects path with standardize=False agrees with from_random_effects
+        model0, p0 = LinearMixedModel.from_random_effects(y, x, z, p_path, overwrite=True)
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], z_t=mt.zt.n_alt_alleles(), p_path=p_path, overwrite=True, standardize=False)
+        assert model0._same(model)
+        assert np.allclose(p0, p.to_numpy())

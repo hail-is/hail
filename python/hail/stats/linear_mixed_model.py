@@ -304,7 +304,7 @@ class LinearMixedModel(object):
             _check_dims(x, 'x', 2)
             n = y.size
             if n <= r:
-                raise ValueError("the size of y must be larger than the size of s")
+                raise ValueError("size of y must be larger than the size of s")
             if x.shape[0] != n:
                 raise ValueError("x must have the same number of rows as the size of y")
             if x.shape[1] != f:
@@ -1115,3 +1115,38 @@ class LinearMixedModel(object):
             model = LinearMixedModel(py, px, s, p_path=p_path)
 
         return model, p
+
+    # checks agreement of model initialization
+    def _same(self, other, tol=1e-6, up_to_sign=True):
+        def same_rows_up_to_sign(a, b, atol):
+            assert a.shape[0] == b.shape[0]
+            return all(np.allclose(a[i], b[i], atol=atol) or
+                       np.allclose(-a[i], b[i], atol=atol)
+                       for i in range(a.shape[0]))
+
+        close = same_rows_up_to_sign if up_to_sign else np.allclose
+
+        if self.low_rank != other.low_rank:
+            print(f'different low_rank: {self.low_rank}, {other.low_rank}')
+            return False
+
+        same = True
+        if not close(self.py, other.py, atol=tol):
+            print(f'different py:\n{self.py}\n{other.py}')
+            same = False
+        if not close(self.px, other.px, atol=tol):
+            print(f'different px:\n{self.px}\n{other.px}')
+            same = False
+        if not np.allclose(self.s, other.s, atol=tol):
+            print(f'different s:\n{self.s}\n{other.s}')
+            same = False
+        if self.low_rank and not close(self.y, other.y, atol=tol):
+            print(f'different y:\n{self.y}\n{other.y}')
+            same = False
+        if self.low_rank and not close(self.x, other.x, atol=tol):
+            print(f'different x\n{self.x}\n{other.x}')
+            same = False
+        if self.p_path != other.p_path:
+            print(f'different p_path:\n{self.p_path}\n{other.p_path}')
+            same = False
+        return same
