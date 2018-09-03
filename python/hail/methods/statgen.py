@@ -691,7 +691,7 @@ def linear_mixed_model(y,
 
     Exactly one of `z_t` and `k` must be set.
 
-    If `z_t` is set, the model is low-rank if the number samples :math:`n` exceeds
+    If `z_t` is set, the model is low-rank if the number of samples :math:`n` exceeds
     the number of random effects :math:`m`. At least one dimension must be less
     than or equal to 46300. If `standardize` is true, each random effect is first
     standardized to have mean 0 and variance :math:`\frac{1}{m}`, so that the
@@ -837,7 +837,7 @@ def linear_mixed_regression(entry_expr,
        :meth:`.LinearMixedModel.fit_alternatives` and row-annotate the statistics
        at `root`. The parallelism is ``n_rows / partition_size``.
 
-    If `pa_t_path` and `a_t_path` are not set, temporary files is used.
+    If `pa_t_path` and `a_t_path` are not set, temporary files are used.
 
     `entry_expr` may only have missing values if `mean_impute` is true, in
     which case missing values of are set to the row mean. We recommend setting
