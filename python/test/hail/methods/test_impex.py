@@ -580,7 +580,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
-    def test_import_bgen_variant_filtering(self):
+    def test_import_bgen_variant_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
         hl.index_bgen(bgen_file,
@@ -611,6 +611,27 @@ class BGENTests(unittest.TestCase):
         expected = everything.filter_rows(hl.set(desired_variants).contains(everything.row_key))
 
         self.assertTrue(expected._same(actual))
+
+    def test_import_bgen_variant_filtering_from_exprs(self):
+        bgen_file = resource('example.8bits.bgen')
+
+        hl.index_bgen(bgen_file,
+                      contig_recoding={'01': '1'})
+
+        everything = hl.import_bgen(bgen_file,
+                                    ['GT'],
+                                    contig_recoding={'01': '1'})
+        self.assertEqual(everything.count(), (199, 500))
+
+        desired_variants = hl.struct(locus=everything.locus, alleles=everything.alleles)
+
+        actual = hl.import_bgen(bgen_file,
+                                ['GT'],
+                                contig_recoding={'01': '1'},
+                                n_partitions=10,
+                                _variants=desired_variants) # filtering with everything
+
+        self.assertTrue(everything._same(actual))
 
     # FIXME testing block_size (in MB) requires large BGEN
     def test_n_partitions(self):

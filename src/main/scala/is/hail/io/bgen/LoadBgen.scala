@@ -8,6 +8,7 @@ import is.hail.io._
 import is.hail.io.index.{IndexReader, IndexWriter}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{OrderedRVD, RVD}
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
@@ -229,7 +230,7 @@ case class MatrixBGENReader(
   rg: Option[String],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
-  includedVariants: Option[Seq[Annotation]]) extends MatrixReader {
+  includedVariants: Option[Table]) extends MatrixReader {
   private val hc = HailContext.get
   private val sc = hc.sc
   private val hConf = sc.hadoopConfiguration
@@ -329,11 +330,12 @@ case class MatrixBGENReader(
   }
 
   private val includedOffsetsPerFile = includedVariants match {
-    case Some(variants) =>
+    case Some(variantsTable) =>
+      val variants = variantsTable.collect()
       // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
       files.map { f =>
         val index = new IndexReader(hConf, f + ".idx2")
-        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
+        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset))
         index.close()
         (absolutePath(f), offsets)
       }.toMap

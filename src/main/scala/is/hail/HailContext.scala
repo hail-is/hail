@@ -392,7 +392,7 @@ class HailContext private(val sc: SparkContext,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
-    includedVariants: Option[Seq[Annotation]] = None
+    includedVariants: Option[Table] = None
   ): MatrixTable = {
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 

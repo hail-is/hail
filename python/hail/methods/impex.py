@@ -797,7 +797,7 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
            _row_fields=sequenceof(enumeration('varid', 'rsid')),
-           _variants=nullable(expr_array(expr_struct())))
+           _variants=nullable(oneof(sequenceof(hl.utils.Struct), StructExpression)))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
@@ -944,14 +944,23 @@ def import_bgen(path,
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     if _variants is not None:
-        et = _variants.dtype.element_type
-        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint64)
-        if et != tstruct(locus=lt, alleles=tarray(tstr)):
-            raise ValueError("'import_bgen' requires the expression type for '_variants' must match the BGEN key type: \n" +
-                             f"\tFound: {et}\n" +
-                              f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
-
-        _variants = _variants.dtype._convert_to_j(_variants.value)
+        print(_variants)
+        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
+        expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
+        if isinstance(_variants, StructExpression):
+            if _variants.dtype != expected_vtype:
+                raise ValueError("'import_bgen' requires the expression type for '_variants' must match the BGEN key type: \n" +
+                                 f"\tFound: {_variants.dtype}\n" +
+                                  f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+            uid = Env.get_uid()
+            _variants = _variants._to_table_wout_keys(uid, resort=True)
+            _variants = _variants.key_by(locus=_variants[uid].locus, alleles=_variants[uid].alleles).select().distinct()._jt
+        else:
+            assert(isinstance(_variants, list))
+            try:
+                _variants = hl.Table.parallelize(_variants, schema=expected_vtype).key_by('locus', 'alleles').distinct()._jt
+            except:
+                raise ValueError("'import_bgen' requires all elements in '_variants' must match the BGEN key type: {tstruct(locus=lt, alleles=tarray(tstr))}")
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
