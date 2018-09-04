@@ -15,7 +15,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
            -Dspark.version=${SPARK_VERSION} \
            -Dspark.home=/spark \
            -Dtutorial.home=/usr/local/hail-tutorial-files \
-           -Dsphinx-build=sphinx-build2.7 \
            --gradle-user-home /gradle-cache
 SHA=$(git rev-parse --short=12 HEAD)
 
