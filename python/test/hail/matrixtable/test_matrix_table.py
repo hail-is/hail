@@ -689,6 +689,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.locus.contig.take(1), [mt.rows().key_by('locus').select().take(1)[0].locus.contig])
         self.assertEqual(mt['s'][0].take(1), [mt.cols().key_by('s').select().take(1)[0].s[0]])
 
+    def test_to_table_wout_keys_on_various_fields(self):
+        mt = self.get_vds()
+
+        # resort=False
+        expected = hl.Table.parallelize(
+            [{'rsid': 'rs575534'}, {'rsid': None}, {'rsid': 'rs685723'},
+             {'rsid': 'rs652633'}, {'rsid': 'rs524625'}], schema=hl.tstruct(rsid=hl.tstr))
+        self.assertTrue(mt.rsid._to_table_wout_keys('rsid', resort=False).head(5)._same(expected))
+
+        # resort=True
+        mt.rsid._to_table_wout_keys('rsid', resort=True).head(5).show()
+        expected = hl.Table.parallelize(
+            [{'rsid': 'rs1000121'}, {'rsid': 'rs1011290'}, {'rsid': 'rs10485741'},
+             {'rsid': 'rs1051415'}, {'rsid': 'rs1051419'}], schema=hl.tstruct(rsid=hl.tstr), key='rsid')
+        self.assertTrue(mt.rsid._to_table_wout_keys('rsid', resort=True).head(5)._same(expected))
+
     def test_order_by(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
