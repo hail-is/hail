@@ -440,6 +440,7 @@ class PR(object):
         elif state == 'Cancelled':
             log.error(
                 f'a job for me was cancelled {short_str_build_job(job)} {self.short_str()}')
+            job.delete()
             return self._new_build(try_new_build(self.source, self.target))
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes} {self.short_str()}'
@@ -447,6 +448,7 @@ class PR(object):
             assert 'image' in job.attributes, job.attributes
             target = FQSHA.from_json(json.loads(job.attributes['target']))
             image = job.attributes['image']
+            job.delete()
             if target == self.target:
                 return self._new_build(Building(job, image, target.sha))
             else:
@@ -461,6 +463,7 @@ class PR(object):
         assert job_source.ref == self.source.ref
         assert job_target.ref == self.target.ref
 
+        job.delete()
         if job_target.sha != self.target.sha:
             log.info(
                 f'notified of job for old target {job.id}'

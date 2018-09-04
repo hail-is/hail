@@ -167,8 +167,6 @@ def refresh_ci_build_jobs(jobs):
                 try_to_cancel_job(job)
     for ((source, target), job) in latest_jobs.items():
         prs.refresh_from_ci_job(source, target, job)
-        if job.cached_status()['state'] != 'Created':
-            job.delete()
 
 def refresh_deploy_jobs(jobs):
     jobs = [
@@ -201,8 +199,6 @@ def refresh_deploy_jobs(jobs):
                 try_to_cancel_job(job)
     for (target, job) in latest_jobs.items():
         prs.refresh_from_deploy_job(target, job)
-        if job.cached_status()['state'] != 'Created':
-            job.delete()
 
 @app.route('/force_retest', methods=['POST'])
 def force_retest():
