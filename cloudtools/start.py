@@ -70,6 +70,7 @@ def init_parser(parser):
     parser.add_argument('--packages', '--pkgs', default='',
                         help='Comma-separated list of Python packages to be installed on the master node.')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
+    parser.add_argument('--bucket', type=str, help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
 
     # specify custom Hail jar and zip
     parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
@@ -197,6 +198,9 @@ def main(args):
         '--initialization-actions={}'.format(','.join(init_actions)),
         '--initialization-action-timeout={}'.format(args.init_timeout)
     ]
+
+    if args.bucket:
+        cmd.append('--bucket={}'.format(args.bucket))
 
     if args.max_idle:
         cmd.insert(1, 'beta')

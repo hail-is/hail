@@ -300,3 +300,10 @@ positional arguments:
 optional arguments:
   -h, --help  show this help message and exit
 ```
+
+## Deploying
+```
+rm -f dist/*
+python setup.py bdist_wheel
+twine upload dist/* -u <username> -p <password>
+```
