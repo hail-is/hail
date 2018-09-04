@@ -11,7 +11,7 @@ echo $(git rev-parse $SOURCE_BRANCH) && \
 [[ $( git rev-parse target/$TARGET_BRANCH ) == $TARGET_SHA ]] && \
 git config user.email hail-ci-pr-builder@hail.is && \
 git config user.name "Hail CI PR Builder" && \
-git merge target/$TARGET_BRANCH $SOURCE_BRANCH && \
+git checkout target/$TARGET_BRANCH && git merge $SOURCE_BRANCH && \
 chmod 755 ./hail-ci-build.sh && \
 ./hail-ci-build.sh ; \
 BUILD_EXIT=$? ; ( \
@@ -23,7 +23,7 @@ BUILD_EXIT=$? ; ( \
     -h "Cache-Control:private, max-age=0, no-transform" \
     cp -r \
     artifacts/ \
-    gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/ && \
-  gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/$SOURCE_SHA/$TARGET_SHA/artifacts/ \
+    gs://hail-ci-0-1/ci/$SOURCE_SHA/$TARGET_SHA/ && \
+  gsutil -m acl ch -r -u AllUsers:R gs://hail-ci-0-1/ci/$SOURCE_SHA/$TARGET_SHA/artifacts/ \
 ) ) && \
 exit $BUILD_EXIT
