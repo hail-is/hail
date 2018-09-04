@@ -206,8 +206,6 @@ object VEP {
         }
       }).persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(s"vep: annotated ${ annotations.count() } variants")
-
     val (globalValue, globalType) =
       if (csq)
         (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))

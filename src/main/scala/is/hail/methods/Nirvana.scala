@@ -448,8 +448,6 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(s"nirvana: annotated ${ annotations.count() } variants")
-
     val nirvanaORVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaORVDType.rowType
