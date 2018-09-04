@@ -2136,7 +2136,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     - `n_populations` (:py:data:`.tint32`) -- Number of populations.
     - `n_samples` (:py:data:`.tint32`) -- Number of samples.
     - `n_variants` (:py:data:`.tint32`) -- Number of variants.
-    - `n_partitions` (:py:data:`.tint32`) -- Number of partitions.
     - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
     - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
@@ -2245,7 +2244,6 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     bn = bn.annotate_globals(n_populations=n_populations,
                              n_samples=n_samples,
                              n_variants=n_variants,
-                             n_partitions=n_partitions,
                              pop_dist=pop_dist,
                              fst=fst,
                              mixture=mixture)
