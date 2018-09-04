@@ -27,6 +27,11 @@ DISTRIBUTION=gs://hail-common/distributions/${BRANCH}/Hail-${BRANCH}-${SHA}-Spar
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
 
+CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+python ./create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+gsutil acl set public-read $CONFIG
+
 echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
 HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash-spark-${SPARK_VERSION}.txt
 gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
