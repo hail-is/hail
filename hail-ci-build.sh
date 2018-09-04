@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -x
 
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 
@@ -16,21 +16,21 @@ shutdown_cluster() {
 }
 trap shutdown_cluster INT TERM
 
-GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache
-time gsutil cp \
-     build/libs/hail-all-spark.jar \
-     gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar
-time gsutil cp \
-     build/distributions/hail-python.zip \
-     gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip
-time cluster start ${CLUSTER_NAME} \
-     --version devel \
-     --spark 2.2.0 \
-     --bucket=hail-ci-0-1-dataproc-staging-bucket \
-     --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
-     --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip
-time cluster submit ${CLUSTER_NAME} \
-     cluster-sanity-check.py
+GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache && \
+    time gsutil cp \
+         build/libs/hail-all-spark.jar \
+         gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar && \
+    time gsutil cp \
+         build/distributions/hail-python.zip \
+         gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip && \
+    time cluster start ${CLUSTER_NAME} \
+         --version devel \
+         --spark 2.2.0 \
+         --bucket=hail-ci-0-1-dataproc-staging-bucket \
+         --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
+         --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip && \
+    time cluster submit ${CLUSTER_NAME} \
+         cluster-sanity-check.py
 EXIT_CODE=$?
 shutdown_cluster
 rm -rf artifacts
