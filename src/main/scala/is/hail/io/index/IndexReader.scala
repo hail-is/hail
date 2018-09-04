@@ -143,7 +143,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
-
+  
   private[io] def upperBound(key: Annotation): Long = {
     if (nKeys == 0 || ordering.lt(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
       0

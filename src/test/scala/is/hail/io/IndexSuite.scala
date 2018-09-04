@@ -37,7 +37,7 @@ class IndexSuite extends SparkSuite {
     annotationType: Type,
     branchingFactor: Int,
     attributes: Map[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
+    val iw = IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
@@ -280,5 +280,9 @@ class IndexSuite extends SparkSuite {
         assert(index.iterateUntil(s).toFastIndexedSeq == leafsWithDups.slice(0, end).toFastIndexedSeq)
       }
     }
+  }
+
+  @Test def indexBgen() {
+    hc.indexBgen(Array("src/test/resources/example.8bits.bgen"), Some("src/test/resources/example.sample"))
   }
 }

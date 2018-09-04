@@ -31,10 +31,18 @@ case class IndexNodeInfo(
 
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
+
+  def apply(
+    hConf: Configuration,
+    path: String,
+    keyType: Type,
+    annotationType: Type,
+    branchingFactor: Int = 1024,
+    attributes: Map[String, Any] = Map.empty[String, Any]) = new IndexWriter(new SerializableHadoopConfiguration(hConf), path, keyType, annotationType, branchingFactor, attributes)
 }
 
 class IndexWriter(
-  hConf: Configuration,
+  hConf: SerializableHadoopConfiguration,
   path: String,
   keyType: Type,
   annotationType: Type,
@@ -50,7 +58,8 @@ class IndexWriter(
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(hConf.value.unsafeWriter(path + "/index"))
+
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
@@ -141,7 +150,7 @@ class IndexWriter(
   }
 
   private def writeMetadata(rootOffset: Long) = {
-    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+    hConf.value.writeTextFile(path + "/metadata.json.gz") { out =>
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
