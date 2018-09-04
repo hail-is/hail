@@ -2413,7 +2413,9 @@ class VariantDataset(object):
         Prune samples so that no two have a PI_HAT value greater than or equal to 0.5, with a tiebreaking expression that 
         selects cases over controls:
 
-        >>> pruned_vds = vds.ibd_prune(0.5, tiebreaking_expr="if (sa1.isCase) 1 else 0")
+        >>> pruned_vds = vds.ibd_prune(
+        ...     0.5,
+        ...     tiebreaking_expr="if (sa1.isCase && !sa2.isCase) -1 else if (!sa1.isCase && sa2.isCase) 1 else 0")
 
         **Notes**
 
