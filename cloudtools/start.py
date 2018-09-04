@@ -1,5 +1,6 @@
-from subprocess import check_call, check_output
+from subprocess import call, check_call, check_output
 import sys
+import json
 
 
 COMPATIBILITY_VERSION = 1
@@ -29,14 +30,52 @@ machine_mem = {
 }
 
 
+class ClusterConfig:
+    def __init__(self, json_str):
+        params = json.loads(json_str)
+        self.vars = params['vars']
+        self.flags = params['flags']
+
+    def extend_flag(self, flag, values):
+        if flag not in self.flags:
+            self.flags[flag] = values
+        elif isinstance(self.flags[flag], list):
+            assert isinstance(values, list)
+            self.flags[flag].extend(values)
+        else:
+            assert isinstance(self.flags[flag], dict)
+            assert isinstance(values, dict)
+            self.flags[flag].update(values)
+
+    def parse_and_extend(self, flag, values):
+        values = dict(tuple(pair.split('=')) for pair in values.split(',') if '=' in pair)
+        self.extend_flag(flag, values)
+
+    def format(self, obj):
+        if isinstance(obj, dict):
+            return self.format(['{}={}'.format(k, v) for k, v in obj.items()])
+        if isinstance(obj, list):
+            return self.format(','.join(obj))
+        else:
+            return str(obj).format(**self.vars)
+
+    def get_command(self, name):
+        flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]
+        return ['gcloud',
+                'dataproc',
+                'clusters',
+                'create',
+                name] + flags
+
+
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
 
     # arguments with default parameters
     parser.add_argument('--hash', default='latest', type=str,
                         help='Hail build to use for notebook initialization (default: %(default)s).')
-    parser.add_argument('--spark', default='2.2.0', type=str, choices=['2.0.2', '2.2.0'],
-                        help='Spark version used to build Hail (default: %(default)s)')
+    parser.add_argument('--spark', type=str,
+                        help='Spark version used to build Hail (default: 2.2.0 for 0.2 and 2.0.2 for 0.1)')
     parser.add_argument('--version', default='devel', type=str, choices=['0.1', 'devel'],
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
@@ -65,9 +104,9 @@ def init_parser(parser):
                         help='Compute zone for the cluster (default: %(default)s).')
     parser.add_argument('--properties',
                         help='Additional configuration properties for the cluster')
-    parser.add_argument('--metadata', default='',
+    parser.add_argument('--metadata',
                         help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
-    parser.add_argument('--packages', '--pkgs', default='',
+    parser.add_argument('--packages', '--pkgs',
                         help='Comma-separated list of Python packages to be installed on the master node.')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str, help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
@@ -82,125 +121,89 @@ def init_parser(parser):
     parser.add_argument('--vep', action='store_true', help='Configure the cluster to run VEP.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
+    # custom config file
+    parser.add_argument('--config-file', help='Pass in a custom json file to load configurations.')
+
 
 def main(args):
+    if not args.spark:
+        args.spark = '2.2.0' if args.version == 'devel' else '2.0.2'
 
-    # Google dataproc image version to use
-    if args.spark == '2.0.2':
-        image_version = '1.1'
+    if args.hash == 'latest':
+        hash_file = 'gs://hail-common/builds/{}/latest-hash-spark-{}.txt'.format(args.version, args.spark)
+        hash = check_output(['gsutil', 'cat', hash_file]).strip()
+        # Python 3 check_output returns a byte string that needs decoding
+        hash = hash.decode() if sys.version_info >= (3, 0) else hash
     else:
-        assert args.spark == '2.2.0'
-        image_version = '1.2'
+        hash = args.hash
+
+    if not args.config_file:
+        args.config_file = 'gs://hail-common/builds/{version}/config/hail-config-{version}-{hash}.json'.format(version=args.version, hash=hash)
+        exists = call(['gsutil', '-q', 'stat', args.config_file])
+        if exists != 0:
+            args.config_file = 'gs://hail-common/builds/{version}/config/hail-config-{version}-default.json'.format(version=args.version)
+    if args.config_file.startswith('gs://'):
+        conf = ClusterConfig(check_output(['gsutil', 'cat', args.config_file]).strip())
+    else:
+        conf = ClusterConfig(check_output(['cat', args.config_file]).strip())
+
+    if args.spark not in conf.vars['supported_spark'].keys():
+        sys.stderr.write("ERROR: Hail version '{}' requires one of Spark {}."
+                         .format(args.version, ','.join(conf.vars['supported_spark'].keys())))
+        sys.exit(1)
+    conf.vars['spark'] = args.spark
+    conf.vars['image'] = conf.vars['supported_spark'][args.spark]
+    conf.vars['hash'] = hash
+
+    # parse Spark and HDFS configuration parameters, combine into properties argument
+    if args.properties:
+        conf.parse_and_extend('properties', args.properties)
 
     # default to highmem machines if using VEP
     if not args.worker_machine_type:
-        if args.vep:
-            args.worker_machine_type = 'n1-highmem-8'
-        else:
-            args.worker_machine_type = 'n1-standard-8'  # default
-    
-    # parse Spark and HDFS configuration parameters, combine into properties argument
-    properties = [
-        'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * args.master_memory_fraction))),
-        'spark:spark.driver.maxResultSize=0',
-        'spark:spark.task.maxFailures=20',
-        'spark:spark.kryoserializer.buffer.max=1g',
-        'spark:spark.driver.extraJavaOptions=-Xss4M',
-        'spark:spark.executor.extraJavaOptions=-Xss4M',
-        'hdfs:dfs.replication=1'
-    ]
-    if args.properties:
-        properties.append(args.properties)
+        args.worker_machine_type = 'n1-highmem-8' if args.vep else 'n1-standard-8'
 
     # default initialization script to start up cluster with
-    init_actions = ['gs://dataproc-initialization-actions/conda/bootstrap-conda.sh',
-                    init_script]
-
-    if args.version == 'devel' and args.spark != '2.2.0':
-        sys.stderr.write("ERROR: Hail version 'devel' requires Spark 2.2.0.")
-        sys.exit(1)
-
+    conf.extend_flag('initialization-actions',
+                     ['gs://dataproc-initialization-actions/conda/bootstrap-conda.sh',
+                      init_script])
     # add VEP init script
     if args.vep:
-        init_actions.append('gs://hail-common/vep/vep/vep85-init.sh')
-
+        conf.extend_flag('initialization-actions', ['gs://hail-common/vep/vep/vep85-init.sh'])
     # add custom init scripts
     if args.init:
-        init_actions.append(args.init)
+        conf.extend_flag('initialization-actions', args.init)
 
-
-    if (not (args.jar and args.zip)) and (args.jar or args.zip):
+    if args.jar and args.zip:
+        conf.extend_flag('metadata', {'JAR': args.jar, 'ZIP': args.zip})
+    elif args.jar or args.zip:
         sys.stderr.write('ERROR: pass both --jar and --zip or neither')
         sys.exit(1)
 
-    jar = None
-    py_zip = None
-
-    if args.jar:
-        jar = args.jar
-        py_zip = args.zip
-    else:
-        if sys.version_info >= (3,0):
-            # Python 3 check_output returns a byte string
-            decode_f = lambda x: x.decode()
-        else:
-            # In Python 2, bytes and str are the same
-            decode_f = lambda x: x
-
-        if args.hash == 'latest':
-            hail_hash = decode_f(check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(args.version, args.spark)]).strip())
-        else:
-            hail_hash = args.hash
-
-        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(args.version, hail_hash, args.spark)
-        jar = 'gs://hail-common/builds/{0}/jars/{1}'.format(args.version, hail_jar)
-        hail_zip = 'hail-{0}-{1}.zip'.format(args.version, hail_hash)
-        py_zip = 'gs://hail-common/builds/{0}/python/{1}'.format(args.version, hail_zip)
-
-    # get Hail build (default to latest)
-
-    # prepare metadata values
-    metadata = []
-    metadata.append('JAR={}'.format(jar))
-    metadata.append('ZIP={}'.format(py_zip))
     if args.metadata:
-        metadata.append(args.metadata)
-
+        conf.parse_and_extend('metadata', args.metadata)
     # if Python packages requested, add metadata variable
     if args.packages:
-        metadata.append('PKGS={}'.format(args.packages.replace(',', '|')))
+        packages = '|'.join([conf.flags['metadata']['PKGS']] + args.packages.split(','))
+        conf.extend_flag('metadata', {'PKGS': packages})
 
-    if args.version == 'devel':
-        metadata.append('MINICONDA_VERSION=4.4.10')
-    else:
-        metadata.append('MINICONDA_VARIANT=2')
+    conf.vars['driver_memory'] = str(int(machine_mem[args.master_machine_type] * args.master_memory_fraction))
+    conf.flags['master-machine-type'] = args.master_machine_type
+    conf.flags['master-boot-disk-size'] = '{}GB'.format(args.master_boot_disk_size)
+    conf.flags['num-master-local-ssds'] = args.num_master_local_ssds
+    conf.flags['num-preemptible-workers'] = args.num_preemptible_workers
+    conf.flags['num-worker-local-ssds'] = args.num_worker_local_ssds
+    conf.flags['num-workers'] = args.num_workers
+    conf.flags['preemptible-worker-boot-disk-size']='{}GB'.format(args.preemptible_worker_boot_disk_size)
+    conf.flags['worker-boot-disk-size'] = args.worker_boot_disk_size
+    conf.flags['worker-machine-type'] = args.worker_machine_type
+    conf.flags['zone'] = args.zone
+    conf.flags['initialization-action-timeout'] = args.init_timeout
+    if args.bucket:
+        conf.flags['bucket'] = args.bucket
 
     # command to start cluster
-    cmd = [
-        'gcloud',
-        'dataproc', 
-        'clusters', 
-        'create',
-        args.name,
-        '--image-version={}'.format(image_version),
-        '--master-machine-type={}'.format(args.master_machine_type),
-        '--metadata={}'.format(','.join(metadata)),
-        '--master-boot-disk-size={}GB'.format(args.master_boot_disk_size),
-        '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
-        '--num-preemptible-workers={}'.format(args.num_preemptible_workers),
-        '--num-worker-local-ssds={}'.format(args.num_worker_local_ssds),
-        '--num-workers={}'.format(args.num_workers),
-        '--preemptible-worker-boot-disk-size={}GB'.format(args.preemptible_worker_boot_disk_size),
-        '--worker-boot-disk-size={}GB'.format(args.worker_boot_disk_size),
-        '--worker-machine-type={}'.format(args.worker_machine_type),
-        '--zone={}'.format(args.zone),
-        '--properties={}'.format(",".join(properties)),
-        '--initialization-actions={}'.format(','.join(init_actions)),
-        '--initialization-action-timeout={}'.format(args.init_timeout)
-    ]
-
-    if args.bucket:
-        cmd.append('--bucket={}'.format(args.bucket))
+    cmd = conf.get_command(args.name)
 
     if args.max_idle:
         cmd.insert(1, 'beta')
