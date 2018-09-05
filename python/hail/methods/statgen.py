@@ -1330,7 +1330,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool)
-def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixTable]:
+def split_multi(ds, keep_star=False, left_aligned=False):
     """Split multiallelic variants.
 
     The resulting dataset will be keyed by the split locus and alleles.
@@ -1467,7 +1467,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
            keep_star=bool,
            left_aligned=bool,
            vep_root=str)
-def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> Union[Table, MatrixTable]:
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -1609,7 +1609,6 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
     -------
     :class:`.MatrixTable` or :class:`.Table`
         A biallelic variant dataset.
-
     """
 
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
