@@ -9,15 +9,20 @@ setup-conda-env:
 update-conda-env:
 	conda env update --name hail-ci -f environment.yml
 
-hail-ci-image: GIT_SHA = $(shell git rev-parse HEAD)
-hail-ci-image:
-	docker build . -t hail-ci:${GIT_SHA}
+HAIL_CI_IMAGE_SHORT_NAME = hail-ci
 
-push-hail-ci-image: GIT_SHA = $(shell git rev-parse HEAD)
+latest-hail-ci-image:
+	docker build . -t ${HAIL_CI_IMAGE_SHORT_NAME}
+
+hail-ci-image: HASH = $(shell docker images -q --no-trunc ${HAIL_CI_IMAGE_SHORT_NAME} | head -n 1 | sed -e 's,[^:]*:,,')
+hail-ci-image: latest-hail-ci-image
+	docker tag ${HAIL_CI_IMAGE_SHORT_NAME} ${HAIL_CI_IMAGE_SHORT_NAME}:${HASH}
+
+push-hail-ci-image: HASH = $(shell docker images -q --no-trunc ${HAIL_CI_IMAGE_SHORT_NAME} | head -n 1 | sed -e 's,[^:]*:,,')
 push-hail-ci-image: hail-ci-image
-	docker tag hail-ci:${GIT_SHA} gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
-	docker push gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
-	echo built gcr.io/broad-ctsa/hail-ci:${GIT_SHA}
+	docker tag hail-ci:${HASH} gcr.io/broad-ctsa/hail-ci:${HASH}
+	docker push gcr.io/broad-ctsa/hail-ci:${HASH}
+	echo built gcr.io/broad-ctsa/${HAIL_CI_IMAGE_SHORT_NAME}:${HASH}
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
