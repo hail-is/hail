@@ -261,9 +261,9 @@ class MatrixIRSuite extends SparkSuite {
     val withEntries = MatrixMapEntries(range, MakeStruct(FastIndexedSeq("x" -> 2)))
     val m = MatrixAggregateColsByKey(
       MatrixMapRows(withEntries,
-        InsertFields(Ref("row", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1)),
+        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1)),
         None),
-      IRAggCount)
-    assert(m.execute(hc).nCols == 3)
+      MakeStruct(FastIndexedSeq("foo" -> IRAggCount)))
+    assert(m.execute(hc).rowsRVD().count() == 3)
   }
 }
