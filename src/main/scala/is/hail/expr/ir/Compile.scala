@@ -41,6 +41,7 @@ object Compile {
 
     var ir = body
     ir = Optimize(ir, noisy = false)
+    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t}: _*), None)
 
     val env = args
       .zipWithIndex

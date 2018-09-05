@@ -7,6 +7,7 @@ object Infer {
     ir match {
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
+        assert(cnsq.typ.isOfType(altr.typ))
         if (cnsq.typ != altr.typ)
           cnsq.typ.deepOptional()
         else

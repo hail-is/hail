@@ -6,10 +6,6 @@ import is.hail.utils._
 object TypeCheck {
   def apply(ir: IR, aggEnv: Option[Env[Type]] = None) {
     apply(ir, new Env[Type](), aggEnv)
-    try {
-    } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
-    }
   }
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
@@ -18,7 +14,6 @@ object TypeCheck {
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
-
   }
 
   private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
