@@ -16,8 +16,6 @@ import org.json4s.jackson.JsonMethods
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
   require(typ.key.isDefined == rvd.isInstanceOf[OrderedRVD])
-  if (typ.key.exists(k => !rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(k)))
-    println(s"type key: ${typ.key.get}, rvd key: ${rvd.asInstanceOf[OrderedRVD].typ.key}")
   require(typ.key.forall(k => rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(k)))
 
   def rdd: RDD[Row] =

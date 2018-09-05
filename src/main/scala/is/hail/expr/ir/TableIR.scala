@@ -201,7 +201,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   val children: IndexedSeq[BaseIR] = Array(child)
 
-  val typ: TableType = child.typ.copy(key = Some(keys))
+  val typ: TableType = child.typ.copy(key = if (keys.isEmpty) None else Some(keys))
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
@@ -222,7 +222,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     } else {
       orvd.changeKey(keys)
     }.toOldStyleRVD
-    tv.copy(typ = typ, rvd = rvd)
+    tv.copy(typ = typ, rvd = if (typ.key.isDefined) rvd else rvd.toUnpartitionedRVD)
   }
 }
 
