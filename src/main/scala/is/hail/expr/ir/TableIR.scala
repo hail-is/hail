@@ -805,7 +805,10 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd)))
+      rvd = if (typ.key.isDefined)
+        OrderedRVD.union(tvs.map(_.rvd.asInstanceOf[OrderedRVD]))
+      else
+        RVD.union(tvs.map(_.rvd)))
   }
 }
 
