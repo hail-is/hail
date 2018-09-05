@@ -141,10 +141,10 @@ class IRSuite extends SparkSuite {
     val value = Row(FastIndexedSeq(1, 2, 3))
     assertEvalsTo(
       If(
-        True(),
-        In(0, t),
+        In(0, TBoolean()),
+        In(1, t),
         MakeStruct(Seq("foo" -> ArrayRange(I32(0), I32(1), I32(1))))),
-      FastIndexedSeq((value, t)),
+      FastIndexedSeq((true, TBoolean()), (value, t)),
       value
     )
   }
