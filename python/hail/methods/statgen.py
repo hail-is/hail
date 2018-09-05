@@ -1467,7 +1467,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
            keep_star=bool,
            left_aligned=bool,
            vep_root=str)
-def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> MatrixTable:
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> Union[Table, MatrixTable]:
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
