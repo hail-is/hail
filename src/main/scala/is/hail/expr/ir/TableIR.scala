@@ -69,8 +69,15 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
       BroadcastRow(globals, typ.globalType, hc.sc),
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
-      else
-        spec.rowsComponent.read(hc, path, typ.rowType))
+      else {
+        val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
+        (rvd, typ.key) match {
+          case (ordered: OrderedRVD, Some(k))
+            if ordered.typ.key.startsWith(k) => ordered
+          case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
+          case (_, None) => rvd.toUnpartitionedRVD
+        }
+      })
   }
 }
 
