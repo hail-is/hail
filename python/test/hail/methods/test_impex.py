@@ -803,3 +803,8 @@ class ImportTableTests(unittest.TestCase):
         run_command(["cp", uri_path(f), uri_path(f2)])
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
+
+    def test_imputation_int32_int64(self):
+        t = hl.import_table(resource('integer_imputation.txt'), impute=True, delimiter=r'\s+')
+        assert(t['A'].dtype == hl.tint64)
+        assert(t['B'].dtype == hl.tint32)
