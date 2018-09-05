@@ -9,7 +9,7 @@ from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_partition_key_locus
+from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -1418,8 +1418,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
 
             return mt._select_rows('split_multi',
                                    new_row_expr,
-                                   new_key=['locus', 'alleles'],
-                                   pk_size=1)
+                                   new_key=['locus', 'alleles'])
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -2270,7 +2269,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
-    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx)).partition_rows_by(['locus'], 'locus', 'alleles')
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
 @typecheck(mt=MatrixTable, f=anytype)
@@ -2382,7 +2381,7 @@ def filter_alleles(mt: MatrixTable,
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
-    right = right.partition_rows_by('locus', locus=right.__new_locus, alleles=right.__new_alleles)
+    right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
     return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
@@ -2754,7 +2753,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
     require_row_key_variant(mt, 'ld_prune')
-    require_partition_key_locus(mt, 'ld_prune')
 
     #  FIXME: remove once select_entries on a field is free
     if call_expr in mt._fields_inverse:

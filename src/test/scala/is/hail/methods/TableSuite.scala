@@ -103,7 +103,7 @@ class TableSuite extends SparkSuite {
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
       table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array(), Array("locus")).count())
+        Array()).count())
   }
 
   @Test def testToMatrixTable() {
@@ -113,8 +113,7 @@ class TableSuite extends SparkSuite {
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
       Array("s"),
       vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"),
-      Array("locus"))
+      vds.colType.fieldNames.filter(_ != "s"))
 
     val sampleOrder = vds.colKeys.toArray
 

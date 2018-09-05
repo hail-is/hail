@@ -465,12 +465,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colKeys: java.util.ArrayList[String],
     rowFields: java.util.ArrayList[String],
     colFields: java.util.ArrayList[String],
-    partitionKeys: java.util.ArrayList[String],
     nPartitions: java.lang.Integer): MatrixTable = {
 
     toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
       rowFields.asScala.toArray, colFields.asScala.toArray,
-      partitionKeys.asScala.toArray,
       Option(nPartitions).map(_.asInstanceOf[Int])
     )
   }
@@ -480,10 +478,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colKeys: Array[String],
     rowFields: Array[String],
     colFields: Array[String],
-    partitionKeys: Array[String],
     nPartitions: Option[Int] = None
   ): MatrixTable = {
-    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, partitionKeys, nPartitions))
+    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, rowKeys, nPartitions))
   }
 
   def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {

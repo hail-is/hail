@@ -569,7 +569,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
         rt = mt.rows()
-        rm = hl.MatrixTable.from_rows_table(rt, partition_key='locus')
+        rm = hl.MatrixTable.from_rows_table(rt)
         self.assertTrue(rm._same(mt.drop_cols().select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
@@ -720,7 +720,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.entry.dtype, hl.tstruct())
 
         self.assertEqual(list(mt.row_key), ['row_idx'])
-        self.assertEqual(list(mt.partition_key), ['row_idx'])
         self.assertEqual(list(mt.col_key), ['col_idx'])
 
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
@@ -875,3 +874,51 @@ class Tests(unittest.TestCase):
                                              cidx=expected.col_idx % 3)
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
+
+    def test_row_joins_into_table(self):
+        rt = hl.utils.range_matrix_table(9, 13, 3)
+        mt1 = rt.key_rows_by(idx=rt.row_idx)
+        mt1 = mt1.select_rows(v=mt1.idx + 2)
+        mt2 = rt.key_rows_by(idx=rt.row_idx, idx2=rt.row_idx + 1)
+        mt2 = mt2.select_rows(v=mt2.idx + 2)
+
+        t1 = hl.utils.range_table(10, 3)
+        t2 = t1.key_by(t1.idx, idx2=t1.idx + 1)
+        t1 = t1.select(v=t1.idx + 2)
+        t2 = t2.select(v=t2.idx + 2)
+
+        tinterval1 = t1.key_by(k=hl.interval(t1.idx, t1.idx, True, True))
+        tinterval1 = tinterval1.select(v=tinterval1.idx + 2)
+        tinterval2 = t2.key_by(k=hl.interval(t2.key, t2.key, True, True))
+        tinterval2 = tinterval2.select(v=tinterval2.idx + 2)
+
+        values = [hl.Struct(v=i + 2) for i in range(9)]
+        # join on mt row key
+        self.assertEqual(t1.index(mt1.row_key).collect(), values)
+        self.assertEqual(t2.index(mt2.row_key).collect(), values)
+        self.assertEqual(t1.index(mt1.idx).collect(), values)
+        self.assertEqual(t2.index(mt2.idx, mt2.idx2).collect(), values)
+        with self.assertRaises(hl.expr.ExpressionException):
+            t2.index(mt2.idx).collect()
+        with self.assertRaises(hl.expr.ExpressionException):
+            t2.index(mt1.row_key).collect()
+
+        # join on not mt row key
+        self.assertEqual(t1.index(mt1.v).collect(), [hl.Struct(v=i + 2) for i in range(2, 10)] + [None])
+        self.assertEqual(t2.index(mt2.idx2, mt2.v).collect(), [hl.Struct(v=i + 2) for i in range(1, 10)])
+        with self.assertRaises(hl.expr.ExpressionException):
+            t2.index(mt2.v).collect()
+
+        # join on interval of first field of mt row key
+        self.assertEqual(tinterval1.index(mt1.idx).collect(), values)
+        self.assertEqual(tinterval1.index(mt1.row_key).collect(), values)
+        self.assertEqual(tinterval1.index(mt2.idx).collect(), values)
+
+        with self.assertRaises(hl.expr.ExpressionException):
+            tinterval1.index(mt2.row_key).collect()
+        with self.assertRaises(hl.expr.ExpressionException):
+            tinterval2.index(mt2.idx).collect()
+        with self.assertRaises(hl.expr.ExpressionException):
+            tinterval2.index(mt2.row_key).collect()
+        with self.assertRaises(hl.expr.ExpressionException):
+            tinterval2.index(mt2.idx, mt2.idx2).collect()
