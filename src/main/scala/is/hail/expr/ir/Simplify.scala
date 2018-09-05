@@ -104,8 +104,8 @@ object Simplify {
 
       case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
-      case If(True(), x, _) => x
-      case If(False(), _, x) => x
+      case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
+      case x@If(False(), _, altr) if x.typ == altr.typ => altr
 
       case If(c, cnsq, altr) if cnsq == altr =>
         if (cnsq.typ.required)

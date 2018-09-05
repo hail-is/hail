@@ -5,16 +5,25 @@ import is.hail.utils._
 
 object TypeCheck {
   def apply(ir: IR, aggEnv: Option[Env[Type]] = None) {
+    apply(ir, new Env[Type](), aggEnv)
     try {
-      apply(ir, new Env[Type](), aggEnv)
     } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ir)}", e)
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
+  def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
+    try {
+      _apply(ir, env, aggEnv)
+    } catch {
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
+    }
+
+  }
+
+  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
     def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      apply(ir, env, aggEnv)
+      _apply(ir, env, aggEnv)
     }
 
     ir match {
@@ -178,7 +187,7 @@ object TypeCheck {
         }: _*))
       case x@SelectFields(old, fields) =>
         check(old)
-        assert{
+        assert {
           val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
           fields.forall { id => oldfields.contains(id) }
         }

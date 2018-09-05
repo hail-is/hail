@@ -7,9 +7,10 @@ object Infer {
     ir match {
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"mismatch:\n  ${ cnsq.typ.parsableString() }\n  ${ altr.typ.parsableString() }\n  $cond")
-        cnsq.typ
-
+        if (cnsq.typ != altr.typ)
+          cnsq.typ.deepOptional()
+        else
+          cnsq.typ
       case Let(name, value, body) =>
         body.typ
       case ApplyBinaryPrimOp(op, l, r) =>
