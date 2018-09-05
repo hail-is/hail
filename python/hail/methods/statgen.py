@@ -1463,7 +1463,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
     return left.union(moved) if is_table else left.union_rows(moved)
 
 
-@typecheck(ds=MatrixTable,
+@typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool,
            vep_root=str)
