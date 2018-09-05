@@ -1621,39 +1621,39 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
             for x in ('intergenic_consequences', 'motif_feature_consequences',
                       'regulatory_feature_consequences', 'transcript_consequences')})
 
-    annotate_expr = {'row_exprs': update_rows_expression}
-    if isinstance(ds, MatrixTable):
-        entry_fields = set(ds.entry)
-        update_entries_expression = {}
-        if 'GT' in entry_fields:
-            update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
-        if 'DP' in entry_fields:
-            update_entries_expression['DP'] = split.DP
-        if 'AD' in entry_fields:
-            update_entries_expression['AD'] = hl.or_missing(hl.is_defined(split.AD),
-                                                            [hl.sum(split.AD) - split.AD[split.a_index], split.AD[split.a_index]])
-        if 'PL' in entry_fields:
-            pl = hl.or_missing(
-                hl.is_defined(split.PL),
-                (hl.range(0, 3).map(lambda i:
-                                    hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
-                                            .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                          split.a_index) == hl.unphased_diploid_gt_index_call(i)
-                                                    ).map(lambda j: split.PL[j]))))))
-            update_entries_expression['PL'] = pl
-            if 'GQ' in entry_fields:
-                update_entries_expression['GQ'] = hl.gq_from_pl(pl)
-        else:
-            if 'GQ' in entry_fields:
-                update_entries_expression['GQ'] = split.GQ
+    if isinstance(ds, Table):
+        return ds.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
+    entry_fields = set(ds.entry)
+    update_entries_expression = {}
+    if 'GT' in entry_fields:
+        update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
+    if 'DP' in entry_fields:
+        update_entries_expression['DP'] = split.DP
+    if 'AD' in entry_fields:
+        update_entries_expression['AD'] = hl.or_missing(hl.is_defined(split.AD),
+                                                        [hl.sum(split.AD) - split.AD[split.a_index], split.AD[split.a_index]])
+    if 'PL' in entry_fields:
+        pl = hl.or_missing(
+            hl.is_defined(split.PL),
+            (hl.range(0, 3).map(lambda i:
+                                hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
+                                        .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
+                                                                      split.a_index) == hl.unphased_diploid_gt_index_call(i)
+                                                ).map(lambda j: split.PL[j]))))))
+        update_entries_expression['PL'] = pl
+        if 'GQ' in entry_fields:
+            update_entries_expression['GQ'] = hl.gq_from_pl(pl)
+    else:
+        if 'GQ' in entry_fields:
+            update_entries_expression['GQ'] = split.GQ
 
-        if 'PGT' in entry_fields:
-            update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
-        if 'PID' in entry_fields:
-            update_entries_expression['PID'] = split.PID
-        annotate_expr['entry_exprs'] = update_entries_expression
-
-    return split._annotate_all(**annotate_expr).drop('old_locus', 'old_alleles')
+    if 'PGT' in entry_fields:
+        update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
+    if 'PID' in entry_fields:
+        update_entries_expression['PID'] = split.PID
+    return split._annotate_all(
+        row_exprs=update_rows_expression,
+        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
