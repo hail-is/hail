@@ -1,9 +1,10 @@
 #!/bin/bash
-set -x
+set -ex
 
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 
 time source activate hail
+time pip search cloudtools
 time pip install -U cloudtools
 gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
@@ -15,6 +16,8 @@ shutdown_cluster() {
     exit
 }
 trap shutdown_cluster INT TERM
+
+set +e
 
 GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache && \
     time gsutil cp \
