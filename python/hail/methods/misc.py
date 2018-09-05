@@ -291,7 +291,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         Dataset to filter.
     intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
         Intervals to filter on.  The point type of the interval must
-        be a prefix of the key, or equal to the first field of the key.
+        be a prefix of the key or equal to the first field of the key.
     keep : :obj:`bool`
         If ``True``, keep only rows that fall within any interval in `intervals`.
         If ``False``, keep only rows that fall outside all intervals in
