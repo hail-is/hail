@@ -2133,15 +2133,16 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     Global fields:
 
-    - `n_populations` (:py:data:`.tint32`) -- Number of populations.
-    - `n_samples` (:py:data:`.tint32`) -- Number of samples.
-    - `n_variants` (:py:data:`.tint32`) -- Number of variants.
-    - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
+    - `bn.n_populations` (:py:data:`.tint32`) -- Number of populations.
+    - `bn.n_samples` (:py:data:`.tint32`) -- Number of samples.
+    - `bn.n_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `bn.n_partitions` (:py:data:`.tint32`) -- Number of partitions.
+    - `bn.pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
-    - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
+    - `bn.fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - `seed` (:py:data:`.tint32`) -- Random seed.
-    - `mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
+    - `bn.seed` (:py:data:`.tint32`) -- Random seed.
+    - `bn.mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
 
     Row fields:
 
@@ -2241,12 +2242,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # generate matrix table
 
     bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
-    bn = bn.annotate_globals(n_populations=n_populations,
-                             n_samples=n_samples,
-                             n_variants=n_variants,
-                             pop_dist=pop_dist,
-                             fst=fst,
-                             mixture=mixture)
+    bn = bn.annotate_globals(
+        bn=hl.struct(n_populations=n_populations,
+                     n_samples=n_samples,
+                     n_variants=n_variants,
+                     n_partitions=n_partitions,
+                     pop_dist=pop_dist,
+                     fst=fst,
+                     mixture=mixture))
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
     bn = bn.key_cols_by(sample_idx=bn.col_idx)
