@@ -695,13 +695,13 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     present values 0 or 1) or Boolean, in which case true and false are coded
     as 1 and 0, respectively.
 
-    The resulting :class:`.Table` provides the group's key, the size (number of
-    rows) in the group, the variance component score `q_stat`, the SKAT
-    p-value, and a fault flag. For the toy example above, the table has the
+    The resulting :class:`.Table` provides the group's key (`id`), thenumber of
+    rows in the group (`size`), the variance component score `q_stat`, the SKAT
+    `p-value`, and a `fault` flag. For the toy example above, the table has the
     form:
 
     +-------+------+--------+---------+-------+
-    |  key  | size | q_stat | p_value | fault |
+    |  id   | size | q_stat | p_value | fault |
     +=======+======+========+=========+=======+
     | geneA |   2  | 4.136  | 0.205   |   0   |
     +-------+------+--------+---------+-------+

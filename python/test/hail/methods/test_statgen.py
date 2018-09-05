@@ -1084,28 +1084,28 @@ class Tests(unittest.TestCase):
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[],
-                logistic=False).count()
+                logistic=False)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[],
-                logistic=True).count()
+                logistic=True)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=False).count()
+                logistic=False)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=hl.pl_dosage(ds.PL),
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=True).count()
+                logistic=True)._force_count()
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
