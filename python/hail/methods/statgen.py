@@ -1622,7 +1622,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
                       'regulatory_feature_consequences', 'transcript_consequences')})
 
     if isinstance(ds, Table):
-        return ds.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
+        return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
     entry_fields = set(ds.entry)
     update_entries_expression = {}
     if 'GT' in entry_fields:
