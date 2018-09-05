@@ -190,7 +190,7 @@ object Skat {
         } else {
           Row(key, size, null, null, null)
         }
-      }
+      }.persist()
     }
     
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
