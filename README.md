@@ -304,3 +304,13 @@ Example usage:
 kubectl logs -f $(hailcipod) # nb: logs -f doesn't work with -l
 kubectl logs $(jobpod 542)
 ```
+
+Static IP for Hail CI Service
+---
+You must use a region address. I do not know why, but global addresses cause k8s
+to report that the IP is not static or not assigned to the given load
+balancer. :shrug:.
+```
+gcloud compute addresses create hail-ci-0-1 \
+    --region us-central1
+```
