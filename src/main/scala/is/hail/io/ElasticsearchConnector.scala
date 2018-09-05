@@ -1,11 +1,27 @@
 package is.hail.io
 
+import is.hail.HailContext
 import is.hail.keytable.KeyTable
-import org.elasticsearch.spark.rdd.EsSpark
-import scala.collection.Map
+import org.elasticsearch.spark.sql._
+import collection.JavaConverters._
 import scala.collection.mutable
 
+import scala.collection.Map
+
 object ElasticsearchConnector {
+
+  def export(
+              kt: KeyTable,
+              host: String,
+              port: Int,
+              index: String,
+              indexType: String,
+              blockSize: Int,
+              config: java.util.HashMap[String, String],
+              verbose: Boolean) {
+    export(kt, host, port, index, indexType, blockSize,
+      Option(config).map(_.asScala.toMap).getOrElse(Map.empty[String, String]), verbose)
+  }
 
   def export(kt: KeyTable, host: String = "localhost", port: Int = 9200,
              index: String, indexType: String, blockSize: Int = 1000,
@@ -17,24 +33,19 @@ object ElasticsearchConnector {
       "es.nodes" -> host,
       "es.port" -> port.toString,
       "es.batch.size.entries" -> blockSize.toString,
-      "es.index.auto.create" -> "true"
-    )
+      "es.index.auto.create" -> "true")
 
     val mergedConfig = if (config == null)
-        defaultConfig
-      else
-        defaultConfig ++ config
+      defaultConfig
+    else
+      defaultConfig ++ config
 
     if (verbose)
-      println(s"Config ${mergedConfig}")
+      println(s"Config ${ mergedConfig }")
 
-    val fields = kt.signature.fields.map(_.name)
-
-    EsSpark.saveToEs(
-      kt.rdd.map(r => fields.zip(r.toSeq).toMap[String, Any]),
-      s"${index}/${indexType}",
-      mergedConfig
-    )
-
+    val df = kt
+      .expandTypes()
+      .toDF(kt.hc.sqlContext)
+      .saveToEs(s"${ index }/${ indexType }", mergedConfig)
   }
 }
