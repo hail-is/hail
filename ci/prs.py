@@ -155,9 +155,10 @@ class PRS(object):
         for pr in to_build:
             self._set(pr.source.ref, pr.target.ref, pr.build_it())
 
-    _deploy_service_accounts = {
-        Repo('hail-is', 'hail'): f'ci-deploy-{VERSION}--hail-is-hail',
-        Repo('hail-is', 'ci-test'): f'ci-deploy-{VERSION}--hail-is-ci-test'
+    _deploy_secrets = {
+        Repo('hail-is', 'hail'): f'ci-deploy-{VERSION}--hail-is-hail-service-account-key',
+        Repo('hail-is', 'ci-test'): f'ci-deploy-{VERSION}--hail-is-ci-test-service-account-key',
+        Repo('nealelab', 'cloudtools'): f'ci-deploy-{VERSION}--nealelab-cloudtools'
     }
 
     def try_deploy(self, target_ref):
@@ -197,24 +198,23 @@ class PRS(object):
                     'name': 'docker-sock-volume'
                 }
             }]
-            svc_acct = PRS._deploy_service_accounts.get(target_ref.repo, None)
-            if svc_acct:
+            deploy_secret = PRS._deploy_secrets.get(target_ref.repo, None)
+            if deploy_secret:
                 volumes.append({
                     'volume': {
-                        'name': f'{svc_acct}-service-account-key',
+                        'name': f'{deploy_secret}',
                         'secret': {
                             'optional': False,
                             'secretName':
-                            f'{svc_acct}-service-account-key'
+                            f'{deploy_secret}'
                         }
                     },
                     'volume_mount': {
                         'mountPath': '/secrets',
-                        'name': f'{svc_acct}-service-account-key',
+                        'name': f'{deploy_secret}',
                         'readOnly': True
                     }
                 })
-                env['GCLOUD_ACCT_NAME'] = svc_acct
             job = batch_client.create_job(
                 img,
                 command=['/bin/bash', '-c', PR_DEPLOY_SCRIPT],

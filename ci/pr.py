@@ -448,10 +448,11 @@ class PR(object):
             assert 'image' in job.attributes, job.attributes
             target = FQSHA.from_json(json.loads(job.attributes['target']))
             image = job.attributes['image']
-            job.delete()
             if target == self.target:
                 return self._new_build(Building(job, image, target.sha))
             else:
+                log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
+                job.delete()
                 return self
 
     def update_from_completed_batch_job(self, job):
@@ -463,25 +464,26 @@ class PR(object):
         assert job_source.ref == self.source.ref
         assert job_target.ref == self.target.ref
 
-        job.delete()
         if job_target.sha != self.target.sha:
             log.info(
                 f'notified of job for old target {job.id}'
                 # too noisy: f' {job.attributes} {self.short_str()}'
             )
-            return self
+            x = self
         if job_source.sha != self.source.sha:
             log.info(
                 f'notified of job for old source {job.id}'
                 # too noisy: f' {job.attributes} {self.short_str()}'
             )
-            return self
+            x = self
         if exit_code == 0:
             log.info(f'job finished success {short_str_build_job(job)} {self.short_str()}')
-            return self._new_build(Mergeable(self.target.sha))
+            x = self._new_build(Mergeable(self.target.sha))
         else:
             log.info(f'job finished failure {short_str_build_job(job)} {self.short_str()}')
-            return self._new_build(
+            x = self._new_build(
                 Failure(exit_code,
                         job.attributes['image'],
                         self.target.sha))
+        job.delete()
+        return x
