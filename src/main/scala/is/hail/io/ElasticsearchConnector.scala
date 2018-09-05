@@ -1,10 +1,8 @@
 package is.hail.io
 
-import is.hail.HailContext
 import is.hail.keytable.KeyTable
 import org.elasticsearch.spark.sql._
 import collection.JavaConverters._
-import scala.collection.mutable
 
 import scala.collection.Map
 
