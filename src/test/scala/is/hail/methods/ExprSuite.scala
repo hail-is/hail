@@ -18,16 +18,6 @@ import org.testng.annotations.Test
 
 class ExprSuite extends SparkSuite {
 
-  @Test def testParseTypes() {
-    val s1 = "SIFT_Score: Float, Age: Int"
-    val s2 = ""
-    val s3 = "SIFT_Score: Float, Age: Int, SIFT2: BadType"
-
-    assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TFloat64(), "Age" -> TInt32()))
-    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
-    intercept[HailException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TFloat64(), "Age" -> TInt32()))
-  }
-
   @Test def testTypePretty() {
     // for arbType
     import is.hail.expr.types.Type._
