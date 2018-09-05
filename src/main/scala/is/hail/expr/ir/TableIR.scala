@@ -906,7 +906,7 @@ case class TableKeyByAndAggregate(
   private val keyType = newKey.typ.asInstanceOf[TStruct]
   val typ: TableType = TableType(rowType = keyType ++ coerce[TStruct](expr.typ),
     globalType = child.typ.globalType,
-    key = Some(keyType.fieldNames)
+    key = if (keyType.fieldNames.isEmpty) None else Some(keyType.fieldNames)
   )
 
   def execute(hc: HailContext): TableValue = {
@@ -1036,8 +1036,12 @@ case class TableKeyByAndAggregate(
         }
       })
 
-    val orvdType = new OrderedRVDType(keyType.fieldNames, typ.rowType)
-    prev.copy(typ = typ, rvd = OrderedRVD.coerce(orvdType, crdd))
+    prev.copy(
+      typ = typ,
+      rvd = if (typ.key.isDefined)
+        OrderedRVD.coerce(typ.rvdType, crdd)
+      else
+        UnpartitionedRVD(typ.rowType, crdd))
   }
 }
 
