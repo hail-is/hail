@@ -852,54 +852,55 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
     val localEntryType = matrixType.entryType
 
+    val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      val fullRow = new UnsafeRow(localRVRowType)
+
+      it.map { rv =>
+        fullRow.set(rv)
+
+        val region = rv.region
+
+        rvb.set(region)
+        rvb.start(ttyp.rowType)
+        rvb.startStruct()
+
+        var i = 0
+        while (i < localRVRowType.size) {
+          if (i != localEntriesIndex)
+            rvb.addField(localRVRowType, rv, i)
+          i += 1
+        }
+
+        assert(localRVRowType.isFieldDefined(rv, localEntriesIndex))
+        val entriesAOff = localRVRowType.loadField(rv, localEntriesIndex)
+
+        i = 0
+        while (i < localNSamples) {
+          if (localEntriesType.isElementDefined(region, entriesAOff, i))
+            rvb.addAllFields(localEntryType, region, localEntriesType.loadElement(region, entriesAOff, i))
+          else {
+            var j = 0
+            while (j < localEntryType.size) {
+              rvb.setMissing()
+              j += 1
+            }
+          }
+
+          i += 1
+        }
+        rvb.endStruct()
+
+        rv2.set(region, rvb.end())
+        rv2
+      }
+    }
     new Table(hc,
       TableLiteral(
         TableValue(ttyp,
           globals,
-          rvd.mapPartitions(ttyp.rowType) { it =>
-            val rvb = new RegionValueBuilder()
-            val rv2 = RegionValue()
-            val fullRow = new UnsafeRow(localRVRowType)
-
-            it.map { rv =>
-              fullRow.set(rv)
-
-              val region = rv.region
-
-              rvb.set(region)
-              rvb.start(ttyp.rowType)
-              rvb.startStruct()
-
-              var i = 0
-              while (i < localRVRowType.size) {
-                if (i != localEntriesIndex)
-                  rvb.addField(localRVRowType, rv, i)
-                i += 1
-              }
-
-              assert(localRVRowType.isFieldDefined(rv, localEntriesIndex))
-              val entriesAOff = localRVRowType.loadField(rv, localEntriesIndex)
-
-              i = 0
-              while (i < localNSamples) {
-                if (localEntriesType.isElementDefined(region, entriesAOff, i))
-                  rvb.addAllFields(localEntryType, region, localEntriesType.loadElement(region, entriesAOff, i))
-                else {
-                  var j = 0
-                  while (j < localEntryType.size) {
-                    rvb.setMissing()
-                    j += 1
-                  }
-                }
-
-                i += 1
-              }
-              rvb.endStruct()
-
-              rv2.set(region, rvb.end())
-              rv2
-            }
-          })))
+          if (ttyp.key.isDefined) orvd else orvd.toUnpartitionedRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {

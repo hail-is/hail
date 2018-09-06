@@ -12,6 +12,7 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalType: TStruct) extends BaseType {
+  assert(!key.exists(_.isEmpty))
 
   val keyOrEmpty: IndexedSeq[String] = key.getOrElse(IndexedSeq.empty)
   val keyOrNull: IndexedSeq[String] = key.orNull

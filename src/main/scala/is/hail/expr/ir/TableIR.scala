@@ -69,8 +69,15 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
       BroadcastRow(globals, typ.globalType, hc.sc),
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
-      else
-        spec.rowsComponent.read(hc, path, typ.rowType))
+      else {
+        val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
+        (rvd, typ.key) match {
+          case (ordered: OrderedRVD, Some(k))
+            if ordered.typ.key.startsWith(k) => ordered
+          case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
+          case (_, None) => rvd.toUnpartitionedRVD
+        }
+      })
   }
 }
 
@@ -194,7 +201,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   val children: IndexedSeq[BaseIR] = Array(child)
 
-  val typ: TableType = child.typ.copy(key = Some(keys))
+  val typ: TableType = child.typ.copy(key = if (keys.isEmpty) None else Some(keys))
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
@@ -215,7 +222,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     } else {
       orvd.changeKey(keys)
     }.toOldStyleRVD
-    tv.copy(typ = typ, rvd = rvd)
+    tv.copy(typ = typ, rvd = if (typ.key.isDefined) rvd else rvd.toUnpartitionedRVD)
   }
 }
 
@@ -798,7 +805,10 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd)))
+      rvd = if (typ.key.isDefined)
+        OrderedRVD.union(tvs.map(_.rvd.asInstanceOf[OrderedRVD]))
+      else
+        RVD.union(tvs.map(_.rvd)))
   }
 }
 
@@ -896,7 +906,7 @@ case class TableKeyByAndAggregate(
   private val keyType = newKey.typ.asInstanceOf[TStruct]
   val typ: TableType = TableType(rowType = keyType ++ coerce[TStruct](expr.typ),
     globalType = child.typ.globalType,
-    key = Some(keyType.fieldNames)
+    key = if (keyType.fieldNames.isEmpty) None else Some(keyType.fieldNames)
   )
 
   def execute(hc: HailContext): TableValue = {
@@ -1026,8 +1036,12 @@ case class TableKeyByAndAggregate(
         }
       })
 
-    val orvdType = new OrderedRVDType(keyType.fieldNames, typ.rowType)
-    prev.copy(typ = typ, rvd = OrderedRVD.coerce(orvdType, crdd))
+    prev.copy(
+      typ = typ,
+      rvd = if (typ.key.isDefined)
+        OrderedRVD.coerce(typ.rvdType, crdd)
+      else
+        UnpartitionedRVD(typ.rowType, crdd))
   }
 }
 
