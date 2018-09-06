@@ -2,10 +2,13 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PType
 
 import scala.reflect.ClassTag
 
 final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
+  def physicalType: PType = ???
+
   override val required = true
 
   def _toPretty = s"(${ paramTypes.mkString(",") }) => $returnType"

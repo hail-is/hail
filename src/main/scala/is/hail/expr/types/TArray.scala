@@ -3,12 +3,15 @@ package is.hail.expr.types
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PArray
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
 final case class TArray(elementType: Type, override val required: Boolean = false) extends TIterable {
+  def physicalType: PArray = PArray(elementType.physicalType, required)
+
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)

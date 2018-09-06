@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PFloat32
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -13,6 +14,8 @@ case object TFloat32Optional extends TFloat32(false)
 case object TFloat32Required extends TFloat32(true)
 
 class TFloat32(override val required: Boolean) extends TNumeric {
+  def physicalType: PFloat32 = PFloat32(required)
+
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {

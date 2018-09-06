@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PBinary
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -15,6 +16,8 @@ case object TBinaryOptional extends TBinary(false)
 case object TBinaryRequired extends TBinary(true)
 
 class TBinary(override val required: Boolean) extends Type {
+  def physicalType: PBinary = PBinary(required)
+
   def _toPretty = "Binary"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]

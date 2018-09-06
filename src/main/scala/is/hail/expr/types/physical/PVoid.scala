@@ -1,11 +1,10 @@
-package is.hail.expr.types
-
+package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.physical.PVoid
+import is.hail.expr.types.{TVoid, Type}
 
-case object TVoid extends Type {
-  def physicalType: PVoid.type = PVoid
+case object PVoid extends PType {
+  def virtualType: Type = TVoid
 
   override val required = true
 
@@ -19,5 +18,5 @@ case object TVoid extends Type {
 
   override def isRealizable = false
 
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null
 }

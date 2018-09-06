@@ -2,10 +2,12 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PType
 
 import scala.reflect.ClassTag
 
 final case class TVariable(name: String, cond: (Type) => Boolean = { _ => true }, var b: Box[Type] = Box(matchCond = _.isOfType(_))) extends Type {
+  def physicalType: PType = ???
 
   def t: Type = b.get
 

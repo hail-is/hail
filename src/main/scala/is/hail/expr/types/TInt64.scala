@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PInt64
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -13,6 +14,8 @@ case object TInt64Optional extends TInt64(false)
 case object TInt64Required extends TInt64(true)
 
 class TInt64(override val required: Boolean) extends TIntegral {
+  def physicalType: PInt64 = PInt64(required)
+
   def _toPretty = "Int64"
 
   override def pyString(sb: StringBuilder): Unit = {

@@ -6,6 +6,7 @@ import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PString
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -14,6 +15,8 @@ case object TStringOptional extends TString(false)
 case object TStringRequired extends TString(true)
 
 class TString(override val required: Boolean) extends Type {
+  def physicalType: PString = PString(required)
+
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {

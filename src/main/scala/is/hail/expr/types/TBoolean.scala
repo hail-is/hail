@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PBoolean
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -13,6 +14,8 @@ case object TBooleanOptional extends TBoolean(false)
 case object TBooleanRequired extends TBoolean(true)
 
 class TBoolean(override val required: Boolean) extends Type {
+  def physicalType: PBoolean = PBoolean(required)
+
   def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit = {
