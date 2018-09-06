@@ -264,7 +264,7 @@ case class MatrixValue(
                     rv2b.addAllFields(
                       localEntryType,
                       row.region,
-                      localEntriesType.elementOffsetInRegion(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
+                      localEntriesType.loadElement(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
                     rv2b.endStruct()
                     rv2.setOffset(rv2b.end())
                     rv2
