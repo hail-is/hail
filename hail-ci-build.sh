@@ -32,7 +32,7 @@ on_exit() {
 </body>
 </html>
 EOF
-    time cluster stop --async ${CLUSTER_NAME}
+    time gcloud dataproc clusters delete ${CLUSTER_NAME} --async
 }
 trap on_exit EXIT
 
@@ -60,3 +60,5 @@ time cluster start ${CLUSTER_NAME} \
 
 time cluster submit ${CLUSTER_NAME} \
      cluster-sanity-check.py
+
+time cluster stop ${CLUSTER_NAME}
