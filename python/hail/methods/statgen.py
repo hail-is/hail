@@ -763,7 +763,8 @@ def linear_mixed_model(y,
     _warn_if_no_intercept('linear_mixed_model', x)
 
     # collect x and y in one pass
-    xy = np.array(hl.array(x + [y]).collect(), dtype=np.float64)
+    mt = source.select_cols(xy=hl.array(x + [y])).key_cols_by()
+    xy = np.array(mt.xy.collect(), dtype=np.float64)
     xy = xy.reshape(xy.size // (len(x) + 1), len(x) + 1)
     x_nd = np.copy(xy[:, :-1])
     y_nd = np.copy(xy[:, -1])
