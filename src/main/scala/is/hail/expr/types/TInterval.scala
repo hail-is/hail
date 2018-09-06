@@ -45,35 +45,6 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
     CodeOrdering.intervalOrdering(physicalType, other.asInstanceOf[TInterval].physicalType, mb)
   }
 
-
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
-    new UnsafeOrdering {
-      private val pOrd = pointType.unsafeOrdering(missingGreatest)
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val sdef1 = startDefined(r1, o1)
-        if (sdef1 == startDefined(r2, o2)) {
-          val cmp = pOrd.compare(r1, loadStart(r1, o1), r2, loadStart(r2, o2))
-          if (cmp == 0) {
-            val includesS1 = includesStart(r1, o1)
-            if (includesS1 == includesStart(r2, o2)) {
-              val edef1 = endDefined(r1, o1)
-              if (edef1 == endDefined(r2, o2)) {
-                val cmp = pOrd.compare(r1, loadEnd(r1, o1), r2, loadEnd(r2, o2))
-                if (cmp == 0) {
-                  val includesE1 = includesEnd(r1, o1)
-                  if (includesE1 == includesEnd(r2, o2)) {
-                    0
-                  } else if (includesE1) 1 else -1
-                } else cmp
-              } else if (edef1 == missingGreatest) -1 else 1
-            } else if (includesS1) -1 else 1
-          } else cmp
-        } else {
-          if (sdef1 == missingGreatest) -1 else 1
-        }
-      }
-    }
-
   val representation: TStruct = {
     val rep = TStruct(
       "start" -> pointType,

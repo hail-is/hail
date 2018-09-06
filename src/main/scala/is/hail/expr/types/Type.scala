@@ -142,18 +142,7 @@ abstract class Type extends BaseType with Serializable {
 
   def subst(): Type = this.setRequired(false)
 
-  def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = ???
-
-  def unsafeOrdering(): UnsafeOrdering = unsafeOrdering(false)
-
-  def unsafeOrdering(rightType: Type, missingGreatest: Boolean): UnsafeOrdering = {
-    require(this.isOfType(rightType))
-    unsafeOrdering(missingGreatest)
-  }
-
-  def unsafeOrdering(rightType: Type): UnsafeOrdering = unsafeOrdering(rightType, false)
-
-  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
+    def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
     TStruct.empty().unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)

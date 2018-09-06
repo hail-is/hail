@@ -28,8 +28,6 @@ class TString(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = TBinary(required).unsafeOrdering(missingGreatest)
-
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
