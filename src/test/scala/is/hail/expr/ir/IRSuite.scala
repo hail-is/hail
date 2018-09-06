@@ -543,11 +543,11 @@ class IRSuite extends SparkSuite {
             MakeStruct(FastSeq("a" -> NA(TInt32()))),
             MakeStruct(FastSeq("a" -> I32(1)))
           ), TArray(TStruct("a" -> TInt32()))), None),
-        TableMapRows(read,
+        TableMapRows(TableUnkey(read),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11))),
-          None, None),
+          None),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32()))))),

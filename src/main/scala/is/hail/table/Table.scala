@@ -157,7 +157,7 @@ object Table {
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
         UnpartitionedRVD(signature, crdd2)))
-    ).keyBy(key.map(_.toArray), isSorted)
+    ).keyBy(key, isSorted)
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -190,11 +190,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty
   ) = this(hc,
-    TableLiteral(
-      TableValue(
-        TableType(signature, key, globalSignature),
-        BroadcastRow(globals, globalSignature, hc.sc),
-        UnpartitionedRVD(signature, crdd))))
+    key match {
+      case Some(key) =>
+        TableKeyBy(
+          TableLiteral(
+            TableValue(
+              TableType(signature, None, globalSignature),
+              BroadcastRow(globals, globalSignature, hc.sc),
+              UnpartitionedRVD(signature, crdd))),
+          key,
+          false)
+      case None =>
+        TableLiteral(
+          TableValue(
+            TableType(signature, None, globalSignature),
+            BroadcastRow(globals, globalSignature, hc.sc),
+            UnpartitionedRVD(signature, crdd)))
+    }
+  )
 
   def typ: TableType = tir.typ
   
@@ -402,31 +415,19 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
-  def keyBy(key: String*): Table = keyBy(key.toArray, null)
-
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(Option(keys).map(_.asScala.toArray), false)
+    keyBy(Option(keys).map(_.asScala.toFastIndexedSeq))
 
-  def keyBy(
-    keys: java.util.ArrayList[String],
-    partitionKeys: java.util.ArrayList[String]
-  ): Table = keyBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
+  def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
+    new Table(hc, TableKeyBy(tir, keys, isSorted))
 
-  def keyBy(keys: Array[String]): Table = keyBy(keys, isSorted = false)
+  def keyBy(maybeKeys: Option[IndexedSeq[String]]): Table = keyBy(maybeKeys, false)
 
-  def keyBy(keys: Array[String], isSorted: Boolean): Table = keyBy(keys, null, isSorted)
-
-  def keyBy(maybeKeys: Option[Array[String]]): Table = keyBy(maybeKeys, false)
-
-  def keyBy(maybeKeys: Option[Array[String]], isSorted: Boolean): Table =
+  def keyBy(maybeKeys: Option[IndexedSeq[String]], isSorted: Boolean): Table =
     maybeKeys match {
       case Some(keys) => keyBy(keys, isSorted)
       case None => unkey()
     }
-
-  def keyBy(keys: Array[String], partitionKeys: Array[String], isSorted: Boolean = false): Table = {
-    new Table(hc, TableKeyBy(tir, keys, isSorted))
-  }
 
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))
@@ -436,7 +437,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
-    new Table(hc, TableMapRows(tir, ir, newKey, preservedKeyFields))
+    select(ir, newKey, preservedKeyFields)
+  }
+
+  def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+    require(newKey.isDefined == preservedKeyFields.isDefined)
+    val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take))
+    val preservedKeyNew = newKey.map(_.take(preservedKeyFields.get))
+    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get) else tir
+    val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
+    val lengthenedKey =
+      if (newKey.isDefined)
+        TableKeyBy(mapped, newKey.get, isSorted = preservedKeyFields.get > 0)
+      else
+        mapped
+    new Table(hc, lengthenedKey)
   }
 
   def join(other: Table, joinType: String): Table =
@@ -543,7 +558,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     })
     val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
 
-    new Table(hc, TableMapRows(tir, ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields))
+    select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
   }
 
   // expandTypes must be called before toDF

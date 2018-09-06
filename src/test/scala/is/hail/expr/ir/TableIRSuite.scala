@@ -21,7 +21,7 @@ class TableIRSuite extends SparkSuite {
     kt
   }
 
-  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).tir
+  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
   @Test def testFilter() {
     val kt = getKT
@@ -35,7 +35,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
-    val newTable = TableMapRows(t, newRow, None, None)
+    val newTable = TableMapRows(t, newRow, None)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx})
   }
@@ -45,7 +45,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
-    val newTable = TableMapRows(t, newRow, None, None)
+    val newTable = TableMapRows(t, newRow, None)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
   }
@@ -240,12 +240,14 @@ class TableIRSuite extends SparkSuite {
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     val row = Ref("row", TStruct("idx" -> TInt32()))
     val t1 = TableRange(1, 1)
-    val t2 = TableKeyBy(
-      TableMapRows(
-        TableRange(50000, 1),
-        InsertFields(row,
-          FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx")))),
-        None, None), FastIndexedSeq("k"))
+    val t2 =
+      TableKeyBy(
+        TableMapRows(
+          TableRange(50000, 1),
+          InsertFields(row,
+            FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx")))),
+          Some(IndexedSeq("idx"))),
+        FastIndexedSeq("k"))
 
     TableJoin(t1, t2, "left").execute(hc).rvd.count()
   }

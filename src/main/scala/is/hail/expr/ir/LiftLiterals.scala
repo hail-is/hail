@@ -130,11 +130,11 @@ object LiftLiterals {
         removeLiterals(
           TableFilter(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType)),
           literals)
-      case TableMapRows(child, newRow, newKey, preservedKey) =>
+      case TableMapRows(child, newRow, newKey) =>
         val literals = getLiterals(newRow)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
-          TableMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType), newKey, preservedKey),
+          TableMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType), newKey),
           literals)
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val literals = getLiterals(expr, newKey)

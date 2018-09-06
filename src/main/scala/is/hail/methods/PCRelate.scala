@@ -88,9 +88,10 @@ object PCRelate {
     ).map { case (name, expr) => s"($name $expr)" }
     val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
 
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
+    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, None)
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select(irExpr, Some(keys.toFastIndexedSeq), Some(0))
+      .select(irExpr, None, None)
+      .keyBy(keys.toArray)
   }
 
   // FIXME move matrix formation to Python
