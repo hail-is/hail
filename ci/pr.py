@@ -470,13 +470,13 @@ class PR(object):
                 # too noisy: f' {job.attributes} {self.short_str()}'
             )
             x = self
-        if job_source.sha != self.source.sha:
+        elif job_source.sha != self.source.sha:
             log.info(
                 f'notified of job for old source {job.id}'
                 # too noisy: f' {job.attributes} {self.short_str()}'
             )
             x = self
-        if exit_code == 0:
+        elif exit_code == 0:
             log.info(f'job finished success {short_str_build_job(job)} {self.short_str()}')
             x = self._new_build(Mergeable(self.target.sha))
         else:
