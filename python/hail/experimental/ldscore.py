@@ -188,12 +188,17 @@ def ld_score(entry_expr,
     ht_scores = ht_scores.key_by('idx')
     ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i]
                                   for i in range(len(cols))})
+    ht_scores._force_count()
 
     ht = mt.select_rows(__locus=locus_expr).rows()
     ht = ht.add_index()
-    ht = ht.annotate(**ht_scores[ht.idx])
+    ht = ht.annotate(**ht_scores[ht.idx]) # dies here
+    ht._force_count()
     ht = ht.key_by('__locus')
+    ht._force_count()
     ht = ht.select(*[x for x in ht_scores.row if x not in ht_scores.key])
+    ht._force_count()
     ht = ht.rename({'__locus': 'locus'})
+    ht._force_count()
 
     return ht

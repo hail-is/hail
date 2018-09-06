@@ -90,7 +90,7 @@ object PCRelate {
 
     Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, None)
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select(irExpr, None, None)
+      .select(irExpr, IndexedSeq(), 0)
       .keyBy(keys.toArray)
   }
 

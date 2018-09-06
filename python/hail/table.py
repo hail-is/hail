@@ -332,7 +332,7 @@ class Table(ExprContainer):
 
         opt_key = from_option(jt.key())
         if opt_key is None:
-            self._key = None
+            self._key = hail.struct()
         else:
             self._key = hail.struct(
                 **{k: self._row[k] for k in jiterable_to_list(opt_key)})
@@ -389,6 +389,7 @@ class Table(ExprContainer):
         -------
         :class:`.StructExpression`
         """
+        assert self._key is not None
         return self._key
 
     def n_partitions(self):
@@ -422,13 +423,11 @@ class Table(ExprContainer):
                       row=expr_struct(),
                       new_keys=oneof(exactly("default"), nullable(sequenceof(str))))
     def _select(self, caller, row, new_keys="default"):
+        if new_keys is None:
+            new_keys = []
         if new_keys == "default":
-            new_key = list(self.key.keys()) if self.key is not None else None
+            new_key = list(self.key.keys())
             preserved_key = preserved_key_new = new_key
-        elif new_keys == None:
-            preserved_key = None
-            preserved_key_new = None
-            new_key = None
         else:
             key_struct = hl.struct(**{name: row[name] for name in new_keys})
             preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
@@ -439,12 +438,9 @@ class Table(ExprContainer):
 
     def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
         jt = self._jt
-        if self.key is None:
-            preserved_key = None
-            preserved_key_new = None
-        if self.key is not None and preserved_key != list(self.key):
+        if preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key) if preserved_key is not None else None)
+        jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key))
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         return Table(jt)
@@ -463,7 +459,7 @@ class Table(ExprContainer):
                                            itertools.takewhile(
                                                lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
                                                zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else (None, None)
+        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else ([], [])
         new_key = list(key_struct.keys())
         return preserved_key, preserved_key_new, new_key
 
@@ -557,14 +553,6 @@ class Table(ExprContainer):
 
         See :meth:`.Table.select` for more information about how to define new
         key fields.
-
-        Warning
-        -------
-        Setting the key to the empty key using
-
-        >>> table1.key_by([])
-
-        will cause the entire table to condense into a single partition.
 
         Parameters
         ----------
@@ -1392,12 +1380,12 @@ class Table(ExprContainer):
 
             def joiner(left):
                 if not is_key:
-                    original_key = None if left.key is None else list(left.key)
+                    original_key = list(left.key)
                     left = Table(left.key_by()._jt.select(str(Apply('annotate',
                                                              left._row._ir,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ir)), None, None)
+                                                             hl.struct(**dict(zip(uids, exprs)))._ir)), [], 0)
                                  ).key_by(*uids)
-                    rekey_f = lambda t: t.key_by(None) if original_key is None else t.key_by(*original_key)
+                    rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
 

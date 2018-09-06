@@ -416,7 +416,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(Option(keys).map(_.asScala.toFastIndexedSeq))
+    keyBy(keys.asScala.toFastIndexedSeq)
 
   def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
@@ -433,22 +433,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableUnkey(tir))
 
   def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
-    select(expr, Option(newKey).map(_.asScala.toFastIndexedSeq), Option(preservedKeyFields).map(_.toInt))
+    select(expr, newKey.asScala.toFastIndexedSeq, preservedKeyFields.toInt)
 
-  def select(expr: String, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
+  def select(expr: String, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
     val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     select(ir, newKey, preservedKeyFields)
   }
 
-  def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
-    require(newKey.isDefined == preservedKeyFields.isDefined)
-    val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take))
-    val preservedKeyNew = typ.key.flatMap(_ => newKey.map(_.take(preservedKeyFields.get)))
-    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get) else tir
-    val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
+  def select(newRow: IR, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
+    val preservedKeyOld = typ.keyOrEmpty.take(preservedKeyFields)
+    val preservedKeyNew = newKey.take(preservedKeyFields)
+    val shortenedKey = if (typ.keyOrEmpty != preservedKeyOld) TableKeyBy(tir, preservedKeyOld) else tir
+    val mapped = TableMapRows(shortenedKey, newRow, typ.key.map(_ => preservedKeyNew))
     val lengthenedKey =
-      if (newKey.isDefined)
-        TableKeyBy(mapped, newKey.get, isSorted = preservedKeyFields.get > 0)
+      if (preservedKeyNew != newKey)
+        TableKeyBy(mapped, newKey, isSorted = preservedKeyFields > 0)
       else
         mapped
     new Table(hc, lengthenedKey)
@@ -557,10 +556,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey: Option[IndexedSeq[String]] = keyFieldIdx.map(_.flatMap { i =>
+    val newKey: Array[String] = keyFieldIdx.map(_.flatMap { i =>
       newFields(i).map { case (n, _) => n }
-    })
-    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
+    }).getOrElse(Array())
+    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length).getOrElse(0)
 
     select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
   }
