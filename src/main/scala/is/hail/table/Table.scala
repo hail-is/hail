@@ -532,7 +532,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     copy2(
-      rvd = UnpartitionedRVD(newRowType, rvd.crdd),
+      rvd = rvd match {
+        case ordered: OrderedRVD =>
+          ordered.copy(typ = ordered.typ.copy(rowType = newRowType))
+        case _: UnpartitionedRVD => UnpartitionedRVD(newRowType, rvd.crdd)
+      },
       signature = newRowType)
   }
 
