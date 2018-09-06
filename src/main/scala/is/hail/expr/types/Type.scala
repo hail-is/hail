@@ -122,8 +122,6 @@ object Type {
   } yield (t, v)
 
   implicit def arbType = Arbitrary(genArb)
-
-  def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
 abstract class Type extends BaseType with Serializable {

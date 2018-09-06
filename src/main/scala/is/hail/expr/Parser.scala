@@ -94,17 +94,6 @@ object Parser extends JavaTokenParsers {
 
   def parseMatrixType(code: String): MatrixType = parse(matrix_type_expr, code)
 
-  def parseAnnotationTypes(code: String): Map[String, Type] = {
-    // println(s"code = $code")
-    if (code.matches("""\s*"""))
-      Map.empty[String, Type]
-    else
-      parseAll(type_fields, code) match {
-        case Success(result, _) => result.map(f => (f.name, f.typ)).toMap
-        case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-      }
-  }
-
   def parseAnnotationRoot(code: String, root: String): List[String] = {
     val path = parseAll(annotationIdentifier, code) match {
       case Success(result, _) => result.asInstanceOf[List[String]]
@@ -325,16 +314,6 @@ object Parser extends JavaTokenParsers {
       (("," ~ "entry" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ colKey ~ colType ~ rowPartitionKey ~ rowRestKey ~ rowType ~ entryType =>
       MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey, rowPartitionKey ++ rowRestKey, rowType, entryType)
     }
-
-  def parsePhysicalType(code: String): PType = parse(physical_type, code)
-
-  def physical_type: Parser[PType] =
-    ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => PDefault(t) }
-
-  def parseEncodedType(code: String): PType = parse(physical_type, code)
-
-  def encoded_type: Parser[EncodedType] =
-    ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => EDefault(t) }
 
   def call: Parser[Call] = {
     wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
