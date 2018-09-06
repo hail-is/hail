@@ -9,7 +9,7 @@ from hail.expr.types import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_first_row_key_field_locus
+from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file
@@ -695,13 +695,13 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     present values 0 or 1) or Boolean, in which case true and false are coded
     as 1 and 0, respectively.
 
-    The resulting :class:`.Table` provides the group's key, the size (number of
-    rows) in the group, the variance component score `q_stat`, the SKAT
-    p-value, and a fault flag. For the toy example above, the table has the
+    The resulting :class:`.Table` provides the group's key (`id`), thenumber of
+    rows in the group (`size`), the variance component score `q_stat`, the SKAT
+    `p-value`, and a `fault` flag. For the toy example above, the table has the
     form:
 
     +-------+------+--------+---------+-------+
-    |  key  | size | q_stat | p_value | fault |
+    |  id   | size | q_stat | p_value | fault |
     +=======+======+========+=========+=======+
     | geneA |   2  | 4.136  | 0.205   |   0   |
     +-------+------+--------+---------+-------+
@@ -1330,7 +1330,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool)
-def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixTable]:
+def split_multi(ds, keep_star=False, left_aligned=False):
     """Split multiallelic variants.
 
     The resulting dataset will be keyed by the split locus and alleles.
@@ -1418,8 +1418,7 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
 
             return mt._select_rows('split_multi',
                                    new_row_expr,
-                                   new_key=['locus', 'alleles'],
-                                   pk_size=1)
+                                   new_key=['locus', 'alleles'])
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -1463,11 +1462,11 @@ def split_multi(ds, keep_star=False, left_aligned=False) -> Union[Table, MatrixT
     return left.union(moved) if is_table else left.union_rows(moved)
 
 
-@typecheck(ds=MatrixTable,
+@typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool,
            vep_root=str)
-def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> MatrixTable:
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -1591,6 +1590,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
 
     Parameters
     ----------
+    ds : :class:`.MatrixTable` or :class:`.Table`
+        An unsplit dataset.
     keep_star : :obj:`bool`
         Do not filter out * alleles.
     left_aligned : :obj:`bool`
@@ -1605,23 +1606,24 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
 
     Returns
     -------
-    :class:`.MatrixTable`
+    :class:`.MatrixTable` or :class:`.Table`
         A biallelic variant dataset.
-
     """
 
-    row_fields = set(ds.row)
-    entry_fields = set(ds.entry)
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
-    update_rows_expression = {}
-    update_entries_expression = {}
 
+    row_fields = set(ds.row)
+    update_rows_expression = {}
     if vep_root in row_fields:
         update_rows_expression[vep_root] = split[vep_root].annotate(**{
             x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
             for x in ('intergenic_consequences', 'motif_feature_consequences',
                       'regulatory_feature_consequences', 'transcript_consequences')})
 
+    if isinstance(ds, Table):
+        return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
+    entry_fields = set(ds.entry)
+    update_entries_expression = {}
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
     if 'DP' in entry_fields:
@@ -1648,7 +1650,6 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep') -> 
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
-
     return split._annotate_all(
         row_exprs=update_rows_expression,
         entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
@@ -2133,16 +2134,16 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     Global fields:
 
-    - `n_populations` (:py:data:`.tint32`) -- Number of populations.
-    - `n_samples` (:py:data:`.tint32`) -- Number of samples.
-    - `n_variants` (:py:data:`.tint32`) -- Number of variants.
-    - `n_partitions` (:py:data:`.tint32`) -- Number of partitions.
-    - `pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
+    - `bn.n_populations` (:py:data:`.tint32`) -- Number of populations.
+    - `bn.n_samples` (:py:data:`.tint32`) -- Number of samples.
+    - `bn.n_variants` (:py:data:`.tint32`) -- Number of variants.
+    - `bn.n_partitions` (:py:data:`.tint32`) -- Number of partitions.
+    - `bn.pop_dist` (:class:`.tarray` of :py:data:`.tfloat64`) -- Population distribution indexed by
       population.
-    - `fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
+    - `bn.fst` (:class:`.tarray` of :py:data:`.tfloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - `seed` (:py:data:`.tint32`) -- Random seed.
-    - `mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
+    - `bn.seed` (:py:data:`.tint32`) -- Random seed.
+    - `bn.mixture` (:py:data:`.tbool`) -- Value of `mixture` parameter.
 
     Row fields:
 
@@ -2242,13 +2243,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # generate matrix table
 
     bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
-    bn = bn.annotate_globals(n_populations=n_populations,
-                             n_samples=n_samples,
-                             n_variants=n_variants,
-                             n_partitions=n_partitions,
-                             pop_dist=pop_dist,
-                             fst=fst,
-                             mixture=mixture)
+    bn = bn.annotate_globals(
+        bn=hl.struct(n_populations=n_populations,
+                     n_samples=n_samples,
+                     n_variants=n_variants,
+                     n_partitions=n_partitions,
+                     pop_dist=pop_dist,
+                     fst=fst,
+                     mixture=mixture))
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
     bn = bn.key_cols_by(sample_idx=bn.col_idx)
@@ -2267,7 +2269,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
-    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx)).partition_rows_by(['locus'], 'locus', 'alleles')
+    return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
 @typecheck(mt=MatrixTable, f=anytype)
@@ -2379,7 +2381,7 @@ def filter_alleles(mt: MatrixTable,
     left = mt.filter_rows((mt.locus == mt.__new_locus) & (mt.alleles == mt.__new_alleles))
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
-    right = right.partition_rows_by('locus', locus=right.__new_locus, alleles=right.__new_alleles)
+    right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
     return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
@@ -2751,7 +2753,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
     require_row_key_variant(mt, 'ld_prune')
-    require_first_row_key_field_locus(mt, 'ld_prune')
 
     #  FIXME: remove once select_entries on a field is free
     if call_expr in mt._fields_inverse:

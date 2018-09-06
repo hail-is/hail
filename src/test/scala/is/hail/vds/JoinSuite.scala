@@ -41,11 +41,11 @@ class JoinSuite extends SparkSuite {
       Locus("1", 15))
 
     val vType = TLocus(ReferenceGenome.GRCh37)
-    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
+    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(Array("v"))
     leftKt.typeCheck()
     val left = MatrixTable.fromRowsTable(leftKt)
 
-    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
+    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(Array("v"))
     rightKt.typeCheck()
     val right = MatrixTable.fromRowsTable(rightKt)
 

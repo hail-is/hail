@@ -552,12 +552,10 @@ private class Emit(
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean](name2 + "_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmout = mb.newField[Boolean](name1 + "_missing")
-        val xvout = coerce[Any](mb.newField(name1)(tti))
-        val i = mb.newLocal[Int]("af_i")
-        val len = mb.newLocal[Int]("af_len")
+        val xmaccum = mb.newField[Boolean](name1 + "_missing")
+        val xvaccum = coerce[Any](mb.newField(name1)(tti))
         val bodyenv = env.bind(
-          name1 -> (tti, xmout.load(), xvout.load()),
+          name1 -> (tti, xmaccum.load(), xvaccum.load()),
           name2 -> (eti, xmv.load(), xvv.load()))
 
         val codeZ = emit(zero)
@@ -570,28 +568,26 @@ private class Emit(
             xmv := m,
             xvv := xmv.mux(defaultValue(tarray.elementType), v),
             codeB.setup,
-            xmout := codeB.m,
-            xvout := xmout.mux(defaultValue(typ), codeB.v))
+            xmaccum := codeB.m,
+            xvaccum := xmaccum.mux(defaultValue(typ), codeB.v))
         }
 
         val processAElts = aBase.arrayEmitter(cont)
-        val ma = processAElts.m.getOrElse(const(false))
+        val marray = processAElts.m.getOrElse(const(false))
 
         EmitTriplet(Code(
           processAElts.setup,
-          xmout := true,
-          xvout := defaultValue(typ),
-          xmout := ma.mux(
-            ma,
+          marray.mux(
+            Code(
+              xmaccum := true,
+              xvaccum := defaultValue(typ)),
             Code(
               codeZ.setup,
-              xmout := codeZ.m,
-              xvout := xmout.mux(defaultValue(typ), codeZ.v),
+              xmaccum := codeZ.m,
+              xvaccum := xmaccum.mux(defaultValue(typ), codeZ.v),
               aBase.calcLength,
-              processAElts.addElements,
-              xmout)),
-          xvout := xmout.mux(defaultValue(typ), xvout)
-        ), xmout, xvout)
+              processAElts.addElements))
+        ), xmaccum, xvaccum)
 
       case ArrayFor(a, valueName, body) =>
         val tarray = coerce[TArray](a.typ)
@@ -1103,41 +1099,29 @@ private class Emit(
 
       case If(cond, cnsq, altr) =>
         val codeCond = emit(cond)
-        val xmcond = mb.newLocal[Boolean]()
-        val xvcond = mb.newLocal[Boolean]()
         val mout = mb.newLocal[Boolean]()
-        val aCnsq = emitArrayIterator(cnsq)
-        val aAltr = emitArrayIterator(altr)
+        val cnsqArray = emitArrayIterator(cnsq)
+        val altrArray = emitArrayIterator(altr)
 
         val f = { cont: F =>
-          val addCnsq = aCnsq.arrayEmitter(cont)
-          val addAltr = aAltr.arrayEmitter(cont)
+          def addElements(array: ArrayIteratorTriplet): Code[Unit] = {
+            val emitter = array.arrayEmitter(cont)
+            Code(
+              emitter.setup,
+              mout := emitter.m.getOrElse(false),
+              mout.mux(Code._empty, Code(array.calcLength, emitter.addElements)))
+          }
+
           val setup = Code(
             codeCond.setup,
-            xmcond := codeCond.m,
-            xmcond.mux(
-              Code(
-                mout := true,
-                xvcond := coerce[Boolean](defaultValue(cond.typ))
-              ),
-              Code(
-                mout := false,
-                xvcond := coerce[Boolean](codeCond.v),
-                addCnsq.setup, addAltr.setup)))
-          val missing: Code[Boolean] = if (addCnsq.m.isEmpty && addAltr.m.isEmpty)
-            mout
-          else
-            Code(
-              xmcond.mux(Code._empty,
-                mout := xvcond.mux(addCnsq.m.getOrElse(false), addAltr.m.getOrElse(false))),
-              mout)
-          val add = xvcond.mux(addCnsq.addElements, addAltr.addElements)
-          EmitArrayTriplet(setup, Some(missing), add)
+            codeCond.m.mux(
+              mout := true,
+              coerce[Boolean](codeCond.v).mux(
+                addElements(cnsqArray), addElements(altrArray))))
+          EmitArrayTriplet(setup, Some(mout.load()), Code._empty)
         }
 
-        val lenCalc = xvcond.mux(aCnsq.calcLength, aAltr.calcLength)
-        val optLen = aCnsq.length.flatMap(l1 => aAltr.length.map(xvcond.mux(l1, _)))
-        ArrayIteratorTriplet(lenCalc, optLen, f)
+        ArrayIteratorTriplet(Code._empty, None, f)
 
       case _ =>
         val t: TArray = coerce[TArray](ir.typ)

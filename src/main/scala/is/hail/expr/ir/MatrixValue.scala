@@ -152,6 +152,21 @@ case class MatrixValue(
       hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
     }
 
+    lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
+      val (_, keyF) = typ.colType.select(typ.colKey)
+      val sortedValsWithIdx = colValues.safeValue
+          .zipWithIndex
+          .map(colIdx => (keyF(colIdx._1.asInstanceOf[Row]), colIdx))
+          .sortBy(_._1)(typ.colKeyStruct.ordering.toOrdering.asInstanceOf[Ordering[Row]])
+          .map(_._2)
+
+      (colValues.copy(value = sortedValsWithIdx.map(_._1)),
+        BroadcastIndexedSeq(
+          sortedValsWithIdx.map(_._2),
+          TArray(TInt32()),
+          colValues.sc))
+    }
+
     def rowsRVD(): OrderedRVD = {
       val localRowType = typ.rowType
       val fullRowType = typ.rvRowType
@@ -188,68 +203,75 @@ case class MatrixValue(
           ContextRDD.parallelize(hc.sc, colValues.value.toArray.map(_.asInstanceOf[Row]))
             .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) })
       } else {
-        val (_, keyF) = typ.colType.select(typ.colKey)
-        val sorted = colValues.value.map(_.asInstanceOf[Row]).sortBy(keyF)(typ.colKeyStruct.ordering.toOrdering.asInstanceOf[Ordering[Row]])
         OrderedRVD.coerce(
           typ.colsTableType.rvdType,
-          ContextRDD.parallelize(hc.sc, sorted)
+          ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
             .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
         )
       }
     }
 
-    def entriesRVD(): RVD = {
+    def entriesRVD(): OrderedRVD = {
       val resultStruct = typ.entriesTableType.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       val localEntriesType = typ.entryArrayType
       val localColType = typ.colType
       val localEntryType = typ.entryType
+      val localOrvdType = typ.orvdType
       val localNCols = nCols
 
-      val localColValues = colValues.broadcast
+      val localSortedColValues = sortedColValues.broadcast
+      val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
-      val unpartitioned = rvd.boundary.mapPartitions(resultStruct, { (ctx, it) =>
-        val rv2b = ctx.rvb
-        val rv2 = RegionValue(ctx.region)
+      rvd.constrainToOrderedPartitioner(rvd.partitioner.strictify).boundary
+        .mapPartitionsPreservesPartitioning(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
+          { (ctx, it) =>
+            val rv2b = ctx.rvb
+            val rv2 = RegionValue(ctx.region)
 
-        val colRegion = ctx.freshRegion
-        val colRVB = new RegionValueBuilder(colRegion)
-        val colsType = TArray(localColType, required = true)
-        colRVB.start(colsType)
-        colRVB.addAnnotation(colsType, localColValues.value)
-        val colsOffset = colRVB.end()
+            val colRegion = ctx.freshRegion
+            val colRVB = new RegionValueBuilder(colRegion)
+            val colsType = TArray(localColType, required = true)
+            colRVB.start(colsType)
+            colRVB.addAnnotation(colsType, localSortedColValues.value)
+            val colsOffset = colRVB.end()
 
-        it.flatMap { rv =>
-          val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
-          (0 until localNCols).iterator
-            .filter { i =>
-              localEntriesType.isElementDefined(rv.region, gsOffset, i)
-            }
-            .map { i =>
-              rv2b.clear()
-              rv2b.start(resultStruct)
-              rv2b.startStruct()
+            val rowBuffer = new RegionValueArrayBuffer(fullRowType, ctx.freshRegion)
 
-              var j = 0
-              while (j < fullRowType.size) {
-                if (j != localEntriesIndex)
-                  rv2b.addField(fullRowType, rv, j)
-                j += 1
+            val colsNewToOldIdx = localSortedColsToOldIdx.value.asInstanceOf[IndexedSeq[Int]]
+
+            OrderedRVIterator(localOrvdType, it, ctx).staircase.flatMap { step =>
+              rowBuffer.clear()
+              rowBuffer ++= step
+              (0 until localNCols).iterator.flatMap { i =>
+                rowBuffer.iterator
+                  .filter { row =>
+                    localEntriesType.isElementDefined(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i))
+                  }.map { row =>
+                    rv2b.clear()
+                    rv2b.start(resultStruct)
+                    rv2b.startStruct()
+
+                    var j = 0
+                    while (j < fullRowType.size) {
+                      if (j != localEntriesIndex)
+                        rv2b.addField(fullRowType, row, j)
+                      j += 1
+                    }
+
+                    rv2b.addAllFields(localColType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
+                    rv2b.addAllFields(
+                      localEntryType,
+                      row.region,
+                      localEntriesType.loadElement(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
+                    rv2b.endStruct()
+                    rv2.setOffset(rv2b.end())
+                    rv2
+                  }
               }
-
-              rv2b.addAllFields(localColType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
-              rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
-              rv2b.endStruct()
-              rv2.setOffset(rv2b.end())
-              rv2
             }
-        }
-      })
-      if (typ.entriesTableType.key.isDefined)
-        OrderedRVD.coerce(typ.entriesTableType.rvdType, unpartitioned)
-      else
-        unpartitioned
+          }).extendKeyPreservesPartitioning(typ.entriesTableType.rvdType.key)
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,

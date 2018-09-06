@@ -295,11 +295,6 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
-    def test_join_with_partition_key_from_mt(self):
-        mt = hl.import_vcf(resource('sample.vcf'))
-        rows = mt.rows()
-        rows.annotate(foo=rows[rows.key]).take(1)
-
     def test_joins(self):
         kt = hl.utils.range_table(1).key_by().drop('idx')
         kt = kt.annotate(a='foo')
@@ -549,19 +544,6 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(x=[1, 2])
         self.assertEqual(ht.aggregate(hl.agg.array_sum(ht.x) / [2, 2]), [5.0, 10.0])
-
-    def test_rekey_correct_partition_key(self):
-        ht = hl.utils.range_table(5)
-        ht = ht.annotate(a=ht.idx)
-        ht = ht.key_by('idx', 'a')
-        ht = ht.key_by('idx')
-        ht._force_count()
-
-        ht = hl.utils.range_table(5)
-        ht = ht.annotate(a=ht.idx, b=ht.idx)
-        ht = ht.key_by('idx', 'a')
-        ht = ht.key_by('idx', 'b')
-        ht._force_count()
 
     def test_explode_key_error(self):
         t = hl.utils.range_table(1)

@@ -888,6 +888,13 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index', 'old_locus', 'old_alleles')
         self.assertTrue(ds1._same(ds2))
 
+        ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
+        ds1 = hl.split_multi_hts(ds1)
+        ds2 = hl.import_vcf(resource('split_test_b.vcf')).rows()
+        self.assertTrue(ds1.all((ds1.locus.position == 1180) | ds1.was_split))
+        ds1 = ds1.drop('was_split', 'a_index')
+        self.assertTrue(ds1._same(ds2))
+
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -981,11 +988,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.n_partitions(), 3)
 
         glob = ds.globals
-        self.assertEqual(glob.n_populations.value, 2)
-        self.assertEqual(glob.n_samples.value, 20)
-        self.assertEqual(glob.n_variants.value, 25)
-        self.assertEqual(glob.pop_dist.value, [1, 2])
-        self.assertEqual(glob.fst.value, [.02, .06])
+        self.assertEqual(glob.bn.n_populations.value, 2)
+        self.assertEqual(glob.bn.n_samples.value, 20)
+        self.assertEqual(glob.bn.n_variants.value, 25)
+        self.assertEqual(glob.bn.pop_dist.value, [1, 2])
+        self.assertEqual(glob.bn.fst.value, [.02, .06])
 
     def test_balding_nichols_model_same_results(self):
         hl.set_global_seed(1)
@@ -1084,28 +1091,28 @@ class Tests(unittest.TestCase):
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[],
-                logistic=False).count()
+                logistic=False)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[],
-                logistic=True).count()
+                logistic=True)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=ds.GT.n_alt_alleles(),
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=False).count()
+                logistic=False)._force_count()
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,
                 y=ds.pheno,
                 x=hl.pl_dosage(ds.PL),
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=True).count()
+                logistic=True)._force_count()
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))

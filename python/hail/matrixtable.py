@@ -30,7 +30,6 @@ class GroupedMatrixTable(ExprContainer):
         self._row_keys = row_keys
         self._col_keys = col_keys
         self._partitions = None
-        self._partition_key = None
 
     def _fixed_indices(self):
         if self._row_keys is None and self._col_keys is None:
@@ -53,8 +52,6 @@ class GroupedMatrixTable(ExprContainer):
             rowstr = ""
         else:
             rowstr = "\nRows: \n" + "\n    ".join(["{}: {}".format(k, v._type) for k, v in self._row_keys.items()])
-            if self._partition_key:
-                rowstr += "\n  Partition by: {}".format(self._partition_key)
 
         if self._col_keys is None:
             colstr = ""
@@ -66,8 +63,7 @@ class GroupedMatrixTable(ExprContainer):
             '----------------------------------------\n' \
             'Parent MatrixTable:\n'.format(
             rowstr,
-            colstr,
-            self._partition_key)
+            colstr)
 
         print(s)
         self._parent.describe()
@@ -189,29 +185,6 @@ class GroupedMatrixTable(ExprContainer):
 
         return GroupedMatrixTable(self._parent, col_keys=new_keys)
 
-    def partition_by(self, *fields: Tuple[str]) -> 'GroupedMatrixTable':
-        """Set the partition key.
-
-        Parameters
-        ----------
-        fields : varargs of :obj:`str`
-            Row partition key. Must be a prefix of the key. By default, the
-            partition key is the entire key.
-
-        Returns
-        -------
-        :class:`.GroupedMatrixTable`
-            Self.
-        """
-        # FIXME: better docs
-        if len(fields) == 0:
-            raise ValueError('require at least one partition field')
-        if not fields == tuple(name for name, _ in self._groups[:len(fields)]):
-            raise ValueError('Expect partition fields to be a prefix of the keys {}'.format(
-                ', '.join("'{}'".format(name) for name in self._keys)))
-        self._partition_key = fields
-        return self
-
     def partition_hint(self, n: int) -> 'GroupedMatrixTable':
         """Set the target number of partitions for aggregation.
 
@@ -299,8 +272,6 @@ class GroupedMatrixTable(ExprContainer):
             keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(str(hl.struct(**named_exprs)._ir)))
         elif self._row_keys is not None:
-            if self._partition_key is None:
-                self._partition_key = self._row_keys.keys()
             keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(str(hl.struct(**named_exprs)._ir)))
         else:
@@ -513,24 +484,6 @@ class MatrixTable(ExprContainer):
         return self._row_key
 
     @property
-    def partition_key(self):
-        """Partition key struct.
-
-        Examples
-        --------
-
-        Get the partition key field names:
-
-        >>> list(dataset.partition_key)
-        ['locus']
-
-        Returns
-        -------
-        :class:`.StructExpression`
-        """
-        return self._partition_key
-
-    @property
     def globals(self):
         """Returns a struct expression including all global fields.
 
@@ -655,84 +608,6 @@ class MatrixTable(ExprContainer):
                                  self.col.annotate(**key_fields),
                                  new_key=list(key_fields.keys()))
 
-    def _key_rows_by(self, caller, pk_dict, rest_of_keys_dict):
-
-        for k in rest_of_keys_dict.keys():
-            if k in pk_dict:
-                raise ValueError("cannot have two row key fields with the same name: '{}'".format(k))
-
-        key_fields = dict(pk_dict, **rest_of_keys_dict)
-        row = self._rvrow.annotate(**key_fields)
-
-        return self._select_rows(caller, row, list(key_fields.keys()), pk_size=len(pk_dict))
-
-    @typecheck_method(partition_key=oneof(str, sequenceof(str)),
-                      keys=oneof(str, Expression),
-                      named_keys=expr_any)
-    def partition_rows_by(self, partition_key, *keys, **named_keys) -> 'MatrixTable':
-        """Key rows by a new set of fields, specifying a partition key.
-
-        .. include:: _templates/experimental.rst
-
-        Examples
-        --------
-
-        >>> dataset_result = dataset.partition_rows_by('locus', 'locus', 'alleles')
-        >>> dataset_result = dataset.partition_rows_by(['locus'], 'locus', 'alleles')
-        >>> dataset_result = dataset.partition_rows_by(['locus'],
-        ...                                            dataset['locus'],
-        ...                                            dataset['alleles'])
-
-        All of these expressions key the dataset by the 'locus' and 'allele'
-        fields, partitioning by 'locus'.
-
-        >>> dataset_result = dataset.partition_rows_by(['contig', 'position'],
-        ...                                      contig=dataset['locus'].contig,
-        ...                                      position=dataset['locus'].position,
-        ...                                      alleles=dataset['alleles'])
-
-        This keys the dataset by the newly defined fields, 'contig' and 'position',
-        and the 'alleles' field. The old row key field, 'locus', is preserved as
-        a non-key field.
-
-        Notes
-        -----
-        For more information on how to define a new row key, see
-        :meth:`.MatrixTable.key_rows_by`.
-
-        Parameters
-        ----------
-        partition_key : :obj:`str`, or :obj:`list` of :obj:`str`.
-            Row fields to use as partition key. Must be a prefix of new row_key.
-        keys : varargs of :obj:`str` or :class:`.Expression`.
-            Row fields to key by.
-        named_keys : keyword args of :class:`.Expression`.
-            Row fields to key by.
-        Returns
-        -------
-        :class:`.MatrixTable`
-        """
-        keys = get_select_exprs("MatrixTable.key_rows_by",
-                                keys, named_keys, self._row_indices,
-                                protect_keys=False)
-        partition_key = wrap_to_sequence(partition_key)
-        if len(partition_key) > len(keys):
-            raise ValueError("MatrixTable.partition_rows_by requires partition_key to be prefix of row key.")
-
-        key_names = list(keys.keys())
-        for i, pk in enumerate(partition_key):
-            if key_names[i] != pk:
-                raise ExpressionException(
-                    "MatrixTable.partition_rows_by requires partition_key to be "
-                    "prefix of row key; found mismatch at key {}: '{}' vs '{}'"
-                        .format(i, pk, key_names[i]))
-
-        pks = dict(list(keys.items())[:len(partition_key)])
-        other_ks = dict(list(keys.items())[len(partition_key):])
-
-        return self._key_rows_by("MatrixTable.key_rows_by", pks, other_ks)
-
-
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
@@ -760,8 +635,6 @@ class MatrixTable(ExprContainer):
         -----
         See :meth:`.Table.key_by` for more information on defining a key.
 
-        To specify a partition key, use :meth:`.MatrixTable.partition_rows_by`.
-
         Parameters
         ----------
         keys : varargs of :obj:`str` or :class:`.Expression`.
@@ -776,7 +649,12 @@ class MatrixTable(ExprContainer):
         keys = get_select_exprs("MatrixTable.key_rows_by",
                              keys, named_keys, self._row_indices,
                              protect_keys=False)
-        return self._key_rows_by("MatrixTable.key_rows_by", keys, {})
+
+        row = self._rvrow.annotate(**keys)
+
+        return self._select_rows("MatrixTable.key_rows_by",
+                                 row,
+                                 list(keys.keys()))
 
     def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
@@ -2301,10 +2179,8 @@ class MatrixTable(ExprContainer):
             # fast path
             is_row_key = len(exprs) == len(src.row_key) and all(
                 exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
-            is_partition_key = len(exprs) == len(src.partition_key) and all(
-                exprs[i] is src.partition_key[i] for i in range(len(exprs)))
 
-            if is_row_key or is_partition_key:
+            if is_row_key:
                 def joiner(left):
                     return MatrixTable(left._jvds.annotateRowsVDS(right._jvds, uid))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
@@ -2499,7 +2375,7 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(jmt))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
-                      row_key=nullable(sequenceof(sequenceof(str))),
+                      row_key=nullable(sequenceof(str)),
                       col_exprs=dictof(str, expr_any),
                       col_key=nullable(sequenceof(str)),
                       entry_exprs=dictof(str, expr_any),
@@ -2561,8 +2437,6 @@ class MatrixTable(ExprContainer):
 
         row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
             if self.row_key else None
-        partition_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.partition_key) + ']' \
-            if self.partition_key else None
 
         if len(self.col) == 0:
             col_fields = '\n    None'
@@ -2590,10 +2464,8 @@ class MatrixTable(ExprContainer):
             '----------------------------------------\n' \
             'Column key: {ck}\n' \
             'Row key: {rk}\n' \
-            'Partition key: {pk}\n' \
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
-                                                              pk=partition_key,
                                                               r=row_fields,
                                                               ck=col_key,
                                                               c=col_fields,
@@ -2886,21 +2758,16 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct(),
-                      new_key=nullable(sequenceof(str)),
-                      pk_size=nullable(int))
-    def _select_rows(self, caller, row, new_key=None, pk_size=None):
+                      new_key=nullable(sequenceof(str)))
+    def _select_rows(self, caller, row, new_key=None):
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
-        if new_key is not None:
-            if pk_size is None:
-                pk_size = len(new_key)
-            new_key = [new_key[:pk_size], new_key[pk_size:]]
 
         return cleanup(MatrixTable(base._jvds.selectRows(str(row._ir), new_key)))
 
     @typecheck_method(key_struct=expr_struct())
     def _select_rows_processed(self, key_struct):
-        new_key = (list(key_struct.keys()), [])
+        new_key = list(key_struct.keys())
         keys = Env.get_uid()
         k_ref = Ref(keys, key_struct.dtype)
         fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
@@ -3089,8 +2956,8 @@ class MatrixTable(ExprContainer):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
     @classmethod
-    @typecheck_method(table=Table, partition_key=nullable(oneof(str, sequenceof(str))))
-    def from_rows_table(cls, table: Table, partition_key: Optional[Union[str, List[str]]] = None) -> 'MatrixTable':
+    @typecheck_method(table=Table)
+    def from_rows_table(cls, table: Table) -> 'MatrixTable':
         """Construct matrix table with no columns from a table.
 
         .. include:: _templates/experimental.rst
@@ -3101,7 +2968,7 @@ class MatrixTable(ExprContainer):
 
         >>> table = hl.import_table('data/variant-lof.tsv')
         >>> table = table.transmute(**hl.parse_variant(table['v'])).key_by('locus', 'alleles')
-        >>> sites_vds = hl.MatrixTable.from_rows_table(table, partition_key='locus')
+        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----
@@ -3112,22 +2979,13 @@ class MatrixTable(ExprContainer):
         ----------
         table : :class:`.Table`
             The table to be converted.
-        partition_key : :obj:`str` or :obj:`list` of :obj:`str`
-            Partition key field(s), must be a prefix of the table key.
 
         Returns
         -------
         :class:`.MatrixTable`
         """
         hail.methods.misc.require_key(table, 'from_rows_table')
-        if partition_key is not None:
-            if isinstance(partition_key, str):
-                partition_key = [partition_key]
-            if len(partition_key) == 0:
-                raise ValueError('partition_key must not be empty')
-            elif list(table.key)[:len(partition_key)] != partition_key:
-                raise ValueError('partition_key must be a prefix of table key')
-        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt, partition_key)
+        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
         return MatrixTable(jmt)
 
     @typecheck_method(p=numeric,
@@ -3257,9 +3115,7 @@ class MatrixTable(ExprContainer):
               's': str 
           Row key:
               'locus': locus<GRCh37> 
-              'alleles': array<str> 
-          Partition key:
-              'locus': locus<GRCh37> 
+              'alleles': array<str>
 
         and three sample IDs: `A`, `B` and `C`.  Then the result of
         :func:`.make_table`:

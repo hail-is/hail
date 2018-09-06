@@ -54,14 +54,14 @@ class TableSuite extends SparkSuite {
   @Test def testImportExport() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = hc.importTable(inputFile).keyBy("Sample", "Status")
+    val kt = hc.importTable(inputFile).keyBy(Array("Sample", "Status"))
     kt.export(outputFile)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
 
     intercept[AssertionError] {
-      hc.importTable(inputFile).keyBy("Sample", "Status", "BadKeyName")
+      hc.importTable(inputFile).keyBy(Array("Sample", "Status", "BadKeyName"))
     }
 
     assert(importedData == exportedData)
@@ -88,10 +88,10 @@ class TableSuite extends SparkSuite {
   @Test def testKeyBy() {
     val kt = sampleKT1
     val count = kt.count()
-    val kt2 = kt.keyBy(Array("Sample", "field1"), Array("Sample"))
+    val kt2 = kt.keyBy(Array("Sample", "field1"))
     assert(kt2.count() == count)
-    assert(kt2.keyBy(Array("Sample"), Array("Sample")).count() == count)
-    assert(kt.keyBy("field1").count() == count)
+    assert(kt2.keyBy(Array("Sample")).count() == count)
+    assert(kt.keyBy(Array("field1")).count() == count)
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
@@ -103,7 +103,7 @@ class TableSuite extends SparkSuite {
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
       table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array(), Array("locus")).count())
+        Array()).count())
   }
 
   @Test def testToMatrixTable() {
@@ -113,8 +113,7 @@ class TableSuite extends SparkSuite {
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
       Array("s"),
       vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"),
-      Array("locus"))
+      vds.colType.fieldNames.filter(_ != "s"))
 
     val sampleOrder = vds.colKeys.toArray
 

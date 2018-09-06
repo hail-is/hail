@@ -1,5 +1,8 @@
 set -ex
 
+gcloud auth activate-service-account \
+  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+
 SPARK_VERSION=2.2.0
 BRANCH=devel
 
@@ -26,6 +29,11 @@ gsutil acl set public-read ${GS_HAIL_ZIP}
 DISTRIBUTION=gs://hail-common/distributions/${BRANCH}/Hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.zip
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
+
+CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+python ./create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+gsutil acl set public-read $CONFIG
 
 echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
 HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash-spark-${SPARK_VERSION}.txt

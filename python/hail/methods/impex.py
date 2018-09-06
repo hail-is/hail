@@ -159,7 +159,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     dataset = dataset._select_all(col_exprs=sample_exprs,
                                   col_key=[],
                                   row_exprs=gen_exprs,
-                                  row_key=[['locus'], ['alleles']],
+                                  row_key=['locus', 'alleles'],
                                   entry_exprs=entry_exprs)
 
     dataset._jvds.exportGen(output, precision)
@@ -288,7 +288,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     dataset = dataset._select_all(col_exprs=fam_exprs,
                                   col_key=[],
                                   row_exprs=bim_exprs,
-                                  row_key=[['locus'], ['alleles']],
+                                  row_key=['locus', 'alleles'],
                                   entry_exprs=entry_exprs)
 
     # check FAM ids for white space
@@ -1317,8 +1317,6 @@ def import_matrix_table(paths,
     Column key:
         'col_id': str
     Row key:
-        'Barcode': str
-    Partition key:
         'Barcode': str
     ----------------------------------------
 

@@ -191,21 +191,17 @@ def require_row_key_variant_w_struct_locus(dataset, method):
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
 
-
-def require_first_row_key_field_locus(dataset, method):
-    if (len(dataset.partition_key) == 0 or
-            not isinstance(dataset.row_key[0].dtype, tlocus)):
-        raise ValueError("Method '{}' requires first row key field of type 'locus<any>'.\n"
-                         "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
-
-
-def require_first_key_field_locus(table, method):
-    if (len(table.key) == 0 or
-            not isinstance(table.key[0].dtype, tlocus)):
+def require_first_key_field_locus(dataset, method):
+    if isinstance(dataset, Table):
+        key = dataset.key
+    else:
+        assert isinstance(dataset, MatrixTable)
+        key = dataset.row_key
+    if (len(key) == 0 or
+            not isinstance(key[0].dtype, tlocus)):
         raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(table[k].dtype)) for k in table.key)))
+            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
 @typecheck(table=Table, method=str)
@@ -295,9 +291,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         Dataset to filter.
     intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
         Intervals to filter on.  The point type of the interval must
-        be a prefix of the partition key (when filtering a matrix
-        table) or the key (when filtering a table), or equal to the
-        first field of the key.
+        be a prefix of the key or equal to the first field of the key.
     keep : :obj:`bool`
         If ``True``, keep only rows that fall within any interval in `intervals`.
         If ``False``, keep only rows that fall outside all intervals in
@@ -310,14 +304,12 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     """
 
     if isinstance(ds, MatrixTable):
-        n_pk = len(ds.partition_key)
-        pk_type = ds.partition_key.dtype
+        k_type = ds.row_key.dtype
     else:
         assert isinstance(ds, Table)
         if ds.key is None:
             raise TypeError("cannot filter intervals of an unkeyed Table")
-        n_pk = len(ds.key)
-        pk_type = ds.key.dtype
+        k_type = ds.key.dtype
 
     point_type = intervals.dtype.element_type.point_type
 
@@ -329,12 +321,12 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
                 return False
         return True
 
-    if point_type == pk_type[0]:
+    if point_type == k_type[0]:
         needs_wrapper = True
-    elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, pk_type):
+    elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, k_type):
         needs_wrapper = False
     else:
-        raise TypeError("The point type is incompatible with key type of the dataset ('{}', '{}')".format(repr(point_type), repr(pk_type)))
+        raise TypeError("The point type is incompatible with key type of the dataset ('{}', '{}')".format(repr(point_type), repr(k_type)))
 
     def wrap_input(interval):
         if interval is None:
@@ -403,5 +395,5 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    require_first_row_key_field_locus(mt, 'window_by_locus')
+    require_first_key_field_locus(mt, 'window_by_locus')
     return MatrixTable(mt._jvds.windowVariants(bp_window_size))

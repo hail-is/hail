@@ -415,19 +415,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
-  def keyBy(key: String*): Table = keyBy(key.toFastIndexedSeq, null)
-
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(Option(keys).map(_.asScala.toFastIndexedSeq), false)
+    keyBy(Option(keys).map(_.asScala.toFastIndexedSeq))
 
-  def keyBy(
-    keys: java.util.ArrayList[String],
-    partitionKeys: java.util.ArrayList[String]
-  ): Table = keyBy(keys.asScala.toFastIndexedSeq, partitionKeys.asScala.toFastIndexedSeq)
-
-  def keyBy(keys: IndexedSeq[String]): Table = keyBy(keys, isSorted = false)
-
-  def keyBy(keys: IndexedSeq[String], isSorted: Boolean): Table = keyBy(keys, null, isSorted)
+  def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
+    new Table(hc, TableKeyBy(tir, keys, isSorted))
 
   def keyBy(maybeKeys: Option[IndexedSeq[String]]): Table = keyBy(maybeKeys, false)
 
@@ -436,10 +428,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       case Some(keys) => keyBy(keys, isSorted)
       case None => unkey()
     }
-
-  def keyBy(keys: IndexedSeq[String], partitionKeys: IndexedSeq[String], isSorted: Boolean = false): Table = {
-    new Table(hc, TableKeyBy(tir, keys, isSorted))
-  }
 
   def unkey(): Table =
     new Table(hc, TableUnkey(tir))
@@ -492,12 +480,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colKeys: java.util.ArrayList[String],
     rowFields: java.util.ArrayList[String],
     colFields: java.util.ArrayList[String],
-    partitionKeys: java.util.ArrayList[String],
     nPartitions: java.lang.Integer): MatrixTable = {
 
     toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
       rowFields.asScala.toArray, colFields.asScala.toArray,
-      partitionKeys.asScala.toArray,
       Option(nPartitions).map(_.asInstanceOf[Int])
     )
   }
@@ -507,10 +493,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colKeys: Array[String],
     rowFields: Array[String],
     colFields: Array[String],
-    partitionKeys: Array[String],
     nPartitions: Option[Int] = None
   ): MatrixTable = {
-    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, partitionKeys, nPartitions))
+    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, rowKeys, nPartitions))
   }
 
   def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
