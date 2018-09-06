@@ -1,8 +1,5 @@
 import os, shutil
 import hail as hl
-import hail.expr.aggregators as agg
-from hail.stats import *
-from hail.utils.java import warn
 
 if not os.path.isdir("output/"):
     os.mkdir("output/")
@@ -14,7 +11,7 @@ for f in files:
 
 ds = hl.import_vcf('data/sample.vcf.bgz')
 ds = ds.sample_rows(0.03)
-ds = ds.annotate_rows(use_in_kinship=hl.rand_bool(0.9),
+ds = ds.annotate_rows(use_as_marker=hl.rand_bool(0.5),
                       panel_maf=0.1,
                       anno1=5,
                       anno2=0,

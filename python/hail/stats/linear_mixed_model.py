@@ -4,9 +4,9 @@ import pandas as pd
 import hail as hl
 from hail.utils.misc import plural
 from hail.typecheck import *
-from hail.utils.java import Env, jnone, jsome
+from hail.utils.java import Env, jnone, jsome, info
 from hail.table import Table
-from hail.utils.java import info
+from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
 
 class LinearMixedModel(object):
@@ -103,7 +103,7 @@ class LinearMixedModel(object):
     - :meth:`from_kinship` takes :math:`y`, :math:`X`, and :math:`K` as ndarrays.
       The model is always full-rank.
 
-    - :meth:`from_mixed_effects` takes :math:`y` and :math:`X` as ndarrays and
+    - :meth:`from_random_effects` takes :math:`y` and :math:`X` as ndarrays and
       :math:`Z` as an ndarray or block matrix. The model is full-rank if and
       only if :math:`n \leq m`.
 
@@ -133,10 +133,13 @@ class LinearMixedModel(object):
         - Rotated response vector :math:`P y` with shape :math:`(n)`
       * - `px`
         - ndarray
-        - Rotated design matrix :math:`P X` with shape :math:`(n, p)`.
+        - Rotated design matrix :math:`P X` with shape :math:`(n, p)`
       * - `s`
         - ndarray
         - Eigenvalues vector :math:`S` of :math:`K` with shape :math:`(n)`
+      * - `p_path`
+        - str
+        - Path at which :math:`P` is stored as a block matrix
 
     Direct low-rank initialization takes :math:`P_r y`, :math:`P_r X`, :math:`S_r`,
     :math:`y`, and :math:`X` as ndarrays. The following class attributes are set:
@@ -174,6 +177,9 @@ class LinearMixedModel(object):
       * - `x`
         - ndarray
         - Design matrix with shape :math:`(n, p)`
+      * - `p_path`
+        - str
+        - Path at which :math:`P` is stored as a block matrix
 
     **Fitting the model**
 
@@ -265,13 +271,16 @@ class LinearMixedModel(object):
     x: :class:`ndarray`, optional
         Design matrix with shape :math:`(n, p)`.
         Include for low-rank inference.
+    p_path: :obj:`str`, optional
+        Path at which :math:`P` has been stored as a block matrix.
     """
     @typecheck_method(py=np.ndarray,
                       px=np.ndarray,
                       s=np.ndarray,
                       y=nullable(np.ndarray),
-                      x=nullable(np.ndarray))
-    def __init__(self, py, px, s, y=None, x=None):
+                      x=nullable(np.ndarray),
+                      p_path=nullable(str))
+    def __init__(self, py, px, s, y=None, x=None, p_path=None):
         if y is None and x is None:
             low_rank = False
         elif y is not None and x is not None:
@@ -295,13 +304,24 @@ class LinearMixedModel(object):
             _check_dims(x, 'x', 2)
             n = y.size
             if n <= r:
-                raise ValueError("the size of y must be larger than the size of s")
+                raise ValueError("size of y must be larger than the size of s")
             if x.shape[0] != n:
                 raise ValueError("x must have the same number of rows as the size of y")
             if x.shape[1] != f:
                 raise ValueError("px and x must have the same number columns")
         else:
             n = r
+
+        if p_path is not None:
+            n_rows, n_cols = BlockMatrix.read(p_path).shape
+            if n_cols != n:
+                raise ValueError("LinearMixedModel: Number of columns in the block "
+                                 f"matrix at 'p_path' ({n_cols}) must equal "
+                                 f"the size of 'y' ({n})")
+            if n_rows != r:
+                raise ValueError("LinearMixedModel: Number of rows in the block "
+                                 f"matrix at 'p_path' ({n_rows}) must equal "
+                                 f"the size of 'py' ({r})")
 
         self.low_rank = low_rank
         self.n = n
@@ -312,6 +332,7 @@ class LinearMixedModel(object):
         self.s = s
         self.y = y
         self.x = x
+        self.p_path = p_path
 
         self._check_dof()
 
@@ -721,8 +742,8 @@ class LinearMixedModel(object):
 
         return Table(self._scala_model.fit(jpa_t, maybe_ja_t))
 
-    @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray))
-    def fit_alternatives_numpy(self, pa, a=None):
+    @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray), return_pandas=bool)
+    def fit_alternatives_numpy(self, pa, a=None, return_pandas=False):
         r"""Fit and test alternative model for each augmented design matrix.
 
         Notes
@@ -740,10 +761,12 @@ class LinearMixedModel(object):
             Matrix :math:`A` of alternatives with shape :math:`(n, m)`.
             Each column is an augmentation :math:`x_\star` of :math:`X`.
             Required for low-rank inference.
+        return_pandas: :obj:`bool`
+            If true, return pandas dataframe. If false, return Hail table.
 
         Returns
         -------
-        :class:`.Table`
+        :class:`.Table` or :class:`.pandas.DataFrame`
             Table of results for each augmented design matrix.
         """
         self._check_dof(self.f + 1)
@@ -762,7 +785,10 @@ class LinearMixedModel(object):
 
         df = pd.DataFrame.from_records(data, columns=['idx', 'beta', 'sigma_sq', 'chi_sq', 'p_value'])
 
-        return Table.from_pandas(df, key='idx')
+        if return_pandas:
+            return df
+        else:
+            return Table.from_pandas(df, key='idx')
 
     def _fit_alternative_numpy(self, pa, a):
         from scipy.linalg import solve, LinAlgError
@@ -828,8 +854,10 @@ class LinearMixedModel(object):
     @classmethod
     @typecheck_method(y=np.ndarray,
                       x=np.ndarray,
-                      k=np.ndarray)
-    def from_kinship(cls, y, x, k):
+                      k=np.ndarray,
+                      p_path=nullable(str),
+                      overwrite=bool)
+    def from_kinship(cls, y, x, k, p_path=None, overwrite=False):
         r"""Initializes a model from :math:`y`, :math:`X`, and :math:`K`.
 
         Examples
@@ -864,10 +892,17 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        This method eigendecomposes :math:`K = P^T S P` and returns
-        ``LinearMixedModel(p @ y, p @ x, s)`` and ``p``.
+        This method eigendecomposes :math:`K = P^T S P` on the master and
+        returns ``LinearMixedModel(p @ y, p @ x, s)`` and ``p``.
 
-        Only the lower triangle of `k` is used; symmetry is not checked.
+        The performance of eigendecomposition depends critically on the
+        number of master cores and the NumPy / SciPy configuration, viewable
+        with ``np.show_config()``. For Intel machines, we recommend installing
+        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
+        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+
+        `k` must be positive semi-definite; symmetry is not checked as only the
+        lower triangle is used.
 
         Parameters
         ----------
@@ -877,6 +912,10 @@ class LinearMixedModel(object):
             :math:`n \times p` matrix of fixed effects.
         k: :class:`ndarray`
             :math:`n \times n` positive semi-definite kernel :math:`K`.
+        p_path: :obj:`str`, optional
+            Path at which to write :math:`P` as a block matrix.
+        overwrite: :obj:`bool`
+            If ``True``, overwrite an existing file at `p_path`.
 
         Returns
         -------
@@ -908,16 +947,25 @@ class LinearMixedModel(object):
         s = np.flip(s, axis=0)
         u = np.fliplr(u)
         p = u.T
+        if p_path:
+            BlockMatrix.from_numpy(p).write(p_path, overwrite=overwrite)
 
-        model = LinearMixedModel(p @ y, p @ x, s)
+        model = LinearMixedModel(p @ y, p @ x, s, p_path=p_path)
         return model, p
 
     @classmethod
     @typecheck_method(y=np.ndarray,
                       x=np.ndarray,
                       z=oneof(np.ndarray, hl.linalg.BlockMatrix),
-                      max_condition_number=float)
-    def from_mixed_effects(cls, y, x, z, max_condition_number=1e-10):
+                      p_path=nullable(str),
+                      overwrite=bool,
+                      max_condition_number=float,
+                      complexity_bound=int)
+    def from_random_effects(cls, y, x, z,
+                            p_path=None,
+                            overwrite=False,
+                            max_condition_number=1e-10,
+                            complexity_bound=8192):
         r"""Initializes a model from :math:`y`, :math:`X`, and :math:`Z`.
 
         Examples
@@ -932,7 +980,7 @@ class LinearMixedModel(object):
         ...               [0.0, 1.0, 2.0],
         ...               [1.0, 2.0, 4.0],
         ...               [2.0, 4.0, 8.0]])
-        >>> model, p = LinearMixedModel.from_mixed_effects(y, x, z)
+        >>> model, p = LinearMixedModel.from_random_effects(y, x, z)
         >>> model.fit()
         >>> model.h_sq
         0.38205307244271675
@@ -941,20 +989,28 @@ class LinearMixedModel(object):
         -----
         If :math:`n \leq m`, the returned model is full rank.
 
-        If :math:`n < m`, the returned model is low rank. In this case only,
+        If :math:`n > m`, the returned model is low rank. In this case only,
         eigenvalues less than or equal to `max_condition_number` times the top
         eigenvalue are dropped from :math:`S`, with the corresponding
         eigenvectors dropped from :math:`P`. This guards against precision
         loss on left eigenvectors computed via the right gramian :math:`Z^T Z`
         in :meth:`BlockMatrix.svd`.
 
-        In either case, one can truncate to a rank :math:`r` model as follows:
+        In either case, one can truncate to a rank :math:`r` model as follows.
+        If `p` is an ndarray:
 
+        >>> p_r = p[:r, :]     # doctest: +SKIP
         >>> s_r = model.s[:r]  # doctest: +SKIP
-        >>> p_r = p[:r, :]  # doctest: +SKIP
         >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)  # doctest: +SKIP
 
-        No standardization is applied to `z`.
+        If `p` is a block matrix:
+
+        >>> p[:r, :].write(p_r_path)          # doctest: +SKIP
+        >>> p_r = BlockMatrix.read(p_r_path)  # doctest: +SKIP
+        >>> s_r = model.s[:r]                 # doctest: +SKIP
+        >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x, p_r_path)  # doctest: +SKIP
+
+        This method applies no standardization to `z`.
 
         Warning
         -------
@@ -962,7 +1018,11 @@ class LinearMixedModel(object):
         directly reading from disk (and possibly a transpose). This is most
         critical if :math:`n > m`, because in this case multiplication by `z`
         will result in all preceding transformations being repeated
-        ``n / block_size`` times, as explained in :class:`BlockMatrix`.
+        ``n / block_size`` times, as explained in :class:`.BlockMatrix`.
+
+        At least one dimension must be less than or equal to 46300.
+        See the warning in :meth:`.BlockMatrix.svd` for performance
+        considerations.
 
         Parameters
         ----------
@@ -972,16 +1032,32 @@ class LinearMixedModel(object):
             :math:`n \times p` matrix of fixed effects :math:`X`.
         z: :class:`ndarray` or :class:`BlockMatrix`
             :math:`n \times m` matrix of random effects :math:`Z`.
+        p_path: :obj:`str`, optional
+            Path at which to write :math:`P` as a block matrix.
+            Required if `z` is a block matrix.
+        overwrite: :obj:`bool`
+            If ``True``, overwrite an existing file at `p_path`.
         max_condition_number: :obj:`float`
             Maximum condition number. Must be greater than 1e-16.
+        complexity_bound: :obj:`int`
+            Complexity bound for :meth:`.BlockMatrix.svd` when `z` is a block
+            matrix.
 
         Returns
         -------
         model: :class:`LinearMixedModel`
             Model constructed from :math:`y`, :math:`X`, and :math:`Z`.
-        p: :class:`ndarray`
+        p: :class:`ndarray` or :class:`.BlockMatrix`
             Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
+            The type is block matrix if `z` is a block matrix and
+            :meth:`.BlockMatrix.svd` of `z` returns :math:`U` as a block matrix.
         """
+        z_is_bm = isinstance(z, BlockMatrix)
+
+        if z_is_bm and p_path is None:
+            raise ValueError("from_random_effects: 'p_path' required when 'z'"
+                             "is a block matrix.")
+
         if max_condition_number < 1e-16:
             raise ValueError("from_random_effects: 'max_condition_number' must "
                              f"be at least 1e-16, found {max_condition_number}")
@@ -993,34 +1069,84 @@ class LinearMixedModel(object):
         n, m = z.shape
 
         if y.shape[0] != n:
-            raise ValueError("from_mixed_effects: 'y' and 'z' must have the "
+            raise ValueError("from_random_effects: 'y' and 'z' must have the "
                              "same number of rows")
         if x.shape[0] != n:
-            raise ValueError("from_mixed_effects: 'x' and 'z' must have the "
+            raise ValueError("from_random_effects: 'x' and 'z' must have the "
                              "same number of rows")
 
-        if isinstance(z, np.ndarray):
+        if z_is_bm:
+            u, s0, _ = z.svd(complexity_bound=complexity_bound)
+            p = u.T
+            p_is_bm = isinstance(p, BlockMatrix)
+        else:
             u, s0, _ = hl.linalg._svd(z, full_matrices=False)
             p = u.T
-            py, px = p @ y, p @ x
-        else:
-            u, s0, _ = z.svd()
-            p = u.T
-            py, px = (p @ y).to_numpy(), (p @ x).to_numpy()
+            p_is_bm = False
 
         s = s0 ** 2
 
-        full_rank = n <= m
-        if full_rank:
-            model = LinearMixedModel(py, px, s)
-        else:
+        low_rank = n > m
+
+        if low_rank:
             assert np.all(np.isfinite(s))
             r = np.searchsorted(-s, -max_condition_number * s[0])
             if r < m:
-                info(f'from_mixed_effects: model rank reduced from {m} to {r} '
+                info(f'from_random_effects: model rank reduced from {m} to {r} '
                      f'due to ill-condition.'
                      f'\n    Largest dropped eigenvalue was {s[r]}.')
             s = s[:r]
             p = p[:r, :]
-            model = LinearMixedModel(py, px, s, y, x)
+
+        if p_path is not None:
+            if p_is_bm:
+                p.write(p_path, overwrite=overwrite)
+                p = BlockMatrix.read(p_path)
+            else:
+                BlockMatrix.from_numpy(p).write(p_path, overwrite=overwrite)
+        if p_is_bm:
+            py, px = (p @ y).to_numpy(), (p @ x).to_numpy()
+        else:
+            py, px = p @ y, p @ x
+
+        if low_rank:
+            model = LinearMixedModel(py, px, s, y, x, p_path)
+        else:
+            model = LinearMixedModel(py, px, s, p_path=p_path)
+
         return model, p
+
+    # checks agreement of model initialization
+    def _same(self, other, tol=1e-6, up_to_sign=True):
+        def same_rows_up_to_sign(a, b, atol):
+            assert a.shape[0] == b.shape[0]
+            return all(np.allclose(a[i], b[i], atol=atol) or
+                       np.allclose(-a[i], b[i], atol=atol)
+                       for i in range(a.shape[0]))
+
+        close = same_rows_up_to_sign if up_to_sign else np.allclose
+
+        if self.low_rank != other.low_rank:
+            print(f'different low_rank: {self.low_rank}, {other.low_rank}')
+            return False
+
+        same = True
+        if not close(self.py, other.py, atol=tol):
+            print(f'different py:\n{self.py}\n{other.py}')
+            same = False
+        if not close(self.px, other.px, atol=tol):
+            print(f'different px:\n{self.px}\n{other.px}')
+            same = False
+        if not np.allclose(self.s, other.s, atol=tol):
+            print(f'different s:\n{self.s}\n{other.s}')
+            same = False
+        if self.low_rank and not close(self.y, other.y, atol=tol):
+            print(f'different y:\n{self.y}\n{other.y}')
+            same = False
+        if self.low_rank and not close(self.x, other.x, atol=tol):
+            print(f'different x\n{self.x}\n{other.x}')
+            same = False
+        if self.p_path != other.p_path:
+            print(f'different p_path:\n{self.p_path}\n{other.p_path}')
+            same = False
+        return same

@@ -6,11 +6,14 @@ from .impex import export_elasticsearch, export_gen, export_plink, export_vcf, \
 from .statgen import linear_regression, logistic_regression, skat, identity_by_descent, impute_sex, \
     genetic_relatedness_matrix, realized_relationship_matrix, pca, \
     hwe_normalized_pca, pc_relate, split_multi, filter_alleles, filter_alleles_hts, \
-    split_multi_hts, balding_nichols_model, ld_prune, row_correlation, ld_matrix
+    split_multi_hts, balding_nichols_model, ld_prune, row_correlation, ld_matrix, \
+    linear_mixed_model, linear_mixed_regression
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
 from .misc import rename_duplicates, maximal_independent_set, filter_intervals, window_by_locus
 
 __all__ = ['trio_matrix',
+           'linear_mixed_regression',
+           'linear_mixed_model',
            'linear_regression',
            'logistic_regression',
            'skat',

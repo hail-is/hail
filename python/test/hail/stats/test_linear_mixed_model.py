@@ -22,186 +22,6 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    def _test_linear_mixed_model_low_rank(self):
-        seed = 0
-        n_populations = 8
-        fst = n_populations * [.9]
-        n_samples = 500
-        n_variants = 200
-        n_orig_markers = 100
-        n_culprits = 10
-        n_covariates = 3
-        sigma_sq = 1
-        tau_sq = 1
-
-        from numpy.random import RandomState
-        prng = RandomState(seed)
-
-        x = np.hstack((np.ones(shape=(n_samples, 1)),
-                       prng.normal(size=(n_samples, n_covariates - 1))))
-
-        mt = hl.balding_nichols_model(n_populations=n_populations,
-                                      n_samples=n_samples,
-                                      n_variants=n_variants,
-                                      fst=fst,
-                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
-                                      seed=seed)
-
-        pa_t_path = utils.new_temp_file(suffix='bm')
-        a_t_path = utils.new_temp_file(suffix='bm')
-
-        BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(), a_t_path)
-
-        a = BlockMatrix.read(a_t_path).T.to_numpy()
-        g = a[:, -n_orig_markers:]
-        g_std = self._filter_and_standardize_cols(g)
-
-        n_markers = g_std.shape[1]
-
-        k = (g_std @ g_std.T) * n_samples / n_markers
-
-        beta = np.arange(n_covariates)
-        beta_stars = np.array([1] * n_culprits)
-
-        y = prng.multivariate_normal(
-            np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
-            sigma_sq * k + tau_sq * np.eye(n_samples))
-
-        # low rank computation of S, P
-        l = g_std.T @ g_std
-        sl, v = np.linalg.eigh(l)
-        n_eigenvectors = int(np.sum(sl > 1e-10))
-        sl = sl[-n_eigenvectors:]
-        v = v[:, -n_eigenvectors:]
-        s = sl * (n_samples / n_markers)
-        p = (g_std @ (v / np.sqrt(sl))).T
-
-        # compare with full rank S, P
-        sk0, uk = np.linalg.eigh(k)
-        sk = sk0[-n_eigenvectors:]
-        pk = uk[:, -n_eigenvectors:].T
-        assert np.allclose(sk, s)
-        assert np.allclose(np.abs(pk), np.abs(p))
-
-        # build and fit model
-        py = p @ y
-        px = p @ x
-        pa = p @ a
-
-        model = LinearMixedModel(py, px, s, y, x)
-        assert model.n == n_samples
-        assert model.f == n_covariates
-        assert model.r == n_eigenvectors
-        assert model.low_rank
-
-        model.fit()
-
-        # check effect sizes tend to be near 1 for first n_marker alternative models
-        BlockMatrix.from_numpy(pa).T.write(pa_t_path, force_row_major=True)
-        df_lmm = model.fit_alternatives(pa_t_path, a_t_path).to_pandas()
-
-        assert 0.9 < np.mean(df_lmm['beta'][:n_culprits]) < 1.1
-
-        # compare NumPy and Hail LMM per alternative
-        df_numpy = model.fit_alternatives_numpy(pa, a).to_pandas()
-        assert np.min(df_numpy['chi_sq']) > 0
-
-        na_numpy = df_numpy.isna().any(axis=1)
-        na_lmm = df_lmm.isna().any(axis=1)
-
-        assert na_numpy.sum() <= 10
-        assert na_lmm.sum() <= 10
-        assert np.logical_xor(na_numpy, na_lmm).sum() <= 5
-
-        mask = ~(na_numpy | na_lmm)
-
-        lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
-
-        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
-        assert lmm_vs_numpy_p_value[-1] < 1e-8   # all p-values
-
-    def _test_linear_mixed_model_full_rank(self):
-        seed = 0
-        n_populations = 8
-        fst = n_populations * [.9]
-        n_samples = 200
-        n_variants = 500
-        n_orig_markers = 500
-        n_culprits = 20
-        n_covariates = 3
-        sigma_sq = 1
-        tau_sq = 1
-
-        from numpy.random import RandomState
-        prng = RandomState(seed)
-
-        x = np.hstack((np.ones(shape=(n_samples, 1)),
-                       prng.normal(size=(n_samples, n_covariates - 1))))
-
-        mt = hl.balding_nichols_model(n_populations=n_populations,
-                                      n_samples=n_samples,
-                                      n_variants=n_variants,
-                                      fst=fst,
-                                      af_dist=hl.rand_unif(0.1, 0.9, seed=seed),
-                                      seed=seed)
-
-        pa_t_path = utils.new_temp_file(suffix='bm')
-
-        a = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).T.to_numpy()
-        g = a[:, -n_orig_markers:]
-        g_std = self._filter_and_standardize_cols(g)
-
-        n_markers = g_std.shape[1]
-
-        k = (g_std @ g_std.T) * n_samples / n_markers
-
-        beta = np.arange(n_covariates)
-        beta_stars = np.array([1] * n_culprits)
-
-        y = prng.multivariate_normal(
-            np.hstack((a[:, 0:n_culprits], x)) @ np.hstack((beta_stars, beta)),
-            sigma_sq * k + tau_sq * np.eye(n_samples))
-
-        s, u = np.linalg.eigh(k)
-        p = u.T
-
-        # build and fit model
-        py = p @ y
-        px = p @ x
-        pa = p @ a
-
-        model = LinearMixedModel(py, px, s)
-        assert model.n == n_samples
-        assert model.f == n_covariates
-        assert model.r == n_samples
-        assert (not model.low_rank)
-
-        model.fit()
-
-        # check effect sizes tend to be near 1 for first n_marker alternative models
-        BlockMatrix.from_numpy(pa).T.write(pa_t_path, force_row_major=True)
-        df_lmm = model.fit_alternatives(pa_t_path).to_pandas()
-
-        assert 0.9 < np.mean(df_lmm['beta'][:n_culprits]) < 1.1
-
-        # compare NumPy and Hail LMM per alternative
-        df_numpy = model.fit_alternatives_numpy(pa, a).to_pandas()
-        assert np.min(df_numpy['chi_sq']) > 0
-
-        na_numpy = df_numpy.isna().any(axis=1)
-        na_lmm = df_lmm.isna().any(axis=1)
-
-        assert na_numpy.sum() <= 20
-        assert na_lmm.sum() <= 20
-        assert np.logical_xor(na_numpy, na_lmm).sum() <= 10
-
-        mask = ~(na_numpy | na_lmm)
-
-        lmm_vs_numpy_p_value = np.sort(np.abs(df_lmm['p_value'][mask] - df_numpy['p_value'][mask]))
-
-        assert lmm_vs_numpy_p_value[10] < 1e-12  # 10 least p-values differences
-        assert lmm_vs_numpy_p_value[-1] < 1e-8  # all p-values
-
     def test_linear_mixed_model_fastlmm(self):
         # FastLMM Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
         #   https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
@@ -271,7 +91,7 @@ class Tests(unittest.TestCase):
 
         model.fit(log_gamma=np.log(gamma_fastlmm))
 
-        res = model.fit_alternatives_numpy(pa).to_pandas()
+        res = model.fit_alternatives_numpy(pa, return_pandas=True)
 
         assert np.allclose(res['beta'], beta_fastlmm)
         assert np.allclose(res['p_value'], pval_hail)
@@ -285,8 +105,8 @@ class Tests(unittest.TestCase):
         assert np.allclose(res['p_value'], pval_hail)
 
         # low rank
-        l = g_std.T @ g_std
-        sl, v = np.linalg.eigh(l)
+        ld = g_std.T @ g_std
+        sl, v = np.linalg.eigh(ld)
         n_eigenvectors = int(np.sum(sl > 1e-10))
         assert n_eigenvectors < n
         sl = sl[-n_eigenvectors:]
@@ -302,7 +122,7 @@ class Tests(unittest.TestCase):
         model.fit(log_gamma=np.log(gamma_fastlmm))
 
         pa = p @ a
-        res = model.fit_alternatives_numpy(pa, a).to_pandas()
+        res = model.fit_alternatives_numpy(pa, a, return_pandas=True)
 
         assert np.allclose(res['beta'], beta_fastlmm)
         assert np.allclose(res['p_value'], pval_hail)
@@ -358,7 +178,7 @@ class Tests(unittest.TestCase):
 
     def test_linear_mixed_model_math(self):
         gamma = 2.0  # testing at fixed value of gamma
-        n, p, m = 4, 2, 3
+        n, f, m = 4, 2, 3
         y = np.array([0.0, 1.0, 8.0, 9.0])
         x = np.array([[1.0, 0.0],
                       [1.0, 2.0],
@@ -374,7 +194,7 @@ class Tests(unittest.TestCase):
 
         beta = np.linalg.solve(x.T @ v_inv @ x, x.T @ v_inv @ y)
         residual = y - x @ beta
-        sigma_sq = 1 / (n - p) * (residual @ v_inv @ residual)
+        sigma_sq = 1 / (n - f) * (residual @ v_inv @ residual)
         sv = sigma_sq * v
         neg_log_lkhd = 0.5 * (np.linalg.slogdet(sv)[1] + np.linalg.slogdet(x.T @ np.linalg.inv(sv) @ x)[1])  # plus C
 
@@ -385,8 +205,13 @@ class Tests(unittest.TestCase):
         residual1 = y - x1 @ beta1
         chi_sq = n * np.log((residual @ v_inv @ residual) / (residual1 @ v_inv @ residual1))
 
-        # test full-rank fit
+        # test from_kinship, full-rank fit
         model, p = LinearMixedModel.from_kinship(y, x, k)
+        s0, u0 = np.linalg.eigh(k)
+        s0 = np.flip(s0, axis=0)
+        p0 = np.fliplr(u0).T
+        self.assertTrue(model._same(LinearMixedModel(p0 @ y, p0 @ x, s0)))
+
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
         self.assertAlmostEqual(model.sigma_sq, sigma_sq)
@@ -404,8 +229,11 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(stats.beta, beta1[0])
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
 
-        # test low-rank fit
-        model, p = LinearMixedModel.from_mixed_effects(y, x, z)
+        # test from_random_effects, low-rank fit
+        model, p = LinearMixedModel.from_random_effects(y, x, z)
+        s0, p0 = s0[:m], p0[:m, :]
+        self.assertTrue(model._same(LinearMixedModel(p0 @ y, p0 @ x, s0, y, x)))
+
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
         self.assertAlmostEqual(model.sigma_sq, sigma_sq)
@@ -424,3 +252,109 @@ class Tests(unittest.TestCase):
         stats = model.fit_alternatives(pa_t_path, a_t_path).collect()[0]
         self.assertAlmostEqual(stats.beta, beta1[0])
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
+
+    def test_linear_mixed_model_function(self):
+        n, f, m = 4, 2, 3
+        y = np.array([0.0, 1.0, 8.0, 9.0])
+        x = np.array([[1.0, 0.0],
+                      [1.0, 2.0],
+                      [1.0, 1.0],
+                      [1.0, 4.0]])
+        z = np.array([[0.0, 0.0, 1.0],
+                      [0.0, 1.0, 2.0],
+                      [1.0, 2.0, 0.0],
+                      [2.0, 0.0, 1.0]])
+
+        p_path = utils.new_temp_file()
+
+        def make_call(gt):
+            if gt == 0.0:
+                return hl.Call([0, 0])
+            if gt == 1.0:
+                return hl.Call([0, 1])
+            if gt == 2.0:
+                return hl.Call([1, 1])
+
+        data = [{'v': j, 's': i, 'y': y[i], 'x1': x[i, 1], 'zt': make_call(z[i, j])}
+                for i in range(n) for j in range(m)]
+        ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, y: float64, x1: float64, zt: tcall}'))
+        mt = ht.to_matrix_table(row_key=['v'], col_key=['s'], col_fields=['x1', 'y'])
+        colsort = np.argsort(mt.key_cols_by().s.collect()).tolist()
+        mt = mt.choose_cols(colsort)
+
+        rrm = hl.realized_relationship_matrix(mt.zt).to_numpy()
+
+        # kinship path agrees with from_kinship
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], k=rrm, p_path=p_path, overwrite=True)
+        model0, p0 = LinearMixedModel.from_kinship(y, x, rrm, p_path, overwrite=True)
+        assert model0._same(model)
+        assert np.allclose(p0, p)
+
+        # random effects path with standardize=True agrees with low-rank rrm
+        s0, u0 = np.linalg.eigh(rrm)
+        s0 = np.flip(s0, axis=0)[:m]
+        p0 = np.fliplr(u0).T[:m, :]
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], z_t=mt.zt.n_alt_alleles(), p_path=p_path, overwrite=True)
+        model0 = LinearMixedModel(p0 @ y, p0 @ x, s0, y, x, p_path=p_path)
+        assert model0._same(model)
+
+        # random effects path with standardize=False agrees with from_random_effects
+        model0, p0 = LinearMixedModel.from_random_effects(y, x, z, p_path, overwrite=True)
+        model, p = hl.linear_mixed_model(mt.y, [1, mt.x1], z_t=mt.zt.n_alt_alleles(), p_path=p_path, overwrite=True, standardize=False)
+        assert model0._same(model)
+        assert np.allclose(p0, p.to_numpy())
+
+    def test_linear_mixed_regression_full_rank(self):
+        x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
+        y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
+
+        mt = hl.import_plink(bed=resource('fastlmmTest.bed'),
+                             bim=resource('fastlmmTest.bim'),
+                             fam=resource('fastlmmTest.fam'),
+                             reference_genome=None)
+        mt = mt.annotate_cols(x=x_table[mt.col_key].f2)
+        mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
+        p_path = utils.new_temp_file()
+
+        h2_fastlmm = 0.14276125
+        beta_fastlmm = [0.012202061, 0.037718282, -0.033572693, 0.29171541, -0.045644170]
+        pval_hail = [0.84543084, 0.57596760, 0.58788517, 1.4057279e-06, 0.46578204]
+
+        mt_chr1 = mt.filter_rows(mt.locus.contig == '1')
+        model, _ = hl.linear_mixed_model(y=mt_chr1.y, x=[1, mt_chr1.x], z_t=mt_chr1.GT.n_alt_alleles(), p_path=p_path)
+        model.fit()
+        self.assertAlmostEqual(model.h_sq, h2_fastlmm)
+
+        mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
+        mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()))
+        mt_chr3 = hl.linear_mixed_regression((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev, model)
+        assert np.allclose(mt_chr3.lmmreg.beta.collect(), beta_fastlmm)
+        assert np.allclose(mt_chr3.lmmreg.p_value.collect(), pval_hail)
+
+    def test_linear_mixed_regression_low_rank(self):
+        x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
+        y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
+
+        mt = hl.import_plink(bed=resource('fastlmmTest.bed'),
+                             bim=resource('fastlmmTest.bim'),
+                             fam=resource('fastlmmTest.fam'),
+                             reference_genome=None)
+        mt = mt.annotate_cols(x=x_table[mt.col_key].f2)
+        mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
+        p_path = utils.new_temp_file()
+
+        h2_hail = 0.10001626
+        beta_hail = [0.0073201542, 0.039969148, -0.036727875, 0.29852363, -0.049212500]
+        pval_hail = [0.90685162, 0.54839177, 0.55001054, 9.85247263e-07, 0.42796507]
+
+        mt_chr1 = mt.filter_rows((mt.locus.contig == '1') & (mt.locus.position < 200))
+        model, _ = hl.linear_mixed_model(y=mt_chr1.y, x=[1, mt_chr1.x], z_t=mt_chr1.GT.n_alt_alleles(), p_path=p_path)
+        model.fit()
+        self.assertTrue(model.low_rank)
+        self.assertAlmostEqual(model.h_sq, h2_hail)
+
+        mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
+        mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()))
+        mt_chr3 = hl.linear_mixed_regression((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev, model)
+        assert np.allclose(mt_chr3.lmmreg.beta.collect(), beta_hail)
+        assert np.allclose(mt_chr3.lmmreg.p_value.collect(), pval_hail)
