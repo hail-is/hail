@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.utils._
+import is.hail.expr.types.TCall
 import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
@@ -12,6 +12,8 @@ case object PCallOptional extends PCall(false)
 case object PCallRequired extends PCall(true)
 
 class PCall(override val required: Boolean) extends ComplexPType {
+  def virtualType: TCall = TCall(required)
+
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {

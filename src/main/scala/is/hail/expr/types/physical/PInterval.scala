@@ -4,12 +4,15 @@ import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s.Code
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.TInterval
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
 
 case class PInterval(pointType: PType, override val required: Boolean = false) extends ComplexPType {
+  def virtualType: TInterval = TInterval(pointType.virtualType, required)
+
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""

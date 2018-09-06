@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check._
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
@@ -24,6 +25,8 @@ object PLocus {
 }
 
 case class PLocus(rg: RGBase, override val required: Boolean = false) extends ComplexPType {
+  def virtualType: TLocus = TLocus(rg, required)
+
   def _toPretty = s"Locus($rg)"
 
   override def pyString(sb: StringBuilder): Unit = {

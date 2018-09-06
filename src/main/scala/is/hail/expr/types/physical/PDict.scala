@@ -3,12 +3,15 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.TDict
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
 final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
+  def virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
+
   val elementType: PType = +PStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)

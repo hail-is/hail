@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.BaseType
+import is.hail.expr.types.{BaseType, Type}
 import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
@@ -127,6 +127,8 @@ object PType {
 
 abstract class PType extends BaseType with Serializable {
   self =>
+
+  def virtualType: Type
 
   def children: Seq[PType] = FastSeq()
 
