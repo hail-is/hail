@@ -280,15 +280,15 @@ class UnsafeSuite extends SparkSuite {
     val rvb2 = new RegionValueBuilder(region2)
 
     val g = PType.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue, t.genValue), arbitrary[Boolean]))
+      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.virtualType.genValue, t.virtualType.genValue), arbitrary[Boolean]))
       .filter { case (t, (a1, a2), b) => a1 != null && a2 != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2), b) =>
 
       val tv = t.virtualType
 
-      t.typeCheck(a1)
-      t.typeCheck(a2)
+      tv.typeCheck(a1)
+      tv.typeCheck(a2)
 
       region.clear()
       rvb.start(tv.fundamentalType)
@@ -296,7 +296,7 @@ class UnsafeSuite extends SparkSuite {
       val offset = rvb.end()
 
       val ur1 = new UnsafeRow(tv, region, offset)
-      assert(t.valuesSimilar(a1, ur1))
+      assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
       rvb2.start(tv.fundamentalType)
@@ -304,9 +304,9 @@ class UnsafeSuite extends SparkSuite {
       val offset2 = rvb2.end()
 
       val ur2 = new UnsafeRow(tv, region2, offset2)
-      assert(t.valuesSimilar(a2, ur2))
+      assert(tv.valuesSimilar(a2, ur2))
 
-      val ord = t.ordering
+      val ord = tv.ordering
       val uord = t.unsafeOrdering(b)
 
       val c1 = ord.compare(a1, a2, b)

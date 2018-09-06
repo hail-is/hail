@@ -11,14 +11,6 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 object PBaseStruct {
-  /**
-    * Define an ordering on Row objects. Works with any row r such that the list
-    * of types of r is a prefix of types, or types is a prefix of the list of
-    * types of r.
-    */
-  def getOrdering(types: Array[PType]): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering))
-
   def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
     assert(missingIdx.length == types.length)
     var i = 0
@@ -81,28 +73,6 @@ abstract class PBaseStruct extends PType {
     sb.result()
   }
 
-  override def _typeCheck(a: Any): Boolean = a match {
-    case row: Row =>
-      row.length == types.length &&
-        isComparableAt(a)
-    case _ => false
-  }
-
-  def relaxedTypeCheck(a: Any): Boolean = a match {
-    case row: Row =>
-      row.length <= types.length &&
-        isComparableAt(a)
-    case _ => false
-  }
-
-  def isComparableAt(a: Annotation): Boolean = a match {
-    case row: Row =>
-      row.toSeq.zip(types).forall {
-        case (v, t) => t.typeCheck(v)
-      }
-    case _ => false
-  }
-
   def isIsomorphicTo(other: PBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
 
@@ -113,25 +83,6 @@ abstract class PBaseStruct extends PType {
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   def truncate(newSize: Int): PBaseStruct
-
-  override def genNonmissingValue: Gen[Annotation] = {
-    if (types.isEmpty) {
-      Gen.const(Annotation.empty)
-    } else
-      Gen.size.flatMap(fuel =>
-        if (types.length > fuel)
-          Gen.uniformSequence(types.map(t => if (t.required) t.genValue else Gen.const(null))).map(a => Annotation(a: _*))
-        else
-          Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*)))
-  }
-
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
-    a1 == a2 || (a1 != null && a2 != null
-      && types.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
-      .forall {
-        case ((t, x1), x2) =>
-          t.valuesSimilar(x1, x2, tolerance, absolute)
-      })
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 

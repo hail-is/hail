@@ -22,12 +22,6 @@ class PBoolean(override val required: Boolean) extends PType {
     sb.append("bool")
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
-
-  def parse(s: String): Annotation = s.toBoolean
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Boolean]
-
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
@@ -35,9 +29,6 @@ class PBoolean(override val required: Boolean) extends PType {
       java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
     }
   }
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

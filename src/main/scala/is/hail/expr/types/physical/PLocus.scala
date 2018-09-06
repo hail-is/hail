@@ -34,14 +34,8 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
     sb.append(prettyIdentifier(rg.name))
     sb.append('>')
   }
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
-
-  override def genNonmissingValue: Gen[Annotation] = Locus.gen(rg.asInstanceOf[ReferenceGenome])
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(rg.locusOrdering)
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
@@ -95,8 +89,6 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
   }
 
   val representation: PStruct = PLocus.representation(required)
-
-  def locusOrdering: Ordering[Locus] = rg.locusOrdering
 
   override def unify(concrete: PType): Boolean = concrete match {
     case PLocus(crg, _) => rg.unify(crg)

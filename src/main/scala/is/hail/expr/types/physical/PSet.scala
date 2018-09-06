@@ -8,7 +8,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
-final case class PSet(elementType: PType, override val required: Boolean = false) extends PIterable {
+final case class PSet(elementType: PType, override val required: Boolean = false) extends PContainer {
   def virtualType: TSet = TSet(elementType.virtualType, required)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
@@ -37,24 +37,16 @@ final case class PSet(elementType: PType, override val required: Boolean = false
 
   override def subst() = PSet(elementType.subst())
 
-  def _typeCheck(a: Any): Boolean =
-    a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.setOrdering(elementType.ordering)
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }
-
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }
