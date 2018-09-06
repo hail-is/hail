@@ -31,31 +31,6 @@ class TInt64(override val required: Boolean) extends TIntegral {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]])
 
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrdering {
-      type T = Long
-
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
-        Code.invokeStatic[java.lang.Long, Long, Long, Int]("compare", x, y)
-
-      override def ltNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
-        x < y
-
-      override def lteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
-        x <= y
-
-      override def gtNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
-        x > y
-
-      override def gteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
-        x >= y
-
-      override def equivNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Boolean] =
-        x.ceq(y)
-    }
-  }
-
   override def byteSize: Long = 8
 }
 

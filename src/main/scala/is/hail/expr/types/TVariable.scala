@@ -37,6 +37,4 @@ final case class TVariable(name: String, cond: (Type) => Boolean = { _ => true }
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 
   val ordering: ExtendedOrdering = null
-
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = null
 }

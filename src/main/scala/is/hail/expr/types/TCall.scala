@@ -32,11 +32,6 @@ class TCall(override val required: Boolean) extends ComplexType {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
-
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
-    assert(other isOfType this)
-    TInt32().codeOrdering(mb)
-  }
 }
 
 object TCall {
