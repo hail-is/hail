@@ -470,6 +470,13 @@ class PruneSuite extends SparkSuite {
       Array(TArray(justA), null, null))
   }
 
+  @Test def testArrayScanMemo() {
+    checkMemo(ArrayScan(arr, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
+      TInt32(),
+      Array(TArray(justA), null, null))
+  }
+
+
   @Test def testArrayForMemo() {
     checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,

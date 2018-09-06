@@ -187,17 +187,29 @@ class CollectionExpression(Expression):
         assert isinstance(self.dtype, tarray), self.dtype
         return array_flatmap
 
-    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any), unify_ret=nullable(func_spec(1, hail_type)))
-    def fold(self, zero, f, unify_ret=None):
-        indices, aggregations = unify_all(self, zero)
+    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any))
+    def fold(self, zero, f):
+        collection = self
+        if isinstance(collection.dtype, tset):
+            collection = hl.array(collection)
+        indices, aggregations = unify_all(collection, zero)
         accum_name = Env.get_uid()
         elt_name = Env.get_uid()
 
         accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
-        elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
+        elt_ref = construct_variable(elt_name, collection.dtype.element_type, collection._indices, collection._aggregations)
         body = f(accum_ref, elt_ref)
 
-        ir = ArrayFold(self._ir, zero._ir, accum_name, elt_name, body._ir)
+        if not isinstance(body, Expression) or body.dtype != zero.dtype:
+            raise ExpressionException("'CollectionExpression.fold' must take function returning "
+                                      "same expression type as zero value: \n"
+                                      "    zero.dtype: {}\n"
+                                      "    f.dtype: {}".format(
+                zero.dtype,
+                body.dtype if isinstance(body, Expression) else "NOT AN EXPRESSION"
+            ))
+
+        ir = ArrayFold(collection._ir, zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, body.dtype, indices, aggregations)
@@ -471,6 +483,30 @@ class ArrayExpression(CollectionExpression):
                             "    caller type: '{}'\n"
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
+
+    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any))
+    def scan(self, zero, f):
+        indices, aggregations = unify_all(self, zero)
+        accum_name = Env.get_uid()
+        elt_name = Env.get_uid()
+
+        accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
+        elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
+        body = f(accum_ref, elt_ref)
+
+        if not isinstance(body, Expression) or body.dtype != zero.dtype:
+            raise ExpressionException("'ArrayExpression.scan' must take function returning "
+                                      "same expression type as zero value: \n"
+                                      "    zero.dtype: {}\n"
+                                      "    f.dtype: {}".format(
+                zero.dtype,
+                body.dtype if isinstance(body, Expression) else "NOT AN EXPRESSION"
+            ))
+
+        ir = ArrayScan(self._ir, zero._ir, accum_name, elt_name, body._ir)
+
+        indices, aggregations = unify_all(self, zero, body)
+        return construct_expr(ir, tarray(body.dtype), indices, aggregations)
 
 
 class ArrayNumericExpression(ArrayExpression):

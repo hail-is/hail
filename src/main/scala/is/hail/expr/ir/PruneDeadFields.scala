@@ -670,6 +670,16 @@ object PruneDeadFields {
           bodyEnv.delete(accumName).delete(valueName),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
+      case ArrayScan(a, zero, accumName, valueName, body) =>
+        val aType = a.typ.asInstanceOf[TArray]
+        val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
+        val bodyEnv = memoizeValueIR(body, body.typ, memo)
+        val valueType = bodyEnv.lookupOption(valueName).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
+          zeroEnv,
+          bodyEnv.delete(accumName).delete(valueName),
+          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+        )
       case ArrayFor(a, valueName, body) =>
         assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TArray]
@@ -927,6 +937,16 @@ object PruneDeadFields {
         val a2 = rebuild(a, in, memo)
         val z2 = rebuild(zero, in, memo)
         ArrayFold(
+          a2,
+          z2,
+          accumName,
+          valueName,
+          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+        )
+      case ArrayScan(a, zero, accumName, valueName, body) =>
+        val a2 = rebuild(a, in, memo)
+        val z2 = rebuild(zero, in, memo)
+        ArrayScan(
           a2,
           z2,
           accumName,

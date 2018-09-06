@@ -30,6 +30,8 @@ Collection functions
     sorted
     find
     group_by
+    fold
+    array_scan
 
 .. autofunction:: len
 .. autofunction:: map
@@ -43,3 +45,5 @@ Collection functions
 .. autofunction:: sorted
 .. autofunction:: find
 .. autofunction:: group_by
+.. autofunction:: fold
+.. autofunction:: array_scan

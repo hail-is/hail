@@ -495,7 +495,7 @@ private class Emit(
             ))))
 
 
-      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap =>
+      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan =>
         val elt = coerce[TArray](ir.typ).elementType
         val srvb = new StagedRegionValueBuilder(mb, ir.typ)
 
@@ -1086,6 +1086,47 @@ private class Emit(
             continuation(codeB.m, codeB.v))
         }
         emitArrayIterator(a).wrapContinuation(mapCont)
+
+      case x@ArrayScan(a, zero, accumName, eltName, body) =>
+        val elt = coerce[TArray](a.typ).elementType
+        val accumTypeInfo = coerce[Any](typeToTypeInfo(zero.typ))
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
+        val xmaccum = mb.newField[Boolean]()
+        val xvaccum = mb.newField(accumName)(accumTypeInfo)
+        val xmv = mb.newField[Boolean]()
+        val xvv = mb.newField(eltName)(elementTypeInfoA)
+        val zeroStored = mb.newField[Boolean]()
+
+        val bodyenv = env
+          .bind(accumName -> (accumTypeInfo, xmaccum.load(), xvaccum.load()))
+          .bind(eltName -> (elementTypeInfoA, xmv.load(), xvv.load()))
+        val codeB = emit(body, bodyenv)
+        val z = emit(zero)
+        val aIt = emitArrayIterator(a)
+
+        val scanCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
+          Code(
+            zeroStored.mux(
+              Code._empty,
+              Code(cont(xmaccum, xvaccum),
+                zeroStored := true)
+            ),
+            xmv := m,
+            xvv := xmv.mux(defaultValue(elt), v),
+            codeB.setup,
+            xmaccum := codeB.m,
+            xvaccum := xmaccum.mux(defaultValue(zero.typ), codeB.v),
+            cont(xmaccum, xvaccum)
+          )
+        }
+
+        val it = emitArrayIterator(a).wrapContinuation(scanCont)
+        it.copy(calcLength = Code(
+          zeroStored := false,
+          z.setup,
+          xmaccum := z.m,
+          xvaccum := xmaccum.mux(defaultValue(zero.typ), z.v),
+          it.calcLength), length = it.length.map(_ + 1))
 
       case MakeArray(args, _) =>
         val f = { cont: F =>

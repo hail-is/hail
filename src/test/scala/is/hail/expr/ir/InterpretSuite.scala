@@ -247,6 +247,10 @@ class InterpretSuite {
     assertEvalSame(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
   }
 
+  @Test def testArrayScan() {
+    assertEvalSame(ArrayScan(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
+  }
+
   @Test def testMakeStruct() {
     assertEvalSame(struct)
   }

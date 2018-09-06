@@ -329,6 +329,17 @@ object Interpret {
           }
           zeroValue
         }
+      case ArrayScan(a, zero, accumName, valueName, body) =>
+        val aValue = interpret(a, env, args, agg)
+        if (aValue == null)
+          null
+        else {
+          val zeroValue = interpret(zero, env, args, agg)
+          aValue.asInstanceOf[IndexedSeq[Any]].scanLeft(zeroValue) { (accum, elt) =>
+            interpret(body, env.bind(accumName -> accum, valueName -> elt), args, agg)
+          }
+        }
+
       case ArrayFor(a, valueName, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue != null) {

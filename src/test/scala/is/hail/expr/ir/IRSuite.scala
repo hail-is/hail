@@ -325,6 +325,16 @@ class IRSuite extends SparkSuite {
       FastIndexedSeq(7, null, 2))
   }
 
+  @Test def testArrayScan() {
+    def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
+      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_elt", zero.typ), Ref("_accum", coerce[TArray](array.typ).elementType)))
+
+    assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
+    assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
+    assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
+    assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
+  }
+
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
   }
@@ -492,6 +502,7 @@ class IRSuite extends SparkSuite {
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", v),
       ArrayFold(a, I32(0), "x", "v", v),
+      ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
       ApplyAggOp(I32(0), FastIndexedSeq.empty, None, collectSig),
       ApplyAggOp(F64(-2.11), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),

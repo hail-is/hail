@@ -46,6 +46,9 @@ object Infer {
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
+      case ArrayScan(a, zero, accumName, valueName, body) =>
+        assert(body.typ == zero.typ)
+        TArray(zero.typ)
       case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>

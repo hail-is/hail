@@ -60,6 +60,8 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayScan(a, zero, accumName, valueName, body) =>
+      Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
     case MakeStruct(fields) =>

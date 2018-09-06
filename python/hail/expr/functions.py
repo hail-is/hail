@@ -2678,6 +2678,64 @@ def group_by(f: Callable, collection) -> DictExpression:
     return collection.group_by(f)
 
 
+@typecheck(f=func_spec(2, expr_any),
+           collection=expr_oneof(expr_set(), expr_array()),
+           zero=expr_any)
+def fold(f: Callable, collection, zero) -> Expression:
+    """Reduces a collection with the given function `f`, provided the initial value `zero`.
+
+    Examples
+    --------
+
+    >>> a = [0, 1, 2]
+
+    >>> hl.fold(lambda i, j: i + j, a, 0).value
+    3
+
+    Parameters
+    ----------
+    f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+        Function which takes the cumulative value and the next element, and
+        returns a new value.
+    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+    zero : :class:`.Expression`
+
+    Returns
+    -------
+    :class:`.ArrayExpression` or :class:`.SetExpression`.
+    """
+    return collection.fold(zero, lambda x, y: f(x, y))
+
+
+@typecheck(f=func_spec(2, expr_any),
+           a=expr_array(),
+           zero=expr_any)
+def array_scan(f: Callable, a, zero) -> ArrayExpression:
+    """Map each element of `a` to cumulative value of function `f`, with initial value `zero`.
+
+    Examples
+    --------
+
+    >>> a = [0, 1, 2]
+
+    >>> hl.array_scan(lambda i, j: i + j, a, 0).value
+    [0, 0, 1, 3]
+
+    Parameters
+    ----------
+    f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+        Function which takes the cumulative value and the next element, and
+        returns a new value.
+    `a` : :class:`.ArrayExpression`
+    zero : :class:`.Expression`
+
+    Returns
+    -------
+    :class:`.ArrayExpression`.
+    """
+    return a.scan(zero, lambda x, y: f(x, y))
+
+
 @typecheck(arrays=expr_array(), fill_missing=bool)
 def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     """Zip together arrays into a single array.
@@ -3112,6 +3170,41 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
     :class:`.NumericExpression`
     """
     return collection._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
+
+
+@typecheck(a=expr_array(expr_numeric),
+            filter_missing=bool)
+def cumulative_sum(a, filter_missing: bool = True) -> ArrayNumericExpression:
+    """Returns an array of the cumulative sum of values in the array.
+
+    Examples
+    --------
+
+    >>> a = [1, 3, 5, 6, 7, 9]
+
+    >>> hl.cumulative_sum(a).value
+    [1, 4, 9, 15, 22, 31]
+
+    Note
+    ----
+    Missing elements are ignored if `filter_missing` is ``True``. If `filter_missing`
+    is ``False``, then any missing element causes the result to be missing.
+
+    Parameters
+    ----------
+    a : :class:`.ArrayNumericExpression`
+        Array expression with numeric element type.
+    filter_missing : :obj:`bool`
+        Remove missing elements from the collection before computing product.
+
+    Returns
+    -------
+    :class:`.ArrayNumericExpression`
+    """
+    if filter_missing:
+        a = a.filter(hl.is_defined)
+    return a.scan(hl.literal(0, a.dtype.element_type),
+                           lambda accum, elt: accum + elt)[1:]
 
 
 @typecheck(kwargs=expr_any)

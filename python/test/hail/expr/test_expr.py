@@ -2019,3 +2019,15 @@ class Tests(unittest.TestCase):
                             [4, 5, 6]).fold(True,
                                             lambda accum, i: accum & (i == t.idx))
         t.annotate(foo=hl.cond(fold_expr, 1, 3))._force_count()
+
+    def test_array_fold_and_scan(self):
+        self.assertEqual(hl.fold(lambda x, y: x + y, [1, 2, 3], 0).dtype, tint32)
+        self.assertEqual(hl.fold(lambda x, y: x + y, [1, 2, 3], 0).value, 6)
+        self.assertEqual(hl.array_scan(lambda x, y: x + y, [1, 2, 3], 0).dtype, tarray(tint32))
+        self.assertEqual(hl.array_scan(lambda x, y: x + y, [1, 2, 3], 0).value, [0, 1, 3, 6])
+
+    def test_cumulative_sum(self):
+        self.assertEqual(hl.cumulative_sum([1, 2, 3, 4]).dtype, tarray(tint32))
+        self.assertEqual(hl.cumulative_sum([1, 2, 3, 4]).value, [1, 3, 6, 10])
+        self.assertEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]).dtype, tarray(tfloat64))
+        self.assertEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]).value, [1.0, 3.0, 6.0, 10.0])
