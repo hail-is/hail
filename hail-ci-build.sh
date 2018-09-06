@@ -6,6 +6,8 @@ gcloud auth activate-service-account \
      hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
      --key-file=/secrets/hail-ci-0-1.key
 
+gcloud config set project broad-ctsa
+
 pip install ./
 
 CLUSTER_NAME_0_2=cloudtools-ci-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)

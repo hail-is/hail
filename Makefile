@@ -18,4 +18,4 @@ push-hail-ci-build-image: hail-ci-build-image
 deploy: push-hail-ci-build-image
 	rm -f dist/*
 	python setup.py bdist_wheel
-	twine upload dist/* -u ${PYPI_USERNAME} -p ${PYPI_PASSWORD}
+	twine upload dist/*

@@ -1,6 +1,7 @@
 FROM alpine:3.8
 
-RUN apk --no-cache add python2 py2-pip bash git openssh curl
+RUN apk --no-cache add python2 py2-pip bash git openssh curl && \
+    pip --no-cache-dir install --upgrade twine
 
 # this seems easier than getting the keys right for apt
 #
