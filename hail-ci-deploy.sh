@@ -1,5 +1,8 @@
 set -ex
 
+gcloud auth activate-service-account \
+  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+
 SPARK_VERSION=2.0.2
 BRANCH_SOURCE_NAME=stable
 BRANCH_TARGET_NAME=0.1
