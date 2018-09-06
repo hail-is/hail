@@ -51,7 +51,7 @@ final case class PSet(elementType: PType, override val required: Boolean = false
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
+    CodeOrdering.setOrdering(virtualType, other.asInstanceOf[PSet].virtualType, mb)
   }
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
