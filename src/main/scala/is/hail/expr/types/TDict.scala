@@ -80,6 +80,6 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.mapOrdering(this, other.asInstanceOf[TDict], mb)
+    CodeOrdering.mapOrdering(physicalType, other.asInstanceOf[TDict].physicalType, mb)
   }
 }

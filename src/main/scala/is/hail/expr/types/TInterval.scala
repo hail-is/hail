@@ -42,7 +42,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.intervalOrdering(this, other.asInstanceOf[TInterval], mb)
+    CodeOrdering.intervalOrdering(physicalType, other.asInstanceOf[TInterval].physicalType, mb)
   }
 
 

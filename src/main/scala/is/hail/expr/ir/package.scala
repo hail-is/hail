@@ -4,6 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.utils._
 
 import scala.language.implicitConversions
@@ -17,6 +18,8 @@ package object ir {
     uid
   }
 
+  def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t.virtualType)
+
   def typeToTypeInfo(t: Type): TypeInfo[_] = t.fundamentalType match {
     case _: TInt32 => typeInfo[Int]
     case _: TInt64 => typeInfo[Long]
@@ -29,6 +32,8 @@ package object ir {
     case TVoid => typeInfo[Unit]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
+
+  def defaultValue(t: PType): Code[_] = defaultValue(t.virtualType)
 
   def defaultValue(t: Type): Code[_] = typeToTypeInfo(t) match {
     case UnitInfo => Code._empty[Unit]
@@ -58,6 +63,8 @@ package object ir {
   private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 
   private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
+
+  private[ir] def coerce[T <: PType](x: PType): T = x.asInstanceOf[T]
 
   def invoke(name: String, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
     case Some(f) => f(args)

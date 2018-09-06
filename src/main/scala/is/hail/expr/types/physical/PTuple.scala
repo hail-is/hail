@@ -18,7 +18,7 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(virtualType, other.asInstanceOf[PTuple].virtualType, mb)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb)
   }
 
   val size: Int = types.length

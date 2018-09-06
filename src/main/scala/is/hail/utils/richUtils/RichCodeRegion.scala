@@ -4,6 +4,7 @@ import is.hail.expr._
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
@@ -77,6 +78,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def loadBytes(off: Code[Long], n: Code[Int]): Code[Array[Byte]] = {
     region.invoke[Long, Int, Array[Byte]]("loadBytes", off, n)
   }
+
+  def loadIRIntermediate(typ: PType): Code[Long] => Code[_] = loadIRIntermediate(typ.virtualType)
 
   def loadIRIntermediate(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: TBoolean => loadBoolean

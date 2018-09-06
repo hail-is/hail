@@ -8,6 +8,7 @@ import is.hail.asm4s._
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -67,16 +68,16 @@ class EmitMethodBuilder(
 
   def getType(t: Type): Code[Type] = fb.getType(t)
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness)
 
-  def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness)
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
@@ -123,8 +124,8 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
-  private[this] val compareMap: mutable.Map[(Type, Type, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]] =
-    mutable.Map[(Type, Type, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]]()
+  private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]] =
+    mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]]()
 
   def numReferenceGenomes: Int = rgMap.size
 
@@ -170,7 +171,7 @@ class EmitFunctionBuilder[F >: Null](
       newLazyField[Type](setup))
   }
 
-  def getCodeOrdering[T](t1: Type, t2: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
     val f = compareMap.getOrElseUpdate((t1, t2, op, missingGreatest, ignoreMissingness), {
       val ti = typeToTypeInfo(t1)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
@@ -225,7 +226,7 @@ class EmitFunctionBuilder[F >: Null](
     (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
   }
 
-  def getCodeOrdering[T](t: Type, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     getCodeOrdering[T](t, t, op, missingGreatest, ignoreMissingness)
 
   override val apply_method: EmitMethodBuilder = {
