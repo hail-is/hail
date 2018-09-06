@@ -687,7 +687,7 @@ def linear_mixed_model(y,
 
     Notes
     -----
-    See :meth:`.LinearMixedModel` for details on the model and notation.
+    See :class:`.LinearMixedModel` for details on the model and notation.
 
     Exactly one of `z_t` and `k` must be set.
 
@@ -700,8 +700,8 @@ def linear_mixed_model(y,
     in genetics. See :meth:`.LinearMixedModel.from_random_effects`
     and :meth:`.BlockMatrix.svd` for more details.
 
-    If `k` is set, the model is full-rank. **For correct results, the indices of
-    `k` must be aligned with columns of the source of `y`.**
+    If `k` is set, the model is full-rank. For correct results, the indices of
+    `k` **must be aligned** with columns of the source of `y`.
     Set `p_path` if you plan to use the model in :meth:`linear_mixed_regression`.
     `k` must be positive semi-definite; symmetry is not checked as only the
     lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
@@ -820,7 +820,7 @@ def linear_mixed_regression(entry_expr,
 
     Notes
     -----
-    See :meth:`LinearMixedModel` for details on the model and notation.
+    See :class:`.LinearMixedModel` for details on the model and notation.
 
     This method packages up several steps for convenience:
 
@@ -918,7 +918,7 @@ def linear_mixed_regression(entry_expr,
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         Matrix table with regression results in a new row-indexed field.
     """
     mt = matrix_table_source('linear_mixed_regression', entry_expr)

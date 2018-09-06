@@ -1018,10 +1018,10 @@ class LinearMixedModel(object):
         directly reading from disk (and possibly a transpose). This is most
         critical if :math:`n > m`, because in this case multiplication by `z`
         will result in all preceding transformations being repeated
-        ``n / block_size`` times, as explained in :class:`BlockMatrix`.
+        ``n / block_size`` times, as explained in :class:`.BlockMatrix`.
 
         At least one dimension must be less than or equal to 46300.
-        See the warning in :meth:`BlockMatrix.svd` for performance
+        See the warning in :meth:`.BlockMatrix.svd` for performance
         considerations.
 
         Parameters
@@ -1047,7 +1047,7 @@ class LinearMixedModel(object):
         -------
         model: :class:`LinearMixedModel`
             Model constructed from :math:`y`, :math:`X`, and :math:`Z`.
-        p: :class:`ndarray` or :class:`BlockMatrix`
+        p: :class:`ndarray` or :class:`.BlockMatrix`
             Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
             The type is block matrix if `z` is a block matrix and
             :meth:`.BlockMatrix.svd` of `z` returns :math:`U` as a block matrix.
