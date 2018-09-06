@@ -107,37 +107,42 @@ object TextTableReader {
     commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
   }
 
+  type Matcher = String => Boolean
+  val booleanMatcher: Matcher = x => try {
+    x.toBoolean
+    true
+  } catch {
+    case e: IllegalArgumentException => false
+  }
+  val int32Matcher: Matcher = x => try {
+    Integer.parseInt(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
+  }
+  val int64Matcher: Matcher = x => try {
+    java.lang.Long.parseLong(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
+  }
+  val float64Matcher: Matcher = x => try {
+    java.lang.Double.parseDouble(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
+  }
+
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
     delimiter: String, missing: String, quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
 
     val matchTypes: Array[Type] = Array(TBoolean(), TInt32(), TInt64(), TFloat64())
     val matchers: Array[String => Boolean] = Array(
-      x => try {
-        x.toBoolean
-        true
-      } catch {
-        case e: IllegalArgumentException => false
-      },
-      x => try {
-        Integer.parseInt(x)
-        true
-      } catch {
-        case e: NumberFormatException => false
-      },
-      x => try {
-        java.lang.Long.parseLong(x)
-        true
-      } catch {
-        case e: NumberFormatException => false
-      },
-      x => try {
-        java.lang.Double.parseDouble(x)
-        true
-      } catch {
-        case e: NumberFormatException => false
-      }
-    )
+      booleanMatcher,
+      int32Matcher,
+      int64Matcher,
+      float64Matcher)
     val nMatchers = matchers.length
 
     val imputation = values.mapPartitions { it =>

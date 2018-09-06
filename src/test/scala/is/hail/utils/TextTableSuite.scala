@@ -18,16 +18,21 @@ class TextTableSuite extends SparkSuite {
     val doubleStrings = Seq("1", ".1", "-1", "-.1", "1e1", "-1e1",
       "1E1", "-1E1", "1.0e2", "-1.0e2", "1e-1", "-1e-1", "-1.0e-2")
     val badDoubleStrings = Seq("1ee1", "1e--2", "1ee2", "1e0.1", "1e-0.1", "1e1.")
-    val intStrings = Seq("1", "0", "-1", "12312398", "-123098172398")
+    val intStrings = Seq("1", "0", "-1", "12312398", "-123092398")
+    val longStrings = Seq("11010101010101010", "-9223372036854775808")
     val booleanStrings = Seq("true", "True", "TRUE", "false", "False", "FALSE")
 
-    doubleStrings.foreach(str => assert(str matches TextTableReader.doubleRegex))
-    intStrings.foreach(str => assert(str matches TextTableReader.doubleRegex))
-    badDoubleStrings.foreach(str => assert(!(str matches TextTableReader.doubleRegex)))
+    doubleStrings.foreach(str => assert(TextTableReader.float64Matcher(str)))
+    badDoubleStrings.foreach(str => assert(!TextTableReader.float64Matcher(str)))
 
-    intStrings.foreach(str => assert(str matches TextTableReader.intRegex))
+    intStrings.foreach(str => assert(TextTableReader.int32Matcher(str)))
+    intStrings.foreach(str => assert(TextTableReader.int64Matcher(str)))
+    intStrings.foreach(str => assert(TextTableReader.float64Matcher(str)))
 
-    booleanStrings.foreach(str => assert(str matches TextTableReader.booleanRegex))
+    longStrings.foreach(str => assert(TextTableReader.int64Matcher(str), str))
+    longStrings.foreach(str => assert(!TextTableReader.int32Matcher(str)))
+
+    booleanStrings.foreach(str => assert(TextTableReader.booleanMatcher(str)))
 
     val rdd = sc.parallelize(Seq(
       "123 123 . gene1 1:1:A:T true MT:123123",
@@ -85,6 +90,13 @@ class TextTableSuite extends SparkSuite {
       "Sample" -> TString(),
       "Status" -> TString(),
       "qPhen" -> TInt32()))
+
+    val schema5 = TextTableReader.read(hc)(Array("src/test/resources/integer_imputation.txt"),
+      impute = true, separator = "\\s+").signature
+    assert(schema5 == TStruct(
+      "A" -> TInt64(),
+      "B" -> TInt32()))
+
   }
 
   @Test def testPipeDelimiter() {
