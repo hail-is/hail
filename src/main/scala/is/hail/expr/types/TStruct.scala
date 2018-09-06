@@ -4,6 +4,7 @@ import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.Code
 import is.hail.expr.Parser
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -44,6 +45,8 @@ object TStruct {
 }
 
 final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TBaseStruct {
+  def physicalType: PStruct = PStruct(fields.map(f => PField(f.name, f.typ.physicalType, f.index)), required)
+
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[Type] = fields.map(_.typ).toArray

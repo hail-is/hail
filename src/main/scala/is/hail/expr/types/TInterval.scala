@@ -5,12 +5,15 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PInterval
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
 
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
+  def physicalType: PInterval = PInterval(pointType.physicalType, required)
+
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""

@@ -3,6 +3,7 @@ package is.hail.expr.types
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PDict
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -10,6 +11,8 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, _}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
+  def physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
+
   val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)

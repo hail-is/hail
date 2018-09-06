@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PInt32
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -13,6 +14,8 @@ case object TInt32Optional extends TInt32(false)
 case object TInt32Required extends TInt32(true)
 
 class TInt32(override val required: Boolean) extends TIntegral {
+  def physicalType: PInt32 = PInt32(required)
+
   def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit = {
