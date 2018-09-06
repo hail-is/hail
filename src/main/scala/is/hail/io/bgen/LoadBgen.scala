@@ -291,7 +291,6 @@ case class MatrixBGENReader(
       "varid" -> TString(),
       "file_row_idx" -> TInt64()),
     rowKey = Array("locus", "alleles"),
-    rowPartitionKey = Array("locus"),
     entryType = TStruct(
       "GT" -> TCall(),
       "GP" -> +TArray(+TFloat64()),
@@ -311,7 +310,7 @@ case class MatrixBGENReader(
       contigRecoding,
       skipInvalidLoci))
 
-  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType, fullType.rowPartitionKey.length, fastKeys)
+  private lazy val coercer = OrderedRVD.makeCoercer(fullType.orvdType, 1, fastKeys)
 
   def apply(mr: MatrixRead): MatrixValue = {
     require(inputs.nonEmpty)

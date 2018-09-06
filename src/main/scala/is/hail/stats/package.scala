@@ -405,7 +405,7 @@ package object stats {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+      rowKey = Array("locus", "alleles"),
       rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
         "alleles" -> TArray(TString())),
       entryType = Genotype.htsGenotypeType),
@@ -439,7 +439,7 @@ package object stats {
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+      rowKey = Array("locus", "alleles"),
       rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
         "alleles" -> TArray(TString())),
       entryType = TStruct(

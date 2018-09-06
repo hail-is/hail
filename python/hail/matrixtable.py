@@ -374,6 +374,7 @@ class MatrixTable(ExprContainer):
 
         self._row_key = hail.struct(
             **{k: self._row[k] for k in jiterable_to_list(jvds.rowKey())})
+        self._partition_key = self._row_key
         self._col_key = hail.struct(
             **{k: self._col[k] for k in jiterable_to_list(jvds.colKey())})
 

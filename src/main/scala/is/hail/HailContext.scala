@@ -379,7 +379,6 @@ class HailContext private(val sc: SparkContext,
       colType = TStruct("s" -> TString()),
       rowType = TStruct(typedRowFields: _*),
       rowKey = Array("locus", "alleles"),
-      rowPartitionKey = Array("locus"),
       entryType = TStruct(typedEntryFields: _*))
 
     val reader = MatrixBGENReader(
@@ -463,7 +462,7 @@ class HailContext private(val sc: SparkContext,
         globalType = TStruct.empty(),
         colKey = Array("s"),
         colType = TStruct("s" -> TString()),
-        rowPartitionKey = Array("locus"), rowKey = Array("locus", "alleles"),
+        rowKey = Array("locus", "alleles"),
         rowType = signature,
         entryType = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),

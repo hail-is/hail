@@ -90,7 +90,6 @@ class PruneSuite extends SparkSuite {
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
     FastIndexedSeq("rk"),
-    FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TStruct("rr" -> TInt32()))),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64()))
   val mat = MatrixLiteral(MatrixValue(

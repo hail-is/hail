@@ -357,7 +357,6 @@ object LoadMatrix {
       colKey = Array("col_id"),
       rowType = rowType,
       rowKey = rowKey.toFastIndexedSeq,
-      rowPartitionKey = rowKey.toFastIndexedSeq,
       entryType = cellType)
 
     val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))

@@ -152,7 +152,6 @@ object LoadPlink {
         "rsid" -> TString(),
         "cm_position" -> TFloat64()),
       rowKey = Array("locus", "alleles"),
-      rowPartitionKey = Array("locus"),
       entryType = TStruct("GT" -> TCall()))
 
     val kType = matrixType.orvdType.kType
