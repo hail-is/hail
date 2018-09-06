@@ -136,6 +136,19 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(If(True(), NA(TInt32()), I32(7)), null)
   }
 
+  @Test def testIfWithDifferentRequiredness() {
+    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
+    val value = Row(Row(FastIndexedSeq(1, 2, 3)))
+    assertEvalsTo(
+      If(
+        In(0, TBoolean()),
+        In(1, t),
+        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))),
+      FastIndexedSeq((true, TBoolean()), (value, t)),
+      value
+    )
+  }
+
   @Test def testLet() {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32())), 5)
     assertEvalsTo(Let("v", NA(TInt32()), Ref("v", TInt32())), null)

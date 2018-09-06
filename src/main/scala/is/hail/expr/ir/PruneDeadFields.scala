@@ -1006,8 +1006,9 @@ object PruneDeadFields {
         case ta: TArray =>
           val ra = rType.asInstanceOf[TArray]
           val uid = genUID()
-          val ref = Ref(uid, ta.elementType)
+          val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
+        case t => ir
       }
     }
   }
