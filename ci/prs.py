@@ -151,7 +151,7 @@ class PRS(object):
                     x for x in self.for_target(target) if x.is_pending_build()
                 ]
                 to_build = all_pending_prs
-        log.info(f'next to build for {target.repo.qname}: {[str(x) for x in to_build]}')
+        log.info(f'next to build for {target.short_str()}: {[str(x) for x in to_build]}')
         for pr in to_build:
             self._set(pr.source.ref, pr.target.ref, pr.build_it())
 
