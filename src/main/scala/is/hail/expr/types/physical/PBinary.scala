@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.{TBinary, Type}
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -15,6 +16,8 @@ case object PBinaryOptional extends PBinary(false)
 case object PBinaryRequired extends PBinary(true)
 
 class PBinary(override val required: Boolean) extends PType {
+  def virtualType: TBinary = TBinary(required)
+
   def _toPretty = "Binary"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]

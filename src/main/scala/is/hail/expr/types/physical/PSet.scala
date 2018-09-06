@@ -3,11 +3,14 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.TSet
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
 final case class PSet(elementType: PType, override val required: Boolean = false) extends PIterable {
+  def virtualType: TSet = TSet(elementType.virtualType, required)
+
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)

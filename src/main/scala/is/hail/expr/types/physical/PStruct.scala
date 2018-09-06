@@ -4,6 +4,7 @@ import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.Code
 import is.hail.expr.Parser
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.{Field, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -40,6 +41,8 @@ object PStruct {
 }
 
 final case class PStruct(fields: IndexedSeq[PField], override val required: Boolean = false) extends PBaseStruct {
+  def virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
+
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[PType] = fields.map(_.typ).toArray

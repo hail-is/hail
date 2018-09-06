@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.TFloat64
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
@@ -13,6 +14,8 @@ case object PFloat64Optional extends PFloat64(false)
 case object PFloat64Required extends PFloat64(true)
 
 class PFloat64(override val required: Boolean) extends PNumeric {
+  override def virtualType: TFloat64 = TFloat64(required)
+
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit = {
