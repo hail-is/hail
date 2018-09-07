@@ -443,8 +443,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def select(newRow: IR, newKey: Option[IndexedSeq[String]], preservedKeyFields: Option[Int]): Table = {
     require(newKey.isDefined == preservedKeyFields.isDefined)
     val preservedKeyOld = typ.key.flatMap(k => preservedKeyFields.map(k.take))
-    val preservedKeyNew = typ.key.flatMap(_ => newKey.map(_.take(preservedKeyFields.get)))
-    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.get) else tir
+    val preservedKeyNew = if (preservedKeyOld.exists(_.nonEmpty))
+        typ.key.flatMap(_ => newKey.map(_.take(preservedKeyFields.get)))
+      else
+        None
+    val shortenedKey = if (typ.key.isDefined) TableKeyBy(tir, preservedKeyOld.getOrElse(IndexedSeq())) else tir
     val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
     val lengthenedKey =
       if (newKey.isDefined)
@@ -534,7 +537,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(
       rvd = rvd match {
         case ordered: OrderedRVD =>
-          ordered.copy(typ = ordered.typ.copy(rowType = newRowType))
+          OrderedRVD.coerce(ordered.typ.copy(rowType = newRowType), ordered)
         case _: UnpartitionedRVD => UnpartitionedRVD(newRowType, rvd.crdd)
       },
       signature = newRowType)
