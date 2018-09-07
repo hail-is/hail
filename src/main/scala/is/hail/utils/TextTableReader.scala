@@ -103,24 +103,50 @@ object TextTableReader {
     ab.result()
   }
 
-  val booleanRegex = """^([Tt]rue)|([Ff]alse)|(TRUE)|(FALSE)$"""
-  val doubleRegex = """^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"""
-  val intRegex = """^-?\d+$"""
-
   def isCommentLine(commentStartsWith: Array[String], commentRegexes: Array[Regex])(line: String): Boolean = {
     commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
+  }
+
+  type Matcher = String => Boolean
+  val booleanMatcher: Matcher = x => try {
+    x.toBoolean
+    true
+  } catch {
+    case e: IllegalArgumentException => false
+  }
+  val int32Matcher: Matcher = x => try {
+    Integer.parseInt(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
+  }
+  val int64Matcher: Matcher = x => try {
+    java.lang.Long.parseLong(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
+  }
+  val float64Matcher: Matcher = x => try {
+    java.lang.Double.parseDouble(x)
+    true
+  } catch {
+    case e: NumberFormatException => false
   }
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
     delimiter: String, missing: String, quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
-    val regexes = Array(booleanRegex, intRegex, doubleRegex).map(Pattern.compile)
 
-    val regexTypes: Array[Type] = Array(TBoolean(), TInt32(), TFloat64())
-    val nRegex = regexes.length
+    val matchTypes: Array[Type] = Array(TBoolean(), TInt32(), TInt64(), TFloat64())
+    val matchers: Array[String => Boolean] = Array(
+      booleanMatcher,
+      int32Matcher,
+      int64Matcher,
+      float64Matcher)
+    val nMatchers = matchers.length
 
     val imputation = values.mapPartitions { it =>
-      val ma = MultiArray2.fill[Boolean](nFields, nRegex + 1)(true)
+      val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
       it.foreach { line => line.foreach { l =>
@@ -133,11 +159,11 @@ object TextTableReader {
           val field = split(i)
           if (field != missing) {
             var j = 0
-            while (j < nRegex) {
-              ma.update(i, j, ma(i, j) && regexes(j).matcher(field).matches())
+            while (j < nMatchers) {
+              ma.update(i, j, ma(i, j) && matchers(j)(field))
               j += 1
             }
-            ma.update(i, nRegex, false)
+            ma.update(i, nMatchers, false)
           }
           i += 1
         }
@@ -148,20 +174,20 @@ object TextTableReader {
       var i = 0
       while (i < nFields) {
         var j = 0
-        while (j < nRegex) {
+        while (j < nMatchers) {
           ma1.update(i, j, ma1(i, j) && ma2(i, j))
           j += 1
         }
-        ma1.update(i, nRegex, ma1(i, nRegex) && ma2(i, nRegex))
+        ma1.update(i, nMatchers, ma1(i, nMatchers) && ma2(i, nMatchers))
         i += 1
       }
       ma1
     })
 
     imputation.rowIndices.map { i =>
-      someIf(!imputation(i, nRegex),
-        (0 until nRegex).find(imputation(i, _))
-          .map(regexTypes)
+      someIf(!imputation(i, nMatchers),
+        (0 until nMatchers).find(imputation(i, _))
+          .map(matchTypes)
           .getOrElse(TString()))
     }.toArray
   }
