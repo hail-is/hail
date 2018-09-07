@@ -1328,3 +1328,10 @@ class Join(IR):
 
     def render(self, r):
         return r(self.virtual_ir)
+
+class JavaIR(IR):
+    def __init__(self, jir):
+        self._jir = jir
+
+    def render(self, r):
+        return f'(JavaIR {r.add_jir(self)})'

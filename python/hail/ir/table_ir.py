@@ -248,4 +248,6 @@ class LocalizeEntries(TableIR):
 class JavaTable(TableIR):
     def __init__(self, jir):
         self._jir = jir
-    # render handled by Renderer
+
+    def render(self, r):
+        return f'(JavaTable {r.add_jir(self)})'
