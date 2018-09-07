@@ -379,7 +379,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     colKeyTypes match {
       case Array(_: TString) =>
       case t =>
-        fatal(s"in $method: column key must be type 'str', found: $t")
+        fatal(s"in $method: column key must be type 'str', found: ${t.mkString("[",",","]")}")
     }
   }
 
