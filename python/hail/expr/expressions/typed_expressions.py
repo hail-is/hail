@@ -57,7 +57,7 @@ class CollectionExpression(Expression):
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
         f2 = lambda accum, elt: accum | f(elt)
-        return hl.array(self).fold(False, f2)
+        return hl.array(self).fold(f2, False)
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def filter(self, f):
@@ -254,7 +254,7 @@ class CollectionExpression(Expression):
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
         f2 = lambda accum, elt: accum & f(elt)
-        return hl.array(self).fold(True, f2)
+        return hl.array(self).fold(f2, True)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def group_by(self, f):
