@@ -122,7 +122,7 @@ class PRS(object):
                 self.latest_deployed[target_ref] = None
 
     def heal(self):
-        for target in self.live_targets():
+        for target in self.watched_target_refs():
             self.heal_target(target)
 
     def heal_target(self, target):
