@@ -15,7 +15,7 @@ push-hail-ci-build-image: hail-ci-build-image
 	docker push gcr.io/broad-ctsa/${BUILD_IMAGE_SHORT_NAME}:${HASH}
 	echo gcr.io/broad-ctsa/${BUILD_IMAGE_SHORT_NAME}:${HASH} > hail-ci-build-image
 
-deploy: push-hail-ci-build-image
+deploy:
 	rm -f dist/*
 	python setup.py bdist_wheel
 	twine upload dist/*
