@@ -190,30 +190,6 @@ class OrderedRVDPartitioner(
   ): OrderedRVDPartitioner =
     new OrderedRVDPartitioner(kType, rangeBounds)
 
-  def enlargeToRange(newRange: Interval): OrderedRVDPartitioner =
-    enlargeToRange(Some(newRange))
-
-  def enlargeToRange(newRange: Option[Interval]): OrderedRVDPartitioner = {
-    require(newRange.forall(i => kType.relaxedTypeCheck(i.start) && kType.relaxedTypeCheck(i.end)))
-
-    if (newRange.isEmpty)
-      return this
-    if (range.isEmpty)
-      return copy(rangeBounds = FastIndexedSeq(newRange.get))
-    val pord = kType.ordering.intervalEndpointOrdering
-    val newLeft = pord.min(range.get.left, newRange.get.left).asInstanceOf[IntervalEndpoint]
-    val newRight = pord.max(range.get.right, newRange.get.right).asInstanceOf[IntervalEndpoint]
-    val newRangeBounds =
-      rangeBounds match {
-        case IndexedSeq(x) => FastIndexedSeq(Interval(newLeft, newRight))
-        case _ =>
-          rangeBounds.head.extendLeft(newLeft)  +:
-            rangeBounds.tail.init :+
-            rangeBounds.last.extendRight(newRight)
-      }
-    copy(rangeBounds = newRangeBounds)
-  }
-
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): OrderedRVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
       rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))

@@ -977,33 +977,6 @@ object OrderedRVD {
     OrderedRVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions, partitionKey)
   }
 
-  def adjustBoundsAndShuffle(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rvd: RVD
-  ): OrderedRVD = {
-    assert(typ.rowType == rvd.rowType)
-    adjustBoundsAndShuffle(typ, partitioner, rvd.crdd)
-  }
-
-  private[this] def adjustBoundsAndShuffle(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    crdd: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = {
-    val kType = partitioner.kType
-    val kOrd = kType.ordering.toOrdering
-    val pkis = getKeyInfo(typ, typ.key.length, getKeys(typ, crdd))
-
-    if (pkis.isEmpty)
-      return OrderedRVD(typ, partitioner, crdd)
-
-    val min = pkis.map(_.min).min(kOrd)
-    val max = pkis.map(_.max).max(kOrd)
-
-    shuffle(typ, partitioner.enlargeToRange(Interval(min, max, true, true)), crdd)
-  }
-
   def shuffle(
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,

@@ -1072,44 +1072,55 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localColKeys = colKeys
 
     metadataSame &&
-      rvd.crdd.czip(
-        that.rvd.constrainToOrderedPartitioner(
-          rvd.partitioner.enlargeToRange(that.rvd.partitioner.range)
-        ).crdd) { (ctx, rv1, rv2) =>
-        var partSame = true
-
+      this.rvd.orderedZipJoin(that.rvd).mapPartitions { it =>
         val fullRow1 = new UnsafeRow(leftRVType)
         val fullRow2 = new UnsafeRow(rightRVType)
 
-        fullRow1.set(rv1)
-        fullRow2.set(rv2)
-        val row1 = fullRow1.deleteField(localLeftEntriesIndex)
-        val row2 = fullRow2.deleteField(localRightEntriesIndex)
-
-        if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
-          println(
-            s"""row fields not the same:
-               |  $row1
-               |  $row2""".stripMargin)
-          partSame = false
-        }
-
-        val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
-        val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
-
-        var i = 0
-        while (partSame && i < gs1.length) {
-          if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
-            partSame = false
-            println(
-              s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
-                 |  ${ gs1(i) }
-                 |  ${ gs2(i) }""".stripMargin)
+        it.map { case Muple(rv1, rv2) =>
+          if (rv2 == null) {
+            fullRow1.set(rv1)
+            val row1 = fullRow1.deleteField(localRightEntriesIndex)
+            println(s"row ${ localRKF(row1) } present in left but not right")
+            false
+          } else if (rv1 == null) {
+            fullRow2.set(rv2)
+            val row2 = fullRow2.deleteField(localRightEntriesIndex)
+            println(s"row ${ localRKF(row2) } present in right but not left")
+            false
           }
-          i += 1
+          else {
+            var partSame = true
+
+            fullRow1.set(rv1)
+            fullRow2.set(rv2)
+            val row1 = fullRow1.deleteField(localLeftEntriesIndex)
+            val row2 = fullRow2.deleteField(localRightEntriesIndex)
+
+            if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
+              println(
+                s"""row fields not the same:
+                   |  $row1
+                   |  $row2""".stripMargin)
+              partSame = false
+            }
+
+            val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
+            val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
+
+            var i = 0
+            while (partSame && i < gs1.length) {
+              if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
+                partSame = false
+                println(
+                  s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
+                     |  ${ gs1(i) }
+                     |  ${ gs2(i) }""".stripMargin)
+              }
+              i += 1
+            }
+            partSame
+          }
         }
-        ctx.region.clear()
-        partSame
       }.run.forall(t => t)
   }
 
