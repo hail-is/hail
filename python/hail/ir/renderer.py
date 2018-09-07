@@ -15,11 +15,11 @@ class Renderer(object):
         if self.stop_at_jir and hasattr(x, '_jir'):
             jir_id = self.add_jir(self._jir)
             if isinstance(x, MatrixIR):
-                return f'(CachedMatrixTable {jir_id})'
+                return f'(JavaMatrix {jir_id})'
             elif isinstance(x, TableIR):
-                return f'(CachedTable {jir_id})'
+                return f'(JavaTable {jir_id})'
             else:
                 assert isinstance(x, IR)
-                return f'(CachedValue {jir_id})'
+                return f'(JavaIR {jir_id})'
         else:
             return x.render(self)
