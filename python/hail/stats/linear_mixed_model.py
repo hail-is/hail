@@ -194,7 +194,7 @@ class LinearMixedModel(object):
 
     .. math::
 
-      \mathit{O}(rp^2 + p^3)`.
+      \mathit{O}(rp^2 + p^3).
 
     :meth:`fit` adds the following attributes at this estimate.
 
