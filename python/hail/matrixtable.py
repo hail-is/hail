@@ -2049,6 +2049,15 @@ class MatrixTable(ExprContainer):
 
         >>> cols_table = dataset.cols()
 
+        Warning
+        -------
+        Matrix table columns are typically sorted by the order at import, and
+        not necessarily by column key. Since tables are always sorted by key,
+        the table which results from this command will have its rows sorted by
+        the column key (which becomes the table key). To preserve the original
+        column order as the table row order, first unkey the columns using
+        :meth:`key_cols_by` with no arguments.
+
         Returns
         -------
         :class:`.Table`
