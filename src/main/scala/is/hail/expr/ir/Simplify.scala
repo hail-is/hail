@@ -290,18 +290,19 @@ object Simplify {
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
       case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
-        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) && canRepartition(x) =>
+        if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
+          !ContainsAgg(newRow) && canRepartition(x) && !ContainsScan(newRow) =>
         val mct = MatrixColsTable(child)
         TableMapRows(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
           mct.typ.key)
-      case MatrixColsTable(MatrixFilterCols(child, newRow))
-        if !Mentions(newRow, "g") && !Mentions(newRow, "va") && !ContainsAgg(newRow) =>
+      case MatrixColsTable(MatrixFilterCols(child, pred))
+        if !Mentions(pred, "g") && !Mentions(pred, "va") =>
         val mct = MatrixColsTable(child)
         TableFilter(
           mct,
-          Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+          Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
       case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
       case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
