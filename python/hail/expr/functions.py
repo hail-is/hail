@@ -2688,7 +2688,7 @@ def fold(f: Callable, zero, collection) -> Expression:
     --------
     >>> a = [0, 1, 2]
 
-    >>> hl.fold(lambda i, j: i + j, a, 0).value
+    >>> hl.fold(lambda i, j: i + j, 0, a).value
     3
 
     Parameters
@@ -2716,7 +2716,7 @@ def array_scan(f: Callable, zero, a) -> ArrayExpression:
     --------
     >>> a = [0, 1, 2]
 
-    >>> hl.array_scan(lambda i, j: i + j, a, 0).value
+    >>> hl.array_scan(lambda i, j: i + j, 0, a).value
     [0, 0, 1, 3]
 
     Parameters
