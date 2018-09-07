@@ -81,6 +81,7 @@ class PRS(object):
         return self._watched_targets.keys()
 
     def is_deployable_target_ref(self, ref):
+        assert isinstance(ref, FQRef)
         return self._watched_targets.get(ref, False)
 
     def is_watched_target_ref(self, ref):
@@ -134,6 +135,8 @@ class PRS(object):
             self.build_next(target)
         if self.is_deployable_target_ref(target):
             self.try_deploy(target)
+        else:
+            log.info(f'not deploying target {target.short_str()}')
 
     def build_next(self, target):
         approved = [pr for pr in self.for_target(target) if pr.is_approved()]
