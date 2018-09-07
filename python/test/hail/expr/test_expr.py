@@ -2016,8 +2016,8 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_table(10, 3)
         fold_expr = hl.cond(t.idx == 3,
                             [1, 2, 3],
-                            [4, 5, 6]).fold(True,
-                                            lambda accum, i: accum & (i == t.idx))
+                            [4, 5, 6]).fold(lambda accum, i: accum & (i == t.idx),
+                                            True)
         t.annotate(foo=hl.cond(fold_expr, 1, 3))._force_count()
 
     def assertValueEqual(self, expr, value, t):
