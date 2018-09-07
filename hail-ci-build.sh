@@ -15,11 +15,13 @@ CLUSTER_NAME_0_1=cloudtools-ci-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/uran
 
 shutdown_cluster() {
     set +e
-    time cluster stop --async ${CLUSTER_NAME_0_2}
-    time cluster stop --async ${CLUSTER_NAME_0_1}
+    time gcloud dataproc clusters delete ${CLUSTER_NAME_0_2} --async
+    time gcloud dataproc clusters delete ${CLUSTER_NAME_0_1} --async
     exit
 }
-trap shutdown_cluster INT TERM ERR
+trap shutdown_cluster EXIT
+
+trap "exit 42" INT TERM
 
 # check binary exists
 time cluster start --help
