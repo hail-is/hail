@@ -52,7 +52,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.setOrdering(this, other.asInstanceOf[TSet], mb)
+    CodeOrdering.setOrdering(physicalType, other.asInstanceOf[TSet].physicalType, mb)
   }
 
 

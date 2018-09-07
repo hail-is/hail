@@ -5,6 +5,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.asm4s.coerce
+import is.hail.expr.types.physical._
 import is.hail.utils._
 
 object CodeOrdering {
@@ -20,7 +21,7 @@ object CodeOrdering {
 
   type F[R] = (Code[Region], (Code[Boolean], Code[_]), Code[Region], (Code[Boolean], Code[_])) => Code[R]
 
-  def rowOrdering(t1: TBaseStruct, t2: TBaseStruct, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
+  def rowOrdering(t1: PBaseStruct, t2: PBaseStruct, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
 
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]
@@ -96,7 +97,7 @@ object CodeOrdering {
     }
   }
 
-  def iterableOrdering(t1: TArray, t2: TArray, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
+  def iterableOrdering(t1: PArray, t2: PArray, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
     val lord: CodeOrdering = TInt32().codeOrdering(mb)
     val ord: CodeOrdering = t1.elementType.codeOrdering(mb, t2.elementType)
@@ -202,7 +203,7 @@ object CodeOrdering {
     }
   }
 
-  def intervalOrdering(t1: TInterval, t2: TInterval, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
+  def intervalOrdering(t1: PInterval, t2: PInterval, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
     val pti = ir.typeToTypeInfo(t1.pointType)
     val mp1: LocalRef[Boolean] = mb.newLocal[Boolean]
@@ -304,11 +305,11 @@ object CodeOrdering {
     }
   }
 
-  def mapOrdering(t1: TDict, t2: TDict, mb: EmitMethodBuilder): CodeOrdering =
-    iterableOrdering(TArray(t1.elementType, t1.required), TArray(t2.elementType, t2.required), mb)
+  def mapOrdering(t1: PDict, t2: PDict, mb: EmitMethodBuilder): CodeOrdering =
+    iterableOrdering(PArray(t1.elementType, t1.required), PArray(t2.elementType, t2.required), mb)
 
-  def setOrdering(t1: TSet, t2: TSet, mb: EmitMethodBuilder): CodeOrdering =
-    iterableOrdering(TArray(t1.elementType, t1.required), TArray(t2.elementType, t2.required), mb)
+  def setOrdering(t1: PSet, t2: PSet, mb: EmitMethodBuilder): CodeOrdering =
+    iterableOrdering(PArray(t1.elementType, t1.required), PArray(t2.elementType, t2.required), mb)
 
 }
 

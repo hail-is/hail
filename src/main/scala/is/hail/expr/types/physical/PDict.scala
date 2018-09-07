@@ -77,6 +77,6 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.mapOrdering(virtualType, other.asInstanceOf[PDict].virtualType, mb)
+    CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
 }

@@ -60,7 +60,7 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(this isOfType other)
-    CodeOrdering.iterableOrdering(virtualType, other.asInstanceOf[PArray].virtualType, mb)
+    CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]

@@ -41,7 +41,7 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.intervalOrdering(virtualType, other.asInstanceOf[PInterval].virtualType, mb)
+    CodeOrdering.intervalOrdering(this, other.asInstanceOf[PInterval], mb)
   }
 
 

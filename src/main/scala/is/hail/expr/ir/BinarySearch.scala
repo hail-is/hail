@@ -3,15 +3,16 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.utils._
 
 class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
 
-  val elt: Type = typ.elementType
+  val elt: PType = typ.elementType.physicalType
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
-  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder, t: Type) = if (keyOnly) {
-    val ttype = coerce[TBaseStruct](elt)
+  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder, t: PType) = if (keyOnly) {
+    val ttype = coerce[PBaseStruct](elt)
     require(ttype.size == 2)
     val kt = ttype.types(0)
     val findMB = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])

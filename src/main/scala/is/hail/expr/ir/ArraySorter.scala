@@ -3,15 +3,16 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.asm4s._
+import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.utils._
 
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean) {
-  val typ: Type = array.elt
+  val typ: PType = array.elt.physicalType
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val sortmb: EmitMethodBuilder = mb.fb.newMethod[Region, Int, Int, Boolean, Unit]
 
   val equiv: CodeOrdering.F[Boolean] = if (keyOnly) {
-    val ttype = coerce[TBaseStruct](typ)
+    val ttype = coerce[PBaseStruct](typ)
     require(ttype.size == 2)
     val kt = ttype.types(0)
     val ceq: CodeOrdering.F[Boolean] = {
@@ -44,7 +45,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
     val sorterRegion: Code[Region] = sorter.addField[Region](mb.getArg[Region](1))
     val asc: Code[Boolean] = sorter.addField[Boolean](ascending)
     if (keyOnly) {
-      val ttype = coerce[TBaseStruct](typ)
+      val ttype = coerce[PBaseStruct](typ)
       require(ttype.size == 2)
       val kt = ttype.types(0)
 
@@ -75,13 +76,13 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, TArray(typ))
+    val srvb = new StagedRegionValueBuilder(mb, TArray(typ.virtualType))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,
         array.isMissing(srvb.arrayIdx).mux(
           srvb.setMissing(),
-          srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
+          srvb.addIRIntermediate(typ.virtualType)(array(srvb.arrayIdx))),
         srvb.advance()),
       srvb.end())
   }

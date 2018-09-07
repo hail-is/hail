@@ -76,7 +76,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(virtualType, other.asInstanceOf[PStruct].virtualType, mb)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
   }
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
