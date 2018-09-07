@@ -436,20 +436,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def reorderPartitions(oldIndices: Array[Int]): ContextRDD[C, T] =
     onRDD(_.reorderPartitions(oldIndices))
 
-  def adjustPartitions(
-    adjustments: IndexedSeq[Array[Adjustment[T]]]
-  ): ContextRDD[C, T] = {
-    def contextIgnorantPartitionFunction(
-      f: Iterator[T] => Iterator[T]
-    ): Iterator[C => Iterator[T]] => Iterator[C => Iterator[T]] =
-      it => inCtx(ctx => f(it.flatMap(useCtx => useCtx(ctx))))
-    def contextIgnorantAdjustment(a: Adjustment[T]): Adjustment[C => Iterator[T]] =
-      Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
-    val contextIgnorantAdjustments =
-      adjustments.map(as => as.map(a => contextIgnorantAdjustment(a)))
-    onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
-  }
-
   def noShuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
     onRDD(_.coalesce(numPartitions, false))
 
