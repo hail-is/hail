@@ -2,7 +2,7 @@
 
 set -ex
 
-PUBLISHED=$(pip --no-cache-dir show cloudtools | grep 'Version:' | sed 's/Version: //')
+PUBLISHED=$(pip --no-cache-dir search cloudtools | grep '^cloudtools' | sed 's/cloudtools (//'  | sed 's/).*//')
 CURRENT=$(grep 'version=' setup.py | sed -E "s/.*version=\'(.*)\',/\1/")
 
 if [[ "${PUBLISHED}" != "${CURRENT}" ]]
