@@ -14,7 +14,7 @@ case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
 
 class PFloat32(override val required: Boolean) extends PNumeric {
-  override def virtualType: TFloat32 = TFloat32(required)
+  lazy val virtualType: TFloat32 = TFloat32(required)
 
   def _toPretty = "Float32"
 

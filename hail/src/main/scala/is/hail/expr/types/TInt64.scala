@@ -14,7 +14,7 @@ case object TInt64Optional extends TInt64(false)
 case object TInt64Required extends TInt64(true)
 
 class TInt64(override val required: Boolean) extends TIntegral {
-  def physicalType: PInt64 = PInt64(required)
+  lazy val physicalType: PInt64 = PInt64(required)
 
   def _toPretty = "Int64"
 

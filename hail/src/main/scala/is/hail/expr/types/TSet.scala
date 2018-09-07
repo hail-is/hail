@@ -9,7 +9,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, _}
 
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TIterable {
-  def physicalType: PSet = PSet(elementType.physicalType, required)
+  lazy val physicalType: PSet = PSet(elementType.physicalType, required)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 

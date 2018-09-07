@@ -24,7 +24,7 @@ object TTuple {
 }
 
 final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean = false) extends TBaseStruct {
-  def physicalType: PTuple = PTuple(types.map(_.physicalType), required)
+  lazy val physicalType: PTuple = PTuple(types.map(_.physicalType), required)
 
   val types = _types.toArray
   val fieldRequired: Array[Boolean] = types.map(_.required)

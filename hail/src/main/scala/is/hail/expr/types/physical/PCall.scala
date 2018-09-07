@@ -12,7 +12,7 @@ case object PCallOptional extends PCall(false)
 case object PCallRequired extends PCall(true)
 
 class PCall(override val required: Boolean) extends ComplexPType {
-  def virtualType: TCall = TCall(required)
+  lazy val virtualType: TCall = TCall(required)
 
   def _toPretty = "Call"
 

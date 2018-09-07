@@ -11,7 +11,7 @@ import scala.reflect.{ClassTag, classTag}
 
 
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
-  def physicalType: PInterval = PInterval(pointType.physicalType, required)
+  lazy val physicalType: PInterval = PInterval(pointType.physicalType, required)
 
   override def children = FastSeq(pointType)
 
