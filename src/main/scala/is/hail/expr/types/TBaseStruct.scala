@@ -137,41 +137,6 @@ abstract class TBaseStruct extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
-    unsafeOrdering(this, missingGreatest)
-
-  override def unsafeOrdering(rightType: Type, missingGreatest: Boolean): UnsafeOrdering = {
-    require(this.isOfType(rightType))
-
-    val right = rightType.asInstanceOf[TBaseStruct]
-    val fieldOrderings: Array[UnsafeOrdering] =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r, missingGreatest)}
-
-    new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        var i = 0
-        while (i < types.length) {
-          val leftDefined = isFieldDefined(r1, o1, i)
-          val rightDefined = right.isFieldDefined(r2, o2, i)
-
-          if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, right.loadField(r2, o2, i))
-            if (c != 0)
-              return c
-          } else if (leftDefined != rightDefined) {
-            val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
-          }
-          i += 1
-        }
-        0
-      }
-    }
-  }
-
   def nMissingBytes: Int
 
   def missingIdx: Array[Int]

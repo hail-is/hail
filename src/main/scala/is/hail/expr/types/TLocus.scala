@@ -44,29 +44,6 @@ case class TLocus(rg: RGBase, override val required: Boolean = false) extends Co
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(rg.locusOrdering)
 
-  // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val repr = representation.fundamentalType
-
-    new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val cOff1 = repr.loadField(r1, o1, 0)
-        val cOff2 = repr.loadField(r2, o2, 0)
-
-        val contig1 = TString.loadString(r1, cOff1)
-        val contig2 = TString.loadString(r2, cOff2)
-
-        val c = rg.compare(contig1, contig2)
-        if (c != 0)
-          return c
-
-        val posOff1 = repr.loadField(r1, o1, 1)
-        val posOff2 = repr.loadField(r2, o2, 1)
-        java.lang.Integer.compare(r1.loadInt(posOff1), r2.loadInt(posOff2))
-      }
-    }
-  }
-
   def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrdering {

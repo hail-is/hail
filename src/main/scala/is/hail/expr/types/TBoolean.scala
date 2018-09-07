@@ -30,12 +30,6 @@ class TBoolean(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
-    }
-  }
-
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
 

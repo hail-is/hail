@@ -6,6 +6,7 @@ import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.io._
 import is.hail.utils._
 import org.apache.spark.SparkEnv
@@ -278,29 +279,31 @@ class UnsafeSuite extends SparkSuite {
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
-    val g = Type.genStruct
+    val g = PType.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue, t.genValue), arbitrary[Boolean]))
       .filter { case (t, (a1, a2), b) => a1 != null && a2 != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2), b) =>
 
+      val tv = t.virtualType
+
       t.typeCheck(a1)
       t.typeCheck(a2)
 
       region.clear()
-      rvb.start(t.fundamentalType)
-      rvb.addRow(t, a1.asInstanceOf[Row])
+      rvb.start(tv.fundamentalType)
+      rvb.addRow(tv, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(t, region, offset)
+      val ur1 = new UnsafeRow(tv, region, offset)
       assert(t.valuesSimilar(a1, ur1))
 
       region2.clear()
-      rvb2.start(t.fundamentalType)
-      rvb2.addRow(t, a2.asInstanceOf[Row])
+      rvb2.start(tv.fundamentalType)
+      rvb2.addRow(tv, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(t, region2, offset2)
+      val ur2 = new UnsafeRow(tv, region2, offset2)
       assert(t.valuesSimilar(a2, ur2))
 
       val ord = t.ordering

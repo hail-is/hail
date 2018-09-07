@@ -44,12 +44,6 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
-    }
-  }
-
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Float]])
 

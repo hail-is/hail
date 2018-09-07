@@ -27,7 +27,7 @@ final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
+  val kOrd: UnsafeOrdering = kType.physicalType.unsafeOrdering(missingGreatest = true)
   val kInRowOrd: UnsafeOrdering =
     OrderedRVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
   val kRowOrd: UnsafeOrdering =
@@ -95,9 +95,12 @@ object OrderedRVDType {
       t1.types(f1) isOfType t2.types(f2)
     })
 
+    val t1p = t1.physicalType
+    val t2p = t2.physicalType
+
     val nFields = fields1.length
     val fieldOrderings = Range(0, nFields).map { i =>
-      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)), missingGreatest = true)
+      t1p.types(fields1(i)).unsafeOrdering(t2p.types(fields2(i)), missingGreatest = true)
     }.toArray
 
     new UnsafeOrdering {

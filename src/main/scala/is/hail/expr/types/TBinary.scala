@@ -26,29 +26,6 @@ class TBinary(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      val l1 = TBinary.loadLength(r1, o1)
-      val l2 = TBinary.loadLength(r2, o2)
-
-      val bOff1 = TBinary.bytesOffset(o1)
-      val bOff2 = TBinary.bytesOffset(o2)
-
-      val lim = math.min(l1, l2)
-      var i = 0
-
-      while (i < lim) {
-        val b1 = r1.loadByte(bOff1 + i)
-        val b2 = r2.loadByte(bOff2 + i)
-        if (b1 != b2)
-          return java.lang.Byte.compare(b1, b2)
-
-        i += 1
-      }
-      Integer.compare(l1, l2)
-    }
-  }
-
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(Ordering.Iterable[Byte])
 
