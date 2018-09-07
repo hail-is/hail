@@ -898,6 +898,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2.index(mt2.row_key).collect(), values)
         self.assertEqual(t1.index(mt1.idx).collect(), values)
         self.assertEqual(t2.index(mt2.idx, mt2.idx2).collect(), values)
+        self.assertEqual(t1.index(mt2.idx).collect(), values)
         with self.assertRaises(hl.expr.ExpressionException):
             t2.index(mt2.idx).collect()
         with self.assertRaises(hl.expr.ExpressionException):

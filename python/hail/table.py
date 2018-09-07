@@ -1422,7 +1422,7 @@ class Table(ExprContainer):
             if indices == src._entry_indices:
                 raise NotImplementedError('entry-based matrix joins')
             elif indices == src._row_indices:
-                is_row_key = len(exprs) == len(src.row_key) and all(
+                is_subset_row_key = len(exprs) <= len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
                 is_interval = (len(self.key) == 1
                                and isinstance(self.key[0].dtype, hl.tinterval)
@@ -1435,7 +1435,7 @@ class Table(ExprContainer):
                                               f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
                                               f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
-                if is_row_key or is_interval:
+                if is_subset_row_key or is_interval:
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
