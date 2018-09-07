@@ -602,7 +602,7 @@ class Expression(object):
                 df = source
                 field_name = source._fields_inverse.get(self)
                 if field_name is not None:
-                    if source.key and field_name in source.key:
+                    if field_name in source.key:
                         df = df.select()
                     else:
                         df = df.select(field_name)
@@ -714,7 +714,7 @@ class Expression(object):
         if source is not None:
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
-        if t.key is not None and name in t.key:
+        if name in t.key:
             t = t.key_by(name).select()
         return t._show(n, width, truncate, types)
 
@@ -772,7 +772,7 @@ class Expression(object):
         """
         uid = Env.get_uid()
         t = self._to_table(uid)
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), None).collect()]
+        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), []).collect()]
 
     @property
     def value(self):

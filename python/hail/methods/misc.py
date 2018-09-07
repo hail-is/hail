@@ -204,12 +204,6 @@ def require_first_key_field_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
-@typecheck(table=Table, method=str)
-def require_key(table, method):
-    if table.key is None:
-        raise ValueError("Method '{}' requires keyed table".format(method))
-
-
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
@@ -307,8 +301,6 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         k_type = ds.row_key.dtype
     else:
         assert isinstance(ds, Table)
-        if ds.key is None:
-            raise TypeError("cannot filter intervals of an unkeyed Table")
         k_type = ds.key.dtype
 
     point_type = intervals.dtype.element_type.point_type

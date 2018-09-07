@@ -368,7 +368,7 @@ class Table(ExprContainer):
                          f"  index shorthand: ht[key]")
 
     @property
-    def key(self) -> Optional[StructExpression]:
+    def key(self) -> StructExpression:
         """Row key struct.
 
         Examples
@@ -389,7 +389,6 @@ class Table(ExprContainer):
         -------
         :class:`.StructExpression`
         """
-        assert self._key is not None
         return self._key
 
     def n_partitions(self):
@@ -421,10 +420,8 @@ class Table(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct(),
-                      new_keys=oneof(exactly("default"), nullable(sequenceof(str))))
+                      new_keys=oneof(exactly("default"), sequenceof(str)))
     def _select(self, caller, row, new_keys="default"):
-        if new_keys is None:
-            new_keys = []
         if new_keys == "default":
             new_key = list(self.key.keys())
             preserved_key = preserved_key_new = new_key
@@ -452,14 +449,13 @@ class Table(ExprContainer):
                     ir.name == name and
                     isinstance(ir.o, TopLevelReference) and
                     ir.o.name == 'row')
-        if self.key is None:
-            preserved_key_pairs = []
-        else:
-            preserved_key_pairs = list(map(lambda pair: (pair[1]._ir.name, pair[0]),
-                                           itertools.takewhile(
-                                               lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
-                                               zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-        (preserved_key, preserved_key_new) = (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else ([], [])
+        preserved_key_pairs =\
+            list(map(lambda pair: (pair[1]._ir.name, pair[0]),
+                     itertools.takewhile(
+                         lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
+                         zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
+        (preserved_key, preserved_key_new) =\
+            (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else ([], [])
         new_key = list(key_struct.keys())
         return preserved_key, preserved_key_new, new_key
 
@@ -754,8 +750,7 @@ class Table(ExprContainer):
         caller = "Table.transmute"
         e = get_annotate_exprs(caller, named_exprs, self._row_indices)
         fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
-        if self.key is not None:
-            fields_referenced -= set(self.key)
+        fields_referenced -= set(self.key)
 
         return self._select(caller, self.row.annotate(**e).drop(*fields_referenced))
 
@@ -927,7 +922,7 @@ class Table(ExprContainer):
         row_exprs = get_select_exprs('Table.select',
                                      exprs, named_exprs, self._row_indices,
                                      protect_keys=True)
-        row = self.key.annotate(**row_exprs) if self.key else hl.struct(**row_exprs)
+        row = self.key.annotate(**row_exprs)
 
         return self._select('Table.select', row)
 
@@ -1317,7 +1312,6 @@ class Table(ExprContainer):
         :class:`.StructExpression`
         """
         exprs = tuple(exprs)
-        hail.methods.misc.require_key(self, 'index')
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
@@ -1366,7 +1360,7 @@ class Table(ExprContainer):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            is_key = src.key is not None and len(exprs) == len(src.key) and all(
+            is_key = len(exprs) == len(src.key) and all(
                 expr is key_field for expr, key_field in zip(exprs, src.key.values()))
             is_interval = (len(self.key) == 1
                            and isinstance(self.key[0].dtype, hl.tinterval)
@@ -1621,8 +1615,7 @@ class Table(ExprContainer):
             row_fields = ''.join("\n    '{name}': {type} ".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
-        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.key) + ']' \
-            if self.key else None
+        row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.key) + ']'
 
         s = '----------------------------------------\n' \
             'Global fields:{g}\n' \
@@ -1708,9 +1701,9 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with all rows from each component table.
         """
-        left_key = None if self.key is None else list(self.key)
+        left_key = list(self.key)
         for i, ht, in enumerate(tables):
-            right_key = None if ht.key is None else list(ht.key)
+            right_key = list(ht.key)
             if not ht.row.dtype == self.row.dtype:
                 raise ValueError(f"'union': table {i} has a different row type.\n"
                                 f"  Expected:  {self.row.dtype}\n"
@@ -1910,8 +1903,6 @@ class Table(ExprContainer):
             Joined table.
 
         """
-        hail.methods.misc.require_key(self, 'join')
-        hail.methods.misc.require_key(right, 'join')
         left_key_types = list(self.key.dtype.values())
         right_key_types = list(right.key.dtype.values())
         if not left_key_types == right_key_types:
@@ -2007,7 +1998,7 @@ class Table(ExprContainer):
                 raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                if self.key and k in list(self.key):
+                if k in list(self.key):
                     row_key_map[k] = v
                 else:
                     row_value_map[k] = v
@@ -2016,7 +2007,7 @@ class Table(ExprContainer):
 
         table = self
         if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()} if table.key else dict()
+            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()}
             new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
             table = table._select("Table.rename",
                                   hl.struct(**new_keys, **new_values),
@@ -2272,10 +2263,9 @@ class Table(ExprContainer):
         if not isinstance(field.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
 
-        if self.key is not None:
-            for k in self.key.values():
-                if k is field:
-                    raise ValueError(f"method 'explode' cannot explode a key field")
+        for k in self.key.values():
+            if k is field:
+                raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
         t = Table(self._jt.explode(f))
@@ -2401,7 +2391,7 @@ class Table(ExprContainer):
         :class:`.StructExpression`
             Struct of all non-key row fields.
         """
-        return self._row.drop(*self.key.keys()) if self.key is not None else self._row
+        return self._row.drop(*self.key.keys())
 
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
@@ -2570,7 +2560,6 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        hail.methods.misc.require_key(self, 'collect_by_key')
         return Table(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
@@ -2616,7 +2605,6 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        hail.methods.misc.require_key(self, "distinct")
         return Table(self._jt.distinctByKey())
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
