@@ -9,8 +9,8 @@ if [[ "${PUBLISHED}" != "${CURRENT}" ]]
 then
     echo deploying ${CURRENT}, was ${PUBLISHED}
     set +x
-    export TWINE_USERNAME=$(cat ./secrets/pypi-username)
-    export TWINE_PASSWORD=$(cat ./secrets/pypi-password)
+    export TWINE_USERNAME=$(cat /secrets/pypi-username)
+    export TWINE_PASSWORD=$(cat /secrets/pypi-password)
     set -x
     make deploy
 else
