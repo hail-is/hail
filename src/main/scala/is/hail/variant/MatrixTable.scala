@@ -14,12 +14,12 @@ import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
-import is.hail.sparkextras.{Adjustment, ContextRDD}
+import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext}
+import org.apache.spark.SparkContext
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -1489,36 +1489,29 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       entryType = matrixType.entryType ++ TStruct("prev_entries" -> TArray(matrixType.entryType))
     )
 
-    val partitioner = rvd.partitioner
-    val adjustments = partitioner
-      .rangeBounds
-      .zipWithIndex
-      .map { case (bound, i) =>
-        val startLocus = bound.start.asInstanceOf[Row].getAs[Locus](0)
-        val minPartitionNeeded = partitioner.getSafePartitionLowerBound(
-          Row(startLocus.copy(position = startLocus.position - basePairs)))
-        (minPartitionNeeded to i)
-          .map(Adjustment[RegionValue](_, identity))
-          .toArray
-      }.toArray
-
-    val adjRDD = rvd.crdd.adjustPartitions(adjustments)
+    val oldBounds = rvd.partitioner.rangeBounds
+    val adjBounds = oldBounds.map { interval =>
+      val startLocus = interval.start.asInstanceOf[Row].getAs[Locus](0)
+      val newStartLocus = startLocus.copy(position = startLocus.position - basePairs)
+      interval.copy(start = Row(newStartLocus))
+    }
 
     val localRVRowType = rvRowType
     val locusIndex = localRVRowType.fieldIdx("locus")
+    val keyOrdering = matrixType.rowKeyStruct.ordering
+    val localKeyFieldIdx = matrixType.orvdType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
     val entryArrayType = matrixType.entryArrayType
     val entryType = matrixType.entryType
     val rg = referenceGenome
 
-    val locusStartsBc = sparkContext.broadcast(partitioner.rangeBounds.map { interval =>
-      val locus = interval.start.asInstanceOf[Row].getAs[Locus](0)
-      locus.copy(position = locus.position - basePairs)
-    })
+    val rangeBoundsBc = sparkContext.broadcast(oldBounds)
 
     val nCols = numCols
-    val newRDD = adjRDD.cmapPartitionsAndContextWithIndex { (partitionIndex, context, it) =>
+
+    val newRDD = RepartitionedOrderedRDD2(rvd, adjBounds).cmapPartitionsWithIndex { (i, context, it) =>
+      val bit = it.buffered
       val newContext = context.freshContext
 
       val rb = new mutable.ArrayStack[Region]()
@@ -1536,100 +1529,103 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       val deque = new java.util.ArrayDeque[(Locus, RegionValue)]()
 
-      it.flatMap { f =>
-        // these rows are loaded from previous partitions
-        val inAdjustment = it.hasNext
-        val rvIterator = f(newContext)
+      val region = context.region
+      val rv2 = RegionValue()
+      val rvb = new RegionValueBuilder()
 
-        val region = context.region
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        rvIterator.flatMap { rv =>
-          val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
+      def pushRow(locus: Locus, row: RegionValue) {
+        val cpRegion = fetchRegion()
+        rvb.set(cpRegion)
+        rvb.clear()
+        rvb.start(localRVRowType)
+        rvb.startStruct()
+        rvb.addAllFields(localRVRowType, row)
+        rvb.endStruct()
+        deque.push(locus -> RegionValue(cpRegion, rvb.end()))
+      }
 
-          val result = if (inAdjustment) {
-            None
-          } else {
-            def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
-              || x._1.contig != locus.contig)
+      def getLocus(row: RegionValue): Locus =
+        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
 
-            while (discard(deque.peekLast()))
-              recycleRegion(deque.removeLast()._2.region)
+      val unsafeRow = new UnsafeRow(localRVRowType)
+      val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
+      while (bit.hasNext && { unsafeRow.set(bit.head); rangeBoundsBc.value(i).isAbovePosition(keyOrdering, keyView) }) {
+        val rv = bit.next()
+        pushRow(getLocus(rv), rv)
+      }
 
-            val rvs = deque.iterator().asScala.map(_._2).toArray
+      bit.map { rv =>
+        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
 
-            rvb.set(region)
-            rvb.clear()
-            region.clear()
-            rvb.start(newType.rvRowType)
-            rvb.startStruct()
-            rvb.addFields(localRVRowType, rv, nonEntryIndices)
+        def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
+          || x._1.contig != locus.contig)
 
-            // prev_rows
-            rvb.startArray(rvs.length)
-            var j = 0
-            while (j < rvs.length) {
-              val rvj = rvs(j)
-              rvb.startStruct()
-              rvb.addFields(localRVRowType, rvj, nonEntryIndices)
-              rvb.endStruct()
-              j += 1
-            }
-            rvb.endArray()
+        while (discard(deque.peekLast()))
+          recycleRegion(deque.removeLast()._2.region)
 
-            rvb.startArray(nCols)
+        val rvs = deque.iterator().asScala.map(_._2).toArray
 
-            val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
-            val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
+        rvb.set(region)
+        rvb.clear()
+        region.clear()
+        rvb.start(newType.rvRowType)
+        rvb.startStruct()
+        rvb.addFields(localRVRowType, rv, nonEntryIndices)
 
-            j = 0
-            while (j < nCols) {
-              rvb.startStruct()
-              if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
-                rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
-              else
-                rvb.skipFields(entryType.size)
-
-              // prev_entries
-              rvb.startArray(rvs.length)
-              var k = 0
-              while (k < rvs.length) {
-                rvb.startStruct()
-                if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
-                  rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
-                else
-                  rvb.skipFields(entryType.size)
-                rvb.endStruct()
-                k += 1
-              }
-              rvb.endArray()
-              rvb.endStruct()
-
-              j += 1
-            }
-            rvb.endArray()
-            rvb.endStruct()
-
-            rv2.set(region, rvb.end())
-            Some(rv2)
-          }
-
-          if (!inAdjustment || rg.compare(locusStartsBc.value(partitionIndex), locus) <= 0) {
-            val cpRegion = fetchRegion()
-            rvb.set(cpRegion)
-            rvb.clear()
-            rvb.start(localRVRowType)
-            rvb.startStruct()
-            rvb.addAllFields(localRVRowType, rv)
-            rvb.endStruct()
-            deque.push(locus -> RegionValue(cpRegion, rvb.end()))
-          }
-
-          result
+        // prev_rows
+        rvb.startArray(rvs.length)
+        var j = 0
+        while (j < rvs.length) {
+          val rvj = rvs(j)
+          rvb.startStruct()
+          rvb.addFields(localRVRowType, rvj, nonEntryIndices)
+          rvb.endStruct()
+          j += 1
         }
+        rvb.endArray()
+
+        rvb.startArray(nCols)
+
+        val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
+        val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
+
+        j = 0
+        while (j < nCols) {
+          rvb.startStruct()
+          if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
+            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
+          else
+            rvb.skipFields(entryType.size)
+
+          // prev_entries
+          rvb.startArray(rvs.length)
+          var k = 0
+          while (k < rvs.length) {
+            rvb.startStruct()
+            if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
+              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
+            else
+              rvb.skipFields(entryType.size)
+            rvb.endStruct()
+            k += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+
+          j += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+
+        rv2.set(region, rvb.end())
+
+        pushRow(locus, rv)
+        rv2
       }
     }
 
-    copyMT(rvd = new OrderedRVD(newType.orvdType, partitioner, newRDD), matrixType = newType)
+    copyMT(
+      rvd = rvd.copy(typ = newType.orvdType, crdd = newRDD),
+      matrixType = newType)
   }
 }
