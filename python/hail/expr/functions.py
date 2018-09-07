@@ -2679,14 +2679,13 @@ def group_by(f: Callable, collection) -> DictExpression:
 
 
 @typecheck(f=func_spec(2, expr_any),
-           collection=expr_oneof(expr_set(), expr_array()),
-           zero=expr_any)
-def fold(f: Callable, collection, zero) -> Expression:
+           zero=expr_any,
+           collection=expr_oneof(expr_set(), expr_array()))
+def fold(f: Callable, zero, collection) -> Expression:
     """Reduces a collection with the given function `f`, provided the initial value `zero`.
 
     Examples
     --------
-
     >>> a = [0, 1, 2]
 
     >>> hl.fold(lambda i, j: i + j, a, 0).value
@@ -2697,25 +2696,24 @@ def fold(f: Callable, collection, zero) -> Expression:
     f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
         Function which takes the cumulative value and the next element, and
         returns a new value.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
     zero : :class:`.Expression`
+    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
 
     Returns
     -------
     :class:`.ArrayExpression` or :class:`.SetExpression`.
     """
-    return collection.fold(zero, lambda x, y: f(x, y))
+    return collection.fold(lambda x, y: f(x, y), zero)
 
 
 @typecheck(f=func_spec(2, expr_any),
-           a=expr_array(),
-           zero=expr_any)
-def array_scan(f: Callable, a, zero) -> ArrayExpression:
+           zero=expr_any,
+           a=expr_array())
+def array_scan(f: Callable, zero, a) -> ArrayExpression:
     """Map each element of `a` to cumulative value of function `f`, with initial value `zero`.
 
     Examples
     --------
-
     >>> a = [0, 1, 2]
 
     >>> hl.array_scan(lambda i, j: i + j, a, 0).value
@@ -2726,14 +2724,14 @@ def array_scan(f: Callable, a, zero) -> ArrayExpression:
     f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
         Function which takes the cumulative value and the next element, and
         returns a new value.
-    `a` : :class:`.ArrayExpression`
     zero : :class:`.Expression`
+    a : :class:`.ArrayExpression`
 
     Returns
     -------
     :class:`.ArrayExpression`.
     """
-    return a.scan(zero, lambda x, y: f(x, y))
+    return a.scan(lambda x, y: f(x, y), zero)
 
 
 @typecheck(arrays=expr_array(), fill_missing=bool)
@@ -3147,7 +3145,6 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
 
     Examples
     --------
-
     >>> a = [1, 3, 5, 6, 7, 9]
 
     >>> hl.sum(a).value
@@ -3179,7 +3176,6 @@ def cumulative_sum(a, filter_missing: bool = True) -> ArrayNumericExpression:
 
     Examples
     --------
-
     >>> a = [1, 3, 5, 6, 7, 9]
 
     >>> hl.cumulative_sum(a).value
@@ -3203,8 +3199,7 @@ def cumulative_sum(a, filter_missing: bool = True) -> ArrayNumericExpression:
     """
     if filter_missing:
         a = a.filter(hl.is_defined)
-    return a.scan(hl.literal(0, a.dtype.element_type),
-                           lambda accum, elt: accum + elt)[1:]
+    return a.scan(lambda accum, elt: accum + elt, 0)[1:]
 
 
 @typecheck(kwargs=expr_any)

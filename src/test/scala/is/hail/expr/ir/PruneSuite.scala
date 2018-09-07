@@ -472,7 +472,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testArrayScanMemo() {
     checkMemo(ArrayScan(arr, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
-      TInt32(),
+      TArray(TInt32()),
       Array(TArray(justA), null, null))
   }
 

@@ -187,8 +187,8 @@ class CollectionExpression(Expression):
         assert isinstance(self.dtype, tarray), self.dtype
         return array_flatmap
 
-    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any))
-    def fold(self, zero, f):
+    @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
+    def fold(self, f, zero):
         collection = self
         if isinstance(collection.dtype, tset):
             collection = hl.array(collection)
@@ -198,16 +198,29 @@ class CollectionExpression(Expression):
 
         accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
         elt_ref = construct_variable(elt_name, collection.dtype.element_type, collection._indices, collection._aggregations)
-        body = f(accum_ref, elt_ref)
+        body = to_expr(f(accum_ref, elt_ref))
 
-        if not isinstance(body, Expression) or body.dtype != zero.dtype:
+        if body.dtype != zero.dtype:
+            zero_coercer = coercer_from_dtype(zero.dtype)
+            if zero_coercer.can_coerce(body.dtype):
+                body = zero_coercer.coerce(body)
+            else:
+                body_coercer = coercer_from_dtype(body.dtype)
+                if body_coercer.can_coerce(zero.dtype):
+                    zero_coerced = body_coercer.coerce(zero)
+                    accum_ref = construct_variable(accum_name, zero_coerced.dtype, indices, aggregations)
+                    new_body = to_expr(f(accum_ref, elt_ref))
+                    if body_coercer.can_coerce(new_body.dtype):
+                        body = body_coercer.coerce(new_body)
+                        zero = zero_coerced
+
+        if body.dtype != zero.dtype:
             raise ExpressionException("'CollectionExpression.fold' must take function returning "
                                       "same expression type as zero value: \n"
                                       "    zero.dtype: {}\n"
                                       "    f.dtype: {}".format(
                 zero.dtype,
-                body.dtype if isinstance(body, Expression) else "NOT AN EXPRESSION"
-            ))
+                body.dtype))
 
         ir = ArrayFold(collection._ir, zero._ir, accum_name, elt_name, body._ir)
 
@@ -484,24 +497,37 @@ class ArrayExpression(CollectionExpression):
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
-    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any))
-    def scan(self, zero, f):
+    @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
+    def scan(self, f, zero):
         indices, aggregations = unify_all(self, zero)
         accum_name = Env.get_uid()
         elt_name = Env.get_uid()
 
         accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
         elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
-        body = f(accum_ref, elt_ref)
+        body = to_expr(f(accum_ref, elt_ref))
 
-        if not isinstance(body, Expression) or body.dtype != zero.dtype:
+        if body.dtype != zero.dtype:
+            zero_coercer = coercer_from_dtype(zero.dtype)
+            if zero_coercer.can_coerce(body.dtype):
+                body = zero_coercer.coerce(body)
+            else:
+                body_coercer = coercer_from_dtype(body.dtype)
+                if body_coercer.can_coerce(zero.dtype):
+                    zero_coerced = body_coercer.coerce(zero)
+                    accum_ref = construct_variable(accum_name, zero_coerced.dtype, indices, aggregations)
+                    new_body = to_expr(f(accum_ref, elt_ref))
+                    if body_coercer.can_coerce(new_body.dtype):
+                        body = body_coercer.coerce(new_body)
+                        zero = zero_coerced
+
+        if body.dtype != zero.dtype:
             raise ExpressionException("'ArrayExpression.scan' must take function returning "
                                       "same expression type as zero value: \n"
                                       "    zero.dtype: {}\n"
                                       "    f.dtype: {}".format(
                 zero.dtype,
-                body.dtype if isinstance(body, Expression) else "NOT AN EXPRESSION"
-            ))
+                body.dtype))
 
         ir = ArrayScan(self._ir, zero._ir, accum_name, elt_name, body._ir)
 
