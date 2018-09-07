@@ -1,6 +1,7 @@
 from subprocess import call, check_call, check_output
 import sys
 import json
+from . import __version__
 
 
 COMPATIBILITY_VERSION = 1
@@ -130,7 +131,11 @@ def main(args):
         args.spark = '2.2.0' if args.version == 'devel' else '2.0.2'
 
     if args.hash == 'latest':
-        hash_file = 'gs://hail-common/builds/{}/latest-hash-spark-{}.txt'.format(args.version, args.spark)
+        cloudtools_version = __version__.strip().split('.')
+        hash_file = 'gs://hail-common/builds/{}/latest-hash/cloudtools-{}-spark-{}.txt'.format(
+            args.version,
+            cloudtools_version[0],
+            args.spark)
         hash = check_output(['gsutil', 'cat', hash_file]).strip()
         # Python 3 check_output returns a byte string that needs decoding
         hash = hash.decode() if sys.version_info >= (3, 0) else hash

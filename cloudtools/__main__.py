@@ -7,6 +7,7 @@ from cloudtools import diagnose
 from cloudtools import stop
 from cloudtools import list_clusters
 from cloudtools import modify
+from cloudtools import __version__
 
 
 def main():
@@ -86,4 +87,11 @@ def main():
 
 
 if __name__ == '__main__':
+    from subprocess import check_output
+    version = check_output(['pip', 'search', 'cloudtools', '|', 'grep', '"^cloudtools ("'])
+    if sys.version_info >= (3, 0):
+        version = version.decode()
+    latest_version = version.strip().split()[1][1:-1]
+    if __version__ != latest_version:
+        print("cloudtools is out of date! CURRENT: {} LATEST: {}".format(__version__, latest_version))
     main()
