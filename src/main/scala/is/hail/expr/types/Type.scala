@@ -212,10 +212,6 @@ abstract class Type extends BaseType with Serializable {
 
   val ordering: ExtendedOrdering
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
-
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering
-
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
   }

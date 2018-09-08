@@ -99,7 +99,7 @@ object CodeOrdering {
 
   def iterableOrdering(t1: PArray, t2: PArray, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
-    val lord: CodeOrdering = TInt32().codeOrdering(mb)
+    val lord: CodeOrdering = PInt32().codeOrdering(mb)
     val ord: CodeOrdering = t1.elementType.codeOrdering(mb, t2.elementType)
     val len1: LocalRef[Int] = mb.newLocal[Int]
     val len2: LocalRef[Int] = mb.newLocal[Int]

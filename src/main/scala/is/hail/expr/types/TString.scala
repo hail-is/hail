@@ -34,11 +34,6 @@ class TString(override val required: Boolean) extends Type {
   override def byteSize: Long = 8
 
   override def fundamentalType: Type = TBinary(required)
-
-  def codeOrdering(mb: EmitMethodBuilder, other: Type): CodeOrdering = {
-    assert(this isOfType other)
-    TBinary(required).codeOrdering(mb, TBinary(other.required))
-  }
 }
 
 object TString {

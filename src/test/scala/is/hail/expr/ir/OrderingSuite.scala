@@ -26,7 +26,7 @@ class OrderingSuite extends TestNGSuite {
 
   def getStagedOrderingFunction[T: TypeInfo](t: Type, comp: String): AsmFunction3[Region, Long, Long, T] = {
     val fb = EmitFunctionBuilder[Region, Long, Long, T]
-    val stagedOrdering = t.codeOrdering(fb.apply_method)
+    val stagedOrdering = t.physicalType.codeOrdering(fb.apply_method)
     val cregion: Code[Region] = fb.getArg[Region](1)
     val cv1 = coerce[stagedOrdering.T](cregion.getIRIntermediate(t)(fb.getArg[Long](2)))
     val cv2 = coerce[stagedOrdering.T](cregion.getIRIntermediate(t)(fb.getArg[Long](3)))
