@@ -177,6 +177,7 @@ object Pretty {
             case ArrayFilter(_, name, _) => prettyIdentifier(name)
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)

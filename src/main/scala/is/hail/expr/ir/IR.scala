@@ -108,6 +108,8 @@ final case class ArrayFlatMap(a: IR, name: String, body: IR) extends InferIR {
 }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends InferIR
 
+final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends InferIR
+
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
   val typ = TVoid
 }

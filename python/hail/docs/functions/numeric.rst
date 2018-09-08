@@ -34,6 +34,7 @@ Numeric functions
     median
     product
     sum
+    cumulative_sum
     argmin
     argmax
 
@@ -54,6 +55,7 @@ Numeric functions
 .. autofunction:: median
 .. autofunction:: product
 .. autofunction:: sum
+.. autofunction:: cumulative_sum
 .. autofunction:: argmin
 .. autofunction:: argmax
 .. autofunction:: uniroot

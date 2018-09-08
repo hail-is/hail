@@ -13,6 +13,8 @@ object Binds {
         v == n && i == 1
       case ArrayFold(_, _, accumName, valueName, _) =>
         (v == accumName || v == valueName) && i == 2
+      case ArrayScan(_, _, accumName, valueName, _) =>
+        (v == accumName || v == valueName) && i == 2
       case _ =>
         false
     }

@@ -674,6 +674,39 @@ class ArrayFold(IR):
                other.body == self.body
 
 
+class ArrayScan(IR):
+    @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
+    def __init__(self, a, zero, accum_name, value_name, body):
+        super().__init__(a, zero, body)
+        self.a = a
+        self.zero = zero
+        self.accum_name = accum_name
+        self.value_name = value_name
+        self.body = body
+
+    @typecheck_method(a=IR, zero=IR, body=IR)
+    def copy(self, a, zero, body):
+        new_instance = self.__class__
+        return new_instance(a, zero, self.accum_name, self.value_name, body)
+
+    def __str__(self):
+        return '(ArrayScan {} {} {} {} {})'.format(
+            escape_id(self.accum_name), escape_id(self.value_name),
+            self.a, self.zero, self.body)
+
+    @property
+    def bound_variables(self):
+        return {self.accum_name, self.value_name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayScan) and \
+               other.a == self.a and \
+               other.zero == self.zero and \
+               other.accum_name == self.accum_name and \
+               other.value_name == self.value_name and \
+               other.body == self.body
+
+
 class ArrayFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):

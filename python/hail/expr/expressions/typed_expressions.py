@@ -57,7 +57,7 @@ class CollectionExpression(Expression):
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
         f2 = lambda accum, elt: accum | f(elt)
-        return hl.array(self).fold(False, f2)
+        return hl.array(self).fold(f2, False)
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def filter(self, f):
@@ -187,17 +187,42 @@ class CollectionExpression(Expression):
         assert isinstance(self.dtype, tarray), self.dtype
         return array_flatmap
 
-    @typecheck_method(zero=expr_any, f=func_spec(2, expr_any), unify_ret=nullable(func_spec(1, hail_type)))
-    def fold(self, zero, f, unify_ret=None):
-        indices, aggregations = unify_all(self, zero)
+    @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
+    def fold(self, f, zero):
+        collection = self
+        if isinstance(collection.dtype, tset):
+            collection = hl.array(collection)
+        indices, aggregations = unify_all(collection, zero)
         accum_name = Env.get_uid()
         elt_name = Env.get_uid()
 
         accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
-        elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
-        body = f(accum_ref, elt_ref)
+        elt_ref = construct_variable(elt_name, collection.dtype.element_type, collection._indices, collection._aggregations)
+        body = to_expr(f(accum_ref, elt_ref))
 
-        ir = ArrayFold(self._ir, zero._ir, accum_name, elt_name, body._ir)
+        if body.dtype != zero.dtype:
+            zero_coercer = coercer_from_dtype(zero.dtype)
+            if zero_coercer.can_coerce(body.dtype):
+                body = zero_coercer.coerce(body)
+            else:
+                body_coercer = coercer_from_dtype(body.dtype)
+                if body_coercer.can_coerce(zero.dtype):
+                    zero_coerced = body_coercer.coerce(zero)
+                    accum_ref = construct_variable(accum_name, zero_coerced.dtype, indices, aggregations)
+                    new_body = to_expr(f(accum_ref, elt_ref))
+                    if body_coercer.can_coerce(new_body.dtype):
+                        body = body_coercer.coerce(new_body)
+                        zero = zero_coerced
+
+        if body.dtype != zero.dtype:
+            raise ExpressionException("'CollectionExpression.fold' must take function returning "
+                                      "same expression type as zero value: \n"
+                                      "    zero.dtype: {}\n"
+                                      "    f.dtype: {}".format(
+                zero.dtype,
+                body.dtype))
+
+        ir = ArrayFold(collection._ir, zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, body.dtype, indices, aggregations)
@@ -229,7 +254,7 @@ class CollectionExpression(Expression):
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
         f2 = lambda accum, elt: accum & f(elt)
-        return hl.array(self).fold(True, f2)
+        return hl.array(self).fold(f2, True)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def group_by(self, f):
@@ -471,6 +496,43 @@ class ArrayExpression(CollectionExpression):
                             "    caller type: '{}'\n"
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
+
+    @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
+    def scan(self, f, zero):
+        indices, aggregations = unify_all(self, zero)
+        accum_name = Env.get_uid()
+        elt_name = Env.get_uid()
+
+        accum_ref = construct_variable(accum_name, zero.dtype, indices, aggregations)
+        elt_ref = construct_variable(elt_name, self.dtype.element_type, self._indices, self._aggregations)
+        body = to_expr(f(accum_ref, elt_ref))
+
+        if body.dtype != zero.dtype:
+            zero_coercer = coercer_from_dtype(zero.dtype)
+            if zero_coercer.can_coerce(body.dtype):
+                body = zero_coercer.coerce(body)
+            else:
+                body_coercer = coercer_from_dtype(body.dtype)
+                if body_coercer.can_coerce(zero.dtype):
+                    zero_coerced = body_coercer.coerce(zero)
+                    accum_ref = construct_variable(accum_name, zero_coerced.dtype, indices, aggregations)
+                    new_body = to_expr(f(accum_ref, elt_ref))
+                    if body_coercer.can_coerce(new_body.dtype):
+                        body = body_coercer.coerce(new_body)
+                        zero = zero_coerced
+
+        if body.dtype != zero.dtype:
+            raise ExpressionException("'ArrayExpression.scan' must take function returning "
+                                      "same expression type as zero value: \n"
+                                      "    zero.dtype: {}\n"
+                                      "    f.dtype: {}".format(
+                zero.dtype,
+                body.dtype))
+
+        ir = ArrayScan(self._ir, zero._ir, accum_name, elt_name, body._ir)
+
+        indices, aggregations = unify_all(self, zero, body)
+        return construct_expr(ir, tarray(body.dtype), indices, aggregations)
 
 
 class ArrayNumericExpression(ArrayExpression):
