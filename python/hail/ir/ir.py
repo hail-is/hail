@@ -689,10 +689,10 @@ class ArrayScan(IR):
         new_instance = self.__class__
         return new_instance(a, zero, self.accum_name, self.value_name, body)
 
-    def __str__(self):
+    def render(self, r):
         return '(ArrayScan {} {} {} {} {})'.format(
             escape_id(self.accum_name), escape_id(self.value_name),
-            self.a, self.zero, self.body)
+            r(self.a), r(self.zero), r(self.body))
 
     @property
     def bound_variables(self):
