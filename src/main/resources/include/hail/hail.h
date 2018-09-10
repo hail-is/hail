@@ -1,6 +1,7 @@
 #ifndef HAIL_HAIL_H
 #define HAIL_HAIL_H 1
 // hail.h - top-level header file for use by dynamically-generated C++ code
+#include "hail/Logging.h"
 #include "hail/NativeObj.h"
 #include "hail/NativeStatus.h"
 
@@ -25,5 +26,10 @@ inline ssize_t ssize(const T& container) { return static_cast<ssize_t>(container
 
 template<>
 inline ssize_t ssize<size_t>(const size_t& value) { return static_cast<ssize_t>(value); }
+
+// If debugging under gdb, this will print a message and hit a breakpoint
+extern "C" void hail_pause_for_gdb(const char* file, int line, const char* why);
+
+#define HAIL_PAUSE(why) hail_pause_for_gdb(__FILE__, __LINE__, (why))
 
 #endif
