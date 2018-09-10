@@ -519,6 +519,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def expandTypes(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepExpand(t: Type): Type = {
       t match {
         case t: TContainer =>
@@ -537,13 +539,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     copy2(
       rvd = rvd match {
         case ordered: OrderedRVD =>
-          OrderedRVD.coerce(ordered.typ.copy(rowType = newRowType), ordered)
+          ordered.copy(typ = ordered.typ.copy(rowType = newRowType))
         case _: UnpartitionedRVD => UnpartitionedRVD(newRowType, rvd.crdd)
       },
       signature = newRowType)
   }
 
   def flatten(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
       t.fields.map { f =>
         f.typ match {
@@ -560,12 +564,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey: Option[IndexedSeq[String]] = keyFieldIdx.map(_.flatMap { i =>
-      newFields(i).map { case (n, _) => n }
-    })
-    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length)
 
-    select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
+    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten), typ.key))
   }
 
   // expandTypes must be called before toDF
