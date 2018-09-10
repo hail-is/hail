@@ -1,7 +1,19 @@
 FROM alpine:3.8
 
-RUN apk --no-cache add python2 py2-pip bash git openssh curl make && \
-    pip --no-cache-dir install --upgrade twine wheel
+RUN apk --no-cache add \
+    python2 \
+    py2-pip \
+    python3 \
+    py3-pip \
+    bash \
+    git \
+    openssh \
+    curl \
+    make \
+    && \
+    pip --no-cache-dir install --upgrade \
+    twine \
+    wheel
 
 # this seems easier than getting the keys right for apt
 #

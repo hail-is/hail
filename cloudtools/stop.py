@@ -8,7 +8,7 @@ def main(args):
     print("Stopping cluster '{}'...".format(args.name))
 
     cmd = ['gcloud', 'dataproc', 'clusters', 'delete', '--quiet', args.name]
-    if args.async:
+    if vars(args)['async']:
         cmd.append('--async')
 
     check_call(cmd)
