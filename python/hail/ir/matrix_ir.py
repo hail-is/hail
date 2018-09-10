@@ -8,8 +8,8 @@ class MatrixAggregateRowsByKey(MatrixIR):
         self.child = child
         self.expr = expr
 
-    def __str__(self):
-        return '(MatrixAggregateRowsByKey {} {})'.format(self.child, self.expr)
+    def render(self, r):
+        return f'(MatrixAggregateRowsByKey {r(self.child)} {r(self.expr)})'
 
 
 class MatrixRead(MatrixIR):
@@ -19,7 +19,7 @@ class MatrixRead(MatrixIR):
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
 
-    def __str__(self):
+    def render(self, r):
         config = dict(
             name='MatrixNativeReader',
             path=self.path
@@ -34,7 +34,7 @@ class MatrixRange(MatrixIR):
         self.n_cols = n_cols
         self.n_partitions = n_partitions
 
-    def __str__(self):
+    def render(self, r):
         config = dict(
             name='MatrixRangeReader',
             nRows=self.n_rows,
@@ -69,7 +69,7 @@ class MatrixImportVCF(MatrixIR):
         self.array_elements_required = array_elements_required
         self.skip_invalid_loci = skip_invalid_loci
 
-    def __str__(self):
+    def render(self, r):
         config = dict(
             name='MatrixVCFReader',
             files=self.paths,
@@ -109,7 +109,7 @@ class MatrixImportBGEN(MatrixIR):
         self.row_fields = row_fields
         self.variants_per_file = variants_per_file
 
-    def __str__(self):
+    def render(self, r):
         config = dict(
             name='MatrixBGENReader',
             files=self.paths,
@@ -128,8 +128,8 @@ class MatrixFilterRows(MatrixIR):
         self.child = child
         self.pred = pred
 
-    def __str__(self):
-        return '(MatrixFilterRows {} {})'.format(self.child, self.pred)
+    def render(self, r):
+        return '(MatrixFilterRows {} {})'.format(r(self.child), r(self.pred))
 
 class MatrixChooseCols(MatrixIR):
     def __init__(self, child, old_entries):
@@ -137,9 +137,9 @@ class MatrixChooseCols(MatrixIR):
         self.child = child
         self.old_entries = old_entries
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixChooseCols ({}) {})'.format(
-            ' '.join([str(i) for i in self.old_entries]), self.child)
+            ' '.join([str(i) for i in self.old_entries]), r(self.child))
 
 class MatrixMapCols(MatrixIR):
     def __init__(self, child, new_col, new_key):
@@ -148,10 +148,10 @@ class MatrixMapCols(MatrixIR):
         self.new_col = new_col
         self.new_key = new_key
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixMapCols {} {} {})'.format(
             '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
-            self.child, self.new_col)
+            r(self.child), r(self.new_col))
 
 class MatrixMapEntries(MatrixIR):
     def __init__(self, child, new_entry):
@@ -159,8 +159,8 @@ class MatrixMapEntries(MatrixIR):
         self.child = child
         self.new_entry = new_entry
 
-    def __str__(self):
-        return '(MatrixMapEntries {} {})'.format( self.child, self.new_entry)
+    def render(self, r):
+        return '(MatrixMapEntries {} {})'.format(r(self.child), r(self.new_entry))
 
 class MatrixFilterEntries(MatrixIR):
     def __init__(self, child, pred):
@@ -168,8 +168,8 @@ class MatrixFilterEntries(MatrixIR):
         self.child = child
         self.pred = pred
 
-    def __str__(self):
-        return '(MatrixFilterEntries {} {})'.format(self.child, self.pred)
+    def render(self, r):
+        return '(MatrixFilterEntries {} {})'.format(r(self.child), r(self.pred))
 
 class MatrixMapRows(MatrixIR):
     def __init__(self, child, new_row, new_key):
@@ -178,11 +178,11 @@ class MatrixMapRows(MatrixIR):
         self.new_row = new_row
         self.new_key = new_key
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixMapRows {} {} {} {})'.format(
             '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[0]) + ')' if self.new_key is not None else 'None',
             '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[1]) + ')' if self.new_key is not None else 'None',
-            self.child, self.new_row)
+            r(self.child), r(self.new_row))
 
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_row):
@@ -190,8 +190,8 @@ class MatrixMapGlobals(MatrixIR):
         self.child = child
         self.new_row = new_row
 
-    def __str__(self):
-        return '(MatrixMapGlobals {} {})'.format(self.child, self.new_row)
+    def render(self, r):
+        return f'(MatrixMapGlobals {r(self.child)} {r(self.new_row)})'
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
@@ -199,16 +199,16 @@ class MatrixFilterCols(MatrixIR):
         self.child = child
         self.pred = pred
 
-    def __str__(self):
-        return '(MatrixFilterCols {} {})'.format(self.child, self.pred)
+    def render(self, r):
+        return f'(MatrixFilterCols {r(self.child)} {r(self.pred)})'
 
 class MatrixCollectColsByKey(MatrixIR):
     def __init__(self, child):
         super().__init__()
         self.child = child
 
-    def __str__(self):
-        return '(MatrixCollectColsByKey {})'.format(self.child)
+    def render(self, r):
+        return f'(MatrixCollectColsByKey {r(self.child)})'
 
 class MatrixAggregateColsByKey(MatrixIR):
     def __init__(self, child, agg_ir):
@@ -216,8 +216,8 @@ class MatrixAggregateColsByKey(MatrixIR):
         self.child = child
         self.agg_ir = agg_ir
 
-    def __str__(self):
-        return '(MatrixAggregateColsByKey {} {})'.format(self.child, self.agg_ir)
+    def render(self, r):
+        return '(MatrixAggregateColsByKey {} {})'.format(r(self.child), r(self.agg_ir))
 
 class TableToMatrixTable(MatrixIR):
     def __init__(self, child, row_key, col_key, row_fields, col_fields, partition_key, n_partitions):
@@ -230,7 +230,7 @@ class TableToMatrixTable(MatrixIR):
         self.partition_key = partition_key
         self.n_partitions = n_partitions
 
-    def __str__(self):
+    def render(self, r):
         return f'(TableToMatrixTable ' \
                f'{parsable_strings(self.row_key)} ' \
                f'{parsable_strings(self.col_key)} ' \
@@ -238,7 +238,7 @@ class TableToMatrixTable(MatrixIR):
                f'{parsable_strings(self.col_fields)} ' \
                f'{parsable_strings(self.partition_key)} ' \
                f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
-               f'{self.child})'
+               f'{r(self.child)})'
 
 
 class MatrixExplodeRows(MatrixIR):
@@ -247,10 +247,10 @@ class MatrixExplodeRows(MatrixIR):
         self.child = child
         self.path = path
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixExplodeRows ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
-            self.child)
+            r(self.child))
 
 
 class MatrixUnionRows(MatrixIR):
@@ -258,8 +258,8 @@ class MatrixUnionRows(MatrixIR):
         super().__init__()
         self.children = children
 
-    def __str__(self):
-        return '(MatrixUnionRows {})'.format(' '.join(map(str, self.children)))
+    def render(self, r):
+        return '(MatrixUnionRows {})'.format(' '.join(map(r, self.children)))
 
 
 class MatrixExplodeCols(MatrixIR):
@@ -268,10 +268,10 @@ class MatrixExplodeCols(MatrixIR):
         self.child = child
         self.path = path
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixExplodeCols ({}) {})'.format(
             ' '.join([escape_id(id) for id in self.path]),
-            self.child)
+            r(self.child))
 
 
 class UnlocalizeEntries(MatrixIR):
@@ -281,11 +281,11 @@ class UnlocalizeEntries(MatrixIR):
         self.cols = cols
         self.entry_field_name = entry_field_name
 
-    def __str__(self):
+    def render(self, r):
         return '(UnlocalizeEntries ' \
                 f'"{escape_str(self.entry_field_name)}" ' \
-                f'{self.rows_entries} ' \
-                f'{self.cols})'
+                f'{r(self.rows_entries)} ' \
+                f'{r(self.cols)})'
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
@@ -296,14 +296,14 @@ class MatrixAnnotateRowsTable(MatrixIR):
         self.root = root
         self.key = key
 
-    def __str__(self):
+    def render(self, r):
         if self.key is None:
             key_bool = False
             key_strs = ''
         else:
             key_bool = True
             key_strs = ' '.join(str(x) for x in self.key)
-        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {self.child} {self.table} {key_strs})'
+        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {r(self.child)} {r(self.table)} {key_strs})'
 
 class MatrixAnnotateColsTable(MatrixIR):
     def __init__(self, child, table, root):
@@ -312,5 +312,12 @@ class MatrixAnnotateColsTable(MatrixIR):
         self.table = table
         self.root = root
 
-    def __str__(self):
-        return f'(MatrixAnnotateColsTable "{self.root}" {self.child} {self.table})'
+    def render(self, r):
+        return f'(MatrixAnnotateColsTable "{self.root}" {r(self.child)} {r(self.table)})'
+
+class JavaMatrix(MatrixIR):
+    def __init__(self, jir):
+        self._jir = jir
+
+    def render(self, r):
+        return f'(JavaMatrix {r.add_jir(self)})'

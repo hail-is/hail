@@ -567,7 +567,7 @@ object Parser extends JavaTokenParsers {
       "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) } |
-      "CachedValue" ~> ir_identifier ^^ { name => IRParserEnvironment.theEnv.ir_map(name).asInstanceOf[IR] }
+      "JavaIR" ~> ir_identifier ^^ { name => IRParserEnvironment.theEnv.ir_map(name).asInstanceOf[IR] }
   }
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>
@@ -627,7 +627,7 @@ object Parser extends JavaTokenParsers {
       "LocalizeEntries" ~> string_literal ~ matrix_ir ^^ { case field ~ child =>
         ir.LocalizeEntries(child, field)
       } |
-      "CachedTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[TableIR] }
+      "JavaTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[TableIR] }
   }
 
   def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
@@ -675,7 +675,7 @@ object Parser extends JavaTokenParsers {
       "UnlocalizeEntries" ~> string_literal ~ table_ir ~ table_ir ^^ {
         case entryField ~ rowsEntries ~ cols => ir.UnlocalizeEntries(rowsEntries, cols, entryField)
       } |
-      "CachedMatrixTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[MatrixIR] }
+      "JavaMatrix" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[MatrixIR] }
   }
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())

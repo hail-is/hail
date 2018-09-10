@@ -16,7 +16,7 @@ class I32(IR):
         new_instance = self.__class__
         return new_instance(self.x)
 
-    def __str__(self):
+    def render(self, r):
         return '(I32 {})'.format(self.x)
 
     def __eq__(self, other):
@@ -34,7 +34,7 @@ class I64(IR):
         new_instance = self.__class__
         return new_instance(self.x)
 
-    def __str__(self):
+    def render(self, r):
         return '(I64 {})'.format(self.x)
 
     def __eq__(self, other):
@@ -52,7 +52,7 @@ class F32(IR):
         new_instance = self.__class__
         return new_instance(self.x)
 
-    def __str__(self):
+    def render(self, r):
         return '(F32 {})'.format(self.x)
 
     def __eq__(self, other):
@@ -70,7 +70,7 @@ class F64(IR):
         new_instance = self.__class__
         return new_instance(self.x)
 
-    def __str__(self):
+    def render(self, r):
         return '(F64 {})'.format(self.x)
 
     def __eq__(self, other):
@@ -88,7 +88,7 @@ class Str(IR):
         new_instance = self.__class__
         return new_instance(self.x)
 
-    def __str__(self):
+    def render(self, r):
         return '(Str "{}")'.format(escape_str(self.x))
 
     def __eq__(self, other):
@@ -104,7 +104,7 @@ class FalseIR(IR):
         new_instance = self.__class__
         return new_instance()
 
-    def __str__(self):
+    def render(self, r):
         return '(False)'
 
     def __eq__(self, other):
@@ -119,7 +119,7 @@ class TrueIR(IR):
         new_instance = self.__class__
         return new_instance()
 
-    def __str__(self):
+    def render(self, r):
         return '(True)'
 
     def __eq__(self, other):
@@ -134,7 +134,7 @@ class Void(IR):
         new_instance = self.__class__
         return new_instance()
 
-    def __str__(self):
+    def render(self, r):
         return '(Void)'
 
     def __eq__(self, other):
@@ -153,8 +153,8 @@ class Cast(IR):
         new_instance = self.__class__
         return new_instance(v, self.typ)
 
-    def __str__(self):
-        return '(Cast {} {})'.format(self.typ._jtype.parsableString(), self.v)
+    def render(self, r):
+        return '(Cast {} {})'.format(self.typ._jtype.parsableString(), r(self.v))
 
     def __eq__(self, other):
         return isinstance(other, Cast) and \
@@ -172,7 +172,7 @@ class NA(IR):
         new_instance = self.__class__
         return new_instance(self.typ)
 
-    def __str__(self):
+    def render(self, r):
         return '(NA {})'.format(self.typ._jtype.parsableString())
 
     def __eq__(self, other):
@@ -191,8 +191,8 @@ class IsNA(IR):
         new_instance = self.__class__
         return new_instance(value)
 
-    def __str__(self):
-        return '(IsNA {})'.format(self.value)
+    def render(self, r):
+        return '(IsNA {})'.format(r(self.value))
 
     def __eq__(self, other):
         return isinstance(other, IsNA) and \
@@ -212,8 +212,8 @@ class If(IR):
         new_instance = self.__class__
         return new_instance(cond, cnsq, altr)
 
-    def __str__(self):
-        return '(If {} {} {})'.format(self.cond, self.cnsq, self.altr)
+    def render(self, r):
+        return '(If {} {} {})'.format(r(self.cond), r(self.cnsq), r(self.altr))
 
     def __eq__(self, other):
         return isinstance(other, If) and \
@@ -234,8 +234,8 @@ class Let(IR):
         new_instance = self.__class__
         return new_instance(self.name, value, body)
 
-    def __str__(self):
-        return '(Let {} {} {})'.format(escape_id(self.name), self.value, self.body)
+    def render(self, r):
+        return '(Let {} {} {})'.format(escape_id(self.name), r(self.value), r(self.body))
 
     @property
     def bound_variables(self):
@@ -259,7 +259,7 @@ class Ref(IR):
         new_instance = self.__class__
         return new_instance(self.name, self.typ)
 
-    def __str__(self):
+    def render(self, r):
         if self.typ is None:
             return '(Ref {})'.format(escape_id(self.name))
         return '(Ref {} {})'.format(self.typ._jtype.parsableString(), escape_id(self.name))
@@ -301,8 +301,8 @@ class ApplyBinaryOp(IR):
         new_instance = self.__class__
         return new_instance(self.op, l, r)
 
-    def __str__(self):
-        return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(self.op), self.l, self.r)
+    def render(self, r):
+        return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
 
     def __eq__(self, other):
         return isinstance(other, ApplyBinaryOp) and \
@@ -323,8 +323,8 @@ class ApplyUnaryOp(IR):
         new_instance = self.__class__
         return new_instance(self.op, x)
 
-    def __str__(self):
-        return '(ApplyUnaryPrimOp {} {})'.format(escape_id(self.op), self.x)
+    def render(self, r):
+        return '(ApplyUnaryPrimOp {} {})'.format(escape_id(self.op), r(self.x))
 
     def __eq__(self, other):
         return isinstance(other, ApplyUnaryOp) and \
@@ -345,8 +345,8 @@ class ApplyComparisonOp(IR):
         new_instance = self.__class__
         return new_instance(self.op, l, r)
 
-    def __str__(self):
-        return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), self.l, self.r)
+    def render(self, r):
+        return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
 
     def __eq__(self, other):
         return isinstance(other, ApplyComparisonOp) and \
@@ -366,8 +366,8 @@ class MakeArray(IR):
         new_instance = self.__class__
         return new_instance(list(args), self.typ)
 
-    def __str__(self):
-        return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([str(x) for x in self.args]))
+    def render(self, r):
+        return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \
@@ -387,8 +387,8 @@ class ArrayRef(IR):
         new_instance = self.__class__
         return new_instance(a, i)
 
-    def __str__(self):
-        return '(ArrayRef {} {})'.format(self.a, self.i)
+    def render(self, r):
+        return '(ArrayRef {} {})'.format(r(self.a), r(self.i))
 
     def __eq__(self, other):
         return isinstance(other, ArrayRef) and \
@@ -407,8 +407,8 @@ class ArrayLen(IR):
         new_instance = self.__class__
         return new_instance(a)
 
-    def __str__(self):
-        return '(ArrayLen {})'.format(self.a)
+    def render(self, r):
+        return '(ArrayLen {})'.format(r(self.a))
 
     def __eq__(self, other):
         return isinstance(other, ArrayLen) and \
@@ -428,8 +428,8 @@ class ArrayRange(IR):
         new_instance = self.__class__
         return new_instance(start, stop, step)
 
-    def __str__(self):
-        return '(ArrayRange {} {} {})'.format(self.start, self.stop, self.step)
+    def render(self, r):
+        return '(ArrayRange {} {} {})'.format(r(self.start), r(self.stop), r(self.step))
 
     def __eq__(self, other):
         return isinstance(other, ArrayRange) and \
@@ -451,8 +451,8 @@ class ArraySort(IR):
         new_instance = self.__class__
         return new_instance(a, ascending, self.on_key)
 
-    def __str__(self):
-        return '(ArraySort {} {} {})'.format(self.on_key, self.a, self.ascending)
+    def render(self, r):
+        return '(ArraySort {} {} {})'.format(self.on_key, r(self.a), r(self.ascending))
 
     def __eq__(self, other):
         return isinstance(other, ArraySort) and \
@@ -472,8 +472,8 @@ class ToSet(IR):
         new_instance = self.__class__
         return new_instance(a)
 
-    def __str__(self):
-        return '(ToSet {})'.format(self.a)
+    def render(self, r):
+        return '(ToSet {})'.format(r(self.a))
 
     def __eq__(self, other):
         return isinstance(other, ToSet) and \
@@ -491,8 +491,8 @@ class ToDict(IR):
         new_instance = self.__class__
         return new_instance(a)
 
-    def __str__(self):
-        return '(ToDict {})'.format(self.a)
+    def render(self, r):
+        return '(ToDict {})'.format(r(self.a))
 
     def __eq__(self, other):
         return isinstance(other, ToDict) and \
@@ -510,8 +510,8 @@ class ToArray(IR):
         new_instance = self.__class__
         return new_instance(a)
 
-    def __str__(self):
-        return '(ToArray {})'.format(self.a)
+    def render(self, r):
+        return '(ToArray {})'.format(r(self.a))
 
     def __eq__(self, other):
         return isinstance(other, ToArray) and \
@@ -531,8 +531,8 @@ class LowerBoundOnOrderedCollection(IR):
         new_instance = self.__class__
         return new_instance(ordered_collection, elem, self.on_key)
 
-    def __str__(self):
-        return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.on_key, self.ordered_collection, self.elem)
+    def render(self, r):
+        return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.on_key, r(self.ordered_collection), r(self.elem))
 
     def __eq__(self, other):
         return isinstance(other, LowerBoundOnOrderedCollection) and \
@@ -552,8 +552,8 @@ class GroupByKey(IR):
         new_instance = self.__class__
         return new_instance(collection)
 
-    def __str__(self):
-        return '(GroupByKey {})'.format(self.collection)
+    def render(self, r):
+        return '(GroupByKey {})'.format(r(self.collection))
 
     def __eq__(self, other):
         return isinstance(other, GroupByKey) and \
@@ -573,8 +573,8 @@ class ArrayMap(IR):
         new_instance = self.__class__
         return new_instance(a, self.name, body)
 
-    def __str__(self):
-        return '(ArrayMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
+    def render(self, r):
+        return '(ArrayMap {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
 
     @property
     def bound_variables(self):
@@ -600,8 +600,8 @@ class ArrayFilter(IR):
         new_instance = self.__class__
         return new_instance(a, self.name, body)
 
-    def __str__(self):
-        return '(ArrayFilter {} {} {})'.format(escape_id(self.name), self.a, self.body)
+    def render(self, r):
+        return '(ArrayFilter {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
 
     @property
     def bound_variables(self):
@@ -627,8 +627,8 @@ class ArrayFlatMap(IR):
         new_instance = self.__class__
         return new_instance(a, self.name, body)
 
-    def __str__(self):
-        return '(ArrayFlatMap {} {} {})'.format(escape_id(self.name), self.a, self.body)
+    def render(self, r):
+        return '(ArrayFlatMap {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
 
     @property
     def bound_variables(self):
@@ -656,10 +656,10 @@ class ArrayFold(IR):
         new_instance = self.__class__
         return new_instance(a, zero, self.accum_name, self.value_name, body)
 
-    def __str__(self):
+    def render(self, r):
         return '(ArrayFold {} {} {} {} {})'.format(
             escape_id(self.accum_name), escape_id(self.value_name), 
-            self.a, self.zero, self.body)
+            r(self.a), r(self.zero), r(self.body))
 
     @property
     def bound_variables(self):
@@ -689,10 +689,10 @@ class ArrayScan(IR):
         new_instance = self.__class__
         return new_instance(a, zero, self.accum_name, self.value_name, body)
 
-    def __str__(self):
+    def render(self, r):
         return '(ArrayScan {} {} {} {} {})'.format(
             escape_id(self.accum_name), escape_id(self.value_name),
-            self.a, self.zero, self.body)
+            r(self.a), r(self.zero), r(self.body))
 
     @property
     def bound_variables(self):
@@ -720,8 +720,8 @@ class ArrayFor(IR):
         new_instance = self.__class__
         return new_instance(a, self.value_name, body)
 
-    def __str__(self):
-        return '(ArrayFor {} {} {})'.format(escape_id(self.value_name), self.a, self.body)
+    def render(self, r):
+        return '(ArrayFor {} {} {})'.format(escape_id(self.value_name), r(self.a), r(self.body))
 
     @property
     def bound_variables(self):
@@ -755,13 +755,13 @@ class BaseApplyAggOp(IR):
         init_op_args = args[n_constructor_args + 1:]
         return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
 
-    def __str__(self):
+    def render(self, r):
         return '({} {} {} ({}) {})'.format(
             self.__class__.__name__,
             self.agg_sig,
-            self.a,
-            ' '.join([str(x) for x in self.constructor_args]),
-            '(' + ' '.join([str(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None')
+            r(self.a),
+            ' '.join([r(x) for x in self.constructor_args]),
+            '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None')
 
     @property
     def aggregations(self):
@@ -806,8 +806,8 @@ class InitOp(IR):
         new_instance = self.__class__
         return new_instance(i, list(args), self.agg_sig)
 
-    def __str__(self):
-        return '(InitOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
+    def render(self, r):
+        return '(InitOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, InitOp) and \
@@ -827,8 +827,8 @@ class SeqOp(IR):
         new_instance = self.__class__
         return new_instance(i, list(args), self.agg_sig)
 
-    def __str__(self):
-        return '(SeqOp {} {} ({}))'.format(self.agg_sig, self.i, ' '.join([str(x) for x in self.args]))
+    def render(self, r):
+        return '(SeqOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, SeqOp) and \
@@ -847,8 +847,8 @@ class Begin(IR):
         new_instance = self.__class__
         return new_instance(list(xs))
 
-    def __str__(self):
-        return '(Begin {})'.format(' '.join([str(x) for x in self.xs]))
+    def render(self, r):
+        return '(Begin {})'.format(' '.join([r(x) for x in self.xs]))
 
     def __eq__(self, other):
         return isinstance(other, Begin) \
@@ -866,8 +866,8 @@ class MakeStruct(IR):
         assert len(irs) == len(self.fields)
         return new_instance([(n, ir) for (n, _), ir in zip(self.fields, irs)])
 
-    def __str__(self):
-        return '(MakeStruct {})'.format(' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]))
+    def render(self, r):
+        return '(MakeStruct {})'.format(' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
 
     def __eq__(self, other):
         return isinstance(other, MakeStruct) \
@@ -886,8 +886,8 @@ class SelectFields(IR):
         new_instance = self.__class__
         return new_instance(old, self.fields)
 
-    def __str__(self):
-        return '(SelectFields ({}) {})'.format(' '.join(map(escape_id, self.fields)), self.old)
+    def render(self, r):
+        return '(SelectFields ({}) {})'.format(' '.join(map(escape_id, self.fields)), r(self.old))
 
     def __eq__(self, other):
         return isinstance(other, SelectFields) and \
@@ -907,10 +907,10 @@ class InsertFields(IR):
         assert len(args) == len(self.fields) + 1
         return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])])
 
-    def __str__(self):
+    def render(self, r):
         return '(InsertFields {} {})'.format(
             self.old,
-            ' '.join(['({} {})'.format(escape_id(f), x) for (f, x) in self.fields]))
+            ' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
 
     def __eq__(self, other):
         return isinstance(other, InsertFields) and \
@@ -930,8 +930,8 @@ class GetField(IR):
         new_instance = self.__class__
         return new_instance(o, self.name)
 
-    def __str__(self):
-        return '(GetField {} {})'.format(escape_id(self.name), self.o)
+    def render(self, r):
+        return '(GetField {} {})'.format(escape_id(self.name), r(self.o))
 
     @property
     def is_nested_field(self):
@@ -953,8 +953,8 @@ class MakeTuple(IR):
         new_instance = self.__class__
         return new_instance(list(args))
 
-    def __str__(self):
-        return '(MakeTuple {})'.format(' '.join([str(x) for x in self.elements]))
+    def render(self, r):
+        return '(MakeTuple {})'.format(' '.join([r(x) for x in self.elements]))
 
     def __eq__(self, other):
         return isinstance(other, MakeTuple) and \
@@ -973,8 +973,8 @@ class GetTupleElement(IR):
         new_instance = self.__class__
         return new_instance(o, self.idx)
 
-    def __str__(self):
-        return '(GetTupleElement {} {})'.format(self.idx, self.o)
+    def render(self, r):
+        return '(GetTupleElement {} {})'.format(self.idx, r(self.o))
 
     def __eq__(self, other):
         return isinstance(other, GetTupleElement) and \
@@ -995,8 +995,8 @@ class StringSlice(IR):
         new_instance = self.__class__
         return new_instance(s, start, end)
 
-    def __str__(self):
-        return '(StringSlice {} {} {})'.format(self.s, self.start, self.end)
+    def render(self, r):
+        return '(StringSlice {} {} {})'.format(r(self.s), r(self.start), r(self.end))
 
     def __eq__(self, other):
         return isinstance(other, StringSlice) and \
@@ -1016,8 +1016,8 @@ class StringLength(IR):
         new_instance = self.__class__
         return new_instance(s)
 
-    def __str__(self):
-        return '(StringLength {})'.format(self.s)
+    def render(self, r):
+        return '(StringLength {})'.format(r(self.s))
 
     def __eq__(self, other):
         return isinstance(other, StringLength) and \
@@ -1035,7 +1035,7 @@ class In(IR):
         new_instance = self.__class__
         return new_instance(self.i, self.typ)
 
-    def __str__(self):
+    def render(self, r):
         return '(In {} {})'.format(self.typ._jtype.parsableString(), self.i)
 
     def __eq__(self, other):
@@ -1055,7 +1055,7 @@ class Die(IR):
         new_instance = self.__class__
         return new_instance(self.message, self.typ)
 
-    def __str__(self):
+    def render(self, r):
         return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
 
     def __eq__(self, other):
@@ -1075,8 +1075,8 @@ class Apply(IR):
         new_instance = self.__class__
         return new_instance(self.function, *args)
 
-    def __str__(self):
-        return '(Apply {} {})'.format(escape_id(self.function), ' '.join([str(x) for x in self.args]))
+    def render(self, r):
+        return '(Apply {} {})'.format(escape_id(self.function), ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, Apply) and \
@@ -1096,11 +1096,11 @@ class ApplySeeded(IR):
         new_instance = self.__class__
         return new_instance(self.function, self.seed, *args)
 
-    def __str__(self):
+    def render(self, r):
         return '(ApplySeeded {} {} {})'.format(
             escape_id(self.function),
             self.seed,
-            ' '.join([str(x) for x in self.args]))
+            ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, Apply) and \
@@ -1122,9 +1122,9 @@ class Uniroot(IR):
         new_instance = self.__class__
         return new_instance(self.argname, function, min, max)
 
-    def __str__(self):
+    def render(self, r):
         return '(Uniroot {} {} {} {})'.format(
-            escape_id(self.argname), self.function, self.min, self.max)
+            escape_id(self.argname), r(self.function), r(self.min), r(self.max))
 
     @property
     def bound_variables(self):
@@ -1149,8 +1149,8 @@ class TableCount(IR):
         new_instance = self.__class__
         return new_instance(child)
 
-    def __str__(self):
-        return '(TableCount {})'.format(self.child)
+    def render(self, r):
+        return '(TableCount {})'.format(r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, TableCount) and \
@@ -1169,8 +1169,8 @@ class TableAggregate(IR):
         new_instance = self.__class__
         return new_instance(child, query)
 
-    def __str__(self):
-        return '(TableAggregate {} {})'.format(self.child, self.query)
+    def render(self, r):
+        return '(TableAggregate {} {})'.format(r(self.child), r(self.query))
 
     def __eq__(self, other):
         return isinstance(other, TableAggregate) and \
@@ -1190,8 +1190,8 @@ class MatrixAggregate(IR):
         new_instance = self.__class__
         return new_instance(child, query)
 
-    def __str__(self):
-        return '(MatrixAggregate {} {})'.format(self.child, self.query)
+    def render(self, r):
+        return '(MatrixAggregate {} {})'.format(r(self.child), r(self.query))
 
     def __eq__(self, other):
         return isinstance(other, MatrixAggregate) and \
@@ -1212,8 +1212,8 @@ class TableWrite(IR):
         new_instance = self.__class__
         return new_instance(child, self.path, self.overwrite)
 
-    def __str__(self):
-        return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, self.child)
+    def render(self, r):
+        return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, TableWrite) and \
@@ -1241,13 +1241,13 @@ class TableExport(IR):
         new_instance = self.__class__
         return new_instance(child, self.path, self.types_file, self.header, self.export_type)
 
-    def __str__(self):
+    def render(self, r):
         return '(TableExport "{}" "{}" "{}" {} {})'.format(
             escape_str(self.path),
             escape_str(self.types_file),
             escape_str(self.header),
             self.export_type._jtype.parsableString(),
-            self.child)
+            r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
@@ -1270,9 +1270,9 @@ class MatrixWrite(IR):
         new_instance = self.__class__
         return new_instance(child, self.matrix_writer)
 
-    def __str__(self):
+    def render(self, r):
         return '(MatrixWrite {} {})'.format(
-            self.matrix_writer, self.child)
+            self.matrix_writer, r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, MatrixWrite) and \
@@ -1298,7 +1298,7 @@ class Literal(IR):
     def copy(self):
         return Literal(self.dtype, self.value, self.id)
 
-    def __str__(self):
+    def render(self, r):
         return f'(Literal {self.dtype._jtype.parsableString()} ' \
                f'"{escape_str(self.dtype._to_json(self.value))}" ' \
                f'"{self.id}")'
@@ -1326,5 +1326,12 @@ class Join(IR):
         self.idx = Join._idx
         Join._idx += 1
 
-    def __str__(self):
-        return str(self.virtual_ir)
+    def render(self, r):
+        return r(self.virtual_ir)
+
+class JavaIR(IR):
+    def __init__(self, jir):
+        self._jir = jir
+
+    def render(self, r):
+        return f'(JavaIR {r.add_jir(self)})'

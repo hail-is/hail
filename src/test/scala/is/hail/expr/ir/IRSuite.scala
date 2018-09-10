@@ -692,21 +692,21 @@ class IRSuite extends SparkSuite {
 
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32()), Set(1), "__unique_id")
-    val s = s"(CachedValue __uid1)"
+    val s = s"(JavaIR __uid1)"
     val x2 = Parser.parse_value_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
-    val s = s"(CachedTable __uid1)"
+    val s = s"(JavaTable __uid1)"
     val x2 = Parser.parse_table_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedMatrixIR() {
     val cached = MatrixTable.range(hc, 3, 7, None).ast
-    val s = s"(CachedMatrixTable __uid1)"
+    val s = s"(JavaMatrix __uid1)"
     val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
     assert(x2 eq cached)
 
