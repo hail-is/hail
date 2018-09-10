@@ -45,7 +45,7 @@ def doctest_resource(filename):
             i += 1
             if i > 100:
                 raise EnvironmentError("Hail tests must be run from inside the Hail git repository")
-        _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
+        _doctest_dir = os.path.join(path, 'hail', 'python', 'hail', 'docs', 'data')
 
     return os.path.join(_doctest_dir, filename)
 
