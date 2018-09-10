@@ -210,7 +210,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val orvd = tv.rvd.toOrderedRVD
     val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
     assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
 
@@ -501,8 +501,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       newGlobalType,
       leftTV.rvd.sparkContext)
 
-    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val leftORVD = leftTV.rvd.asInstanceOf[OrderedRVD]
+    val rightORVD = rightTV.rvd.asInstanceOf[OrderedRVD]
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
       joinKey,
@@ -536,8 +536,8 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
     leftValue.copy(
       typ = typ,
-      rvd = leftValue.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-        .orderedLeftJoinDistinctAndInsert(rightValue.enforceOrderingRVD.asInstanceOf[OrderedRVD], root))
+      rvd = leftValue.rvd.asInstanceOf[OrderedRVD]
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.asInstanceOf[OrderedRVD], root))
   }
 }
 
@@ -683,7 +683,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       }
     }
 
-    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val orvd = tv.rvd.toOrderedRVD
     val newRVD = orvd
       .truncateKey(orvd.typ.key.take(typ.rvdType.key.length))
       .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
@@ -882,7 +882,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    prev.copy(rvd = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD].distinctByKey())
+    prev.copy(rvd = prev.rvd.asInstanceOf[OrderedRVD].distinctByKey())
   }
 }
 
@@ -1061,7 +1061,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    val prevRVD = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", child.typ.globalType,

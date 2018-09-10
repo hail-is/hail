@@ -15,7 +15,8 @@ import org.json4s.jackson.JsonMethods
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
-  require(typ.key.isDefined == rvd.isInstanceOf[OrderedRVD])
+//  require(typ.key.isDefined == rvd.isInstanceOf[OrderedRVD])
+  require(!(typ.key.isDefined && rvd.isInstanceOf[UnpartitionedRVD]))
   require(typ.key.forall(k => rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(k)))
 
   def rdd: RDD[Row] =
@@ -28,19 +29,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val keyIndexSet = keyIndices.toSet
     val valueIndices = typ.rowType.fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
-  }
-
-  def enforceOrderingRVD: RVD = (rvd, typ.key) match {
-    case (orvd: OrderedRVD, Some(key)) =>
-      assert(orvd.typ.key.startsWith(key))
-      orvd
-    case (orvd: OrderedRVD, None) =>
-      orvd.toUnpartitionedRVD
-    case (urvd: UnpartitionedRVD, Some(key)) =>
-      val orvdType = OrderedRVDType(key, typ.rowType)
-      OrderedRVD.coerce(orvdType, rvd)
-    case (urvd: UnpartitionedRVD, None) =>
-      urvd
   }
 
   def filterWithPartitionOp[P](partitionOp: Int => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
@@ -83,7 +71,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     hc.hadoopConf.mkDir(globalsPath)
     RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = enforceOrderingRVD.write(path + "/rows", stageLocally, codecSpec)
+    val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)
