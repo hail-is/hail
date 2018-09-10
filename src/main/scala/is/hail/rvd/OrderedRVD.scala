@@ -316,7 +316,10 @@ class OrderedRVD(
     keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey))
 
   def orderedMerge(right: OrderedRVD): OrderedRVD =
-    keyBy().orderedMerge(right.keyBy())
+    orderedMerge(right, typ.key.length)
+
+  def orderedMerge(right: OrderedRVD, joinKey: Int): OrderedRVD =
+    keyBy(joinKey).orderedMerge(right.keyBy(joinKey))
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
@@ -702,6 +705,9 @@ object OrderedRVD {
       OrderedRVDPartitioner.empty(typ),
       ContextRDD.empty[RVDContext, RegionValue](sc))
   }
+
+  def unkeyed(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD =
+    new OrderedRVD(typ, OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions), crdd)
 
   /**
     * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each
@@ -1141,8 +1147,14 @@ object OrderedRVD {
       })
   }
 
+  def union(rvds: Seq[OrderedRVD], joinKey: Int): OrderedRVD = {
+    require(rvds.nonEmpty)
+    if (rvds.length == 1) rvds.head
+    else rvds.reduce(_.orderedMerge(_, joinKey))
+  }
+
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
-    require(rvds.length > 1)
-    rvds.reduce(_.orderedMerge(_))
+    require(rvds.nonEmpty)
+    union(rvds, rvds.head.typ.key.length)
   }
 }

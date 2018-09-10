@@ -21,13 +21,8 @@ object UnpartitionedRVD {
 class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
-  override def toOrderedRVD: OrderedRVD = {
-    new OrderedRVD(
-      typ = OrderedRVDType(FastIndexedSeq.empty, rowType),
-      partitioner = OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
-      crdd = crdd
-    )
-  }
+  override def toOrderedRVD: OrderedRVD =
+    OrderedRVD.unkeyed(OrderedRVDType(FastIndexedSeq.empty, rowType), crdd)
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
