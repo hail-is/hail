@@ -9,6 +9,7 @@ gcloud auth activate-service-account \
 gcloud config set project broad-ctsa
 
 shutdown_cluster() {
+    trap "" INT TERM
     set +e
     for CLUSTER_NAME in $CLUSTERS
     do
