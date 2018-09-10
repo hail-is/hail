@@ -112,16 +112,6 @@ object PType {
 
   val genInsertable: Gen[PStruct] = genInsertableStruct
 
-  def genWithValue: Gen[(PType, Annotation)] = for {
-    s <- Gen.size
-    // prefer smaller type and bigger values
-    fraction <- Gen.choose(0.1, 0.3)
-    x = (fraction * s).toInt
-    y = s - x
-    t <- PType.genStruct.resize(x)
-    v <- t.genValue.resize(y)
-  } yield (t, v)
-
   implicit def arbType = Arbitrary(genArb)
 }
 
@@ -165,22 +155,6 @@ abstract class PType extends BaseType with Serializable {
       (signature, (a, toIns) => toIns)
   }
 
-  def query(fields: String*): Querier = query(fields.toList)
-
-  def query(path: List[String]): Querier = {
-    val (t, q) = queryTyped(path)
-    q
-  }
-
-  def queryTyped(fields: String*): (PType, Querier) = queryTyped(fields.toList)
-
-  def queryTyped(path: List[String]): (PType, Querier) = {
-    if (path.nonEmpty)
-      throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
-    else
-      (this, identity[Annotation])
-  }
-
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("+")
@@ -198,26 +172,11 @@ abstract class PType extends BaseType with Serializable {
   def fieldOption(path: List[String]): Option[PField] =
     None
 
-  def str(a: Annotation): String = if (a == null) "NA" else a.toString
-
-  def genNonmissingValue: Gen[Annotation] = ???
-
-  def genValue: Gen[Annotation] =
-    if (required)
-      genNonmissingValue
-    else
-      Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
-
   def isRealizable: Boolean = children.forall(_.isRealizable)
-
-  /* compare values for equality, but compare Float and Double values by the absolute value of their difference is within tolerance or with D_== */
-  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = a1 == a2
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
   def canCompare(other: PType): Boolean = this == other
-
-  val ordering: ExtendedOrdering
 
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
 
@@ -232,10 +191,6 @@ abstract class PType extends BaseType with Serializable {
   def fundamentalType: PType = this
 
   def required: Boolean
-
-  def _typeCheck(a: Any): Boolean
-
-  final def typeCheck(a: Any): Boolean = (!required && a == null) || _typeCheck(a)
 
   final def unary_+(): PType = setRequired(true)
 

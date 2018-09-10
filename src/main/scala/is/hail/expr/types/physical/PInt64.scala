@@ -22,10 +22,6 @@ class PInt64(override val required: Boolean) extends PIntegral {
     sb.append("int64")
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
-
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
@@ -33,9 +29,6 @@ class PInt64(override val required: Boolean) extends PIntegral {
       java.lang.Long.compare(r1.loadLong(o1), r2.loadLong(o2))
     }
   }
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Long]])
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

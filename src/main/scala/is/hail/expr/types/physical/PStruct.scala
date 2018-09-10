@@ -72,8 +72,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
-  val ordering: ExtendedOrdering = PBaseStruct.getOrdering(types)
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
@@ -107,7 +105,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   def field(name: String): PField = fields(fieldIdx(name))
 
-  def toTTuple: PTuple = new PTuple(types, required)
+  def toTTuple: PTuple = PTuple(types, required)
 
   override def fieldOption(path: List[String]): Option[PField] =
     if (path.isEmpty)
@@ -119,24 +117,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
       else
         f.flatMap(_.typ.fieldOption(path.tail))
     }
-
-  override def queryTyped(p: List[String]): (PType, Querier) = {
-    if (p.isEmpty)
-      (this, identity[Annotation])
-    else {
-      selfField(p.head) match {
-        case Some(f) =>
-          val (t, q) = f.typ.queryTyped(p.tail)
-          val localIndex = f.index
-          (t, (a: Any) =>
-            if (a == null)
-              null
-            else
-              q(a.asInstanceOf[Row].get(localIndex)))
-        case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
-      }
-    }
-  }
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
@@ -201,45 +181,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  override def insert(signature: PType, p: List[String]): (PType, Inserter) = {
-    if (p.isEmpty)
-      (signature, (a, toIns) => toIns)
-    else {
-      val key = p.head
-      val f = selfField(key)
-      val keyIndex = f.map(_.index)
-      val (newKeyType, keyF) = f
-        .map(_.typ)
-        .getOrElse(PStruct.empty())
-        .insert(signature, p.tail)
-
-      val newSignature = keyIndex match {
-        case Some(i) => updateKey(key, i, newKeyType)
-        case None => appendKey(key, newKeyType)
-      }
-
-      val localSize = fields.size
-
-      val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
-          Row.fromSeq(Array.fill[Any](localSize)(null))
-        else
-          a.asInstanceOf[Row]
-        keyIndex match {
-          case Some(i) => r.update(i, keyF(r.get(i), toIns))
-          case None => r.append(keyF(null, toIns))
-        }
-      }
-      (newSignature, inserter)
-    }
-  }
-
-  def structInsert(signature: PType, p: List[String]): (PStruct, Inserter) = {
-    require(p.nonEmpty || signature.isInstanceOf[PStruct], s"tried to remap top-level struct to non-struct $signature")
-    val (t, f) = insert(signature, p)
-    (t.asInstanceOf[PStruct], f)
-  }
-
   def updateKey(key: String, i: Int, sig: PType): PStruct = {
     assert(fieldIdx.contains(key))
 
@@ -273,58 +214,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(newFields, required)
   }
 
-  def annotate(other: PStruct): (PStruct, Merger) = {
-    val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
-    val fieldIdxBuilder = new ArrayBuilder[Int]()
-    // In fieldIdxBuilder, positive integers are field indices from the left.
-    // Negative integers are the complement of field indices from the right.
-
-    val rightFieldIdx = other.fields.map { f => f.name -> (f.index, f.typ) }.toMap
-    val leftFields = fieldNames.toSet
-
-    fields.foreach { f =>
-      rightFieldIdx.get(f.name) match {
-        case Some((rightIdx, typ)) =>
-          fieldIdxBuilder += ~rightIdx
-          newFieldsBuilder += f.name -> typ
-        case None =>
-          fieldIdxBuilder += f.index
-          newFieldsBuilder += f.name -> f.typ
-      }
-    }
-    other.fields.foreach { f =>
-      if (!leftFields.contains(f.name)) {
-        fieldIdxBuilder += ~f.index
-        newFieldsBuilder += f.name -> f.typ
-      }
-    }
-
-    val newStruct = PStruct(newFieldsBuilder.result(): _*)
-    val fieldIdx = fieldIdxBuilder.result()
-    val leftNulls = Row.fromSeq(Array.fill[Any](size)(null))
-    val rightNulls = Row.fromSeq(Array.fill[Any](other.size)(null))
-
-    val annotator = (a1: Annotation, a2: Annotation) => {
-      if (a1 == null && a2 == null)
-        null
-      else {
-        val leftValues = if (a1 == null) leftNulls else a1.asInstanceOf[Row]
-        val rightValues = if (a2 == null) rightNulls else a2.asInstanceOf[Row]
-        val resultValues = new Array[Any](fieldIdx.length)
-        var i = 0
-        while (i < resultValues.length) {
-          val idx = fieldIdx(i)
-          if (idx < 0)
-            resultValues(i) = rightValues(~idx)
-          else
-            resultValues(i) = leftValues(idx)
-          i += 1
-        }
-        Row.fromSeq(resultValues)
-      }
-    }
-    newStruct -> annotator
-  }
 
   def rename(m: Map[String, String]): PStruct = {
     val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
@@ -335,23 +224,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(newFieldsBuilder.result(): _*)
   }
 
-  def filterSet(set: Set[String], include: Boolean = true): (PStruct, Deleter) = {
-    val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
-    if (notFound.nonEmpty)
-      fatal(
-        s"""invalid struct filter operation: ${
-          plural(notFound.size, s"field ${ notFound.head }", s"fields [ ${ notFound.mkString(", ") } ]")
-        } not found
-           |  Existing struct fields: [ ${ fields.map(f => prettyIdentifier(f.name)).mkString(", ") } ]""".stripMargin)
-
-    val fn = (f: PField) =>
-      if (include)
-        set.contains(f.name)
-      else
-        !set.contains(f.name)
-    filter(fn)
-  }
-
   def ++(that: PStruct): PStruct = {
     val overlapping = fields.map(_.name).toSet.intersect(
       that.fields.map(_.name).toSet)
@@ -359,40 +231,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
       fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
 
     PStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
-  }
-
-  def filter(f: (PField) => Boolean): (PStruct, (Annotation) => Annotation) = {
-    val included = fields.map(f)
-
-    val newFields = fields.zip(included)
-      .flatMap { case (field, incl) =>
-        if (incl)
-          Some(field)
-        else
-          None
-      }
-
-    val newSize = newFields.size
-
-    val filterer = (a: Annotation) =>
-      if (a == null)
-        a
-      else if (newSize == 0)
-        Annotation.empty
-      else {
-        val r = a.asInstanceOf[Row]
-        val newValues = included.zipWithIndex
-          .flatMap {
-            case (incl, i) =>
-              if (incl)
-                Some(r.get(i))
-              else None
-          }
-        assert(newValues.length == newSize)
-        Annotation.fromSeq(newValues)
-      }
-
-    (PStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }, required), filterer)
   }
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -422,18 +260,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
         sb += '}'
       }
     }
-  }
-
-  def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
-    val t = PStruct(keep.map { n =>
-      n -> field(n).typ
-    }: _*)
-
-    val keepIdx = keep.map(fieldIdx)
-    val selectF: Row => Row = { r =>
-      Row.fromSeq(keepIdx.map(r.get))
-    }
-    (t, selectF)
   }
 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =

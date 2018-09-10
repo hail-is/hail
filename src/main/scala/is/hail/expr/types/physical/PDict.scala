@@ -57,23 +57,7 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
     sb.append("]")
   }
 
-  def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
-
-  override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
-
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
-    a1 == a2 || (a1 != null && a2 != null &&
-      a1.asInstanceOf[Map[Any, _]].outerJoin(a2.asInstanceOf[Map[Any, _]])
-        .forall { case (_, (o1, o2)) =>
-          o1.liftedZip(o2).exists { case (v1, v2) => valueType.valuesSimilar(v1, v2, tolerance, absolute) }
-        })
-
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.mapOrdering(elementType.ordering)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

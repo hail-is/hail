@@ -21,10 +21,6 @@ class PInt32(override val required: Boolean) extends PIntegral {
     sb.append("int32")
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Int]
-
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
@@ -32,9 +28,6 @@ class PInt32(override val required: Boolean) extends PIntegral {
       Integer.compare(r1.loadInt(o1), r2.loadInt(o2))
     }
   }
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

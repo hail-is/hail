@@ -22,16 +22,10 @@ class PString(override val required: Boolean) extends PType {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("str")
   }
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = PBinary(required).unsafeOrdering(missingGreatest)
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
   override def byteSize: Long = 8
 

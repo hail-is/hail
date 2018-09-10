@@ -8,7 +8,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
-final case class PArray(elementType: PType, override val required: Boolean = false) extends PIterable {
+final case class PArray(elementType: PType, override val required: Boolean = false) extends PContainer {
   def virtualType: TArray = TArray(elementType.virtualType, required)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
@@ -48,15 +48,6 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
-
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
-
-  override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(elementType.ordering)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(this isOfType other)

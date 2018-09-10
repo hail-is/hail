@@ -14,8 +14,6 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
 
   val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
 
-  val ordering: ExtendedOrdering = PBaseStruct.getOrdering(types)
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb)

@@ -22,26 +22,6 @@ class PFloat32(override val required: Boolean) extends PNumeric {
     sb.append("float32")
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
-
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
-
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
-    a1 == a2 || (a1 != null && a2 != null && {
-      val f1 = a1.asInstanceOf[Float]
-      val f2 = a2.asInstanceOf[Float]
-
-      val withinTol =
-        if (absolute)
-          math.abs(f1 - f2) <= tolerance
-        else
-          D_==(f1, f2, tolerance)
-
-      f1 == f2 || withinTol || (f1.isNaN && f2.isNaN)
-    })
-
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
@@ -49,9 +29,6 @@ class PFloat32(override val required: Boolean) extends PNumeric {
       java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
     }
   }
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Float]])
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

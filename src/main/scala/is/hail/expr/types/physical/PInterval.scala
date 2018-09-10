@@ -28,16 +28,7 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
     sb.append("]")
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval] && {
-    val i = a.asInstanceOf[Interval]
-    pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
-  }
-
-  override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.ordering, pointType.genValue)
-
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
-
-  val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

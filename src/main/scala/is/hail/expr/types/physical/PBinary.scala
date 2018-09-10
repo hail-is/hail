@@ -20,10 +20,6 @@ class PBinary(override val required: Boolean) extends PType {
 
   def _toPretty = "Binary"
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
-
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
-
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
@@ -48,9 +44,6 @@ class PBinary(override val required: Boolean) extends PType {
       Integer.compare(l1, l2)
     }
   }
-
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(Ordering.Iterable[Byte])
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
