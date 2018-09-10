@@ -552,6 +552,7 @@ private class Emit(
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean](name2 + "_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
+        val xmbody = mb.newField[Boolean](name1 + "_missing")
         val xmaccum = mb.newField[Boolean](name1 + "_missing")
         val xvaccum = coerce[Any](mb.newField(name1)(tti))
         val bodyenv = env.bind(
@@ -568,8 +569,9 @@ private class Emit(
             xmv := m,
             xvv := xmv.mux(defaultValue(tarray.elementType), v),
             codeB.setup,
-            xmaccum := codeB.m,
-            xvaccum := xmaccum.mux(defaultValue(typ), codeB.v))
+            xmbody := codeB.m,
+            xvaccum := xmbody.mux(defaultValue(typ), codeB.v),
+            xmaccum := xmbody)
         }
 
         val processAElts = aBase.arrayEmitter(cont)
@@ -1104,6 +1106,7 @@ private class Emit(
         val elt = coerce[TArray](a.typ).elementType
         val accumTypeInfo = coerce[Any](typeToTypeInfo(zero.typ))
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
+        val xmbody = mb.newField[Boolean]()
         val xmaccum = mb.newField[Boolean]()
         val xvaccum = mb.newField(accumName)(accumTypeInfo)
         val xmv = mb.newField[Boolean]()
@@ -1127,8 +1130,9 @@ private class Emit(
             xmv := m,
             xvv := xmv.mux(defaultValue(elt), v),
             codeB.setup,
-            xmaccum := codeB.m,
-            xvaccum := xmaccum.mux(defaultValue(zero.typ), codeB.v),
+            xmbody := codeB.m,
+            xvaccum := xmbody.mux(defaultValue(zero.typ), codeB.v),
+            xmaccum := xmbody,
             cont(xmaccum, xvaccum)
           )
         }
