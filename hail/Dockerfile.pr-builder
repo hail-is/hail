@@ -1,0 +1,75 @@
+FROM continuumio/miniconda
+MAINTAINER Hail Team <hail@broadinstitute.org>
+
+USER root
+# - libnlopt-dev is for nloptr, a dependency of SKAT:
+#   https://github.com/jyypma/nloptr/issues/40
+#
+# - r-cran-ncdf4, r-cran-rnetcdf, libcurl4-openssl-dev, and libxml2-dve are
+# - depenendencies for the three biolite packages
+RUN apt-get update && apt-get -y install \
+    bash \
+    cmake \
+    curl \
+    g++ \
+    git \
+    libnlopt-dev \
+    openjdk-8-jdk-headless \
+    pandoc \
+    r-base \
+    tar \
+    unzip \
+    xsltproc \
+    r-cran-ncdf4 \
+    r-cran-rnetcdf \
+    libcurl4-openssl-dev \
+    libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
+    Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
+
+WORKDIR /plink
+ADD http://www.cog-genomics.org/static/bin/plink/plink_linux_x86_64.zip /plink
+RUN unzip plink_linux_x86_64.zip && \
+    rm -rf plink_linux_x86_64.zip && \
+    ln -s /plink/plink /bin/plink
+
+WORKDIR /qctool
+ADD http://www.well.ox.ac.uk/~gav/resources/qctool_v2.0.1-CentOS6.8-x86_64.tgz /qctool
+RUN tar --strip-components=1 -xvzf qctool_v2.0.1-CentOS6.8-x86_64.tgz -C /qctool && \
+    rm -rf qctool_v2.0.1-CentOS6.8-x86_64.tgz && \
+    ln -s /qctool/qctool /bin/qctool
+
+WORKDIR /spark
+ADD https://archive.apache.org/dist/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz /spark
+RUN tar --strip-components=1 -xvzf spark-2.2.0-bin-hadoop2.7.tgz -C /spark && \
+    rm -rf spark-2.2.2-bin-hadoop2.7.tgz
+ENV SPARK_HOME /spark/
+
+WORKDIR /hail
+RUN mkdir -p /gradle-cache && \
+    useradd --create-home --shell /bin/bash hail && \
+    chown -R hail:hail /hail /gradle-cache
+USER hail
+
+# cache (almost all) gradle dependencies (and gradle itself)
+#
+# Some plugin we use hides its dependencies in a so-called "detached
+# configuration" so there is no way for us to ensure it gets cached.
+COPY --chown=hail:hail gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
+COPY --chown=hail:hail gradle gradle
+RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
+COPY --chown=hail:hail python/hail/dev-environment.yml python/hail/dev-environment.yml
+RUN conda env create hail -f ./python/hail/dev-environment.yml && \
+    rm -rf /home/hail/.conda/pkgs/*
+
+# this seems easier than getting the keys right for apt
+#
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash'
+ENV PATH $PATH:/home/hail/google-cloud-sdk/bin
+# gcloud iam key files will be stored here
+VOLUME /secrets
+
+WORKDIR /hail
