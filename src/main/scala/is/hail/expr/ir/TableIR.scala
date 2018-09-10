@@ -295,15 +295,12 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 
   def execute(hc: HailContext): TableValue = {
-    val ktv = child.execute(hc)
+    val tv = child.execute(hc)
 
     if (pred == True())
-      return ktv
+      return tv
     else if (pred == False())
-      return ktv.copy(rvd = ktv.rvd match {
-        case orvd: OrderedRVD => OrderedRVD.empty(hc.sc, orvd.typ)
-        case urvd: UnpartitionedRVD => UnpartitionedRVD.empty(hc.sc, urvd.rowType)
-      })
+      return tv.copy(rvd = OrderedRVD.empty(hc.sc, typ.rvdType).toOldStyleRVD)
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
       "row", child.typ.rowType,
@@ -311,7 +308,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       pred)
     assert(rTyp == TBoolean())
 
-    ktv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
+    tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
 
@@ -705,6 +702,8 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
 
 
 case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
+  assert(!child.typ.keyOrEmpty.contains(fieldName))
+
   def children: IndexedSeq[BaseIR] = Array(child)
 
   private val fieldIdx = child.typ.rowType.fieldIdx(fieldName)
@@ -758,19 +757,13 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
       }
     }
 
-    val newRVD: RVD = prev.rvd.boundary match {
-      case rvd: UnpartitionedRVD =>
-        rvd.mapPartitionsWithIndex(typ.rowType, itF)
-      case orvd: OrderedRVD =>
-        if (orvd.typ.key.contains(fieldName))
-          orvd.mapPartitionsWithIndex(typ.rowType, itF)
-        else
-          orvd.mapPartitionsWithIndexPreservesPartitioning(
-            orvd.typ.copy(rowType = rowType),
-            itF)
-    }
+    val orvd = prev.rvd.toOrderedRVD.boundary
+    val adjKey = orvd.truncateKey(orvd.typ.key.takeWhile(_ != fieldName))
+    val newRVD = adjKey.mapPartitionsWithIndexPreservesPartitioning(
+      adjKey.typ.copy(rowType = rowType),
+      itF)
 
-    TableValue(typ, prev.globals, newRVD)
+    TableValue(typ, prev.globals, newRVD.toOldStyleRVD)
   }
 }
 
