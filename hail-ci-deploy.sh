@@ -36,7 +36,8 @@ gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
 gsutil acl set public-read $CONFIG
 
 echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
-HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash-spark-${SPARK_VERSION}.txt
+CLOUDTOOLS_VERSION=2
+HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
 gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
 gsutil acl set public-read ${HASH_TARGET}
 
