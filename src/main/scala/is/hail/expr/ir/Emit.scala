@@ -705,7 +705,7 @@ private class Emit(
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
         val oldt = coerce[TStruct](oldStruct.typ)
-        val oldv = mb.newLocal[Long]
+        val oldv = mb.newField[Long]
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
         val addFields = fields.map { name =>
