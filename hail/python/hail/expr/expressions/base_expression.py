@@ -646,7 +646,7 @@ class Expression(object):
         return to_return
 
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=func_spec(1, anytype))
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
 
