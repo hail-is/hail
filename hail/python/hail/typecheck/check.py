@@ -295,6 +295,7 @@ class AnyFuncChecker(TypeChecker):
     def check(self, x, caller, param):
         if not callable(x):
             raise TypecheckFailure
+        return x
 
     def expects(self):
         return 'function'
