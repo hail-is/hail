@@ -11,7 +11,7 @@ gcloud auth activate-service-account \
     --key-file=/secrets/hail-ci-0-1.key
 
 on_exit() {
-    trap - INT TERM
+    trap "" INT TERM
     set +e
     rm -rf artifacts
     mkdir -p artifacts
