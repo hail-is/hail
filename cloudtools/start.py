@@ -177,7 +177,7 @@ def main(args):
         conf.extend_flag('initialization-actions', ['gs://hail-common/vep/vep/vep85-init.sh'])
     # add custom init scripts
     if args.init:
-        conf.extend_flag('initialization-actions', args.init)
+        conf.extend_flag('initialization-actions', args.init.split(','))
 
     if args.jar and args.zip:
         conf.extend_flag('metadata', {'JAR': args.jar, 'ZIP': args.zip})
