@@ -312,7 +312,7 @@ class Expression(object):
         self._indices = indices
         self._aggregations = aggregations
 
-    def describe(self):
+    def describe(self, handler=lambda x: print(x)):
         """Print information about type, index, and dependencies."""
         if self._aggregations:
             agg_indices = set()
@@ -341,7 +341,7 @@ class Expression(object):
                            maybe_bar='\n' + bar + '\n' if agg_str else '',
                            agg_tag=agg_tag,
                            agg=agg_str)
-        print(s)
+        handler(s)
 
     def __lt__(self, other):
         raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
@@ -646,8 +646,8 @@ class Expression(object):
         return to_return
 
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
-    def show(self, n=10, width=90, truncate=None, types=True):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=func_spec(1, anytype))
+    def show(self, n=10, width=90, truncate=None, types=True, handler=lambda x: print(x)):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -690,7 +690,7 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        print(self._show(n, width, truncate, types))
+        handler(self._show(n, width, truncate, types))
 
     def _show(self, n=10, width=90, truncate=None, types=True):
         name = '<expr>'
