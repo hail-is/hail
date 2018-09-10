@@ -11,7 +11,7 @@ class SimplifySuite extends SparkSuite {
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations() {
     hc
-    val range = TableUnkey(TableRange(10, 3))
+    val range = TableKeyBy(TableRange(10, 3), FastIndexedSeq())
     val simplifiableIR =
       If(True(),
         GetField(Ref("row", range.typ.rowType), "idx").ceq(0),

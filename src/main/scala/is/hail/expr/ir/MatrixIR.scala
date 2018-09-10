@@ -171,7 +171,7 @@ abstract sealed class MatrixIR extends BaseIR {
       .getOrElse(
         Optimize(
           TableMapRows(
-            TableUnkey(MatrixRowsTable(this)),
+            TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
             MakeStruct(FastIndexedSeq()),
             None
           ))

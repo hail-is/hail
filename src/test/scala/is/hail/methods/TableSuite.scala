@@ -81,7 +81,6 @@ class TableSuite extends SparkSuite {
     sampleKT1.unkey().write(outputFile)
     val read = Table.read(hc, outputFile)
 
-    assert(read.rvd.isInstanceOf[UnpartitionedRVD])
     assert(read.same(sampleKT1.unkey()))
   }
 

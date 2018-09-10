@@ -290,13 +290,6 @@ class PruneSuite extends SparkSuite {
     )
   }
 
-  @Test def testTableUnkeyMemo() {
-    val tk = TableKeyBy(tab, Array("1"))
-    val tu = TableUnkey(tk)
-    checkMemo(tu, subsetTable(tu.typ, "row.2"),
-      Array(subsetTable(tk.typ, "row.2")))
-  }
-
   @Test def testTableOrderByMemo() {
     val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
     checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A")))

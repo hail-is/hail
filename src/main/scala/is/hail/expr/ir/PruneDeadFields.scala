@@ -346,17 +346,6 @@ object PruneDeadFields {
         memoizeMatrixIR(child, mtDep, memo)
       case TableUnion(children) =>
         children.foreach(memoizeTableIR(_, requestedType, memo))
-      case TableUnkey(child) =>
-        child.typ.key match {
-          case Some(k) =>
-            val childKeyFields = k.toSet
-            memoizeTableIR(child, unify(child.typ, requestedType.copy(key = Some(k),
-              rowType = unify(child.typ.rowType,
-                requestedType.rowType,
-                child.typ.rowType.filter(f => childKeyFields.contains(f.name))._1))),
-              memo)
-          case None => memoizeTableIR(child, requestedType, memo)
-        }
       case LocalizeEntries(child, fieldName) =>
         val minChild = minimal(child.typ)
         val m = Map(fieldName -> MatrixType.entriesIdentifier)

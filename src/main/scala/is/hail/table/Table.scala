@@ -3,7 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
+import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, UnlocalizeEntries, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
@@ -430,7 +430,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def unkey(): Table =
-    new Table(hc, TableUnkey(tir))
+    new Table(hc, TableKeyBy(tir, FastIndexedSeq()))
 
   def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
     select(expr, newKey.asScala.toFastIndexedSeq, preservedKeyFields.toInt)
@@ -608,7 +608,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
   def orderBy(sortFields: Array[SortField]): Table = {
-    new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
+    new Table(hc, TableOrderBy(TableKeyBy(tir, FastIndexedSeq()), sortFields))
   }
 
   def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))

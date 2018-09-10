@@ -229,26 +229,6 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
   }
 }
 
-case class TableUnkey(child: TableIR) extends TableIR {
-  val children: IndexedSeq[BaseIR] = Array(child)
-
-  val typ: TableType = child.typ.copy(key = None)
-
-  def copy(newChildren: IndexedSeq[BaseIR]): TableUnkey = {
-    assert(newChildren.length == 1)
-    TableUnkey(newChildren(0).asInstanceOf[TableIR])
-  }
-
-  def execute(hc: HailContext): TableValue = {
-    val tv = child.execute(hc)
-    val rvd = tv.rvd match {
-      case ordered: OrderedRVD => ordered.toUnpartitionedRVD
-      case unordered: UnpartitionedRVD => unordered
-    }
-    tv.copy(typ = typ, rvd = rvd)
-  }
-}
-
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   require(n >= 0)
   require(nPartitions > 0)
