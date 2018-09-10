@@ -266,7 +266,7 @@ class Tests(unittest.TestCase):
 
         t1 = kt.select(kt.a, kt.e)
         self.assertEqual(list(t1.row), ['a', 'e'])
-        self.assertEqual(t1.key, None)
+        self.assertEqual(list(t1.key), [])
 
         t2 = kt.key_by('e')
         t2 = t2.select(t2.a)
@@ -279,7 +279,7 @@ class Tests(unittest.TestCase):
         # select no fields
         s = kt.select()
         self.assertEqual(list(s.row), [])
-        self.assertEqual(s.key, None)
+        self.assertEqual(list(s.key), [])
 
     def test_errors(self):
         schema = hl.tstruct(status=hl.tint32, gt=hl.tcall, qPheno=hl.tint32)
@@ -402,13 +402,13 @@ class Tests(unittest.TestCase):
         ktd = kt.drop('idx')
         self.assertEqual(set(ktd.row), {'foo', 'sq', 'bar'})
         ktd = ktd.key_by(None).drop('foo')
-        self.assertEqual(ktd.key, None)
+        self.assertEqual(list(ktd.key), [])
 
         self.assertEqual(set(kt.drop(kt['idx']).row), {'foo', 'sq', 'bar'})
 
         d = kt.key_by(None).drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
-        self.assertEqual(d.key, None)
+        self.assertEqual(list(d.key), [])
 
         self.assertTrue(kt.drop()._same(kt))
         self.assertTrue(kt.drop(*list(kt.row_value))._same(kt.select()))

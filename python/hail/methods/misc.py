@@ -206,8 +206,8 @@ def require_first_key_field_locus(dataset, method):
 
 @typecheck(table=Table, method=str)
 def require_key(table, method):
-    if table.key is None:
-        raise ValueError("Method '{}' requires keyed table".format(method))
+    if len(table.key) == 0:
+        raise ValueError("Method '{}' requires a non-empty key".format(method))
 
 
 @typecheck(dataset=MatrixTable, method=str)
@@ -307,8 +307,6 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         k_type = ds.row_key.dtype
     else:
         assert isinstance(ds, Table)
-        if ds.key is None:
-            raise TypeError("cannot filter intervals of an unkeyed Table")
         k_type = ds.key.dtype
 
     point_type = intervals.dtype.element_type.point_type
