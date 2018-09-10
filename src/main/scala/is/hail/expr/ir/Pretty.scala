@@ -194,12 +194,11 @@ object Pretty {
               prettyBooleanLiteral(dropCols) + " " +
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
-            case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+            case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
               prettyStrings(rowKey) + " " +
               prettyStrings(colKey) +  " " +
               prettyStrings(rowFields) + " " +
               prettyStrings(colFields) + " " +
-              prettyStrings(partitionKey) + " " +
               prettyIntOpt(nPartitions)
             case MatrixAnnotateRowsTable(_, _, uid, key) =>
               prettyStringLiteral(uid) + " " +

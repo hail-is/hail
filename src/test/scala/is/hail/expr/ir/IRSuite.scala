@@ -647,7 +647,6 @@ class IRSuite extends SparkSuite {
           Array("d", "ml"),
           Array("mc"),
           Array("t"),
-          Array("astruct"),
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
