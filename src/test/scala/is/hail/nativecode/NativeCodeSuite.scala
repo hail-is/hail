@@ -135,5 +135,88 @@ class NativeCodeSuite extends SparkSuite {
     workerMod.close()
     st.close()
   }
+  
+  @Test def testNativeUpcall() = {
+    val sb = new StringBuilder()
+    sb.append(
+    """#include "hail/hail.h"
+      |
+      |NAMESPACE_HAIL_MODULE_BEGIN
+      |
+      |long testUpcall(NativeStatus* st, long a0) {
+      |  set_test_msg("Hello!");
+      |  return 1000+a0;
+      |}
+      |
+      |NAMESPACE_HAIL_MODULE_END
+      |""".stripMargin
+    )
+    val st = new NativeStatus()
+    val mod = new NativeModule("", sb.toString())
+    val testUpcall = mod.findLongFuncL1(st, "testUpcall")
+    mod.close()
+    assert(st.ok, st.toString())
+    Upcalls.testMsg = "InitialValueOfTestMsg";
+    assert(testUpcall(st, 99) == 1099)
+    assert(Upcalls.testMsg.equals("Hello!"))
+    st.close()
+    testUpcall.close()
+  }
+  
+  @Test def testObjectArray() = {
+    class MyObject(num: Long) {
+      def plus(n: Long) = num+n
+    }
+
+    val sb = new StringBuilder()
+    sb.append(
+    """#include "hail/hail.h"
+      |#include "hail/ObjectArray.h"
+      |#include "hail/Upcalls.h"
+      |#include <cstdio>
+      |
+      |NAMESPACE_HAIL_MODULE_BEGIN
+      |
+      |class ObjectHolder : public NativeObj {
+      | public:
+      |  ObjectArrayPtr objects_;
+      |
+      |  ObjectHolder(ObjectArray* objects) :
+      |    objects_(std::dynamic_pointer_cast<ObjectArray>(objects->shared_from_this())) {
+      |  }
+      |};
+      |
+      |NativeObjPtr makeObjectHolder(NativeStatus*, long objects) {
+      |  return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(objects));
+      |}
+      |
+      |long testPlus(NativeStatus* st, long holder, long idx, long val) {
+      |  UpcallEnv up;
+      |  JNIEnv* env = up.env();
+      |  auto h = reinterpret_cast<ObjectHolder*>(holder);
+      |  auto obj = h->objects_->at(idx);
+      |  auto cl = env->GetObjectClass(obj);
+      |  auto plus_method = env->GetMethodID(cl, "plus", "(J)J");
+      |  return env->CallLongMethod(obj, plus_method, val);
+      |}
+      |
+      |NAMESPACE_HAIL_MODULE_END
+      |""".stripMargin
+    )
+    val st = new NativeStatus()
+    val mod = new NativeModule("", sb.toString())
+    val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
+    assert(st.ok, st.toString())
+    val testPlus = mod.findLongFuncL3(st, "testPlus")
+    assert(st.ok, st.toString())
+    mod.close()
+    val objArray = new ObjectArray(new MyObject(1000), new MyObject(2000))
+    System.err.println("DEBUG: objArray.get() ${objArray.get()}")
+    val holder = new NativePtr(makeObjectHolder, st, objArray.get())
+    objArray.close()
+    assert(testPlus(st, holder.get(), 0, 44) == 1044)
+    assert(testPlus(st, holder.get(), 1, 55) == 2055)
+    testPlus.close()
+  }
 
 }
