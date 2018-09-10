@@ -30,7 +30,7 @@ def resource(filename):
             i += 1
             if i > 100:
                 raise EnvironmentError("Hail tests must be run from inside the Hail git repository")
-        _test_dir = os.path.join(path, 'src', 'test', 'resources')
+        _test_dir = os.path.join(path, 'hail', 'src', 'test', 'resources')
 
     return os.path.join(_test_dir, filename)
 
