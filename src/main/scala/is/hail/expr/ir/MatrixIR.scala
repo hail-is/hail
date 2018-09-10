@@ -1932,7 +1932,6 @@ case class TableToMatrixTable(
   colKey: IndexedSeq[String],
   rowFields: IndexedSeq[String],
   colFields: IndexedSeq[String],
-  partitionKey: IndexedSeq[String],
   nPartitions: Option[Int] = None
 ) extends MatrixIR {
   // no fields used twice
@@ -1941,6 +1940,10 @@ case class TableToMatrixTable(
     assert(!fieldsUsed.contains(f))
     fieldsUsed += f
   }
+
+  // need keys for rows and cols
+  assert(rowKey.nonEmpty)
+  assert(colKey.nonEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1952,19 +1955,9 @@ case class TableToMatrixTable(
       colKey,
       rowFields,
       colFields,
-      partitionKey,
       nPartitions
     )
   }
-
-
-  // need keys for rows and cols
-  assert(rowKey.nonEmpty)
-  assert(colKey.nonEmpty)
-
-  // check partition key is appropriate and not empty
-  assert(rowKey.startsWith(partitionKey))
-  assert(partitionKey.nonEmpty)
 
   private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
   private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)

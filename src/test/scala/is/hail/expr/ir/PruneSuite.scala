@@ -366,8 +366,7 @@ class PruneSuite extends SparkSuite {
       rowKey = FastIndexedSeq("1"),
       colKey = FastIndexedSeq("2"),
       rowFields = FastIndexedSeq("5"),
-      colFields = FastIndexedSeq("4"),
-      partitionKey = FastIndexedSeq("1")
+      colFields = FastIndexedSeq("4")
     )
 
     checkMemo(ttmt,
@@ -702,8 +701,7 @@ class PruneSuite extends SparkSuite {
       rowKey = FastIndexedSeq("1"),
       colKey = FastIndexedSeq("2"),
       rowFields = FastIndexedSeq("5"),
-      colFields = FastIndexedSeq("4"),
-      partitionKey = FastIndexedSeq("1")
+      colFields = FastIndexedSeq("4")
     )
 
     checkRebuild(ttmt, subsetMatrixTable(ttmt.typ),

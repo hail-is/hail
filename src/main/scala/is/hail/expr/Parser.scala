@@ -654,9 +654,9 @@ object Parser extends JavaTokenParsers {
           val reader = Serialization.read[ir.MatrixReader](readerStr)
           ir.MatrixRead(typ.getOrElse(reader.fullType), dropCols, dropRows, reader)
       } |
-      "TableToMatrixTable" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ string_literals ~ int32_literal_opt ~ table_ir ^^ {
-        case rowKey ~ colKey ~ rowFields ~ colFields ~ partitionKey ~ nPartitions ~ child =>
-          ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions)
+      "TableToMatrixTable" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ int32_literal_opt ~ table_ir ^^ {
+        case rowKey ~ colKey ~ rowFields ~ colFields ~ nPartitions ~ child =>
+          ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       } |
       "MatrixAnnotateRowsTable" ~> string_literal ~ boolean_literal ~ matrix_ir ~ table_ir ~ rep(ir_value_expr) ^^ {
         case uid ~ hasKey ~ child ~ table ~ key =>

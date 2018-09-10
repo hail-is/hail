@@ -495,7 +495,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colFields: Array[String],
     nPartitions: Option[Int] = None
   ): MatrixTable = {
-    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, rowKeys, nPartitions))
+    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, nPartitions))
   }
 
   def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {

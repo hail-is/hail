@@ -461,7 +461,7 @@ object PruneDeadFields {
           colType = irDep.colType
         )
         memoizeMatrixIR(child, childDep, memo)
-      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions) =>
         val dependencyMap = (requestedType.rowType.fields.map(f => f.name -> f.typ) ++
           requestedType.colType.fields.map(f => f.name -> f.typ) ++
           requestedType.entryType.fields.map(f => f.name -> f.typ)).toMap
@@ -850,7 +850,7 @@ object PruneDeadFields {
       case MatrixAggregateColsByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateColsByKey(child2, rebuild(expr, child2.typ, memo))
-      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, partitionKey, nPartitions) =>
+      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions) =>
         val child2 = rebuild(child, memo)
         val childFieldSet = child2.typ.rowType.fieldNames.toSet
         TableToMatrixTable(
@@ -859,7 +859,6 @@ object PruneDeadFields {
           colKey,
           rowFields.filter(childFieldSet.contains),
           colFields.filter(childFieldSet.contains),
-          partitionKey,
           nPartitions)
       case MatrixUnionRows(children) =>
         val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
