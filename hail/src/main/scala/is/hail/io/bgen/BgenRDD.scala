@@ -44,8 +44,8 @@ case class BgenSettings(
     case NoEntries => Array.empty
     case EntriesWithFields(gt, gp, dosage) => Array(
       (gt, "GT" -> TCall()),
-      (gp, "GP" -> +TArray(+TFloat64())),
-      (dosage, "dosage" -> +TFloat64()))
+      (gp, "GP" -> TArray(+TFloat64())),
+      (dosage, "dosage" -> TFloat64()))
         .withFilter(_._1).map(_._2)
   }
 

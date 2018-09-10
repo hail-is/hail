@@ -293,8 +293,8 @@ case class MatrixBGENReader(
     rowKey = Array("locus", "alleles"),
     entryType = TStruct(
       "GT" -> TCall(),
-      "GP" -> +TArray(+TFloat64()),
-      "dosage" -> +TFloat64()))
+      "GP" -> TArray(+TFloat64()),
+      "dosage" -> TFloat64()))
 
   def columnCount: Option[Int] = Some(nSamples)
 

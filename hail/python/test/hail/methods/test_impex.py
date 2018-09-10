@@ -619,6 +619,19 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
 
+    def test_linear_regression(self):
+        hl.index_bgen(resource('example.8bits.bgen'))
+
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GT'],
+                              contig_recoding={'01': '1'},
+                              reference_genome='GRCh37')
+
+        mt = bgen.annotate_cols(y=hl.rand_bool(0.5), pc1=hl.rand_unif(0, 1))
+        mt = hl.linear_regression(mt.y, mt.GT.n_alt_alleles(), [1.0, mt.pc1])
+        mt.rows().select('linreg').take(1)
+
+
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),

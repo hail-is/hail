@@ -369,8 +369,8 @@ class HailContext private(val sc: SparkContext,
     val typedEntryFields: Array[(String, Type)] =
       Array(
         (includeGT, "GT" -> TCall()),
-        (includeGP, "GP" -> +TArray(+TFloat64())),
-        (includeDosage, "dosage" -> +TFloat64()))
+        (includeGP, "GP" -> TArray(+TFloat64())),
+        (includeDosage, "dosage" -> TFloat64()))
         .withFilter(_._1).map(_._2)
 
     val requestedType: MatrixType = MatrixType.fromParts(
