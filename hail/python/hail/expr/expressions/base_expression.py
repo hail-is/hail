@@ -312,7 +312,7 @@ class Expression(object):
         self._indices = indices
         self._aggregations = aggregations
 
-    def describe(self, handler=lambda x: print(x)):
+    def describe(self, handler=print):
         """Print information about type, index, and dependencies."""
         if self._aggregations:
             agg_indices = set()
@@ -647,7 +647,7 @@ class Expression(object):
 
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=func_spec(1, anytype))
-    def show(self, n=10, width=90, truncate=None, types=True, handler=lambda x: print(x)):
+    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
 
         Examples

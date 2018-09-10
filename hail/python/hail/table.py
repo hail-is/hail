@@ -1204,7 +1204,7 @@ class Table(ExprContainer):
         self._jt.write(output, overwrite, stage_locally, _codec_spec)
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=func_spec(1, anytype))
-    def show(self, n=10, width=90, truncate=None, types=True, handler=lambda x: print(x)):
+    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1599,7 +1599,7 @@ class Table(ExprContainer):
         """
         return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
-    def describe(self, handler=lambda x: print(x)):
+    def describe(self, handler=print):
         """Print information about the fields in the table."""
 
         def format_type(typ):

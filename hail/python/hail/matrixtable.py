@@ -45,7 +45,7 @@ class GroupedMatrixTable(ExprContainer):
     def __getitem__(self, item):
         return self._get_field(item)
 
-    def describe(self, handler=lambda x: print(x)):
+    def describe(self, handler=print):
         """Print information about grouped matrix table."""
 
         if self._row_keys is None:
@@ -2417,7 +2417,7 @@ class MatrixTable(ExprContainer):
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
 
-    def describe(self, handler=lambda x: print(x)):
+    def describe(self, handler=print):
         """Print information about the fields in the matrix."""
 
         def format_type(typ):
