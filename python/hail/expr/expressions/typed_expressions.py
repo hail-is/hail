@@ -204,10 +204,11 @@ class CollectionExpression(Expression):
             Function which takes the cumulative value and the next element, and
             returns a new value.
         zero : :class:`.Expression`
+            Initial value to pass in as left argument of `f`.
 
         Returns
         -------
-        :class:`.CollectionExpression`.
+        :class:`.Expression`.
         """
         collection = self
         if isinstance(collection.dtype, tset):
@@ -534,6 +535,7 @@ class ArrayExpression(CollectionExpression):
             Function which takes the cumulative value and the next element, and
             returns a new value.
         zero : :class:`.Expression`
+            Initial value to pass in as left argument of `f`.
 
         Returns
         -------

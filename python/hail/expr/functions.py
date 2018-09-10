@@ -2697,11 +2697,12 @@ def fold(f: Callable, zero, collection) -> Expression:
         Function which takes the cumulative value and the next element, and
         returns a new value.
     zero : :class:`.Expression`
+        Initial value to pass in as left argument of `f`.
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
 
     Returns
     -------
-    :class:`.ArrayExpression` or :class:`.SetExpression`.
+    :class:`.Expression`
     """
     return collection.fold(lambda x, y: f(x, y), zero)
 
@@ -2725,6 +2726,7 @@ def array_scan(f: Callable, zero, a) -> ArrayExpression:
         Function which takes the cumulative value and the next element, and
         returns a new value.
     zero : :class:`.Expression`
+        Initial value to pass in as left argument of `f`.
     a : :class:`.ArrayExpression`
 
     Returns
