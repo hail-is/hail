@@ -65,19 +65,21 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
 
   def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
-    TableValue(typ,
+    val rvd = if (dropRows)
+      OrderedRVD.empty(hc.sc, typ.rvdType)
+    else {
+      val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
+      (rvd, typ.key) match {
+        case (ordered: OrderedRVD, Some(k))
+          if ordered.typ.key.startsWith(k) => ordered
+        case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
+        case (_, None) => rvd.toOrderedRVD
+      }
+    }
+    TableValue(
+      typ,
       BroadcastRow(globals, typ.globalType, hc.sc),
-      if (dropRows)
-        UnpartitionedRVD.empty(hc.sc, typ.rowType)
-      else {
-        val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
-        (rvd, typ.key) match {
-          case (ordered: OrderedRVD, Some(k))
-            if ordered.typ.key.startsWith(k) => ordered
-          case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
-          case (_, None) => rvd.toUnpartitionedRVD
-        }
-      })
+      rvd.toOldStyleRVD)
   }
 }
 
@@ -113,6 +115,7 @@ case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends T
 }
 
 case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableReaderOptions) extends TableIR {
+  assert(typ.key.isEmpty)
   assert(typ.globalType.size == 0)
   assert(typ.rowType.size == readerOpts.useColIndices.length)
 
@@ -222,7 +225,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     } else {
       orvd.changeKey(keys)
     }.toOldStyleRVD
-    tv.copy(typ = typ, rvd = if (typ.key.isDefined) rvd else rvd.toUnpartitionedRVD)
+    tv.copy(typ = typ, rvd = rvd)
   }
 }
 
