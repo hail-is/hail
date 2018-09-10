@@ -2984,6 +2984,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
+        hail.methods.misc.require_key(table, 'from_rows_table')
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
         return MatrixTable(jmt)
 

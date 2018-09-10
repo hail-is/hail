@@ -204,6 +204,12 @@ def require_first_key_field_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
+@typecheck(table=Table, method=str)
+def require_key(table, method):
+    if len(table.key) == 0:
+        raise ValueError("Method '{}' requires a non-empty key".format(method))
+
+
 @typecheck(dataset=MatrixTable, method=str)
 def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
