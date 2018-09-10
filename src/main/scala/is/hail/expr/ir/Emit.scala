@@ -743,8 +743,8 @@ private class Emit(
           old.typ match {
             case oldtype: TStruct =>
               val codeOld = emit(old)
-              val xo = mb.newLocal[Long]
-              val xmo = mb.newLocal[Boolean]()
+              val xo = mb.newField[Long]
+              val xmo = mb.newField[Boolean]()
               val updateMap = Map(fields: _*)
               val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
