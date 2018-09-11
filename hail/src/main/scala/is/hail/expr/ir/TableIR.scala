@@ -1259,7 +1259,10 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     key = child.typ.key.map(_.map(k => rowMap.getOrElse(k, k)))
   )
 
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableRename(newChild, rowMap, globalMap)
