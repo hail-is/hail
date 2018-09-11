@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+cd hail
+
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 
 time source activate hail

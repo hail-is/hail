@@ -1,5 +1,7 @@
 set -ex
 
+cd hail
+
 gcloud auth activate-service-account \
   --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
 
