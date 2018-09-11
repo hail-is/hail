@@ -881,6 +881,14 @@ object OrderedRVD {
     type CRDD = ContextRDD[RVDContext, RegionValue]
     val sc = keys.sparkContext
 
+    val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
+      def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
+        unkeyed(typ, crdd)
+    }
+
+    if (fullType.key.isEmpty)
+      return unkeyedCoercer
+
     val emptyCoercer: RVDCoercer = new RVDCoercer(fullType) {
       def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = empty(sc, typ)
     }
