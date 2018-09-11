@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD, _}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._

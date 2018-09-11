@@ -156,7 +156,7 @@ object Table {
       TableValue(
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        UnpartitionedRVD(signature, crdd2)))
+        OrderedRVD.unkeyed(signature, crdd2).toOldStyleRVD))
     ).keyBy(key, isSorted)
   }
 
@@ -530,12 +530,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
+    val orvd = rvd.toOrderedRVD
     copy2(
-      rvd = rvd match {
-        case ordered: OrderedRVD =>
-          ordered.copy(typ = ordered.typ.copy(rowType = newRowType))
-        case _: UnpartitionedRVD => UnpartitionedRVD(newRowType, rvd.crdd)
-      },
+      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)).toOldStyleRVD,
       signature = newRowType)
   }
 

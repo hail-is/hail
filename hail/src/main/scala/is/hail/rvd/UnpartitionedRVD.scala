@@ -14,7 +14,7 @@ object UnpartitionedRVD {
     UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
 
   def apply(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD = {
-    new UnpartitionedRVD(rowType, crdd)
+    OrderedRVD.unkeyed(rowType, crdd).toOldStyleRVD
   }
 }
 
@@ -94,6 +94,4 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
     
     new UnpartitionedRVD(rowType, crdd.subsetPartitions(keep))
   }
-
-  override def toUnpartitionedRVD: RVD = this
 }

@@ -447,7 +447,5 @@ trait RVD {
 
   def subsetPartitions(keep: Array[Int]): RVD
 
-  def toUnpartitionedRVD: RVD
-
   def toOrderedRVD: OrderedRVD
 }

@@ -688,14 +688,11 @@ class OrderedRVD(
     stageLocally: Boolean
   ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
 
-  override def toUnpartitionedRVD: RVD =
-    UnpartitionedRVD(typ.rowType, crdd)
-
-  def toOldStyleRVD: RVD =
-    if (typ.key.isEmpty)
-      toUnpartitionedRVD
-    else
-      this
+  def toOldStyleRVD: RVD = this
+//    if (typ.key.isEmpty)
+//      toUnpartitionedRVD
+//    else
+//      this
 
   override def toOrderedRVD: OrderedRVD = this
 }
