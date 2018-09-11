@@ -8,3 +8,10 @@ RUN apk --no-cache add bash curl git python3 py3-cffi py3-cryptography && \
     pip install flask && \
     pip install kubernetes && \
     pip install cerberus
+
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | sh'
+ENV PATH $PATH:/root/google-cloud-sdk/bin
+
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.11.3/bin/linux/amd64/kubectl && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin
