@@ -142,9 +142,6 @@ abstract class Type extends BaseType with Serializable {
 
   def subst(): Type = this.setRequired(false)
 
-  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
-    TStruct.empty().unsafeInsert(typeToInsert, path)
-
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
