@@ -346,7 +346,7 @@ class HailContext private(val sc: SparkContext,
     includeGT: Boolean = true,
     includeGP: Boolean = true,
     includeDosage: Boolean = false,
-    includeLid: Boolean = true,
+    includeVarid: Boolean = true,
     includeRsid: Boolean = true,
     includeFileRowIdx: Boolean = false,
     nPartitions: Option[Int] = None,
@@ -358,28 +358,15 @@ class HailContext private(val sc: SparkContext,
   ): MatrixTable = {
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 
-    val typedRowFields = Array(
-      (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
-      (true, "alleles" -> TArray(TString())),
-      (includeRsid, "rsid" -> TString()),
-      (includeLid, "varid" -> TString()),
-      (includeFileRowIdx, "file_row_idx" -> TInt64()))
-      .withFilter(_._1).map(_._2)
-
-    val typedEntryFields: Array[(String, Type)] =
-      Array(
-        (includeGT, "GT" -> TCall()),
-        (includeGP, "GP" -> TArray(+TFloat64())),
-        (includeDosage, "dosage" -> TFloat64()))
-        .withFilter(_._1).map(_._2)
-
-    val requestedType: MatrixType = MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowType = TStruct(typedRowFields: _*),
-      rowKey = Array("locus", "alleles"),
-      entryType = TStruct(typedEntryFields: _*))
+    val requestedType = MatrixBGENReader.getMatrixType(
+      referenceGenome,
+      includeRsid,
+      includeVarid,
+      includeFileRowIdx,
+      includeGT,
+      includeGP,
+      includeDosage
+    )
 
     val reader = MatrixBGENReader(
       files, sampleFile, nPartitions,
