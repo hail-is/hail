@@ -433,6 +433,10 @@ class Table(ExprContainer):
         base, cleanup = self._process_joins(row)
         return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
 
+    @typecheck_method(row=expr_struct(),
+                      preserved_key=sequenceof(str),
+                      preserved_key_new=sequenceof(str),
+                      new_key=sequenceof(str))
     def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
         jt = self._jt
         if preserved_key != list(self.key):
@@ -442,6 +446,7 @@ class Table(ExprContainer):
             jt = jt.keyBy(new_key)
         return Table(jt)
 
+    @typecheck_method(key_struct=expr_struct())
     def _preserved_key_pairs(self, key_struct):
         def is_copy(ir, name, indices):
             return (indices.source is self and
