@@ -540,7 +540,7 @@ class IRSuite extends SparkSuite {
       invoke("toFloat64", i), // Apply
       invoke("isDefined", s), // ApplyIR
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
-      Literal(TStruct("x" -> TInt32()), Row(1), "__broadcast1")
+      Literal(TStruct("x" -> TInt32()), Row(1))
     )
     irs.map(x => Array(x))
   }
@@ -702,7 +702,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testCachedIR() {
-    val cached = Literal(TSet(TInt32()), Set(1), "__unique_id")
+    val cached = Literal(TSet(TInt32()), Set(1))
     val s = s"(JavaIR __uid1)"
     val x2 = Parser.parse_value_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
     assert(x2 eq cached)

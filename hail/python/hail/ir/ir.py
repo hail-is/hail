@@ -1281,33 +1281,25 @@ class MatrixWrite(IR):
 
 
 class Literal(IR):
-    _idx = 0
-
     @typecheck_method(dtype=hail_type,
                       value=anytype,
                       id=nullable(str))
-    def __init__(self, dtype, value, id=None):
+    def __init__(self, dtype, value):
         super(Literal, self).__init__()
         self.dtype: 'hail.HailType' = dtype
         self.value = value
-        if id is None:
-            id = f'__py_literal_{Literal._idx}'
-        self.id = id
-        Literal._idx += 1
 
     def copy(self):
-        return Literal(self.dtype, self.value, self.id)
+        return Literal(self.dtype, self.value)
 
     def render(self, r):
         return f'(Literal {self.dtype._jtype.parsableString()} ' \
-               f'"{escape_str(self.dtype._to_json(self.value))}" ' \
-               f'"{self.id}")'
+               f'"{escape_str(self.dtype._to_json(self.value))}" '
 
     def __eq__(self, other):
         return isinstance(other, Literal) and \
                other.dtype == self.dtype and \
-               other.value == self.value and \
-               other.id == self.id
+               other.value == self.value
 
 
 class Join(IR):

@@ -161,10 +161,9 @@ object Pretty {
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
-            case Literal(typ, value, id) =>
+            case Literal(typ, value) =>
               s"${ typ.parsableString() } " +
-                s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) } " +
-                s"${ prettyStringLiteral(id) }"
+                s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) }"
             case Let(name, _, _) => prettyIdentifier(name)
             case Ref(name, typ) => s"${ typ.parsableString() } $name"
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)

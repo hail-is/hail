@@ -143,7 +143,7 @@ class OrderingSuite extends TestNGSuite {
       asc <- Gen.coin()
     } yield (elt, a, asc)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
-      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal(asc, TBoolean())) }
+      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal.coerce(TBoolean(), asc)) }
       val f = getCompiledFunction(irF, TArray(t), TArray(t))
       val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
 

@@ -1,27 +1,28 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-
 object FoldConstants {
-
-  def apply(ir: BaseIR): BaseIR =
-    RewriteBottomUp(ir, matchErrorToNone[BaseIR, BaseIR] {
+  def apply(ir: BaseIR, canGenerateLiterals: Boolean = true): BaseIR =
+    RewriteBottomUp(ir, {
       case ir: IR =>
-        if (!IsScalarType(ir.typ) ||
-          !ir.children.forall {
-            case c: IR => IsScalarConstant(c)
-            case _ => false
-          })
-          throw new MatchError(ir)
-
         ir match {
-          case ApplyUnaryPrimOp(_, _) |
-               ApplyBinaryPrimOp(_, _, _) |
-               Apply(_, _) |
-               ApplySpecial(_, _) |
-               Cast(_, _) =>
-            Literal(Interpret(ir, optimize = false), ir.typ)
-
+          case _: Ref |
+               _: In |
+               _: ApplySeeded |
+               _: ApplyAggOp |
+               _: ApplyScanOp |
+               _: SeqOp |
+               _: Begin |
+               _: InitOp => None
+          case Let(name, value, body) if IsScalarConstant(value) =>
+            Some(FoldConstants(Subst(body, Env.empty[IR].bind(name, value)), canGenerateLiterals))
+          case _ =>
+            if (ir.children.forall {
+              case c: IR => IsScalarConstant(c)
+              case _ => false
+            } && (canGenerateLiterals || IsScalarType(ir.typ)))
+              Some(Literal.coerce(ir.typ, Interpret(ir, optimize = false)))
+            else None
         }
+      case _ => None
     })
 }

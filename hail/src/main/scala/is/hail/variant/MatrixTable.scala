@@ -498,7 +498,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
     new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal(t, a, ir.genUID())))))
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal(t, a)))))
   }
 
   def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {

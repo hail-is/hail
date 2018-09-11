@@ -33,7 +33,7 @@ sealed trait IR extends BaseIR {
 }
 
 object Literal {
-  def apply(x: Any, t: Type): IR = {
+  def coerce(t: Type, x: Any): IR = {
     if (x == null)
       return NA(t)
     t match {
@@ -43,13 +43,13 @@ object Literal {
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
       case _: TString => Str(x.asInstanceOf[String])
-      case _ => Literal(t, x, genUID())
+      case _ => Literal(t, x)
     }
   }
 }
 
-final case class Literal(typ: Type, value: Annotation, id: String) extends IR {
-  require(id.startsWith("_"))
+final case class Literal(typ: Type, value: Annotation) extends IR {
+  require(!IsScalarType(typ))
 }
 
 sealed trait InferIR extends IR {
