@@ -125,7 +125,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
 
     if (key == 0)
       return OrderedRVD.unkeyed(
-        this.virtType,
+        this.realType.rowType,
         ContextRDD.union(
           rvd.crdd.sparkContext,
           Seq(this.rvd.crdd, right.rvd.crdd)))

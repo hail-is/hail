@@ -143,7 +143,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     val p1 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals1)
     assert(p1.rangeBounds sameElements intervals1)
 
-    val p0 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), Array())
+    val p0 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), IndexedSeq())
     assert(p0.rangeBounds.isEmpty)
   }
 

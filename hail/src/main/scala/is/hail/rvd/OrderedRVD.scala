@@ -707,8 +707,13 @@ object OrderedRVD {
       ContextRDD.empty[RVDContext, RegionValue](sc))
   }
 
-  def unkeyed(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD =
+  def unkeyed(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD = {
+    require(typ.key.isEmpty)
     new OrderedRVD(typ, OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions), crdd)
+  }
+
+  def unkeyed(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD =
+    unkeyed(OrderedRVDType(FastIndexedSeq(), rowType), crdd)
 
   /**
     * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each

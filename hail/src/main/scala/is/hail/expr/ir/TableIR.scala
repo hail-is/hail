@@ -908,7 +908,6 @@ case class TableKeyByAndAggregate(
 
     assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
-    val rowType = prev.typ.rowType
     val globalsType = prev.typ.globalType
     val globalsBc = prev.globals.broadcast
 
@@ -1011,10 +1010,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = if (typ.key.isDefined)
-        OrderedRVD.coerce(typ.rvdType, crdd)
-      else
-        UnpartitionedRVD(typ.rowType, crdd))
+      rvd = OrderedRVD.coerce(typ.rvdType, crdd).toOldStyleRVD)
   }
 }
 
@@ -1199,7 +1195,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val rdd = prev.rdd.sortBy(identity[Annotation], ascending = true)(ord, act)
     val rvd = ContextRDD.weaken[RVDContext](rdd)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
-    TableValue(typ, prev.globals, UnpartitionedRVD(rowType, rvd))
+    TableValue(typ, prev.globals, OrderedRVD.unkeyed(rowType, rvd).toOldStyleRVD)
   }
 }
 

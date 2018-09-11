@@ -22,7 +22,7 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
   self =>
 
   override def toOrderedRVD: OrderedRVD =
-    OrderedRVD.unkeyed(OrderedRVDType(FastIndexedSeq.empty, rowType), crdd)
+    OrderedRVD.unkeyed(rowType, crdd)
 
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
