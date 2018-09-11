@@ -1245,7 +1245,7 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    TableValue(typ, prev.globals, prev.rvd.rename(newRowType))
+    TableValue(typ, prev.globals, prev.rvd.cast(newRowType))
   }
 }
 
@@ -1268,6 +1268,6 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    TableValue(typ, prev.globals, prev.rvd.rename(typ.rowType))
+    TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType))
   }
 }

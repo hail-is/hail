@@ -451,10 +451,5 @@ trait RVD {
 
   def toOrderedRVD: OrderedRVD
 
-  final def rename(newRowType: TStruct): RVD = {
-    require(newRowType.isIsomorphicTo(rowType))
-    _rename(newRowType)
-  }
-
-  protected def _rename(newRowType: TStruct): RVD
+  def cast(newRowType: TStruct): RVD
 }

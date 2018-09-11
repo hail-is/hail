@@ -42,7 +42,7 @@ class OrderedRVD(
 
   def rowType: TStruct = typ.rowType
 
-  override def _rename(newRowType: TStruct): RVD = {
+  override def cast(newRowType: TStruct): RVD = {
     val nameMap = rowType.fieldNames.zip(newRowType.fieldNames).toMap
     val newTyp = OrderedRVDType(typ.key.map(k => nameMap(k)), newRowType)
     val newPartitioner = partitioner.rename(nameMap)

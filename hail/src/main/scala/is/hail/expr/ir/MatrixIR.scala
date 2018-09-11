@@ -2373,7 +2373,7 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
         rv
       }
     }
-    val newOrvd = rowOrvd.rename(newRowType).asInstanceOf[OrderedRVD]
+    val newOrvd = rowOrvd.cast(newRowType).asInstanceOf[OrderedRVD]
 
     MatrixValue(
       typ,
