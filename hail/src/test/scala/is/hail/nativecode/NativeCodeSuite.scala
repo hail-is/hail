@@ -211,7 +211,6 @@ class NativeCodeSuite extends SparkSuite {
     assert(st.ok, st.toString())
     mod.close()
     val objArray = new ObjectArray(new MyObject(1000), new MyObject(2000))
-    System.err.println("DEBUG: objArray.get() ${objArray.get()}")
     val holder = new NativePtr(makeObjectHolder, st, objArray.get())
     objArray.close()
     assert(testPlus(st, holder.get(), 0, 44) == 1044)
