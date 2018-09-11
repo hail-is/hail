@@ -29,6 +29,8 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
     )
   }
 
+  def _rename(newRowType: TStruct): RVD = new UnpartitionedRVD(newRowType, crdd)
+
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): UnpartitionedRVD =

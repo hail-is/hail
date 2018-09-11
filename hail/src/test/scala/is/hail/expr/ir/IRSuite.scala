@@ -581,7 +581,8 @@ class IRSuite extends SparkSuite {
         TableExplode(read, "mset"),
         TableUnkey(read),
         TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
-        LocalizeEntries(mtRead, " # entries")
+        LocalizeEntries(mtRead, " # entries"),
+        TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
       )
       xs.map(x => Array(x))
     } catch {

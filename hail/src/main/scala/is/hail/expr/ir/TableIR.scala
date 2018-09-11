@@ -1245,6 +1245,29 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    TableValue(typ, prev.globals, prev.rvd.updateType(prev.rvd.typ.copy(rowType = newRowType)))
+    TableValue(typ, prev.globals, prev.rvd.rename(newRowType))
+  }
+}
+
+case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String]) extends TableIR {
+  require(rowMap.keys.forall(child.typ.rowType.hasField))
+  require(globalMap.keys.forall(child.typ.globalType.hasField))
+
+  def typ: TableType = child.typ.copy(
+    rowType = child.typ.rowType.rename(rowMap),
+    globalType = child.typ.globalType.rename(globalMap),
+    key = child.typ.key.map(_.map(k => rowMap.getOrElse(k, k)))
+  )
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableRename(newChild, rowMap, globalMap)
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+
+    TableValue(typ, prev.globals, prev.rvd.rename(typ.rowType))
   }
 }
