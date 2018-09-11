@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
             TableValue(
               TableType(signature, None, globalSignature),
               BroadcastRow(globals, globalSignature, hc.sc),
-              UnpartitionedRVD(signature, crdd))),
+              OrderedRVD.unkeyed(signature, crdd).toOldStyleRVD)),
           key,
           false)
       case None =>
@@ -205,7 +205,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, None, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            UnpartitionedRVD(signature, crdd)))
+            OrderedRVD.unkeyed(signature, crdd).toOldStyleRVD))
     }
   )
 

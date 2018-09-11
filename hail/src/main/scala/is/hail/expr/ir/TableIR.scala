@@ -110,7 +110,7 @@ case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends T
     val rowTyp = typ.rowType
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), OrderedRVD.unkeyed(rowTyp, rvd).toOldStyleRVD)
   }
 }
 
@@ -181,7 +181,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       }
     }
 
-    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), OrderedRVD.unkeyed(rowTyp, rvd).toOldStyleRVD)
   }
 }
 

@@ -21,6 +21,8 @@ object UnpartitionedRVD {
 class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
+  assert(false)
+
   override def toOrderedRVD: OrderedRVD =
     OrderedRVD.unkeyed(rowType, crdd)
 
