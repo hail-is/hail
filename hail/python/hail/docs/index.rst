@@ -15,6 +15,7 @@ Contents
     Tutorials <tutorials-landing>
     Reference (Python API) <api>
     Hailpedia <overview>
+    Datasets <datasets>
     How-To Guides <guides>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>

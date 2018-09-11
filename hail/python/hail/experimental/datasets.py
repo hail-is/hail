@@ -11,19 +11,19 @@ def load_dataset(dataset_name,
     Example
     -------
 
-    >>> # Load 1000 Genomes chromosome X MatrixTable with GRCh38 coordinates    
-    >>> mt_1kg = hl.experimental.load_dataset('1000_genomes_phase3_chrX',       # doctest: +SKIP
-    ...                                       reference_genome='GRCh38')        
+    >>> # Load 1000 Genomes chromosome X MatrixTable with GRCh38 coordinates
+    >>> mt_1kg = hl.experimental.load_dataset('1000_genomes_phase3_chrX',
+    ...                                       reference_genome='GRCh38')
 
-    >>> # Count rows and columns                                                
-    >>> mt_1kg.count()                                                          # doctest: +SKIP
+    >>> # Count rows and columns
+    >>> mt_1kg.count()
 
     .. code-block:: text
 
         (3474116, 2504)
 
-    >>> # Inspect contents of the MatrixTable                                   
-    >>> mt_1kg.describe()                                                       # doctest: +SKIP
+    >>> # Inspect contents of the MatrixTable
+    >>> mt_1kg.describe()
 
     .. code-block:: text
 
@@ -251,29 +251,6 @@ def load_dataset(dataset_name,
         Row key: ['locus', 'alleles']
         Partition key: ['locus']
         ----------------------------------------
-
-
-    **Datasets available on Google Cloud Platform**
-
-    - 1000_genomes_phase3_autosomes
-    - 1000_genomes_phase3_chrX
-    - 1000_genomes_phase3_chrY
-    - 1000_genomes_phase3_chrMT
-    - gtex_v7_gene_read_counts
-    - gtex_v7_gene_tpm
-    - gtex_v7_transcript_read_counts
-    - gtex_v7_transcript_tpm
-    - gtex_v7_exon_read_counts
-    - gtex_v7_junction_read_counts
-    - gtex_v7_eqtl_associations
-    - gtex_v7_eqtl_significant_associations
-    - gtex_v7_eqtl_egenes
-    - gtex_v7_eqtl_normalized_expression_and_covariates
-    - ukbb_imputed_v3_gwas_results_both_sexes
-    - ukbb_imputed_v3_gwas_results_female
-    - ukbb_imputed_v3_gwas_results_male
-    - gerp_scores
-    - dbsnp_build151
 
     Parameters
     ----------
