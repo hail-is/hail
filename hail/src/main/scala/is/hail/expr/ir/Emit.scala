@@ -552,7 +552,7 @@ private class Emit(
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean](name2 + "_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
-        val xmbody = mb.newField[Boolean](name1 + "_missing")
+        val xmbody = mb.newField[Boolean](name1 + "_missing_tmp")
         val xmaccum = mb.newField[Boolean](name1 + "_missing")
         val xvaccum = coerce[Any](mb.newField(name1)(tti))
         val bodyenv = env.bind(
