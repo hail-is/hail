@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+cd hail
+
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 
 time source activate hail
@@ -11,7 +13,7 @@ gcloud auth activate-service-account \
     --key-file=/secrets/hail-ci-0-1.key
 
 on_exit() {
-    trap - INT TERM
+    trap "" INT TERM
     set +e
     rm -rf artifacts
     mkdir -p artifacts
