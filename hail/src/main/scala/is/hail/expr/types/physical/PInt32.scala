@@ -14,7 +14,7 @@ case object PInt32Optional extends PInt32(false)
 case object PInt32Required extends PInt32(true)
 
 class PInt32(override val required: Boolean) extends PIntegral {
-  override def virtualType: TInt32 = TInt32(required)
+  lazy val virtualType: TInt32 = TInt32(required)
   def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit = {

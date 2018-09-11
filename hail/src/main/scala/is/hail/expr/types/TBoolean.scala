@@ -14,7 +14,7 @@ case object TBooleanOptional extends TBoolean(false)
 case object TBooleanRequired extends TBoolean(true)
 
 class TBoolean(override val required: Boolean) extends Type {
-  def physicalType: PBoolean = PBoolean(required)
+  lazy val physicalType: PBoolean = PBoolean(required)
 
   def _toPretty = "Boolean"
 

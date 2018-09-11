@@ -15,7 +15,7 @@ case object PStringOptional extends PString(false)
 case object PStringRequired extends PString(true)
 
 class PString(override val required: Boolean) extends PType {
-  def virtualType: TString = TString(required)
+  lazy val virtualType: TString = TString(required)
 
   def _toPretty = "String"
 

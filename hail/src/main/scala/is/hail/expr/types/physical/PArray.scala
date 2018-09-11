@@ -9,7 +9,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, _}
 
 final case class PArray(elementType: PType, override val required: Boolean = false) extends PContainer {
-  def virtualType: TArray = TArray(elementType.virtualType, required)
+  lazy val virtualType: TArray = TArray(elementType.virtualType, required)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
