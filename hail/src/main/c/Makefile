@@ -66,11 +66,23 @@ ifneq ($(WARNFLAGS),)
   CXXFLAGS := $(filter-out $(WARNFLAGS),$(CXXFLAGS))
 endif
 
-# If no inherited "-march=%", then use "-march=sandybridge" for ISA compatibility
-# with MacBook Pro's since 2011 (also the earliest cpu with AVX).
+# If no inherited "-march=%", then use "-march=sandybridge" or "-march=corei7_avx"
+# for ISA compatibility with MacBook Pro's since 2011 (also the earliest cpu with AVX).
+# Fall back to "-march=native" if the compiler doesn't support either of those.
 
 ifeq ($(filter -march=%,$(CXXFLAGS)),)
-  CXXFLAGS += -march=sandybridge
+  FAIL_A :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>1 || echo FAIL; rm -f a.cpp a.o)
+  ifeq ($(FAIL_A),)
+    CXXFLAGS += -march=sandybridge
+  else
+    # g++-4.8.x accepts "-march=corei7_avx" but not "-march=sandybridge	"
+    FAIL_B :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7_avx -c a.cpp 2>1 || echo FAIL; rm -f a.cpp a.o)
+    ifeq ($(FAIL_B),)
+      CXXFLAGS += -march=corei7_avx
+    else
+      CXXFLAGS += -march=native
+    endif
+  endif
 endif
 
 # Append to any inherited flags which survived filtering
