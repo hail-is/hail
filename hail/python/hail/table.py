@@ -2002,7 +2002,7 @@ class Table(ExprContainer):
                 assert self[k]._indices == self._global_indices
                 global_map[k] = v
 
-        stray = set(mapping.keys()) - set(seen.keys())
+        stray = set(mapping.keys()) - set(seen.values())
         if stray:
             raise ValueError(f"found rename rules for fields not present in table: {list(stray)}")
         return Table(self._jt.rename(row_map, global_map))
