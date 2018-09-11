@@ -226,8 +226,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt.physicalType, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt.physicalType, rv2.region, rv2.offset)))
   }
 
   @Test
@@ -291,8 +291,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
-      new UnsafeRow(rt, rv2.region, rv2.offset))
+    assert(new UnsafeRow(rt.physicalType, rv.region, rv.offset) ==
+      new UnsafeRow(rt.physicalType, rv2.region, rv2.offset))
   }
 
   @Test
@@ -333,8 +333,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt.physicalType, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt.physicalType, rv2.region, rv2.offset)))
   }
 
   def printRegion(region: Region, string: String) {

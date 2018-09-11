@@ -68,7 +68,7 @@ object Graph {
           val rOffset = rvb.end()
 
           val resultOffset = f(0)(region, lOffset, false, rOffset, false)
-          SafeRow(t.asInstanceOf[TBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
+          SafeRow(t.asInstanceOf[TBaseStruct].physicalType, region, resultOffset).get(0).asInstanceOf[Long]
         }
       }
     }

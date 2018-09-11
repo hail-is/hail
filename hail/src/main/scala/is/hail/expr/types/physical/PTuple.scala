@@ -5,6 +5,10 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.TTuple
 import is.hail.utils._
 
+object PTuple {
+  def apply(args: PType*): PTuple = PTuple(args.toFastIndexedSeq, required = false)
+}
+
 
 final case class PTuple(_types: IndexedSeq[PType], override val required: Boolean = false) extends PBaseStruct {
   lazy val virtualType: TTuple = TTuple(types.map(_.virtualType), required)

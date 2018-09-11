@@ -57,7 +57,7 @@ class JoinSuite extends SparkSuite {
 
     assert(jInner.count() == jInnerOrdRDD1.count())
     assert(jInner.map { rv =>
-      val r = SafeRow(localRowType, rv)
+      val r = SafeRow(localRowType.physicalType, rv)
       r.getAs[Locus](0)
     }.collect() sameElements jInnerOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
 
@@ -68,7 +68,7 @@ class JoinSuite extends SparkSuite {
     assert(jLeft.count() == jLeftOrdRDD1.count())
     assert(jLeft.forall(rv => rv != null))
     assert(jLeft.map { rv =>
-      val r = SafeRow(localRowType, rv)
+      val r = SafeRow(localRowType.physicalType, rv)
       r.getAs[Locus](0)
     }.collect() sameElements jLeftOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
   }

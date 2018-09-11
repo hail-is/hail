@@ -33,7 +33,9 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   val keyType = Parser.parseType(metadata.keyType)
   val annotationType = Parser.parseType(metadata.annotationType)
   val leafType = LeafNodeBuilder.typ(keyType, annotationType)
+  val leafPType = leafType.physicalType
   val internalType = InternalNodeBuilder.typ(keyType, annotationType)
+  val internalPType = internalType.physicalType
   val ordering = keyType.ordering
 
   private val is = hConf.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
@@ -61,7 +63,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       is.seek(offset)
       assert(internalDecoder.readByte() == 1)
       rv.setOffset(internalDecoder.readRegionValue(region))
-      val node = InternalNode(SafeRow(internalType, rv))
+      val node = InternalNode(SafeRow(internalPType, rv))
       cache.put(offset, node)
       region.clear()
       node
@@ -77,7 +79,7 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
       is.seek(offset)
       assert(leafDecoder.readByte() == 0)
       rv.setOffset(leafDecoder.readRegionValue(region))
-      val node = LeafNode(SafeRow(leafType, rv))
+      val node = LeafNode(SafeRow(leafPType, rv))
       cache.put(offset, node)
       region.clear()
       node

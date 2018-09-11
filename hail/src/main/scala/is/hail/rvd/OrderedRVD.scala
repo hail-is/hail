@@ -434,11 +434,12 @@ class OrderedRVD(
   def filterOutIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
     val kType = typ.kType
+    val kPType = kType.physicalType
     val kRowFieldIdx = typ.kFieldIdx
     val rowType = typ.rowType
 
     mapPartitionsPreservesPartitioning(typ, { (ctx, it) =>
-      val kUR = new UnsafeRow(kType)
+      val kUR = new UnsafeRow(kPType)
       it.filter { rv =>
         ctx.rvb.start(kType)
         ctx.rvb.selectRegionValue(rowType, kRowFieldIdx, rv)
@@ -451,7 +452,7 @@ class OrderedRVD(
   def filterToIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val kOrdering = typ.kType.ordering
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
-    val rowType = typ.rowType
+    val rowType = typ.rowType.physicalType
     val kRowFieldIdx = typ.kFieldIdx
 
     val pred: (RegionValue) => Boolean = (rv: RegionValue) => {
@@ -1023,6 +1024,7 @@ object OrderedRVD {
     crdd: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = {
     val localType = typ
+    val rowPType = typ.rowType.physicalType
     val kOrdering = typ.kType.ordering
 
     val partBc = partitioner.broadcast(crdd.sparkContext)
@@ -1031,7 +1033,7 @@ object OrderedRVD {
 
     val shuffledCRDD = crdd
       .mapPartitions { it =>
-        val ur = new UnsafeRow(typ.rowType, null, 0)
+        val ur = new UnsafeRow(rowPType, null, 0)
         val key = new KeyedRow(ur, typ.kFieldIdx)
         it.filter { rv =>
           ur.set(rv)
@@ -1040,7 +1042,7 @@ object OrderedRVD {
       }
       .cmapPartitions { (ctx, it) =>
         it.map { rv =>
-          val keys: Any = SafeRow.selectFields(localType.rowType, rv)(localType.kFieldIdx)
+          val keys: Any = SafeRow.selectFields(rowPType, rv)(localType.kFieldIdx)
           val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
           (keys, bytes)
         }
@@ -1089,13 +1091,14 @@ object OrderedRVD {
 
     val partitionerBc = partitioner.broadcast(sc)
     val localType = typ
+    val localKPType = typ.kType.physicalType
 
     new OrderedRVD(
       typ,
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val prevK = WritableRegionValue(typ.kType, ctx.freshRegion)
-        val kUR = new UnsafeRow(typ.kType)
+        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
+        val kUR = new UnsafeRow(localKPType)
 
         new Iterator[RegionValue] {
           var first = true
