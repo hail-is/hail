@@ -552,11 +552,12 @@ class OrderedRVD(
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
-      OrderedRVIterator(localType, it, ctx)
-        .staircase
-        .map(_.value)
-    )
+    constrainToOrderedPartitioner(partitioner.strictify)
+      .mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
+        OrderedRVIterator(localType, it, ctx)
+          .staircase
+          .map(_.value)
+      )
   }
 
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {

@@ -133,6 +133,20 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     )
   }
 
+  @Test def testGenerateEmptyKey() {
+    val intervals1 = Array(Interval(Row(), Row(), true, true))
+    val intervals5 = Array.fill(5)(Interval(Row(), Row(), true, true))
+
+    val p5 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals5)
+    assert(p5.rangeBounds sameElements intervals1)
+
+    val p1 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals1)
+    assert(p1.rangeBounds sameElements intervals1)
+
+    val p0 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), Array())
+    assert(p0.rangeBounds.isEmpty)
+  }
+
   @Test def testIntersect() {
     val kType = TStruct(("key", TInt32()))
     val left =
