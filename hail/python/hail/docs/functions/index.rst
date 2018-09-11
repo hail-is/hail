@@ -66,6 +66,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
+    len
     map
     flatmap
     zip
@@ -77,7 +78,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     sorted
     find
     group_by
-    len
+    fold
+    array_scan
 
 .. rubric:: Numeric functions
 
@@ -111,6 +113,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     median
     product
     sum
+    cumulative_sum
     argmin
     argmax
 
