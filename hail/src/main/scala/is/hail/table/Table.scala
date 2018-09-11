@@ -442,11 +442,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def select(newRow: IR, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
     val preservedKeyOld = typ.keyOrEmpty.take(preservedKeyFields)
-    val preservedKeyNew = newKey.take(preservedKeyFields)
+    val preservedKeyNew = if (preservedKeyOld.nonEmpty)
+        Some(newKey.take(preservedKeyFields))
+      else
+        None
     val shortenedKey = if (typ.keyOrEmpty != preservedKeyOld) TableKeyBy(tir, preservedKeyOld) else tir
-    val mapped = TableMapRows(shortenedKey, newRow, typ.key.map(_ => preservedKeyNew))
+    val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
     val lengthenedKey =
-      if (preservedKeyNew != newKey)
+      if (preservedKeyNew.getOrElse(IndexedSeq()) != newKey)
         TableKeyBy(mapped, newKey, isSorted = preservedKeyFields > 0)
       else
         mapped
@@ -515,6 +518,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def expandTypes(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepExpand(t: Type): Type = {
       t match {
         case t: TContainer =>
@@ -537,6 +542,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def flatten(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
       t.fields.map { f =>
         f.typ match {
@@ -553,12 +560,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey: Array[String] = keyFieldIdx.map(_.flatMap { i =>
-      newFields(i).map { case (n, _) => n }
-    }).getOrElse(Array())
-    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length).getOrElse(0)
 
-    select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
+    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten), typ.key))
   }
 
   // expandTypes must be called before toDF
@@ -786,7 +789,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val typToInsert: Type = other.valueSignature
 
-    val (newRowType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
+    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
+    val newRowType = newRowPType.virtualType
 
     val partBc = hc.sc.broadcast(leftORVD.partitioner)
     val rightSignature = other.signature

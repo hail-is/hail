@@ -296,7 +296,9 @@ case class MatrixValue(
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
 
-      val (newRVType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
+      val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(typeToInsert.physicalType, List(path))
+      val newRVType = newRVPType.virtualType
+
 
       val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
         colKey = newColKey, globalType = newGlobalType)

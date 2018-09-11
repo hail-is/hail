@@ -14,7 +14,7 @@ case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
 
 class PBoolean(override val required: Boolean) extends PType {
-  def virtualType: TBoolean = TBoolean(required)
+  lazy val virtualType: TBoolean = TBoolean(required)
 
   def _toPretty = "Boolean"
 

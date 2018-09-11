@@ -11,7 +11,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, _}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
-  def physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
+  lazy val physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
 
   val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
 

@@ -1,11 +1,12 @@
 package is.hail.rvd
 
-import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream }
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PInt64
 import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
@@ -413,7 +414,8 @@ trait RVD {
     name: String,
     partitionCounts: Option[IndexedSeq[Long]] = None
   ): (TStruct, ContextRDD[RVDContext, RegionValue]) = {
-    val (newRowType, ins) = rowType.unsafeStructInsert(TInt64(), List(name))
+    val (newRowPType, ins) = rowType.physicalType.unsafeStructInsert(PInt64(), List(name))
+    val newRowType = newRowPType.virtualType
 
     val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
 

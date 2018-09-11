@@ -531,7 +531,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     else
       right
 
-    val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
+    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType.physicalType, List(root))
+    val newRVType = newRVPType.virtualType
 
     val rightRowType = rightRVD.rowType
     val leftRowType = rvRowType

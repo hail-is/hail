@@ -61,7 +61,8 @@ object LinearRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVType, ins) = fullRowType.unsafeStructInsert(LinearRegression.schema, List(root))
+    val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(LinearRegression.schema.physicalType, List(root))
+    val newRVType = newRVPType.virtualType
 
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 

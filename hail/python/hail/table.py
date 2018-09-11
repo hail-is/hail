@@ -2034,13 +2034,19 @@ class Table(ExprContainer):
         :py:data:`.tfloat64`, :py:data:`.tfloat32`, :class:`.tarray`,
         :class:`.tstruct`.
 
+        Note, expand_types always returns an unkeyed table.
+
         Returns
         -------
         :class:`.Table`
             Expanded table.
         """
 
-        return Table(self._jt.expandTypes())
+        if len(self.key) == 0:
+            t = self
+        else:
+            t = self.key_by()
+        return Table(t._jt.expandTypes())
 
     def flatten(self):
         """Flatten nested structs.
@@ -2088,6 +2094,8 @@ class Table(ExprContainer):
         Note, structures inside collections like arrays or sets will not be
         flattened.
 
+        Note, the result of flatten is always unkeyed.
+
         Warning
         -------
         Flattening a table will produces fields that cannot be referenced using
@@ -2100,7 +2108,11 @@ class Table(ExprContainer):
             Table with a flat schema (no struct fields).
         """
 
-        return Table(self._jt.flatten())
+        if len(self.key) == 0:
+            t = self
+        else:
+            t = self.key_by()
+        return Table(t._jt.flatten())
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
@@ -2455,11 +2467,10 @@ class Table(ExprContainer):
         :class:`.pyspark.sql.DataFrame`
 
         """
-        jt = self._jt
-        jt = jt.expandTypes()
+        t = self.expand_types()
         if flatten:
-            jt = jt.flatten()
-        return pyspark.sql.DataFrame(jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+            t = t.flatten()
+        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):

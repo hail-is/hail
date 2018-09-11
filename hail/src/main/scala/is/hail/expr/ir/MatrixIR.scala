@@ -1792,7 +1792,8 @@ case class MatrixAnnotateRowsTable(
 
         val typToInsert: Type = table.typ.valueType
 
-        val (newRVType, ins) = child.typ.rvRowType.unsafeStructInsert(typToInsert, List(root))
+        val (newRVPType, ins) = child.typ.rvRowType.physicalType.unsafeStructInsert(typToInsert.physicalType, List(root))
+        val newRVType = newRVPType.virtualType
 
         val partBc = hc.sc.broadcast(prev.rvd.partitioner)
         val tableRowType = table.typ.rowType

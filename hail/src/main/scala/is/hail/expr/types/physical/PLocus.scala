@@ -25,7 +25,7 @@ object PLocus {
 }
 
 case class PLocus(rg: RGBase, override val required: Boolean = false) extends ComplexPType {
-  def virtualType: TLocus = TLocus(rg, required)
+  lazy val virtualType: TLocus = TLocus(rg, required)
 
   def _toPretty = s"Locus($rg)"
 
