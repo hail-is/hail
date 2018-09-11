@@ -12,18 +12,18 @@ def load_dataset(dataset_name,
     -------
 
     >>> # Load 1000 Genomes chromosome X MatrixTable with GRCh38 coordinates
-    >>> mt_1kg = hl.experimental.load_dataset('1000_genomes_phase3_chrX',
+    >>> mt_1kg = hl.experimental.load_dataset('1000_genomes_phase3_chrX',   # doctest: +SKIP
     ...                                       reference_genome='GRCh38')
 
     >>> # Count rows and columns
-    >>> mt_1kg.count()
+    >>> mt_1kg.count()  # doctest: +SKIP
 
     .. code-block:: text
 
         (3474116, 2504)
 
     >>> # Inspect contents of the MatrixTable
-    >>> mt_1kg.describe()
+    >>> mt_1kg.describe()   # doctest: +SKIP
 
     .. code-block:: text
 
