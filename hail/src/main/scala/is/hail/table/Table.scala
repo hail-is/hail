@@ -789,7 +789,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val typToInsert: Type = other.valueSignature
 
-    val (newRowType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
+    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
+    val newRowType = newRowPType.virtualType
 
     val partBc = hc.sc.broadcast(leftORVD.partitioner)
     val rightSignature = other.signature

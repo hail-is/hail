@@ -62,7 +62,8 @@ final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
 
-    val (newRowType, inserter) = rowType.unsafeInsert(typeToInsert, path)
+    val (newRowPType, inserter) = rowType.physicalType.unsafeInsert(typeToInsert.physicalType, path)
+    val newRowType = newRowPType.virtualType
 
     (OrderedRVDType(key, newRowType.asInstanceOf[TStruct]), inserter)
   }

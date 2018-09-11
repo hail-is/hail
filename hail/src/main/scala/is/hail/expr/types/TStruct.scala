@@ -137,68 +137,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def unsafeStructInsert(typeToInsert: Type, path: List[String]): (TStruct, UnsafeInserter) = {
-    assert(typeToInsert.isInstanceOf[TStruct] || path.nonEmpty)
-    val (t, i) = unsafeInsert(typeToInsert, path)
-    (t.asInstanceOf[TStruct], i)
-  }
-
-  override def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
-    if (path.isEmpty) {
-      (typeToInsert, (region, offset, rvb, inserter) => inserter())
-    } else {
-      val localSize = size
-      val key = path.head
-      selfField(key) match {
-        case Some(f) =>
-          val j = f.index
-          val (insertedFieldType, fieldInserter) = f.typ.unsafeInsert(typeToInsert, path.tail)
-
-          (updateKey(key, j, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < j) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            if (region != null && isFieldDefined(region, offset, j))
-              fieldInserter(region, loadField(region, offset, j), rvb, inserter)
-            else
-              fieldInserter(null, 0, rvb, inserter)
-            i += 1
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            rvb.endStruct()
-          })
-
-        case None =>
-          val (insertedFieldType, fieldInserter) = TStruct.empty().unsafeInsert(typeToInsert, path.tail)
-
-          (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            fieldInserter(null, 0, rvb, inserter)
-            rvb.endStruct()
-          })
-      }
-    }
-  }
-
   override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns)

@@ -64,7 +64,8 @@ object LogisticRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVType, inserter) = vsm.rvRowType.unsafeStructInsert(logRegTest.schema, List(root))
+    val (newRVPType, inserter) = vsm.rvRowType.physicalType.unsafeStructInsert(logRegTest.schema.physicalType, List(root))
+    val newRVType = newRVPType.virtualType
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
     val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
