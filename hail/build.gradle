@@ -215,6 +215,8 @@ task testPython(type: Exec, dependsOn: shadowJar) {
             parallelism,
             '--dist=loadscope',
             '--noconftest',
+            '--color=yes',
+            '-r a',
             'python/test'
     environment SPARK_HOME: sparkHome
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
