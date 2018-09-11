@@ -702,15 +702,17 @@ private class Emit(
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
 
-      case x@SelectFields(ir, fields) =>
-        val old = emit(ir)
-        val oldt = coerce[TStruct](ir.typ)
-        val oldv = mb.newLocal[Long]
+      case x@SelectFields(oldStruct, fields) =>
+        val old = emit(oldStruct)
+        val oldt = coerce[TStruct](oldStruct.typ)
+        val oldv = mb.newField[Long]
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
-        val addFields =
-          Code(srvb.start(),
-            Code(fields.map { name =>
+        val addFields = fields.map { name =>
+          new EstimableEmitter[EmitMethodBuilderLike] {
+            def estimatedSize: Int = 20
+
+            def emit(mbLike: EmitMethodBuilderLike): Code[Unit] = {
               val i = oldt.fieldIdx(name)
               val t = oldt.types(i)
               val fieldMissing = oldt.isFieldMissing(region, oldv, i)
@@ -720,14 +722,17 @@ private class Emit(
                   srvb.setMissing(),
                   srvb.addIRIntermediate(t)(fieldValue)),
                 srvb.advance())
-            }: _*))
+            }
+          }
+        }
 
         EmitTriplet(
           old.setup,
           old.m,
           Code(
             oldv := old.value[Long],
-            addFields,
+            srvb.start(),
+            EmitUtils.wrapToMethod(addFields, new EmitMethodBuilderLike(this)),
             srvb.offset))
 
 
@@ -738,27 +743,33 @@ private class Emit(
           old.typ match {
             case oldtype: TStruct =>
               val codeOld = emit(old)
-              val xo = mb.newLocal[Long]
-              val xmo = mb.newLocal[Boolean]()
-              val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
-                .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
-              val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
-                .map { case (_, v) => (v.typ, emit(v)) }
+              val xo = mb.newField[Long]
+              val xmo = mb.newField[Boolean]()
+              val updateMap = Map(fields: _*)
               val srvb = new StagedRegionValueBuilder(mb, x.typ)
-              present(Code(
-                srvb.start(init = true),
+
+              val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
                 Code(
-                  codeOld.setup,
-                  xmo := codeOld.m,
-                  xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
-                  Code(oldtype.fields.map { f =>
-                    updateInit.get(f.name) match {
-                      case Some((t, EmitTriplet(dov, mv, vv))) =>
-                        Code(
-                          dov,
-                          mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                          srvb.advance())
-                      case None =>
+                  v.setup,
+                  v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+                  srvb.advance())
+              }
+
+              val opSize: Int = 20
+              val items = x.typ.fields.map { f =>
+                updateMap.get(f.name) match {
+                  case Some(vir) =>
+                    new EstimableEmitter[EmitMethodBuilderLike] {
+                      def estimatedSize: Int = vir.size * opSize
+
+                      def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
+                        addFields(mbLike.mb, vir.typ, mbLike.emit.emit(vir, env))
+                    }
+                  case None =>
+                    new EstimableEmitter[EmitMethodBuilderLike] {
+                      def estimatedSize: Int = 20
+
+                      def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
                         Code(
                           (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
                             srvb.setMissing(),
@@ -766,13 +777,15 @@ private class Emit(
                           ),
                           srvb.advance())
                     }
-                  }: _*)),
-                Code(appendInit.map { case (t, EmitTriplet(setup, mv, vv)) =>
-                  Code(
-                    setup,
-                    mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                    srvb.advance())
-                }: _*),
+                }
+              }
+
+              present(Code(
+                srvb.start(init = true),
+                codeOld.setup,
+                xmo := codeOld.m,
+                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
+                EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this)),
                 srvb.offset))
             case _ =>
               val newIR = MakeStruct(fields)

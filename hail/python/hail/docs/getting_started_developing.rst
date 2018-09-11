@@ -30,7 +30,7 @@ On Mac OS X, a C++ compiler is provided by the Apple Xcode::
 The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
 
     git clone https://github.com/hail-is/hail.git
-    cd hail
+    cd hail/hail
 
 A Hail JAR can be built using Gradle. Note that every Hail JAR is specific to
 one version of Spark::
@@ -40,7 +40,7 @@ one version of Spark::
 Finally, some environment variables must be set so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
 
     export SPARK_HOME=/path/to/spark
-    export HAIL_HOME=/path/to/hail
+    export HAIL_HOME=/path/to/hail/hail
     export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
     export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
