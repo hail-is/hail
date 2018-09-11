@@ -13,13 +13,13 @@ object FoldConstants {
                _: SeqOp |
                _: Begin |
                _: InitOp => None
-          case Let(name, value, body) if IsScalarConstant(value) =>
+          case Let(name, value, body) if IsConstant(value) =>
             Some(FoldConstants(Subst(body, Env.empty[IR].bind(name, value)), canGenerateLiterals))
           case _ =>
             if (ir.children.forall {
-              case c: IR => IsScalarConstant(c)
+              case c: IR => IsConstant(c)
               case _ => false
-            } && (canGenerateLiterals || IsScalarType(ir.typ)))
+            } && (canGenerateLiterals || CanEmit(ir.typ)))
               Some(Literal.coerce(ir.typ, Interpret(ir, optimize = false)))
             else None
         }

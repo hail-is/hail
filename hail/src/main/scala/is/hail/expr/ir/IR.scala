@@ -49,7 +49,7 @@ object Literal {
 }
 
 final case class Literal(typ: Type, value: Annotation) extends IR {
-  require(!IsScalarType(typ))
+  require(!CanEmit(typ))
 }
 
 sealed trait InferIR extends IR {

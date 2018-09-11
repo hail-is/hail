@@ -1282,8 +1282,7 @@ class MatrixWrite(IR):
 
 class Literal(IR):
     @typecheck_method(dtype=hail_type,
-                      value=anytype,
-                      id=nullable(str))
+                      value=anytype)
     def __init__(self, dtype, value):
         super(Literal, self).__init__()
         self.dtype: 'hail.HailType' = dtype
