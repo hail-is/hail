@@ -1,0 +1,449 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+}
+
+plugins {
+  id "com.gradle.build-scan" version "1.0"
+  id 'java'
+  id 'scala'
+  id 'idea'
+  id 'maven'
+  id 'jacoco'
+  id 'com.github.johnrengelman.shadow' version '1.2.3'
+  id "de.undercouch.download" version "3.2.0"
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+repositories {
+    mavenCentral()
+    jcenter()
+    maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
+    maven { url "http://repo.hortonworks.com/content/repositories/releases/" }
+    maven { url "http://repo.spring.io/plugins-release/" }
+}
+
+buildScan {
+    licenseAgreementUrl = 'https://gradle.com/terms-of-service'
+    licenseAgree = 'yes'
+}
+
+String hailVersion = "devel"
+String[] deployedSparkVersions = new File("deployed-spark-versions.txt")
+
+String sparkVersion = System.getProperty("spark.version", "2.2.0")
+String breezeVersion = System.getProperty("breeze.version")
+String py4jVersion = System.getProperty("py4j.version")
+
+if (!(sparkVersion ==~ /^2\..*/))
+    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.2.0.')
+
+String scalaVersion = '2.11.8'
+String scalaMajorVersion = '2.11'
+
+if (sparkVersion == '2.2.0') {
+    if (py4jVersion == null)
+      py4jVersion = '0.10.4'
+    if (breezeVersion == null)
+      breezeVersion = '0.13.1'
+} else {
+  if (breezeVersion == null || py4jVersion == null)
+    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
+}
+
+String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
+
+sourceSets.main.scala.srcDir "src/main/java"
+sourceSets.main.java.srcDirs = []
+sourceSets.test.runtimeClasspath += files("prebuilt/lib")
+
+task nativeLib(type: Exec) {
+    workingDir 'src/main/c'
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibTest(type: Exec) {
+    workingDir 'src/main/c'
+    args('test')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibClean(type: Exec) {
+    workingDir 'src/main/c'
+    args('clean')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibPrebuilt(type: Exec) {
+    workingDir 'src/main/c'
+    args('prebuilt')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs "prebuilt/lib"
+        }
+    }
+}
+compileScala.dependsOn(nativeLib)
+test.dependsOn(nativeLibTest)
+clean.dependsOn(nativeLibClean)
+
+compileJava {
+    options.compilerArgs << "-Xlint:all" << "-Werror"
+}
+
+task generateBuildInfo(type: Exec) {
+    commandLine 'sh', 'generate-build-info.sh', sparkVersion, hailVersion
+    outputs.upToDateWhen { false }
+}
+
+compileScala {
+    dependsOn generateBuildInfo
+
+    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
+}
+
+dependencies {
+    compile 'org.scala-lang:scala-library:' + scalaVersion
+    compile 'org.scala-lang:scala-reflect:' + scalaVersion
+    compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
+        exclude module: 'hadoop-client'
+    }
+    compile('org.apache.hadoop:hadoop-client:2.7.1') {
+        exclude module: 'servlet-api'
+    }
+    compile 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
+    compile 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+    compile 'org.lz4:lz4-java:1.4.0'
+    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
+    compile 'com.github.samtools:htsjdk:2.14.2'
+
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+
+    compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-argonaut_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-dsl_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-scala-xml_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-client_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-websocket_' + scalaMajorVersion + ':0.1.3'
+    compile 'org.http4s:http4s-blaze-core_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-blaze-client_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-blaze-server_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.json4s:json4s-core_' + scalaMajorVersion + ':3.2.10'
+    // compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.2.10'
+    compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.2.10'
+    compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.2.10'
+    //compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
+    //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
+    //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
+
+    compile 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
+
+    compile 'com.jayway.restassured:rest-assured:2.8.0'
+
+    compile group: 'org.ow2.asm', name: 'asm', version: '5.1'
+    compile group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
+    compile group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
+
+    compile 'net.java.dev.jna:jna:4.2.2'
+    compile 'net.sourceforge.jdistlib:jdistlib:0.4.5'
+
+    testCompile 'org.testng:testng:6.8.21'
+    testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+
+    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    compile group: 'commons-codec', name: 'commons-codec', version: '1.11'
+}
+
+task(checkSettings) << {
+    def checkSeed = System.getProperty("check.seed", "1")
+    if (checkSeed == "random")
+        checkSeed = new Random().nextInt().toString()
+    def checkSize = System.getProperty("check.size", "1000")
+    def checkCount = System.getProperty("check.count", "10")
+
+    println "check: seed = $checkSeed, size = $checkSize, count = $checkCount"
+
+    // override with these defaults, random seed
+    System.setProperty("check.seed", checkSeed)
+    System.setProperty("check.size", checkSize)
+    System.setProperty("check.count", checkCount)
+}
+
+String parallelism = System.getProperty("test.parallelism", "2")
+
+test {
+    useTestNG {}
+
+    // avoid stack overflow in lmmLargeExampleTest on some systems
+    jvmArgs '-Xss4m'
+
+    systemProperties System.getProperties()
+
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+
+    // listen to events in the test execution lifecycle
+    beforeTest { descriptor ->
+        logger.lifecycle("Running test: " + descriptor)
+    }
+
+    maxParallelForks parallelism.toInteger()
+
+    // make poop emoji work in generated bytecode
+    systemProperty "file.encoding", "utf-8"
+}
+
+test.dependsOn(checkSettings)
+
+task testPython(type: Exec, dependsOn: shadowJar) {
+    commandLine 'pytest',
+            '-v',
+            '-n',
+            parallelism,
+            '--dist=loadscope',
+            '--noconftest',
+            'python/test'
+    environment SPARK_HOME: sparkHome
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYSPARK_PYTHON: 'python3'
+}
+
+task doctest(type: Exec, dependsOn: shadowJar) {
+    commandLine 'sh', 'python/hail/docs/doctest.sh', '-n', parallelism
+    environment SPARK_HOME: sparkHome
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYSPARK_PYTHON: 'python3'
+}
+
+task testAll(dependsOn: ['testPython', 'test', 'doctest'])
+
+tasks.withType(ShadowJar) {
+    manifest {
+        attributes 'Implementation-Title': 'Hail',
+                'Implementation-Version': '0.0.1-SNAPSHOT'
+    }
+    baseName = project.name + '-all'
+    mergeServiceFiles()
+    zip64 true
+    // conflict with version in default Hadoop/Spark install
+    relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
+    relocate 'com.google.common', 'is.hail.relocated.com.google.common'
+    relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
+}
+
+shadowJar {
+    classifier = 'spark'
+    from(project.sourceSets.main.output)
+    configurations = [project.configurations.runtime]
+    dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
+        include(dependency('org.lz4:lz4-java:.*'))
+
+        include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
+
+	include(dependency('com.github.fommil.netlib:core:1.1.2'))
+	include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
+	include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
+	include(dependency('com.github.fommil:jniloader:1.1'))
+	include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
+
+        include(dependency('com.github.samtools:htsjdk:.*'))
+
+        include(dependency('org.json4s:json4s-core_' + scalaMajorVersion + ':.*'))
+        // include(dependency('org.json4s:json4s-native_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.json4s:json4s-jackson_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.json4s:json4s-ast_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.apache.httpcomponents:httpclient:.*'))
+        include(dependency('org.apache.httpcomponents:httpcore:.*'))
+        include(dependency('org.apache.httpcomponents:httpmime:.*'))
+        include(dependency('org.apache.zookeeper:zookeeper:.*'))
+        include(dependency('org.codehaus.woodstox:stax2-api:.*'))
+        include(dependency('org.codehaus.woodstox:woodstox-core-asl:.*'))
+        include(dependency('org.noggit:noggit:.*'))
+
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
+
+        include(dependency('com.google.guava:guava:.*'))
+
+        include(dependency('org.ow2.asm:asm:.*'))
+        include(dependency('org.ow2.asm:asm-util:.*'))
+        include(dependency('org.ow2.asm:asm-tree:.*'))
+        include(dependency('org.ow2.asm:asm-analysis:.*'))
+
+        include(dependency('net.java.dev.jna:jna:.*'))
+        include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
+
+        include(dependency('org.apache.commons.commons-math3:3.6.1'))
+        include(dependency('commons-codec:commons-codec:.*'))
+    }
+}
+
+task shadowTestJar(type: ShadowJar) {
+    classifier = 'spark-test'
+    from(project.sourceSets.main.output, project.sourceSets.test.output)
+    configurations = [project.configurations.testRuntime]
+    dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
+        include(dependency('org.lz4:lz4-java:.*'))
+        include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
+
+	include(dependency('com.github.fommil.netlib:core:1.1.2'))
+	include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
+	include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
+	include(dependency('com.github.fommil:jniloader:1.1'))
+	include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
+	include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
+
+        include(dependency('com.github.samtools:htsjdk:.*'))
+
+        include(dependency('org.json4s:json4s-core_' + scalaMajorVersion + ':.*'))
+        // include(dependency('org.json4s:json4s-native_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.json4s:json4s-jackson_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.json4s:json4s-ast_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.scalaz:scalaz-core_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.apache.httpcomponents:httpclient:.*'))
+        include(dependency('org.apache.httpcomponents:httpcore:.*'))
+        include(dependency('org.apache.httpcomponents:httpmime:.*'))
+        include(dependency('org.apache.zookeeper:zookeeper:.*'))
+        include(dependency('org.codehaus.woodstox:stax2-api:.*'))
+        include(dependency('org.codehaus.woodstox:woodstox-core-asl:.*'))
+        include(dependency('org.noggit:noggit:.*'))
+
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
+
+        include(dependency('com.google.guava:guava:.*'))
+
+        include(dependency('org.ow2.asm:asm:.*'))
+        include(dependency('org.ow2.asm:asm-util:.*'))
+        include(dependency('org.ow2.asm:asm-tree:.*'))
+        include(dependency('org.ow2.asm:asm-analysis:.*'))
+
+        include(dependency('org.testng:testng:.*'))
+        include(dependency('com.beust:jcommander:.*'))
+        include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('net.java.dev.jna:jna:.*'))
+        include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
+        include(dependency('org.apache.commons.commons-math3:3.6.1'))
+        include(dependency('commons-codec:commons-codec:.*'))
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.enabled false
+        csv.enabled false
+        html.destination "${buildDir}/reports/coverage"
+    }
+}
+
+task downloadDependencies(type: Exec) {
+    configurations.testCompile.files
+    configurations.testRuntime.files
+    commandLine 'echo', 'Downloaded all dependencies'
+}
+
+task coverage(dependsOn: jacocoTestReport)
+
+task testJar(type: Jar) {
+    classifier = 'tests'
+    from sourceSets.test.output
+}
+
+task archiveZip(type: Zip) {
+    from fileTree('python')
+    classifier = 'python'
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.14.1'
+}
+
+task cleanDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
+}
+
+task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(deployedSparkVersions)
+}
+
+task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
+    environment SPARK_HOME: sparkHome
+    environment PYSPARK_SUBMIT_ARGS: '--master local[4] --conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment SPHINXOPTS: '-tchecktutorial'
+}
+
+task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
+    environment SPARK_HOME: sparkHome
+    // makeDocsNoTest does not try to run the notebook contents
+    // so we do not need the PySpark args.
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment SPHINXOPTS: ''
+}
+
+task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
+    from('python') {
+        into 'python'
+    }
+    from('build/www/docs') {
+        into 'docs'
+    }
+    from('scripts') {
+        into 'bin'
+    }
+    from('build/libs/hail-all-spark.jar') {
+        into 'jars'
+    }
+    from('python/hail/docs/tutorials') {
+        into 'tutorials'
+        include '*.ipynb'
+    }
+    into 'build/package'
+}
+
+task createPackage(type: Zip, dependsOn: ['assemblePackage']) {
+    from 'build/package'
+    into 'hail'
+    baseName 'hail'
+}
