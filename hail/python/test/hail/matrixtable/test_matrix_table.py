@@ -480,7 +480,7 @@ class Tests(unittest.TestCase):
                 hl.is_missing(rt['value']))))
 
     def test_entry_join_self(self):
-        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
+        mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
 
         self.assertEqual(mt1[mt1.row_idx, mt1.col_idx].dtype, mt1.entry.dtype)
