@@ -15,7 +15,8 @@ object FoldConstants {
                _: SeqOp |
                _: Begin |
                _: InitOp |
-               _: ArrayRange => None
+               _: ArrayRange |
+               _: Die => None
           case MakeStruct(fields) if fields.isEmpty => None
           case Let(name, value, body) if IsConstant(value) =>
             Some(FoldConstants(Subst(body, Env.empty[IR].bind(name, value)), canGenerateLiterals))
@@ -25,11 +26,7 @@ object FoldConstants {
               case c: IR => IsConstant(c)
               case _ => false
             } && (canGenerateLiterals || CanEmit(ir.typ))) {
-              Some(try {
-                Literal.coerce(ir.typ, Interpret(ir, optimize = false))
-              } catch {
-                case e: HailException => Die(e.getMessage + "\n" + e.getStackTrace.mkString("\n    "), ir.typ)
-              })
+              Some(Literal.coerce(ir.typ, Interpret(ir, optimize = false)))
             }
             else None
         }
