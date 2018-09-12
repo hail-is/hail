@@ -172,6 +172,40 @@ object LoadBgen {
   }
 }
 
+object MatrixBGENReader {
+  def getMatrixType(
+    rg: Option[ReferenceGenome],
+    includeRsid: Boolean = true,
+    includeVarid: Boolean = true,
+    includeFileRowIndex: Boolean = true,
+    includeGT: Boolean = true,
+    includeGP: Boolean = true,
+    includeDosage: Boolean = true
+  ): MatrixType = {
+    val typedRowFields = Array(
+      (true, "locus" -> TLocus.schemaFromRG(rg)),
+      (true, "alleles" -> TArray(TString())),
+      (includeRsid, "rsid" -> TString()),
+      (includeVarid, "varid" -> TString()),
+      (includeFileRowIndex, "file_row_idx" -> TInt64()))
+      .withFilter(_._1).map(_._2)
+
+    val typedEntryFields: Array[(String, Type)] = Array(
+        (includeGT, "GT" -> TCall()),
+        (includeGP, "GP" -> TArray(+TFloat64())),
+        (includeDosage, "dosage" -> TFloat64()))
+        .withFilter(_._1).map(_._2)
+
+    MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
+      rowType = TStruct(typedRowFields: _*),
+      rowKey = Array("locus", "alleles"),
+      entryType = TStruct(typedEntryFields: _*))
+  }
+}
+
 case class MatrixBGENReader(
   files: Seq[String],
   sampleFile: Option[String],
@@ -280,21 +314,7 @@ case class MatrixBGENReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  val fullType: MatrixType = MatrixType.fromParts(
-    globalType = TStruct.empty(),
-    colKey = Array("s"),
-    colType = TStruct("s" -> TString()),
-    rowType = TStruct(
-      "locus" -> TLocus.schemaFromRG(referenceGenome),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(),
-      "varid" -> TString(),
-      "file_row_idx" -> TInt64()),
-    rowKey = Array("locus", "alleles"),
-    entryType = TStruct(
-      "GT" -> TCall(),
-      "GP" -> +TArray(+TFloat64()),
-      "dosage" -> +TFloat64()))
+  val fullType = MatrixBGENReader.getMatrixType(referenceGenome)
 
   def columnCount: Option[Int] = Some(nSamples)
 

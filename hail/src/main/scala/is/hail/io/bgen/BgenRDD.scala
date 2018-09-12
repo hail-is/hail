@@ -32,30 +32,20 @@ case class BgenSettings(
   private val userContigRecoding: Map[String, String],
   skipInvalidLoci: Boolean
 ) {
-  private[this] val typedRowFields = Array(
-    (true, "locus" -> TLocus.schemaFromRG(rg)),
-    (true, "alleles" -> TArray(TString())),
-    (rowFields.rsid, "rsid" -> TString()),
-    (rowFields.varid, "varid" -> TString()),
-    (rowFields.fileRowIndex, "file_row_idx" -> TInt64()))
-    .withFilter(_._1).map(_._2)
-
-  private[this] val typedEntryFields: Array[(String, Type)] = entries match {
-    case NoEntries => Array.empty
-    case EntriesWithFields(gt, gp, dosage) => Array(
-      (gt, "GT" -> TCall()),
-      (gp, "GP" -> +TArray(+TFloat64())),
-      (dosage, "dosage" -> +TFloat64()))
-        .withFilter(_._1).map(_._2)
+  val (includeGT, includeGP, includeDosage) = entries match {
+    case NoEntries => (false, false, false)
+    case EntriesWithFields(gt, gp, dosage) => (gt, gp, dosage)
   }
 
-  val matrixType: MatrixType = MatrixType.fromParts(
-    globalType = TStruct.empty(),
-    colKey = Array("s"),
-    colType = TStruct("s" -> TString()),
-    rowType = TStruct(typedRowFields: _*),
-    rowKey = Array("locus", "alleles"),
-    entryType = TStruct(typedEntryFields: _*))
+  val matrixType = MatrixBGENReader.getMatrixType(
+    rg,
+    rowFields.rsid,
+    rowFields.varid,
+    rowFields.fileRowIndex,
+    includeGT,
+    includeGP,
+    includeDosage
+  )
 
   val typ: TStruct = entries match {
     case NoEntries =>
