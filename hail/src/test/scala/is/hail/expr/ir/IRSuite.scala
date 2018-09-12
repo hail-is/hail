@@ -361,6 +361,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testInsertFields() {
     val s = TStruct("a" -> TInt64(), "b" -> TString())
+    val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
 
     assertEvalsTo(
       InsertFields(
@@ -370,19 +371,19 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("a" -> I64(5))),
       Row(5L, null))
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("c" -> F64(3.2))),
       Row(null, null, 3.2))
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("c" -> NA(TFloat64()))),
       Row(null, null, null))
 
@@ -403,6 +404,11 @@ class IRSuite extends SparkSuite {
         MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
         Seq("c" -> F64(3.2))),
       Row(null, "abc", 3.2))
+
+    assertEvalsTo(
+      InsertFields(NA(TStruct("a" -> +TInt32())), Seq("foo" -> I32(5))),
+      null
+    )
   }
 
   @Test def testSelectFields() {
