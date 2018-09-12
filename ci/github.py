@@ -37,7 +37,8 @@ def overall_review_state(reviews):
         login = review['user']['login']
         state = review['state']
         # reviews is chronological, so later ones are newer statuses
-        latest_state_by_login[login] = state
+        if state == 'APPROVED' or state == 'CHANGES_REQUESTED':
+            latest_state_by_login[login] = state
     total_state = 'pending'
     for login, state in latest_state_by_login.items():
         if (state == 'CHANGES_REQUESTED'):

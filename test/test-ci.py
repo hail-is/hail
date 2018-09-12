@@ -1,7 +1,10 @@
 from http_helper import get_repo, post_repo, patch_repo
 from pr import PR
 from subprocess import call, run
+import inspect
+import json
 import os
+import pkg_resources
 import requests
 import subprocess
 import tempfile
@@ -101,7 +104,23 @@ def dictKVMismatches(actual, kvs):
 ###############################################################################
 
 
-class TestCI(unittest.TestCase):
+class TestCILocally(unittest.TestCase):
+    def test_pull_request_comment_does_not_overwrite_approval(self):
+        data = pkg_resources.resource_string(
+            inspect.getmodule(self).__name__,
+            'comment-after-approve-pull-request-review.json')
+        reviews = json.loads(data)
+
+        from github import overall_review_state
+
+        review_state = overall_review_state(reviews)
+
+        assert review_state['state'] == 'approved'
+        assert review_state['reviews']['cseed'] == 'APPROVED'
+        assert 'tpoterba' not in review_state['reviews']
+
+
+class TestCIAgainstGitHub(unittest.TestCase):
     def get_pr(self, source_ref):
         status = ci_get('/status', status_code=200)
         assert 'prs' in status
