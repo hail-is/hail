@@ -746,7 +746,6 @@ private class Emit(
             case oldtype: TStruct =>
               val codeOld = emit(old)
               val xo = mb.newField[Long]
-              val xmo = mb.newField[Boolean]()
               val updateMap = Map(fields: _*)
               val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
@@ -773,7 +772,7 @@ private class Emit(
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
                         Code(
-                          (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
+                          oldtype.isFieldMissing(region, xo, f.index).mux(
                             srvb.setMissing(),
                             srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
                           ),
@@ -782,11 +781,10 @@ private class Emit(
                 }
               }
 
-              present(Code(
+              EmitTriplet(codeOld.setup, codeOld.m, Code(
                 srvb.start(init = true),
                 codeOld.setup,
-                xmo := codeOld.m,
-                xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
+                xo := coerce[Long](codeOld.v),
                 EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this)),
                 srvb.offset))
             case _ =>

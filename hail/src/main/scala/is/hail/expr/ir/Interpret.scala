@@ -514,11 +514,12 @@ object Interpret {
       case InsertFields(old, fields) =>
         var struct = interpret(old, env, args, agg)
         var t = old.typ
-        fields.foreach { case (name, body) =>
-          val (newT, ins) = t.insert(body.typ, name)
-          t = newT.asInstanceOf[TStruct]
-          struct = ins(struct, interpret(body, env, args, agg))
-        }
+        if (struct != null)
+          fields.foreach { case (name, body) =>
+            val (newT, ins) = t.insert(body.typ, name)
+            t = newT.asInstanceOf[TStruct]
+            struct = ins(struct, interpret(body, env, args, agg))
+          }
         struct
       case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
