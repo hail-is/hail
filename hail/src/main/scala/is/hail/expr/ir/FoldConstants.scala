@@ -26,7 +26,11 @@ object FoldConstants {
               case c: IR => IsConstant(c)
               case _ => false
             } && (canGenerateLiterals || CanEmit(ir.typ))) {
-              Some(Literal.coerce(ir.typ, Interpret(ir, optimize = false)))
+              Some(try {
+                Literal.coerce(ir.typ, Interpret(ir, optimize = false))
+              } catch {
+                case e: HailException => Die(e.getMessage + e.getStackTrace.map(s => s"\n    $s").mkString(""), ir.typ)
+              })
             }
             else None
         }
