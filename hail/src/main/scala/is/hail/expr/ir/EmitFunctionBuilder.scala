@@ -68,6 +68,8 @@ class EmitMethodBuilder(
 
   def getType(t: Type): Code[Type] = fb.getType(t)
 
+  def getPType(t: PType): Code[PType] = fb.getPType(t)
+
   def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
     getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness = false)
 
@@ -124,6 +126,8 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
+  private[this] val pTypeMap: mutable.Map[PType, Code[PType]] = mutable.Map[PType, Code[PType]]()
+
   private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]] =
     mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]]()
 
@@ -160,6 +164,15 @@ class EmitFunctionBuilder[F >: Null](
   def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
     assert(_hconf != null && _hfield != null, s"${_hfield == null}")
     _hfield.load()
+  }
+
+  def getPType(t: PType): Code[PType] = {
+    val references = ReferenceGenome.getReferences(t.virtualType).toArray
+    val setup = Code(Code(references.map(addReferenceGenome): _*),
+      Code.invokeScalaObject[String, PType](
+        Parser.getClass, "parsePType", const(t.parsableString())))
+    pTypeMap.getOrElseUpdate(t,
+      newLazyField[PType](setup))
   }
 
   def getType(t: Type): Code[Type] = {

@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.HailContext
 import is.hail.expr.ir.{AggSignature, BaseIR, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.rvd.OrderedRVDType
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
@@ -85,6 +86,8 @@ object Parser extends JavaTokenParsers {
   }
 
   def parseType(code: String): Type = parse(type_expr, code)
+
+  def parsePType(code: String): PType = parse(type_expr, code).physicalType
 
   def parseStructType(code: String): TStruct = parse(struct_expr, code)
 
