@@ -627,6 +627,9 @@ object Parser extends JavaTokenParsers {
       "LocalizeEntries" ~> string_literal ~ matrix_ir ^^ { case field ~ child =>
         ir.LocalizeEntries(child, field)
       } |
+      "TableRename" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ table_ir ^^ {
+        case rowK ~ rowV ~ globalK ~ globalV ~ child => ir.TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
+      } |
       "JavaTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[TableIR] }
   }
 

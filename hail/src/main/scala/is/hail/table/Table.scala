@@ -614,6 +614,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
   }
 
+  def rename(rowMap: java.util.HashMap[String, String], globalMap: java.util.HashMap[String, String]): Table =
+    new Table(hc, TableRename(tir, rowMap.asScala.toMap, globalMap.asScala.toMap))
+
   def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
 
   def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)

@@ -1990,8 +1990,7 @@ class Table(ExprContainer):
         """
         seen = {}
 
-        row_key_map = {}
-        row_value_map = {}
+        row_map = {}
         global_map = {}
 
         for k, v in mapping.items():
@@ -2003,23 +2002,15 @@ class Table(ExprContainer):
                 raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                if k in list(self.key):
-                    row_key_map[k] = v
-                else:
-                    row_value_map[k] = v
-            elif self[k]._indices == self._global_indices:
+                row_map[k] = v
+            else:
+                assert self[k]._indices == self._global_indices
                 global_map[k] = v
 
-        table = self
-        if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()}
-            new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
-            table = table._select("Table.rename",
-                                  hl.struct(**new_keys, **new_values),
-                                  new_keys=list(new_keys.keys()) if new_keys else "default")
-        if global_map:
-            table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
-        return table
+        stray = set(mapping.keys()) - set(seen.values())
+        if stray:
+            raise ValueError(f"found rename rules for fields not present in table: {list(stray)}")
+        return Table(self._jt.rename(row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

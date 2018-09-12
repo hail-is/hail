@@ -251,4 +251,14 @@ class TableIRSuite extends SparkSuite {
 
     TableJoin(t1, t2, "left").execute(hc).rvd.count()
   }
+
+  @Test def testTableRename() {
+    val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
+    val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
+    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = Some(FastIndexedSeq("idx_")), globalType = TStruct("foo_" -> TInt32())))
+    val beforeValue = before.execute(hc)
+    val after = t.execute(hc)
+    assert(beforeValue.globals.safeValue == after.globals.safeValue)
+    assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
+  }
 }

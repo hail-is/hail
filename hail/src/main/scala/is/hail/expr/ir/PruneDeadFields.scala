@@ -364,6 +364,14 @@ object PruneDeadFields {
           globalType = requestedType.globalType,
           rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
         memoizeMatrixIR(child, childDep, memo)
+      case TableRename(child, rowMap, globalMap) =>
+        val rowMapRev = rowMap.map { case (k, v) => (v, k) }
+        val globalMapRev = globalMap.map { case (k, v) => (v, k) }
+        val childDep = TableType(
+          rowType = requestedType.rowType.rename(rowMapRev),
+          globalType = requestedType.globalType.rename(globalMapRev),
+          key = requestedType.key.map(_.map(k => rowMapRev.getOrElse(k, k))))
+        memoizeTableIR(child, childDep, memo)
     }
   }
 
@@ -803,6 +811,12 @@ object PruneDeadFields {
           LocalizeEntries(child2, fieldName)
         else
           MatrixRowsTable(child2)
+      case TableRename(child, rowMap, globalMap) =>
+        val child2 = rebuild(child, memo)
+        TableRename(
+          child2,
+          rowMap.filterKeys(child2.typ.rowType.hasField),
+          globalMap.filterKeys(child2.typ.globalType.hasField))
       case TableUnion(children) =>
         val requestedType = memo.lookup(tir).asInstanceOf[TableType]
         val rebuilt = children.map { c =>

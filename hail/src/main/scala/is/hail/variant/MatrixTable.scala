@@ -985,12 +985,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = if (newMatrixType.orvdType == rvd.typ)
-      rvd
-    else {
-      val newType = newMatrixType.orvdType
-      rvd.updateType(newType)
-    }
+    val newRVD = rvd.cast(newRVRowType).asInstanceOf[OrderedRVD]
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }

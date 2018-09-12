@@ -452,4 +452,6 @@ trait RVD {
   def toUnpartitionedRVD: RVD
 
   def toOrderedRVD: OrderedRVD
+
+  def cast(newRowType: TStruct): RVD
 }

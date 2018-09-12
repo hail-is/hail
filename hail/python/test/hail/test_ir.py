@@ -147,7 +147,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableHead(table_read, 10),
             ir.TableOrderBy(ir.TableUnkey(table_read), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
-            ir.LocalizeEntries(matrix_read, '__entries')
+            ir.LocalizeEntries(matrix_read, '__entries'),
+            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'})
         ]
 
         return table_irs
