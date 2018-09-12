@@ -885,7 +885,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       TableLiteral(
         TableValue(ttyp,
           globals,
-          if (ttyp.key.isDefined) orvd else orvd.toUnpartitionedRVD)))
+          orvd.toOldStyleRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {

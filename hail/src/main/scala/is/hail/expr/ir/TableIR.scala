@@ -65,19 +65,21 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
 
   def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
-    TableValue(typ,
-      BroadcastRow(globals, typ.globalType, hc.sc),
-      if (dropRows)
-        UnpartitionedRVD.empty(hc.sc, typ.rowType)
+    val rvd = if (dropRows)
+      OrderedRVD.empty(hc.sc, typ.rvdType)
+    else {
+      val rvd = spec.rowsComponent.read(hc, path, typ.rowType).toOrderedRVD
+      if (rvd.typ.key startsWith typ.keyOrEmpty)
+        rvd
       else {
-        val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
-        (rvd, typ.key) match {
-          case (ordered: OrderedRVD, Some(k))
-            if ordered.typ.key.startsWith(k) => ordered
-          case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
-          case (_, None) => rvd.toUnpartitionedRVD
-        }
-      })
+        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
+        rvd.changeKey(typ.keyOrEmpty)
+      }
+    }
+    TableValue(
+      typ,
+      BroadcastRow(globals, typ.globalType, hc.sc),
+      rvd.toOldStyleRVD)
   }
 }
 
@@ -108,11 +110,12 @@ case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends T
     val rowTyp = typ.rowType
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), OrderedRVD.unkeyed(rowTyp, rvd).toOldStyleRVD)
   }
 }
 
 case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableReaderOptions) extends TableIR {
+  assert(typ.key.isEmpty)
   assert(typ.globalType.size == 0)
   assert(typ.rowType.size == readerOpts.useColIndices.length)
 
@@ -178,7 +181,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       }
     }
 
-    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), UnpartitionedRVD(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), OrderedRVD.unkeyed(rowTyp, rvd).toOldStyleRVD)
   }
 }
 
@@ -210,7 +213,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val orvd = tv.rvd.toOrderedRVD
     val nPreservedFields = keys.zip(orvd.typ.key).takeWhile { case (l, r) => l == r }.length
     assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
 
@@ -222,26 +225,6 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     } else {
       orvd.changeKey(keys)
     }.toOldStyleRVD
-    tv.copy(typ = typ, rvd = if (typ.key.isDefined) rvd else rvd.toUnpartitionedRVD)
-  }
-}
-
-case class TableUnkey(child: TableIR) extends TableIR {
-  val children: IndexedSeq[BaseIR] = Array(child)
-
-  val typ: TableType = child.typ.copy(key = None)
-
-  def copy(newChildren: IndexedSeq[BaseIR]): TableUnkey = {
-    assert(newChildren.length == 1)
-    TableUnkey(newChildren(0).asInstanceOf[TableIR])
-  }
-
-  def execute(hc: HailContext): TableValue = {
-    val tv = child.execute(hc)
-    val rvd = tv.rvd match {
-      case ordered: OrderedRVD => ordered.toUnpartitionedRVD
-      case unordered: UnpartitionedRVD => unordered
-    }
     tv.copy(typ = typ, rvd = rvd)
   }
 }
@@ -312,15 +295,12 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 
   def execute(hc: HailContext): TableValue = {
-    val ktv = child.execute(hc)
+    val tv = child.execute(hc)
 
     if (pred == True())
-      return ktv
+      return tv
     else if (pred == False())
-      return ktv.copy(rvd = ktv.rvd match {
-        case orvd: OrderedRVD => OrderedRVD.empty(hc.sc, orvd.typ)
-        case urvd: UnpartitionedRVD => UnpartitionedRVD.empty(hc.sc, urvd.rowType)
-      })
+      return tv.copy(rvd = OrderedRVD.empty(hc.sc, typ.rvdType).toOldStyleRVD)
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
       "row", child.typ.rowType,
@@ -328,7 +308,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       pred)
     assert(rTyp == TBoolean())
 
-    ktv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
+    tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
 
@@ -501,8 +481,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       newGlobalType,
       leftTV.rvd.sparkContext)
 
-    val leftORVD = leftTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-    val rightORVD = rightTV.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val leftORVD = leftTV.rvd.asInstanceOf[OrderedRVD]
+    val rightORVD = rightTV.rvd.asInstanceOf[OrderedRVD]
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
       joinKey,
@@ -536,8 +516,8 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
     leftValue.copy(
       typ = typ,
-      rvd = leftValue.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-        .orderedLeftJoinDistinctAndInsert(rightValue.enforceOrderingRVD.asInstanceOf[OrderedRVD], root))
+      rvd = leftValue.rvd.asInstanceOf[OrderedRVD]
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.asInstanceOf[OrderedRVD], root))
   }
 }
 
@@ -683,7 +663,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       }
     }
 
-    val orvd = tv.enforceOrderingRVD.toOrderedRVD
+    val orvd = tv.rvd.toOrderedRVD
     val newRVD = orvd
       .truncateKey(orvd.typ.key.take(typ.rvdType.key.length))
       .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
@@ -722,6 +702,8 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
 
 
 case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
+  assert(!child.typ.keyOrEmpty.contains(fieldName))
+
   def children: IndexedSeq[BaseIR] = Array(child)
 
   private val fieldIdx = child.typ.rowType.fieldIdx(fieldName)
@@ -775,19 +757,13 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
       }
     }
 
-    val newRVD: RVD = prev.rvd.boundary match {
-      case rvd: UnpartitionedRVD =>
-        rvd.mapPartitionsWithIndex(typ.rowType, itF)
-      case orvd: OrderedRVD =>
-        if (orvd.typ.key.contains(fieldName))
-          orvd.mapPartitionsWithIndex(typ.rowType, itF)
-        else
-          orvd.mapPartitionsWithIndexPreservesPartitioning(
-            orvd.typ.copy(rowType = rowType),
-            itF)
-    }
+    val orvd = prev.rvd.toOrderedRVD.boundary
+    val adjKey = orvd.truncateKey(orvd.typ.key.takeWhile(_ != fieldName))
+    val newRVD = adjKey.mapPartitionsWithIndexPreservesPartitioning(
+      adjKey.typ.copy(rowType = rowType),
+      itF)
 
-    TableValue(typ, prev.globals, newRVD)
+    TableValue(typ, prev.globals, newRVD.toOldStyleRVD)
   }
 }
 
@@ -805,10 +781,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
     tvs(0).copy(
-      rvd = if (typ.key.isDefined)
-        OrderedRVD.union(tvs.map(_.rvd.asInstanceOf[OrderedRVD]))
-      else
-        RVD.union(tvs.map(_.rvd)))
+      rvd = OrderedRVD.union(tvs.map(_.rvd.toOrderedRVD)).toOldStyleRVD)
   }
 }
 
@@ -882,7 +855,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    prev.copy(rvd = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD].distinctByKey())
+    prev.copy(rvd = prev.rvd.asInstanceOf[OrderedRVD].distinctByKey())
   }
 }
 
@@ -935,7 +908,6 @@ case class TableKeyByAndAggregate(
 
     assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
-    val rowType = prev.typ.rowType
     val globalsType = prev.typ.globalType
     val globalsBc = prev.globals.broadcast
 
@@ -1039,10 +1011,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = if (typ.key.isDefined)
-        OrderedRVD.coerce(typ.rvdType, crdd)
-      else
-        UnpartitionedRVD(typ.rowType, crdd))
+      rvd = OrderedRVD.coerce(typ.rvdType, crdd).toOldStyleRVD)
   }
 }
 
@@ -1062,7 +1031,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    val prevRVD = prev.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", child.typ.globalType,
@@ -1227,7 +1196,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val rdd = prev.rdd.sortBy(identity[Annotation], ascending = true)(ord, act)
     val rvd = ContextRDD.weaken[RVDContext](rdd)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
-    TableValue(typ, prev.globals, UnpartitionedRVD(rowType, rvd))
+    TableValue(typ, prev.globals, OrderedRVD.unkeyed(rowType, rvd).toOldStyleRVD)
   }
 }
 

@@ -562,7 +562,6 @@ class IRSuite extends SparkSuite {
       val b = True()
 
       val xs: Array[TableIR] = Array(
-        TableUnkey(read),
         TableDistinct(read),
         TableKeyBy(read, Array("m", "d")),
         TableFilter(read, b),
@@ -585,7 +584,7 @@ class IRSuite extends SparkSuite {
             MakeStruct(FastSeq("a" -> NA(TInt32()))),
             MakeStruct(FastSeq("a" -> I32(1)))
           ), TArray(TStruct("a" -> TInt32()))), None),
-        TableMapRows(TableUnkey(read),
+        TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11))),
@@ -597,8 +596,7 @@ class IRSuite extends SparkSuite {
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
-        TableUnkey(read),
-        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
+        TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         LocalizeEntries(mtRead, " # entries"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
       )

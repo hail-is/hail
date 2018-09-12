@@ -172,7 +172,7 @@ abstract sealed class MatrixIR extends BaseIR {
       .getOrElse(
         Optimize(
           TableMapRows(
-            TableUnkey(MatrixRowsTable(this)),
+            TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
             MakeStruct(FastIndexedSeq()),
             None
           ))
@@ -1896,8 +1896,8 @@ case class MatrixAnnotateRowsTable(
                   .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
             newKeyUIDs)).execute(hc)
 
-        val left = sortedTL.enforceOrderingRVD.asInstanceOf[OrderedRVD]
-        val right = tv.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+        val left = sortedTL.rvd.asInstanceOf[OrderedRVD]
+        val right = tv.rvd.asInstanceOf[OrderedRVD]
         val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
         val prevPartitioner = prev.rvd.partitioner
 
@@ -1922,7 +1922,7 @@ case class MatrixAnnotateRowsTable(
         assert(table.typ.keyType.isDefined)
         assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.get.types).forall { case (l, r) => l.isOfType(r) })
         val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
-          tv.enforceOrderingRVD.asInstanceOf[OrderedRVD], root)
+          tv.rvd.asInstanceOf[OrderedRVD], root)
         prev.copy(typ = typ, rvd = newRVD)
     }
   }
@@ -2361,7 +2361,7 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
     val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
       ir.IsNA(field))
 
-    var rowOrvd = rowtab.enforceOrderingRVD.asInstanceOf[OrderedRVD]
+    var rowOrvd = rowtab.rvd.asInstanceOf[OrderedRVD]
     rowOrvd = rowOrvd.mapPartitionsWithIndexPreservesPartitioning(rowOrvd.typ) { (i, it) =>
       val missing = missingF(i)
       val len = lenF(i)

@@ -14,20 +14,17 @@ object UnpartitionedRVD {
     UnpartitionedRVD(rowType, ContextRDD.empty[RVDContext, RegionValue](sc))
 
   def apply(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD = {
-    new UnpartitionedRVD(rowType, crdd)
+    OrderedRVD.unkeyed(rowType, crdd).toOldStyleRVD
   }
 }
 
 class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDContext, RegionValue]) extends RVD {
   self =>
 
-  override def toOrderedRVD: OrderedRVD = {
-    new OrderedRVD(
-      typ = OrderedRVDType(FastIndexedSeq.empty, rowType),
-      partitioner = OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
-      crdd = crdd
-    )
-  }
+  assert(false)
+
+  override def toOrderedRVD: OrderedRVD =
+    OrderedRVD.unkeyed(rowType, crdd)
 
   def cast(newRowType: TStruct): RVD = new UnpartitionedRVD(newRowType, crdd)
 
@@ -101,6 +98,4 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
     
     new UnpartitionedRVD(rowType, crdd.subsetPartitions(keep))
   }
-
-  override def toUnpartitionedRVD: RVD = this
 }

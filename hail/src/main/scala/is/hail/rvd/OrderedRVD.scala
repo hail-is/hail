@@ -320,7 +320,10 @@ class OrderedRVD(
     keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey))
 
   def orderedMerge(right: OrderedRVD): OrderedRVD =
-    keyBy().orderedMerge(right.keyBy())
+    orderedMerge(right, typ.key.length)
+
+  def orderedMerge(right: OrderedRVD, joinKey: Int): OrderedRVD =
+    keyBy(joinKey).orderedMerge(right.keyBy(joinKey))
 
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
@@ -554,11 +557,12 @@ class OrderedRVD(
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
-      OrderedRVIterator(localType, it, ctx)
-        .staircase
-        .map(_.value)
-    )
+    constrainToOrderedPartitioner(partitioner.strictify)
+      .mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
+        OrderedRVIterator(localType, it, ctx)
+          .staircase
+          .map(_.value)
+      )
   }
 
   def subsetPartitions(keep: Array[Int]): OrderedRVD = {
@@ -689,14 +693,7 @@ class OrderedRVD(
     stageLocally: Boolean
   ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
 
-  override def toUnpartitionedRVD: RVD =
-    UnpartitionedRVD(typ.rowType, crdd)
-
-  def toOldStyleRVD: RVD =
-    if (typ.key.isEmpty)
-      toUnpartitionedRVD
-    else
-      this
+  def toOldStyleRVD: RVD = this
 
   override def toOrderedRVD: OrderedRVD = this
 }
@@ -707,6 +704,14 @@ object OrderedRVD {
       OrderedRVDPartitioner.empty(typ),
       ContextRDD.empty[RVDContext, RegionValue](sc))
   }
+
+  def unkeyed(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD = {
+    require(typ.key.isEmpty)
+    new OrderedRVD(typ, OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions), crdd)
+  }
+
+  def unkeyed(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD =
+    unkeyed(OrderedRVDType(FastIndexedSeq(), rowType), crdd)
 
   /**
     * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each
@@ -879,6 +884,14 @@ object OrderedRVD {
    ): RVDCoercer = {
     type CRDD = ContextRDD[RVDContext, RegionValue]
     val sc = keys.sparkContext
+
+    val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
+      def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
+        unkeyed(typ, crdd)
+    }
+
+    if (fullType.key.isEmpty)
+      return unkeyedCoercer
 
     val emptyCoercer: RVDCoercer = new RVDCoercer(fullType) {
       def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = empty(sc, typ)
@@ -1148,8 +1161,14 @@ object OrderedRVD {
       })
   }
 
+  def union(rvds: Seq[OrderedRVD], joinKey: Int): OrderedRVD = {
+    require(rvds.nonEmpty)
+    if (rvds.length == 1) rvds.head
+    else rvds.reduce(_.orderedMerge(_, joinKey))
+  }
+
   def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
-    require(rvds.length > 1)
-    rvds.reduce(_.orderedMerge(_))
+    require(rvds.nonEmpty)
+    union(rvds, rvds.head.typ.key.length)
   }
 }

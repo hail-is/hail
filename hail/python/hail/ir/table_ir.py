@@ -66,7 +66,7 @@ class TableExplode(TableIR):
 
 
 class TableKeyBy(TableIR):
-    def __init__(self, child, keys, is_sorted):
+    def __init__(self, child, keys, is_sorted=False):
         super().__init__()
         self.child = child
         self.keys = keys
@@ -90,15 +90,6 @@ class TableMapRows(TableIR):
         return '(TableMapRows {} {} {})'.format(
             ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
             r(self.child), r(self.new_row))
-
-
-class TableUnkey(TableIR):
-    def __init__(self, child):
-        super().__init__()
-        self.child = child
-
-    def render(self, r):
-        return '(TableUnkey {})'.format(r(self.child))
 
 
 class TableRead(TableIR):
