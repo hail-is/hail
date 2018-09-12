@@ -72,7 +72,7 @@ class UnsafeSuite extends SparkSuite {
         rvb.start(t)
         rvb.addRow(t, a.asInstanceOf[Row])
         val offset = rvb.end()
-        val ur = new UnsafeRow(t, region, offset)
+        val ur = new UnsafeRow(t.physicalType, region, offset)
 
         val aos = new ByteArrayOutputStream()
         val en = codecSpec.buildEncoder(t)(aos)
@@ -83,14 +83,14 @@ class UnsafeSuite extends SparkSuite {
         val ais = new ByteArrayInputStream(aos.toByteArray)
         val dec = codecSpec.buildDecoder(t, t)(ais)
         val offset2 = dec.readRegionValue(region2)
-        val ur2 = new UnsafeRow(t, region2, offset2)
+        val ur2 = new UnsafeRow(t.physicalType, region2, offset2)
         assert(t.typeCheck(ur2))
 
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
         val dec3 = codecSpec.buildDecoder(t, requestedType)(ais3)
         val offset3 = dec3.readRegionValue(region3)
-        val ur3 = new UnsafeRow(requestedType, region3, offset3)
+        val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
         assert(requestedType.typeCheck(ur3))
 
         assert(requestedType.valuesSimilar(a2, ur3))
@@ -139,7 +139,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addAnnotation(t, a)
       val offset = rvb.end()
 
-      val ur = UnsafeRow.read(t, region, offset)
+      val ur = UnsafeRow.read(t.physicalType, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
 
       // test visitor
@@ -153,7 +153,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = UnsafeRow.read(t, region2, offset2)
+      val ur2 = UnsafeRow.read(t.physicalType, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
 
       // test addRegionValue
@@ -162,7 +162,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.start(t)
       rvb2.addRegionValue(t, region, offset)
       val offset3 = rvb2.end()
-      val ur3 = UnsafeRow.read(t, region2, offset3)
+      val ur3 = UnsafeRow.read(t.physicalType, region2, offset3)
       assert(t.valuesSimilar(a, ur3), s"$a vs $ur3")
 
       // test addRegionValue nested
@@ -173,7 +173,7 @@ class UnsafeSuite extends SparkSuite {
           rvb2.start(t)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
-          val ur4 = new UnsafeRow(t, region2, offset4)
+          val ur4 = new UnsafeRow(t.physicalType, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
       }
@@ -182,7 +182,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRegionValue(t, region, offset)
       val offset5 = rvb.end()
-      val ur5 = UnsafeRow.read(t, region, offset5)
+      val ur5 = UnsafeRow.read(t.physicalType, region, offset5)
       assert(t.valuesSimilar(a, ur5))
 
       // test addRegionValue to same region nested
@@ -191,7 +191,7 @@ class UnsafeSuite extends SparkSuite {
           rvb.start(t)
           rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset6 = rvb.end()
-          val ur6 = new UnsafeRow(t, region, offset6)
+          val ur6 = new UnsafeRow(t.physicalType, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
       }
@@ -295,7 +295,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(tv, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(tv, region, offset)
+      val ur1 = new UnsafeRow(tv.physicalType, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
@@ -303,7 +303,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(tv, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(tv, region2, offset2)
+      val ur2 = new UnsafeRow(tv.physicalType, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering

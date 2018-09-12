@@ -40,6 +40,8 @@ object OrderedRVPartitionInfo {
       val maxF = WritableRegionValue(typ.kType, localctx.freshRegion)
       val prevF = WritableRegionValue(typ.kType, localctx.freshRegion)
 
+      val kPType = typ.kType.physicalType
+
       assert(it.hasNext)
       val f0 = it.next()
 
@@ -93,7 +95,7 @@ object OrderedRVPartitionInfo {
         i += 1
       }
 
-      val safe: RegionValue => Any = SafeRow(typ.kType, _)
+      val safe: RegionValue => Any = SafeRow(kPType, _)
 
       OrderedRVPartitionInfo(partitionIndex, i,
         safe(minF.value), safe(maxF.value),

@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.{Parser, TableAnnotationImpex, ir}
 import is.hail.io._
 import is.hail.io.bgen.MatrixBGENReader
@@ -1595,7 +1596,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         val resultOffset = colsF(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)
         scanSeqOpF(region, scanAggs, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
 
-        SafeRow(coerce[TStruct](rTyp), region, resultOffset)
+        SafeRow(coerce[PStruct](rTyp.physicalType), region, resultOffset)
       }
       BroadcastIndexedSeq(colValuesBc.value.zipWithIndex.map { case (a, i) => mapF(a, i) }, TArray(typ.colType), hc.sc)
     }
@@ -1796,7 +1797,7 @@ case class MatrixAnnotateRowsTable(
         val newRVType = newRVPType.virtualType
 
         val partBc = hc.sc.broadcast(prev.rvd.partitioner)
-        val tableRowType = table.typ.rowType
+        val tableRowType = table.typ.rowType.physicalType
         val tableKeyIdx = table.typ.keyFieldIdx.get(0)
         val tableValueIndex = table.typ.valueFieldIdx
         val partitionKeyedIntervals = tv.rvd.boundary.crdd
@@ -1819,7 +1820,7 @@ case class MatrixAnnotateRowsTable(
           def numPartitions: Int = nParts
         }).values
 
-        val rvRowType = child.typ.rvRowType
+        val rvRowType = child.typ.rvRowType.physicalType
         val kIndex = rvRowType.fieldIdx(child.typ.rowKey(0))
         val newMatrixType = child.typ.copy(rvRowType = newRVType)
         val newRVD = prev.rvd.zipPartitionsPreservesPartitioning(
@@ -1979,10 +1980,11 @@ case class TableToMatrixTable(
     val colKeyIndices = colKey.map(child.typ.rowType.fieldIdx(_)).toArray
     val colValueIndices = colFields.map(child.typ.rowType.fieldIdx(_)).toArray
     val localRowType = prev.typ.rowType
+    val localRowPType = localRowType.physicalType
     val localColData = prev.rvd.mapPartitions { it =>
       it.map { rv =>
-        val colKey = SafeRow.selectFields(localRowType, rv)(colKeyIndices)
-        val colValues = SafeRow.selectFields(localRowType, rv)(colValueIndices)
+        val colKey = SafeRow.selectFields(localRowPType, rv)(colKeyIndices)
+        val colValues = SafeRow.selectFields(localRowPType, rv)(colValueIndices)
         colKey -> colValues
       }
     }.reduceByKey({ case (l, _) => l }) // poor man's distinctByKey
@@ -2007,11 +2009,12 @@ case class TableToMatrixTable(
 
     // row and entry fields, plus an integer index
     val rowEntryStruct = rowType ++ entryType ++ TStruct(INDEX_UID -> TInt32Optional)
+    val rowEntryStructPtype = rowEntryStruct.physicalType
     val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
     val rowEntryRVD = prev.rvd.mapPartitions(rowEntryStruct) { it =>
-      val ur = new UnsafeRow(localRowType)
+      val ur = new UnsafeRow(localRowPType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -2072,10 +2075,10 @@ case class TableToMatrixTable(
         i = 0
         var lastSeen = -1
         for (rv <- rowIt) {
-          val nextInt = rv.region.loadInt(rowEntryStruct.fieldOffset(rv.offset, idxIndex))
+          val nextInt = rv.region.loadInt(rowEntryStruct.loadField(rv.region, rv.offset, idxIndex))
           if (nextInt == lastSeen) // duplicate (RK, CK) pair
             fatal(s"'to_matrix_table': duplicate (row key, col key) pairs are not supported\n" +
-              s"  Row key: ${ rowKeyF(new UnsafeRow(rowEntryStruct, rv)) }\n" +
+              s"  Row key: ${ rowKeyF(new UnsafeRow(rowEntryStructPtype, rv)) }\n" +
               s"  Col key: ${ colKeysBc.value(nextInt) }")
           lastSeen = nextInt
           while (i < nextInt) {
@@ -2346,7 +2349,7 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
     val rowtab = rowsEntries.execute(hc)
     val coltab = cols.execute(hc)
 
-    val localColType = coltab.typ.rowType
+    val localColType = coltab.typ.rowType.physicalType
     val localColData: Array[Annotation] = coltab.rvd.mapPartitions { it =>
       it.map { rv => SafeRow(localColType, rv.region, rv.offset) : Annotation }
     }.collect

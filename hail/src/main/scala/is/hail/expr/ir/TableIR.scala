@@ -940,6 +940,7 @@ case class TableKeyByAndAggregate(
     val globalsBc = prev.globals.broadcast
 
     val localKeyType = keyType
+    val localKeyPType = keyType.physicalType
     val newValueType = typ.valueType
     val newRowType = typ.rowType
     val (_, makeKeyF) = ir.Compile[Long, Long, Long](
@@ -973,7 +974,7 @@ case class TableKeyByAndAggregate(
           val f = makeKeyF(i)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
-            SafeRow.read(localKeyType, rv.region, keyOff).asInstanceOf[Row]
+            SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {

@@ -217,6 +217,7 @@ object Skat {
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
+    val keyPType = keyType.physicalType
 
     val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
@@ -244,7 +245,7 @@ object Skat {
         val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
-        val key = Annotation.copy(keyType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))
+        val key = Annotation.copy(keyType, UnsafeRow.read(keyType.physicalType, rv.region, fullRowType.loadField(rv, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),

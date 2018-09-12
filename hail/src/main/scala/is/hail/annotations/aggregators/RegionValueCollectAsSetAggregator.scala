@@ -227,7 +227,7 @@ class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionV
     if (missing)
       values.add(null)
     else
-      values.add(SafeRow.read(typ, region, offset))
+      values.add(SafeRow.read(typ.physicalType, region, offset))
   }
 
   def combOp(agg2: RegionValueAggregator) {
