@@ -398,9 +398,6 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     (leftKey.size >= joinKey) && (rightKey.size >= joinKey) &&
     (leftKey.truncate(joinKey) isIsomorphicTo rightKey.truncate(joinKey))
   })
-  require(left.typ.valueType.fieldNames.toSet
-    .intersect(right.typ.valueType.fieldNames.toSet)
-    .isEmpty)
   require(left.typ.globalType.fieldNames.toSet
     .intersect(right.typ.globalType.fieldNames.toSet)
     .isEmpty)
@@ -411,6 +408,10 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     OrderedRVDType(left.typ.key.get.take(joinKey), left.typ.rowType)
   private val rightRVDType =
     OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
+
+  require(leftRVDType.valueType.fieldNames.toSet
+    .intersect(rightRVDType.valueType.fieldNames.toSet)
+    .isEmpty)
 
   private val newRowType = leftRVDType.kType ++ leftRVDType.valueType ++ rightRVDType.valueType
   private val newGlobalType = left.typ.globalType ++ right.typ.globalType

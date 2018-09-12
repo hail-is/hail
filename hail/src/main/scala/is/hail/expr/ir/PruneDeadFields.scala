@@ -242,7 +242,7 @@ object PruneDeadFields {
           globalType = TStruct(left.typ.globalType.required, left.typ.globalType.fieldNames.flatMap(f =>
             requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(left, leftDep, memo)
-        val rightKeyFields = right.typ.key.getOrElse(FastIndexedSeq()).toSet
+        val rightKeyFields = right.typ.keyOrEmpty.toSet
         val rightDep = right.typ.copy(
           rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fieldNames.flatMap(f =>
             if (rightKeyFields.contains(f))
