@@ -68,12 +68,12 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
     val rvd = if (dropRows)
       OrderedRVD.empty(hc.sc, typ.rvdType)
     else {
-      val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
-      (rvd, typ.key) match {
-        case (ordered: OrderedRVD, Some(k))
-          if ordered.typ.key.startsWith(k) => ordered
-        case (_, Some(k)) => rvd.toOrderedRVD.changeKey(k)
-        case (_, None) => rvd.toOrderedRVD
+      val rvd = spec.rowsComponent.read(hc, path, typ.rowType).toOrderedRVD
+      if (rvd.typ.key startsWith typ.keyOrEmpty)
+        rvd
+      else {
+        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
+        rvd.changeKey(typ.keyOrEmpty)
       }
     }
     TableValue(
