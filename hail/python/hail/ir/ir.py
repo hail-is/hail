@@ -1293,7 +1293,7 @@ class Literal(IR):
 
     def render(self, r):
         return f'(Literal {self.dtype._jtype.parsableString()} ' \
-               f'"{escape_str(self.dtype._to_json(self.value))}" '
+               f'"{escape_str(self.dtype._to_json(self.value))}")'
 
     def __eq__(self, other):
         return isinstance(other, Literal) and \
