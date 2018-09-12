@@ -21,6 +21,9 @@ class UpcallConfig {
   jmethodID InputStream_close_; // close()
   jmethodID InputStream_read_;  // read(buf: Array[Byte], off: int, len: Int): Int
   jmethodID InputStream_skip_;  // skip(len: Long): Long
+  // InputBuffer methods
+  jmethodID InputBuffer_close_; // close()
+  jmethodID InputBuffer_readToEndOfBlock_;
   
   UpcallConfig();
 };
@@ -49,6 +52,11 @@ class UpcallEnv {
   void info(const std::string& msg);
   void warn(const std::string& msg);
   void error(const std::string& msg);
+  
+  // InputBuffer
+  void InputBuffer_close(jobject obj);
+  int32_t InputBuffer_readToEndOfBlock(jobject obj, void* toAddr, jbyteArray buf, int32_t off, int32_t n);
+
 };
 
 } // end hail
