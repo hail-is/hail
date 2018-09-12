@@ -1853,8 +1853,12 @@ class Table(ExprContainer):
         return Table(self._jt.repartition(n, shuffle))
 
     @typecheck_method(right=table_type,
-                      how=enumeration('inner', 'outer', 'left', 'right'))
-    def join(self, right: 'Table', how='inner') -> 'Table':
+                      how=enumeration('inner', 'outer', 'left', 'right'),
+                      _mangle=anyfunc)
+    def join(self,
+             right: 'Table',
+             how='inner',
+             _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}') -> 'Table':
         """Join two tables together.
 
         Examples
@@ -1916,6 +1920,30 @@ class Table(ExprContainer):
             raise ValueError(f"'join': key mismatch:\n  "
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
+        seen = set(self._fields.keys())
+
+        renames = {}
+
+        for field in right._fields:
+            if field in seen:
+                i = 1
+                while i < 100:
+                    mod = _mangle(field, i)
+                    if mod not in seen:
+                        renames[field] = mod
+                        seen.add(mod)
+                        break
+                    i += 1
+                else:
+                    raise RecursionError(f'cannot rename field {repr(field)} after 99'
+                                         f' mangling attempts')
+            else:
+                seen.add(field)
+
+        if renames:
+            right = right.rename(renames)
+            info(f'Table.join: renamed the following fields on the right to avoid name conflicts:' +
+                 ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return Table(self._jt.join(right._jt, how))
 
