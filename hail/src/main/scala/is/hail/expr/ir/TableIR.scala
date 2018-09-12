@@ -912,6 +912,7 @@ case class TableKeyByAndAggregate(
     val globalsBc = prev.globals.broadcast
 
     val localKeyType = keyType
+    val localKeyPType = keyType.physicalType
     val newValueType = typ.valueType
     val newRowType = typ.rowType
     val (_, makeKeyF) = ir.Compile[Long, Long, Long](
@@ -945,7 +946,7 @@ case class TableKeyByAndAggregate(
           val f = makeKeyF(i)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
-            SafeRow.read(localKeyType, rv.region, keyOff).asInstanceOf[Row]
+            SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {
@@ -1214,6 +1215,32 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    TableValue(typ, prev.globals, prev.rvd.updateType(prev.rvd.typ.copy(rowType = newRowType)))
+    TableValue(typ, prev.globals, prev.rvd.cast(newRowType))
+  }
+}
+
+case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String]) extends TableIR {
+  require(rowMap.keys.forall(child.typ.rowType.hasField))
+  require(globalMap.keys.forall(child.typ.globalType.hasField))
+
+  def typ: TableType = child.typ.copy(
+    rowType = child.typ.rowType.rename(rowMap),
+    globalType = child.typ.globalType.rename(globalMap),
+    key = child.typ.key.map(_.map(k => rowMap.getOrElse(k, k)))
+  )
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableRename(newChild, rowMap, globalMap)
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val prev = child.execute(hc)
+
+    TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType))
   }
 }

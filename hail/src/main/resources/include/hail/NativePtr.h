@@ -72,6 +72,8 @@ void init_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
 
 void move_to_NativePtr(JNIEnv* env, jobject obj, NativeObjPtr* ptr);
 
+JavaVM* get_saved_java_vm();
+
 } // end hail
 
 #endif

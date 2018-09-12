@@ -346,6 +346,7 @@ object IBD {
 
   private[methods] def generateComputeMaf(vds: MatrixTable, fieldName: String): (RegionValue) => Double = {
     val rvRowType = vds.rvRowType
+    val rvRowPType = rvRowType.physicalType
     val field = rvRowType.field(fieldName)
     assert(field.typ.isOfType(TFloat64()))
     val rowKeysF = vds.rowKeysF
@@ -357,11 +358,11 @@ object IBD {
       val isDefined = rvRowType.isFieldDefined(rv, idx)
       val maf = rv.region.loadDouble(rvRowType.loadField(rv, idx))
       if (!isDefined) {
-        val row = new UnsafeRow(rvRowType, rv).deleteField(entriesIdx)
+        val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")
       }
       if (maf < 0.0 || maf > 1.0) {
-        val row = new UnsafeRow(rvRowType, rv).deleteField(entriesIdx)
+        val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression for ${ rowKeysF(row) } evaluated to $maf which is not in [0,1].")
       }
       maf

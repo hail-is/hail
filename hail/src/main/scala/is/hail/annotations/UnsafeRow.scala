@@ -5,6 +5,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
@@ -20,48 +21,8 @@ trait UnKryoSerializable extends KryoSerializable {
   }
 }
 
-object UnsafeIndexedSeq {
-  def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(t)
-    rvb.startArray(elements.length)
-    var i = 0
-    while (i < elements.length) {
-      rvb.addRegionValue(t.elementType, elements(i))
-      i += 1
-    }
-    rvb.endArray()
-
-    new UnsafeIndexedSeq(t, region, rvb.end())
-  }
-
-  def apply(t: TArray, a: IndexedSeq[Annotation]): UnsafeIndexedSeq = {
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(t)
-    rvb.startArray(a.length)
-    var i = 0
-    while (i < a.length) {
-      rvb.addAnnotation(t.elementType, a(i))
-      i += 1
-    }
-    rvb.endArray()
-    new UnsafeIndexedSeq(t, region, rvb.end())
-  }
-
-  def empty(t: TArray): UnsafeIndexedSeq = {
-    val region = Region()
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(t)
-    rvb.startArray(0)
-    rvb.endArray()
-    new UnsafeIndexedSeq(t, region, rvb.end())
-  }
-}
-
 class UnsafeIndexedSeq(
-  var t: TContainer,
+  var t: PContainer,
   var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   var length: Int = t.loadLength(region, aoff)
@@ -80,70 +41,69 @@ class UnsafeIndexedSeq(
 
 object UnsafeRow {
   def readBinary(region: Region, boff: Long): Array[Byte] = {
-    val binLength = TBinary.loadLength(region, boff)
-    region.loadBytes(TBinary.bytesOffset(boff), binLength)
+    val binLength = PBinary.loadLength(region, boff)
+    region.loadBytes(PBinary.bytesOffset(boff), binLength)
   }
 
-  def readArray(t: TContainer, region: Region, aoff: Long): IndexedSeq[Any] =
+  def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
 
-  def readBaseStruct(t: TBaseStruct, region: Region, offset: Long): UnsafeRow =
+  def readBaseStruct(t: PBaseStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
   def readString(region: Region, boff: Long): String =
     new String(readBinary(region, boff))
 
   def readLocus(region: Region, offset: Long, rg: RGBase): Locus = {
-    val ft = rg.locusType.fundamentalType.asInstanceOf[TStruct]
+    val ft = rg.locusType.physicalType.fundamentalType.asInstanceOf[PStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
   }
 
-  def read(t: Type, region: Region, offset: Long): Any = {
+  def read(t: PType, region: Region, offset: Long): Any = {
     t match {
-      case _: TBoolean =>
+      case _: PBoolean =>
         region.loadBoolean(offset)
-      case _: TInt32 | _: TCall => region.loadInt(offset)
-      case _: TInt64 => region.loadLong(offset)
-      case _: TFloat32 => region.loadFloat(offset)
-      case _: TFloat64 => region.loadDouble(offset)
-      case t: TArray =>
+      case _: PInt32 | _: PCall => region.loadInt(offset)
+      case _: PInt64 => region.loadLong(offset)
+      case _: PFloat32 => region.loadFloat(offset)
+      case _: PFloat64 => region.loadDouble(offset)
+      case t: PArray =>
         readArray(t, region, offset)
-      case t: TSet =>
+      case t: PSet =>
         readArray(t, region, offset).toSet
-      case _: TString => readString(region, offset)
-      case _: TBinary => readBinary(region, offset)
-      case td: TDict =>
+      case _: PString => readString(region, offset)
+      case _: PBinary => readBinary(region, offset)
+      case td: PDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
-      case t: TBaseStruct => readBaseStruct(t, region, offset)
-      case x: TLocus => readLocus(region, offset, x.rg)
-      case x: TInterval =>
-        val ft = x.fundamentalType.asInstanceOf[TStruct]
+      case t: PBaseStruct => readBaseStruct(t, region, offset)
+      case x: PLocus => readLocus(region, offset, x.rg)
+      case x: PInterval =>
         val start: Annotation =
-          if (ft.isFieldDefined(region, offset, 0))
-            read(x.pointType, region, ft.loadField(region, offset, 0))
+          if (x.startDefined(region, offset))
+            read(x.pointType, region, x.loadStart(region, offset))
           else
             null
         val end =
-          if (ft.isFieldDefined(region, offset, 1))
-            read(x.pointType, region, ft.loadField(region, offset, 1))
+          if (x.endDefined(region, offset))
+            read(x.pointType, region, x.loadEnd(region, offset))
           else
             null
-        val includesStart = read(TBooleanRequired, region, ft.loadField(region, offset, 2)).asInstanceOf[Boolean]
-        val includesEnd = read(TBooleanRequired, region, ft.loadField(region, offset, 3)).asInstanceOf[Boolean]
+        val includesStart = x.includesStart(region, offset)
+        val includesEnd = x.includesEnd(region, offset)
         Interval(start, end, includesStart, includesEnd)
     }
   }
 }
 
-class UnsafeRow(var t: TBaseStruct,
+class UnsafeRow(var t: PBaseStruct,
   var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
-  def this(t: TBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
+  def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
-  def this(t: TBaseStruct) = this(t, null, 0)
+  def this(t: PBaseStruct) = this(t, null, 0)
 
   def this() = this(null, null, 0)
 
@@ -170,7 +130,7 @@ class UnsafeRow(var t: TBaseStruct,
 
   def copy(): Row = new UnsafeRow(t, region, offset)
 
-  def pretty(): String = region.pretty(t, offset)
+  def pretty(): String = region.pretty(t.virtualType, offset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
@@ -218,33 +178,33 @@ class UnsafeRow(var t: TBaseStruct,
 }
 
 object SafeRow {
-  def apply(t: TBaseStruct, region: Region, off: Long): Row = {
-    Annotation.copy(t, new UnsafeRow(t, region, off)).asInstanceOf[Row]
+  def apply(t: PBaseStruct, region: Region, off: Long): Row = {
+    Annotation.copy(t.virtualType, new UnsafeRow(t, region, off)).asInstanceOf[Row]
   }
 
-  def apply(t: TBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
+  def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
 
-  def selectFields(t: TBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
+  def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
     val fullRow = new UnsafeRow(t, region, off)
-    Row(selectIdx.map(i => Annotation.copy(t.types(i), fullRow.get(i))): _*)
+    Row(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))): _*)
   }
 
-  def selectFields(t: TBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
+  def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
     SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
 
-  def read(t: Type, region: Region, off: Long): Annotation =
-    Annotation.copy(t, UnsafeRow.read(t, region, off))
+  def read(t: PType, region: Region, off: Long): Annotation =
+    Annotation.copy(t.virtualType, UnsafeRow.read(t, region, off))
 
-  def read(t: Type, rv: RegionValue): Annotation =
+  def read(t: PType, rv: RegionValue): Annotation =
     read(t, rv.region, rv.offset)
 }
 
 object SafeIndexedSeq {
-  def apply(t: TArray, region: Region, off: Long): IndexedSeq[Annotation] =
-    Annotation.copy(t, new UnsafeIndexedSeq(t, region, off))
+  def apply(t: PArray, region: Region, off: Long): IndexedSeq[Annotation] =
+    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, region, off))
       .asInstanceOf[IndexedSeq[Annotation]]
 
-  def apply(t: TArray, rv: RegionValue): IndexedSeq[Annotation] =
+  def apply(t: PArray, rv: RegionValue): IndexedSeq[Annotation] =
     apply(t, rv.region, rv.offset)
 }
 

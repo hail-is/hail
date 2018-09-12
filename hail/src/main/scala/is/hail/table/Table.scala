@@ -566,7 +566,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
-    val localSignature = signature
+    val localSignature = signature.physicalType
     sqlContext.createDataFrame(
       rvd.map { rv => SafeRow(localSignature, rv) },
       signature.schema.asInstanceOf[StructType])
@@ -610,6 +610,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def orderBy(sortFields: Array[SortField]): Table = {
     new Table(hc, TableOrderBy(TableKeyBy(tir, FastIndexedSeq()), sortFields))
   }
+
+  def rename(rowMap: java.util.HashMap[String, String], globalMap: java.util.HashMap[String, String]): Table =
+    new Table(hc, TableRename(tir, rowMap.asScala.toMap, globalMap.asScala.toMap))
 
   def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
 
@@ -793,7 +796,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRowType = newRowPType.virtualType
 
     val partBc = hc.sc.broadcast(leftORVD.partitioner)
-    val rightSignature = other.signature
+    val rightSignature = other.signature.physicalType
     val rightKeyFieldIdx = other.keyFieldIdx.get(0)
     val rightValueFieldIdx = other.valueFieldIdx
     val partitionKeyedIntervals = other.rvd.boundary.crdd
@@ -818,7 +821,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       def numPartitions: Int = nParts
     }).values
 
-    val localRVRowType = signature
+    val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key.get(0))
     val newOrderedRVType = OrderedRVDType(key.get, newRowType)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(

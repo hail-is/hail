@@ -75,7 +75,7 @@ object PCA {
           s"but user requested ${ k } principal components.")
 
     def collectRowKeys(): Array[Annotation] = {
-      val fullRowType = vsm.rvRowType
+      val fullRowType = vsm.rvRowType.physicalType
       val localRKF = vsm.rowKeysF
       val localKeyStruct = vsm.rowKeyStruct
       

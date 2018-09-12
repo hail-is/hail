@@ -105,7 +105,9 @@ object CalculateConcordance {
     val join = leftFiltered.rvd.orderedZipJoin(rightFiltered.rvd)
 
     val leftRowType = leftFiltered.rvRowType
+    val leftRowPType = leftRowType.physicalType
     val rightRowType = rightFiltered.rvRowType
+    val rightRowPType = rightRowType.physicalType
 
     val nSamples = leftIds.length
     val sampleResults = join.mapPartitions { it =>
@@ -166,8 +168,8 @@ object CalculateConcordance {
     val variantCRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
 
-      val lur = new UnsafeRow(leftRowType)
-      val rur = new UnsafeRow(rightRowType)
+      val lur = new UnsafeRow(leftRowPType)
+      val rur = new UnsafeRow(rightRowPType)
       val lview = HardCallView(leftRowType)
       val rview = HardCallView(rightRowType)
 

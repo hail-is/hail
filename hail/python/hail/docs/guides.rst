@@ -17,3 +17,4 @@ These guides are short, goal-oriented explanations of how to use Hail.
         Aggregation <guides/agg.rst>
         Annotation (Adding Fields) <guides/annotation.rst>
         Genetics <guides/genetics.rst>
+        Mastering the API <guides/api.rst>

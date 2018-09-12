@@ -170,7 +170,7 @@ class RegionValueCounterDoubleAggregator(t: Type) extends RegionValueCounterAggr
 
 class RegionValueCounterAnnotationAggregator(t: Type) extends RegionValueCounterAggregator(t) {
   def seqOp(region: Region, offset: Long, missing: Boolean) {
-    seqOp(if (missing) null else SafeRow.read(t, region, offset))
+    seqOp(if (missing) null else SafeRow.read(t.physicalType, region, offset))
   }
 
   override def newInstance(): RegionValueCounterAnnotationAggregator = new RegionValueCounterAnnotationAggregator(t)

@@ -26,6 +26,8 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
   override def toOrderedRVD: OrderedRVD =
     OrderedRVD.unkeyed(rowType, crdd)
 
+  def cast(newRowType: TStruct): RVD = new UnpartitionedRVD(newRowType, crdd)
+
   def boundary = new UnpartitionedRVD(rowType, crddBoundary)
 
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): UnpartitionedRVD =

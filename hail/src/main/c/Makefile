@@ -7,6 +7,15 @@ UNAME_P :=$(shell uname -p)
 
 BUILD :=build
 
+# Control optimization level and gdb-in-xterm code in NativePtr.cpp
+HAIL_ENABLE_DEBUG :=0
+
+ifeq ($(HAIL_ENABLE_DEBUG),1)
+  HAIL_OPT_FLAGS :=-O1 -DHAIL_ENABLE_DEBUG=1
+else
+  HAIL_OPT_FLAGS :=-O3
+endif
+
 # Change this setting to update the version of libsimdpp
 LIBSIMDPP :=libsimdpp-2.1
 
@@ -15,12 +24,15 @@ LIBSIMDPP :=libsimdpp-2.1
 OBJECTS := \
   davies.o \
   ibs.o \
+  Logging.o \
   NativeCodeSuite.o \
   NativeLongFunc.o \
   NativeModule.o \
   NativePtr.o \
   NativeStatus.o \
-  Region.o
+  ObjectArray.o \
+  Region.o \
+  Upcalls.o
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
 
@@ -74,7 +86,7 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += -O3 $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
+CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default

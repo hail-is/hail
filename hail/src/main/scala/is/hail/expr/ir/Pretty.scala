@@ -271,6 +271,11 @@ object Pretty {
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
             case LocalizeEntries(_, name) => prettyStringLiteral(name)
             case UnlocalizeEntries(_, _, name) => prettyStringLiteral(name)
+            case TableRename(_, rowMap, globalMap) =>
+              val rowKV = rowMap.toArray
+              val globalKV = globalMap.toArray
+              s"${prettyStrings(rowKV.map(_._1))} ${prettyStrings(rowKV.map(_._2))} " +
+                s"${prettyStrings(globalKV.map(_._1))} ${prettyStrings(globalKV.map(_._2))}"
             case _ => ""
           }
 

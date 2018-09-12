@@ -198,11 +198,6 @@ object Interval {
       }
     }
   }
-
-  def fromRegionValue(iType: TInterval, region: Region, offset: Long): Interval = {
-    val ur = new UnsafeRow(iType.fundamentalType.asInstanceOf[TStruct], region, offset)
-    Interval(ur.get(0), ur.get(1), ur.getAs[Boolean](2), ur.getAs[Boolean](3))
-  }
 }
 
 case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends

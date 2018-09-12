@@ -100,7 +100,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       exportTypes(file, hc.hadoopConf, fields.map(f => (f.name, f.typ)).toArray)
     }
 
-    val localSignature = typ.rowType
+    val localSignature = typ.rowType.physicalType
     val localTypes = fields.map(_.typ)
 
     rvd.mapPartitions { it =>

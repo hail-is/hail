@@ -225,6 +225,10 @@ object Simplify {
 
       case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
 
+      case TableCount(TableRename(child, _, _)) => TableCount(child)
+
+      case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
+
       case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
         InsertFields(s, fields)
 

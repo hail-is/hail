@@ -302,7 +302,7 @@ object TestUtils {
           val aggResultsOff = rvb.end()
 
           val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
 
       case None =>
@@ -324,7 +324,7 @@ object TestUtils {
           val argsOff = rvb.end()
 
           val resultOff = f(0)(region, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct], region, resultOff).get(0)
+          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
     }
   }

@@ -433,6 +433,10 @@ class Table(ExprContainer):
         base, cleanup = self._process_joins(row)
         return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
 
+    @typecheck_method(row=expr_struct(),
+                      preserved_key=sequenceof(str),
+                      preserved_key_new=sequenceof(str),
+                      new_key=sequenceof(str))
     def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
         jt = self._jt
         if preserved_key != list(self.key):
@@ -442,6 +446,7 @@ class Table(ExprContainer):
             jt = jt.keyBy(new_key)
         return Table(jt)
 
+    @typecheck_method(key_struct=expr_struct())
     def _preserved_key_pairs(self, key_struct):
         def is_copy(ir, name, indices):
             return (indices.source is self and
@@ -1203,8 +1208,8 @@ class Table(ExprContainer):
 
         self._jt.write(output, overwrite, stage_locally, _codec_spec)
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
-    def show(self, n=10, width=90, truncate=None, types=True):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
+    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1234,8 +1239,10 @@ class Table(ExprContainer):
             ``None``, truncate fields to the given `width`.
         types : :obj:`bool`
             Print an extra header line with the type of each field.
+        handler : Callable[[str], Any]
+            Handler function for data string.
         """
-        print(self._show(n,width, truncate, types))
+        handler(self._show(n,width, truncate, types))
 
     def _show(self, n=10, width=90, truncate=None, types=True):
         return self._jt.showString(n, joption(truncate), types, width)
@@ -1597,7 +1604,7 @@ class Table(ExprContainer):
         """
         return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
-    def describe(self):
+    def describe(self, handler=print):
         """Print information about the fields in the table."""
 
         def format_type(typ):
@@ -1626,7 +1633,7 @@ class Table(ExprContainer):
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               r=row_fields)
-        print(s)
+        handler(s)
 
     @typecheck_method(name=str)
     def add_index(self, name='idx'):
@@ -1985,8 +1992,7 @@ class Table(ExprContainer):
         """
         seen = {}
 
-        row_key_map = {}
-        row_value_map = {}
+        row_map = {}
         global_map = {}
 
         for k, v in mapping.items():
@@ -1998,23 +2004,15 @@ class Table(ExprContainer):
                 raise ValueError("Cannot rename {} to {}: field already exists.".format(repr(k), repr(v)))
             seen[v] = k
             if self[k]._indices == self._row_indices:
-                if k in list(self.key):
-                    row_key_map[k] = v
-                else:
-                    row_value_map[k] = v
-            elif self[k]._indices == self._global_indices:
+                row_map[k] = v
+            else:
+                assert self[k]._indices == self._global_indices
                 global_map[k] = v
 
-        table = self
-        if row_key_map or row_value_map:
-            new_keys = {row_key_map.get(k, k): v for k, v in table.key.items()}
-            new_values = {row_value_map.get(k, k): v for k, v in table.row_value.items()}
-            table = table._select("Table.rename",
-                                  hl.struct(**new_keys, **new_values),
-                                  new_keys=list(new_keys.keys()) if new_keys else "default")
-        if global_map:
-            table = table.select_globals(**{global_map.get(k, k): v for k, v in table.globals.items()})
-        return table
+        stray = set(mapping.keys()) - set(seen.values())
+        if stray:
+            raise ValueError(f"found rename rules for fields not present in table: {list(stray)}")
+        return Table(self._jt.rename(row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.

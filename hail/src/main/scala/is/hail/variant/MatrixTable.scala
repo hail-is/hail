@@ -840,7 +840,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
-      val fullRow = new UnsafeRow(localRVRowType)
+      val fullRow = new UnsafeRow(localRVRowType.physicalType)
 
       it.map { rv =>
         fullRow.set(rv)
@@ -985,12 +985,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = if (newMatrixType.orvdType == rvd.typ)
-      rvd
-    else {
-      val newType = newMatrixType.orvdType
-      rvd.updateType(newType)
-    }
+    val newRVD = rvd.cast(newRVRowType).asInstanceOf[OrderedRVD]
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }
@@ -1079,8 +1074,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         ).crdd) { (ctx, rv1, rv2) =>
         var partSame = true
 
-        val fullRow1 = new UnsafeRow(leftRVType)
-        val fullRow2 = new UnsafeRow(rightRVType)
+        val fullRow1 = new UnsafeRow(leftRVType.physicalType)
+        val fullRow2 = new UnsafeRow(rightRVType.physicalType)
 
         fullRow1.set(rv1)
         fullRow2.set(rv2)
@@ -1182,13 +1177,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
 
     val predicate = { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRVRowType, rv)
+      val ur = new UnsafeRow(localRVRowType.physicalType, rv)
       !localRVRowType.typeCheck(ur)
     }
 
     Region.scoped { region =>
       rvd.find(region)(predicate).foreach { rv =>
-        val ur = new UnsafeRow(localRVRowType, rv)
+        val ur = new UnsafeRow(localRVRowType.physicalType, rv)
         foundError = true
         warn(
           s"""found violation in row
