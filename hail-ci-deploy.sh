@@ -1,5 +1,7 @@
 set -ex
 
+cd batch
+
 SHA=$(git rev-parse --short=12 HEAD)
 
 # get sha label of batch deployment
@@ -10,10 +12,10 @@ if [[ "$SHA" == "$DEPLOYED_SHA" ]]; then
 fi
 
 # requires docker
-make push-hail-ci-build-image
+make push-batch
 
 sed -e "s,@sha@,$SHA," \
-    -e "s,@image@,$(cat hail-ci-build-image)," \
+    -e "s,@image@,$(cat batch-image)," \
     < deployment.yaml.in > deployment.yaml
 
 kubectl apply -f deployment.yaml
