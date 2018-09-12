@@ -1208,8 +1208,8 @@ class Table(ExprContainer):
 
         self._jt.write(output, overwrite, stage_locally, _codec_spec)
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
-    def show(self, n=10, width=90, truncate=None, types=True):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
+    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1239,8 +1239,10 @@ class Table(ExprContainer):
             ``None``, truncate fields to the given `width`.
         types : :obj:`bool`
             Print an extra header line with the type of each field.
+        handler : Callable[[str], Any]
+            Handler function for data string.
         """
-        print(self._show(n,width, truncate, types))
+        handler(self._show(n,width, truncate, types))
 
     def _show(self, n=10, width=90, truncate=None, types=True):
         return self._jt.showString(n, joption(truncate), types, width)
@@ -1602,7 +1604,7 @@ class Table(ExprContainer):
         """
         return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
 
-    def describe(self):
+    def describe(self, handler=print):
         """Print information about the fields in the table."""
 
         def format_type(typ):
@@ -1631,7 +1633,7 @@ class Table(ExprContainer):
             '----------------------------------------'.format(g=global_fields,
                                                               rk=row_key,
                                                               r=row_fields)
-        print(s)
+        handler(s)
 
     @typecheck_method(name=str)
     def add_index(self, name='idx'):

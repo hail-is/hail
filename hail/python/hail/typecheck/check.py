@@ -288,6 +288,19 @@ class CoercionChecker(TypeChecker):
         return '(' + ' or '.join([c.expects() for c, _ in self.fs]) + ')'
 
 
+class AnyFuncChecker(TypeChecker):
+    def __init__(self):
+        super(AnyFuncChecker, self).__init__()
+
+    def check(self, x, caller, param):
+        if not callable(x):
+            raise TypecheckFailure
+        return x
+
+    def expects(self):
+        return 'function'
+
+
 class FunctionChecker(TypeChecker):
     def __init__(self, nargs, ret_checker):
         self.nargs = nargs
@@ -377,6 +390,7 @@ def dictof(k, v):
 def func_spec(n, tc):
     return FunctionChecker(n, only(tc))
 
+anyfunc = AnyFuncChecker()
 
 def transformed(*tcs):
     fs = []
