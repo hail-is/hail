@@ -21,7 +21,7 @@ spec:
             - name: BATCH_SERVER_URL
               value: http://batch
             - name: WATCHED_TARGETS
-              value: '[["hail-is/hail:master", true], ["hail-is/hail:0.1", true], ["hail-is/hail:bgen-changes", false], ["hail-is/batch:master", false], ["Nealelab/cloudtools:master", true]]'
+              value: '[["hail-is/hail:master", true], ["hail-is/hail:0.1", true], ["hail-is/hail:bgen-changes", false], ["hail-is/batch:master", true], ["Nealelab/cloudtools:master", true]]'
           ports:
             - containerPort: 5000
           volumeMounts:
