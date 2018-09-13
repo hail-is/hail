@@ -11,7 +11,7 @@ spec:
     metadata:
       labels:
         app: batch
-	hail.is/sha: @sha@
+        hail.is/sha: @sha@
     spec:
       containers:
       - name: batch
