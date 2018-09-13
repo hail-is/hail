@@ -239,18 +239,18 @@ object PruneDeadFields {
         val leftDep = left.typ.copy(
           rowType = TStruct(left.typ.rowType.required, left.typ.rowType.fieldNames.flatMap(f =>
             requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
-          globalType = requestedType.globalType)
+          globalType = TStruct(left.typ.globalType.required, left.typ.globalType.fieldNames.flatMap(f =>
+            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(left, leftDep, memo)
-
-        val rightKeyFields = right.typ.key.iterator.flatten.toSet
+        val rightKeyFields = right.typ.keyOrEmpty.toSet
         val rightDep = right.typ.copy(
-          rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fields.flatMap { f =>
-            if (rightKeyFields.contains(f.name))
-              Some(f.name -> f.typ)
+          rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fieldNames.flatMap(f =>
+            if (rightKeyFields.contains(f))
+              Some(f -> right.typ.rowType.field(f).typ)
             else
-              requestedType.rowType.fieldOption(x.rightFieldMapping(f.name)).map(reqF => f.name -> reqF.typ)
-          }: _*),
-          globalType = minimal(right.typ.globalType))
+              requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
+          globalType = TStruct(right.typ.globalType.required, right.typ.globalType.fieldNames.flatMap(f =>
+            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(right, rightDep, memo)
       case TableLeftJoinRightDistinct(left, right, root) =>
         val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])

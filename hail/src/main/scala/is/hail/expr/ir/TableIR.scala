@@ -376,8 +376,11 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   require(joinKey >= 0)
   require(left.typ.keyType.zip(right.typ.keyType).exists { case (leftKey, rightKey) =>
     (leftKey.size >= joinKey) && (rightKey.size >= joinKey) &&
-      (leftKey.truncate(joinKey) isIsomorphicTo rightKey.truncate(joinKey))
+    (leftKey.truncate(joinKey) isIsomorphicTo rightKey.truncate(joinKey))
   })
+  require(left.typ.globalType.fieldNames.toSet
+    .intersect(right.typ.globalType.fieldNames.toSet)
+    .isEmpty)
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
@@ -386,30 +389,14 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   private val rightRVDType =
     OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
 
-  private val joinedFields =
-    leftRVDType.kType.fields ++
-      leftRVDType.valueType.fields ++
-      rightRVDType.valueType.fields
-  private val preNames = joinedFields.map(_.name).toArray
-  private val (finalColumnNames, remapped) = mangle(preNames)
+  require(leftRVDType.rowType.fieldNames.toSet
+    .intersect(rightRVDType.valueType.fieldNames.toSet)
+    .isEmpty)
 
-  private val joinedGlobalFields = left.typ.globalType.fields ++ right.typ.globalType.fields
-  private val (finalGlobalNames, _) = mangle(joinedGlobalFields.map(_.name).toArray)
-  val newGlobalType = TStruct(joinedGlobalFields.zipWithIndex.map {
-    case (field, i) => (finalGlobalNames(i), field.typ)
-  }: _*)
+  private val newRowType = leftRVDType.kType ++ leftRVDType.valueType ++ rightRVDType.valueType
+  private val newGlobalType = left.typ.globalType ++ right.typ.globalType
 
-  val rightFieldMapping: Map[String, String] = {
-    val remapMap = remapped.toMap
-    (rightRVDType.key.iterator.zip(leftRVDType.key.iterator) ++
-      rightRVDType.valueType.fieldNames.iterator.map(f => f -> remapMap.getOrElse(f, f))).toMap
-  }
-
-  val newRowType = TStruct(joinedFields.zipWithIndex.map {
-    case (field, i) => (finalColumnNames(i), field.typ)
-  }: _*)
-
-  val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey).map(rightFieldMapping)
+  private val newKey = left.typ.key.get ++ right.typ.key.get.drop(joinKey)
 
   val typ: TableType = TableType(newRowType, Some(newKey), newGlobalType)
 

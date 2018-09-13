@@ -746,3 +746,10 @@ class Tests(unittest.TestCase):
         t2 = hl.utils.range_table(10).key_by()
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
+
+    def test_join_mangling(self):
+        t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
+        j = t1.join(t1, 'inner')
+        assert j.row.dtype == hl.tstruct(idx=hl.tint32, row1=hl.tint32, row1_1=hl.tint32)
+        assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
+        j._force_count()
