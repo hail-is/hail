@@ -1,3 +1,4 @@
+from . import MatrixIR, TableIR, IR
 
 class Renderer(object):
     def __init__(self, stop_at_jir):
@@ -13,7 +14,7 @@ class Renderer(object):
 
     def __call__(self, x):
         if self.stop_at_jir and hasattr(x, '_jir'):
-            jir_id = self.add_jir(self._jir)
+            jir_id = self.add_jir(x._jir)
             if isinstance(x, MatrixIR):
                 return f'(JavaMatrix {jir_id})'
             elif isinstance(x, TableIR):
