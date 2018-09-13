@@ -45,6 +45,9 @@ class HailContext(object):
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
 
+        self._warn_cols_order = True
+        self._warn_entries_order = True
+
         Env._jvm = self._jvm
         Env._gateway = self._gateway
 
