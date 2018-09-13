@@ -89,3 +89,9 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(mean_univariate.univariate, 3.507, places=3)
         self.assertAlmostEqual(mean_annotated.binary, 0.965, places=3)
         self.assertAlmostEqual(mean_annotated.continuous, 176.528, places=3)
+
+    def test_plot_roc_curve(self):
+        x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
+        x = x.annotate(tp=hl.cond(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
+        ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
+        _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])

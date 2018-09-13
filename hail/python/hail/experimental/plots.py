@@ -2,6 +2,7 @@ import json
 import numpy as np
 import pandas as pd
 
+import hail as hl
 from bokeh.layouts import gridplot
 from bokeh.models import *
 from bokeh.palettes import Spectral8
@@ -9,6 +10,73 @@ from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 from hail.typecheck import *
 from hail.utils.hadoop_utils import *
+
+
+def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve', hover_mode='mouse'):
+    """Create ROC curve from Hail Table.
+
+    One or more `score` fields must be provided, which are assessed against `tp_label` and `fp_label` as truth data.
+
+    High scores should correspond to true positives.
+
+    Parameters
+    ----------
+    ht : :class:`.Table`
+        Table with required data
+    scores : :obj:`str` or :obj:`list` of :obj:`.str`
+        Top-level location of scores in ht against which to generate PR curves.
+    tp_label : :obj:`str`
+        Top-level location of true positives in ht.
+    fp_label : :obj:`str`
+        Top-level location of false positives in ht.
+    colors : :obj:`dict` of :obj:`str`
+        Optional colors to use (score -> desired color).
+    title : :obj:`str`
+        Title of plot.
+    hover_mode : :obj:`str`
+        Hover mode; one of 'mouse' (default), 'vline' or 'hline'
+
+    Returns
+    -------
+    :obj:`tuple` of :class:`.Figure` and :obj:`list` of :obj:`str`
+        Figure, and list of AUCs corresponding to scores.
+    """
+    if colors is None:
+        # Get a palette automatically
+        from bokeh.palettes import d3
+        palette = d3['Category10'][max(3, len(scores))]
+        colors = {score: palette[i] for i, score in enumerate(scores)}
+
+    if isinstance(scores, str):
+        scores = [scores]
+    total_tp, total_fp = ht.aggregate((hl.agg.count_where(ht[tp_label]), hl.agg.count_where(ht[fp_label])))
+
+    p = figure(title=title, x_axis_label='FPR', y_axis_label='TPR', tools="hover,save,pan,box_zoom,reset,wheel_zoom")
+    p.add_layout(Title(text=f'Based on {total_tp} TPs and {total_fp} FPs'), 'above')
+
+    aucs = []
+    for score in scores:
+        ordered_ht = ht.key_by(_score=-ht[score])
+        ordered_ht = ordered_ht.select(
+            score_name=score, score=ordered_ht[score],
+            tpr=hl.scan.count_where(ordered_ht[tp_label]) / total_tp,
+            fpr=hl.scan.count_where(ordered_ht[fp_label]) / total_fp,
+        ).key_by().drop('_score')
+        last_row = hl.utils.range_table(1).key_by().select(score_name=score, score=hl.float64(float('-inf')), tpr=hl.float32(1.0), fpr=hl.float32(1.0))
+        ordered_ht = ordered_ht.union(last_row)
+        ordered_ht = ordered_ht.annotate(
+            auc_contrib=hl.or_else((ordered_ht.fpr - hl.scan.max(ordered_ht.fpr)) * ordered_ht.tpr, 0.0)
+        )
+        auc = ordered_ht.aggregate(hl.agg.sum(ordered_ht.auc_contrib))
+        aucs.append(auc)
+        df = ordered_ht.annotate(score_name=ordered_ht.score_name + f' (AUC = {auc:.4f})').to_pandas()
+        p.line(x='fpr', y='tpr', legend='score_name', source=ColumnDataSource(df), color=colors[score], line_width=3)
+
+    p.legend.location = 'bottom_right'
+    p.legend.click_policy = 'hide'
+    p.select_one(HoverTool).tooltips = [(x, f"@{x}") for x in ('score_name', 'score', 'tpr', 'fpr')]
+    p.select_one(HoverTool).mode = hover_mode
+    return p, aucs
 
 
 @typecheck(t_path=str)
