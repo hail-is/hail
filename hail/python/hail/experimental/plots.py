@@ -20,7 +20,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
 
     Parameters
     ----------
-    ht : :class:`.Table` or :class:`.MatrixTable`
+    ht : :class:`.Table`
         Table with required data
     scores : :obj:`str` or :obj:`list` of :obj:`.str`
         Top-level location of scores in ht against which to generate PR curves.
@@ -44,12 +44,8 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
         palette = d3['Category10'][max(3, len(scores))]
         colors = {score: palette[i] for i, score in enumerate(scores)}
 
-    if isinstance(ht, hl.MatrixTable):
-        ht = ht.rows()
     if isinstance(scores, str):
         scores = [scores]
-    hl.expr.check_row_indexed('plot_roc_curve', ht[tp_label])
-    hl.expr.check_row_indexed('plot_roc_curve', ht[fp_label])
     total_tp, total_fp = ht.aggregate((hl.agg.count_where(ht[tp_label]), hl.agg.count_where(ht[fp_label])))
 
     p = figure(title=title, x_axis_label='FPR', y_axis_label='TPR')
@@ -57,7 +53,6 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
 
     aucs = []
     for score in scores:
-        hl.expr.check_row_indexed('plot_roc_curve', ht[score])
         ordered_ht = ht.key_by(_score=-ht[score])
         ordered_ht = ordered_ht.select(
             score=score,
