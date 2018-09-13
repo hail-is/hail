@@ -2324,7 +2324,7 @@ class MatrixTable(ExprContainer):
 
             def joiner(left: MatrixTable):
                 localized = self._localize_entries(row_uid)
-                src_cols_indexed = self.cols().add_index(col_uid)
+                src_cols_indexed = self.add_col_index(col_uid).cols()
                 src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
                 left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
