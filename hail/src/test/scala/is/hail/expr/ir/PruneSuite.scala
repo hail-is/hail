@@ -194,15 +194,23 @@ class PruneSuite extends SparkSuite {
     )
   }
 
+  def mangle(t: TableIR): TableIR = {
+    TableRename(
+      t,
+      t.typ.rowType.fieldNames.map(x => x -> (x + "_")).toMap,
+      t.typ.globalType.fieldNames.map(x => x -> (x + "_")).toMap
+    )
+  }
+
   @Test def testTableJoinMemo() {
     val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk2 = mangle(TableKeyBy(tab, Array("3")))
     val tj = TableJoin(tk1, tk2, "inner", 1)
     checkMemo(tj,
-      subsetTable(tj.typ, "row.1", "row.4", "row.1_1"),
+      subsetTable(tj.typ, "row.1", "row.4", "row.1_"),
       Array(
         subsetTable(tk1.typ, "row.1", "row.4"),
-        subsetTable(tk2.typ, "row.1", "row.3")
+        subsetTable(tk2.typ, "row.1_", "row.3_")
       )
     )
   }

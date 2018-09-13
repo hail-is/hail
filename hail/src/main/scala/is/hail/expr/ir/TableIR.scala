@@ -409,7 +409,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   private val rightRVDType =
     OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
 
-  require(leftRVDType.valueType.fieldNames.toSet
+  require(leftRVDType.rowType.fieldNames.toSet
     .intersect(rightRVDType.valueType.fieldNames.toSet)
     .isEmpty)
 

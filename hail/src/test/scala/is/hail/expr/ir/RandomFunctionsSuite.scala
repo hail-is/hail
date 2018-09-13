@@ -69,7 +69,10 @@ class RandomFunctionsSuite extends SparkSuite {
   @Test def testRandomAcrossJoins() {
     def asArray(ir: TableIR) = ir.execute(hc).rdd.collect()
 
-    val joined = TableJoin(mapped2(10, 4), mapped2(10, 3), "left")
+    val joined = TableJoin(
+      mapped2(10, 4),
+      TableRename(mapped2(10, 3), Map("pi" -> "pi2", "counter" -> "counter2"), Map.empty),
+      "left")
 
     val expected = asArray(mapped2(10, 4)).zip(asArray(mapped2(10, 3)))
       .map { case (Row(idx1, pi1, c1), Row(idx2, pi2, c2)) =>
