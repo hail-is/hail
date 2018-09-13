@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s.Code
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PFloat64}
 import is.hail.utils._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}
@@ -67,7 +68,7 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSeeded("rand_pois", TInt32(), TFloat64(), TArray(TFloat64())) { case (mb, seed, n, lambda) =>
       val length = mb.newLocal[Int]
-      val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
+      val srvb = new StagedRegionValueBuilder(mb, PArray(PFloat64()))
       Code(
         length := n,
         srvb.start(n),

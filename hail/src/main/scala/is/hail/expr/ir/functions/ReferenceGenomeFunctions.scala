@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PBaseStruct, PString, PStruct}
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
 
@@ -14,7 +15,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   def emitLocus(mb: EmitMethodBuilder, locus: Code[Locus]): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, tlocus)
+    val srvb = new StagedRegionValueBuilder(mb, tlocus.physicalType)
     Code(emitLocus(srvb, locus), srvb.offset)
   }
 
@@ -34,7 +35,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     val vlocal = mb.newLocal[(Locus, IndexedSeq[String])]
     val alocal = mb.newLocal[IndexedSeq[String]]
     val len = mb.newLocal[Int]
-    val srvb = new StagedRegionValueBuilder(mb, tvariant)
+    val srvb = new StagedRegionValueBuilder(mb, tvariant.physicalType)
     val addLocus = { srvb: StagedRegionValueBuilder =>
       emitLocus(srvb, Code.checkcast[Locus](vlocal.get[java.lang.Object]("_1")))
     }
@@ -51,9 +52,9 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       alocal := Code.checkcast[IndexedSeq[String]](vlocal.get[java.lang.Object]("_2")),
       len := alocal.invoke[Int]("size"),
       srvb.start(),
-      srvb.addBaseStruct(types.coerce[TStruct](tlocus.fundamentalType), addLocus),
+      srvb.addBaseStruct(types.coerce[PStruct](tlocus.fundamentalType.physicalType), addLocus),
       srvb.advance(),
-      srvb.addArray(talleles, addAlleles),
+      srvb.addArray(talleles.physicalType, addAlleles),
       srvb.advance(),
       srvb.offset)
   }
@@ -61,7 +62,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
   def emitInterval(mb: EmitMethodBuilder, interval: Code[Interval]): Code[Long] = {
     val ilocal = mb.newLocal[Interval]
     val plocal = mb.newLocal[Locus]
-    val srvb = new StagedRegionValueBuilder(mb, tinterval)
+    val srvb = new StagedRegionValueBuilder(mb, tinterval.physicalType)
     val addLocus = { (srvb: StagedRegionValueBuilder, point: String) =>
       emitLocus(srvb, Code.checkcast[Locus](ilocal.invoke[java.lang.Object](point)))
     }
@@ -69,9 +70,9 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     asm4s.coerce[Long](Code(
       ilocal := interval,
       srvb.start(),
-      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "start")),
+      srvb.addBaseStruct(types.coerce[PBaseStruct](tlocus.fundamentalType.physicalType), addLocus(_, "start")),
       srvb.advance(),
-      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "end")),
+      srvb.addBaseStruct(types.coerce[PBaseStruct](tlocus.fundamentalType.physicalType), addLocus(_, "end")),
       srvb.advance(),
       srvb.addBoolean(ilocal.invoke[Boolean]("includesStart")),
       srvb.advance(),
@@ -155,12 +156,12 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
     registerRGCode("Locus", TString(), TInt32(), TLocus(rg)) {
       (mb, contig: Code[Long], pos: Code[Int]) =>
-        val srvb = new StagedRegionValueBuilder(mb, tlocus)
+        val srvb = new StagedRegionValueBuilder(mb, tlocus.physicalType)
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
         Code(
           rgCode(mb).invoke[String, Int, Unit]("checkLocus", scontig, pos),
           srvb.start(),
-          srvb.addIRIntermediate(TString())(contig),
+          srvb.addIRIntermediate(PString())(contig),
           srvb.advance(),
           srvb.addInt(pos),
           srvb.offset)

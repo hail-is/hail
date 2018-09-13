@@ -12,7 +12,7 @@ import scala.reflect.{ClassTag, _}
 final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
-  val elementType: PType = +PStruct("key" -> keyType, "value" -> valueType)
+  val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 

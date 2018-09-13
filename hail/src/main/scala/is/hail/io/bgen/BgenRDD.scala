@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.rvd._
 import is.hail.sparkextras._
@@ -63,6 +64,8 @@ case class BgenSettings(
     case _: EntriesWithFields =>
       matrixType.rvRowType
   }
+
+  def pType: PStruct = typ.physicalType
 
   def recodeContig(bgenContig: String): String = {
     val hailContig = bgenContig match {

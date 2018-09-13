@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PType}
 import is.hail.utils._
 
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean) {
-  val typ: PType = array.elt.physicalType
+  val typ: PType = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val sortmb: EmitMethodBuilder = mb.fb.newMethod[Region, Int, Int, Boolean, Unit]
 
@@ -76,13 +76,13 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, TArray(typ.virtualType))
+    val srvb = new StagedRegionValueBuilder(mb, PArray(typ))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,
         array.isMissing(srvb.arrayIdx).mux(
           srvb.setMissing(),
-          srvb.addIRIntermediate(typ.virtualType)(array(srvb.arrayIdx))),
+          srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
         srvb.advance()),
       srvb.end())
   }
