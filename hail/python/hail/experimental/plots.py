@@ -51,7 +51,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
         scores = [scores]
     total_tp, total_fp = ht.aggregate((hl.agg.count_where(ht[tp_label]), hl.agg.count_where(ht[fp_label])))
 
-    p = figure(title=title, x_axis_label='FPR', y_axis_label='TPR')
+    p = figure(title=title, x_axis_label='FPR', y_axis_label='TPR', tools="hover,save,pan,box_zoom,reset,wheel_zoom")
     p.add_layout(Title(text=f'Based on {total_tp} TPs and {total_fp} FPs'), 'above')
 
     aucs = []
