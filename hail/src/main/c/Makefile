@@ -53,7 +53,7 @@ else
 endif
 
 # Currently source code for libboot and libhail only uses features up to C++11.
-# The intention is to support C++17 for dynamic-compiled code eventually, but 
+# The intention is to support C++17 for dynamic-compiled code eventually, but
 # to maximize compatibility with different compilers/platforms we don't
 # require that here.
 #
@@ -70,7 +70,7 @@ CXXSTD := -std=c++11
 BADFLAGS := \
   -fabi-version=% -f%-struct-return -fshort-enums -fshort-wchar -fpie -fPIE -ffixed-% \
   -fcall-used-% -fcall-saved-% -fpack-struct% -f%leading-underscore -f%trampolines -fvisibility=% \
-  -f%strict-volatile-bitfields 
+  -f%strict-volatile-bitfields
 
 WARNFLAGS :=$(filter $(BADFLAGS),$(CXXFLAGS))
 ifneq ($(WARNFLAGS),)
@@ -155,7 +155,7 @@ clean:
 # to code that goes into libhail.so
 #
 # We use this as a pessimistic dependency: if any header has changed, all
-# objects will be rebuilt. Since the quantity of code is small and the 
+# objects will be rebuilt. Since the quantity of code is small and the
 # clean-rebuild time is short (compared to other parts of the build process),
 # this seems good enough, and simpler than managing precise dependencies.
 
@@ -194,4 +194,4 @@ $(LIBBOOT): $(BUILD)/NativeBoot.o
 
 $(LIBHAIL): $(BUILD_OBJECTS)
 	-mkdir -p $(basename $(LIBHAIL))
-	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@ 
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@
