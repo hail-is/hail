@@ -2049,11 +2049,27 @@ class MatrixTable(ExprContainer):
 
         >>> cols_table = dataset.cols()
 
+        Warning
+        -------
+        Matrix table columns are typically sorted by the order at import, and
+        not necessarily by column key. Since tables are always sorted by key,
+        the table which results from this command will have its rows sorted by
+        the column key (which becomes the table key). To preserve the original
+        column order as the table row order, first unkey the columns using
+        :meth:`key_cols_by` with no arguments.
+
         Returns
         -------
         :class:`.Table`
             Table with all column fields from the matrix, with one row per column of the matrix.
         """
+        
+        if self.col_key is not None and Env.hc()._warn_cols_order:
+            warn("cols(): Resulting column table is sorted by 'col_key'."
+                 "\n    To preserve matrix table column order, "
+                 "first unkey columns with 'key_cols_by()'")
+            Env.hc()._warn_cols_order = False
+
         return Table(self._jvds.colsTable())
 
     def entries(self) -> Table:
@@ -2073,11 +2089,26 @@ class MatrixTable(ExprContainer):
         larger than its parent matrix. This means that if you try to export the entries
         table of a 10 terabyte matrix, you could write a petabyte of data!
 
+        Warning
+        -------
+        Matrix table columns are typically sorted by the order at import, and
+        not necessarily by column key. Since tables are always sorted by key,
+        the table which results from this command will have its rows sorted by
+        the compound (row key, column key) which becomes the table key.
+        To preserve the original row-major entry order as the table row order,
+        first unkey the columns using :meth:`key_cols_by` with no arguments.
+
         Returns
         -------
         :class:`.Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
+        if self.col_key is not None and Env.hc()._warn_entries_order:
+            warn("entries(): Resulting entries table is sorted by '(row_key, col_key)'."
+                 "\n    To preserve row-major matrix table order, "
+                 "first unkey columns with 'key_cols_by()'")
+            Env.hc()._warn_entries_order = False
+
         return Table(self._jvds.entriesTable())
 
     def index_globals(self) -> Expression:
