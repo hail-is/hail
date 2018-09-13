@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD, _}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -154,17 +154,25 @@ case class MatrixValue(
 
     lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
       val (_, keyF) = typ.colType.select(typ.colKey)
-      val sortedValsWithIdx = colValues.safeValue
+      if (typ.colKey.isEmpty)
+        (colValues,
+          BroadcastIndexedSeq(
+            IndexedSeq.range(0, colValues.safeValue.length),
+            TArray(TInt32()),
+            colValues.sc))
+      else {
+        val sortedValsWithIdx = colValues.safeValue
           .zipWithIndex
           .map(colIdx => (keyF(colIdx._1.asInstanceOf[Row]), colIdx))
           .sortBy(_._1)(typ.colKeyStruct.ordering.toOrdering.asInstanceOf[Ordering[Row]])
           .map(_._2)
 
-      (colValues.copy(value = sortedValsWithIdx.map(_._1)),
-        BroadcastIndexedSeq(
-          sortedValsWithIdx.map(_._2),
-          TArray(TInt32()),
-          colValues.sc))
+        (colValues.copy(value = sortedValsWithIdx.map(_._1)),
+          BroadcastIndexedSeq(
+            sortedValsWithIdx.map(_._2),
+            TArray(TInt32()),
+            colValues.sc))
+      }
     }
 
     def rowsRVD(): OrderedRVD = {
@@ -197,18 +205,11 @@ case class MatrixValue(
       val hc = HailContext.get
       val signature = typ.colType
 
-      if (typ.colKey.isEmpty) {
-        UnpartitionedRVD(
-          signature,
-          ContextRDD.parallelize(hc.sc, colValues.value.toArray.map(_.asInstanceOf[Row]))
-            .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) })
-      } else {
-        OrderedRVD.coerce(
-          typ.colsTableType.rvdType,
-          ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
-            .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
-        )
-      }
+      OrderedRVD.coerce(
+        typ.colsTableType.rvdType,
+        ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
+          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
+      )
     }
 
     def entriesRVD(): OrderedRVD = {
@@ -295,7 +296,9 @@ case class MatrixValue(
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
 
-      val (newRVType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
+      val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(typeToInsert.physicalType, List(path))
+      val newRVType = newRVPType.virtualType
+
 
       val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
         colKey = newColKey, globalType = newGlobalType)

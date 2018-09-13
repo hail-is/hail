@@ -51,7 +51,7 @@ class RepartitionedOrderedRDD2 private (prev: OrderedRVD, newRangeBounds: Indexe
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
     val pord = typ.kType.ordering.intervalEndpointOrdering
     val range = ordPartition.range
-    val ur = new UnsafeRow(typ.rowType)
+    val ur = new UnsafeRow(typ.rowType.physicalType)
     val key = new KeyedRow(ur, typ.kFieldIdx)
 
     Iterator.single { (ctx: RVDContext) =>

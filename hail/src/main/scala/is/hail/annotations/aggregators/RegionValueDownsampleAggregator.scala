@@ -1,11 +1,14 @@
 package is.hail.annotations.aggregators
 import is.hail.annotations.RegionValueBuilder
 import is.hail.annotations._
-import is.hail.expr.types.{TArray, TFloat64, TTuple, TString}
+import is.hail.expr.types.physical.{PArray, PString}
+import is.hail.expr.types.{TArray, TFloat64, TString, TTuple}
 import is.hail.stats.DownsampleCombiner
 
 object RegionValueDownsampleAggregator {
   val typ = TArray(TTuple(Array(TFloat64(), TFloat64(), TArray(TString()))))
+
+  val labelType = PArray(PString())
 }
 
 class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggregator {
@@ -15,7 +18,7 @@ class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggreg
 
   def seqOp(region: Region, x: Double, xm: Boolean, y: Double, ym: Boolean, l: Long, lm: Boolean): Unit = {
     if (!xm && !ym) {
-      val label = if (lm) null else SafeRow.read(TArray(TString()), region, l).asInstanceOf[IndexedSeq[String]]
+      val label = if (lm) null else SafeRow.read(RegionValueDownsampleAggregator.labelType, region, l).asInstanceOf[IndexedSeq[String]]
       combiner.merge(x, y, label)
     }
   }

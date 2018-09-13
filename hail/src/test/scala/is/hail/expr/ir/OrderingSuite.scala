@@ -65,7 +65,7 @@ class OrderingSuite extends TestNGSuite {
         val f = fb.resultWithIndex()(0)
         val f2 = { (region: Region, as: Seq[Annotation]) =>
           val offs = addTupledArgsToRegion(region, args.zip(as): _*)
-          SafeRow(TTuple(rt), region, f(region, offs(0), false)).get(0)
+          SafeRow(TTuple(rt).physicalType, region, f(region, offs(0), false)).get(0)
         }
         f2
       case 2 =>
@@ -74,7 +74,7 @@ class OrderingSuite extends TestNGSuite {
         val f = fb.resultWithIndex()(0)
         val f2 = { (region: Region, as: Seq[Annotation]) =>
           val offs = addTupledArgsToRegion(region, args.zip(as): _*)
-          SafeRow(TTuple(rt), region, f(region, offs(0), false, offs(1), false)).get(0)
+          SafeRow(TTuple(rt).physicalType, region, f(region, offs(0), false, offs(1), false)).get(0)
         }
         f2
     }
@@ -290,7 +290,7 @@ class OrderingSuite extends TestNGSuite {
         val bs = new BinarySearch(fb.apply_method, tset, keyOnly = false)
         fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).fieldOffset(cetuple, 0))))
 
-        val asArray = SafeIndexedSeq(TArray(t), region, soff)
+        val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
 
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
@@ -330,7 +330,7 @@ class OrderingSuite extends TestNGSuite {
         val v = cregion.loadIRIntermediate(tdict.keyType)(TTuple(tdict.keyType).fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 
-        val asArray = SafeIndexedSeq(TArray(tdict.elementType), region, soff)
+        val asArray = SafeIndexedSeq(TArray(tdict.elementType).physicalType, region, soff)
 
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)

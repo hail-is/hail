@@ -325,10 +325,22 @@ class IRSuite extends SparkSuite {
       FastIndexedSeq(7, null, 2))
   }
 
+  @Test def testArrayFold() {
+    def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
+      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
+
+    assertEvalsTo(fold(ArrayRange(1, 2, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), true)
+    assertEvalsTo(fold(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), 6)
+    assertEvalsTo(fold(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), null)
+    assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), null)
+    assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), null)
+  }
+
   @Test def testArrayScan() {
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
-      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_elt", zero.typ), Ref("_accum", coerce[TArray](array.typ).elementType)))
+      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
 
+    assertEvalsTo(scan(ArrayRange(1, 4, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), FastIndexedSeq(null, true, false, false))
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
@@ -349,6 +361,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testInsertFields() {
     val s = TStruct("a" -> TInt64(), "b" -> TString())
+    val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
 
     assertEvalsTo(
       InsertFields(
@@ -358,19 +371,19 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("a" -> I64(5))),
       Row(5L, null))
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("c" -> F64(3.2))),
       Row(null, null, 3.2))
 
     assertEvalsTo(
       InsertFields(
-        NA(s),
+        emptyStruct,
         Seq("c" -> NA(TFloat64()))),
       Row(null, null, null))
 
@@ -391,6 +404,11 @@ class IRSuite extends SparkSuite {
         MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc"))),
         Seq("c" -> F64(3.2))),
       Row(null, "abc", 3.2))
+
+    assertEvalsTo(
+      InsertFields(NA(TStruct("a" -> +TInt32())), Seq("foo" -> I32(5))),
+      null
+    )
   }
 
   @Test def testSelectFields() {
@@ -544,7 +562,6 @@ class IRSuite extends SparkSuite {
       val b = True()
 
       val xs: Array[TableIR] = Array(
-        TableUnkey(read),
         TableDistinct(read),
         TableKeyBy(read, Array("m", "d")),
         TableFilter(read, b),
@@ -567,7 +584,7 @@ class IRSuite extends SparkSuite {
             MakeStruct(FastSeq("a" -> NA(TInt32()))),
             MakeStruct(FastSeq("a" -> I32(1)))
           ), TArray(TStruct("a" -> TInt32()))), None),
-        TableMapRows(TableUnkey(read),
+        TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11))),
@@ -579,9 +596,9 @@ class IRSuite extends SparkSuite {
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
-        TableUnkey(read),
-        TableOrderBy(TableUnkey(read), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
-        LocalizeEntries(mtRead, " # entries")
+        TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
+        LocalizeEntries(mtRead, " # entries"),
+        TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
       )
       xs.map(x => Array(x))
     } catch {

@@ -239,18 +239,18 @@ object PruneDeadFields {
         val leftDep = left.typ.copy(
           rowType = TStruct(left.typ.rowType.required, left.typ.rowType.fieldNames.flatMap(f =>
             requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
-          globalType = requestedType.globalType)
+          globalType = TStruct(left.typ.globalType.required, left.typ.globalType.fieldNames.flatMap(f =>
+            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(left, leftDep, memo)
-
-        val rightKeyFields = right.typ.key.iterator.flatten.toSet
+        val rightKeyFields = right.typ.keyOrEmpty.toSet
         val rightDep = right.typ.copy(
-          rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fields.flatMap { f =>
-            if (rightKeyFields.contains(f.name))
-              Some(f.name -> f.typ)
+          rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fieldNames.flatMap(f =>
+            if (rightKeyFields.contains(f))
+              Some(f -> right.typ.rowType.field(f).typ)
             else
-              requestedType.rowType.fieldOption(x.rightFieldMapping(f.name)).map(reqF => f.name -> reqF.typ)
-          }: _*),
-          globalType = minimal(right.typ.globalType))
+              requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
+          globalType = TStruct(right.typ.globalType.required, right.typ.globalType.fieldNames.flatMap(f =>
+            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(right, rightDep, memo)
       case TableLeftJoinRightDistinct(left, right, root) =>
         val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
@@ -346,17 +346,6 @@ object PruneDeadFields {
         memoizeMatrixIR(child, mtDep, memo)
       case TableUnion(children) =>
         children.foreach(memoizeTableIR(_, requestedType, memo))
-      case TableUnkey(child) =>
-        child.typ.key match {
-          case Some(k) =>
-            val childKeyFields = k.toSet
-            memoizeTableIR(child, unify(child.typ, requestedType.copy(key = Some(k),
-              rowType = unify(child.typ.rowType,
-                requestedType.rowType,
-                child.typ.rowType.filter(f => childKeyFields.contains(f.name))._1))),
-              memo)
-          case None => memoizeTableIR(child, requestedType, memo)
-        }
       case LocalizeEntries(child, fieldName) =>
         val minChild = minimal(child.typ)
         val m = Map(fieldName -> MatrixType.entriesIdentifier)
@@ -364,6 +353,14 @@ object PruneDeadFields {
           globalType = requestedType.globalType,
           rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
         memoizeMatrixIR(child, childDep, memo)
+      case TableRename(child, rowMap, globalMap) =>
+        val rowMapRev = rowMap.map { case (k, v) => (v, k) }
+        val globalMapRev = globalMap.map { case (k, v) => (v, k) }
+        val childDep = TableType(
+          rowType = requestedType.rowType.rename(rowMapRev),
+          globalType = requestedType.globalType.rename(globalMapRev),
+          key = requestedType.key.map(_.map(k => rowMapRev.getOrElse(k, k))))
+        memoizeTableIR(child, childDep, memo)
     }
   }
 
@@ -803,6 +800,12 @@ object PruneDeadFields {
           LocalizeEntries(child2, fieldName)
         else
           MatrixRowsTable(child2)
+      case TableRename(child, rowMap, globalMap) =>
+        val child2 = rebuild(child, memo)
+        TableRename(
+          child2,
+          rowMap.filterKeys(child2.typ.rowType.hasField),
+          globalMap.filterKeys(child2.typ.globalType.hasField))
       case TableUnion(children) =>
         val requestedType = memo.lookup(tir).asInstanceOf[TableType]
         val rebuilt = children.map { c =>

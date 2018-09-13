@@ -189,6 +189,27 @@ class CollectionExpression(Expression):
 
     @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
     def fold(self, f, zero):
+        """Reduces the collection with the given function `f`, provided the initial value `zero`.
+
+        Examples
+        --------
+        >>> a = [0, 1, 2]
+
+        >>> hl.fold(lambda i, j: i + j, 0, a).value
+        3
+
+        Parameters
+        ----------
+        f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+            Function which takes the cumulative value and the next element, and
+            returns a new value.
+        zero : :class:`.Expression`
+            Initial value to pass in as left argument of `f`.
+
+        Returns
+        -------
+        :class:`.Expression`.
+        """
         collection = self
         if isinstance(collection.dtype, tset):
             collection = hl.array(collection)
@@ -499,6 +520,27 @@ class ArrayExpression(CollectionExpression):
 
     @typecheck_method(f=func_spec(2, expr_any), zero=expr_any)
     def scan(self, f, zero):
+        """Map each element of the array to cumulative value of function `f`, with initial value `zero`.
+
+        Examples
+        --------
+        >>> a = [0, 1, 2]
+
+        >>> hl.array_scan(lambda i, j: i + j, 0, a).value
+        [0, 0, 1, 3]
+
+        Parameters
+        ----------
+        f : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+            Function which takes the cumulative value and the next element, and
+            returns a new value.
+        zero : :class:`.Expression`
+            Initial value to pass in as left argument of `f`.
+
+        Returns
+        -------
+        :class:`.ArrayExpression`.
+        """
         indices, aggregations = unify_all(self, zero)
         accum_name = Env.get_uid()
         elt_name = Env.get_uid()

@@ -5,9 +5,8 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.TTuple
 import is.hail.utils._
 
-
 final case class PTuple(_types: IndexedSeq[PType], override val required: Boolean = false) extends PBaseStruct {
-  def virtualType: TTuple = TTuple(types.map(_.virtualType), required)
+  lazy val virtualType: TTuple = TTuple(types.map(_.virtualType), required)
 
   val types = _types.toArray
   val fieldRequired: Array[Boolean] = types.map(_.required)

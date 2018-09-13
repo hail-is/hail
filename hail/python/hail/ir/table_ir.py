@@ -1,7 +1,7 @@
 import json
 
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id
+from hail.utils.java import escape_str, escape_id, parsable_strings
 
 
 class MatrixRowsTable(TableIR):
@@ -66,7 +66,7 @@ class TableExplode(TableIR):
 
 
 class TableKeyBy(TableIR):
-    def __init__(self, child, keys, is_sorted):
+    def __init__(self, child, keys, is_sorted=False):
         super().__init__()
         self.child = child
         self.keys = keys
@@ -90,15 +90,6 @@ class TableMapRows(TableIR):
         return '(TableMapRows {} {} {})'.format(
             ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
             r(self.child), r(self.new_row))
-
-
-class TableUnkey(TableIR):
-    def __init__(self, child):
-        super().__init__()
-        self.child = child
-
-    def render(self, r):
-        return '(TableUnkey {})'.format(r(self.child))
 
 
 class TableRead(TableIR):
@@ -244,6 +235,22 @@ class LocalizeEntries(TableIR):
 
     def render(self, r):
         return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {r(self.child)})'
+
+class TableRename(TableIR):
+    def __init__(self, child, row_map, global_map):
+        super().__init__()
+        self.child = child
+        self.row_map = row_map
+        self.global_map = global_map
+
+    def render(self, r):
+        return f'(TableRename ' \
+               f'{parsable_strings(self.row_map.keys())} ' \
+               f'{parsable_strings(self.row_map.values())} ' \
+               f'{parsable_strings(self.global_map.keys())} ' \
+               f'{parsable_strings(self.global_map.values())} ' \
+               f'{r(self.child)})'
+
 
 class JavaTable(TableIR):
     def __init__(self, jir):

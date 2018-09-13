@@ -8,6 +8,7 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
+import is.hail.expr.types.physical.PType
 import is.hail.variant.Call
 
 import scala.collection.mutable
@@ -127,9 +128,9 @@ abstract class RegistryFunctions {
         TString.getClass, "loadString",
         getRegion(mb), coerce[Long](c))
     case _ => c =>
-      Code.invokeScalaObject[Type, Region, Long, Any](
+      Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
-        mb.getType(t),
+        mb.getPType(t.physicalType),
         getRegion(mb), coerce[Long](c))
   }
 
@@ -145,9 +146,9 @@ abstract class RegistryFunctions {
         TString.getClass, "loadString",
         getRegion(mb), coerce[Long](c))
     case _ => c =>
-      Code.invokeScalaObject[Type, Region, Long, Any](
+      Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
-        mb.getType(t),
+        mb.getPType(t.physicalType),
         getRegion(mb), coerce[Long](c))
   }
 

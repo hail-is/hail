@@ -463,12 +463,12 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addUnsafeRow(t: TBaseStruct, ur: UnsafeRow) {
-    assert(t == ur.t)
+    assert(t == ur.t.virtualType)
     addRegionValue(t, ur.region, ur.offset)
   }
 
   def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeq) {
-    assert(t == uis.t)
+    assert(t == uis.t.virtualType)
     addRegionValue(t, uis.region, uis.aoff)
   }
 
@@ -502,7 +502,7 @@ class RegionValueBuilder(var region: Region) {
 
         case t: TBaseStruct =>
           a match {
-            case ur: UnsafeRow if t == ur.t =>
+            case ur: UnsafeRow if t == ur.t.virtualType =>
               addUnsafeRow(t, ur)
             case r: Row =>
               addRow(t, r)

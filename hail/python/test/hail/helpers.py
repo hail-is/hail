@@ -25,12 +25,12 @@ def resource(filename):
     if _test_dir is None:
         path = '.'
         i = 0
-        while not os.path.exists(os.path.join(path, 'LICENSE')):
+        while not os.path.exists(os.path.join(path, 'build.gradle')):
             path = os.path.join(path, '..')
             i += 1
             if i > 100:
                 raise EnvironmentError("Hail tests must be run from inside the Hail git repository")
-        _test_dir = os.path.join(path, 'hail', 'src', 'test', 'resources')
+        _test_dir = os.path.join(path, 'src', 'test', 'resources')
 
     return os.path.join(_test_dir, filename)
 
@@ -40,12 +40,12 @@ def doctest_resource(filename):
     if _doctest_dir is None:
         path = '.'
         i = 0
-        while not os.path.exists(os.path.join(path, 'LICENSE')):
+        while not os.path.exists(os.path.join(path, 'build.gradle')):
             path = os.path.join(path, '..')
             i += 1
             if i > 100:
                 raise EnvironmentError("Hail tests must be run from inside the Hail git repository")
-        _doctest_dir = os.path.join(path, 'hail', 'python', 'hail', 'docs', 'data')
+        _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
 
     return os.path.join(_doctest_dir, filename)
 

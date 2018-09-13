@@ -184,6 +184,12 @@ class OrderedRVDPartitioner(
   def getSafePartitionKeyRange(key: Any): Range =
     Range(getSafePartitionLowerBound(key), getSafePartitionUpperBound(key))
 
+  def rename(nameMap: Map[String, String]): OrderedRVDPartitioner = new OrderedRVDPartitioner(
+    kType.rename(nameMap),
+    rangeBounds,
+    allowedOverlap
+  )
+
   def copy(
     kType: TStruct = kType,
     rangeBounds: IndexedSeq[Interval] = rangeBounds

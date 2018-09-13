@@ -45,7 +45,7 @@ class GroupedMatrixTable(ExprContainer):
     def __getitem__(self, item):
         return self._get_field(item)
 
-    def describe(self):
+    def describe(self, handler=print):
         """Print information about grouped matrix table."""
 
         if self._row_keys is None:
@@ -65,8 +65,8 @@ class GroupedMatrixTable(ExprContainer):
             rowstr,
             colstr)
 
-        print(s)
-        self._parent.describe()
+        handler(s)
+        self._parent.describe(handler)
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
@@ -2324,7 +2324,7 @@ class MatrixTable(ExprContainer):
 
             def joiner(left: MatrixTable):
                 localized = self._localize_entries(row_uid)
-                src_cols_indexed = self.cols().add_index(col_uid)
+                src_cols_indexed = self.add_col_index(col_uid).cols()
                 src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
                 left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
@@ -2417,7 +2417,7 @@ class MatrixTable(ExprContainer):
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
 
-    def describe(self):
+    def describe(self, handler=print):
         """Print information about the fields in the matrix."""
 
         def format_type(typ):
@@ -2470,7 +2470,7 @@ class MatrixTable(ExprContainer):
                                                               ck=col_key,
                                                               c=col_fields,
                                                               e=entry_fields)
-        print(s)
+        handler(s)
 
     @typecheck_method(indices=sequenceof(int))
     def choose_cols(self, indices: List[int]) -> 'MatrixTable':

@@ -110,7 +110,6 @@ class TableIRTests(unittest.TestCase):
 
         range = ir.TableRange(10, 4)
         table_irs = [
-            ir.TableUnkey(table_read),
             ir.TableKeyBy(table_read, ['m', 'd'], False),
             ir.TableFilter(table_read, b),
             table_read,
@@ -130,7 +129,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixRowsTable(matrix_read),
             ir.TableParallelize(ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}]), None),
             ir.TableMapRows(
-                ir.TableUnkey(table_read),
+                ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
                     ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
                     ('b', ir.F64(-2.11))]),
@@ -145,9 +144,10 @@ class TableIRTests(unittest.TestCase):
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, 'mset'),
             ir.TableHead(table_read, 10),
-            ir.TableOrderBy(ir.TableUnkey(table_read), [('m', 'A'), ('m', 'D')]),
+            ir.TableOrderBy(ir.TableKeyBy(table_read, []), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
-            ir.LocalizeEntries(matrix_read, '__entries')
+            ir.LocalizeEntries(matrix_read, '__entries'),
+            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'})
         ]
 
         return table_irs

@@ -16,7 +16,7 @@ case object TBinaryOptional extends TBinary(false)
 case object TBinaryRequired extends TBinary(true)
 
 class TBinary(override val required: Boolean) extends Type {
-  def physicalType: PBinary = PBinary(required)
+  lazy val physicalType: PBinary = PBinary(required)
 
   def _toPretty = "Binary"
 

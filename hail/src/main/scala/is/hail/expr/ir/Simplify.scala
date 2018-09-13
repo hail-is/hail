@@ -219,13 +219,15 @@ object Simplify {
 
       case TableCount(TableOrderBy(child, _)) => TableCount(child)
 
-      case TableCount(TableUnkey(child)) => TableCount(child)
-
       case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
 
       case TableCount(TableRange(n, _)) => I64(n)
 
       case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
+
+      case TableCount(TableRename(child, _, _)) => TableCount(child)
+
+      case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
 
       case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
         InsertFields(s, fields)
@@ -328,7 +330,7 @@ object Simplify {
         val row = Ref("row", child.typ.rowType)
         val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
         val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
-        val te = TableUnkey(
+        val te = TableKeyBy(
           TableExplode(
             TableKeyByAndAggregate(child,
               MakeStruct(Seq(
@@ -339,12 +341,15 @@ object Simplify {
                   aggSig))),
               MakeStruct(Seq()), // aggregate to one row
               Some(1), 10),
-            "row"))
+            "row"),
+          FastIndexedSeq())
         TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None)
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case t@TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition(t) =>
-        TableDistinct(TableKeyBy(TableMapRows(TableUnkey(child), k, None), keyFields.map(_._1).toFastIndexedSeq))
+        TableDistinct(TableKeyBy(
+          TableMapRows(TableKeyBy(child, FastIndexedSeq()), k, None),
+          keyFields.map(_._1).toFastIndexedSeq))
       case t@TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
         MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) && canRepartition(t) =>
         TableAggregateByKey(child, expr)

@@ -1140,6 +1140,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val d = digitsNeeded(nPartitions)
 
     val fullRowType = t.rvRowType
+    val fullRowPType = fullRowType.physicalType
     val rowsRVType = t.rowType
     val localEntriesIndex = t.entriesIdx
     val entriesRVType = t.entriesRVType
@@ -1181,7 +1182,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
               var rowCount = 0L
 
               val rvb = new RegionValueBuilder()
-              val fullRow = new UnsafeRow(fullRowType)
+              val fullRow = new UnsafeRow(fullRowPType)
 
               it.foreach { rv =>
                 fullRow.set(rv)

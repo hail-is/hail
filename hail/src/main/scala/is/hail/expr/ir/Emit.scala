@@ -552,6 +552,7 @@ private class Emit(
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean](name2 + "_missing")
         val xvv = coerce[Any](mb.newField(name2)(eti))
+        val xmbody = mb.newField[Boolean](name1 + "_missing_tmp")
         val xmaccum = mb.newField[Boolean](name1 + "_missing")
         val xvaccum = coerce[Any](mb.newField(name1)(tti))
         val bodyenv = env.bind(
@@ -568,8 +569,9 @@ private class Emit(
             xmv := m,
             xvv := xmv.mux(defaultValue(tarray.elementType), v),
             codeB.setup,
-            xmaccum := codeB.m,
-            xvaccum := xmaccum.mux(defaultValue(typ), codeB.v))
+            xmbody := codeB.m,
+            xvaccum := xmbody.mux(defaultValue(typ), codeB.v),
+            xmaccum := xmbody)
         }
 
         val processAElts = aBase.arrayEmitter(cont)
@@ -702,15 +704,17 @@ private class Emit(
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
 
-      case x@SelectFields(ir, fields) =>
-        val old = emit(ir)
-        val oldt = coerce[TStruct](ir.typ)
-        val oldv = mb.newLocal[Long]
+      case x@SelectFields(oldStruct, fields) =>
+        val old = emit(oldStruct)
+        val oldt = coerce[TStruct](oldStruct.typ)
+        val oldv = mb.newField[Long]
         val srvb = new StagedRegionValueBuilder(mb, x.typ)
 
-        val addFields =
-          Code(srvb.start(),
-            Code(fields.map { name =>
+        val addFields = fields.map { name =>
+          new EstimableEmitter[EmitMethodBuilderLike] {
+            def estimatedSize: Int = 20
+
+            def emit(mbLike: EmitMethodBuilderLike): Code[Unit] = {
               val i = oldt.fieldIdx(name)
               val t = oldt.types(i)
               val fieldMissing = oldt.isFieldMissing(region, oldv, i)
@@ -720,14 +724,17 @@ private class Emit(
                   srvb.setMissing(),
                   srvb.addIRIntermediate(t)(fieldValue)),
                 srvb.advance())
-            }: _*))
+            }
+          }
+        }
 
         EmitTriplet(
           old.setup,
           old.m,
           Code(
             oldv := old.value[Long],
-            addFields,
+            srvb.start(),
+            EmitUtils.wrapToMethod(addFields, new EmitMethodBuilderLike(this)),
             srvb.offset))
 
 
@@ -738,41 +745,47 @@ private class Emit(
           old.typ match {
             case oldtype: TStruct =>
               val codeOld = emit(old)
-              val xo = mb.newLocal[Long]
-              val xmo = mb.newLocal[Boolean]()
-              val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
-                .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
-              val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
-                .map { case (_, v) => (v.typ, emit(v)) }
+              val xo = mb.newField[Long]
+              val updateMap = Map(fields: _*)
               val srvb = new StagedRegionValueBuilder(mb, x.typ)
-              present(Code(
-                srvb.start(init = true),
+
+              val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
                 Code(
-                  codeOld.setup,
-                  xmo := codeOld.m,
-                  xo := coerce[Long](xmo.mux(defaultValue(oldtype), codeOld.v)),
-                  Code(oldtype.fields.map { f =>
-                    updateInit.get(f.name) match {
-                      case Some((t, EmitTriplet(dov, mv, vv))) =>
+                  v.setup,
+                  v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+                  srvb.advance())
+              }
+
+              val opSize: Int = 20
+              val items = x.typ.fields.map { f =>
+                updateMap.get(f.name) match {
+                  case Some(vir) =>
+                    new EstimableEmitter[EmitMethodBuilderLike] {
+                      def estimatedSize: Int = vir.size * opSize
+
+                      def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
+                        addFields(mbLike.mb, vir.typ, mbLike.emit.emit(vir, env))
+                    }
+                  case None =>
+                    new EstimableEmitter[EmitMethodBuilderLike] {
+                      def estimatedSize: Int = 20
+
+                      def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
                         Code(
-                          dov,
-                          mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                          srvb.advance())
-                      case None =>
-                        Code(
-                          (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
+                          oldtype.isFieldMissing(region, xo, f.index).mux(
                             srvb.setMissing(),
                             srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
                           ),
                           srvb.advance())
                     }
-                  }: _*)),
-                Code(appendInit.map { case (t, EmitTriplet(setup, mv, vv)) =>
-                  Code(
-                    setup,
-                    mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
-                    srvb.advance())
-                }: _*),
+                }
+              }
+
+              EmitTriplet(codeOld.setup, codeOld.m, Code(
+                srvb.start(init = true),
+                codeOld.setup,
+                xo := coerce[Long](codeOld.v),
+                EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this)),
                 srvb.offset))
             case _ =>
               val newIR = MakeStruct(fields)
@@ -1091,6 +1104,7 @@ private class Emit(
         val elt = coerce[TArray](a.typ).elementType
         val accumTypeInfo = coerce[Any](typeToTypeInfo(zero.typ))
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
+        val xmbody = mb.newField[Boolean]()
         val xmaccum = mb.newField[Boolean]()
         val xvaccum = mb.newField(accumName)(accumTypeInfo)
         val xmv = mb.newField[Boolean]()
@@ -1114,8 +1128,9 @@ private class Emit(
             xmv := m,
             xvv := xmv.mux(defaultValue(elt), v),
             codeB.setup,
-            xmaccum := codeB.m,
-            xvaccum := xmaccum.mux(defaultValue(zero.typ), codeB.v),
+            xmbody := codeB.m,
+            xvaccum := xmbody.mux(defaultValue(zero.typ), codeB.v),
+            xmaccum := xmbody,
             cont(xmaccum, xvaccum)
           )
         }

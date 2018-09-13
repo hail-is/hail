@@ -732,3 +732,24 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
+
+    def test_flatten(self):
+        t1 = hl.utils.range_table(10)
+        t1 = t1.key_by(x = hl.struct(a=t1.idx, b=0)).flatten()
+        t2 = hl.utils.range_table(10).key_by()
+        t2 = t2.annotate(**{'x.a': t2.idx, 'x.b': 0})
+        self.assertTrue(t1._same(t2))
+
+    def test_expand_types(self):
+        t1 = hl.utils.range_table(10)
+        t1 = t1.key_by(x = hl.locus('1', t1.idx+1)).expand_types()
+        t2 = hl.utils.range_table(10).key_by()
+        t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
+        self.assertTrue(t1._same(t2))
+
+    def test_join_mangling(self):
+        t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
+        j = t1.join(t1, 'inner')
+        assert j.row.dtype == hl.tstruct(idx=hl.tint32, row1=hl.tint32, row1_1=hl.tint32)
+        assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
+        j._force_count()

@@ -123,6 +123,13 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
     checkJoinCompatability(right)
     require(this.realType.rowType == right.realType.rowType)
 
+    if (key == 0)
+      return OrderedRVD.unkeyed(
+        this.realType.rowType,
+        ContextRDD.union(
+          rvd.crdd.sparkContext,
+          Seq(this.rvd.crdd, right.rvd.crdd)))
+
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)
     val newPartitioner = OrderedRVDPartitioner.generate(virtType.key, kType, ranges)

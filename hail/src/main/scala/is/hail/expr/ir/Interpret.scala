@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.{JSONAnnotationImpex, Parser, TypedAggregator}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PTuple
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -513,11 +514,12 @@ object Interpret {
       case InsertFields(old, fields) =>
         var struct = interpret(old, env, args, agg)
         var t = old.typ
-        fields.foreach { case (name, body) =>
-          val (newT, ins) = t.insert(body.typ, name)
-          t = newT.asInstanceOf[TStruct]
-          struct = ins(struct, interpret(body, env, args, agg))
-        }
+        if (struct != null)
+          fields.foreach { case (name, body) =>
+            val (newT, ins) = t.insert(body.typ, name)
+            t = newT.asInstanceOf[TStruct]
+            struct = ins(struct, interpret(body, env, args, agg))
+          }
         struct
       case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
@@ -581,7 +583,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(TTuple(ir.implementation.returnType.subst()), region, resultOffset)
+          SafeRow(PTuple(FastIndexedSeq(ir.implementation.returnType.subst().physicalType), required = true), region, resultOffset)
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
@@ -674,7 +676,7 @@ object Interpret {
 
           val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
-          SafeRow(coerce[TTuple](t), region, resultOffset)
+          SafeRow(coerce[PTuple](t.physicalType), region, resultOffset)
             .get(0)
         }
       case MatrixAggregate(child, query) =>
@@ -761,7 +763,7 @@ object Interpret {
 
           val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
-          SafeRow(coerce[TTuple](t), region, resultOffset)
+          SafeRow(coerce[PTuple](t.physicalType), region, resultOffset)
             .get(0)
         }
     }

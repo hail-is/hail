@@ -3,7 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableUnkey, TableValue, UnlocalizeEntries, _}
+import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, UnlocalizeEntries, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
@@ -156,7 +156,7 @@ object Table {
       TableValue(
         TableType(signature, None, globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        UnpartitionedRVD(signature, crdd2)))
+        OrderedRVD.unkeyed(signature, crdd2).toOldStyleRVD))
     ).keyBy(key, isSorted)
   }
 
@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
             TableValue(
               TableType(signature, None, globalSignature),
               BroadcastRow(globals, globalSignature, hc.sc),
-              UnpartitionedRVD(signature, crdd))),
+              OrderedRVD.unkeyed(signature, crdd).toOldStyleRVD)),
           key,
           false)
       case None =>
@@ -205,7 +205,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, None, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            UnpartitionedRVD(signature, crdd)))
+            OrderedRVD.unkeyed(signature, crdd).toOldStyleRVD))
     }
   )
 
@@ -430,7 +430,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
   def unkey(): Table =
-    new Table(hc, TableUnkey(tir))
+    new Table(hc, TableKeyBy(tir, FastIndexedSeq()))
 
   def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
     select(expr, newKey.asScala.toFastIndexedSeq, preservedKeyFields.toInt)
@@ -442,11 +442,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def select(newRow: IR, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
     val preservedKeyOld = typ.keyOrEmpty.take(preservedKeyFields)
-    val preservedKeyNew = newKey.take(preservedKeyFields)
+    val preservedKeyNew = if (preservedKeyOld.nonEmpty)
+        Some(newKey.take(preservedKeyFields))
+      else
+        None
     val shortenedKey = if (typ.keyOrEmpty != preservedKeyOld) TableKeyBy(tir, preservedKeyOld) else tir
-    val mapped = TableMapRows(shortenedKey, newRow, typ.key.map(_ => preservedKeyNew))
+    val mapped = TableMapRows(shortenedKey, newRow, preservedKeyNew)
     val lengthenedKey =
-      if (preservedKeyNew != newKey)
+      if (preservedKeyNew.getOrElse(IndexedSeq()) != newKey)
         TableKeyBy(mapped, newKey, isSorted = preservedKeyFields > 0)
       else
         mapped
@@ -515,6 +518,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def expandTypes(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepExpand(t: Type): Type = {
       t match {
         case t: TContainer =>
@@ -530,16 +535,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
+    val orvd = rvd.toOrderedRVD.truncateKey(IndexedSeq())
     copy2(
-      rvd = rvd match {
-        case ordered: OrderedRVD =>
-          ordered.copy(typ = ordered.typ.copy(rowType = newRowType))
-        case _: UnpartitionedRVD => UnpartitionedRVD(newRowType, rvd.crdd)
-      },
+      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)).toOldStyleRVD,
       signature = newRowType)
   }
 
   def flatten(): Table = {
+    require(typ.keyOrEmpty.isEmpty)
+
     def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
       t.fields.map { f =>
         f.typ match {
@@ -556,17 +560,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-    val newKey: Array[String] = keyFieldIdx.map(_.flatMap { i =>
-      newFields(i).map { case (n, _) => n }
-    }).getOrElse(Array())
-    val preservedKeyFields = keyFieldIdx.map(_.takeWhile(i => newFields(i).length == 1).length).getOrElse(0)
 
-    select(ir.MakeStruct(newFields.flatten), newKey, preservedKeyFields)
+    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten), typ.key))
   }
 
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
-    val localSignature = signature
+    val localSignature = signature.physicalType
     sqlContext.createDataFrame(
       rvd.map { rv => SafeRow(localSignature, rv) },
       signature.schema.asInstanceOf[StructType])
@@ -608,8 +608,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
   def orderBy(sortFields: Array[SortField]): Table = {
-    new Table(hc, TableOrderBy(ir.TableUnkey(tir), sortFields))
+    new Table(hc, TableOrderBy(TableKeyBy(tir, FastIndexedSeq()), sortFields))
   }
+
+  def rename(rowMap: java.util.HashMap[String, String], globalMap: java.util.HashMap[String, String]): Table =
+    new Table(hc, TableRename(tir, rowMap.asScala.toMap, globalMap.asScala.toMap))
 
   def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
 
@@ -789,10 +792,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val typToInsert: Type = other.valueSignature
 
-    val (newRowType, ins) = signature.unsafeStructInsert(typToInsert, List(fieldName))
+    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
+    val newRowType = newRowPType.virtualType
 
     val partBc = hc.sc.broadcast(leftORVD.partitioner)
-    val rightSignature = other.signature
+    val rightSignature = other.signature.physicalType
     val rightKeyFieldIdx = other.keyFieldIdx.get(0)
     val rightValueFieldIdx = other.valueFieldIdx
     val partitionKeyedIntervals = other.rvd.boundary.crdd
@@ -817,7 +821,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       def numPartitions: Int = nParts
     }).values
 
-    val localRVRowType = signature
+    val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key.get(0))
     val newOrderedRVType = OrderedRVDType(key.get, newRowType)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(

@@ -1,6 +1,7 @@
 #!/bin/bash
 set -ex
 
+ROOT=${PWD}
 cd hail
 
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
@@ -15,13 +16,14 @@ gcloud auth activate-service-account \
 on_exit() {
     trap "" INT TERM
     set +e
-    rm -rf artifacts
-    mkdir -p artifacts
-    cp build/libs/hail-all-spark.jar artifacts/hail-all-spark.jar
-    cp build/distributions/hail-python.zip artifacts/hail-python.zip
-    cp -R build/www artifacts/www
-    cp -R build/reports/tests artifacts/test-report
-    cat <<EOF > artifacts/index.html
+    ARTIFACTS=${ROOT}/artifacts
+    rm -rf ${ARTIFACTS}
+    mkdir -p ${ARTIFACTS}
+    cp build/libs/hail-all-spark.jar ${ARTIFACTS}/hail-all-spark.jar
+    cp build/distributions/hail-python.zip ${ARTIFACTS}/hail-python.zip
+    cp -R build/www ${ARTIFACTS}/www
+    cp -R build/reports/tests ${ARTIFACTS}/test-report
+    cat <<EOF > ${ARTIFACTS}/index.html
 <html>
 <body>
 <h1>$(git rev-parse HEAD)</h1>

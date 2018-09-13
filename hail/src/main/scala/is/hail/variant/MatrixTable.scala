@@ -531,7 +531,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     else
       right
 
-    val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
+    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType.physicalType, List(root))
+    val newRVType = newRVPType.virtualType
 
     val rightRowType = rightRVD.rowType
     val leftRowType = rvRowType
@@ -839,7 +840,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
-      val fullRow = new UnsafeRow(localRVRowType)
+      val fullRow = new UnsafeRow(localRVRowType.physicalType)
 
       it.map { rv =>
         fullRow.set(rv)
@@ -884,7 +885,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       TableLiteral(
         TableValue(ttyp,
           globals,
-          if (ttyp.key.isDefined) orvd else orvd.toUnpartitionedRVD)))
+          orvd.toOldStyleRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
@@ -984,12 +985,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = if (newMatrixType.orvdType == rvd.typ)
-      rvd
-    else {
-      val newType = newMatrixType.orvdType
-      rvd.updateType(newType)
-    }
+    val newRVD = rvd.cast(newRVRowType).asInstanceOf[OrderedRVD]
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }
@@ -1073,8 +1069,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     metadataSame &&
       this.rvd.orderedZipJoin(that.rvd).mapPartitions { it =>
-        val fullRow1 = new UnsafeRow(leftRVType)
-        val fullRow2 = new UnsafeRow(rightRVType)
+        val fullRow1 = new UnsafeRow(leftRVType.physicalType)
+        val fullRow2 = new UnsafeRow(rightRVType.physicalType)
 
         it.map { case Muple(rv1, rv2) =>
           if (rv2 == null) {
@@ -1192,13 +1188,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
 
     val predicate = { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRVRowType, rv)
+      val ur = new UnsafeRow(localRVRowType.physicalType, rv)
       !localRVRowType.typeCheck(ur)
     }
 
     Region.scoped { region =>
       rvd.find(region)(predicate).foreach { rv =>
-        val ur = new UnsafeRow(localRVRowType, rv)
+        val ur = new UnsafeRow(localRVRowType.physicalType, rv)
         foundError = true
         warn(
           s"""found violation in row
@@ -1547,7 +1543,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       def getLocus(row: RegionValue): Locus =
         UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
 
-      val unsafeRow = new UnsafeRow(localRVRowType)
+      val unsafeRow = new UnsafeRow(localRVRowType.physicalType)
       val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
       while (bit.hasNext && { unsafeRow.set(bit.head); rangeBoundsBc.value(i).isAbovePosition(keyOrdering, keyView) }) {
         val rv = bit.next()

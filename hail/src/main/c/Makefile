@@ -7,6 +7,15 @@ UNAME_P :=$(shell uname -p)
 
 BUILD :=build
 
+# Control optimization level and gdb-in-xterm code in NativePtr.cpp
+HAIL_ENABLE_DEBUG :=0
+
+ifeq ($(HAIL_ENABLE_DEBUG),1)
+  HAIL_OPT_FLAGS :=-O1 -DHAIL_ENABLE_DEBUG=1
+else
+  HAIL_OPT_FLAGS :=-O3
+endif
+
 # Change this setting to update the version of libsimdpp
 LIBSIMDPP :=libsimdpp-2.1
 
@@ -15,12 +24,15 @@ LIBSIMDPP :=libsimdpp-2.1
 OBJECTS := \
   davies.o \
   ibs.o \
+  Logging.o \
   NativeCodeSuite.o \
   NativeLongFunc.o \
   NativeModule.o \
   NativePtr.o \
   NativeStatus.o \
-  Region.o
+  ObjectArray.o \
+  Region.o \
+  Upcalls.o
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
 
@@ -41,7 +53,7 @@ else
 endif
 
 # Currently source code for libboot and libhail only uses features up to C++11.
-# The intention is to support C++17 for dynamic-compiled code eventually, but 
+# The intention is to support C++17 for dynamic-compiled code eventually, but
 # to maximize compatibility with different compilers/platforms we don't
 # require that here.
 #
@@ -58,7 +70,7 @@ CXXSTD := -std=c++11
 BADFLAGS := \
   -fabi-version=% -f%-struct-return -fshort-enums -fshort-wchar -fpie -fPIE -ffixed-% \
   -fcall-used-% -fcall-saved-% -fpack-struct% -f%leading-underscore -f%trampolines -fvisibility=% \
-  -f%strict-volatile-bitfields 
+  -f%strict-volatile-bitfields
 
 WARNFLAGS :=$(filter $(BADFLAGS),$(CXXFLAGS))
 ifneq ($(WARNFLAGS),)
@@ -66,15 +78,27 @@ ifneq ($(WARNFLAGS),)
   CXXFLAGS := $(filter-out $(WARNFLAGS),$(CXXFLAGS))
 endif
 
-# If no inherited "-march=%", then use "-march=sandybridge" for ISA compatibility
-# with MacBook Pro's since 2011 (also the earliest cpu with AVX).
+# If no inherited "-march=%", then use "-march=sandybridge" or "-march=corei7-avx"
+# for ISA compatibility with MacBook Pro's since 2011 (also the earliest cpu with AVX).
+# Fall back to "-march=native" if the compiler doesn't support either of those.
 
 ifeq ($(filter -march=%,$(CXXFLAGS)),)
-  CXXFLAGS += -march=sandybridge
+  FAIL_A :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+  ifeq ($(FAIL_A),)
+    CXXFLAGS += -march=sandybridge
+  else
+    # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
+    FAIL_B :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+    ifeq ($(FAIL_B),)
+      CXXFLAGS += -march=corei7-avx
+    else
+      CXXFLAGS += -march=native
+    endif
+  endif
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += -O3 $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
+CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -131,7 +155,7 @@ clean:
 # to code that goes into libhail.so
 #
 # We use this as a pessimistic dependency: if any header has changed, all
-# objects will be rebuilt. Since the quantity of code is small and the 
+# objects will be rebuilt. Since the quantity of code is small and the
 # clean-rebuild time is short (compared to other parts of the build process),
 # this seems good enough, and simpler than managing precise dependencies.
 
@@ -170,4 +194,4 @@ $(LIBBOOT): $(BUILD)/NativeBoot.o
 
 $(LIBHAIL): $(BUILD_OBJECTS)
 	-mkdir -p $(basename $(LIBHAIL))
-	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@ 
+	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@
