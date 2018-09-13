@@ -5,39 +5,39 @@ This is the list of things you need to do to add a new IR node.
  - Add the node in Scala as a case class extending IR / TableIR /
    MatrixIR. Use scala collections so that case class equality works
    as expected (no java arrays).
- 
+
  - Add the node in ir.py / table_ir.py / matrix_ir.py
 
- - Extend Pretty in Scala to print the IR.  Add __str__ in Python.
+ - Extend Pretty in Scala to print the IR.  Add `render` in Python.
    Add the IR to the IR parser.
- 
+
  - Add an example to the Python test IRTests.
 
  - Add an IR generator to the pretty/parser test suite in IRSuite.
- 
+
  - Add a test case to IRSuite, TableIRSuite, or MatrixIRSuite to test
    the node’s behavior.
- 
+
  - Check all cases involving missingness.
 
  - Add support for the IR in PruneDeadFields
- 
+
  - Add any optimizations to Optimize,
    - In particular, any simplifying rewrite rules to Simplify
 
 * (value) IR
 
  - Add a rule to Typecheck
- 
+
  - It must define typ, or extend InferIR and define its type inference
    rule in Infer
- 
+
  - Support it in Children and Copy
- 
+
  - Implement it in Interpet
- 
+
  - Implement it in Emit (the compiler)
- 
+
  - If it binds a variable, add support to Binds and Subst
 
 * MatrixIR
