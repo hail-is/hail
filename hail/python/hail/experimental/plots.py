@@ -13,10 +13,11 @@ from hail.utils.hadoop_utils import *
 
 
 def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve'):
-    """
-    Create ROC curve from one or more score row-fields, using tp_label and fp_label as truth data
+    """Create ROC curve from Hail Table.
 
-    High scores should correspond to true positives
+    One or more `score` fields must be provided, which are assessed against `tp_label` and `fp_label` as truth data.
+
+    High scores should correspond to true positives.
 
     Parameters
     ----------
