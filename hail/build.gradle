@@ -419,7 +419,7 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
-task archiveZip(type: Zip) {
+task archiveZip(type: Zip, dependsOn: generateBuildInfo) {
     from fileTree('python')
     classifier = 'python'
 }

@@ -81,14 +81,15 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
-        version = read_version_info()
+        version = self._jhc.version()
         hail.__version__ = version
-        jar_version = self._jhc.version()
 
-        if jar_version != version and not os.environ.get['HAIL_IGNORE_PYTHON_VERSION']:
-            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                               f"  JAR:    {jar_version}\n"
-                               f"  Python: {version}")
+        if not os.getenv('HAIL_IGNORE_PYTHON_VERSION'):
+            py_version = read_version_info()
+            if py_version != version:
+                raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
+                                   f"  JAR:    {version}\n"
+                                   f"  Python: {py_version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
