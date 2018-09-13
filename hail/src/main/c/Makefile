@@ -83,12 +83,12 @@ endif
 # Fall back to "-march=native" if the compiler doesn't support either of those.
 
 ifeq ($(filter -march=%,$(CXXFLAGS)),)
-  FAIL_A :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>1 || echo FAIL; rm -f a.cpp a.o)
+  FAIL_A :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
   ifeq ($(FAIL_A),)
     CXXFLAGS += -march=sandybridge
   else
     # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
-    FAIL_B :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7-avx -c a.cpp 2>1 || echo FAIL; rm -f a.cpp a.o)
+    FAIL_B :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
     ifeq ($(FAIL_B),)
       CXXFLAGS += -march=corei7-avx
     else
