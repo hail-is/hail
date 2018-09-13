@@ -1567,7 +1567,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         rvb.set(region)
         rvb.clear()
-        region.clear()
         rvb.start(newType.rvRowType)
         rvb.startStruct()
         rvb.addFields(localRVRowType, rv, nonEntryIndices)
