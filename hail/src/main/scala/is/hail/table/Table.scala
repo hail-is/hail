@@ -399,7 +399,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal(t, a)))))
+      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
   def selectGlobal(expr: String): Table = {
