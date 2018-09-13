@@ -231,7 +231,16 @@ class TableIRSuite extends SparkSuite {
         .constrainToOrderedPartitioner(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
-    val joined = TableJoin(partitionedLeft.tir, partitionedRight.tir, joinType, 1)
+    val joined = TableJoin(
+      partitionedLeft.tir,
+      TableRename(
+        partitionedRight.tir,
+        Array("A","B","C")
+          .filter(partitionedRight.typ.rowType.hasField)
+          .map(a => a -> (a + "_"))
+          .toMap,
+        Map.empty),
+      joinType, 1)
       .execute(hc).rdd.collect()
     val thisExpected = expected.filter(pred).map(joinProjectF)
     assert(joined sameElements expected.filter(pred).map(joinProjectF))
@@ -239,7 +248,7 @@ class TableIRSuite extends SparkSuite {
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     val row = Ref("row", TStruct("idx" -> TInt32()))
-    val t1 = TableRange(1, 1)
+    val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
     val t2 =
       TableKeyBy(
         TableMapRows(
