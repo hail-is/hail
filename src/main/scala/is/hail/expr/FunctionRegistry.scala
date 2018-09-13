@@ -1254,6 +1254,32 @@ object FunctionRegistry {
     """,
     "x" -> "the input to gamma.")
 
+  register("filtering_allele_frequency", (ac: Int, an: Int, ci: Double) => calcFilterAlleleFreq(ac, an, ci, lower = 1e-10, upper = 2, tol = 1e-7, precision = 1e-6),
+    """
+    Computes a filtering allele frequency (described below)
+    for `ac` and `an` with confidence `ci`.
+
+    The filtering allele frequency is the highest true population allele frequency
+    for which the upper bound of the `ci` (confidence interval) of allele count
+    under a Poisson distribution is still less than the variant’s observed
+    `ac` (allele count) in the reference sample, given an `an` (allele number).
+
+    This function defines a "filtering AF" that represents
+    the threshold disease-specific "maximum credible AF" at or below which
+    the disease could not plausibly be caused by that variant. A variant with
+    a filtering AF >= the maximum credible AF for the disease under consideration
+    should be filtered, while a variant with a filtering AF below the maximum
+    credible remains a candidate. This filtering AF is not disease-specific:
+    it can be applied to any disease of interest by comparing with a
+    user-defined disease-specific maximum credible AF.
+
+    For more details, see: `Whiffin et al., 2017 <https://www.nature.com/articles/gim201726>`__
+    """,
+    "ac" -> "Allele count",
+    "an" -> "Allele number",
+    "ci" -> "Confidence interval. Should be between 0.0 and 1.0."
+  )
+
   register("Interval", (s: String) => Locus.parseInterval(s),
     """
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
