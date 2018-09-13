@@ -8,7 +8,8 @@ from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 
 import sys
-
+import os
+import configparser
 
 class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
@@ -80,8 +81,14 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
-        version = self._jhc.version()
+        version = read_version_info()
         hail.__version__ = version
+        jar_version = self._jhc.version()
+
+        if jar_version != version and not os.environ.get['HAIL_IGNORE_PYTHON_VERSION']:
+            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
+                               f"  JAR:    {jar_version}\n"
+                               f"  Python: {version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -252,3 +259,13 @@ def set_global_seed(seed):
     """
 
     Env.set_seed(seed)
+
+def read_version_info() -> str:
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    properties_file = os.path.join(this_dir, 'build-info.properties')
+    config = configparser.ConfigParser()
+    files_read = config.read(properties_file)
+    assert len(files_read) == 1
+
+    m = config['Build Metadata']
+    return f"{m['hailVersion']}-{m['revision'][:12]}"
