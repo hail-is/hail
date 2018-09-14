@@ -196,24 +196,11 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 
   def readBlock(buf: Array[Byte]): Int = {
-    // Returns -1 for end-of-file
-    var done = false
-    var len = 0
-    var shift = 0
-    while (!done && (shift < 32)) {
-      val c = in.read();
-      if (c == -1) {
-        len = -1;
-        done = true
-      } else {
-        len |= ((c & 0xff) << shift)
-      }
-      shift += 8
-    }
-    if (len > 0) {
-      val ngot = in.read(buf, 0, len)
-      if (ngot < len) len = -1
-    }
+    in.readFully(lenBuf, 0, 4)
+    val len = Memory.loadInt(lenBuf, 0)
+    assert(len >= 0)
+    assert(len <= buf.length)
+    in.readFully(buf, 0, len)
     len
   }
 }
@@ -392,8 +379,6 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 trait InputBuffer extends Closeable {
   def decoderId: Int
 
-  def tell(): Long
-
   def close(): Unit
 
   def readByte(): Byte
@@ -441,12 +426,7 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   def decoderId = 1
 
-  var bytePos = 0L
-
-  def tell(): Long = bytePos
-
   def readByte(): Byte = {
-    bytePos += 1
     in.readByte()
   }
 
@@ -474,25 +454,13 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
     x
   }
 
-  def readFloat(): Float = {
-    bytePos += 4
-    in.readFloat()
-  }
+  def readFloat(): Float = in.readFloat()
 
-  def readDouble(): Double = {
-    bytePos += 8
-    in.readDouble()
-  }
+  def readDouble(): Double = in.readDouble()
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
-    bytePos += n
-    in.readBytes(toRegion, toOff, n)
-  }
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
 
-  def skipByte(): Unit = {
-    bytePos += 1
-    in.skipByte()
-  }
+  def skipByte(): Unit = in.skipByte()
 
   def skipInt() {
     var b: Byte = readByte()
@@ -506,29 +474,16 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
       b = readByte()
   }
 
-  def skipFloat(): Unit = {
-    bytePos += 4
-    in.skipFloat()
-  }
+  def skipFloat(): Unit = in.skipFloat()
 
-  def skipDouble(): Unit = {
-    bytePos += 8
-    in.skipDouble()
-  }
+  def skipDouble(): Unit = in.skipDouble()
 
-  def skipBytes(n: Int): Unit = {
-    bytePos += n
-    in.skipBytes(n)
-  }
+  def skipBytes(n: Int): Unit = in.skipBytes(n)
 
-  def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = {
-    bytePos += n*8
-    in.readDoubles(to, toOff, n)
-  }
+  def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = in.readDoubles(to, toOff, n)
 
   def readToEndOfBlock(toAddr: Long, toBuf: Array[Byte], toOff: Int, n: Int): Int = {
     val result = in.readToEndOfBlock(toAddr, toBuf, toOff, n)
-    if (result > 0) bytePos += result
     assert(result <= n)
     result
   }
@@ -583,11 +538,8 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   private var end: Int = 0
   private var off: Int = 0
 
-  var blockBytePos = 0L
-
   private def readBlock() {
     assert(off == end)
-    blockBytePos += end
     end = in.readBlock(buf)
     off = 0
   }
@@ -603,8 +555,6 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 
   def decoderId = 0
-
-  def tell(): Long = blockBytePos+off
 
   def readByte(): Byte = {
     ensure(1)
@@ -734,8 +684,6 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 }
 
 trait Decoder extends Closeable {
-  def tag: String
-
   def close()
 
   def readRegionValue(region: Region): Long
@@ -1340,8 +1288,6 @@ final class NativePackDecoder(in: InputBuffer, moduleKey: String, moduleBinary: 
   val decoder = new NativePtr(make_decoder, st, input.get(), in.decoderId)
   input.close()
   assert(st.ok, st.toString())
-  var numItems = 0
-  val tag = ((decoder.get() & 0xffff) | 0x8000).toHexString
   
   def close(): Unit = {
     decoder.close()
@@ -1368,15 +1314,11 @@ final class NativePackDecoder(in: InputBuffer, moduleKey: String, moduleBinary: 
     if (result == -1L) {
       throw new java.util.NoSuchElementException("NativePackDecoder bad RegionValue")
     }
-    numItems += 1
     result
   }
 }
 
 final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, InputBuffer, Long]) extends Decoder {
-  val tag = s"Compiled_${((hashCode() & 0xffff) | 0x8000).toHexString}"
-  var numItems = 0
-
   def close() {
     in.close()
   }
@@ -1384,22 +1326,16 @@ final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, I
   def readByte(): Byte = in.readByte()
 
   def readRegionValue(region: Region): Long = {
-    val result = f()(region, in)
-    numItems += 1
-    result
+    f()(region, in)
   }
 }
 
 final class PackDecoder(rowType: Type, in: InputBuffer) extends Decoder {
-  val tag = "PackDecoder"
-
   def close() {
     in.close()
   }
 
   def readByte(): Byte = in.readByte()
-
-  def dropUndecodedData() { }
 
   def readBinary(region: Region, off: Long) {
     val length = in.readInt()
