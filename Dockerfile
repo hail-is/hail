@@ -7,8 +7,8 @@ RUN mkdir /home/hail-ci && \
     chown hail-ci:hail-ci /home/hail-ci
 
 WORKDIR /batch
-COPY batch/batch batch
-COPY batch/setup.py .
+COPY batch/batch/batch batch
+COPY batch/batch/setup.py .
 
 WORKDIR /hail-ci
 COPY environment.yml .
