@@ -86,12 +86,17 @@ class BatchClient(object):
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
             env = []
-        env.append({
+        env.extend([{
             'name': 'POD_IP',
             'valueFrom': {
                 'fieldRef': {'fieldPath': 'status.podIP'}
             }
-        })
+        }, {
+            'name': 'POD_NAME',
+            'valueFrom': {
+                'fieldRef': {'fieldPath': 'metadata.name'}
+            }
+        }])
 
         container = {
             'image': image,
