@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PFloat64, PInt32, PStruct}
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -256,7 +256,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(),
         srvb.addString(codeInput),
         srvb.advance(),
-        srvb.addArray(TArray(TInt32()).physicalType, array),
+        srvb.addArray(PArray(PInt32()), array),
         srvb.end()
       )
     )
