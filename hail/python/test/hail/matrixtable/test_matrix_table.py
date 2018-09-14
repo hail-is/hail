@@ -677,17 +677,31 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_entries(hl.null(hl.tbool)).entries().count(), 0)
 
     def test_to_table_on_various_fields(self):
-        mt = self.get_vds()
+        mt = hl.utils.range_matrix_table(3, 4)
 
-        self.assertEqual(mt.row.take(1), mt.rows().take(1))
-        self.assertEqual(mt.row_key.take(1), mt.rows().select().take(1))
-        self.assertEqual(mt.row_value.take(1), mt.rows().key_by().drop(*mt.row_key).take(1))
-        self.assertEqual(mt['locus'].take(1), [mt.rows().key_by('locus').select().take(1)[0].locus])
-        self.assertEqual(mt['s'].take(1), [mt.cols().key_by('s').select().take(1)[0].s])
-        self.assertEqual(mt.annotate_cols(foo=5).foo.take(1), [5])
-        self.assertEqual(mt.GQ.take(1), [mt.entries().select('GQ').take(1)[0]['GQ']])
-        self.assertEqual(mt.locus.contig.take(1), [mt.rows().key_by('locus').select().take(1)[0].locus.contig])
-        self.assertEqual(mt['s'][0].take(1), [mt.cols().key_by('s').select().take(1)[0].s[0]])
+        sample_ids = ['Bob', 'Alice', 'David', 'Carol']
+        entries = [1, 0, 3, 2]
+        rows = ['1:3:A:G', '1:2:A:G', '1:0:A:G']
+
+        mt = mt.annotate_cols(s=hl.array(sample_ids)[mt.col_idx]).key_cols_by('s')
+        mt = mt.annotate_entries(e=hl.array(entries)[mt.col_idx])
+        mt = mt.annotate_rows(r=hl.array(rows)[mt.row_idx]).key_rows_by('r')
+
+        self.assertEqual(mt.s.collect(), sample_ids)
+        self.assertEqual(mt.s.take(1), [sample_ids[0]])
+        self.assertEqual(mt.e.collect(), entries * 3)
+        self.assertEqual(mt.e.take(1), [entries[0]])
+        self.assertEqual(mt.row_idx.collect(), [2, 1, 0])
+        self.assertEqual(mt.r.collect(), sorted(rows))
+        self.assertEqual(mt.r.take(1), [sorted(rows)[0]])
+
+        self.assertEqual(mt.cols().s.collect(), sorted(sample_ids))
+        self.assertEqual(mt.cols().s.take(1), [sorted(sample_ids)[0]])
+        self.assertEqual(mt.entries().e.collect(), sorted(entries) * 3)
+        self.assertEqual(mt.entries().e.take(1), [sorted(entries)[0]])
+        self.assertEqual(mt.rows().row_idx.collect(), [2, 1, 0])
+        self.assertEqual(mt.rows().r.collect(), sorted(rows))
+        self.assertEqual(mt.rows().r.take(1), [sorted(rows)[0]])
 
     def test_order_by(self):
         ht = hl.utils.range_table(10)

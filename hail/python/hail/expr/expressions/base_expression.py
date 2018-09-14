@@ -634,12 +634,12 @@ class Expression(object):
                         m = m.rename({field_name: name})
                     else:
                         m = source.select_cols(**{name: self})
-                    to_return = m.cols().select_globals()
+                    to_return = m.key_cols_by().cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self}).select_rows().select_cols()
-            to_return = source.entries().select_globals()
+            to_return = source.key_cols_by().entries().select_globals()
         assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
                                                     f'  Actual:    {self.dtype}\n' \
                                                     f'  Should be: {to_return[name].dtype}'
