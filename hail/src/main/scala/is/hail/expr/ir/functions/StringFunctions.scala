@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PString}
 import is.hail.utils._
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
@@ -154,7 +155,7 @@ object StringFunctions extends RegistryFunctions {
       val out: LocalRef[IndexedSeq[String]] = mb.newLocal[IndexedSeq[String]]
       val nout = new CodeNullable[IndexedSeq[String]](out)
 
-      val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(mb, TArray(TString()))
+      val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(mb, PArray(PString()))
       val len: LocalRef[Int] = mb.newLocal[Int]
       val elt: LocalRef[String] = mb.newLocal[String]
       val nelt = new CodeNullable[String](elt)

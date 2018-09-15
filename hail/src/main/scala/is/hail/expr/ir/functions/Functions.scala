@@ -162,7 +162,7 @@ abstract class RegistryFunctions {
       getRegion(mb).appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t)
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
       val alocal = mb.newLocal[IndexedSeq[Int]]
       val len = mb.newLocal[Int]
       val v = mb.newLocal[java.lang.Integer]
@@ -178,7 +178,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t)
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
       val alocal = mb.newLocal[IndexedSeq[String]]
       val len = mb.newLocal[Int]
       val v = mb.newLocal[java.lang.String]

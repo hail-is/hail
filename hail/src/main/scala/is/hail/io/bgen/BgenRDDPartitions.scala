@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader, OnDiskBTreeIndexToValue}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -178,7 +179,7 @@ object CompileDecoder {
     val cp = mb.getArg[BgenPartition](2).load()
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
-    val srvb = new StagedRegionValueBuilder(mb, settings.typ)
+    val srvb = new StagedRegionValueBuilder(mb, settings.pType)
     val fileRowIndex = mb.newLocal[Long]
     val varid = mb.newLocal[String]
     val rsid = mb.newLocal[String]
@@ -257,7 +258,7 @@ object CompileDecoder {
         }
       },
       srvb.start(),
-      srvb.addBaseStruct(settings.typ.types(settings.typ.fieldIdx("locus")).fundamentalType.asInstanceOf[TBaseStruct], { srvb =>
+      srvb.addBaseStruct(settings.pType.field("locus").typ.fundamentalType.asInstanceOf[PStruct], { srvb =>
         Code(
           srvb.start(),
           srvb.addString(contigRecoded),
@@ -271,7 +272,7 @@ object CompileDecoder {
           const("Only biallelic variants supported, found variant with ")
             .concat(nAlleles.toS)),
         Code._empty),
-      srvb.addArray(settings.typ.types(settings.typ.fieldIdx("alleles")).asInstanceOf[TArray], { srvb =>
+      srvb.addArray(settings.pType.field("alleles").typ.fundamentalType.asInstanceOf[PArray], { srvb =>
         Code(
           srvb.start(nAlleles),
           i := 0,
@@ -298,7 +299,7 @@ object CompileDecoder {
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.byteSize == 0)
           Code(
-            srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
               Code(
                 srvb.start(settings.nSamples),
                 i := 0,
@@ -397,14 +398,14 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
               Code(
                 srvb.start(settings.nSamples),
                 i := 0,
                 Code.whileLoop(i < settings.nSamples,
                   (data(i + 8) & 0x80).cne(0).mux(
                     srvb.setMissing(),
-                    srvb.addBaseStruct(settings.matrixType.entryType, { srvb =>
+                    srvb.addBaseStruct(settings.matrixType.entryType.physicalType , { srvb =>
                       Code(
                         srvb.start(),
                         off := const(settings.nSamples + 10) + i * 2,
@@ -431,7 +432,7 @@ object CompileDecoder {
                         } else Code._empty,
                         if (includeGP) {
                           Code(
-                            srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray], { srvb =>
+                            srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray].physicalType, { srvb =>
                               Code(
                                 srvb.start(3),
                                 srvb.addDouble(d0.toD / 255.0),

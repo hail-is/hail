@@ -803,12 +803,12 @@ object EmitPackDecoder {
     t match {
       case t2: TBaseStruct =>
         val requestedType2 = requestedType.asInstanceOf[TBaseStruct]
-        srvb.addBaseStruct(requestedType2, { srvb2 =>
+        srvb.addBaseStruct(requestedType2.physicalType, { srvb2 =>
           emitBaseStruct(t2, requestedType2, mb, in, srvb2)
         })
       case t2: TArray =>
         val requestedType2 = requestedType.asInstanceOf[TArray]
-        srvb.addArray(requestedType2, { srvb2 =>
+        srvb.addArray(requestedType2.physicalType, { srvb2 =>
           emitArray(t2, requestedType2, mb, in, srvb2)
         })
       case _: TBoolean => srvb.addBoolean(in.readBoolean())
@@ -824,7 +824,7 @@ object EmitPackDecoder {
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
     val in = mb.getArg[InputBuffer](2).load()
-    val srvb = new StagedRegionValueBuilder(mb, requestedType)
+    val srvb = new StagedRegionValueBuilder(mb, requestedType.physicalType)
 
     var c = t.fundamentalType match {
       case t: TBaseStruct =>

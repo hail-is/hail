@@ -1,28 +1,23 @@
 package is.hail.annotations
 
-import is.hail.asm4s.{AsmFunction2, Code, FunctionBuilder}
 import is.hail.asm4s.Code._
-import is.hail.asm4s._
-import is.hail.expr._
-import is.hail.expr.types._
+import is.hail.asm4s.{Code, FunctionBuilder, _}
+import is.hail.expr.types.physical._
 import is.hail.utils._
-import org.objectweb.asm.tree.{AbstractInsnNode, IincInsnNode}
 
-import scala.collection.generic.Growable
-import scala.reflect.ClassTag
 import scala.language.postfixOps
 
-class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var region: Code[Region], val pOffset: Code[Long]) {
+class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
 
-  private def this(mb: MethodBuilder, typ: Type, parent: StagedRegionValueBuilder) = {
+  private def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
   }
 
-  def this(fb: FunctionBuilder[_], rowType: Type) = {
+  def this(fb: FunctionBuilder[_], rowType: PType) = {
     this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), null)
   }
 
-  def this(mb: MethodBuilder, rowType: Type) = {
+  def this(mb: MethodBuilder, rowType: PType) = {
     this(mb, rowType, mb.getArg[Region](1), null)
   }
 
@@ -34,8 +29,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
 
   ftype match {
-    case t: TBaseStruct => elementsOffset = mb.newField[Long]
-    case t: TArray =>
+    case t: PBaseStruct => elementsOffset = mb.newField[Long]
+    case t: PArray =>
       elementsOffset = mb.newField[Long]
       idx = mb.newField[Int]
     case _ =>
@@ -47,17 +42,17 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def currentOffset: Code[Long] = {
     ftype match {
-      case _: TBaseStruct => elementsOffset
-      case _: TArray => elementsOffset
+      case _: PBaseStruct => elementsOffset
+      case _: PArray => elementsOffset
       case _ => startOffset
     }
   }
 
   def start(): Code[Unit] = {
-    assert(!ftype.isInstanceOf[TArray])
+    assert(!ftype.isInstanceOf[PArray])
     ftype match {
-      case _: TBaseStruct => start(true)
-      case _: TBinary =>
+      case _: PBaseStruct => start(true)
+      case _: PBinary =>
         assert(pOffset == null)
         startOffset := -1L
       case _ =>
@@ -66,7 +61,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   }
 
   def start(length: Code[Int], init: Boolean = true): Code[Unit] = {
-    val t = ftype.asInstanceOf[TArray]
+    val t = ftype.asInstanceOf[PArray]
     var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
     if (pOffset != null) {
       c = Code(c, region.storeAddress(pOffset, startOffset))
@@ -78,7 +73,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   }
 
   def start(init: Boolean): Code[Unit] = {
-    val t = ftype.asInstanceOf[TBaseStruct]
+    val t = ftype.asInstanceOf[PBaseStruct]
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
@@ -93,8 +88,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def setMissing(): Code[Unit] = {
     ftype match {
-      case t: TArray => t.setElementMissing(region, startOffset, idx)
-      case t: TBaseStruct =>
+      case t: PArray => t.setElementMissing(region, startOffset, idx)
+      case t: PBaseStruct =>
         if (t.fieldRequired(staticIdx))
           Code._fatal("Required field cannot be missing.")
         else
@@ -115,10 +110,10 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
   def allocateBinary(n: Code[Int]): Code[Long] = {
     val boff = mb.newField[Long]
     Code(
-      boff := TBinary.allocate(region, n),
+      boff := PBinary.allocate(region, n),
       region.storeInt(boff, n),
       ftype match {
-        case _: TBinary => _empty
+        case _: PBinary => _empty
         case _ =>
           region.storeAddress(currentOffset, boff)
       },
@@ -130,7 +125,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
     Code(
       boff := region.appendBinary(bytes),
       ftype match {
-        case _: TBinary =>
+        case _: PBinary =>
           startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
@@ -141,30 +136,30 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: Type, var
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
-  def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
+  def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
-  def addBaseStruct(t: TBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
+  def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
-  def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
-    case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
-    case _: TInt32 => v => addInt(v.asInstanceOf[Code[Int]])
-    case _: TInt64 => v => addLong(v.asInstanceOf[Code[Long]])
-    case _: TFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
-    case _: TFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
-    case _: TBaseStruct => v =>
+  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] = t.fundamentalType match {
+    case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case _: PInt32 => v => addInt(v.asInstanceOf[Code[Int]])
+    case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
+    case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
+    case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
+    case _: PBaseStruct => v =>
       region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case _: TArray => v => addAddress(v.asInstanceOf[Code[Long]])
-    case _: TBinary => v => addAddress(v.asInstanceOf[Code[Long]])
+    case _: PArray => v => addAddress(v.asInstanceOf[Code[Long]])
+    case _: PBinary => v => addAddress(v.asInstanceOf[Code[Long]])
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
   def advance(): Code[Unit] = {
     ftype match {
-      case t: TArray => Code(
+      case t: PArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
         idx := idx + 1
       )
-      case t: TBaseStruct =>
+      case t: PBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
           elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))

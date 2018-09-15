@@ -3,6 +3,7 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -15,7 +16,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rt = TString()
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     fb.emit(
       Code(
@@ -53,7 +54,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rt = TInt32()
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     fb.emit(
       Code(
@@ -90,7 +91,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rt = TArray(TInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, TArray(TInt32()))
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     fb.emit(
       Code(
@@ -112,7 +113,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -130,7 +131,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rt = TStruct("a" -> TString(), "b" -> TInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     fb.emit(
       Code(
@@ -172,7 +173,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString()))
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     val struct = { ssb: StagedRegionValueBuilder =>
       Code(
@@ -188,7 +189,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(2),
         Code.whileLoop(srvb.arrayIdx < 2,
           Code(
-            srvb.addBaseStruct(rt.elementType.asInstanceOf[TStruct], struct),
+            srvb.addBaseStruct(rt.physicalType.elementType.asInstanceOf[PStruct], struct),
             srvb.advance()
           )
         ),
@@ -236,7 +237,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val codeInput = fb.getArg[String](2)
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     val array = { sab: StagedRegionValueBuilder =>
       Code(
@@ -255,7 +256,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(),
         srvb.addString(codeInput),
         srvb.advance(),
-        srvb.addArray(TArray(TInt32()), array),
+        srvb.addArray(PArray(PInt32()), array),
         srvb.end()
       )
     )
@@ -301,7 +302,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val codeInput = fb.getArg[Int](2)
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
 
     fb.emit(
       Code(
@@ -345,16 +346,16 @@ class StagedRegionValueSuite extends SparkSuite {
   def testAddPrimitive() {
     val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64())
     val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
-    val srvb = new StagedRegionValueBuilder(fb, t)
+    val srvb = new StagedRegionValueBuilder(fb, t.physicalType)
 
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addIRIntermediate(TInt32())(fb.getArg[Int](2)),
+        srvb.addIRIntermediate(PInt32())(fb.getArg[Int](2)),
         srvb.advance(),
-        srvb.addIRIntermediate(TBoolean())(fb.getArg[Boolean](3)),
+        srvb.addIRIntermediate(PBoolean())(fb.getArg[Boolean](3)),
         srvb.advance(),
-        srvb.addIRIntermediate(TFloat64())(fb.getArg[Double](4)),
+        srvb.addIRIntermediate(PFloat64())(fb.getArg[Double](4)),
         srvb.advance(),
         srvb.end()
       )

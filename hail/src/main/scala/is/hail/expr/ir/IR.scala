@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
@@ -156,6 +156,8 @@ final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR
 final case class SelectFields(old: IR, fields: Seq[String]) extends InferIR
 final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends InferIR {
   override def typ: TStruct = coerce[TStruct](super.typ)
+
+  override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
 final case class GetField(o: IR, name: String) extends InferIR

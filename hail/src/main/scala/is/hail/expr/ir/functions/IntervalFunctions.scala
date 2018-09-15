@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
+import is.hail.expr.types.physical.PInterval
 import is.hail.expr.types.{TBoolean, TBooleanOptional, TInterval}
 import is.hail.utils._
 
@@ -12,17 +13,17 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T"))) {
       (mb, start, end, includeStart, includeEnd) =>
-        val srvb = new StagedRegionValueBuilder(mb, TInterval(tv("T").t))
+        val srvb = new StagedRegionValueBuilder(mb, PInterval(tv("T").t.physicalType))
         val missing = includeStart.m || includeEnd.m
         val value = Code(
           srvb.start(),
           start.m.mux(
             srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t)(start.v)),
+            srvb.addIRIntermediate(tv("T").t.physicalType)(start.v)),
           srvb.advance(),
           end.m.mux(
             srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t)(end.v)),
+            srvb.addIRIntermediate(tv("T").t.physicalType)(end.v)),
           srvb.advance(),
           srvb.addBoolean(includeStart.value[Boolean]),
           srvb.advance(),

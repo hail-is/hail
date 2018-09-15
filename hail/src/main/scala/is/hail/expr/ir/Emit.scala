@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.expr.ir.functions.MathFunctions
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -138,14 +139,14 @@ private class Emit(
     }
   }
 
-  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, Type, EmitTriplet) => Code[Unit]): Code[Unit] = {
+  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
     val opSize: Int = 20
     val items = irs.map { ir =>
       new EstimableEmitter[EmitMethodBuilderLike] {
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-          useValues(mbLike.mb, ir.typ, mbLike.emit.emit(ir, env))
+          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env))
       }
     }
 
@@ -316,9 +317,10 @@ private class Emit(
         }
 
       case MakeArray(args, typ) =>
-        val srvb = new StagedRegionValueBuilder(mb, typ)
-        val addElement = srvb.addIRIntermediate(typ.elementType)
-        val addElts = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+        val pType = typ.physicalType
+        val srvb = new StagedRegionValueBuilder(mb, pType)
+        val addElement = srvb.addIRIntermediate(pType.elementType)
+        val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), addElement(v.v)),
@@ -378,7 +380,7 @@ private class Emit(
           case ToSet(a) => (a, True(), false)
           case ToDict(a) => (a, True(), true)
         }
-        val atyp = coerce[TContainer](ir.typ)
+        val atyp = coerce[PContainer](ir.pType)
 
         val xAsc = mb.newLocal[Boolean]()
         val codeAsc = emit(ascending)
@@ -420,11 +422,11 @@ private class Emit(
 
       case GroupByKey(collection) =>
         //sort collection by group
-        val atyp = coerce[TArray](collection.typ)
-        val etyp = coerce[TBaseStruct](atyp.elementType)
+        val atyp = coerce[PArray](collection.pType)
+        val etyp = coerce[PBaseStruct](atyp.elementType)
         val ktyp = etyp.types(0)
         val vtyp = etyp.types(1)
-        val eltOut = coerce[TBaseStruct](coerce[TDict](ir.typ).elementType)
+        val eltOut = coerce[PDict](ir.pType).elementType
 
         val aout = emitArrayIterator(collection)
         val eab = new StagedArrayBuilder(etyp, mb, 16)
@@ -434,7 +436,7 @@ private class Emit(
           m.mux(eab.addMissing(), eab.add(v))
         }
 
-        val nab = new StagedArrayBuilder(TInt32(), mb, 16)
+        val nab = new StagedArrayBuilder(PInt32(), mb, 16)
         val i = mb.newLocal[Int]
 
         def loadKey(n: Code[Int]): Code[_] =
@@ -446,7 +448,7 @@ private class Emit(
         val isSame =
           sorter.equiv(region, (eab.isMissing(i - 1), eab(i - 1)), region, (eab.isMissing(i), eab(i)))
 
-        val srvb = new StagedRegionValueBuilder(mb, ir.typ)
+        val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
         val processArrayElts = aout.arrayEmitter(cont)
         EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
@@ -476,7 +478,7 @@ private class Emit(
                     structbuilder.start(),
                     structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
                     structbuilder.advance(),
-                    structbuilder.addArray(coerce[TArray](eltOut.types(1)), { arraybuilder =>
+                    structbuilder.addArray(coerce[PArray](eltOut.types(1)), { arraybuilder =>
                       Code(
                         arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
                         Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
@@ -496,8 +498,8 @@ private class Emit(
 
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan =>
-        val elt = coerce[TArray](ir.typ).elementType
-        val srvb = new StagedRegionValueBuilder(mb, ir.typ)
+        val elt = coerce[PArray](ir.pType).elementType
+        val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
         val aout = emitArrayIterator(ir)
         aout.length match {
@@ -695,8 +697,8 @@ private class Emit(
           Code._empty)
 
       case x@MakeStruct(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+        val srvb = new StagedRegionValueBuilder(mb, x.pType)
+        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -706,9 +708,9 @@ private class Emit(
 
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
-        val oldt = coerce[TStruct](oldStruct.typ)
+        val oldt = coerce[PStruct](oldStruct.pType)
         val oldv = mb.newField[Long]
-        val srvb = new StagedRegionValueBuilder(mb, x.typ)
+        val srvb = new StagedRegionValueBuilder(mb, x.pType)
 
         val addFields = fields.map { name =>
           new EstimableEmitter[EmitMethodBuilderLike] {
@@ -747,9 +749,9 @@ private class Emit(
               val codeOld = emit(old)
               val xo = mb.newField[Long]
               val updateMap = Map(fields: _*)
-              val srvb = new StagedRegionValueBuilder(mb, x.typ)
+              val srvb = new StagedRegionValueBuilder(mb, x.pType)
 
-              val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+              val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
                 Code(
                   v.setup,
                   v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -757,14 +759,14 @@ private class Emit(
               }
 
               val opSize: Int = 20
-              val items = x.typ.fields.map { f =>
+              val items = x.pType.fields.map { f =>
                 updateMap.get(f.name) match {
                   case Some(vir) =>
                     new EstimableEmitter[EmitMethodBuilderLike] {
                       def estimatedSize: Int = vir.size * opSize
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-                        addFields(mbLike.mb, vir.typ, mbLike.emit.emit(vir, env))
+                        addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env))
                     }
                   case None =>
                     new EstimableEmitter[EmitMethodBuilderLike] {
@@ -807,8 +809,8 @@ private class Emit(
           region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
       case x@MakeTuple(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.typ)
-        val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+        val srvb = new StagedRegionValueBuilder(mb, x.pType)
+        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -886,7 +888,7 @@ private class Emit(
           val mfield = mb.newField[Boolean]
           val vfield = mb.newField()(typeToTypeInfo(ir.typ))
 
-          val addFields = { (newMB: EmitMethodBuilder, t: Type, v: EmitTriplet) =>
+          val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
             Code(
               v.setup,
               mfield := v.m,

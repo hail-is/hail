@@ -149,7 +149,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, fetStruct)
+      val srvb = new StagedRegionValueBuilder(mb, fetStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
@@ -167,7 +167,7 @@ object MathFunctions extends RegistryFunctions {
     
     registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
@@ -181,7 +181,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
@@ -195,7 +195,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, hweStruct)
+      val srvb = new StagedRegionValueBuilder(mb, hweStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),
