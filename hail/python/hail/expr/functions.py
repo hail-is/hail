@@ -3353,7 +3353,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
     -------
     :class:`.SetExpression`
     """
-    return filter(lambda x: False, set([null(t)]))
+    return hl.set(empty_array(t))
 
 
 @typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
@@ -3404,7 +3404,8 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-    return filter(lambda x: False, array([null(t)]))
+    ir = MakeArray([], t)
+    return construct_expr(ir, t)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)

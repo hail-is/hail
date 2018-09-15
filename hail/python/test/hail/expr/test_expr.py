@@ -2061,3 +2061,9 @@ class Tests(unittest.TestCase):
         assert hl.is_nan(infinite).value == False
         assert hl.is_nan(nan).value == True
         assert hl.is_nan(na).value == None
+
+    def test_array_and_if_requiredness(self):
+        mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
+        hl.tuple((mt.AD, mt.PL)).show()
+        hl.array([mt.AD, mt.PL]).show()
+        hl.array([mt.AD, [1,2]]).show()

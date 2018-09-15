@@ -260,6 +260,10 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
+  def type_expr_opt: Parser[Option[Type]] = type_expr ^^ {
+    Some(_)
+  } | "None" ^^ { _ => None }
+
   def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ { case req ~ t => t.setRequired(req) }
 
   def _required_type: Parser[Boolean] = "+" ^^ { _ => true } | success(false)
@@ -536,7 +540,7 @@ object Parser extends JavaTokenParsers {
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
       "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
       "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
-      "MakeArray" ~> type_expr ~ ir_children ^^ { case t ~ args => ir.MakeArray(args, t.asInstanceOf[TArray]) } |
+      "MakeArray" ~> type_expr_opt ~ ir_children ^^ { case t ~ args => ir.MakeArray.unify(args, t.map(_.asInstanceOf[TArray]).orNull) } |
       "ArrayRef" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ i => ir.ArrayRef(a, i) } |
       "ArrayLen" ~> ir_value_expr ^^ { a => ir.ArrayLen(a) } |
       "ArrayRange" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |

@@ -356,7 +356,7 @@ class ApplyComparisonOp(IR):
 
 
 class MakeArray(IR):
-    @typecheck_method(args=sequenceof(IR), typ=hail_type)
+    @typecheck_method(args=sequenceof(IR), typ=nullable(hail_type))
     def __init__(self, args, typ):
         super().__init__(*args)
         self.args = args
@@ -367,7 +367,9 @@ class MakeArray(IR):
         return new_instance(list(args), self.typ)
 
     def render(self, r):
-        return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([r(x) for x in self.args]))
+        return '(MakeArray {} {})'.format(
+            self.typ._jtype.parsableString() if self.typ is not None else 'None',
+            ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \

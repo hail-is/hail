@@ -86,7 +86,37 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
 final case class ApplyComparisonOp(op: ComparisonOp, l: IR, r: IR) extends InferIR
 
-final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
+object MakeArray {
+  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
+    var t = typ
+    if (t == null) {
+      val typSet = args.map(_.typ).toSet
+      if (typSet.size == 1)
+        t = TArray(typSet.head)
+      else
+        t = TArray(args.head.typ.deepOptional())
+    } else
+      assert(t.elementType.deepOptional() == t.elementType ||
+        args.forall(a => a.typ == t.elementType),
+        s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
+
+    MakeArray(args.map { arg =>
+      if (arg.typ == t.elementType)
+        arg
+      else {
+        val upcast = PruneDeadFields.upcast(arg, t.elementType)
+        assert(upcast.typ == t.elementType)
+        upcast
+      }
+    }, t)
+  }
+}
+
+final case class MakeArray(args: Seq[IR], typ: TArray) extends IR {
+  assert(args.forall(a => a.typ == typ.elementType),
+    s"${ typ.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
+}
+
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
