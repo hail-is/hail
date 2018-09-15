@@ -32,7 +32,7 @@ buildScan {
 }
 
 String hailVersion = "devel"
-String[] deployedSparkVersions = new File("deployed-spark-versions.txt").absolutePath
+String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")
 String breezeVersion = System.getProperty("breeze.version")
