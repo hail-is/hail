@@ -391,7 +391,7 @@ class PLINKTests(unittest.TestCase):
 # qctool -g random.gen -s random.sample -bgen-bits 8 -og random.bgen
 #
 # random-a.bgen, random-b.bgen, random-c.bgen was generated as follows:
-# head -n 10 random-shuffled.gen > random-a.gen; head -n 20 random-shuffled.gen | tail -n 10 > random-b.gen; tail -n 10 random-shuffled.gen > random-c.gen
+# head -n 10 random.gen > random-a.gen; head -n 20 random.gen | tail -n 10 > random-b.gen; tail -n 10 random.gen > random-c.gen
 # qctool -g random-a.gen -s random.sample -og random-a.bgen -bgen-bits 8
 # qctool -g random-b.gen -s random.sample -og random-b.bgen -bgen-bits 8
 # qctool -g random-c.gen -s random.sample -og random-c.bgen -bgen-bits 8
