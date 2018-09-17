@@ -809,19 +809,19 @@ class OrderedRVD(
   def alignAndZipPartitions(
     newTyp: OrderedRVDType,
     that: OrderedRVD,
-    joinKey: TStruct
+    joinKey: Int
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
     require(newTyp.kType isPrefixOf this.typ.kType)
-    require(joinKey isPrefixOf this.typ.kType)
-    require(joinKey isPrefixOf that.typ.kType)
+    require(joinKey <= this.typ.key.length)
+    require(joinKey <= that.typ.key.length)
 
     val left = this.truncateKey(newTyp.key)
     OrderedRVD(
       typ = newTyp,
       partitioner = left.partitioner,
       crdd = left.crddBoundary.czipPartitions(
-        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey.size)).boundary
+        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey)).boundary
       )(zipper))
   }
 
