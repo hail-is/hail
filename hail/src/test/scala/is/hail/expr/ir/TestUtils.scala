@@ -35,7 +35,7 @@ object TestUtils {
     if (a == null)
       NA(TArray(TString()))
     else
-      MakeArray(a.map(s => Literal(s, TString())), TArray(TString()))
+      MakeArray(a.map(s => Literal.coerce(TString(), s)), TArray(TString()))
 
   def IRStringArray(a: String*): IR = toIRStringArray(a)
 

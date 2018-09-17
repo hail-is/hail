@@ -78,8 +78,7 @@ class PruneSuite extends SparkSuite {
           "3" -> TString(),
           "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
           "5" -> TString())),
-        FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")),
-        genUID()),
+        FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo"))),
       None)
   ).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
 

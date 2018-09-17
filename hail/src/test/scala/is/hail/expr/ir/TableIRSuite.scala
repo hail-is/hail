@@ -213,7 +213,7 @@ class TableIRSuite extends SparkSuite {
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
     val left = new Table(hc, TableKeyBy(
       TableParallelize(
-        Literal(TArray(leftType), leftData.map(leftProjectF.asInstanceOf[Row => Row]), genUID()),
+        Literal(TArray(leftType), leftData.map(leftProjectF.asInstanceOf[Row => Row])),
         Some(1)),
       if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedLeft = left.copy2(
@@ -223,7 +223,7 @@ class TableIRSuite extends SparkSuite {
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
     val right = new Table(hc, TableKeyBy(
       TableParallelize(
-        Literal(TArray(rightType), rightData.map(rightProjectF.asInstanceOf[Row => Row]), genUID()),
+        Literal(TArray(rightType), rightData.map(rightProjectF.asInstanceOf[Row => Row])),
         Some(1)),
       if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedRight = right.copy2(

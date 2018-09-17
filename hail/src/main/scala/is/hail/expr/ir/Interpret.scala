@@ -61,7 +61,7 @@ object Interpret {
       case Str(x) => x
       case True() => true
       case False() => false
-      case Literal(_, value, _) => value
+      case Literal(_, value) => value
       case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args, agg)

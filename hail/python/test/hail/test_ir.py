@@ -83,7 +83,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Apply('toFloat64', i),
             ir.Apply('isDefined', s),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
-            ir.Literal(hl.tint32, 20),
+            ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
         ]
 
         return value_irs

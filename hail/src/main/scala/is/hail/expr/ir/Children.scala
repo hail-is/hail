@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 
 object Children {
-  private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  private val none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def apply(x: IR): IndexedSeq[BaseIR] = x match {
     case I32(x) => none
@@ -13,7 +13,7 @@ object Children {
     case Str(x) => none
     case True() => none
     case False() => none
-    case Literal(_, _, _) => none
+    case Literal(_, _) => none
     case Void() => none
     case Cast(v, typ) =>
       Array(v)

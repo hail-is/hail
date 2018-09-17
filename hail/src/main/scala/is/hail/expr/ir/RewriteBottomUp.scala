@@ -15,8 +15,10 @@ object RewriteBottomUp {
           ast.copy(newChildren)
 
       rule(rewritten) match {
-        case Some(newAST) if newAST != rewritten =>
-          rewrite(newAST)
+        case Some(newAST) =>
+          if (newAST != rewritten)
+            rewrite(newAST)
+          else newAST
         case None =>
           rewritten
       }
