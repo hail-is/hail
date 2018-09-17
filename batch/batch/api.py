@@ -26,6 +26,11 @@ def get_job(url, job_id):
     r.raise_for_status()
     return r.json()
 
+def get_job_log(url, job_id):
+    r = requests.get(url + '/jobs/{}/log'.format(job_id))
+    r.raise_for_status()
+    return r.text
+
 def delete_job(url, job_id):
     r = requests.delete(url + '/jobs/{}/delete'.format(job_id))
     r.raise_for_status()

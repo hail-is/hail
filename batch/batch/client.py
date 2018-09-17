@@ -51,6 +51,9 @@ class Job(object):
         self.attributes = None
         self._status = None
 
+    def log(self):
+        return self.client._get_job_log(self.id)
+
 class Batch(object):
     def __init__(self, client, id):
         self.client = client
@@ -131,6 +134,9 @@ class BatchClient(object):
 
     def _get_job(self, id):
         return api.get_job(self.url, id)
+
+    def _get_job_log(self, id):
+        return api.get_job_log(self.url, id)
 
     def _delete_job(self, id):
         api.delete_job(self.url, id)

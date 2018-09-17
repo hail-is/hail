@@ -11,6 +11,12 @@ import kubernetes as kube
 import cerberus
 import requests
 
+if not os.path.exists('logs'):
+    os.mkdir('logs')
+else:
+    if not os.path.isdir('logs'):
+        raise OSError('logs exists but is not a directory')
+
 fmt = logging.Formatter(
     # NB: no space after levename because WARNING is so long
     '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
@@ -54,6 +60,13 @@ def next_id():
 pod_name_job = {}
 job_id_job = {}
 
+def _log_path(id):
+    return f'logs/job-{id}.log'
+
+def _read_file(p):
+    with open(p, 'r') as f:
+        return f.read()
+
 class Job(object):
     def _create_pod(self):
         assert not self._pod_name
@@ -75,6 +88,20 @@ class Job(object):
                     raise
             del pod_name_job[self._pod_name]
             self._pod_name = None
+
+    def _read_log(self):
+        if self._state == 'Created':
+            if self._pod_name:
+                try:
+                    return v1.read_namespaced_pod_log(self._pod_name, 'default')
+                except:
+                    pass
+        elif self._state == 'Complete':
+            p = _log_path(self.id)
+            return _read_file(p)
+        else:
+            assert self._state == 'Cancelled'
+            return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback):
         self.id = next_id()
@@ -137,11 +164,21 @@ class Job(object):
 
     def mark_complete(self, pod):
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
-        self.log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
+
+        pod_log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
+        p = _log_path(self.id)
+        with open(p, 'w') as f:
+            f.write(pod_log)
+        log.info(f'wrote log for job {self.id} to {p}')
+
+        if self._pod_name:
+            del pod_name_job[self._pod_name]
+            self._pod_name = None
+
+        self.set_state('Complete')
 
         log.info('job {} complete, exit_code {}'.format(
             self.id, self.exit_code))
-        self.set_state('Complete')
 
         if self.callback:
             def f(id, callback, json):
@@ -159,7 +196,9 @@ class Job(object):
         }
         if self._state == 'Complete':
             result['exit_code'] = self.exit_code
-            result['log'] = self.log
+        pod_log = self._read_log()
+        if pod_log:
+            result['log'] = pod_log
         if self.attributes:
             result['attributes'] = self.attributes
         return result
@@ -212,6 +251,23 @@ def get_job(job_id):
     if not job:
         abort(404)
     return jsonify(job.to_json())
+
+@app.route('/jobs/<int:job_id>/log', methods=['GET'])
+def get_job_log(job_id):
+    if job_id > counter:
+        abort(404)
+    
+    job = job_id_job.get(job_id)
+    if job:
+        job_log = job._read_log()
+        if job_log:
+            return job_log
+    else:
+        p = _log_path(job_id)
+        if os.path.exists(p):
+            return _read_file(p)
+
+    abort(404)
 
 @app.route('/jobs/<int:job_id>/delete', methods=['DELETE'])
 def delete_job(job_id):

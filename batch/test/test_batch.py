@@ -58,7 +58,10 @@ class Test(unittest.TestCase):
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 0)
+
         self.assertEqual(status['log'], 'test\n')
+        self.assertEqual(j.log(), 'test\n')
+
         self.assertTrue(j.is_complete())
 
     def test_attributes(self):
@@ -76,6 +79,13 @@ class Test(unittest.TestCase):
         j = self.batch.create_job('alpine', ['false'])
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
+
+    def test_deleted_job_log(self):
+        j = self.batch.create_job('alpine', ['echo', 'test'])
+        id = j.id
+        j.wait()
+        j.delete()
+        self.assertEqual(self.batch._get_job_log(id), 'test\n')
 
     def test_delete_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
@@ -97,8 +107,19 @@ class Test(unittest.TestCase):
         self.assertTrue(status['state'], 'Created')
 
         j.cancel()
+
         status = j.status()
         self.assertTrue(status['state'], 'Cancelled')
+        self.assertTrue('log' not in status)
+
+        # cancelled job has no log
+        try:
+            j.log()
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
 
     def test_get_nonexistent_job(self):
         try:
@@ -141,7 +162,6 @@ class Test(unittest.TestCase):
         j2.wait()
         j3.cancel()
         bstatus = b.wait()
-        print(bstatus)
 
         n_cancelled = bstatus['jobs']['Cancelled']
         n_complete = bstatus['jobs']['Complete']
