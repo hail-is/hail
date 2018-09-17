@@ -86,11 +86,11 @@ object IndexBgen {
 
     unionRVD.toRows.foreachPartition({ it =>
       val partIdx = TaskContext.get.partitionId()
-      val iw = new IndexWriter(sHadoopConfBc.value.value, outputFiles(partIdx), keyType, annotationType, attributes = attributes)
-      it.foreach { row =>
-        iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+      using(new IndexWriter(sHadoopConfBc.value.value, outputFiles(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
+        it.foreach { row =>
+          iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+        }
       }
-      iw.close()
     })
   }
 }

@@ -971,7 +971,7 @@ def import_bgen(path,
                                  f"\tFound: {variants.dtype}\n" +
                                   f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
             uid = Env.get_uid()
-            variants = variants._to_table_wout_keys(uid, resort=True)
+            variants = variants._to_table(uid)
             variants = variants.key_by(locus=variants[uid].locus, alleles=variants[uid].alleles).select()._jt
         elif isinstance(variants, Table):
             if variants.key.dtype != expected_vtype:
@@ -980,7 +980,7 @@ def import_bgen(path,
                                   f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
             variants = variants.select()._jt
         else:
-            assert(isinstance(variants, list))
+            assert isinstance(variants, list)
             try:
                 variants = hl.Table.parallelize(variants, schema=expected_vtype).key_by('locus', 'alleles')._jt
             except:

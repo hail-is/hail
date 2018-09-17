@@ -13,7 +13,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.fs.{FileStatus, FileSystem}
 import org.apache.spark.Partition
 import org.apache.spark.sql.Row
 
@@ -149,21 +149,30 @@ object LoadBgen {
   }
 
   def getAllFileStatuses(hConf: Configuration, files: Array[String]): Array[FileStatus] = {
-    var statuses = hConf.globAllStatuses(files)
-    statuses = statuses.flatMap { status =>
-      val file = status.getPath.toString
-      if (!file.endsWith(".bgen"))
-        warn(s"input file does not have .bgen extension: $file")
+    val badFiles = new ArrayBuilder[String]()
 
-      if (hConf.isDir(file))
-        hConf.listStatus(file)
-          .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
-      else
-        Array(status)
+    val statuses = files.flatMap { file =>
+      val matches = hConf.glob(file)
+      if (matches.isEmpty)
+        badFiles += file
+
+      matches.flatMap { status =>
+        val file = status.getPath.toString
+        if (!file.endsWith(".bgen"))
+          warn(s"input file does not have .bgen extension: $file")
+
+        if (hConf.isDir(file))
+          hConf.listStatus(file)
+            .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
+        else
+          Array(status)
+      }
     }
 
-    if (statuses.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
+    if (!badFiles.isEmpty)
+      fatal(
+        s"""The following paths refer to no files:
+            |  ${ badFiles.result().mkString("\n  ") }""".stripMargin)
 
     statuses
   }
@@ -205,14 +214,7 @@ object LoadBgen {
   }
 
   def getIndexFiles(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    def absolutePath(rel: String): String = {
-      val matches = hConf.glob(rel)
-      if (matches.length != 1)
-        fatal(s"""'import_bgen': invalid 'index_files' found. More than one match for path: $rel:
-                  |${ matches.mkString(",") }""".stripMargin)
-      val abs = matches(0).getPath.toString
-      abs
-    }
+    def absolutePath(rel: String): String = hConf.fileStatus(rel).getPath.toString
 
     val indexFileMapAbsolute = Option(indexFileMap).getOrElse(Map.empty[String, String]).map { case (f, index) => (absolutePath(f), absolutePath(index)) }
     val indexFiles = files.map(absolutePath).map(f => indexFileMapAbsolute.getOrElse(f, f + ".idx2"))

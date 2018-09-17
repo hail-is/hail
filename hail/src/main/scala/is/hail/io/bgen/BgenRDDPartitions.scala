@@ -127,7 +127,7 @@ object BgenRDDPartitions extends Logging {
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         using(IndexReader(hConf, file.indexPath)) { index =>
-          val nPartitions = fileNPartitions(fileIndex)
+          val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
           var i = 0
@@ -149,19 +149,11 @@ object BgenRDDPartitions extends Logging {
               sHadoopConfBc
             )
 
-            if (firstVariantIndex < file.nVariants && lastVariantIndex <= file.nVariants) {
-              rangeBounds += Interval(
+            rangeBounds += Interval(
                 index.queryByIndex(firstVariantIndex).key,
                 index.queryByIndex(lastVariantIndex - 1).key,
                 includesStart = true,
                 includesEnd = true) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
-            } else
-              rangeBounds += Interval(
-                index.queryByIndex(math.min(firstVariantIndex, file.nVariants - 1)).key,
-                index.queryByIndex(math.min(lastVariantIndex, file.nVariants - 1)).key,
-                includesStart = true,
-                includesEnd = false
-              )
 
             i += 1
           }

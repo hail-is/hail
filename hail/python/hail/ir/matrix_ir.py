@@ -115,7 +115,7 @@ class MatrixImportBGEN(MatrixIR):
             blockSizeInMB=self.block_size,
             includedVariants=self.included_variants,
             )
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'  # FIXME: How to put the requested type substituted for None
+        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):

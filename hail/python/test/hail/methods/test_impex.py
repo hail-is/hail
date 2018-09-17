@@ -676,7 +676,7 @@ class BGENTests(unittest.TestCase):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
                               n_partitions=210)
-        self.assertEqual(bgen.n_partitions(), 210) # testing more partitions than variants doesn't throw an error
+        self.assertEqual(bgen.n_partitions(), 199) # only 199 variants in the file
 
     def test_drop(self):
         hl.index_bgen(resource('example.8bits.bgen'),

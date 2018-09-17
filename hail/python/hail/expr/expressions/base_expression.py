@@ -581,14 +581,6 @@ class Expression(object):
                             f"of type '{self.dtype}' and '{other.dtype}'")
         return left._bin_op("!=", right, tbool)
 
-    def _to_table_wout_keys(self, name, resort=False):
-        t = self._to_table(name)
-        if resort:
-            t = t.key_by(name).select()
-        else:
-            t = t.key_by().select(name)
-        return t
-
     def _to_table(self, name):
         source = self._indices.source
         axes = self._indices.axes
