@@ -6,19 +6,12 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PInt64
-import is.hail.sparkextras._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
-import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
-
-import scala.reflect.ClassTag
+import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 
 object RVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
@@ -55,6 +48,36 @@ object RVDSpec {
         }
       }
     }
+  }
+
+  def writeLocal(
+    hc: HailContext,
+    path: String,
+    rowType: TStruct,
+    codecSpec: CodecSpec,
+    rows: IndexedSeq[Annotation]
+  ): Array[Long] = {
+    val hConf = hc.hadoopConf
+    hConf.mkDir(path + "/parts")
+
+    val part0Count =
+      hConf.writeFile(path + "/parts/part-0") { os =>
+        using(RVDContext.default) { ctx =>
+          val rvb = ctx.rvb
+          val region = ctx.region
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
+            rows.iterator.map { a =>
+              rvb.start(rowType)
+              rvb.addAnnotation(rowType, a)
+              RegionValue(region, rvb.end())
+            }, os)
+        }
+      }
+
+    val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
+    spec.write(hConf, path)
+
+    Array(part0Count)
   }
 }
 
@@ -102,72 +125,4 @@ case class OrderedRVDSpec(
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
     RVDSpec.readLocal(hc, path, orvdType.rowType, codecSpec, partFiles, requestedType)
-}
-
-case class PersistedRVRDD(
-  persistedRDD: RDD[Array[Byte]],
-  iterationRDD: ContextRDD[RVDContext, RegionValue])
-
-object RVD {
-  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, rows: IndexedSeq[Annotation]): Array[Long] = {
-    val hConf = hc.hadoopConf
-    hConf.mkDir(path + "/parts")
-
-    val part0Count =
-      hConf.writeFile(path + "/parts/part-0") { os =>
-        using(RVDContext.default) { ctx =>
-          val rvb = ctx.rvb
-          val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
-            rows.iterator.map { a =>
-              rvb.start(rowType)
-              rvb.addAnnotation(rowType, a)
-              RegionValue(region, rvb.end())
-            }, os)
-        }
-      }
-
-    val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
-    spec.write(hConf, path)
-
-    Array(part0Count)
-  }
-
-  def union(rvds: Seq[OrderedRVD]): OrderedRVD = rvds match {
-    case Seq(x) => x
-    case first +: _ =>
-      val sc = first.sparkContext
-      OrderedRVD.unkeyed(first.rowType, ContextRDD.union(sc, rvds.map(_.crdd)))
-  }
-
-  val memoryCodec = CodecSpec.defaultUncompressed
-
-  val wireCodec = memoryCodec
-
-  def regionValueToBytes(
-    makeEnc: OutputStream => Encoder,
-    ctx: RVDContext
-  )(rv: RegionValue
-  ): Array[Byte] =
-    using(new ByteArrayOutputStream()) { baos =>
-      using(makeEnc(baos)) { enc =>
-        enc.writeRegionValue(rv.region, rv.offset)
-        enc.flush()
-        ctx.region.clear()
-        baos.toByteArray
-      }
-    }
-
-  def bytesToRegionValue(
-    makeDec: InputStream => Decoder,
-    r: Region,
-    carrierRv: RegionValue
-  )(bytes: Array[Byte]
-  ): RegionValue =
-    using(new ByteArrayInputStream(bytes)) { bais =>
-      using(makeDec(bais)) { dec =>
-        carrierRv.setOffset(dec.readRegionValue(r))
-        carrierRv
-      }
-    }
 }

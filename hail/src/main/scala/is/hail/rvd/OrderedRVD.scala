@@ -44,50 +44,54 @@ class OrderedRVD(
 
   def rowType: TStruct = typ.rowType
 
-  private[rvd] def stabilize(
-    unstable: ContextRDD[RVDContext, RegionValue],
-    codec: CodecSpec = RVD.memoryCodec
-  ): ContextRDD[RVDContext, Array[Byte]] = {
+  def stabilize(codec: CodecSpec = OrderedRVD.memoryCodec): RDD[Array[Byte]] = {
     val enc = codec.buildEncoder(rowType)
-    unstable.cmapPartitions { (ctx, it) =>
-      it.map(RVD.regionValueToBytes(enc, ctx))
-    }
+    clearingRun(crdd.mapPartitions(_.map(_.toBytes(enc))))
   }
 
   private[rvd] def destabilize(
-    stable: ContextRDD[RVDContext, Array[Byte]],
-    codec: CodecSpec = RVD.memoryCodec
+    stable: RDD[Array[Byte]],
+    codec: CodecSpec = OrderedRVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
     val dec = codec.buildDecoder(rowType, rowType)
-    stable.cmapPartitions { (ctx, it) =>
+    ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
-      it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
+      it.map(RegionValue.fromBytes(dec, ctx.region, rv))
     }
   }
 
   private[rvd] def stably(
-    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
-  ): ContextRDD[RVDContext, RegionValue] = stably(crdd, f)
-
-  private[rvd] def stably(
-    unstable: ContextRDD[RVDContext, RegionValue],
-    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
-  ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize(unstable)))
+    f: RDD[Array[Byte]] => RDD[Array[Byte]]
+  ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize()))
 
   private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
     crdd.boundary
 
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
-    stabilize(crdd, codec).run
+    stabilize(codec)
 
-  def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = encodedRDD(codec).collect()
+  def keyedEncodedRDD(codec: CodecSpec): RDD[(Any, Array[Byte])] = {
+    val enc = codec.buildEncoder(rowType)
+    val kFieldIdx = typ.kFieldIdx
+    val rowPType = typ.rowType.physicalType
+
+    clearingRun(crdd.mapPartitions { it =>
+      it.map { rv =>
+        val keys: Any = SafeRow.selectFields(rowPType, rv)(kFieldIdx)
+        val bytes = rv.toBytes(enc)
+        (keys, bytes)
+      }
+    })
+  }
+
+  def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = stabilize(codec).collect()
 
   def collect(codec: CodecSpec): Array[Row] = {
     val dec = codec.buildDecoder(rowType, rowType)
     val encodedData = collectAsBytes(codec)
     Region.scoped { region =>
       encodedData.iterator
-        .map(RVD.bytesToRegionValue(dec, region, RegionValue(region)))
+        .map(RegionValue.fromBytes(dec, region, RegionValue(region)))
         .map { rv =>
           val row = SafeRow(rowType.physicalType, rv)
           region.clear()
@@ -283,8 +287,8 @@ class OrderedRVD(
     filter(p).head(1, None).collectAsBytes(codec).headOption
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
-    find(RVD.wireCodec, p).map(
-      RVD.bytesToRegionValue(RVD.wireCodec.buildDecoder(rowType, rowType), region, RegionValue(region)))
+    find(OrderedRVD.wireCodec, p).map(
+      RegionValue.fromBytes(OrderedRVD.wireCodec.buildDecoder(rowType, rowType), region, RegionValue(region)))
 
   def changeKey(newKey: IndexedSeq[String]): OrderedRVD =
     changeKey(newKey, newKey.length)
@@ -357,32 +361,16 @@ class OrderedRVD(
     )
   }
 
-  private def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
-    val localRowType = rowType
-
-    val makeEnc = RVD.memoryCodec.buildEncoder(localRowType)
-
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowType, localRowType)
-
-    // copy, persist region values
-    val persistedRDD = crdd.cmapPartitions { (ctx, it) =>
-      it.map(RVD.regionValueToBytes(makeEnc, ctx))
-    } .run
-      .persist(level)
-
-    PersistedRVRDD(persistedRDD,
-      ContextRDD.weaken[RVDContext](persistedRDD)
-        .cmapPartitions { (ctx, it) =>
-          val region = ctx.region
-          val rv = RegionValue(region)
-          it.map(RVD.bytesToRegionValue(makeDec, region, rv))
-        })
-  }
-
-  def storageLevel: StorageLevel = StorageLevel.NONE
+  def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
 
   def persist(level: StorageLevel): OrderedRVD = {
-    val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
+    val localRowType = rowType
+    val makeDec = OrderedRVD.memoryCodec.buildDecoder(localRowType, localRowType)
+
+    val persistedRDD = stabilize().persist(level)
+
+    val iterationRDD = destabilize(persistedRDD)
+
     new OrderedRVD(typ, partitioner, iterationRDD) {
       override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
 
@@ -402,9 +390,9 @@ class OrderedRVD(
     }
   }
 
-  def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
-
   def unpersist(): OrderedRVD = this
+
+  def storageLevel: StorageLevel = StorageLevel.NONE
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, stageLocally, codecSpec)
@@ -628,7 +616,7 @@ class OrderedRVD(
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = stably(_.shuffleCoalesce(maxPartitions))
+      val shuffled = stably(_.coalesce(maxPartitions, shuffle = true))
       val keyInfo = OrderedRVD.getKeyInfo(typ, typ.key.length, OrderedRVD.getKeys(typ, shuffled))
       if (keyInfo.isEmpty)
         return OrderedRVD.empty(sparkContext, typ)
@@ -933,6 +921,10 @@ class OrderedRVD(
 }
 
 object OrderedRVD {
+  val memoryCodec = CodecSpec.defaultUncompressed
+
+  val wireCodec = memoryCodec
+
   def empty(sc: SparkContext, typ: OrderedRVDType): OrderedRVD = {
     OrderedRVD(typ,
       OrderedRVDPartitioner.empty(typ),
@@ -1199,17 +1191,6 @@ object OrderedRVD {
     OrderedRVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions, partitionKey)
   }
 
-  def shuffle(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rvd: OrderedRVD
-  ): OrderedRVD = {
-    require(typ.rowType == rvd.rowType)
-    require(typ.kType isIsomorphicTo partitioner.kType)
-
-    shuffle(typ, partitioner, rvd.crdd)
-  }
-
   // Shuffles the data in 'crdd', producing an OrderedRVD with 'partitioner'.
   // WARNING: will drop any data with keys falling outside 'partitioner'.
   def shuffle(
@@ -1217,13 +1198,15 @@ object OrderedRVD {
     partitioner: OrderedRVDPartitioner,
     crdd: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = {
+    require(typ.kType isIsomorphicTo partitioner.kType)
+
     val localType = typ
     val rowPType = typ.rowType.physicalType
     val kOrdering = typ.kType.ordering
 
     val partBc = partitioner.broadcast(crdd.sparkContext)
-    val enc = RVD.wireCodec.buildEncoder(localType.rowType)
-    val dec = RVD.wireCodec.buildDecoder(localType.rowType, localType.rowType)
+    val enc = OrderedRVD.wireCodec.buildEncoder(localType.rowType)
+    val dec = OrderedRVD.wireCodec.buildDecoder(localType.rowType, localType.rowType)
 
     val shuffledCRDD = crdd
       .mapPartitions { it =>
@@ -1234,10 +1217,10 @@ object OrderedRVD {
           partBc.value.rangeTree.contains(kOrdering, key)
         }
       }
-      .cmapPartitions { (ctx, it) =>
+      .mapPartitions { it =>
         it.map { rv =>
           val keys: Any = SafeRow.selectFields(rowPType, rv)(localType.kFieldIdx)
-          val bytes = RVD.regionValueToBytes(enc, ctx)(rv)
+          val bytes = rv.toBytes(enc)
           (keys, bytes)
         }
       }
@@ -1247,7 +1230,7 @@ object OrderedRVD {
         val rv = RegionValue(region)
         it.map { case (k, bytes) =>
           assert(partBc.value.contains(i, k))
-          RVD.bytesToRegionValue(dec, region, rv)(bytes)
+          RegionValue.fromBytes(dec, region, rv)(bytes)
         }
       }
 
@@ -1266,7 +1249,7 @@ object OrderedRVD {
       partitioner,
       ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
         val rv = RegionValue()
-        it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
+        it.map(RegionValue.fromBytes(dec, ctx.region, rv))
       })
   }
 
@@ -1332,14 +1315,16 @@ object OrderedRVD {
       })
   }
 
-  def union(rvds: Seq[OrderedRVD], joinKey: Int): OrderedRVD = {
-    require(rvds.nonEmpty)
-    if (rvds.length == 1) rvds.head
-    else rvds.reduce(_.orderedMerge(_, joinKey))
+  def union(rvds: Seq[OrderedRVD], joinKey: Int): OrderedRVD = rvds match {
+    case Seq(x) => x
+    case first +: _ =>
+      if (joinKey == 0) {
+        val sc = first.sparkContext
+        OrderedRVD.unkeyed(first.rowType, ContextRDD.union(sc, rvds.map(_.crdd)))
+      } else
+        rvds.reduce(_.orderedMerge(_, joinKey))
   }
 
-  def union(rvds: Seq[OrderedRVD]): OrderedRVD = {
-    require(rvds.nonEmpty)
+  def union(rvds: Seq[OrderedRVD]): OrderedRVD =
     union(rvds, rvds.head.typ.key.length)
-  }
 }

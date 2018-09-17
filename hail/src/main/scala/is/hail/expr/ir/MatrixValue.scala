@@ -43,7 +43,7 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
+      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
 
       val colsSpec = TableSpec(
         FileFormat.version.rep,
@@ -62,9 +62,9 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
+      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
 
-      RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
+      RVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
 
       val globalsSpec = TableSpec(
         FileFormat.version.rep,

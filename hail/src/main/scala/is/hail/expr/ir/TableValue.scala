@@ -5,7 +5,7 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{OrderedRVD, RVD, RVDSpec}
+import is.hail.rvd.{OrderedRVD, RVDSpec}
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
@@ -67,7 +67,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: OrderedRVD) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    RVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
