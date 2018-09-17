@@ -140,7 +140,14 @@ def main(args):
         # Python 3 check_output returns a byte string that needs decoding
         hash = hash.decode() if sys.version_info >= (3, 0) else hash
     else:
-        hash = args.hash
+        hash_length = len(args.hash)
+        if hash_length < 12:
+            raise ValueError('--hash expects a 12 character git commit hash, received {}'.format(args.hash))
+        elif hash_length > 12:
+            print('--hash expects a 12 character git commit hash, I will truncate this longer hash to tweleve characters: {}'.format(args.hash))
+            hash = args.hash[0:12]
+        else:
+            hash = args.hash
 
     if not args.config_file:
         args.config_file = 'gs://hail-common/builds/{version}/config/hail-config-{version}-{hash}.json'.format(version=args.version, hash=hash)
