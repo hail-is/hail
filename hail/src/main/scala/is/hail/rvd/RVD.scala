@@ -146,15 +146,13 @@ object RVD {
   val wireCodec = memoryCodec
 
   def regionValueToBytes(
-    makeEnc: OutputStream => Encoder,
-    ctx: RVDContext
+    makeEnc: OutputStream => Encoder
   )(rv: RegionValue
   ): Array[Byte] =
     using(new ByteArrayOutputStream()) { baos =>
       using(makeEnc(baos)) { enc =>
         enc.writeRegionValue(rv.region, rv.offset)
         enc.flush()
-        ctx.region.clear()
         baos.toByteArray
       }
     }
@@ -180,34 +178,34 @@ trait RVD {
 
   def crdd: ContextRDD[RVDContext, RegionValue]
 
-  private[rvd] def stabilize(
+  def stabilize(
     unstable: ContextRDD[RVDContext, RegionValue],
     codec: CodecSpec = RVD.memoryCodec
-  ): ContextRDD[RVDContext, Array[Byte]] = {
+  ): RDD[Array[Byte]] = {
     val enc = codec.buildEncoder(rowType)
-    unstable.cmapPartitions { (ctx, it) =>
-      it.map(RVD.regionValueToBytes(enc, ctx))
-    }
+    clearingRun(unstable.cmapPartitions { (ctx, it) =>
+      it.map(RVD.regionValueToBytes(enc))
+    })
   }
 
   private[rvd] def destabilize(
-    stable: ContextRDD[RVDContext, Array[Byte]],
+    stable: RDD[Array[Byte]],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
     val dec = codec.buildDecoder(rowType, rowType)
-    stable.cmapPartitions { (ctx, it) =>
+    ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
       it.map(RVD.bytesToRegionValue(dec, ctx.region, rv))
     }
   }
 
   private[rvd] def stably(
-    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
+    f: RDD[Array[Byte]] => RDD[Array[Byte]]
   ): ContextRDD[RVDContext, RegionValue] = stably(crdd, f)
 
   private[rvd] def stably(
     unstable: ContextRDD[RVDContext, RegionValue],
-    f: ContextRDD[RVDContext, Array[Byte]] => ContextRDD[RVDContext, Array[Byte]]
+    f: RDD[Array[Byte]] => RDD[Array[Byte]]
   ): ContextRDD[RVDContext, RegionValue] = destabilize(f(stabilize(unstable)))
 
   private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
@@ -215,12 +213,9 @@ trait RVD {
 
   def boundary: RVD
 
-  def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
-    stabilize(crdd, codec).run
-
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): RVD
 
-  final def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = encodedRDD(codec).collect()
+  final def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = stabilize(rdd, codec).collect()
 
   final def collect(codec: CodecSpec): Array[Row] = {
     val dec = codec.buildDecoder(rowType, rowType)

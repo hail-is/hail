@@ -87,7 +87,7 @@ class UnpartitionedRVD private (val rowType: TStruct, val crdd: ContextRDD[RVDCo
     new UnpartitionedRVD(
       rowType,
       if (shuffle)
-        stably(_.shuffleCoalesce(maxPartitions))
+        stably(_.coalesce(maxPartitions, true))
       else
         crdd.noShuffleCoalesce(maxPartitions))
 
