@@ -298,7 +298,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
               }))
           assert(t2 == fullRowType)
 
-          rowsRVD.zipPartitionsWithIndex(requestedType.orvdType, rowsRVD.partitioner, entriesRVD, preservesPartitioning = true) { (i, ctx, it1, it2) =>
+          rowsRVD.zipPartitionsWithIndex(requestedType.orvdType, entriesRVD) { (i, ctx, it1, it2) =>
             val f = makeF(i)
             val region = ctx.region
             val rv3 = RegionValue(region)
@@ -1821,7 +1821,7 @@ case class MatrixAnnotateRowsTable(
         val rvRowType = child.typ.rvRowType.physicalType
         val kIndex = rvRowType.fieldIdx(child.typ.rowKey(0))
         val newMatrixType = child.typ.copy(rvRowType = newRVType)
-        val newRVD = prev.rvd.zipPartitionsPreservesPartitioning(
+        val newRVD = prev.rvd.zipPartitions(
           newMatrixType.orvdType,
           zipRDD
         ) { case (it, intervals) =>

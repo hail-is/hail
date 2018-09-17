@@ -772,7 +772,7 @@ class OrderedRVD(
     assert(partitioner == rdd2.partitioner)
 
     val localTyp = typ
-    zipPartitions(typ, partitioner, rdd2) { (ctx, it, it2) =>
+    zipPartitions(typ, rdd2) { (ctx, it, it2) =>
       new Iterator[RegionValue] {
         private val bit = it.buffered
         private val bit2 = it2.buffered
@@ -802,6 +802,56 @@ class OrderedRVD(
     }
   }
 
+  // Zipping
+
+  def zip(
+    newTyp: OrderedRVDType,
+    that: OrderedRVD
+  )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    boundary.crdd.czip(that.boundary.crdd)(zipper))
+
+  def zipPartitions(
+    newTyp: OrderedRVDType,
+    that: OrderedRVD
+  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    boundary.crdd.czipPartitions(that.boundary.crdd)(zipper))
+
+  def zipPartitions[T: ClassTag](
+    newTyp: OrderedRVDType,
+    that: ContextRDD[RVDContext, T]
+  )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    boundary.crdd.zipPartitions(that)(zipper))
+
+  def zipPartitionsAndContext(
+    newTyp: OrderedRVDType,
+    that: OrderedRVD
+  )(zipper: (RVDContext, RVDContext => Iterator[RegionValue], RVDContext => Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    crdd.czipPartitionsAndContext(that.crdd) { (ctx, lit, rit) =>
+      zipper(ctx, ctx => lit.flatMap(_ (ctx)), ctx => rit.flatMap(_ (ctx)))
+    }
+  )
+
+  def zipPartitionsWithIndex(
+    newTyp: OrderedRVDType,
+    that: OrderedRVD
+  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): OrderedRVD = OrderedRVD(
+    newTyp,
+    partitioner,
+    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd)(zipper))
+
   // New key type must be prefix of left key type. 'joinKey' must be prefix of
   // both left key and right key. 'zipper' must take all output key values from
   // left iterator, and be monotonic on left iterator (it can drop or duplicate
@@ -829,81 +879,6 @@ class OrderedRVD(
         RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey)).boundary
       )(zipper))
   }
-
-  // Zipping
-
-  def zip(
-    newTyp: OrderedRVDType,
-    that: OrderedRVD
-  )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
-  ): OrderedRVD = OrderedRVD(
-    newTyp,
-    partitioner,
-    this.crdd.czip(that.crdd, preservesPartitioning = true)(zipper))
-
-  def zipPartitionsAndContext(
-    newTyp: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD,
-    preservesPartitioning: Boolean = false
-  )(zipper: (RVDContext, RVDContext => Iterator[RegionValue], RVDContext => Iterator[RegionValue]) => Iterator[RegionValue]
-  ): OrderedRVD = OrderedRVD(
-    newTyp,
-    newPartitioner,
-    crdd.czipPartitionsAndContext(that.crdd, preservesPartitioning) { (ctx, lit, rit) =>
-      zipper(ctx, ctx => lit.flatMap(_ (ctx)), ctx => rit.flatMap(_ (ctx)))
-    }
-  )
-
-  def zipPartitionsPreservesPartitioning[T: ClassTag](
-    newTyp: OrderedRVDType,
-    that: ContextRDD[RVDContext, T]
-  )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
-  ): OrderedRVD = OrderedRVD(
-    newTyp,
-    partitioner,
-    crdd.zipPartitions(that)(zipper))
-
-  def zipPartitions(
-    newTyp: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD
-  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
-  ): OrderedRVD = zipPartitions(newTyp, newPartitioner, that, false)(zipper)
-
-  def zipPartitions(
-    newTyp: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD,
-    preservesPartitioning: Boolean
-  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
-  ): OrderedRVD = OrderedRVD(
-    newTyp,
-    newPartitioner,
-    boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper))
-
-  def zipPartitions[T: ClassTag](
-    that: OrderedRVD
-  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
-  ): ContextRDD[RVDContext, T] = zipPartitions(that, false)(zipper)
-
-  def zipPartitions[T: ClassTag](
-    that: OrderedRVD,
-    preservesPartitioning: Boolean
-  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
-  ): ContextRDD[RVDContext, T] =
-    boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper)
-
-  def zipPartitionsWithIndex(
-    newTyp: OrderedRVDType,
-    newPartitioner: OrderedRVDPartitioner,
-    that: OrderedRVD,
-    preservesPartitioning: Boolean
-  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
-  ): OrderedRVD = OrderedRVD(
-    newTyp,
-    newPartitioner,
-    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd, preservesPartitioning)(zipper))
 
   // Private
 
