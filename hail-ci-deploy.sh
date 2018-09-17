@@ -40,10 +40,6 @@ DISTRIBUTION=gs://hail-common/distributions/${BRANCH_TARGET_NAME}/Hail-${BRANCH_
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
 
-echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
-gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
-gsutil acl set public-read ${HASH_TARGET}
-
 # update website
 ## since we're non-interactive, we explicitly state the fingerprint for ci.hail.is
 mkdir -p ~/.ssh
@@ -77,3 +73,7 @@ ssh -i ${IDENTITY_FILE} \
     "rm -rf /var/www/html/docs/${BRANCH_TARGET_NAME} && \
      ln -s $DEST /var/www/html/docs/${BRANCH_TARGET_NAME} && \
      chgrp www-data $DEST /var/www/html/docs/${BRANCH_TARGET_NAME}"
+     
+echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
+gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+gsutil acl set public-read ${HASH_TARGET}
