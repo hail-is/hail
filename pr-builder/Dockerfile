@@ -11,9 +11,9 @@ RUN apk --no-cache add \
     curl \
     make \
     && \
-    pip --no-cache-dir install --upgrade \
-    twine \
-    wheel
+    pip2 --no-cache-dir install --upgrade twine wheel \
+    && \
+    pip3 --no-cache-dir install --upgrade twine wheel
 
 # this seems easier than getting the keys right for apt
 #
