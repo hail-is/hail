@@ -2041,8 +2041,8 @@ case class TableToMatrixTable(
       }
     }
 
-    val ordType = OrderedRVDType(rowKey ++ FastIndexedSeq(INDEX_UID), rowEntryStruct)
-    val ordTypeNoIndex = OrderedRVDType(rowKey, rowEntryStruct)
+    val ordType = OrderedRVDType(rowEntryStruct, rowKey ++ FastIndexedSeq(INDEX_UID))
+    val ordTypeNoIndex = OrderedRVDType(rowEntryStruct, rowKey)
     val ordered = rowEntryRVD.changeKey(ordType.key, rowKey.length)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)

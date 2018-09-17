@@ -9,7 +9,7 @@ import scala.collection.generic.Growable
 class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
   require(key <= rvd.typ.key.length && key >= 0)
   val realType: OrderedRVDType = rvd.typ
-  val virtType = new OrderedRVDType(realType.key.take(key), realType.rowType)
+  val virtType = OrderedRVDType(realType.rowType, realType.key.take(key))
   val (kType, _) = rvd.rowType.select(virtType.key)
 
   private def checkJoinCompatability(right: KeyedOrderedRVD) {

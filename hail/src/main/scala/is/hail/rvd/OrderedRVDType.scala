@@ -14,7 +14,7 @@ class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format =
   case orvdType: OrderedRVDType => JString(orvdType.toString)
 }))
 
-final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
+final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexedSeq())
   extends Serializable {
 
   val keySet: Set[String] = key.toSet
@@ -65,7 +65,7 @@ final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
     val (newRowPType, inserter) = rowType.physicalType.unsafeInsert(typeToInsert.physicalType, path)
     val newRowType = newRowPType.virtualType
 
-    (OrderedRVDType(key, newRowType.asInstanceOf[TStruct]), inserter)
+    (OrderedRVDType(newRowType.asInstanceOf[TStruct], key), inserter)
   }
 
   def toJSON: JValue =
@@ -88,7 +88,6 @@ final case class OrderedRVDType(key: IndexedSeq[String], rowType: TStruct)
 }
 
 object OrderedRVDType {
-
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
     t2: TStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
     require(fields1.length == fields2.length)
