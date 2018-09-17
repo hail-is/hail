@@ -46,7 +46,7 @@ class OrderedRVD(
 
   def stabilize(codec: CodecSpec = OrderedRVD.memoryCodec): RDD[Array[Byte]] = {
     val enc = codec.buildEncoder(rowType)
-    clearingRun(crdd.mapPartitions(_.map(_.toBytes(enc))))
+    crdd.mapPartitions(_.map(_.toBytes(enc))).clearingRun
   }
 
   private[rvd] def destabilize(
@@ -75,13 +75,13 @@ class OrderedRVD(
     val kFieldIdx = typ.kFieldIdx
     val rowPType = typ.rowType.physicalType
 
-    clearingRun(crdd.mapPartitions { it =>
+    crdd.mapPartitions { it =>
       it.map { rv =>
         val keys: Any = SafeRow.selectFields(rowPType, rv)(kFieldIdx)
         val bytes = rv.toBytes(enc)
         (keys, bytes)
       }
-    })
+    }.clearingRun
   }
 
   def collectAsBytes(codec: CodecSpec): Array[Array[Byte]] = stabilize(codec).collect()
@@ -117,16 +117,8 @@ class OrderedRVD(
     new OrderedRVD(newTyp, newPartitioner, crdd)
   }
 
-  // Only use on CRDD's whose T is not dependent on the context
-  private[rvd] def clearingRun[T: ClassTag](
-    crdd: ContextRDD[RVDContext, T]
-  ): RDD[T] = crdd.cmap { (ctx, v) =>
-    ctx.region.clear()
-    v
-  }.run
-
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] =
-    clearingRun(crdd.map(f))
+    crdd.map(f).clearingRun
 
   def map(newTyp: OrderedRVDType)(f: (RegionValue) => RegionValue): OrderedRVD = {
     require(newTyp.kType isPrefixOf typ.kType)
@@ -137,11 +129,11 @@ class OrderedRVD(
 
   def mapPartitions[T: ClassTag](
     f: (Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = clearingRun(crdd.mapPartitions(f))
+  ): RDD[T] = crdd.mapPartitions(f).clearingRun
 
   def mapPartitions[T: ClassTag](
     f: (RVDContext, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = clearingRun(crdd.cmapPartitions(f))
+  ): RDD[T] = crdd.cmapPartitions(f).clearingRun
 
   def mapPartitions(
     newTyp: OrderedRVDType
@@ -167,11 +159,11 @@ class OrderedRVD(
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
+  ): RDD[T] =  crdd.mapPartitionsWithIndex(f).clearingRun
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = clearingRun(crdd.cmapPartitionsWithIndex(f))
+  ): RDD[T] = crdd.cmapPartitionsWithIndex(f).clearingRun
 
   def mapPartitionsWithIndex(
     newTyp: OrderedRVDType
