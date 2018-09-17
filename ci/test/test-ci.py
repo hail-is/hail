@@ -1,4 +1,5 @@
 from http_helper import get_repo, post_repo, patch_repo
+from environment import INSTANCE_ID
 from pr import PR
 from subprocess import call, run
 import inspect
@@ -99,6 +100,32 @@ def dictKVMismatches(actual, kvs):
             elif actual_v != v:
                 errors[k] = f'{actual_v} != {v}'
     return errors
+
+
+class NoCleanUpTemporaryDirectory(object):
+    def __init__(self, f):
+        self.f = f
+
+    def __enter__(self):
+        return self.f
+
+    def __exit__(self, a, b, c):
+        return
+
+i = 0
+
+def tempdir():
+    in_cluster = os.environ.get("IN_CLUSTER")
+    if in_cluster and in_cluster == "true":
+        # for some reason, pytest does not work in a k8s pod using a temporary
+        # directory that is deleted when the test finishes
+        global i
+        path = f'/tmp/hail-ci-{INSTANCE_ID}-{i}'
+        i = i + 1
+        os.mkdir(path)
+        return NoCleanUpTemporaryDirectory(path)
+    else:
+        return tempfile.TemporaryDirectory()
 
 
 ###############################################################################
@@ -226,7 +253,7 @@ class TestCIAgainstGitHub(unittest.TestCase):
 
     def test_pull_request_trigger(self):
         BRANCH_NAME = 'test_pull_request_trigger'
-        with tempfile.TemporaryDirectory() as d:
+        with tempdir() as d:
             pr_number = None
             try:
                 status = ci_get('/status', status_code=200)
@@ -237,8 +264,10 @@ class TestCIAgainstGitHub(unittest.TestCase):
                                      'owner': 'hail-ci-test'},
                                     'name': 'master'}, True]])
                 os.chdir(d)
-                call(['git', 'clone', f'git@github.com:hail-ci-test/{self.repo_name}.git'])
+                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
                 os.chdir(self.repo_name)
+                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+                call(['git', 'config', 'user.name', 'ci-automated-tests'])
                 call(['git', 'remote', '-v'])
 
                 call(['git', 'checkout', '-b', BRANCH_NAME])
@@ -344,7 +373,7 @@ class TestCIAgainstGitHub(unittest.TestCase):
     def test_push_while_building(self):
         BRANCH_NAME = 'test_push_while_building'
         SLOW_BRANCH_NAME = 'test_push_while_building_slow'
-        with tempfile.TemporaryDirectory() as d:
+        with tempdir() as d:
             pr_number = {}
             source_sha = {}
             gh_pr = {}
@@ -358,8 +387,11 @@ class TestCIAgainstGitHub(unittest.TestCase):
                         'owner': 'hail-ci-test'},
                     'name': 'master'}, True]]
                 os.chdir(d)
-                call(['git', 'clone', f'git@github.com:hail-ci-test/{self.repo_name}.git'])
+
+                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
                 os.chdir(self.repo_name)
+                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+                call(['git', 'config', 'user.name', 'ci-automated-tests'])
                 call(['git', 'remote', '-v'])
 
                 # start slow branch
@@ -480,7 +512,7 @@ class TestCIAgainstGitHub(unittest.TestCase):
 
     def test_merges_approved_pr(self):
         BRANCH_NAME = 'test_merges_approved_pr'
-        with tempfile.TemporaryDirectory() as d:
+        with tempdir() as d:
             pr_number = None
             try:
                 status = ci_get('/status', status_code=200)
@@ -491,8 +523,10 @@ class TestCIAgainstGitHub(unittest.TestCase):
                         'owner': 'hail-ci-test'},
                     'name': 'master'}, True]]
                 os.chdir(d)
-                call(['git', 'clone', f'git@github.com:hail-ci-test/{self.repo_name}.git'])
+                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
                 os.chdir(self.repo_name)
+                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+                call(['git', 'config', 'user.name', 'ci-automated-tests'])
                 call(['git', 'remote', '-v'])
 
                 call(['git', 'checkout', '-b', BRANCH_NAME])

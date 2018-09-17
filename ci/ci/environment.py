@@ -42,7 +42,7 @@ except FileNotFoundError as e:
         "containing a string that is passed to `/bin/sh -c'") from e
 try:
     with open('oauth-token/oauth-token', 'r') as f:
-        oauth_token = f.read()
+        oauth_token = f.read().strip()
 except FileNotFoundError as e:
     raise ValueError(
         "working directory must contain `oauth-token/oauth-token' "
@@ -54,6 +54,5 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'WATCHED_TARGETS {[(ref.short_str(), deployable) for (ref, deployable) in WATCHED_TARGETS]}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'CONTEXT = {CONTEXT}')
-
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)
