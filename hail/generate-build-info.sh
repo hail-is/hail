@@ -16,4 +16,4 @@ echo_build_properties() {
 mkdir -p src/main/resources/
 
 echo_build_properties $1 $2 > "src/main/resources/build-info.properties"
-cp "src/main/resources/build-info.properties" "python/hail/build-info.properties"
+python scripts/parse_version_info.py src/main/resources/build-info.properties python/hail/_generated_version_info.py

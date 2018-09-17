@@ -9,7 +9,6 @@ from hail.utils.java import Env, joption, FatalError, connect_logger, install_ex
 
 import sys
 import os
-import configparser
 
 class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
@@ -261,12 +260,7 @@ def set_global_seed(seed):
 
     Env.set_seed(seed)
 
-def read_version_info() -> str:
-    this_dir = os.path.dirname(os.path.abspath(__file__))
-    properties_file = os.path.join(this_dir, 'build-info.properties')
-    config = configparser.ConfigParser()
-    files_read = config.read(properties_file)
-    assert len(files_read) == 1
 
-    m = config['Build Metadata']
-    return f"{m['hailVersion']}-{m['revision'][:12]}"
+def read_version_info() -> str:
+    from ._generated_version_info import hail_version
+    return hail_version
