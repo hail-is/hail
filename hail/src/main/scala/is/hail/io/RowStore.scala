@@ -97,6 +97,15 @@ trait CodecSpec extends Serializable {
 
   def buildDecoder(t: Type, requestedType: Type): (InputStream) => Decoder
 
+  // FIXME: is there a better place for this to live?
+  def decodeRDD(t: Type, bytes: RDD[Array[Byte]]): ContextRDD[RVDContext, RegionValue] = {
+    val dec = buildDecoder(t, t)
+    ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
+      val rv = RegionValue(ctx.region)
+      it.map(RegionValue.fromBytes(dec, ctx.region, rv))
+    }
+  }
+
   override def toString: String = {
     implicit val formats = RVDSpec.formats
     val jv = Extraction.decompose(this)
