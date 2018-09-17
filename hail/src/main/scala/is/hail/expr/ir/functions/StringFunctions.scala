@@ -109,11 +109,11 @@ object StringFunctions extends RegistryFunctions {
       ir.StringLength(s)
     }
 
-    registerCodeWithMissingness("str", tv("T"), TString()) { (mb, a) =>
+    registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()
-      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(mb, typ)(a.v))
+      val annotation = boxArg(mb, typ)(a)
       val str = mb.getType(typ).invoke[Any, String]("str", annotation)
-      EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
+      unwrapReturn(mb, TString())(str)
     }
 
     registerCodeWithMissingness("json", tv("T"), TString()) { (mb, a) =>
