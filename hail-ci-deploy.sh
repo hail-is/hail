@@ -2,11 +2,19 @@ set -ex
 
 cd hail
 
-gcloud auth activate-service-account \
-  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-
 SPARK_VERSION=2.2.0
 BRANCH=devel
+CLOUDTOOLS_VERSION=2
+HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+SHA=$(git rev-parse --short=12 HEAD)
+
+if [[ "${SHA}" == "$(gsutil cat ${HASH_TARGET})" ]]
+then
+    exit 0
+fi
+
+gcloud auth activate-service-account \
+  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
 
 source activate hail
 
@@ -17,7 +25,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
            makeDocs \
            createPackage \
            --gradle-user-home /gradle-cache
-SHA=$(git rev-parse --short=12 HEAD)
 
 # update jar, zip, and distribution
 GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
@@ -38,8 +45,6 @@ gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
 gsutil acl set public-read $CONFIG
 
 echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
-CLOUDTOOLS_VERSION=2
-HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
 gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
 gsutil acl set public-read ${HASH_TARGET}
 
