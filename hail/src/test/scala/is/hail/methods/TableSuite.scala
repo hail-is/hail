@@ -65,7 +65,6 @@ class TableSuite extends SparkSuite {
     sampleKT1.write(outputFile)
     val read = Table.read(hc, outputFile)
 
-    assert(read.rvd.isInstanceOf[OrderedRVD])
     assert(read.same(sampleKT1))
   }
 

@@ -474,7 +474,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     require(key.isDefined)
     val sorted = keyBy(key.get.toArray)
     sorted.copy2(
-      rvd = sorted.rvd.asInstanceOf[OrderedRVD].groupByKey(name),
+      rvd = sorted.rvd.groupByKey(name),
       signature = keySignature.get ++ TStruct(name -> TArray(valueSignature)))
   }
 

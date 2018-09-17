@@ -406,7 +406,7 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val prev = ht.value.rvd.asInstanceOf[OrderedRVD]
+    val prev = ht.value.rvd
 
     val annotations = prev
       .mapPartitions { it =>

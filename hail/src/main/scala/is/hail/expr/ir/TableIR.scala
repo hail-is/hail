@@ -464,8 +464,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       newGlobalType,
       leftTV.rvd.sparkContext)
 
-    val leftORVD = leftTV.rvd.asInstanceOf[OrderedRVD]
-    val rightORVD = rightTV.rvd.asInstanceOf[OrderedRVD]
+    val leftORVD = leftTV.rvd
+    val rightORVD = rightTV.rvd
     val joinedRVD = leftORVD.orderedJoin(
       rightORVD,
       joinKey,
@@ -499,8 +499,8 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
     leftValue.copy(
       typ = typ,
-      rvd = leftValue.rvd.asInstanceOf[OrderedRVD]
-        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.asInstanceOf[OrderedRVD], root))
+      rvd = leftValue.rvd
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd, root))
   }
 }
 
@@ -835,7 +835,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    prev.copy(rvd = prev.rvd.asInstanceOf[OrderedRVD].distinctByKey())
+    prev.copy(rvd = prev.rvd.distinctByKey())
   }
 }
 
@@ -1011,7 +1011,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    val prevRVD = prev.rvd.asInstanceOf[OrderedRVD]
+    val prevRVD = prev.rvd
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", child.typ.globalType,

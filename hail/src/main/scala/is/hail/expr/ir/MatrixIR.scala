@@ -258,7 +258,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
         val fullRowType = requestedType.rvRowType
         val localEntriesIndex = requestedType.entriesIdx
 
-        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType).asInstanceOf[OrderedRVD]
+        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType)
         if (mr.dropCols) {
           val (t2, makeF) = ir.Compile[Long, Long](
             "row", requestedType.rowType,
@@ -1879,7 +1879,6 @@ case class MatrixAnnotateRowsTable(
               ) ++ newKeyUIDs.zip(newKeys)),
             None))).execute(hc)
         val indexedRVD1 = mrt.rvd
-          .asInstanceOf[OrderedRVD]
           .zipWithIndex(indexUID, Some(partitionCounts))
         val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
 
@@ -1894,8 +1893,8 @@ case class MatrixAnnotateRowsTable(
                   .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
             newKeyUIDs)).execute(hc)
 
-        val left = sortedTL.rvd.asInstanceOf[OrderedRVD]
-        val right = tv.rvd.asInstanceOf[OrderedRVD]
+        val left = sortedTL.rvd
+        val right = tv.rvd
         val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
         val prevPartitioner = prev.rvd.partitioner
 
@@ -1904,7 +1903,7 @@ case class MatrixAnnotateRowsTable(
         val indexedPartitioner = prevPartitioner.copy(
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
         val oType = joined.typ.copy(key = prevRowKeys ++ Array(indexUID))
-        val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined)
+        val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined.crdd)
 
         val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
 
@@ -1920,7 +1919,7 @@ case class MatrixAnnotateRowsTable(
         assert(table.typ.keyType.isDefined)
         assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.get.types).forall { case (l, r) => l.isOfType(r) })
         val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
-          tv.rvd.asInstanceOf[OrderedRVD], root)
+          tv.rvd, root)
         prev.copy(typ = typ, rvd = newRVD)
     }
   }
@@ -2359,7 +2358,7 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
     val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
       ir.IsNA(field))
 
-    var rowOrvd = rowtab.rvd.asInstanceOf[OrderedRVD]
+    var rowOrvd = rowtab.rvd
     rowOrvd = rowOrvd.mapPartitionsWithIndexPreservesPartitioning(rowOrvd.typ) { (i, it) =>
       val missing = missingF(i)
       val len = lenF(i)
