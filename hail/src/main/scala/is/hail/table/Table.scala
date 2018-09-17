@@ -818,7 +818,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key.get(0))
-    val newOrderedRVType = OrderedRVDType(key.get, newRowType)
+    val newOrderedRVType = OrderedRVDType(newRowType, key.get)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD

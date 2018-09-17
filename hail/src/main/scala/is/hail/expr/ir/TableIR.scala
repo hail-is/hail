@@ -253,7 +253,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
       new OrderedRVD(
-        new OrderedRVDType(Array("idx"), typ.rowType),
+        OrderedRVDType(typ.rowType, Array("idx")),
         new OrderedRVDPartitioner(Array("idx"), typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -381,9 +381,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
   private val leftRVDType =
-    OrderedRVDType(left.typ.key.get.take(joinKey), left.typ.rowType)
+    OrderedRVDType(left.typ.rowType, left.typ.key.get.take(joinKey))
   private val rightRVDType =
-    OrderedRVDType(right.typ.key.get.take(joinKey), right.typ.rowType)
+    OrderedRVDType(right.typ.rowType, right.typ.key.get.take(joinKey))
 
   require(leftRVDType.rowType.fieldNames.toSet
     .intersect(rightRVDType.valueType.fieldNames.toSet)
@@ -471,7 +471,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey,
       joinType,
       rvMerger,
-      new OrderedRVDType(newKey, newRowType))
+      OrderedRVDType(newRowType, newKey))
 
     TableValue(typ, newGlobals, joinedRVD)
   }

@@ -144,10 +144,10 @@ class OrderedRVD(
   ): RDD[T] = clearingRun(crdd.cmapPartitions(f))
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsPreservesPartitioning(OrderedRVDType(IndexedSeq(), newRowType))(f)
+    mapPartitionsPreservesPartitioning(OrderedRVDType(newRowType))(f)
 
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsPreservesPartitioning(OrderedRVDType(IndexedSeq(), newRowType), f)
+    mapPartitionsPreservesPartitioning(OrderedRVDType(newRowType), f)
 
   def mapPartitionsPreservesPartitioning(
     newTyp: OrderedRVDType
@@ -172,7 +172,7 @@ class OrderedRVD(
   }
 
   def mapPartitionsWithIndex(newRowType: TStruct, f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(IndexedSeq(), newRowType), f)
+    mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(newRowType), f)
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, Iterator[RegionValue]) => Iterator[T]
@@ -732,9 +732,9 @@ class OrderedRVD(
   }
 
   def groupByKey(valuesField: String = "values"): OrderedRVD = {
-    val newTyp = new OrderedRVDType(
-      typ.key,
-      typ.kType ++ TStruct(valuesField -> TArray(typ.valueType)))
+    val newTyp = OrderedRVDType(
+      typ.kType ++ TStruct(valuesField -> TArray(typ.valueType)),
+      typ.key)
     val newRowType = newTyp.rowType
 
     val localType = typ
@@ -931,13 +931,11 @@ object OrderedRVD {
       ContextRDD.empty[RVDContext, RegionValue](sc))
   }
 
-  def unkeyed(typ: OrderedRVDType, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD = {
-    require(typ.key.isEmpty)
-    new OrderedRVD(typ, OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions), crdd)
-  }
-
   def unkeyed(rowType: TStruct, crdd: ContextRDD[RVDContext, RegionValue]): OrderedRVD =
-    unkeyed(OrderedRVDType(FastIndexedSeq(), rowType), crdd)
+    new OrderedRVD(
+      OrderedRVDType(rowType),
+      OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
+      crdd)
 
   /**
     * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each
@@ -1082,8 +1080,10 @@ object OrderedRVD {
     val sc = keys.sparkContext
 
     val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
-      def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
-        unkeyed(typ, crdd)
+      def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
+        assert(typ.key.isEmpty)
+        unkeyed(typ.rowType, crdd)
+      }
     }
 
     if (fullType.key.isEmpty)

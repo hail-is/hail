@@ -16,7 +16,7 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
 
   val keyOrEmpty: IndexedSeq[String] = key.getOrElse(IndexedSeq.empty)
   val keyOrNull: IndexedSeq[String] = key.orNull
-  val rvdType = OrderedRVDType(keyOrEmpty, rowType)
+  val rvdType = OrderedRVDType(rowType, keyOrEmpty)
 
   def env: Env[Type] = {
     Env.empty[Type]

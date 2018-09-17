@@ -85,9 +85,9 @@ case class MatrixType(
     TableType(resultStruct, Some(rowKey ++ colKey), globalType)
   }
 
-  def orvdType: OrderedRVDType = OrderedRVDType(rowKey, rvRowType)
+  def orvdType: OrderedRVDType = OrderedRVDType(rvRowType, rowKey)
 
-  def rowORVDType: OrderedRVDType = OrderedRVDType(rowKey, rowType)
+  def rowORVDType: OrderedRVDType = OrderedRVDType(rowType, rowKey)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
