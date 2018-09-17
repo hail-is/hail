@@ -174,7 +174,8 @@ def main(args):
                       init_script])
     # add VEP init script
     if args.vep:
-        conf.extend_flag('initialization-actions', ['gs://hail-common/vep/vep/vep85-init.sh'])
+        vep_init = 'gs://hail-common/vep/vep/vep85-loftee-init-docker.sh' if args.version == 'devel' else 'gs://hail-common/vep/vep/vep85-init.sh'
+        conf.extend_flag('initialization-actions', [vep_init])
     # add custom init scripts
     if args.init:
         conf.extend_flag('initialization-actions', args.init.split(','))
