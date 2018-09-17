@@ -1,21 +1,14 @@
 package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations._
-import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
+import is.hail.rvd.OrderedRVD
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.sql.Row
-import org.apache.spark.util.StatCounter
-import org.scalatest.Matchers.assert
 import org.testng.annotations.Test
-
-import scala.collection.mutable
 
 class TableSuite extends SparkSuite {
   def sampleKT1: Table = {

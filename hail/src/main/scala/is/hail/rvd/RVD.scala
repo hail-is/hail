@@ -137,7 +137,7 @@ object RVD {
     case Seq(x) => x
     case first +: _ =>
       val sc = first.sparkContext
-      UnpartitionedRVD(first.rowType, ContextRDD.union(sc, rvds.map(_.crdd)))
+      OrderedRVD.unkeyed(first.rowType, ContextRDD.union(sc, rvds.map(_.crdd)))
   }
 
   val memoryCodec = CodecSpec.defaultUncompressed
@@ -250,19 +250,19 @@ trait RVD {
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD
 
   def map(newRowType: TStruct)(f: (RegionValue) => RegionValue): RVD =
-    UnpartitionedRVD(newRowType, crdd.map(f))
+    OrderedRVD.unkeyed(newRowType, crdd.map(f))
 
   def mapWithContext[C](newRowType: TStruct)(makeContext: () => C)(f: (C, RegionValue) => RegionValue): RVD =
-    UnpartitionedRVD(newRowType, crdd.mapPartitions { it =>
+    OrderedRVD.unkeyed(newRowType, crdd.mapPartitions { it =>
       val c = makeContext()
       it.map { rv => f(c, rv) }
     })
 
   def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    UnpartitionedRVD(newRowType, crdd.mapPartitions(f))
+    OrderedRVD.unkeyed(newRowType, crdd.mapPartitions(f))
 
   def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    UnpartitionedRVD(newRowType, crdd.cmapPartitions(f))
+    OrderedRVD.unkeyed(newRowType, crdd.cmapPartitions(f))
 
   def find(codec: CodecSpec, p: (RegionValue) => Boolean): Option[Array[Byte]] =
     filter(p).head(1, None).collectAsBytes(codec).headOption
@@ -282,7 +282,7 @@ trait RVD {
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.map(f))
 
   def mapPartitionsWithIndex(newRowType: TStruct, f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): RVD =
-    UnpartitionedRVD(newRowType, crdd.cmapPartitionsWithIndex(f))
+    OrderedRVD.unkeyed(newRowType, crdd.cmapPartitionsWithIndex(f))
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
 
