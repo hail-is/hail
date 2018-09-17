@@ -225,7 +225,7 @@ case class MatrixValue(
       val localSortedColValues = sortedColValues.broadcast
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
-      rvd.constrainToOrderedPartitioner(rvd.partitioner.strictify).boundary
+      rvd.repartition(rvd.partitioner.strictify).boundary
         .mapPartitions(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb

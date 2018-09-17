@@ -1902,8 +1902,7 @@ case class MatrixAnnotateRowsTable(
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
-        val oType = joined.typ.copy(key = prevRowKeys ++ Array(indexUID))
-        val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined.crdd)
+        val rpJoined = joined.repartition(indexedPartitioner, shuffle = true)
 
         val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
 
