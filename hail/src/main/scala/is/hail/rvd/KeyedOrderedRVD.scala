@@ -60,7 +60,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
     repartitionedLeft.alignAndZipPartitions(
       joinedType.copy(key = joinedType.key.take(realType.key.length)),
       right.rvd,
-      kType
+      key
     ) { (ctx, leftIt, rightIt) =>
       val sideBuffer = ctx.freshContext.region
       joiner(
@@ -91,7 +91,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
     rvd.alignAndZipPartitions(
       joinedType,
       right.rvd,
-      kType
+      key
     ) { (ctx, leftIt, rightIt) =>
       joiner(
         ctx,
@@ -142,7 +142,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
     repartitionedLeft.alignAndZipPartitions(
       this.virtType,
       right.rvd,
-      kType
+      key
     ) { (ctx, leftIt, rightIt) =>
       OrderedRVIterator(lType, leftIt, ctx)
         .merge(OrderedRVIterator(rType, rightIt, ctx))
