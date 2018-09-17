@@ -3404,8 +3404,9 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-    ir = MakeArray([], t)
-    return construct_expr(ir, t)
+    array_t = hl.tarray(t)
+    ir = MakeArray([], array_t)
+    return construct_expr(ir, array_t)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
