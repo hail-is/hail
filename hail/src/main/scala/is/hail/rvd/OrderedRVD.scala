@@ -1139,17 +1139,14 @@ object OrderedRVD {
       info("Coerced sorted dataset")
 
       new RVDCoercer(fullType) {
-        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
-          val unfixedPartitioner = new OrderedRVDPartitioner(
-            None, typ.kType, bounds)
-          val newPartitioner = OrderedRVDPartitioner.generate(
-            fullType.key.take(partitionKey), fullType.kType, bounds)
-          val unfixedRVD = OrderedRVD(
-            typ,
-            unfixedPartitioner,
-            orderPartitions(crdd))
+        val unfixedPartitioner =
+          new OrderedRVDPartitioner(fullType.kType, bounds)
+        val newPartitioner = OrderedRVDPartitioner.generate(
+          fullType.key.take(partitionKey), fullType.kType, bounds)
 
-          unfixedRVD.repartition(newPartitioner)
+        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
+          OrderedRVD(typ, unfixedPartitioner, orderPartitions(crdd))
+            .repartition(newPartitioner, shuffle = false)
         }
       }
 
@@ -1157,25 +1154,24 @@ object OrderedRVD {
         && OrderedRVDPartitioner.isValid(fullType.kType.truncate(partitionKey), pkBounds)) {
 
       info("Coerced almost-sorted dataset")
-      val unfixedPartitioner = new OrderedRVDPartitioner(
-        fullType.kType.truncate(partitionKey),
-        pkBounds
-      )
-      val newPartitioner = OrderedRVDPartitioner.generate(
-        fullType.key.take(partitionKey),
-        fullType.kType.truncate(partitionKey),
-        pkBounds
-      )
 
       new RVDCoercer(fullType) {
+        val unfixedPartitioner = new OrderedRVDPartitioner(
+          fullType.kType.truncate(partitionKey),
+          pkBounds
+        )
+        val newPartitioner = OrderedRVDPartitioner.generate(
+          fullType.key.take(partitionKey),
+          fullType.kType.truncate(partitionKey),
+          pkBounds
+        )
+
         def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
-          val unfixedRVD = OrderedRVD(
+          OrderedRVD(
             typ.copy(key = typ.key.take(partitionKey)),
             unfixedPartitioner,
-            orderPartitions(crdd))
-
-          unfixedRVD
-            .repartition(newPartitioner)
+            orderPartitions(crdd)
+          ) .repartition(newPartitioner, shuffle = false)
             .localSort(typ.key)
         }
       }
@@ -1183,11 +1179,15 @@ object OrderedRVD {
     } else {
 
       info("Ordering unsorted dataset with network shuffle")
-      val partitioner = calculateKeyRanges(fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
       new RVDCoercer(fullType) {
-        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD =
-          shuffle(typ, partitioner, crdd)
+        val newPartitioner =
+          calculateKeyRanges(fullType, keyInfo, keys.getNumPartitions, partitionKey)
+
+        def _coerce(typ: OrderedRVDType, crdd: CRDD): OrderedRVD = {
+          OrderedRVD.unkeyed(typ.rowType, crdd)
+            .repartition(newPartitioner, shuffle = true)
+        }
       }
     }
   }
@@ -1211,7 +1211,7 @@ object OrderedRVD {
 
   // Shuffles the data in 'crdd', producing an OrderedRVD with 'partitioner'.
   // WARNING: will drop any data with keys falling outside 'partitioner'.
-  def shuffle(
+  private def shuffle(
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
     crdd: ContextRDD[RVDContext, RegionValue]
