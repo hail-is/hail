@@ -2,6 +2,8 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: batch-deployment
+  labels:
+    hail.is/sha: @sha@
 spec:
   selector:
     matchLabels:
