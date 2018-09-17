@@ -112,7 +112,7 @@ class OrderedRVD(
 
   def cast(newRowType: TStruct): OrderedRVD = {
     val nameMap = rowType.fieldNames.zip(newRowType.fieldNames).toMap
-    val newTyp = OrderedRVDType(newRowType, typ.key.map(k => nameMap(k)))
+    val newTyp = OrderedRVDType(newRowType, typ.key.map(nameMap))
     val newPartitioner = partitioner.rename(nameMap)
     new OrderedRVD(newTyp, newPartitioner, crdd)
   }
@@ -143,13 +143,7 @@ class OrderedRVD(
     f: (RVDContext, Iterator[RegionValue]) => Iterator[T]
   ): RDD[T] = clearingRun(crdd.cmapPartitions(f))
 
-  def mapPartitions(newRowType: TStruct)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsPreservesPartitioning(OrderedRVDType(newRowType))(f)
-
-  def mapPartitions(newRowType: TStruct, f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsPreservesPartitioning(OrderedRVDType(newRowType), f)
-
-  def mapPartitionsPreservesPartitioning(
+  def mapPartitions(
     newTyp: OrderedRVDType
   )(f: (Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
@@ -160,7 +154,7 @@ class OrderedRVD(
       crdd.mapPartitions(f))
   }
 
-  def mapPartitionsPreservesPartitioning(
+  def mapPartitions(
     newTyp: OrderedRVDType,
     f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
@@ -171,9 +165,6 @@ class OrderedRVD(
       crdd.cmapPartitions(f))
   }
 
-  def mapPartitionsWithIndex(newRowType: TStruct, f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
-    mapPartitionsWithIndexPreservesPartitioning(OrderedRVDType(newRowType), f)
-
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, Iterator[RegionValue]) => Iterator[T]
   ): RDD[T] = clearingRun(crdd.mapPartitionsWithIndex(f))
@@ -182,7 +173,7 @@ class OrderedRVD(
     f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[T]
   ): RDD[T] = clearingRun(crdd.cmapPartitionsWithIndex(f))
 
-  def mapPartitionsWithIndexPreservesPartitioning(
+  def mapPartitionsWithIndex(
     newTyp: OrderedRVDType
   )(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
@@ -193,7 +184,7 @@ class OrderedRVD(
       crdd.mapPartitionsWithIndex(f))
   }
 
-  def mapPartitionsWithIndexPreservesPartitioning(
+  def mapPartitionsWithIndex(
     newTyp: OrderedRVDType,
     f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = {
@@ -202,47 +193,6 @@ class OrderedRVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
       crdd.cmapPartitionsWithIndex(f))
-  }
-
-  def treeAggregate[U: ClassTag](zeroValue: U)(
-    seqOp: (U, RegionValue) => U,
-    combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
-      val u2 = seqOp(u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
-  }
-
-  def treeAggregateWithPartitionOp[PC, U: ClassTag](zeroValue: U)(
-    makePC: (Int, RVDContext) => PC,
-    seqOp: (PC, U, RegionValue) => U,
-    combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
-      val u2 = seqOp(pc, u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
-  }
-
-  def aggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U, makePC: (Int, RVDContext) => PC
-  )(seqOp: (PC, U, RegionValue) => Unit, combOp: (U, U) => U): U = {
-    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
-      val pc = makePC(i, ctx)
-      var comb = zeroValue
-      it.foreach { rv =>
-        seqOp(pc, comb, rv)
-        ctx.region.clear()
-      }
-      Iterator.single(comb)
-    }.fold(zeroValue, combOp)
   }
 
   def aggregate[U: ClassTag](
@@ -256,6 +206,52 @@ class OrderedRVD(
       u2
     }
     crdd.aggregate(zeroValue, clearingSeqOp, combOp)
+  }
+
+  def aggregateWithPartitionOp[PC, U: ClassTag](
+    zeroValue: U,
+    makePC: (Int, RVDContext) => PC
+  )(seqOp: (PC, U, RegionValue) => Unit,
+    combOp: (U, U) => U
+  ): U = {
+    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      val pc = makePC(i, ctx)
+      val comb = zeroValue
+      it.foreach { rv =>
+        seqOp(pc, comb, rv)
+        ctx.region.clear()
+      }
+      Iterator.single(comb)
+    }.fold(zeroValue, combOp)
+  }
+
+  def treeAggregate[U: ClassTag](
+    zeroValue: U
+  )(seqOp: (U, RegionValue) => U,
+    combOp: (U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
+      val u2 = seqOp(u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
+  }
+
+  def treeAggregateWithPartitionOp[PC, U: ClassTag](
+    zeroValue: U,
+    makePC: (Int, RVDContext) => PC
+  )(seqOp: (PC, U, RegionValue) => U,
+    combOp: (U, U) => U,
+    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
+  ): U = {
+    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
+      val u2 = seqOp(pc, u, rv)
+      ctx.region.clear()
+      u2
+    }
+    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
   }
 
   def count(): Long =
@@ -320,7 +316,7 @@ class OrderedRVD(
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): OrderedRVD = {
-    mapPartitionsWithIndexPreservesPartitioning(typ, { (i, context, it) =>
+    mapPartitionsWithIndex(typ, { (i, context, it) =>
       val c = makeContext(i, context)
       it.filter { rv =>
         if (f(c, rv))
@@ -671,7 +667,7 @@ class OrderedRVD(
     val kRowFieldIdx = typ.kFieldIdx
     val rowType = typ.rowType
 
-    mapPartitionsPreservesPartitioning(typ, { (ctx, it) =>
+    mapPartitions(typ, { (ctx, it) =>
       val kUR = new UnsafeRow(kPType)
       it.filter { rv =>
         ctx.rvb.start(kType)
@@ -784,7 +780,7 @@ class OrderedRVD(
   def distinctByKey(): OrderedRVD = {
     val localType = typ
     constrainToOrderedPartitioner(partitioner.strictify)
-      .mapPartitionsPreservesPartitioning(typ, (ctx, it) =>
+      .mapPartitions(typ, (ctx, it) =>
         OrderedRVIterator(localType, it, ctx)
           .staircase
           .map(_.value)

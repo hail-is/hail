@@ -179,7 +179,7 @@ case class MatrixValue(
       val localRowType = typ.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
-      rvd.mapPartitionsPreservesPartitioning(
+      rvd.mapPartitions(
         OrderedRVDType(typ.rowType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
@@ -226,7 +226,7 @@ case class MatrixValue(
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
       rvd.constrainToOrderedPartitioner(rvd.partitioner.strictify).boundary
-        .mapPartitionsPreservesPartitioning(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
+        .mapPartitions(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb
             val rv2 = RegionValue(ctx.region)
@@ -307,7 +307,7 @@ case class MatrixValue(
         newMatrixType,
         newGlobals,
         newColValues,
-        rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+        rvd.mapPartitions(newMatrixType.orvdType) { it =>
 
           val pc = makePartitionContext()
 
