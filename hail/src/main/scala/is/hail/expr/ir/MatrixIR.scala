@@ -1317,9 +1317,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
     }
 
     val newRVD = if (newKey.isDefined) {
-      OrderedRVD.coerce(
-        typ.orvdType,
-        prev.rvd.mapPartitionsWithIndex(typ.rvRowType, mapPartitionF))
+      prev.rvd.mapPartitionsWithIndex(typ.rvRowType, mapPartitionF).changeKey(typ.rowKey)
     } else {
       prev.rvd.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, mapPartitionF)
     }
@@ -2045,7 +2043,7 @@ case class TableToMatrixTable(
 
     val ordType = OrderedRVDType(rowKey ++ FastIndexedSeq(INDEX_UID), rowEntryStruct)
     val ordTypeNoIndex = OrderedRVDType(rowKey, rowEntryStruct)
-    val ordered = OrderedRVD.coerce(ordType, rowKey.length, rowEntryRVD)
+    val ordered = rowEntryRVD.changeKey(ordType.key, rowKey.length)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)
 

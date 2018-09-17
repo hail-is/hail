@@ -2,10 +2,12 @@ package is.hail.rvd
 
 import java.util
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PInt64
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -610,14 +612,14 @@ class OrderedRVD(
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: RVD
+    that: OrderedRVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = zipPartitions(newTyp, newPartitioner, that, false)(zipper)
 
   def zipPartitions(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: RVD,
+    that: OrderedRVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = OrderedRVD(
@@ -626,12 +628,12 @@ class OrderedRVD(
     boundary.crdd.czipPartitions(that.boundary.crdd, preservesPartitioning)(zipper))
 
   def zipPartitions[T: ClassTag](
-    that: RVD
+    that: OrderedRVD
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] = zipPartitions(that, false)(zipper)
 
   def zipPartitions[T: ClassTag](
-    that: RVD,
+    that: OrderedRVD,
     preservesPartitioning: Boolean
   )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[T]
   ): ContextRDD[RVDContext, T] =
@@ -641,7 +643,7 @@ class OrderedRVD(
   def zipPartitionsWithIndex(
     newTyp: OrderedRVDType,
     newPartitioner: OrderedRVDPartitioner,
-    that: RVD,
+    that: OrderedRVD,
     preservesPartitioning: Boolean
   )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
   ): OrderedRVD = OrderedRVD(
@@ -651,7 +653,7 @@ class OrderedRVD(
 
   def zip(
     newTyp: OrderedRVDType,
-    that: RVD
+    that: OrderedRVD
   )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
   ): OrderedRVD = OrderedRVD(
     newTyp,
@@ -692,10 +694,6 @@ class OrderedRVD(
     codecSpec: CodecSpec,
     stageLocally: Boolean
   ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
-
-  def toOldStyleRVD: RVD = this
-
-  override def toOrderedRVD: OrderedRVD = this
 }
 
 object OrderedRVD {
@@ -809,36 +807,6 @@ object OrderedRVD {
 
     keyInfo.sortBy(_.min)(typ.kType.ordering.toOrdering)
   }
-
-  def coerce(
-    typ: OrderedRVDType,
-    rvd: RVD
-  ): OrderedRVD = coerce(typ, rvd, None)
-
-  def coerce(
-    typ: OrderedRVDType,
-    partitionKey: Int,
-    rvd: RVD
-  ): OrderedRVD = coerce(typ, partitionKey, rvd, None)
-
-  def coerce(
-    typ: OrderedRVDType,
-    partitionKey: Int,
-    rvd: RVD,
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
-  ): OrderedRVD = coerce(typ, partitionKey, rvd.crdd, fastKeys)
-
-  def coerce(
-    typ: OrderedRVDType,
-    rvd: RVD,
-    fastKeys: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, rvd, Some(fastKeys))
-
-  def coerce(
-    typ: OrderedRVDType,
-    rvd: RVD,
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
-  ): OrderedRVD = coerce(typ, rvd.crdd, fastKeys)
 
   def coerce(
     typ: OrderedRVDType,
@@ -998,7 +966,7 @@ object OrderedRVD {
   def shuffle(
     typ: OrderedRVDType,
     partitioner: OrderedRVDPartitioner,
-    rvd: RVD
+    rvd: OrderedRVD
   ): OrderedRVD = {
     require(typ.rowType == rvd.rowType)
     require(typ.kType isIsomorphicTo partitioner.kType)
@@ -1049,12 +1017,6 @@ object OrderedRVD {
 
     OrderedRVD(typ, partitioner, shuffledCRDD)
   }
-
-  def apply(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    rvd: RVD
-  ): OrderedRVD = apply(typ, partitioner, rvd.crdd)
 
   def apply(
     typ: OrderedRVDType,

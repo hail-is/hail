@@ -59,7 +59,7 @@ object RVDSpec {
 }
 
 abstract class RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD
+  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row]
 
@@ -75,7 +75,7 @@ case class UnpartitionedRVDSpec(
   rowType: TStruct,
   codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD =
+  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD =
     OrderedRVD.unkeyed(
       requestedType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
@@ -447,8 +447,6 @@ trait RVD {
   }
 
   def subsetPartitions(keep: Array[Int]): RVD
-
-  def toOrderedRVD: OrderedRVD
 
   def cast(newRowType: TStruct): RVD
 }

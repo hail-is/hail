@@ -13,9 +13,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
-case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
+case class TableValue(typ: TableType, globals: BroadcastRow, rvd: OrderedRVD) {
   require(typ.rowType == rvd.rowType)
-  require(rvd.isInstanceOf[OrderedRVD])
   require(typ.key.forall(k => rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(k)))
 
   def rdd: RDD[Row] =
