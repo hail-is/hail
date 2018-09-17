@@ -201,7 +201,7 @@ object MatrixTable {
 
     val oldRowType = kt.signature
 
-    val rvd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
+    val rvd = kt.rvd.mapPartitions(OrderedRVDType(matrixType.rvRowType)) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -638,7 +638,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountCols(): Long = colValues.value.length
 
   def distinctByRow(): MatrixTable =
-    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ,
+    copy2(rvd = rvd.boundary.mapPartitions(rvd.typ,
       SortedDistinctRowIterator.transformer(rvd.typ)))
 
   def distinctByCol(): MatrixTable = {
@@ -836,7 +836,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
     val localEntryType = matrixType.entryType
 
-    val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
+    val orvd = rvd.mapPartitions(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       val fullRow = new UnsafeRow(localRVRowType.physicalType)

@@ -226,7 +226,7 @@ object LocalLDPrune {
   private def pruneLocal(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRVD = {
     val localRowType = inputRDD.typ.rowType
 
-    inputRDD.mapPartitionsPreservesPartitioning(inputRDD.typ, { (ctx, it) =>
+    inputRDD.mapPartitions(inputRDD.typ, { (ctx, it) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
       val bpvv = new BitPackedVectorView(localRowType)
@@ -287,7 +287,7 @@ object LocalLDPrune {
     val typ = mt.rvd.typ
 
     val standardizedRDD = mt.rvd
-      .mapPartitionsPreservesPartitioning(typ.copy(rowType = bpvType))({ it =>
+      .mapPartitions(typ.copy(rowType = bpvType))({ it =>
         val hcView = new HardCallView(fullRowType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -319,7 +319,7 @@ object LocalLDPrune {
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required),
       key = Some(mt.rowKey), globalType = TStruct.empty())
 
-    val sitesOnly = rvdLP.mapPartitionsPreservesPartitioning(
+    val sitesOnly = rvdLP.mapPartitions(
       typ.copy(rowType = tableType.rowType)
     )({ it =>
       val region = Region()

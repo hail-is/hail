@@ -68,7 +68,7 @@ object LogisticRegression {
     val newRVType = newRVPType.virtualType
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
-    val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+    val newRVD = vsm.rvd.mapPartitions(newMatrixType.orvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 

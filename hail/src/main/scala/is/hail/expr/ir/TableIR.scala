@@ -648,7 +648,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
 
     val newRVD = tv.rvd
       .truncateKey(tv.rvd.typ.key.take(typ.rvdType.key.length))
-      .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
+      .mapPartitionsWithIndex(typ.rvdType, itF)
 
     TableValue(typ, tv.globals, newRVD)
   }
@@ -739,7 +739,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
     }
 
     val adjKey = prev.rvd.truncateKey(prev.rvd.typ.key.takeWhile(_ != fieldName))
-    val newRVD = adjKey.boundary.mapPartitionsWithIndexPreservesPartitioning(
+    val newRVD = adjKey.boundary.mapPartitionsWithIndex(
       adjKey.typ.copy(rowType = rowType),
       itF)
 
@@ -1041,7 +1041,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val newRowType = typ.rowType
     val newOrvdType = prevRVD.typ.copy(rowType = newRowType)
 
-    val newRVD = prevRVD.boundary.mapPartitionsWithIndexPreservesPartitioning(newOrvdType, { (i, ctx, it) =>
+    val newRVD = prevRVD.boundary.mapPartitionsWithIndex(newOrvdType, { (i, ctx, it) =>
       val rvb = new RegionValueBuilder()
       val partRegion = ctx.freshContext.region
 
