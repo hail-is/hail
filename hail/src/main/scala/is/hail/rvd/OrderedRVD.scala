@@ -34,7 +34,7 @@ class OrderedRVD(
   val typ: OrderedRVDType,
   val partitioner: OrderedRVDPartitioner,
   val crdd: ContextRDD[RVDContext, RegionValue]
-) extends RVD {
+) {
   self =>
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
@@ -106,12 +106,20 @@ class OrderedRVD(
 
   def getNumPartitions: Int = crdd.getNumPartitions
 
-  override def cast(newRowType: TStruct): RVD = {
+  def cast(newRowType: TStruct): OrderedRVD = {
     val nameMap = rowType.fieldNames.zip(newRowType.fieldNames).toMap
     val newTyp = OrderedRVDType(typ.key.map(k => nameMap(k)), newRowType)
     val newPartitioner = partitioner.rename(nameMap)
     new OrderedRVD(newTyp, newPartitioner, crdd)
   }
+
+  // Only use on CRDD's whose T is not dependent on the context
+  private[rvd] def clearingRun[T: ClassTag](
+    crdd: ContextRDD[RVDContext, T]
+  ): RDD[T] = crdd.cmap { (ctx, v) =>
+    ctx.region.clear()
+    v
+  }.run
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] =
     clearingRun(crdd.map(f))
@@ -304,7 +312,7 @@ class OrderedRVD(
       partitioner = partitioner.coarsen(newKey.length))
   }
 
-  override def filter(p: (RegionValue) => Boolean): OrderedRVD =
+  def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ, partitioner, crddBoundary.filter(p))
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): OrderedRVD = {
@@ -394,9 +402,9 @@ class OrderedRVD(
     }
   }
 
-  override def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
+  def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
 
-  override def unpersist(): OrderedRVD = this
+  def unpersist(): OrderedRVD = this
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, stageLocally, codecSpec)
@@ -614,7 +622,7 @@ class OrderedRVD(
     blockCoalesce(newNParts.scanLeft(-1)(_ + _).tail)
   }
 
-  override def coalesce(maxPartitions: Int, shuffle: Boolean): OrderedRVD = {
+  def coalesce(maxPartitions: Int, shuffle: Boolean): OrderedRVD = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     val n = crdd.partitions.length
     if (!shuffle && maxPartitions >= n)
@@ -805,7 +813,7 @@ class OrderedRVD(
     OrderedRVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
-  override protected def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
+  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
     OrderedRVDSpec(
       typ,
       codecSpec,
