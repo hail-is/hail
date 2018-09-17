@@ -44,10 +44,6 @@ python ./create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
 gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
 gsutil acl set public-read $CONFIG
 
-echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
-gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
-gsutil acl set public-read ${HASH_TARGET}
-
 # update website
 ## since we're interactive, we explicitly state the fingerprint for ci.hail.is
 mkdir -p ~/.ssh
@@ -82,3 +78,6 @@ ssh -i ${IDENTITY_FILE} \
      ln -s $DEST /var/www/html/docs/${BRANCH} && \
      chgrp www-data $DEST /var/www/html/docs/${BRANCH}"
 
+echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
+gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+gsutil acl set public-read ${HASH_TARGET}
