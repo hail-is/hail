@@ -1,7 +1,7 @@
 build:
 	docker build . -t scorecard
 
-push:
+push: build
 	docker tag scorecard gcr.io/broad-ctsa/scorecard
 	docker push gcr.io/broad-ctsa/scorecard
 
@@ -12,4 +12,6 @@ run:
 	GITHUB_TOKEN_PATH=secrets/scorecard-github-access-token.txt python scorecard/scorecard.py
 
 deploy:
-	kubectl apply -f deployment.yaml
+	kubectl delete -f deployment.yaml
+	sleep 5
+	kubectl create -f deployment.yaml
