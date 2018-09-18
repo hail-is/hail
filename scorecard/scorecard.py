@@ -142,9 +142,10 @@ def get_user(user):
                 add_pr_to(repo_name, pr, state)
 
         for issue in repo.get_issues(state='open'):
-            assignees = [a.login for a in issue.assignees]
-            if user in assignees:
-                add_issue(repo_name, issue)
+            if issue.pull_request is None:
+                assignees = [a.login for a in issue.assignees]
+                if user in assignees:
+                    add_issue(repo_name, issue)
 
     print(data)
 
