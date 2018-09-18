@@ -137,7 +137,13 @@ object MathFunctions extends RegistryFunctions {
 
     registerJavaStaticFunction("isnan", TFloat32(), TBoolean())(jFloatClass, "isNaN")
     registerJavaStaticFunction("isnan", TFloat64(), TBoolean())(jDoubleClass, "isNaN")
-  
+
+    registerJavaStaticFunction("is_finite", TFloat32(), TBoolean())(jFloatClass, "isFinite")
+    registerJavaStaticFunction("is_finite", TFloat64(), TBoolean())(jDoubleClass, "isFinite")
+
+    registerJavaStaticFunction("is_infinite", TFloat32(), TBoolean())(jFloatClass, "isInfinite")
+    registerJavaStaticFunction("is_infinite", TFloat64(), TBoolean())(jDoubleClass, "isInfinite")
+
     registerJavaStaticFunction("sign", TInt32(), TInt32())(jIntegerClass, "signum")
     registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")

@@ -2036,3 +2036,24 @@ class Tests(unittest.TestCase):
     def test_cumulative_sum(self):
         self.assertValueEqual(hl.cumulative_sum([1, 2, 3, 4]), [1, 3, 6, 10], tarray(tint32))
         self.assertValueEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]), [1.0, 3.0, 6.0, 10.0], tarray(tfloat64))
+
+    def test_nan_inf_checks(self):
+        finite = 0
+        infinite = float('inf')
+        nan = math.nan
+        na = hl.null('float64')
+
+        assert hl.is_finite(finite).value == True
+        assert hl.is_finite(infinite).value == False
+        assert hl.is_finite(nan).value == False
+        assert hl.is_finite(na).value == None
+
+        assert hl.is_infinite(finite).value == False
+        assert hl.is_infinite(infinite).value == True
+        assert hl.is_infinite(nan).value == False
+        assert hl.is_infinite(na).value == None
+
+        assert hl.is_nan(finite).value == False
+        assert hl.is_nan(infinite).value == False
+        assert hl.is_nan(nan).value == True
+        assert hl.is_nan(na).value == None
