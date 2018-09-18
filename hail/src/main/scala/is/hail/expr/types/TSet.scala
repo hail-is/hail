@@ -54,4 +54,13 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
+    val set = a.asInstanceOf[Set[Any]]
+    sb.append('{')
+    set.foreachBetween({ elt => elementType._showStrNA(elt, cfg, sb) }) {
+      sb.append(',')
+    }
+    sb.append('}')
+  }
 }
