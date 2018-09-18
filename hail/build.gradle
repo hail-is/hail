@@ -96,7 +96,7 @@ sourceSets {
 }
 compileScala.dependsOn(nativeLib)
 test.dependsOn(nativeLibTest)
-clean.dependsOn(nativeLibClean)
+clean.dependsOn(nativeLibClean)	
 
 task testCppCodegen(type: Test) {
     useTestNG {}
@@ -109,9 +109,8 @@ task testCppCodegen(type: Test) {
         includeTestsMatching "is.hail.nativecode.NativeCode"
         includeTestsMatching "is.hail.annotations.AnnotationsSuite.testReadWrite"
         includeTestsMatching "is.hail.annotations.UnsafeSuite"
+        includeTestsMatching "is.hail.expr.ir.TableIRSuite.testShuffleAndJoinDoesntMemoryLeak"
         includeTestsMatching "is.hail.io.IndexSuite"
-        includeTestsMatching "is.hail.vds.JoinSuite"
-        includeTestsMatching "is.hail.UnsafeSuite"
     }
 
     // avoid stack overflow in lmmLargeExampleTest on some systems
