@@ -8,6 +8,7 @@ from environment import \
     WATCHED_TARGETS, \
     REFRESH_INTERVAL_IN_SECONDS
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from git_state import Repo, FQRef, FQSHA
 from github import open_pulls, overall_review_state, latest_sha_for_ref
 from google_storage import \
@@ -27,6 +28,7 @@ import time
 prs = PRS({k: v for [k, v] in WATCHED_TARGETS})
 
 app = Flask(__name__)
+CORS(app)
 
 
 @app.errorhandler(BadStatus)

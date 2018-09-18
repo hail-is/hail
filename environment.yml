@@ -8,3 +8,4 @@ dependencies:
 - pip
 - pip:
     - google-cloud-storage
+    - flask-cors
