@@ -1,0 +1,100 @@
+<html>
+  <header>
+    <title>Scorecard: User {{ user }}</title>
+    <style type="text/css">
+      td { padding: 0 20px 0 0; }
+      th { padding: 0 20px 0 0; }
+
+      #avatar {
+          float: left;
+          width: 44px;
+          height: 44px;
+          margin: 0 8px 0 0;
+          border-radius: 3px;
+      }
+      .grid-container {
+          display: inline-grid;
+          grid-template-columns: auto auto;
+      }
+    </style>
+  </header>
+  <body>
+    <div class="grid-container">
+      <div class="grid-item">
+	<p><img id="avatar" src="https://github.com/{{ user }}.png?s=88"></p>
+      </div>
+      
+      <div class="grid-item">
+	<p>Welcome to Scorecard, {{ user }}!</p>
+	
+	<h3>Needs Review</h3>
+	{% if data['NEEDS_REVIEW'] %}
+	<table>
+	  <thead>
+            <tr>
+              <th align="left">id</th>
+              <th align="left">title</th>
+            </tr>
+	  </thead>
+	  <tbody>
+	    {% for pr in data['NEEDS_REVIEW'] %}
+	    <tr>
+	      <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
+	      <td>{{ pr.title }}</td>
+	    </tr>
+	    {% endfor %}
+	  </tbody>
+	</table>
+	{% else %}
+	<p>No reviews needed.</p>
+	{% endif %}
+	
+	<h3>Changes Requested</h3>
+	{% if data['CHANGES_REQUIRED'] %}
+	<table>
+	  <thead>
+            <tr>
+              <th align="left">id</th>
+              <th align="left">title</th>
+            </tr>
+	  </thead>
+	  <tbody>
+	    {% for pr in data['CHANGES_REQUIRED'] %}
+	    <tr>
+	      <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
+	      <td>{{ pr.title }}</td>
+	    </tr>
+	    {% endfor %}
+	  </tbody>
+	</table>
+	{% else %}
+	<p>No changes requested.</p>
+	{% endif %}
+	
+	<h3>Issues</h3>
+	{% if data['ISSUES'] %}
+	<table>
+	  <thead>
+            <tr>
+              <th align="left">id</th>
+              <th align="left">title</th>
+            </tr>
+	  </thead>
+	  <tbody>
+	    {% for issue in data['ISSUES'] %}
+	    <tr>
+	      <td><a href="{{ issue.html_url }}">{{ issue.id }}</a></td>
+	      <td>{{ issue.title }}</td>
+	    </tr>
+	    {% endfor %}
+	  </tbody>
+	</table>
+	{% else %}
+	<p>No issues.</p>
+	{% endif %}
+	
+      </div>
+    </div>
+    
+  </body>
+</html>

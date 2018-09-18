@@ -31,13 +31,15 @@ def get_id(repo_name, number):
 def pr_template_data(repo_name, pr):
     return {
         'id': get_id(repo_name, pr.number),
+        'title': pr.title,
         'html_url': pr.html_url
     }
 
-def issue_template_data(repo_name, pr):
+def issue_template_data(repo_name, issue):
     return {
-        'id': get_id(repo_name, pr.number),
-        'html_url': pr.html_url
+        'id': get_id(repo_name, issue.number),
+        'title': issue.title,
+        'html_url': issue.html_url
     }
 
 @app.route('/')
@@ -94,12 +96,59 @@ def index():
         for issue in repo.get_issues(state='open'):
             add_issue(repo_name, issue)
 
-    print(unassigned, user_data)
-
     random_user = random.choice(users)
 
     return render_template('index.html', unassigned=unassigned,
                            user_data=user_data, random_user=random_user)
+
+@app.route('/users/<user>')
+def get_user(user):
+    data = {
+        'CHANGES_REQUESTED': [],
+        'NEEDS_REVIEW': [],
+        'ISSUES': []
+    }
+
+    def add_pr_to(repo_name, pr, col):
+        pr_data = pr_template_data(repo_name, pr)
+        data[col].append(pr_data)
+
+    def add_issue(repo_name, issue):
+        issue_data = issue_template_data(repo_name, issue)
+        data['ISSUES'].append(issue_data)
+
+    for repo_name, fq_repo in repos.items():
+        repo = github.get_repo(fq_repo)
+
+        for pr in repo.get_pulls(state='open'):
+            assignees = [a.login for a in pr.assignees]
+            if user not in assignees:
+                continue
+
+            state = 'NEEDS_REVIEW'
+            for review in pr.get_reviews():
+                if review.state == 'CHANGES_REQUESTED':
+                    state = review.state
+                    break
+                elif review.state == 'DISMISSED':
+                    break
+                elif review.state == 'APPROVED':
+                    state = 'APPROVED'
+                    break
+                else:
+                    assert review.state == 'COMMENTED'
+
+            if state != 'APPROVED':
+                add_pr_to(repo_name, pr, state)
+
+        for issue in repo.get_issues(state='open'):
+            assignees = [a.login for a in issue.assignees]
+            if user in assignees:
+                add_issue(repo_name, issue)
+
+    print(data)
+
+    return render_template('user.html', user=user, data=data)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')

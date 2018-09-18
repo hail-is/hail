@@ -12,51 +12,66 @@
           margin: 0 8px 0 0;
           border-radius: 3px;
       }
+      .grid-container {
+          display: inline-grid;
+          grid-template-columns: auto auto;
+      }
     </style>
   </header>
   <body>
-    <p>Scorecard!</p>
+    <div class="grid-container">
+      <div class="grid-item"></div>
+      <div class="grid-item">
+	<p>Scorecard!</p>
 
-    <table>
-      <thead>
-        <tr>
-          <th align="left">user</th>
-          <th align="left">needs review</th>
-          <th align="left">changes requested</th>
-          <th align="left">issues</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for user, d in user_data.items() %}
-        <tr>
-          <td align="left">{{ user }}</td>
-          <td align="left">
-            {% for pr in d['NEEDS_REVIEW'] %}
-            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+	<table>
+	  <thead>
+            <tr>
+              <th align="left">user</th>
+              <th align="left">needs review</th>
+              <th align="left">changes requested</th>
+              <th align="left">issues</th>
+            </tr>
+	  </thead>
+	  <tbody>
+            {% for user, d in user_data.items() %}
+            <tr>
+              <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
+              <td align="left">
+		{% for pr in d['NEEDS_REVIEW'] %}
+		<a href="{{ pr.html_url }}">{{ pr.id }}</a>
+ {% endfor %}
+              </td>
+              <td align="left">
+		{% for pr in d['CHANGES_REQUESTED'] %}
+		<a href="{{ pr.html_url }}">{{ pr.id }}</a>
+		{% endfor %}
+              </td>
+              <td align="left">
+		{% for issue in d['ISSUES'] %}
+		<a href="{{ issue.html_url }}">{{ issue.id }}</a>
+		{% endfor %}
+              </td>
+            </tr>
             {% endfor %}
-          </td>
-          <td align="left">
-            {% for pr in d['CHANGES_REQUESTED'] %}
-            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
-            {% endfor %}
-          </td>
-          <td align="left">
-            {% for issue in d['ISSUES'] %}
-            <a href="{{ issue.html_url }}">{{ issue.id }}</a>
-            {% endfor %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+	  </tbody>
+	</table>
 
-    <p>Unassigned:
-      {% for pr in unassigned %}
-      <a href="{{ pr.html_url }}">{{ pr.id }}</a>
-      {% endfor %}
-    </p>
-
-    <img id="avatar" src="https://github.com/{{ random_user }}.png?s=88"><p>Random user: {{ random_user }}</p>
-
+	<p>Unassigned:
+	  {% for pr in unassigned %}
+	  <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+	  {% endfor %}
+	</p>
+      </div>
+      
+      <div class="grid-item">
+	<p><img id="avatar" src="https://github.com/{{ random_user }}.png?s=88"></p>
+      </div>
+      
+      <div class="grid-item">
+	<p>Random user: {{ random_user }}</p>
+      </div>
+    </div>
+    
   </body>
 </html>
