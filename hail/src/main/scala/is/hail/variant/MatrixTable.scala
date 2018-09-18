@@ -1112,7 +1112,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             partSame
           }
         }
-      }.run.forall(t => t)
+      }.clearingRun.forall(t => t)
   }
 
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {

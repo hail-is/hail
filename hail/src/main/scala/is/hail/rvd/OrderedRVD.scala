@@ -572,10 +572,10 @@ class OrderedRVD(
   }
 
   def forall(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).run.forall(x => x)
+    crdd.map(p).clearingRun.forall(x => x)
 
   def exists(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).run.exists(x => x)
+    crdd.map(p).clearingRun.exists(x => x)
 
   def count(): Long =
     crdd.cmapPartitions { (ctx, it) =>
