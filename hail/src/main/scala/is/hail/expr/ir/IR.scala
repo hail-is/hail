@@ -112,10 +112,7 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], typ: TArray) extends IR {
-  assert(args.forall(a => a.typ == typ.elementType),
-    s"${ typ.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
-}
+final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
 
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }

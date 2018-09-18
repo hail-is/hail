@@ -71,13 +71,12 @@ object TypeCheck {
         assert(op.t2.fundamentalType == r.typ.fundamentalType)
         assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
-        if (args.length == 0)
-          assert(typ != null)
-        else {
-          args.foreach(check(_))
-          val t = args.head.typ
-          args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x.isOfType(t), s"at position $i type mismatch: $t $x") }
-          assert(x.typ == TArray(t))
+        assert(typ != null)
+        assert(args.forall(a => a.typ == typ.elementType),
+          s"${ typ.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
+        args.foreach(check(_))
+        args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == typ.elementType,
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@ArrayRef(a, i) =>
         check(a)
