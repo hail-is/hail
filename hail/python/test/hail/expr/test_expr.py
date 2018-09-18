@@ -722,6 +722,10 @@ class Tests(unittest.TestCase):
         self.assertFalse(s_whitespace.startswith('a').value)
         self.assertFalse(s_whitespace.endswith('a').value)
 
+    def test_str_missingness(self):
+        self.assertEqual(hl.str(1).value, '1')
+        self.assertEqual(hl.str(hl.null('int32')).value, None)
+
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)

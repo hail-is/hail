@@ -85,7 +85,7 @@ class StringFunctionsSuite extends TestNGSuite {
 
     @Test(dataProvider = "str")
     def str(annotation: IR, typ: Type) {
-      assertEvalsTo(invoke("str", annotation), typ.str(eval(annotation)))
+      assertEvalsTo(invoke("str", annotation), {val a = eval(annotation); if (a == null) null else typ.str(a) })
     }
 
     @Test(dataProvider = "str")
