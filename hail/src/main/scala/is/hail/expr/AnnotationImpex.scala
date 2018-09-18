@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
@@ -278,11 +279,11 @@ object TableAnnotationImpex {
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
       case _: TString => a
-      case _: TInt32 => a.toInt
-      case _: TInt64 => a.toLong
-      case _: TFloat32 => a.toFloat
-      case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
-      case _: TBoolean => a.toBoolean
+      case _: TInt32 => UtilFunctions.parseInt32(a)
+      case _: TInt64 => UtilFunctions.parseInt64(a)
+      case _: TFloat32 => UtilFunctions.parseFloat32(a)
+      case _: TFloat64 => UtilFunctions.parseInt64(a)
+      case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
       case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
