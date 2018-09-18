@@ -15,6 +15,6 @@ dependencies:
 - pytest=3.8.0
 - pip:
     - parsimonious==0.8.0
-    - ipykernel=4.9.0
-    - pytest-xdist=1.22.2
+    - ipykernel==4.9.0
+    - pytest-xdist==1.22.2
     - decorator==4.3.0

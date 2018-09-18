@@ -10,5 +10,5 @@ dependencies:
 - pip=18.0
 - pip:
     - parsimonious==0.8.0
-    - ipykernel=4.9.0
+    - ipykernel==4.9.0
     - decorator==4.3.0
