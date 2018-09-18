@@ -31,6 +31,10 @@ UpcallConfig::UpcallConfig() {
   InputStream_close_ = env->GetMethodID(cl1, "close", "()V");
   InputStream_read_  = env->GetMethodID(cl1, "read", "([BII)I");
   InputStream_skip_  = env->GetMethodID(cl1, "skip", "(J)J");
+  // InputBuffer method[s (minimal set)
+  auto cl2 = env->FindClass("is/hail/io/InputBuffer");
+  InputBuffer_close_ = env->GetMethodID(cl2, "close", "()V");
+  InputBuffer_readToEndOfBlock_ = env->GetMethodID(cl2, "readToEndOfBlock", "(J[BII)I");
 }
 
 namespace {
@@ -104,4 +108,21 @@ void UpcallEnv::error(const std::string& msg) {
   env_->DeleteLocalRef(msgJ);
 }
 
-} // end hail
+// InputBuffer
+
+void UpcallEnv::InputBuffer_close(jobject obj) {
+  env_->CallVoidMethod(obj, config_->InputBuffer_close_);
+}
+
+int32_t UpcallEnv::InputBuffer_readToEndOfBlock(
+  jobject obj,
+  void* toAddr,
+  jbyteArray buf,
+  int32_t off,
+  int32_t n
+) {
+  return env_->CallIntMethod(obj, config_->InputBuffer_readToEndOfBlock_,
+                             (jlong)toAddr, buf, (jint)off, (jint)n);
+}
+
+} // namespace hail
