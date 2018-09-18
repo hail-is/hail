@@ -75,7 +75,7 @@ object TypeCheck {
         assert(args.forall(a => a.typ == typ.elementType),
           s"${ typ.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
         args.foreach(check(_))
-        args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == typ.elementType,
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@ArrayRef(a, i) =>
