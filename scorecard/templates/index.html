@@ -40,7 +40,7 @@
               <td align="left">
 		{% for pr in d['NEEDS_REVIEW'] %}
 		<a href="{{ pr.html_url }}">{{ pr.id }}</a>
- {% endfor %}
+		{% endfor %}
               </td>
               <td align="left">
 		{% for pr in d['CHANGES_REQUESTED'] %}
