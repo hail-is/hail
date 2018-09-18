@@ -1,24 +1,42 @@
+import os
 from flask import Flask, render_template, request, jsonify, abort, url_for
 from github import Github
 import random
 
-github = Github('3a1d3bea64788b0694a1b038a4d98325af3a536f')
+GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
+                                   '/secrets/scorecard-github-access-token.txt')
+with open(GITHUB_TOKEN_PATH, 'r') as f:
+    token = f.read().strip()
+github = Github(token)
 
-users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'maccum', 'rcownie', 'chrisvittal']
+users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'rcownie', 'chrisvittal']
 
-hail_repo = github.get_repo('hail-is/hail')
+default_repo = 'hail'
+repos = {
+    'hail': 'hail-is/hail',
+    'batch': 'hail-is/batch',
+    'ci': 'hail-is/hail',
+    'scorecard': 'hail-is/scorecard',
+    'cloudtools': 'Nealelab/cloudtools'
+}
 
 app = Flask('scorecard')
 
-def pr_template_data(pr):
+def get_id(repo_name, number):
+    if repo_name == default_repo:
+        return f'{number}'
+    else:
+        return f'{repo_name}/{number}'
+
+def pr_template_data(repo_name, pr):
     return {
-        'id': pr.number,
+        'id': get_id(repo_name, pr.number),
         'html_url': pr.html_url
     }
 
-def issue_template_data(pr):
+def issue_template_data(repo_name, pr):
     return {
-        'id': pr.number,
+        'id': get_id(repo_name, pr.number),
         'html_url': pr.html_url
     }
 
@@ -26,7 +44,7 @@ def issue_template_data(pr):
 def index():
     unassigned = []
     user_data = {}
-    
+
     def get_user_data(user):
         if user not in user_data:
             d = {'CHANGES_REQUESTED': [],
@@ -37,42 +55,44 @@ def index():
             d = user_data[user]
         return d
 
-    def add_pr_to(pr, col):
-        pr_data = pr_template_data(pr)
+    def add_pr_to(repo_name, pr, col):
+        pr_data = pr_template_data(repo_name, pr)
         for user in pr.assignees:
             d = get_user_data(user.login)
             d[col].append(pr_data)
 
-    def add_issue(issue):
-        issue_data = issue_template_data(issue)
+    def add_issue(repo_name, issue):
+        issue_data = issue_template_data(repo_name, issue)
         for user in issue.assignees:
             d = get_user_data(user.login)
             d['ISSUES'].append(issue_data)
 
-    for pr in hail_repo.get_pulls(state='open'):
-        if len(pr.assignees) == 0:
-            unassigned.append(pr_template_data(pr))
-            continue
+    for repo_name, fq_repo in repos.items():
+        repo = github.get_repo(fq_repo)
 
-        state = 'NEEDS_REVIEW'
-        for review in pr.get_reviews():
-            if review.state == 'CHANGES_REQUESTED':
-                state = review.state
-                break
-            elif review.state == 'DISMISSED':
-                break
-            elif review.state == 'APPROVED':
-                state = 'APPROVED'
-                break
-            else:
-                print(review.state)
-                assert review.state == 'COMMENTED'
+        for pr in repo.get_pulls(state='open'):
+            if len(pr.assignees) == 0:
+                unassigned.append(pr_template_data(repo_name, pr))
+                continue
 
-        if state != 'APPROVED':
-            add_pr_to(pr, state)
+            state = 'NEEDS_REVIEW'
+            for review in pr.get_reviews():
+                if review.state == 'CHANGES_REQUESTED':
+                    state = review.state
+                    break
+                elif review.state == 'DISMISSED':
+                    break
+                elif review.state == 'APPROVED':
+                    state = 'APPROVED'
+                    break
+                else:
+                    assert review.state == 'COMMENTED'
 
-    for issue in hail_repo.get_issues(state='open'):
-        add_issue(issue)
+            if state != 'APPROVED':
+                add_pr_to(repo_name, pr, state)
+
+        for issue in repo.get_issues(state='open'):
+            add_issue(repo_name, issue)
 
     print(unassigned, user_data)
 
