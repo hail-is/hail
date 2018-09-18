@@ -4,6 +4,7 @@ import is.hail.rvd.{OrderedRVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
+import scala.collection.mutable
 
 case class OrderedRVIterator(
   t: OrderedRVDType,
@@ -118,5 +119,47 @@ case class OrderedRVIterator(
       other.iterator.toFlipbookIterator,
       this.t.kComp(other.t).compare
     )
+  }
+
+  def localKeySort(
+    newKey: IndexedSeq[String]
+  ): Iterator[RegionValue] = {
+    require(newKey startsWith t.key)
+    require(newKey.forall(t.rowType.fieldNames.contains))
+
+    val consumerRegion = ctx.region
+
+    new Iterator[RegionValue] {
+      private val bit = iterator.buffered
+
+      private val q = new mutable.PriorityQueue[RegionValue]()(
+        t.copy(key = newKey).kInRowOrd.reverse)
+
+      private val rvb = new RegionValueBuilder(consumerRegion)
+      private val rv = RegionValue()
+
+      def hasNext: Boolean = bit.hasNext || q.nonEmpty
+
+      def next(): RegionValue = {
+        if (q.isEmpty) {
+          do {
+            val rv = bit.next()
+            val r = ctx.freshRegion
+            rvb.set(r)
+            rvb.start(t.rowType)
+            rvb.addRegionValue(t.rowType, rv)
+            q.enqueue(RegionValue(rvb.region, rvb.end()))
+          } while (bit.hasNext && t.kInRowOrd.compare(q.head, bit.head) == 0)
+        }
+
+        rvb.set(consumerRegion)
+        rvb.start(t.rowType)
+        val fromQueue = q.dequeue()
+        rvb.addRegionValue(t.rowType, fromQueue)
+        ctx.closeChild(fromQueue.region)
+        rv.set(consumerRegion, rvb.end())
+        rv
+      }
+    }
   }
 }
