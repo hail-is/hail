@@ -80,7 +80,7 @@ object UtilFunctions extends RegistryFunctions {
     }
     registerCode("toFloat64", TString(), TFloat64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeScalaObject[String, Int](thisClass, "parseFloat64", s)
+      Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
     }
     registerCode("toBoolean", TString(), TBoolean()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
