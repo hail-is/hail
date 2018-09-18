@@ -22,6 +22,10 @@ class InbreedingCombiner extends Serializable {
     nCalled += 1
     expectedHoms += 1 - (2 * af * (1 - af))
 
+    if (Call.unphasedDiploidGtIndex(c) > 2) {
+      fatal(s"inbreeding does not support multiallelic variants/genotypes. Found genotype ${ Call.toString(c) }")
+    }
+
     if (Call.isHomRef(c) || Call.isHomVar(c))
       observedHoms += 1
 
