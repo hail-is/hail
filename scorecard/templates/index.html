@@ -1,0 +1,62 @@
+<html>
+  <header>
+    <title>Scorecard</title>
+    <style type="text/css">
+      td { padding: 0 20px 0 0; }
+      th { padding: 0 20px 0 0; }
+
+      #avatar {
+          float: left;
+          width: 44px;
+          height: 44px;
+          margin: 0 8px 0 0;
+          border-radius: 3px;
+      }
+    </style>
+  </header>
+  <body>
+    <p>Scorecard!</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th align="left">user</th>
+          <th align="left">needs review</th>
+          <th align="left">changes requested</th>
+          <th align="left">issues</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user, d in user_data.items() %}
+        <tr>
+          <td align="left">{{ user }}</td>
+          <td align="left">
+            {% for pr in d['NEEDS_REVIEW'] %}
+            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+            {% endfor %}
+          </td>
+          <td align="left">
+            {% for pr in d['CHANGES_REQUESTED'] %}
+            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+            {% endfor %}
+          </td>
+          <td align="left">
+            {% for issue in d['ISSUES'] %}
+            <a href="{{ issue.html_url }}">{{ issue.id }}</a>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p>Unassigned:
+      {% for pr in unassigned %}
+      <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+      {% endfor %}
+    </p>
+
+    <img id="avatar" src="https://github.com/{{ random_user }}.png?s=88"><p>Random user: {{ random_user }}</p>
+
+  </body>
+</html>
