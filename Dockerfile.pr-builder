@@ -47,29 +47,42 @@ RUN tar --strip-components=1 -xvzf spark-2.2.0-bin-hadoop2.7.tgz -C /spark && \
     rm -rf spark-2.2.2-bin-hadoop2.7.tgz
 ENV SPARK_HOME /spark/
 
+WORKDIR /
+# this seems easier than getting the keys right for apt
+#
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash && mv /root/google-cloud-sdk /'
+ENV PATH $PATH:/google-cloud-sdk/bin
+# gcloud iam key files will be stored here
+
+VOLUME /secrets
+
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.11.3/bin/linux/amd64/kubectl && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin
+
+# creates /hail
 WORKDIR /hail
 RUN mkdir -p /gradle-cache && \
-    useradd --create-home --shell /bin/bash hail && \
-    chown -R hail:hail /hail /gradle-cache
+    useradd --create-home --shell /bin/bash hail
+
+COPY hail/gradlew hail/build.gradle hail/settings.gradle hail/deployed-spark-versions.txt ./
+COPY hail/gradle gradle
+COPY hail/python/hail/dev-environment.yml python/hail/dev-environment.yml
+COPY batch/environment.yml batch/environment.yml
+COPY ci/environment.yml ci/environment.yml
+
+RUN chown -R hail:hail /hail /gradle-cache
+
 USER hail
 
 # cache (almost all) gradle dependencies (and gradle itself)
 #
 # Some plugin we use hides its dependencies in a so-called "detached
 # configuration" so there is no way for us to ensure it gets cached.
-COPY --chown=hail:hail gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
-COPY --chown=hail:hail gradle gradle
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
-COPY --chown=hail:hail python/hail/dev-environment.yml python/hail/dev-environment.yml
-RUN conda env create hail -f ./python/hail/dev-environment.yml && \
+
+RUN conda env create hail -f python/hail/dev-environment.yml && \
+    conda env create batch -f batch/environment.yml && \
+    conda env create hail-ci -f ci/environment.yml && \
     rm -rf /home/hail/.conda/pkgs/*
-
-# this seems easier than getting the keys right for apt
-#
-# source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash'
-ENV PATH $PATH:/home/hail/google-cloud-sdk/bin
-# gcloud iam key files will be stored here
-VOLUME /secrets
-
-WORKDIR /hail

@@ -1,0 +1,10 @@
+name: batch
+dependencies:
+- python=3.6
+- cffi
+- cryptography
+- flask
+- pip
+- pip:
+    - cerberus
+    - kubernetes
