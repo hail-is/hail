@@ -17,18 +17,14 @@ spec:
         image: gcr.io/broad-ctsa/scorecard
         ports:
         - containerPort: 5000
-          volumeMounts:
-            - mountPath: /hail-ci/oauth-token
-              readOnly: true
-              name: hail-ci-0-1-github-oauth-token
         volumeMounts:
           - mountPath: /secrets
             readOnly: true
             name: scorecard-github-access-token
-    volumes:
-      - name: 
-        secret:
-          secretName: scorecard-github-access-token
+      volumes:
+        - name: scorecard-github-access-token
+          secret:
+            secretName: scorecard-github-access-token
 ---
 apiVersion: v1
 kind: Service
