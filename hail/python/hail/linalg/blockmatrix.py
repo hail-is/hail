@@ -386,6 +386,10 @@ class BlockMatrix(object):
 
         Warning
         -------
+        If the rows of the matrix table have been filtered to a small fraction,
+        then :meth:`.MatrixTable.repartition` before this method to improve
+        performance.
+
         If you encounter a Hadoop write/replication error, increase the
         number of persistent workers or the disk size per persistent worker,
         or use :meth:`write_from_entry_expr` to write to external storage.
@@ -626,6 +630,10 @@ class BlockMatrix(object):
 
         Warning
         -------
+        If the rows of the matrix table have been filtered to a small fraction,
+        then :meth:`.MatrixTable.repartition` before this method to improve
+        performance.
+
         This method opens ``n_cols / block_size`` files concurrently per task.
         To not blow out memory when the number of columns is very large,
         limit the Hadoop write buffer size; e.g. on GCP, set this property on
