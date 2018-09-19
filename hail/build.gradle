@@ -136,7 +136,7 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'sh', 'generate-build-info.sh', sparkVersion, hailVersion
+    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailVersion
     outputs.upToDateWhen { false }
 }
 
