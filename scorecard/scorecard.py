@@ -1,4 +1,5 @@
 import time
+import collections
 import datetime
 import os
 from flask import Flask, render_template, request, jsonify, abort, url_for
@@ -35,34 +36,27 @@ def index():
     cur_timestamp = timestamp
     
     unassigned = []
-    user_data = {}
-    
-    def get_user_data(user):
-        if user not in user_data:
-            d = {'CHANGES_REQUESTED': [],
+    user_data = collections.defaultdict(
+        lambda: {'CHANGES_REQUESTED': [],
                  'NEEDS_REVIEW': [],
-                 'ISSUES': []}
-            user_data[user] = d
-        else:
-            d = user_data[user]
-        return d
+                 'ISSUES': []})
 
     def add_pr(repo_name, pr):
         state = pr['state']
         
         if state == 'CHANGES_REQUESTED':
-            d = get_user_data(pr['user'])
+            d = user_data[pr['user']]
             d[state].append(pr)
         elif state == 'NEEDS_REVIEW':
             for user in pr['assignees']:
-                d = get_user_data(user)
+                d = user_data[user]
                 d[state].append(pr)
         else:
             assert state == 'APPROVED'
 
     def add_issue(repo_name, issue):
         for user in issue['assignees']:
-            d = get_user_data(user)
+            d = user_data[user]
             d['ISSUES'].append(issue)
 
     for repo_name, repo_data in cur_data.items():
@@ -198,7 +192,7 @@ print('updating_data...')
 update_data()
 print('updating_data done.')
 
-poll_thread = threading.Thread(target=poll)
+poll_thread = threading.Thread(target=poll, daemon=True)
 poll_thread.start()
 
 if __name__ == "__main__":
