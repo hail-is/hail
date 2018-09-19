@@ -50,7 +50,7 @@
 	{% endif %}
 	
 	<h3>Changes Requested</h3>
-	{% if user_data['CHANGES_REQUIRED'] %}
+	{% if user_data['CHANGES_REQUESTED'] %}
 	<table>
 	  <thead>
             <tr>
@@ -59,7 +59,7 @@
             </tr>
 	  </thead>
 	  <tbody>
-	    {% for pr in user_data['CHANGES_REQUIRED'] %}
+	    {% for pr in user_data['CHANGES_REQUESTED'] %}
 	    <tr>
 	      <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
 	      <td>{{ pr.title }}</td>
