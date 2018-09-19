@@ -88,17 +88,16 @@ final case class ApplyComparisonOp(op: ComparisonOp, l: IR, r: IR) extends Infer
 
 object MakeArray {
   def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
+    assert(typ != null || args.nonEmpty)
     var t = typ
     if (t == null) {
-      val typSet = args.map(_.typ).toSet
-      if (typSet.size == 1)
-        t = TArray(typSet.head)
-      else
-        t = TArray(args.head.typ.deepOptional())
-    } else
-      assert(t.elementType.deepOptional() == t.elementType ||
-        args.forall(a => a.typ == t.elementType),
-        s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
+      t = if (args.tail.forall(_.typ == args.head.typ)) {
+        TArray(args.head.typ)
+      } else TArray(args.head.typ.deepOptional())
+    }
+    assert(t.elementType.deepOptional() == t.elementType ||
+      args.forall(a => a.typ == t.elementType),
+      s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
 
     MakeArray(args.map { arg =>
       if (arg.typ == t.elementType)
