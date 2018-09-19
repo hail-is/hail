@@ -41,31 +41,22 @@ def index():
                  'NEEDS_REVIEW': [],
                  'ISSUES': []})
 
-    def get_user_data(user):
-        return user_data[user]
-        # if user not in user_data:
-        #
-        #     user_data[user] = d
-        # else:
-        #     d = user_data[user]
-        # return d
-
     def add_pr(repo_name, pr):
         state = pr['state']
         
         if state == 'CHANGES_REQUESTED':
-            d = get_user_data(pr['user'])
+            d = user_data[pr['user']]
             d[state].append(pr)
         elif state == 'NEEDS_REVIEW':
             for user in pr['assignees']:
-                d = get_user_data(user)
+                d = user_data[user]
                 d[state].append(pr)
         else:
             assert state == 'APPROVED'
 
     def add_issue(repo_name, issue):
         for user in issue['assignees']:
-            d = get_user_data(user)
+            d = user_data[user]
             d['ISSUES'].append(issue)
 
     for repo_name, repo_data in cur_data.items():
