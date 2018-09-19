@@ -1,11 +1,18 @@
 set -ex
 
-gcloud auth activate-service-account \
-  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-
 SPARK_VERSION=2.0.2
 BRANCH_SOURCE_NAME=stable
 BRANCH_TARGET_NAME=0.1
+HASH_TARGET=gs://hail-common/builds/${BRANCH_TARGET_NAME}/latest-hash-spark-${SPARK_VERSION}.txt
+SHA=$(git rev-parse --short=12 HEAD)
+
+if [[ "${SHA}" == "$(gsutil cat ${HASH_TARGET})" ]]
+then
+    exit 0
+fi
+
+gcloud auth activate-service-account \
+  --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
 
 source activate hail-0.1-dev
 
@@ -19,7 +26,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
            -Dspark.home=/spark \
            -Dtutorial.home=/usr/local/hail-tutorial-files \
            --gradle-user-home /gradle-cache
-SHA=$(git rev-parse --short=12 HEAD)
 
 # update jar, zip, and distribution
 GS_JAR=gs://hail-common/builds/${BRANCH_TARGET_NAME}/jars/hail-${BRANCH_TARGET_NAME}-${SHA}-Spark-${SPARK_VERSION}.jar
@@ -33,11 +39,6 @@ gsutil acl set public-read ${GS_HAIL_ZIP}
 DISTRIBUTION=gs://hail-common/distributions/${BRANCH_TARGET_NAME}/Hail-${BRANCH_TARGET_NAME}-${SHA}-Spark-${SPARK_VERSION}.zip
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
-
-echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
-HASH_TARGET=gs://hail-common/builds/${BRANCH_TARGET_NAME}/latest-hash-spark-${SPARK_VERSION}.txt
-gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
-gsutil acl set public-read ${HASH_TARGET}
 
 # update website
 ## since we're non-interactive, we explicitly state the fingerprint for ci.hail.is
@@ -72,3 +73,7 @@ ssh -i ${IDENTITY_FILE} \
     "rm -rf /var/www/html/docs/${BRANCH_TARGET_NAME} && \
      ln -s $DEST /var/www/html/docs/${BRANCH_TARGET_NAME} && \
      chgrp www-data $DEST /var/www/html/docs/${BRANCH_TARGET_NAME}"
+     
+echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
+gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+gsutil acl set public-read ${HASH_TARGET}
