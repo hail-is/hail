@@ -167,6 +167,18 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
 
+  @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
+    val t = TArray(TStruct("a" -> TInt32Required, "b" -> TArray(TInt32Optional, required = true)))
+    val value = Row(2, FastIndexedSeq(1))
+    assertEvalsTo(
+      MakeArray.unify(
+        Seq(NA(t.elementType.deepOptional()), In(0, t.elementType))
+      ),
+      FastIndexedSeq((value, t.elementType)),
+      FastIndexedSeq(null, value)
+    )
+  }
+
   @Test def testMakeTuple() {
     assertEvalsTo(MakeTuple(FastSeq()), Row())
     assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))

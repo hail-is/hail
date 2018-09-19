@@ -161,7 +161,7 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-        ir = MakeArray([e._ir for e in exprs], dtype)
+        ir = MakeArray([e._ir for e in exprs], None)
         return expressions.construct_expr(ir, dtype, indices, aggregations)
     elif isinstance(dtype, tset):
         elements = []
@@ -178,7 +178,7 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-            ir = ToSet(MakeArray([e._ir for e in exprs], tarray(dtype.element_type)))
+            ir = ToSet(MakeArray([e._ir for e in exprs], None))
             return expressions.construct_expr(ir, dtype, indices, aggregations)
     elif isinstance(dtype, ttuple):
         elements = []
