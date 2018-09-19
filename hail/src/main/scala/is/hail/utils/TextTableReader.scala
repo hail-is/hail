@@ -285,7 +285,7 @@ object TextTableReader {
 
     info(sb.result())
 
-    val ttyp = TableType(TStruct(namesAndTypes: _*), None, TStruct())
+    val ttyp = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
       separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
       ttyp.rowType)

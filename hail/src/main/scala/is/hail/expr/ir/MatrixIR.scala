@@ -174,7 +174,7 @@ abstract sealed class MatrixIR extends BaseIR {
           TableMapRows(
             TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
             MakeStruct(FastIndexedSeq()),
-            None
+            Some(FastIndexedSeq())
           ))
           .execute(HailContext.get)
           .rvd
@@ -1708,7 +1708,6 @@ case class MatrixAnnotateColsTable(
   child: MatrixIR,
   table: TableIR,
   root: String) extends MatrixIR {
-  require(table.typ.key.isDefined)
   require(child.typ.colType.fieldOption(root).isEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
@@ -1731,7 +1730,7 @@ case class MatrixAnnotateColsTable(
     val prev =  child.execute(hc)
     val tab = table.execute(hc)
 
-    val keyTypes = tab.typ.keyType.get.types
+    val keyTypes = tab.typ.keyType.types
     val colKeyTypes = prev.typ.colKeyStruct.types
 
     val keyedRDD = tab.keyedRDD().filter { case (k, _) => !k.anyNull }
@@ -1759,7 +1758,6 @@ case class MatrixAnnotateRowsTable(
   table: TableIR,
   root: String,
   key: Option[IndexedSeq[IR]]) extends MatrixIR {
-  require(table.typ.key.isDefined)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table) ++ key.getOrElse(FastIndexedSeq.empty[IR])
 
@@ -1786,9 +1784,10 @@ case class MatrixAnnotateRowsTable(
     val tv = table.execute(hc)
     key match {
       // annotateRowsIntervals
-      case None if table.typ.keyType.exists { k =>
-        k.size == 1 && k.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
-      } =>
+      case None
+        if table.typ.keyType.size == 1
+        && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
+      =>
         val typOrdering = child.typ.rowKeyStruct.types(0).ordering
 
         val typToInsert: Type = table.typ.valueType
@@ -1798,7 +1797,7 @@ case class MatrixAnnotateRowsTable(
 
         val partBc = hc.sc.broadcast(prev.rvd.partitioner)
         val tableRowType = table.typ.rowType.physicalType
-        val tableKeyIdx = table.typ.keyFieldIdx.get(0)
+        val tableKeyIdx = table.typ.keyFieldIdx(0)
         val tableValueIndex = table.typ.valueFieldIdx
         val partitionKeyedIntervals = tv.rvd.boundary.crdd
           .flatMap { rv =>
@@ -1919,8 +1918,7 @@ case class MatrixAnnotateRowsTable(
 
       // annotateRowsTable using key
       case None =>
-        assert(table.typ.keyType.isDefined)
-        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.get.types).forall { case (l, r) => l.isOfType(r) })
+        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.types).forall { case (l, r) => l.isOfType(r) })
         val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
           tv.rvd.asInstanceOf[OrderedRVD], root)
         prev.copy(typ = typ, rvd = newRVD)
@@ -2327,9 +2325,9 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
 
   val typ: MatrixType = MatrixType(
     rowsEntries.typ.globalType,
-    cols.typ.keyOrEmpty,
+    cols.typ.key,
     cols.typ.rowType,
-    rowsEntries.typ.keyOrEmpty,
+    rowsEntries.typ.key,
     newRowType)
 
   def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)

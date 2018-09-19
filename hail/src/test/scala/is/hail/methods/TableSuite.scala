@@ -24,7 +24,7 @@ class TableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
     val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -35,7 +35,7 @@ class TableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TInt32())), ("field2", TInt32()))
     val keyNames = IndexedSeq("Sample")
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -46,7 +46,7 @@ class TableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TArray(TInt32()))), ("field2", TArray(TInt32())))
     val keyNames = IndexedSeq("Sample")
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -131,7 +131,7 @@ class TableSuite extends SparkSuite {
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
     val ktResult2 = Table(hc, resRDD2,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = Some(IndexedSeq("Sample")))
+      key = IndexedSeq("Sample"))
     ktResult2.typeCheck()
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
@@ -139,7 +139,7 @@ class TableSuite extends SparkSuite {
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
     val ktResult3 = Table(hc, resRDD3,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = Some(IndexedSeq("Sample")))
+      key = IndexedSeq("Sample"))
     ktResult3.typeCheck()
 
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -158,7 +158,7 @@ class TableSuite extends SparkSuite {
         "f3" -> TInt32(),
         "f4" -> TString()
       ),
-      Some(IndexedSeq("f3", "f2", "f1")))
+      IndexedSeq("f3", "f2", "f1"))
     kt1.typeCheck()
 
     val kt2 = Table(hc,
@@ -169,7 +169,7 @@ class TableSuite extends SparkSuite {
         "f2" -> TString(),
         "f5" -> TString()
       ),
-      Some(IndexedSeq("f3", "f2", "f1")))
+      IndexedSeq("f3", "f2", "f1"))
     kt2.typeCheck()
 
     assert(kt1.join(kt2, "inner").count() == 1L)

@@ -298,7 +298,7 @@ object Simplify {
         TableMapRows(
           mct,
           Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))),
-          mct.typ.key)
+          Some(mct.typ.key))
       case MatrixColsTable(MatrixFilterCols(child, pred))
         if !Mentions(pred, "g") && !Mentions(pred, "va") =>
         val mct = MatrixColsTable(child)
@@ -343,15 +343,16 @@ object Simplify {
               Some(1), 10),
             "row"),
           FastIndexedSeq())
-        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), None)
+        TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"), Some(FastIndexedSeq()))
 
       case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
       case t@TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition(t) =>
         TableDistinct(TableKeyBy(
-          TableMapRows(TableKeyBy(child, FastIndexedSeq()), k, None),
+          TableMapRows(TableKeyBy(child, FastIndexedSeq()), k, Some(FastIndexedSeq())),
           keyFields.map(_._1).toFastIndexedSeq))
-      case t@TableKeyByAndAggregate(child, expr, newKey, _, _) if child.typ.key.exists(keys =>
-        MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) == newKey) && canRepartition(t) =>
+      case t@TableKeyByAndAggregate(child, expr, newKey, _, _)
+        if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
+          && child.typ.key.nonEmpty && canRepartition(t) =>
         TableAggregateByKey(child, expr)
       case t@TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition(t) =>
         TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))

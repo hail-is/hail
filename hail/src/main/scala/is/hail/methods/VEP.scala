@@ -102,7 +102,7 @@ object VEP {
     val localBlockSize = blockSize
 
     val localRowType = ht.typ.rowType
-    val rowKeyOrd = ht.typ.keyType.get.ordering
+    val rowKeyOrd = ht.typ.keyType.ordering
 
     val prev = ht.value.rvd.asInstanceOf[OrderedRVD]
     val annotations = prev
@@ -213,7 +213,7 @@ object VEP {
         (Row(), TStruct())
     
     new Table(ht.hc, TableLiteral(TableValue(
-      TableType(vepRowType, Some(FastIndexedSeq("locus", "alleles")), globalType),
+      TableType(vepRowType, FastIndexedSeq("locus", "alleles"), globalType),
       BroadcastRow(globalValue, globalType, ht.hc.sc),
       vepRVD)))
   }

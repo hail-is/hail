@@ -303,7 +303,7 @@ object Parser extends JavaTokenParsers {
 
   def table_type_expr: Parser[TableType] =
     (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
-      (("," ~ "key" ~ ":") ~> ("None" ^^ { _ => None } | key ^^ { key => Some(key.toFastIndexedSeq) })) ~
+      (("," ~ "key" ~ ":") ~> ("None" ^^ { _ => FastIndexedSeq() } | key ^^ { key => key.toFastIndexedSeq })) ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ key ~ rowType =>
       TableType(rowType, key, globalType)
     }
@@ -611,7 +611,7 @@ object Parser extends JavaTokenParsers {
         ir.TableParallelize(rows, nPartitions)
       } |
       "TableMapRows" ~> string_literals_opt ~ table_ir ~ ir_value_expr ^^ { case newKey ~ child ~ newRow =>
-        ir.TableMapRows(child, newRow, newKey)
+        ir.TableMapRows(child, newRow, Some(newKey.getOrElse(FastIndexedSeq())))
       } |
       "TableMapGlobals" ~> table_ir ~ ir_value_expr ^^ { case child ~ newRow =>
         ir.TableMapGlobals(child, newRow)
