@@ -57,6 +57,7 @@ time gsutil cp \
 time cluster start ${CLUSTER_NAME} \
      --version devel \
      --spark 2.2.0 \
+     --max-idle 40m \
      --bucket=hail-ci-0-1-dataproc-staging-bucket \
      --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
      --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
