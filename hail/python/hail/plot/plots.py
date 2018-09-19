@@ -245,9 +245,9 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 obs = [-log(p, 10) for p in spvals]
             else:
                 if isinstance(source, Table):
-                    ht = source.key_by(pval=pvals).persist()
+                    ht = source.select(pval=pvals).key_by().persist().key_by('pval')
                 else:
-                    ht = source.select_rows(pval=pvals).rows().persist().key_by('pval')
+                    ht = source.select_rows(pval=pvals).rows().key_by().select('pval').persist().key_by('pval')
                 n = ht.count()
                 ht = ht.select(idx=hail.scan.count())
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
