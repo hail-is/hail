@@ -148,7 +148,7 @@ def get_pr_data(repo, repo_name, pr):
     assignees = [a.login for a in pr.assignees]
 
     state = 'NEEDS_REVIEW'
-    for review in pr.get_reviews():
+    for review in pr.get_reviews().reversed:
         if review.state == 'CHANGES_REQUESTED':
             state = review.state
             break
