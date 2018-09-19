@@ -46,5 +46,4 @@ def overall_review_state(reviews):
             break
         elif (state == 'APPROVED'):
             total_state = 'approved'
-
     return {'state': total_state, 'reviews': latest_state_by_login}

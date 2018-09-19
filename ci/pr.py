@@ -4,8 +4,8 @@ from build_state import \
     Failure, Mergeable, Unknown, NoImage, Building, Buildable, Merged, \
     build_state_from_json
 from ci_logging import log
-from constants import CONTEXT, BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH
-from environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client
+from constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH
+from environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
 from git_state import FQSHA, FQRef
 from github import latest_sha_for_ref
 from http_helper import get_repo, post_repo, BadStatus

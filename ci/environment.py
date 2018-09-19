@@ -3,6 +3,9 @@ from ci_logging import log
 from batch.client import BatchClient
 import json
 import os
+import uuid
+
+INSTANCE_ID = uuid.uuid4().hex
 
 SELF_HOSTNAME = os.environ.get('SELF_HOSTNAME',
                                'http://set_the_SELF_HOSTNAME/')
@@ -10,6 +13,8 @@ BATCH_SERVER_URL = os.environ.get('BATCH_SERVER_URL',
                                   'http://set_the_BATCH_SERVER_URL/')
 REFRESH_INTERVAL_IN_SECONDS = \
     int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 60))
+
+CONTEXT = f'hail-ci-0-1-{INSTANCE_ID}'
 
 try:
     WATCHED_TARGETS = [
@@ -47,5 +52,8 @@ log.info(f'BATCH_SERVER_URL {BATCH_SERVER_URL}')
 log.info(f'SELF_HOSTNAME {SELF_HOSTNAME}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'WATCHED_TARGETS {[(ref.short_str(), deployable) for (ref, deployable) in WATCHED_TARGETS]}')
+log.info(f'INSTANCE_ID = {INSTANCE_ID}')
+log.info(f'CONTEXT = {CONTEXT}')
+
 
 batch_client = BatchClient(url=BATCH_SERVER_URL)

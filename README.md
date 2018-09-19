@@ -62,6 +62,16 @@ And if you want to cleanly restart fresh:
 HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
 ```
 
+Setting up a New Repo
+---
+
+Make sure you have a `hail-ci-build.sh` and a `hail-ci-build-image` (containing
+the name of a docker image that the CI has privileges to access).
+
+Execute `setup-endpoints.sh` to configure GitHub to send notifications of GitHub
+behavior to the CI system.
+
+
 Testing
 ---
 

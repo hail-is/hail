@@ -154,13 +154,12 @@ class PRS(object):
                     x for x in self.for_target(target) if x.is_pending_build()
                 ]
                 to_build = all_pending_prs
-        log.info(f'next to build for {target.short_str()}: {[str(x) for x in to_build]}')
+        log.info(f'next to build for {target.short_str()}: {[x.short_str() for x in to_build]}')
         for pr in to_build:
             self._set(pr.source.ref, pr.target.ref, pr.build_it())
 
     _deploy_secrets = {
         Repo('hail-is', 'hail'): f'ci-deploy-{VERSION}--hail-is-hail-service-account-key',
-        Repo('hail-is', 'ci-test'): f'ci-deploy-{VERSION}--hail-is-ci-test-service-account-key',
         Repo('Nealelab', 'cloudtools'): f'ci-deploy-{VERSION}--nealelab-cloudtools',
         Repo('hail-is', 'batch'): 'gcr-push-service-account-key'
     }
@@ -202,7 +201,11 @@ class PRS(object):
                     'name': 'docker-sock-volume'
                 }
             }]
-            deploy_secret = PRS._deploy_secrets.get(target_ref.repo, None)
+            if target_ref.repo.owner == "hail-ci-test":
+                # special case for test repos
+                deploy_secret = f'ci-deploy-{VERSION}--hail-is-ci-test-service-account-key'
+            else:
+                deploy_secret = PRS._deploy_secrets.get(target_ref.repo, None)
             if deploy_secret:
                 volumes.append({
                     'volume': {

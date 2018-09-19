@@ -1,8 +1,7 @@
 from batch.client import Job
 from batch_helper import try_to_cancel_job
 from ci_logging import log
-from constants import CONTEXT
-from environment import batch_client
+from environment import batch_client, CONTEXT
 import json
 import re
 
