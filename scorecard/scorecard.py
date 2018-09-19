@@ -109,6 +109,7 @@ def get_user(user):
     user_data = {
         'CHANGES_REQUESTED': [],
         'NEEDS_REVIEW': [],
+        'FAILING': [],
         'ISSUES': []
     }
 
@@ -123,6 +124,9 @@ def get_user(user):
                     user_data[state].append(pr)
             else:
                 assert state == 'APPROVED'
+
+            if pr['status'] == 'failure' and user == pr['user']:
+                user_data['FAILING'].append(pr)
 
         for issue in repo_data['issues']:
             if user in issue['assignees']:
@@ -139,7 +143,7 @@ def get_id(repo_name, number):
     else:
         return f'{repo_name}/{number}'
 
-def get_pr_data(repo_name, pr):
+def get_pr_data(repo, repo_name, pr):
     assignees = [a.login for a in pr.assignees]
 
     state = 'NEEDS_REVIEW'
@@ -154,7 +158,10 @@ def get_pr_data(repo_name, pr):
             break
         else:
             assert review.state == 'COMMENTED'
-    
+
+    sha = pr.head.sha
+    status = repo.get_commit(sha=sha).get_combined_status().state
+
     return {
         'repo': repo_name,
         'id': get_id(repo_name, pr.number),
@@ -162,7 +169,8 @@ def get_pr_data(repo_name, pr):
         'user': pr.user.login,
         'assignees': assignees,
         'html_url': pr.html_url,
-        'state': state
+        'state': state,
+        'status': status
     }
 
 def get_issue_data(repo_name, issue):
@@ -193,7 +201,7 @@ def update_data():
         repo = github.get_repo(fq_repo)
 
         for pr in repo.get_pulls(state='open'):
-            pr_data = get_pr_data(repo_name, pr)
+            pr_data = get_pr_data(repo, repo_name, pr)
             new_data[repo_name]['prs'].append(pr_data)
 
         for issue in repo.get_issues(state='open'):
