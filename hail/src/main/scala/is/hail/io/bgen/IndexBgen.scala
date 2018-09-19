@@ -12,6 +12,10 @@ import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+
 private case class IndexBgenPartition(
   path: String,
   compressed: Boolean,
@@ -67,20 +71,24 @@ object IndexBgen {
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    val rvds = headers.map { f =>
-      val partition = IndexBgenPartition(
-        f.path,
-        f.compressed,
-        skipInvalidLoci,
-        recoding,
-        f.dataStart,
-        f.fileByteSize,
-        0,
-        sHadoopConfBc)
+    val rvdFutures = headers.map { f =>
+      Future({
+        val partition = IndexBgenPartition(
+          f.path,
+          f.compressed,
+          skipInvalidLoci,
+          recoding,
+          f.dataStart,
+          f.fileByteSize,
+          0,
+          sHadoopConfBc)
 
-      val crvd = BgenRDD(hc.sc, Array(partition), settings, null)
-      OrderedRVD.coerce(typ, crvd)
+        val crvd = BgenRDD(hc.sc, Array(partition), settings, null)
+        OrderedRVD.coerce(typ, crvd)
+      })
     }
+
+    val rvds = Await.result(Future.sequence(rvdFutures.toFastIndexedSeq), Duration.Inf)
 
     val rowType = typ.rowType
     val offsetIdx = rowType.fieldIdx("offset")
