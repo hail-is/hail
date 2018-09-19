@@ -1,8 +1,6 @@
 #!/bin/bash
 set -ex
 
-cd hail
-
 SPARK_VERSION=2.2.0
 BRANCH=devel
 CLOUDTOOLS_VERSION=2
