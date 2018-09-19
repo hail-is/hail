@@ -249,7 +249,7 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 else:
                     ht = source.select_rows(pval=pvals).rows().key_by('pval')
                 n = ht.count()
-                ht = ht.add_index()
+                ht = ht.select(idx=hail.scan.count())
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
                 pvals = ht.aggregate(
                     aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
