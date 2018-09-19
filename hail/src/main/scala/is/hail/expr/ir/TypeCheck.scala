@@ -72,12 +72,10 @@ object TypeCheck {
         assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         assert(typ != null)
-        assert(args.forall(a => a.typ == typ.elementType),
-          s"${ typ.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
-        args.foreach(check(_))
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
+        args.foreach(check(_))
       case x@ArrayRef(a, i) =>
         check(a)
         check(i)
