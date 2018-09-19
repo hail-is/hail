@@ -793,41 +793,55 @@ def grep(regex, path, max_count=100):
            entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
            n_partitions=nullable(int),
            block_size=nullable(int),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool,
-           _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')),
-           _variants_per_file=dictof(str, sequenceof(int)))
+           index_file_map=nullable(dictof(str, str)),
+           variants=nullable(oneof(sequenceof(hl.utils.Struct), StructExpression, Table)),
+           _row_fields=sequenceof(enumeration('varid', 'rsid')))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 n_partitions=None,
                 block_size=None,
-                reference_genome='default',
-                contig_recoding=None,
-                skip_invalid_loci=False,
-                _row_fields=['varid', 'rsid'],
-                _variants_per_file={}) -> MatrixTable:
+                index_file_map=None,
+                variants=None,
+                _row_fields=['varid', 'rsid']) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-    Import a BGEN file as a matrix table with GT and GP entry fields,
-    renaming contig name "01" to "1":
+    Import a BGEN file as a matrix table with GT and GP entry fields:
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                            entry_fields=['GT', 'GP'],
-    ...                            sample_file="data/example.8bits.sample",
-    ...                            contig_recoding={"01": "1"})
+    ...                            sample_file="data/example.8bits.sample")
 
-    Import a BGEN file as a matrix table with genotype dosage entry field,
-    renaming contig name "01" to "1":
+    Import a BGEN file as a matrix table with genotype dosage entry field:
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                             entry_fields=['dosage'],
-    ...                             sample_file="data/example.8bits.sample",
-    ...                             contig_recoding={"01": "1"})
+    ...                             sample_file="data/example.8bits.sample")
+
+    Load a single variant from a BGEN file:
+
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=[hl.parse_variant('1:2000:A:G').value])
+
+    Load a set of variants specified by a table expression from a BGEN file:
+
+    >>> variants = hl.import_table("data/bgen-variants.txt")
+    >>> variants = variants.annotate(v=hl.parse_variant(variants.v)).key_by('v')
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=variants.v)
+
+    Load a set of variants specified by a table keyed by 'locus' and 'alleles' from a BGEN file:
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=variants_table)
 
     Notes
     -----
@@ -840,11 +854,12 @@ def import_bgen(path,
     must be bi-allelic.
 
     Each BGEN file must have a corresponding index file, which can be generated
-    with :func:`.index_bgen`. To load multiple files at the same time,
+    with :func:`.index_bgen`. All files must have been indexed with the same
+    reference genome. To load multiple files at the same time,
     use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
     If n_partitions and block_size are both specified, block_size is
-    used.  If neither are specified, the default is a 128MB block
+    used. If neither are specified, the default is a 128MB block
     size.
 
     **Column Fields**
@@ -885,7 +900,8 @@ def import_bgen(path,
     genotype data.
 
     - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
-      the greatest probability.
+      the greatest probability. If there is not a unique maximum probability, the
+      hard call is set to missing.
     - `GP` (:class:`.tarray` of :py:data:`.tfloat64`) -- Genotype probabilities
       as defined by the BGEN file spec. For bi-allelic variants, the array has
       three elements giving the probabilities of homozygous reference,
@@ -894,6 +910,10 @@ def import_bgen(path,
       alternate alleles, given by the probability of heterozygous genotype plus
       twice the probability of homozygous alternate genotype. All variants must
       be bi-allelic.
+
+    See Also
+    --------
+    :func:`.index_bgen`
 
     Parameters
     ----------
@@ -909,13 +929,16 @@ def import_bgen(path,
         Number of partitions.
     block_size : :obj:`int`, optional
         Block size, in MB.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
-        Reference genome to use.
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
-        Dict of old contig name to new contig name. The new contig name must be
-        in the reference genome given by `reference_genome`.
-    skip_invalid_loci : :obj:`bool`
-        If ``True``, skip loci that are not consistent with `reference_genome`.
+    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of BGEN file to index file location. Cannot use Hadoop glob
+        patterns in file names.
+    variants : :class:`.StructExpression` or :obj:`list` of :class:`.Struct` or :class:`.Table`
+        Variants to filter to. The underlying type of the input (row key in the case of a :class:`.Table`)
+        must be a struct with two fields: `locus` and `alleles`. The type of `locus` can either be a
+        :class:`.tlocus` or a :class:`.tstruct` with two fields: `contig` of
+        type :class:`.tstr` and `position` of type :class:`.tint`. If the type of
+        `locus` is :class:`.tlocus`, the reference genome must match that used to index
+        the BGEN file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
     _row_fields : :obj:`list` of :obj:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
@@ -929,19 +952,44 @@ def import_bgen(path,
     if n_partitions is None and block_size is None:
         block_size = 128
 
-    rg = reference_genome.name if reference_genome else None
+    if index_file_map:
+        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+    if variants is not None:
+        # have to get reference genome from the index files!
+        reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), index_file_map)        
+        
+        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
+        expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
+        
+        if isinstance(variants, StructExpression):
+            if variants.dtype != expected_vtype:
+                raise ValueError("'import_bgen' requires the expression type for 'variants' matches the BGEN key type: \n" +
+                                 f"\tFound: {variants.dtype}\n" +
+                                  f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+            uid = Env.get_uid()
+            variants = variants._to_table(uid)
+            variants = variants.key_by(locus=variants[uid].locus, alleles=variants[uid].alleles).select()._jt
+        elif isinstance(variants, Table):
+            if variants.key.dtype != expected_vtype:
+                raise ValueError("'import_bgen' requires the row key type for 'variants' matches the BGEN key type: \n" +
+                                 f"\tFound: {variants.key.dtype}\n" +
+                                  f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+            variants = variants.select()._jt
+        else:
+            assert isinstance(variants, list)
+            try:
+                variants = hl.Table.parallelize(variants, schema=expected_vtype).key_by('locus', 'alleles')._jt
+            except:
+                raise ValueError("'import_bgen' requires all elements in 'variants' matches the BGEN key type: {tstruct(locus=lt, alleles=tarray(tstr))}")
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
-                                    joption(n_partitions), joption(block_size), joption(rg), contig_recoding,
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
+                                    'varid' in row_set, 'rsid' in row_set, joption(n_partitions),
+                                    joption(block_size), index_file_map, joption(variants))
     return MatrixTable(jmt)
 
 
@@ -1824,31 +1872,64 @@ def import_vcf(path,
     return MatrixTable(jmt)
 
 
-@typecheck(path=oneof(str, sequenceof(str)))
-def index_bgen(path):
+@typecheck(path=oneof(str, sequenceof(str)),
+           index_file_map=nullable(dictof(str, str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
+def index_bgen(path,
+               index_file_map=None,
+               reference_genome='default',
+               contig_recoding=None,
+               skip_invalid_loci=False):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
-    filename of `path` appended by `.idx`.
+    filename of `path` appended by `.idx2` unless `directory` is specified.
 
     Example
     -------
+    Index a BGEN file, renaming contig name "01" to "1":
 
-    >>> hl.index_bgen("data/example.8bits.bgen")
+    >>> hl.index_bgen("data/example.8bits.bgen",
+    ...               contig_recoding={"01": "1"})
 
     Warning
     -------
-
     While this method parallelizes over a list of BGEN files, each file is
     indexed serially by one core. Indexing several BGEN files on a large cluster
     is a waste of resources, so indexing should generally be done once,
     separately from large analyses.
 
-    path: :obj:`str` or :obj:`list` of :obj:`str`
+    See Also
+    --------
+    :func:`.import_bgen`
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
+    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of BGEN file to index file location. Index file location must have
+        a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
+    rg = reference_genome.name if reference_genome else None
+
+    if contig_recoding:
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+
+    if index_file_map:
+        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
+
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)

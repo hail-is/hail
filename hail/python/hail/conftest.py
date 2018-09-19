@@ -103,6 +103,11 @@ def init(doctest_namespace):
     gnomad_data = ds.rows()
     doctest_namespace['gnomad_data'] = gnomad_data.select(gnomad_data.info.AF)
 
+    # BGEN
+    bgen = hl.import_bgen('data/example.8bits.bgen',
+                          entry_fields=['GT', 'GP', 'dosage'])
+    doctest_namespace['variants_table'] = bgen.rows()
+
     print("finished setting up doctest...")
     yield
     os.chdir(olddir)
