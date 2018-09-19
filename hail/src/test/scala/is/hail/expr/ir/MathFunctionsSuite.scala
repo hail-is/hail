@@ -50,6 +50,35 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("isnan", F64(Double.NaN)), true)
   }
 
+  @Test def is_finite() {
+    assertEvalsTo(invoke("is_finite", F32(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", F32(Float.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", F32(Float.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", F32(Float.NegativeInfinity)), expected = false)
+
+    assertEvalsTo(invoke("is_finite", F64(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", F64(Double.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", F64(Double.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", F64(Double.NegativeInfinity)), expected = false)
+  }
+
+  @Test def is_infinite() {
+    assertEvalsTo(invoke("is_infinite", F32(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", F32(Float.NegativeInfinity)), expected = true)
+
+    assertEvalsTo(invoke("is_infinite", F64(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", F64(Double.NegativeInfinity)), expected = true)
+  }
+
+
   @Test def sign() {
     assertEvalsTo(invoke("sign", I32(2)), 1)
     assertEvalsTo(invoke("sign", I32(0)), 0)

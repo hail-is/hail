@@ -12,6 +12,24 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseBoolean(s: String): Boolean = s.toBoolean
 
+  def parseInt32(s: String): Int = s.toInt
+
+  def parseInt64(s: String): Long = s.toLong
+
+  def parseFloat32(s: String): Float = s match {
+    case "nan" => Float.NaN
+    case "inf" => Float.PositiveInfinity
+    case "-inf" => Float.NegativeInfinity
+    case _ => s.toFloat
+  }
+
+  def parseFloat64(s: String): Double = s match {
+    case "nan" => Double.NaN
+    case "inf" => Double.PositiveInfinity
+    case "-inf" => Double.NegativeInfinity
+    case _ => s.toDouble
+  }
+
   def min(a: IR, b: IR): IR = If(ApplyComparisonOp(LT(a.typ), a, b), a, b)
   def max(a: IR, b: IR): IR = If(ApplyComparisonOp(GT(a.typ), a, b), a, b)
 
@@ -50,19 +68,19 @@ object UtilFunctions extends RegistryFunctions {
     registerCode("toFloat64", TBoolean(), TFloat64()) { (_, x: Code[Boolean]) => x.toI.toD }
     registerCode("toInt32", TString(), TInt32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", s)
+      Code.invokeScalaObject[String, Int](thisClass, "parseInt32", s)
     }
     registerCode("toInt64", TString(), TInt64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Long, String, Long]("parseLong", s)
+      Code.invokeScalaObject[String, Long](thisClass, "parseInt64", s)
     }
     registerCode("toFloat32", TString(), TFloat32()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", s)
+      Code.invokeScalaObject[String, Float](thisClass, "parseFloat32", s)
     }
     registerCode("toFloat64", TString(), TFloat64()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
-      Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", s)
+      Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
     }
     registerCode("toBoolean", TString(), TBoolean()) { (mb, x: Code[Long]) =>
       val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
