@@ -1,4 +1,5 @@
 import time
+import collections
 import datetime
 import os
 from flask import Flask, render_template, request, jsonify, abort, url_for
@@ -35,17 +36,19 @@ def index():
     cur_timestamp = timestamp
     
     unassigned = []
-    user_data = {}
-    
-    def get_user_data(user):
-        if user not in user_data:
-            d = {'CHANGES_REQUESTED': [],
+    user_data = collections.defaultdict(
+        lambda: {'CHANGES_REQUESTED': [],
                  'NEEDS_REVIEW': [],
-                 'ISSUES': []}
-            user_data[user] = d
-        else:
-            d = user_data[user]
-        return d
+                 'ISSUES': []})
+
+    def get_user_data(user):
+        return user_data[user]
+        # if user not in user_data:
+        #
+        #     user_data[user] = d
+        # else:
+        #     d = user_data[user]
+        # return d
 
     def add_pr(repo_name, pr):
         state = pr['state']
@@ -198,7 +201,7 @@ print('updating_data...')
 update_data()
 print('updating_data done.')
 
-poll_thread = threading.Thread(target=poll)
+poll_thread = threading.Thread(target=poll, daemon=True)
 poll_thread.start()
 
 if __name__ == "__main__":
