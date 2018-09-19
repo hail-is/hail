@@ -197,7 +197,12 @@ def main(args):
         conf.parse_and_extend('metadata', args.metadata)
     # if Python packages requested, add metadata variable
     if args.packages:
-        packages = '|'.join([conf.flags['metadata']['PKGS']] + args.packages.split(','))
+        metadata_pkgs = conf.flags['metadata'].get('PKGS')
+        if metadata_pkgs:
+            base = [metadata_pkgs]
+        else:
+            base = []
+        packages = '|'.join(base + args.packages.split(','))
         conf.extend_flag('metadata', {'PKGS': packages})
 
     conf.vars['driver_memory'] = str(int(machine_mem[args.master_machine_type] * args.master_memory_fraction))
