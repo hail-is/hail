@@ -1,5 +1,7 @@
 package is.hail.io.bgen
 
+import java.util.concurrent.Executors
+
 import is.hail.HailContext
 import is.hail.annotations.{SafeRow, UnsafeRow}
 import is.hail.expr.types.TStruct
@@ -13,8 +15,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 private case class IndexBgenPartition(
   path: String,
@@ -70,6 +71,8 @@ object IndexBgen {
     val typ = new OrderedRVDType(Array("locus", "alleles"), settings.typ)
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
+
+    implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(headers.length))
 
     val rvdFutures = headers.map { f =>
       Future({
