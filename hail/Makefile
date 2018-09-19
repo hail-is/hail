@@ -3,6 +3,8 @@
 
 hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD) 
 hail-ci-build-image:
+	# pull the image at least once so it can be used as a cache source
+	docker pull $(shell cat ../hail-ci-build-image)
 	docker build . -t hail-pr-builder:${GIT_SHA} -f Dockerfile.pr-builder --cache-from $(shell cat ../hail-ci-build-image)
 
 push-hail-ci-build-image: GIT_SHA = $(shell git rev-parse HEAD)
