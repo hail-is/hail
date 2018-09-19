@@ -170,6 +170,8 @@ object Simplify {
           fields2.filter { case (name, _) => !fields1Set.contains(name) }
         MakeStruct(finalFields)
 
+      case InsertFields(struct, Seq()) => struct
+
       case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
       case SelectFields(MakeStruct(fields), fieldNames) =>
@@ -205,6 +207,20 @@ object Simplify {
 
       case t@TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition(t) =>
         TableKeyBy(child, keys, false)
+
+      case TableMapRows(child, Ref("row", _), None) => child
+
+      case TableMapGlobals(child, Ref("global", _)) => child
+
+      case MatrixMapRows(child, Ref("va", _), None) => child
+
+      case MatrixMapCols(child, Ref("sa", _), None) => child
+
+      case x@MatrixMapEntries(child, Ref("g", _)) =>
+        assert(child.typ == x.typ)
+        child
+
+      case MatrixMapGlobals(child, Ref("global", _)) => child
 
       case TableCount(TableMapGlobals(child, _)) => TableCount(child)
 
