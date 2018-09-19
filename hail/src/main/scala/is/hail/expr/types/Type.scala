@@ -203,7 +203,8 @@ abstract class Type extends BaseType with Serializable {
     if (a == null)
       sb.append(cfg.missing)
     else
-      _showStr(a, cfg, sb)}
+      _showStr(a, cfg, sb)
+  }
 
   def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = sb.append(str(a))
 
