@@ -5,6 +5,7 @@ src/main/c/libsimdpp-2*
 src/main/c/headers
 src/main/c/lib
 src/main/resources/build-info.properties
+python/hail/_generated_version_info.py
 src/test/resources/example.v11.bgen.idx*
 src/test/resources/example.8bits.bgen.idx*
 src/test/resources/random.bgen.idx*
