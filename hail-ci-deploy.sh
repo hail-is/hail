@@ -1,4 +1,4 @@
 #!/bin/bash
 set -ex
 
-/bin/bash hail/hail-ci-deploy.sh
+(cd hail && /bin/bash hail-ci-deploy.sh)
