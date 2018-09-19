@@ -781,6 +781,16 @@ object PruneDeadFields {
         // fixme push down into value
         val child2 = rebuild(child, memo)
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo))
+      case TableKeyBy(child, keys, isSorted) =>
+        var child2 = rebuild(child, memo)
+        // fully upcast before shuffle
+        if (isSorted && keys.nonEmpty)
+          child2 = upcastTable(child2, memo.lookup(child).asInstanceOf[TableType])
+        TableKeyBy(child2, keys, isSorted)
+      case TableOrderBy(child, sortFields) =>
+        // fully upcast before shuffle
+        val child2 = upcastTable(rebuild(child, memo), memo.lookup(child).asInstanceOf[TableType])
+        TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (dep.rowType.hasField(root))
           TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
@@ -838,7 +848,12 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         MatrixMapEntries(child2, rebuild(newEntries, child2.typ, memo))
       case MatrixMapRows(child, newRow, newKey) =>
-        val child2 = rebuild(child, memo)
+        var child2 = rebuild(child, memo)
+        if (newKey.isDefined)
+          child2 = upcast(child2,
+            memo.lookup(child).asInstanceOf[MatrixType],
+            upcastCols = false,
+            upcastGlobals = false)
         MatrixMapRows(child2, rebuild(newRow, child2.typ, memo), newKey)
       case MatrixMapCols(child, newCol, newKey) =>
         // FIXME account for key
