@@ -1,7 +1,10 @@
+import time
 import os
 from flask import Flask, render_template, request, jsonify, abort, url_for
 from github import Github
 import random
+import threading
+import humanize
 
 GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
                                    '/secrets/scorecard-github-access-token.txt')
@@ -22,31 +25,17 @@ repos = {
 
 app = Flask('scorecard')
 
-def get_id(repo_name, number):
-    if repo_name == default_repo:
-        return f'{number}'
-    else:
-        return f'{repo_name}/{number}'
-
-def pr_template_data(repo_name, pr):
-    return {
-        'id': get_id(repo_name, pr.number),
-        'title': pr.title,
-        'html_url': pr.html_url
-    }
-
-def issue_template_data(repo_name, issue):
-    return {
-        'id': get_id(repo_name, issue.number),
-        'title': issue.title,
-        'html_url': issue.html_url
-    }
+data = None
+timsetamp = None
 
 @app.route('/')
 def index():
+    cur_data = data
+    cur_timestamp = timestamp
+    
     unassigned = []
     user_data = {}
-
+    
     def get_user_data(user):
         if user not in user_data:
             d = {'CHANGES_REQUESTED': [],
@@ -57,99 +46,146 @@ def index():
             d = user_data[user]
         return d
 
-    def add_pr_to(repo_name, pr, col):
-        pr_data = pr_template_data(repo_name, pr)
-        for user in pr.assignees:
-            d = get_user_data(user.login)
-            d[col].append(pr_data)
+    def add_pr(repo_name, pr):
+        for user in pr['assignees']:
+            d = get_user_data(user)
+            d[pr['state']].append(pr)
 
     def add_issue(repo_name, issue):
-        issue_data = issue_template_data(repo_name, issue)
-        for user in issue.assignees:
-            d = get_user_data(user.login)
-            d['ISSUES'].append(issue_data)
+        for user in issue['assignees']:
+            d = get_user_data(user)
+            d['ISSUES'].append(issue)
 
-    for repo_name, fq_repo in repos.items():
-        repo = github.get_repo(fq_repo)
-
-        for pr in repo.get_pulls(state='open'):
-            if len(pr.assignees) == 0:
-                unassigned.append(pr_template_data(repo_name, pr))
+    for repo_name, repo_data in cur_data.items():
+        for pr in repo_data['prs']:
+            if len(pr['assignees']) == 0:
+                unassigned.append(pr)
                 continue
+            elif pr['state'] != 'APPROVED':
+                add_pr(repo_name, pr)
 
-            state = 'NEEDS_REVIEW'
-            for review in pr.get_reviews():
-                if review.state == 'CHANGES_REQUESTED':
-                    state = review.state
-                    break
-                elif review.state == 'DISMISSED':
-                    break
-                elif review.state == 'APPROVED':
-                    state = 'APPROVED'
-                    break
-                else:
-                    assert review.state == 'COMMENTED'
-
-            if state != 'APPROVED':
-                add_pr_to(repo_name, pr, state)
-
-        for issue in repo.get_issues(state='open'):
+        for issue in repo_data['issues']:
             add_issue(repo_name, issue)
 
     random_user = random.choice(users)
 
+    updated = humanize.naturaltime(
+        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+
     return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, random_user=random_user)
+                           user_data=user_data, random_user=random_user, updated=updated)
 
 @app.route('/users/<user>')
 def get_user(user):
-    data = {
+    global data, timestamp
+
+    cur_data = data
+    cur_timestamp = timestamp
+
+    user_data = {
         'CHANGES_REQUESTED': [],
         'NEEDS_REVIEW': [],
         'ISSUES': []
     }
 
-    def add_pr_to(repo_name, pr, col):
-        pr_data = pr_template_data(repo_name, pr)
-        data[col].append(pr_data)
+    for repo_name, repo_data in cur_data.items():
+        for pr in repo_data['prs']:
+            if user not in pr['assignees']:
+                continue
 
-    def add_issue(repo_name, issue):
-        issue_data = issue_template_data(repo_name, issue)
-        data['ISSUES'].append(issue_data)
+            if pr['state'] != 'APPROVED':
+                user_data[pr['state']].append(pr)
 
+        for issue in repo_data['issues']:
+            if user in issue['assignees']:
+                user_data['ISSUES'].append(issue)
+
+    updated = humanize.naturaltime(
+        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+
+    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+def get_id(repo_name, number):
+    if repo_name == default_repo:
+        return f'{number}'
+    else:
+        return f'{repo_name}/{number}'
+
+def get_pr_data(repo_name, pr):
+    assignees = [a.login for a in pr.assignees]
+
+    state = 'NEEDS_REVIEW'
+    for review in pr.get_reviews():
+        if review.state == 'CHANGES_REQUESTED':
+            state = review.state
+            break
+        elif review.state == 'DISMISSED':
+            break
+        elif review.state == 'APPROVED':
+            state = 'APPROVED'
+            break
+        else:
+            assert review.state == 'COMMENTED'
+    
+    return {
+        'repo': repo_name,
+        'id': get_id(repo_name, pr.number),
+        'title': pr.title,
+        'assignees': assignees,
+        'html_url': pr.html_url,
+        'state': state
+    }
+
+def get_issue_data(repo_name, issue):
+    assignees = [a.login for a in issue.assignees]
+    return {
+        'repo': repo_name,
+        'id': get_id(repo_name, issue.number),
+        'title': issue.title,
+        'assignees': assignees,
+        'html_url': issue.html_url
+    }
+
+def update_data():
+    global data, timestamp
+    
+    new_data = {}
+    
+    
+    for repo_name in repos:
+        new_data[repo_name] = {
+            'prs': [],
+            'issues': []
+        }
+        
     for repo_name, fq_repo in repos.items():
         repo = github.get_repo(fq_repo)
 
         for pr in repo.get_pulls(state='open'):
-            assignees = [a.login for a in pr.assignees]
-            if user not in assignees:
-                continue
-
-            state = 'NEEDS_REVIEW'
-            for review in pr.get_reviews():
-                if review.state == 'CHANGES_REQUESTED':
-                    state = review.state
-                    break
-                elif review.state == 'DISMISSED':
-                    break
-                elif review.state == 'APPROVED':
-                    state = 'APPROVED'
-                    break
-                else:
-                    assert review.state == 'COMMENTED'
-
-            if state != 'APPROVED':
-                add_pr_to(repo_name, pr, state)
+            pr_data = get_pr_data(repo_name, pr)
+            new_data[repo_name]['prs'].append(pr_data)
 
         for issue in repo.get_issues(state='open'):
             if issue.pull_request is None:
-                assignees = [a.login for a in issue.assignees]
-                if user in assignees:
-                    add_issue(repo_name, issue)
+                issue_data = get_issue_data(repo_name, issue)
+                new_data[repo_name]['issues'].append(issue_data)
+    
+    now = time.time()
 
-    print(data)
+    data = new_data
+    timestamp = now
 
-    return render_template('user.html', user=user, data=data)
+def poll():
+    while True:
+        update_data()
+        time.sleep(180)
+
+print('updating_data...')
+update_data()
+print('updating_data done.')
+
+poll_thread = threading.Thread(target=poll)
+poll_thread.start()
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')
