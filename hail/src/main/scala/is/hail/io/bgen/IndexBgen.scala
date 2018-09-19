@@ -30,18 +30,27 @@ object IndexBgen {
   def apply(
     hc: HailContext,
     files: Array[String],
-    outputFiles: Array[String],
+    indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false) {
-    assert(files.length == outputFiles.length)
     val hConf = hc.hadoopConf
+
+    val statuses = LoadBgen.getAllFileStatuses(hConf, files)
+    val bgenFilePaths = statuses.map(_.getPath.toString)
+    val indexFilePaths = LoadBgen.getIndexFileNames(hConf, files, indexFileMap)
+
+    indexFilePaths.foreach { f =>
+      assert(f.endsWith(".idx2"))
+      if (hConf.exists(f))
+        hConf.delete(f, recursive = true)
+    }
 
     val recoding = Option(contigRecoding).getOrElse(Map.empty[String, String])
     val referenceGenome = rg.map(ReferenceGenome.getReference)
     referenceGenome.foreach(_.validateContigRemap(recoding))
 
-    val headers = LoadBgen.getFileHeaders(hConf, files)
+    val headers = LoadBgen.getFileHeaders(hConf, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
     val annotationType = +TStruct()
@@ -86,7 +95,7 @@ object IndexBgen {
 
     unionRVD.toRows.foreachPartition({ it =>
       val partIdx = TaskContext.get.partitionId()
-      using(new IndexWriter(sHadoopConfBc.value.value, outputFiles(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
+      using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
         it.foreach { row =>
           iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
         }

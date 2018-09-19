@@ -1873,12 +1873,12 @@ def import_vcf(path,
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
-           directory=nullable(str),
+           index_file_map=nullable(dictof(str, str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool)
 def index_bgen(path,
-               directory=None,
+               index_file_map=None,
                reference_genome='default',
                contig_recoding=None,
                skip_invalid_loci=False):
@@ -1909,9 +1909,9 @@ def index_bgen(path,
     ----------
     path : :obj:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
-    directory : obj:`str`, optional
-        Output directory to place index files in. Default is to write the index
-        file to the same directory as the input file.
+    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of BGEN file to index file location. Index file location must have
+        a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
@@ -1926,7 +1926,10 @@ def index_bgen(path,
     if contig_recoding:
         contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), joption(directory), joption(rg), contig_recoding, skip_invalid_loci)
+    if index_file_map:
+        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
+
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)

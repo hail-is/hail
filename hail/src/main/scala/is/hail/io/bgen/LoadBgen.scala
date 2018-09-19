@@ -213,18 +213,29 @@ object LoadBgen {
     }
   }
 
-  def getIndexFiles(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+  def getIndexFileNames(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
     def absolutePath(rel: String): String = hConf.fileStatus(rel).getPath.toString
 
-    val indexFileMapAbsolute = Option(indexFileMap).getOrElse(Map.empty[String, String]).map { case (f, index) => (absolutePath(f), absolutePath(index)) }
-    val indexFiles = files.map(absolutePath).map(f => indexFileMapAbsolute.getOrElse(f, f + ".idx2"))
+    val fileMapping = Option(indexFileMap)
+      .getOrElse(Map.empty[String, String])
+      .map { case (f, index) => (absolutePath(f), index) }
 
+    val badExtensions = fileMapping.filterNot { case (_, f) => f.endsWith("idx2") }.values
+    if (badExtensions.nonEmpty)
+      fatal(
+        s"""The following index file paths defined by 'index_file_map' are missing a .idx2 file extension:
+          |  ${ badExtensions.mkString("\n  ") })""".stripMargin)
+
+    files.map(absolutePath).map(f => fileMapping.getOrElse(f, f + ".idx2"))
+  }
+
+  def getIndexFiles(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+    val indexFiles = getIndexFileNames(hConf, files, indexFileMap)
     val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => hConf.exists(index) && index.endsWith("idx2") }.map(_._1)
     if (missingIdxFiles.nonEmpty)
       fatal(
         s"""The following BGEN files have no .idx2 index file. Use 'index_bgen' to create the index file once before calling 'import_bgen':
           |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
-
     indexFiles
   }
 

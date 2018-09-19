@@ -763,16 +763,22 @@ class BGENTests(unittest.TestCase):
         # old index file
         run_command(['touch', bgen_file + '.idx'])
         with self.assertRaisesRegex(FatalError, 'have no .idx2 index file'):
-            hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, index_file_map={bgen_file: bgen_file + '.idx'})
+            hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
         run_command(['rm', bgen_file + '.idx'])
 
     def test_specify_different_index_file(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
-        out1 = new_temp_file()
-        hl.index_bgen(bgen_file, directory=out1)
-        mt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, index_file_map={bgen_file: out1 + "/random.bgen.idx2"})
+        index_file = new_temp_file(suffix='idx2')
+        index_file_map = {bgen_file: index_file}
+        hl.index_bgen(bgen_file, index_file_map=index_file_map)
+        mt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, index_file_map=index_file_map)
         self.assertEqual(mt.count(), (30, 10))
+
+        with self.assertRaisesRegex(FatalError, 'missing a .idx2 file extension'):
+            index_file = new_temp_file()
+            index_file_map = {bgen_file: index_file}
+            hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):

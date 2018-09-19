@@ -342,32 +342,19 @@ class HailContext private(val sc: SparkContext,
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
   def indexBgen(file: String,
-    outputDir: Option[String],
+    indexFileMap: Map[String, String],
     rg: Option[String],
     contigRecoding: Map[String, String],
     skipInvalidLoci: Boolean) {
-    indexBgen(FastSeq(file), outputDir, rg, contigRecoding, skipInvalidLoci)
+    indexBgen(FastSeq(file), indexFileMap, rg, contigRecoding, skipInvalidLoci)
   }
 
   def indexBgen(files: Seq[String],
-    outputDir: Option[String] = None,
+    indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false) {
-    val statuses = LoadBgen.getAllFileStatuses(hadoopConf, files.toArray)
-    val inputFiles = statuses.map(_.getPath.toString)
-
-    val outputFiles = statuses.map { fs =>
-      val path = fs.getPath
-      outputDir.map(dir => dir + "/" + path.getName + ".idx2").getOrElse(path.toString + ".idx2")
-    }
-
-    outputFiles.foreach { f =>
-      if (hadoopConf.exists(f + ".idx2"))
-        hadoopConf.delete(f + ".idx2", recursive = true)
-    }
-
-    IndexBgen(this, inputFiles, outputFiles, rg, contigRecoding, skipInvalidLoci)
+    IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
