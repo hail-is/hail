@@ -7,6 +7,27 @@ from github import Github
 import random
 import threading
 import humanize
+import logging
+
+fmt = logging.Formatter(
+    # NB: no space after levename because WARNING is so long
+    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+    '%(message)s')
+
+fh = logging.FileHandler('scorecard.log')
+fh.setLevel(logging.INFO)
+fh.setFormatter(fmt)
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(fmt)
+
+log = logging.getLogger('scorecard')
+log.setLevel(logging.INFO)
+
+logging.basicConfig(
+    handlers=[fh, ch],
+    level=logging.INFO)
 
 GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
                                    '/secrets/scorecard-github-access-token.txt')
@@ -156,9 +177,11 @@ def get_issue_data(repo_name, issue):
 
 def update_data():
     global data, timestamp
+
+    log.info(f'rate_limit {github.get_rate_limit()}')
+    log.info('start updating_data')
     
     new_data = {}
-    
     
     for repo_name in repos:
         new_data[repo_name] = {
@@ -178,6 +201,8 @@ def update_data():
                 issue_data = get_issue_data(repo_name, issue)
                 new_data[repo_name]['issues'].append(issue_data)
     
+    log.info('updating_data done')
+    
     now = time.time()
 
     data = new_data
@@ -185,14 +210,33 @@ def update_data():
 
 def poll():
     while True:
-        update_data()
         time.sleep(180)
+        update_data()
 
-print('updating_data...')
 update_data()
-print('updating_data done.')
 
-poll_thread = threading.Thread(target=poll, daemon=True)
+def run_forever(target, *args, **kwargs):
+    # target should be a function
+    target_name = target.__name__
+
+    expected_retry_interval_ms = 15 * 1000 # 15s
+    while True:
+        start = time.time()
+        try:
+            log.info(f'run target {target_name}')
+            target(*args, **kwargs)
+            log.info(f'target {target_name} returned')
+        except:
+            log.error(f'target {target_name} threw exception', exc_info=sys.exc_info())
+        end = time.time()
+
+        run_time_ms = int((end - start) * 1000 + 0.5)
+        t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
+        if t > 0:
+            log.debug(f'{target_name}: sleep {t}ms')
+            time.sleep(t / 1000.0)
+
+poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
 poll_thread.start()
 
 if __name__ == "__main__":
