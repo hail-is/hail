@@ -16,7 +16,9 @@
           display: inline-grid;
           grid-template-columns: auto auto;
       }
-    body {font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;}
+    body {
+        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+    }
 
     </style>
 </head>
@@ -49,12 +51,6 @@
         <h3>Changes Requested</h3>
         {% if user_data['CHANGES_REQUESTED'] %}
         <table>
-            <thead>
-            <tr>
-                <th align="left">id</th>
-                <th align="left">title</th>
-            </tr>
-            </thead>
             <tbody>
             {% for pr in user_data['CHANGES_REQUESTED'] %}
             <tr>
@@ -71,12 +67,6 @@
         <h3>Failing tests</h3>
         {% if user_data['FAILING'] %}
         <table>
-            <thead>
-            <tr>
-                <th align="left">id</th>
-                <th align="left">title</th>
-            </tr>
-            </thead>
             <tbody>
             {% for pr in user_data['FAILING'] %}
             <tr>
@@ -94,12 +84,6 @@
         <h3>Issues</h3>
         {% if user_data['ISSUES'] %}
         <table>
-            <thead>
-            <tr>
-                <th align="left">id</th>
-                <th align="left">title</th>
-            </tr>
-            </thead>
             <tbody>
             {% for issue in user_data['ISSUES'] %}
             <tr>
