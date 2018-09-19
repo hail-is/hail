@@ -222,6 +222,9 @@ object Simplify {
 
       case MatrixMapGlobals(child, Ref("global", _)) => child
 
+      case TableOrderBy(child, sortFields) if sortFields.forall(_.sortOrder == Ascending) =>
+        TableKeyBy(TableKeyBy(child, sortFields.map(_.field)), FastIndexedSeq(), isSorted = true)
+
       case TableCount(TableMapGlobals(child, _)) => TableCount(child)
 
       case TableCount(TableMapRows(child, _, _)) => TableCount(child)
