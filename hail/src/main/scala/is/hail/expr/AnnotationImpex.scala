@@ -282,7 +282,7 @@ object TableAnnotationImpex {
       case _: TInt32 => UtilFunctions.parseInt32(a)
       case _: TInt64 => UtilFunctions.parseInt64(a)
       case _: TFloat32 => UtilFunctions.parseFloat32(a)
-      case _: TFloat64 => UtilFunctions.parseInt64(a)
+      case _: TFloat64 => UtilFunctions.parseFloat64(a)
       case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
