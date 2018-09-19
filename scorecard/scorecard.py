@@ -48,9 +48,17 @@ def index():
         return d
 
     def add_pr(repo_name, pr):
-        for user in pr['assignees']:
-            d = get_user_data(user)
-            d[pr['state']].append(pr)
+        state = pr['state']
+        
+        if state == 'CHANGES_REQUESTED':
+            d = get_user_data(pr['user'])
+            d[state].append(pr)
+        elif state == 'NEEDS_REVIEW':
+            for user in pr['assignees']:
+                d = get_user_data(user)
+                d[state].append(pr)
+        else:
+            assert state == 'APPROVED'
 
     def add_issue(repo_name, issue):
         for user in issue['assignees']:
@@ -62,8 +70,8 @@ def index():
             if len(pr['assignees']) == 0:
                 unassigned.append(pr)
                 continue
-            elif pr['state'] != 'APPROVED':
-                add_pr(repo_name, pr)
+            
+            add_pr(repo_name, pr)
 
         for issue in repo_data['issues']:
             add_issue(repo_name, issue)
@@ -91,11 +99,15 @@ def get_user(user):
 
     for repo_name, repo_data in cur_data.items():
         for pr in repo_data['prs']:
-            if user not in pr['assignees']:
-                continue
-
-            if pr['state'] != 'APPROVED':
-                user_data[pr['state']].append(pr)
+            state = pr['state']
+            if state == 'CHANGES_REQUESTED':
+                if user == pr['user']:
+                    user_data[state].append(pr)
+            elif state == 'NEEDS_REVIEW':
+                if user in pr['assignees']:
+                    user_data[state].append(pr)
+            else:
+                assert state == 'APPROVED'
 
         for issue in repo_data['issues']:
             if user in issue['assignees']:
@@ -132,6 +144,7 @@ def get_pr_data(repo_name, pr):
         'repo': repo_name,
         'id': get_id(repo_name, pr.number),
         'title': pr.title,
+        'user': pr.user.login,
         'assignees': assignees,
         'html_url': pr.html_url,
         'state': state
