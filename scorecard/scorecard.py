@@ -158,7 +158,8 @@ def get_pr_data(repo, repo_name, pr):
             state = 'APPROVED'
             break
         else:
-            assert review.state == 'COMMENTED'
+            if review.state != 'COMMENTED':
+                log.warning(f'unknown review state {review.state} on review {review} in pr {pr}')
 
     sha = pr.head.sha
     status = repo.get_commit(sha=sha).get_combined_status().state
