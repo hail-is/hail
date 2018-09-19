@@ -38,7 +38,7 @@ object IndexBgen {
 
     val statuses = LoadBgen.getAllFileStatuses(hConf, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)
-    val indexFilePaths = LoadBgen.getIndexFileNames(hConf, files, indexFileMap)
+    val indexFilePaths = LoadBgen.getIndexFileNames(hConf, bgenFilePaths, indexFileMap)
 
     indexFilePaths.foreach { f =>
       assert(f.endsWith(".idx2"))
