@@ -42,6 +42,7 @@ do
     time cluster start ${CLUSTER_NAME_0_2} \
          --version devel \
          --spark 2.2.0 \
+         --max-idle 40m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket
     time cluster submit ${CLUSTER_NAME_0_2} \
          cluster-sanity-check-0.2.py
@@ -51,6 +52,7 @@ do
     time cluster start ${CLUSTER_NAME_0_1} \
          --version 0.1 \
          --spark 2.0.2 \
+         --max-idle 40m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket
     time cluster submit ${CLUSTER_NAME_0_1} \
          cluster-sanity-check-0.1.py

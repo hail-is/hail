@@ -18,7 +18,8 @@ RUN apk --no-cache add \
 # this seems easier than getting the keys right for apt
 #
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash'
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    /root/google-cloud-sdk/bin/gcloud components install beta
 ENV PATH $PATH:/root/google-cloud-sdk/bin
 
 VOLUME /secrets
