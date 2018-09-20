@@ -762,6 +762,15 @@ class AggregatorsSuite {
       constrArgs = FastIndexedSeq(),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq(Ref("k", TBoolean())))
+
+    // test struct as key
+    runAggregator(Keyed(Count()),
+      TStruct("k" -> TStruct("a" -> TBoolean())),
+      FastIndexedSeq(Row(Row(true)), Row(Row(true)), Row(Row(true)), Row(Row(false)), Row(Row(false)), Row(Row(null)), Row(Row(null))),
+      Map(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
+      constrArgs = FastIndexedSeq(),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("k", TStruct("a" -> TBoolean()))))
   }
 
   @Test

@@ -90,36 +90,31 @@ class MatrixImportBGEN(MatrixIR):
                  paths,
                  entry_fields,
                  sample_file,
+                 index_file_map,
                  n_partitions,
                  block_size,
-                 reference_genome,
-                 contig_recoding,
-                 skip_invalid_loci,
                  row_fields,
-                 variants_per_file):
+                 included_variants):
         super().__init__()
         self.paths = paths
         self.entry_fields = entry_fields
         self.sample_file = sample_file
+        self.index_file_map = index_file_map
         self.n_partitions = n_partitions
         self.block_size = block_size
-        self.reference_genome = reference_genome
-        self.contig_recoding = contig_recoding
-        self.skip_invalid_loci = skip_invalid_loci
         self.row_fields = row_fields
-        self.variants_per_file = variants_per_file
+        self.included_variants = included_variants
 
     def render(self, r):
         config = dict(
             name='MatrixBGENReader',
             files=self.paths,
             sampleFile=self.sample_file,
+            indexFileMap=self.index_file_map,
             nPartitions=self.n_partitions,
             blockSizeInMB=self.block_size,
-            rg=self.reference_genome.name if self.reference_genome else None,
-            contigRecoding=self.contig_recoding,
-            skipInvalidLoci=self.skip_invalid_loci,
-            includedVariantsPerUnresolvedFilePath=self.variants_per_file)
+            includedVariants=self.included_variants,
+            )
         return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):

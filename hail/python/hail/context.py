@@ -8,7 +8,7 @@ from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 
 import sys
-
+import os
 
 class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
@@ -82,6 +82,13 @@ class HailContext(object):
 
         version = self._jhc.version()
         hail.__version__ = version
+
+        if not os.getenv('HAIL_IGNORE_PYTHON_VERSION'):
+            py_version = read_version_info()
+            if py_version != version:
+                raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
+                                   f"  JAR:    {version}\n"
+                                   f"  Python: {py_version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -252,3 +259,8 @@ def set_global_seed(seed):
     """
 
     Env.set_seed(seed)
+
+
+def read_version_info() -> str:
+    from ._generated_version_info import hail_version
+    return hail_version

@@ -167,6 +167,18 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
 
+  @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
+    val t = TArray(TStruct("a" -> TInt32Required, "b" -> TArray(TInt32Optional, required = true)))
+    val value = Row(2, FastIndexedSeq(1))
+    assertEvalsTo(
+      MakeArray.unify(
+        Seq(NA(t.elementType.deepOptional()), In(0, t.elementType))
+      ),
+      FastIndexedSeq((value, t.elementType)),
+      FastIndexedSeq(null, value)
+    )
+  }
+
   @Test def testMakeTuple() {
     assertEvalsTo(MakeTuple(FastSeq()), Row())
     assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
@@ -612,6 +624,8 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] = {
     try {
+      hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
       val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
         .tir.asInstanceOf[TableRead]
       val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")

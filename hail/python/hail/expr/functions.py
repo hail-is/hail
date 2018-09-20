@@ -1223,6 +1223,70 @@ def is_nan(x) -> BooleanExpression:
     """
     return _func("isnan", tbool, x)
 
+@typecheck(x=expr_oneof(expr_float32, expr_float64))
+def is_finite(x) -> BooleanExpression:
+    """Returns ``True`` if the argument is a finite floating-point number.
+
+    Examples
+    --------
+    >>> hl.is_finite(0).value
+    True
+
+    >>> hl.is_finite(float('nan')).value
+    False
+
+    >>> hl.is_finite(float('inf')).value
+    False
+
+    >>> hl.is_finite(hl.null('float32')).value
+    None
+
+    Notes
+    -----
+    This method will return missing, not ``True``, if `x` is missing.
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_finite", tbool, x)
+
+@typecheck(x=expr_oneof(expr_float32, expr_float64))
+def is_infinite(x) -> BooleanExpression:
+    """Returns ``True`` if the argument is positive or negative infinity.
+
+    Examples
+    --------
+    >>> hl.is_infinite(0).value
+    False
+
+    >>> hl.is_infinite(float('nan')).value
+    False
+
+    >>> hl.is_infinite(float('inf')).value
+    True
+
+    >>> hl.is_infinite(hl.null('float32')).value
+    None
+
+    Notes
+    -----
+    This method will return missing, not ``False``, if `x` is missing.
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_infinite", tbool, x)
+
 
 @typecheck(x=expr_any)
 def json(x) -> StringExpression:
@@ -3289,7 +3353,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
     -------
     :class:`.SetExpression`
     """
-    return filter(lambda x: False, set([null(t)]))
+    return hl.set(empty_array(t))
 
 
 @typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
@@ -3340,7 +3404,9 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-    return filter(lambda x: False, array([null(t)]))
+    array_t = hl.tarray(t)
+    ir = MakeArray([], array_t)
+    return construct_expr(ir, array_t)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)

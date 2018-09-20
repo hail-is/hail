@@ -245,11 +245,11 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 obs = [-log(p, 10) for p in spvals]
             else:
                 if isinstance(source, Table):
-                    ht = source.select(pval=pvals)
+                    ht = source.select(pval=pvals).key_by().persist().key_by('pval')
                 else:
-                    ht = source.select_rows(pval=pvals).rows()
+                    ht = source.select_rows(pval=pvals).rows().key_by().select('pval').persist().key_by('pval')
                 n = ht.count()
-                ht = ht.order_by('pval').add_index()
+                ht = ht.select(idx=hail.scan.count())
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
                 pvals = ht.aggregate(
                     aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))

@@ -1,6 +1,6 @@
 # Hail
 
-[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
+[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 [Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
 
@@ -82,7 +82,7 @@ Follow Hail on Twitter <a href="https://twitter.com/hailgenetics">@hailgenetics<
 
 If you use Hail for published work, please cite the software:
 
- - Hail, [https://github.com/hail-is/hail](https://github.com/hail-is/hail)
+ - Hail, https://github.com/hail-is/hail
 
 ##### Acknowledgements
 

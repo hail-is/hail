@@ -89,6 +89,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     approx_equal
     exp
     is_nan
+    is_finite
+    is_infinite
     log
     log10
     sign
