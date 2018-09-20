@@ -1,11 +1,10 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.annotations.{SafeRow, UnsafeRow}
 import is.hail.expr.types.TStruct
-import is.hail.io.HadoopFSDataBinaryReader
-import is.hail.io.index.{IndexReader, IndexWriter}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
+import is.hail.io.index.IndexWriter
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -67,7 +66,7 @@ object IndexBgen {
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    val rvds = headers.map { f =>
+    val crvds = headers.map { f =>
       val partition = IndexBgenPartition(
         f.path,
         f.compressed,
@@ -78,8 +77,7 @@ object IndexBgen {
         0,
         sHadoopConfBc)
 
-      val crvd = BgenRDD(hc.sc, Array(partition), settings, null)
-      OrderedRVD.coerce(typ, crvd)
+      BgenRDD(hc.sc, Array(partition), settings, null)
     }
 
     val rowType = typ.rowType
@@ -90,16 +88,29 @@ object IndexBgen {
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
-    val unionRVD = RVD.union(rvds)
-    assert(unionRVD.getNumPartitions == files.length)
+    val unionCRVD = ContextRDD.union(hc.sc, crvds)
+    assert(unionCRVD.getNumPartitions == files.length)
 
-    unionRVD.toRows.foreachPartition({ it =>
-      val partIdx = TaskContext.get.partitionId()
-      using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
-        it.foreach { row =>
-          iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+    unionCRVD
+      .cmapPartitionsAndContext({ case (consumerCtx, it) =>
+        val producerCtx = consumerCtx.freshContext
+        OrderedRVD.localKeySort(
+          consumerCtx.region,
+          producerCtx.region,
+          consumerCtx,
+          typ,
+          keyType.fieldNames,
+          it.flatMap(_ (producerCtx)))
+      })
+      .toRows(rowType)
+      .foreachPartition({ it =>
+        val partIdx = TaskContext.get.partitionId()
+        using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
+          it.foreach { row =>
+            iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+          }
         }
-      }
-    })
+        info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")
+      })
   }
 }
