@@ -40,6 +40,11 @@ DISTRIBUTION=gs://hail-common/distributions/${BRANCH_TARGET_NAME}/Hail-${BRANCH_
 gsutil cp build/distributions/hail.zip $DISTRIBUTION
 gsutil acl set public-read $DISTRIBUTION
 
+DOCS=gs://hail-common/builds/${BRANCH_TARGET_NAME}/docs/hail-${BRANCH_TARGET_NAME}-docs-${SHA}.tar.gz
+tar cvf hail-${BRANCH_TARGET_NAME}-docs-${SHA}.tar.gz -C build/www docs
+gsutil cp hail-${BRANCH_TARGET_NAME}-docs-${SHA}.tar.gz ${DOCS}
+gsutil acl set public-read ${DOCS}
+
 # update website
 ## since we're non-interactive, we explicitly state the fingerprint for ci.hail.is
 mkdir -p ~/.ssh
