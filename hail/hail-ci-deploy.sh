@@ -44,7 +44,7 @@ gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
 gsutil acl set public-read $CONFIG
 
 DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
-tar cvf hail-${BRANCH}-docs-${SHA}.tar.gz -C build/www docs
+tar cvf hail-${BRANCH}-docs-${SHA}.tar.gz -C build www
 gsutil cp hail-${BRANCH}-docs-${SHA}.tar.gz ${DOCS}
 gsutil acl set public-read ${DOCS}
 
