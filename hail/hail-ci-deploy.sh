@@ -43,6 +43,11 @@ python ./create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
 gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
 gsutil acl set public-read $CONFIG
 
+DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
+tar cvf hail-${BRANCH}-docs-${SHA}.tar.gz -C build/www docs
+gsutil cp hail-${BRANCH}-docs-${SHA}.tar.gz ${DOCS}
+gsutil acl set public-read ${DOCS}
+
 # update website
 ## since we're interactive, we explicitly state the fingerprint for ci.hail.is
 mkdir -p ~/.ssh
