@@ -784,7 +784,7 @@ object PruneDeadFields {
       case TableKeyBy(child, keys, isSorted) =>
         var child2 = rebuild(child, memo)
         // fully upcast before shuffle
-        if (isSorted && keys.nonEmpty)
+        if (!isSorted && keys.nonEmpty)
           child2 = upcastTable(child2, memo.lookup(child).asInstanceOf[TableType])
         TableKeyBy(child2, keys, isSorted)
       case TableOrderBy(child, sortFields) =>
