@@ -387,65 +387,24 @@ class MatrixTable(ExprContainer):
             self._set_field(k, v)
 
     def __getitem__(self, item):
+        invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
+                                  f"  Usage 1: field selection ( mt['field'] )\n"
+                                  f"  Usage 2: Entry joining ( mt[mt2.row_key, mt2.col_key] )")
+
         if isinstance(item, str):
             return self._get_field(item)
         elif isinstance(item, tuple) and len(item) == 2:
             # this is the join path
             exprs = item
-            row_key = None
-            if isinstance(exprs[0], slice):
-                s = exprs[0]
-                if not (s.start is None and s.stop is None and s.step is None):
-                    raise ExpressionException(
-                        "Expect unbounded slice syntax ':' to indicate axes of a MatrixTable, but found parameter(s) [{}]".format(
-                            ', '.join(x for x in ['start' if s.start is not None else None,
-                                                  'stop' if s.stop is not None else None,
-                                                  'step' if s.step is not None else None] if x is not None)
-                        )
-                    )
-            else:
-                row_key = wrap_to_tuple(exprs[0])
+            row_key = wrap_to_tuple(exprs[0])
+            col_key = wrap_to_tuple(exprs[1])
 
-            col_key = None
-            if isinstance(exprs[1], slice):
-                s = exprs[1]
-                if not (s.start is None and s.stop is None and s.step is None):
-                    raise ExpressionException(
-                        "Expect unbounded slice syntax ':' to indicate axes of a MatrixTable, but found parameter(s) [{}]".format(
-                            ', '.join(x for x in ['start' if s.start is not None else None,
-                                                  'stop' if s.stop is not None else None,
-                                                  'step' if s.step is not None else None] if x is not None)
-                        )
-                    )
-            else:
-                col_key = wrap_to_tuple(exprs[1])
-
-            if ((row_key is None or all(isinstance(e, Expression) for e in row_key)) and
-                    (col_key is None or all(isinstance(e, Expression) for e in col_key))):
-                if row_key is not None and col_key is not None:
-                    return self.index_entries(row_key, col_key)
-                elif row_key is not None and col_key is None:
-                    warnings.warn(
-                        'The mt[<row keys>, :] syntax is deprecated, and will be removed before 0.2 release.\n'
-                        '  Use one of the following instead:\n'
-                        '    mt.rows()[<row keys>]\n'
-                        '    mt.index_rows(<row keys>)', stacklevel=2)
-                    return self.index_rows(*row_key)
-                elif row_key is None and col_key is not None:
-                    warnings.warn(
-                        'The mt[:, <col keys>] syntax is deprecated, and will be removed before 0.2 release.\n'
-                        '  Use one of the following instead:\n'
-                        '    mt.cols()[<col keys>]\n'
-                        '    mt.index_cols(<col keys>)', stacklevel=2)
-                    return self.index_cols(*col_key)
-                else:
-                    warnings.warn('The mt[:, :] syntax is deprecated, and will be removed before 0.2 release.\n'
-                                  '  Use the following instead:\n'
-                                  '    mt.index_globals()', stacklevel=2)
-                    return self.index_globals()
-        raise ValueError(f"'MatrixTable.__getitem__' (mt[...]): Usage:\n"
-                         f"  Select a field: mt['Field name']\n"
-                         f"  index_entries shorthand: mt[(row keys), (col keys)]")
+            try:
+                return self.index_entries(row_key, col_key)
+            except TypeError as e:
+                raise invalid_usage from e
+        else:
+            raise invalid_usage
 
     @property
     def col_key(self):
