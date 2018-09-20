@@ -69,20 +69,14 @@ case class MatrixType(
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =
-    TableType(
-      colType,
-      if (colKey.isEmpty) None else Some(colKey),
-      globalType)
+    TableType(colType, colKey, globalType)
 
   val rowsTableType: TableType =
-    TableType(
-      rowType,
-      if (rowKey.isEmpty) None else Some(rowKey),
-      globalType)
+    TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
     val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
-    TableType(resultStruct, Some(rowKey ++ colKey), globalType)
+    TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
   def orvdType: OrderedRVDType = OrderedRVDType(rvRowType, rowKey)

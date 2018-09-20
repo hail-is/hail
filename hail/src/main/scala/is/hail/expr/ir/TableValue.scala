@@ -15,15 +15,14 @@ import org.json4s.jackson.JsonMethods
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: OrderedRVD) {
   require(typ.rowType == rvd.rowType)
-  require(typ.key.forall(k => rvd.typ.key.startsWith(k)))
+  require(rvd.typ.key.startsWith(typ.key))
 
   def rdd: RDD[Row] =
     rvd.toRows
 
   def keyedRDD(): RDD[(Row, Row)] = {
-    require(typ.key.isDefined)
     val fieldIndices = typ.rowType.fields.map(f => f.name -> f.index).toMap
-    val keyIndices = typ.key.get.map(fieldIndices)
+    val keyIndices = typ.key.map(fieldIndices)
     val keyIndexSet = keyIndices.toSet
     val valueIndices = typ.rowType.fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }

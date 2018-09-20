@@ -317,7 +317,7 @@ object LocalLDPrune {
 
     val tableType = TableType(
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required),
-      key = Some(mt.rowKey), globalType = TStruct.empty())
+      key = mt.rowKey, globalType = TStruct.empty())
 
     val sitesOnly = rvdLP.mapPartitions(
       typ.copy(rowType = tableType.rowType)

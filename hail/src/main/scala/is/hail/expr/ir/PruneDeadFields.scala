@@ -101,7 +101,7 @@ object PruneDeadFields {
   }
 
   def minimal(tt: TableType): TableType = {
-    val keySet = tt.key.iterator.flatten.toSet
+    val keySet = tt.key.toSet
     tt.copy(
       rowType = tt.rowType.filterSet(keySet)._1,
       globalType = TStruct(tt.globalType.required)
@@ -242,7 +242,7 @@ object PruneDeadFields {
           globalType = TStruct(left.typ.globalType.required, left.typ.globalType.fieldNames.flatMap(f =>
             requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(left, leftDep, memo)
-        val rightKeyFields = right.typ.keyOrEmpty.toSet
+        val rightKeyFields = right.typ.key.toSet
         val rightDep = right.typ.copy(
           rowType = TStruct(right.typ.rowType.required, right.typ.rowType.fieldNames.flatMap(f =>
             if (rightKeyFields.contains(f))
@@ -258,7 +258,7 @@ object PruneDeadFields {
           case Some(struct) =>
             val rightDep = right.typ.copy(rowType = unify(
               right.typ.rowType,
-              FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.get.toSet, true)._1) ++
+              FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
                 FastIndexedSeq(struct): _*),
               globalType = minimal(right.typ.globalType))
             memoizeTableIR(right, rightDep, memo)
@@ -359,7 +359,7 @@ object PruneDeadFields {
         val childDep = TableType(
           rowType = requestedType.rowType.rename(rowMapRev),
           globalType = requestedType.globalType.rename(globalMapRev),
-          key = requestedType.key.map(_.map(k => rowMapRev.getOrElse(k, k))))
+          key = requestedType.key.map(k => rowMapRev.getOrElse(k, k)))
         memoizeTableIR(child, childDep, memo)
     }
   }
@@ -475,7 +475,7 @@ object PruneDeadFields {
           case Some(struct) =>
             val tableDep = table.typ.copy(rowType = unify(
               table.typ.rowType,
-              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
+              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.toSet, true)._1) ++
                 FastIndexedSeq(struct): _*),
               globalType = minimal(table.typ.globalType))
             memoizeTableIR(table, tableDep, memo)
@@ -500,7 +500,7 @@ object PruneDeadFields {
           case Some(struct) =>
             val tableDep = table.typ.copy(rowType = unify(
               table.typ.rowType,
-              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.get.toSet, true)._1) ++
+              FastIndexedSeq[TStruct](table.typ.rowType.filterSet(table.typ.key.toSet, true)._1) ++
                 FastIndexedSeq(struct): _*))
             memoizeTableIR(table,tableDep, memo)
             val matDep = unify(
@@ -1072,7 +1072,7 @@ object PruneDeadFields {
     else {
       var table = ir
       if (upcastRow && ir.typ.rowType != rType.rowType) {
-        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), rType.key)
+        table = TableMapRows(table, upcast(Ref("row", table.typ.rowType), rType.rowType), Some(rType.key))
       }
       if (upcastGlobals && ir.typ.globalType != rType.globalType) {
         table = TableMapGlobals(table,

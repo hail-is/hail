@@ -330,12 +330,8 @@ class Table(ExprContainer):
         self._indices_from_ref = {'global': self._global_indices,
                                   'row': self._row_indices}
 
-        opt_key = from_option(jt.key())
-        if opt_key is None:
-            self._key = hail.struct()
-        else:
-            self._key = hail.struct(
-                **{k: self._row[k] for k in jiterable_to_list(opt_key)})
+        self._key = hail.struct(
+            **{k: self._row[k] for k in jiterable_to_list(jt.key())})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
@@ -2434,7 +2430,7 @@ class Table(ExprContainer):
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
                key=table_key_type)
-    def from_spark(df, key=None):
+    def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
 
         Examples

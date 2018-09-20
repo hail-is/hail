@@ -186,7 +186,7 @@ def require_row_key_variant_w_struct_locus(dataset, method):
             (not isinstance(dataset['locus'].dtype, tlocus) and
                      dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
         raise ValueError("Method '{}' requires row key to be two fields 'locus'"
-                         " (type 'locus<any>' or 'struct{contig: str, position: int32}') and "
+                         " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))

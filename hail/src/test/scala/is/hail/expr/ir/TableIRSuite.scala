@@ -16,7 +16,7 @@ class TableIRSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
     val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -35,7 +35,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
-    val newTable = TableMapRows(t, newRow, None)
+    val newTable = TableMapRows(t, newRow, Some(FastIndexedSeq()))
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx})
   }
@@ -45,7 +45,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
-    val newTable = TableMapRows(t, newRow, None)
+    val newTable = TableMapRows(t, newRow, Some(FastIndexedSeq()))
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
   }
@@ -264,7 +264,7 @@ class TableIRSuite extends SparkSuite {
   @Test def testTableRename() {
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
-    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = Some(FastIndexedSeq("idx_")), globalType = TStruct("foo_" -> TInt32())))
+    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32())))
     val beforeValue = before.execute(hc)
     val after = t.execute(hc)
     assert(beforeValue.globals.safeValue == after.globals.safeValue)

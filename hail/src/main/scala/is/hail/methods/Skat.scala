@@ -203,7 +203,7 @@ object Skat {
       ("p_value", TFloat64()),
       ("fault", TInt32()))
 
-    Table(vsm.hc, skatRdd, skatSignature, Some(FastIndexedSeq("id")))
+    Table(vsm.hc, skatRdd, skatSignature, FastIndexedSeq("id"))
   }
 
   def computeKeyGsWeightRdd(vsm: MatrixTable,

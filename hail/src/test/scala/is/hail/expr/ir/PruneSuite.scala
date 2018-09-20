@@ -105,7 +105,7 @@ class PruneSuite extends SparkSuite {
       def fullType: MatrixType = mat.typ
     })
 
-  val emptyTableDep = TableType(TStruct(), None, TStruct())
+  val emptyTableDep = TableType(TStruct(), FastIndexedSeq(), TStruct())
 
   def tableRefBoolean(tt: TableType, fields: String*): IR = {
     var let: IR = True()
@@ -247,7 +247,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMapRowsMemo() {
-    val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"), None)
+    val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"), Some(FastIndexedSeq()))
     checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2"), null))
   }
 
@@ -529,7 +529,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableImportRebuild() {
     val tt = TableType(
       TStruct("a" -> TInt32(), "b" -> TFloat64()),
-      None,
+      FastIndexedSeq(),
       TStruct())
     val opts = TableReaderOptions(1, Array(), Array(), "", "", true, "", 'a', true, Array(0, 1), originalType = tt.rowType)
     checkRebuild(TableImport(Array(""), tt, opts),
@@ -549,7 +549,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMapRowsRebuild() {
-    val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"), None)
+    val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"), Some(FastIndexedSeq()))
     checkRebuild(tmr, subsetTable(tmr.typ, "row.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
@@ -583,9 +583,9 @@ class PruneSuite extends SparkSuite {
     val mapExpr = InsertFields(Ref("row", tr.typ.rowType),
       FastIndexedSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
     val tfilter = TableFilter(
-      TableMapRows(tr, mapExpr, None),
+      TableMapRows(tr, mapExpr, Some(FastIndexedSeq())),
       tableRefBoolean(tr.typ, "row.2"))
-    val tmap = TableMapRows(tr, mapExpr, None)
+    val tmap = TableMapRows(tr, mapExpr, Some(FastIndexedSeq()))
     val tunion = TableUnion(FastIndexedSeq(tfilter, tmap))
     checkRebuild(tunion, subsetTable(tunion.typ, "row.foo"),
       (_: BaseIR, rebuilt: BaseIR) => {
