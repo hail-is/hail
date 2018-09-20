@@ -304,7 +304,6 @@ object PruneDeadFields {
         memoizeTableIR(child, unify(child.typ, minimal(child.typ).copy(globalType = requestedType.globalType), rowDep), memo)
       case TableMapGlobals(child, newRow) =>
         val globalDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
-        // fixme push down into value
         memoizeTableIR(child, unify(child.typ, requestedType.copy(globalType = globalDep.globalType), globalDep), memo)
       case TableAggregateByKey(child, newRow) =>
         val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
@@ -778,7 +777,6 @@ object PruneDeadFields {
         val newRow2 = rebuild(newRow, child2.typ, memo)
         TableMapRows(child2, newRow2, newKey)
       case TableMapGlobals(child, newRow) =>
-        // fixme push down into value
         val child2 = rebuild(child, memo)
         TableMapGlobals(child2, rebuild(newRow, child2.typ, memo))
       case TableLeftJoinRightDistinct(left, right, root) =>
