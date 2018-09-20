@@ -1109,6 +1109,28 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 }
 
+case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends MatrixIR {
+  private val fields = child.typ.rowType.fieldNames.toSet
+  assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
+
+  val children: IndexedSeq[BaseIR] = Array(child)
+
+  val typ: MatrixType = child.typ.copy(rowKey = keys)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixKeyRowsBy = {
+    assert(newChildren.length == 1)
+    MatrixKeyRowsBy(newChildren(0).asInstanceOf[MatrixIR], keys, isSorted)
+  }
+
+  def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+    val nPreservedFields = keys.zip(prev.rvd.typ.key).takeWhile { case (l, r) => l == r }.length
+    assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
+
+    prev.copy(typ = typ, rvd = prev.rvd.enforceKey(keys, isSorted))
+  }
+}
+
 case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, newRow)

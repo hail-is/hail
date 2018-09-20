@@ -213,15 +213,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     val nPreservedFields = keys.zip(tv.rvd.typ.key).takeWhile { case (l, r) => l == r }.length
     assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
 
-    val rvd = if (nPreservedFields == keys.length) {
-      tv.rvd
-    } else if (isSorted) {
-      tv.rvd.truncateKey(keys.take(nPreservedFields))
-        .extendKeyPreservesPartitioning(keys)
-    } else {
-      tv.rvd.changeKey(keys)
-    }
-    tv.copy(typ = typ, rvd = rvd)
+    tv.copy(typ = typ, rvd = tv.rvd.enforceKey(keys, isSorted))
   }
 }
 
