@@ -302,7 +302,7 @@ object Parser extends JavaTokenParsers {
   def ordered_rvd_type_expr: Parser[OrderedRVDType] =
     (("OrderedRVDType" ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case partitionKey ~ restKey ~ rowType =>
-      new OrderedRVDType(partitionKey ++ restKey, rowType)
+      OrderedRVDType(rowType, partitionKey ++ restKey)
     }
 
   def table_type_expr: Parser[TableType] =

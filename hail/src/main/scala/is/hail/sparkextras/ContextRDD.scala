@@ -3,13 +3,9 @@ package is.hail.sparkextras
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd._
-import org.apache.spark.storage._
-import org.apache.spark.util.random._
 import org.apache.spark.ExposedUtils
-import org.apache.spark.util.Utils
 
 import scala.reflect.ClassTag
-import scala.util._
 
 object ContextRDD {
   def apply[C <: AutoCloseable : Pointed, T: ClassTag](

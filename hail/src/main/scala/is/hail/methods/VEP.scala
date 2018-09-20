@@ -104,7 +104,7 @@ object VEP {
     val localRowType = ht.typ.rowType
     val rowKeyOrd = ht.typ.keyType.ordering
 
-    val prev = ht.value.rvd.asInstanceOf[OrderedRVD]
+    val prev = ht.value.rvd
     val annotations = prev
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)

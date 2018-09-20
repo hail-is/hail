@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, _}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDSpec, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -43,7 +43,7 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
+      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
 
       val colsSpec = TableSpec(
         FileFormat.version.rep,
@@ -62,9 +62,9 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
+      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
 
-      RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
+      RVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
 
       val globalsSpec = TableSpec(
         FileFormat.version.rep,
@@ -179,8 +179,8 @@ case class MatrixValue(
       val localRowType = typ.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
-      rvd.mapPartitionsPreservesPartitioning(
-        OrderedRVDType(typ.rowKey, typ.rowType)
+      rvd.mapPartitions(
+        OrderedRVDType(typ.rowType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -201,7 +201,7 @@ case class MatrixValue(
       }
     }
 
-    def colsRVD(): RVD = {
+    def colsRVD(): OrderedRVD = {
       val hc = HailContext.get
       val signature = typ.colType
 
@@ -225,8 +225,8 @@ case class MatrixValue(
       val localSortedColValues = sortedColValues.broadcast
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
-      rvd.constrainToOrderedPartitioner(rvd.partitioner.strictify).boundary
-        .mapPartitionsPreservesPartitioning(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
+      rvd.repartition(rvd.partitioner.strictify).boundary
+        .mapPartitions(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb
             val rv2 = RegionValue(ctx.region)
@@ -307,7 +307,7 @@ case class MatrixValue(
         newMatrixType,
         newGlobals,
         newColValues,
-        rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+        rvd.mapPartitions(newMatrixType.orvdType) { it =>
 
           val pc = makePartitionContext()
 

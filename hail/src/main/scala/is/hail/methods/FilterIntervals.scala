@@ -16,7 +16,7 @@ object MatrixFilterIntervals {
 
 object TableFilterIntervals {
   def apply(ht: Table, jintervals: java.util.ArrayList[Interval], keep: Boolean): Table = {
-    val orvd = ht.value.rvd.asInstanceOf[OrderedRVD]
+    val orvd = ht.value.rvd
     val intervals = IntervalTree(orvd.typ.kType.ordering, jintervals.asScala.toArray)
     ht.copy2(rvd = orvd.filterIntervals(intervals, keep))
   }

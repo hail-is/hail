@@ -84,15 +84,15 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = mapped2(15, 4).execute(hc).rvd.asInstanceOf[OrderedRVD]
+    val mapped = mapped2(15, 4).execute(hc).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
       Interval(Row(10), Row(14), false, true))
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
-    val repartitioned = mapped.constrainToOrderedPartitioner(newPartitioner)
-    val cachedAndRepartitioned = mapped.cache().constrainToOrderedPartitioner(newPartitioner)
+    val repartitioned = mapped.repartition(newPartitioner)
+    val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner)
 
     assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
     assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())

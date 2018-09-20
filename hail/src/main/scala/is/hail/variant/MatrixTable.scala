@@ -92,7 +92,7 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
+  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
@@ -200,7 +200,7 @@ object MatrixTable {
 
     val oldRowType = kt.signature
 
-    val rdd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
+    val rvd = kt.rvd.mapPartitions(OrderedRVDType(matrixType.rvRowType)) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -220,7 +220,7 @@ object MatrixTable {
     new MatrixTable(kt.hc, matrixType,
       kt.globals,
       BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd))
+      rvd.changeKey(matrixType.rowKey))
   }
 }
 
@@ -455,8 +455,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = matrixType.copy(rowKey = keys)
 
-    copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD.coerce(newMatrixType.orvdType, rvd))
+    copyMT(matrixType = newMatrixType, rvd = rvd.changeKey(keys))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -638,7 +637,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountCols(): Long = colValues.value.length
 
   def distinctByRow(): MatrixTable =
-    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ,
+    copy2(rvd = rvd.boundary.mapPartitions(rvd.typ,
       SortedDistinctRowIterator.transformer(rvd.typ)))
 
   def distinctByCol(): MatrixTable = {
@@ -836,7 +835,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
     val localEntryType = matrixType.entryType
 
-    val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
+    val orvd = rvd.mapPartitions(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       val fullRow = new UnsafeRow(localRVRowType.physicalType)
@@ -880,11 +879,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-    new Table(hc,
-      TableLiteral(
-        TableValue(ttyp,
-          globals,
-          orvd.toOldStyleRVD)))
+    new Table(hc, TableLiteral(TableValue(ttyp, globals, orvd)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
@@ -1116,7 +1111,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
             partSame
           }
         }
-      }.run.forall(t => t)
+      }.clearingRun.forall(t => t)
   }
 
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
