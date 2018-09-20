@@ -6,7 +6,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
-import is.hail.rvd._
+import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD

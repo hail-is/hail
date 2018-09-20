@@ -1,11 +1,9 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.annotations.{SafeRow, UnsafeRow}
 import is.hail.expr.types.TStruct
-import is.hail.io.HadoopFSDataBinaryReader
-import is.hail.io.index.{IndexReader, IndexWriter}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
+import is.hail.io.index.IndexWriter
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -63,7 +61,7 @@ object IndexBgen {
       annotationType
     )
 
-    val typ = new OrderedRVDType(Array("locus", "alleles"), settings.typ)
+    val typ = new OrderedRVDType(settings.typ, Array("locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -79,7 +77,7 @@ object IndexBgen {
         sHadoopConfBc)
 
       val crvd = BgenRDD(hc.sc, Array(partition), settings, null)
-      OrderedRVD.coerce(typ, crvd)
+      OrderedRVD.coerce(typ, crvd).truncateKey(IndexedSeq())
     }
 
     val rowType = typ.rowType
@@ -90,7 +88,7 @@ object IndexBgen {
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
-    val unionRVD = RVD.union(rvds)
+    val unionRVD = OrderedRVD.union(rvds)
     assert(unionRVD.getNumPartitions == files.length)
 
     unionRVD.toRows.foreachPartition({ it =>
