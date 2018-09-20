@@ -60,7 +60,7 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
-    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
+    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
   }
 
   private[methods] def apply(hc: HailContext,
@@ -88,7 +88,7 @@ object PCRelate {
     ).map { case (name, expr) => s"($name $expr)" }
     val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
 
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, None)
+    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, FastIndexedSeq())
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
       .select(irExpr, IndexedSeq(), 0)
       .keyBy(keys.toArray)

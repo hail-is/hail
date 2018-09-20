@@ -70,7 +70,7 @@ case class MatrixValue(
         FileFormat.version.rep,
         hc.version,
         "../references",
-        TableType(typ.globalType, None, TStruct.empty()),
+        TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),
         Map("globals" -> RVDComponentSpec("globals"),
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -120,7 +120,7 @@ case class MatrixValue(
         FileFormat.version.rep,
         hc.version,
         "../references",
-        TableType(typ.entriesRVType, None, typ.globalType),
+        TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
         Map("globals" -> RVDComponentSpec("../globals/rows"),
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))

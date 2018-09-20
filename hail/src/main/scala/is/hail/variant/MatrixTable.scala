@@ -189,12 +189,11 @@ object MatrixTable {
   }
 
   def fromRowsTable(kt: Table): MatrixTable = {
-    require(!kt.key.isEmpty)
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
-      kt.key.get,
+      kt.key,
       kt.signature,
       TStruct.empty())
     val rvRowType = matrixType.rvRowType
@@ -827,7 +826,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               newName -> f.typ
             }
           }: _*),
-      Some(matrixType.rowKey),
+      matrixType.rowKey,
       matrixType.globalType)
 
     val localNSamples = numCols
@@ -1206,7 +1205,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     Table(hc,
       sparkContext.parallelize[Row](Array(globals.value)),
       globalType,
-      None)
+      FastIndexedSeq())
   }
 
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))

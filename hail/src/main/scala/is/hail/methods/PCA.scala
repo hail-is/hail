@@ -52,7 +52,7 @@ object PCA {
         rv
       }
     }
-    new Table(hc, scoresRDD, rowType, Some(vsm.colKey))
+    new Table(hc, scoresRDD, rowType, vsm.colKey)
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)
@@ -121,7 +121,7 @@ object PCA {
           rv
         }
       }
-      Some(new Table(vsm.hc, rdd, rowType, Some(vsm.rowKey)))
+      Some(new Table(vsm.hc, rdd, rowType, vsm.rowKey))
     } else {
       None
     }

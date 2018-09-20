@@ -156,7 +156,7 @@ class MatrixIRSuite extends SparkSuite {
       "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
     )
     val keyNames = IndexedSeq("idx")
-    Table(hc, rowRdd, rowSig, Some(keyNames))
+    Table(hc, rowRdd, rowSig, keyNames)
   }
   def getLocalizedCols: Table = {
     val cdata = Array(
@@ -166,7 +166,7 @@ class MatrixIRSuite extends SparkSuite {
     val colRdd = sc.parallelize(cdata.map(Row.fromSeq(_)))
     val colSig = TStruct("idx" -> TInt32(), "tag" -> TString())
     val keyNames = IndexedSeq("idx")
-    Table(hc, colRdd, colSig, Some(keyNames))
+    Table(hc, colRdd, colSig, keyNames)
   }
 
   @Test def testUnlocalizeEntries() {
