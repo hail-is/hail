@@ -30,7 +30,7 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
     if (idx >= nAlleles)
       fatal(s"call_stats: expected alleles with maximum index ${nAlleles - 1}, found allele with index $idx" +
         s"\n  This can happen with invalid input data, or failure to reconcile alleles and genotypes after 'split_multi'")
-    alleleCount(idx) == 1
+    alleleCount(idx) += 1
   }
 
   def merge(c: Call): CallStatsCombiner = {
