@@ -104,6 +104,7 @@ object IndexBgen {
             }
           }
         })
+        info(s"Finished indexing file '${ f.path }'")
       })
     }
 
