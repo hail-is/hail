@@ -384,6 +384,10 @@ object PruneDeadFields {
             f.name -> f.typ
         }: _*))
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
+      case MatrixKeyRowsBy(child, keys, isSorted) =>
+        memoizeMatrixIR(child, requestedType.copy(
+          rvRowType = unify(child.typ.rvRowType, minimal(child.typ).rvRowType, requestedType.rvRowType)
+        ), memo)
       case MatrixMapRows(child, newRow, newKey) =>
         val irDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val depMod = child.typ.copy(rvRowType = TStruct(irDep.rvRowType.fields.map { f =>

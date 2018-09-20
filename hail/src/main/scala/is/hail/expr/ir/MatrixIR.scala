@@ -1122,6 +1122,8 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
     MatrixKeyRowsBy(newChildren(0).asInstanceOf[MatrixIR], keys, isSorted)
   }
 
+  override def columnCount: Option[Int] = child.columnCount
+
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     val nPreservedFields = keys.zip(prev.rvd.typ.key).takeWhile { case (l, r) => l == r }.length

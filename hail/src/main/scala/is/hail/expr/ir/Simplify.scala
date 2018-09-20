@@ -327,6 +327,7 @@ object Simplify {
       case MatrixRowsTable(MatrixAggregateColsByKey(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixKeyRowsBy(child, keys, isSorted)) => TableKeyBy(MatrixRowsTable(child), keys, isSorted)
 
       case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
         if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
@@ -347,6 +348,7 @@ object Simplify {
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
       case TableHead(TableMapRows(child, newRow), n) =>
         TableMapRows(TableHead(child, n), newRow)

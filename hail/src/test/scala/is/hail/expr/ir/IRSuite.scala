@@ -660,6 +660,7 @@ class IRSuite extends SparkSuite {
         MatrixFilterEntries(read, b),
         MatrixChooseCols(read, Array(0, 0, 0)),
         MatrixMapCols(read, newCol, None),
+        MatrixKeyRowsBy(read, FastIndexedSeq("row_m", "row_d"), false),
         MatrixMapRows(read, newRow, None),
         MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
           "global_f32" -> ApplyBinaryPrimOp(Add(),

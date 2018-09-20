@@ -182,6 +182,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixFilterEntries(matrix_read, ir.FalseIR()),
             ir.MatrixChooseCols(matrix_read, [1, 0]),
             ir.MatrixMapCols(matrix_read, ir.MakeStruct([('x', ir.I64(20))]), ['x']),
+            ir.MatrixKeyRowsBy(matrix_read, ['row_i64'], False),
             ir.MatrixMapRows(matrix_read, ir.MakeStruct([('x', ir.I64(20))]), (['x'], [])),
             ir.MatrixMapEntries(matrix_read, ir.MakeStruct([('x', ir.I64(20))])),
             ir.MatrixMapGlobals(matrix_read, ir.MakeStruct([('x', ir.I64(20))])),
