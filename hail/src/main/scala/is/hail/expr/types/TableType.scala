@@ -11,12 +11,8 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case JString(s) => Parser.parseTableType(s) },
   { case tt: TableType => JString(tt.toString) }))
 
-case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalType: TStruct) extends BaseType {
-  assert(!key.exists(_.isEmpty))
-
-  val keyOrEmpty: IndexedSeq[String] = key.getOrElse(IndexedSeq.empty)
-  val keyOrNull: IndexedSeq[String] = key.orNull
-  val rvdType = OrderedRVDType(keyOrEmpty, rowType)
+case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
+  val rvdType = OrderedRVDType(key, rowType)
 
   def env: Env[Type] = {
     Env.empty[Type]
@@ -35,8 +31,8 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
     "global" -> globalType,
     "row" -> rowType)
 
-  def keyType: Option[TStruct] = key.map(_ => rvdType.kType)
-  val keyFieldIdx: Option[Array[Int]] = key.map(_ => rvdType.kFieldIdx)
+  def keyType: TStruct = rvdType.kType
+  val keyFieldIdx: Array[Int] = rvdType.kFieldIdx
   def valueType: TStruct = rvdType.valueType
   val valueFieldIdx: Array[Int] = rvdType.valueFieldIdx
 
@@ -61,14 +57,9 @@ case class TableType(rowType: TStruct, key: Option[IndexedSeq[String]], globalTy
     sb += ','
     newline()
 
-    key match {
-      case Some(key) =>
-        sb.append(s"key:$space[")
-        key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-        sb += ']'
-      case None =>
-        sb.append(s"key:${space}None")
-    }
+    sb.append(s"key:$space[")
+    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+    sb += ']'
     sb += ','
     newline()
 

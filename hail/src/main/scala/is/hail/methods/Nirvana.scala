@@ -402,7 +402,7 @@ object Nirvana {
     val localRowType = ht.typ.rowType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = ht.typ.keyType.get.ordering
+    val rowKeyOrd = ht.typ.keyType.ordering
 
     info("Running Nirvana")
 
@@ -475,7 +475,7 @@ object Nirvana {
 
     new Table(ht.hc, TableLiteral(
       TableValue(
-        TableType(nirvanaRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
+        TableType(nirvanaRowType, FastIndexedSeq("locus", "alleles"), TStruct()),
         BroadcastRow(Row(), TStruct(), ht.hc.sc),
         nirvanaRVD
       )))

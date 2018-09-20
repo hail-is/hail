@@ -174,7 +174,7 @@ abstract sealed class MatrixIR extends BaseIR {
           TableMapRows(
             TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
             MakeStruct(FastIndexedSeq()),
-            None
+            Some(FastIndexedSeq())
           ))
           .execute(HailContext.get)
           .rvd
@@ -689,118 +689,121 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val localColsType = TArray(minColType)
     val colValuesBc = minColValues.broadcast
     val globalsBc = prev.globals.broadcast
-    val newRVD = prev.rvd.boundary.mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, { (i, ctx, it) =>
-      val rvb = new RegionValueBuilder()
-      val partRegion = ctx.freshContext.region
+    val newRVD = prev.rvd
+      .constrainToOrderedPartitioner(prev.rvd.partitioner.strictify)
+      .boundary
+      .mapPartitionsWithIndexPreservesPartitioning(typ.orvdType, { (i, ctx, it) =>
+        val rvb = new RegionValueBuilder()
+        val partRegion = ctx.freshContext.region
 
-      rvb.set(partRegion)
-      rvb.start(localGlobalsType)
-      rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val globals = rvb.end()
+        rvb.set(partRegion)
+        rvb.start(localGlobalsType)
+        rvb.addAnnotation(localGlobalsType, globalsBc.value)
+        val globals = rvb.end()
 
-      rvb.start(localColsType)
-      rvb.addAnnotation(localColsType, colValuesBc.value)
-      val cols = rvb.end()
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType, colValuesBc.value)
+        val cols = rvb.end()
 
-      val initialize = makeInit(i)
-      val sequence = makeSeq(i)
-      val annotate = makeAnnotate(i)
+        val initialize = makeInit(i)
+        val sequence = makeSeq(i)
+        val annotate = makeAnnotate(i)
 
-      new Iterator[RegionValue] {
-        var isEnd = false
-        var current: RegionValue = _
-        val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
-        val consumerRegion = ctx.region
-        val newRV = RegionValue(consumerRegion)
+        new Iterator[RegionValue] {
+          var isEnd = false
+          var current: RegionValue = _
+          val rvRowKey: WritableRegionValue = WritableRegionValue(newRowType, ctx.freshRegion)
+          val consumerRegion = ctx.region
+          val newRV = RegionValue(consumerRegion)
 
-        val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
-
-        {
-          var i = 0
-          while (i < nCols) {
-            var j = 0
-            while (j < nAggs) {
-              colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
-              j += 1
-            }
-            i += 1
-          }
-        }
-
-        def hasNext: Boolean = {
-          if (isEnd || (current == null && !it.hasNext)) {
-            isEnd = true
-            return false
-          }
-          if (current == null)
-            current = it.next()
-          true
-        }
-
-        def next(): RegionValue = {
-          if (!hasNext)
-            throw new java.util.NoSuchElementException()
-
-          rvRowKey.setSelect(rvType, selectIdx, current)
-
-          colRVAggs.foreach(_.clear())
-
-          initialize(current.region, colRVAggs, globals, false)
-
-          do {
-            sequence(current.region, colRVAggs,
-              globals, false,
-              cols, false,
-              current.offset, false)
-            current = null
-          } while (hasNext && keyOrd.equiv(rvRowKey.value, current))
-
-          rvb.set(consumerRegion)
-
-          val aggResultsOffsets = Array.tabulate(nCols) { i =>
-            rvb.start(aggResultType)
-            rvb.startStruct()
-            var j = 0
-            while (j < nAggs) {
-              colRVAggs(i * nAggs + j).result(rvb)
-              j += 1
-            }
-            rvb.endStruct()
-            rvb.end()
-          }
-
-          rvb.start(newRVType)
-          rvb.startStruct()
-
-          {
-            var i = 0
-            while (i < newRowType.size) {
-              rvb.addField(newRowType, rvRowKey.value, i)
-              i += 1
-            }
-          }
-
-          rvb.startArray(nCols)
+          val colRVAggs = new Array[RegionValueAggregator](nAggs * nCols)
 
           {
             var i = 0
             while (i < nCols) {
-              val newEntryOff = annotate(consumerRegion,
-                aggResultsOffsets(i), false,
-                globals, false)
-
-              rvb.addRegionValue(rTyp, consumerRegion, newEntryOff)
-
+              var j = 0
+              while (j < nAggs) {
+                colRVAggs(i * nAggs + j) = rvAggs(j).newInstance()
+                j += 1
+              }
               i += 1
             }
           }
-          rvb.endArray()
-          rvb.endStruct()
-          newRV.setOffset(rvb.end())
-          newRV
+
+          def hasNext: Boolean = {
+            if (isEnd || (current == null && !it.hasNext)) {
+              isEnd = true
+              return false
+            }
+            if (current == null)
+              current = it.next()
+            true
+          }
+
+          def next(): RegionValue = {
+            if (!hasNext)
+              throw new java.util.NoSuchElementException()
+
+            rvRowKey.setSelect(rvType, selectIdx, current)
+
+            colRVAggs.foreach(_.clear())
+
+            initialize(current.region, colRVAggs, globals, false)
+
+            do {
+              sequence(current.region, colRVAggs,
+                globals, false,
+                cols, false,
+                current.offset, false)
+              current = null
+            } while (hasNext && keyOrd.equiv(rvRowKey.value, current))
+
+            rvb.set(consumerRegion)
+
+            val aggResultsOffsets = Array.tabulate(nCols) { i =>
+              rvb.start(aggResultType)
+              rvb.startStruct()
+              var j = 0
+              while (j < nAggs) {
+                colRVAggs(i * nAggs + j).result(rvb)
+                j += 1
+              }
+              rvb.endStruct()
+              rvb.end()
+            }
+
+            rvb.start(newRVType)
+            rvb.startStruct()
+
+            {
+              var i = 0
+              while (i < newRowType.size) {
+                rvb.addField(newRowType, rvRowKey.value, i)
+                i += 1
+              }
+            }
+
+            rvb.startArray(nCols)
+
+            {
+              var i = 0
+              while (i < nCols) {
+                val newEntryOff = annotate(consumerRegion,
+                  aggResultsOffsets(i), false,
+                  globals, false)
+
+                rvb.addRegionValue(rTyp, consumerRegion, newEntryOff)
+
+                i += 1
+              }
+            }
+            rvb.endArray()
+            rvb.endStruct()
+            newRV.setOffset(rvb.end())
+            newRV
+          }
         }
-      }
-    })
+      })
 
     prev.copy(rvd = newRVD, typ = typ)
   }
@@ -1708,7 +1711,6 @@ case class MatrixAnnotateColsTable(
   child: MatrixIR,
   table: TableIR,
   root: String) extends MatrixIR {
-  require(table.typ.key.isDefined)
   require(child.typ.colType.fieldOption(root).isEmpty)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
@@ -1731,7 +1733,7 @@ case class MatrixAnnotateColsTable(
     val prev =  child.execute(hc)
     val tab = table.execute(hc)
 
-    val keyTypes = tab.typ.keyType.get.types
+    val keyTypes = tab.typ.keyType.types
     val colKeyTypes = prev.typ.colKeyStruct.types
 
     val keyedRDD = tab.keyedRDD().filter { case (k, _) => !k.anyNull }
@@ -1759,7 +1761,6 @@ case class MatrixAnnotateRowsTable(
   table: TableIR,
   root: String,
   key: Option[IndexedSeq[IR]]) extends MatrixIR {
-  require(table.typ.key.isDefined)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table) ++ key.getOrElse(FastIndexedSeq.empty[IR])
 
@@ -1786,9 +1787,10 @@ case class MatrixAnnotateRowsTable(
     val tv = table.execute(hc)
     key match {
       // annotateRowsIntervals
-      case None if table.typ.keyType.exists { k =>
-        k.size == 1 && k.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
-      } =>
+      case None
+        if table.typ.keyType.size == 1
+        && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
+      =>
         val typOrdering = child.typ.rowKeyStruct.types(0).ordering
 
         val typToInsert: Type = table.typ.valueType
@@ -1798,7 +1800,7 @@ case class MatrixAnnotateRowsTable(
 
         val partBc = hc.sc.broadcast(prev.rvd.partitioner)
         val tableRowType = table.typ.rowType.physicalType
-        val tableKeyIdx = table.typ.keyFieldIdx.get(0)
+        val tableKeyIdx = table.typ.keyFieldIdx(0)
         val tableValueIndex = table.typ.valueFieldIdx
         val partitionKeyedIntervals = tv.rvd.boundary.crdd
           .flatMap { rv =>
@@ -1919,8 +1921,7 @@ case class MatrixAnnotateRowsTable(
 
       // annotateRowsTable using key
       case None =>
-        assert(table.typ.keyType.isDefined)
-        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.get.types).forall { case (l, r) => l.isOfType(r) })
+        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.types).forall { case (l, r) => l.isOfType(r) })
         val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
           tv.rvd.asInstanceOf[OrderedRVD], root)
         prev.copy(typ = typ, rvd = newRVD)
@@ -2327,9 +2328,9 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
 
   val typ: MatrixType = MatrixType(
     rowsEntries.typ.globalType,
-    cols.typ.keyOrEmpty,
+    cols.typ.key,
     cols.typ.rowType,
-    rowsEntries.typ.keyOrEmpty,
+    rowsEntries.typ.key,
     newRowType)
 
   def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)

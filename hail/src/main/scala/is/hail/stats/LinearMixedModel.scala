@@ -36,7 +36,7 @@ object LinearMixedModel {
     orderedRVDPartitioner: OrderedRVDPartitioner,
     rdd: RDD[RegionValue]): Table = {
     
-    val typ = TableType(rowType, Some(FastIndexedSeq("idx")), globalType = TStruct())
+    val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
     
     val orderedRVD = OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
       orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
