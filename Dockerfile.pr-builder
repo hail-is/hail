@@ -77,9 +77,9 @@ USER hail
 # Some plugin we use hides its dependencies in a so-called "detached
 # configuration" so there is no way for us to ensure it gets cached.
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
-RUN conda env create hail -f ./python/hail/dev-environment.yml && \
-    conda env create batch -f batch-environment.yml && \
-    conda env create hail-ci -f ci-environment.yml && \
+RUN conda env create -f ./python/hail/dev-environment.yml && \
+    conda env create -f batch/environment.yml && \
+    conda env create -f ci/environment.yml && \
     rm -rf /home/hail/.conda/pkgs/*
 
 # gcloud iam key files will be stored here
