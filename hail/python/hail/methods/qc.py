@@ -516,7 +516,7 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
 
     if csq:
         dataset = dataset.annotate_globals(
-            **{name + '_csq_header': annotations['vep_csq_header'].value})
+            **{name + '_csq_header': annotations['vep_csq_header'].eval()})
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})

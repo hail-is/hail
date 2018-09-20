@@ -184,7 +184,7 @@ class IsNA(IR):
     @typecheck_method(value=IR)
     def __init__(self, value):
         super().__init__(value)
-        self.value = value
+        self.eval() = value
 
     @typecheck_method(value=IR)
     def copy(self, value):
@@ -192,11 +192,11 @@ class IsNA(IR):
         return new_instance(value)
 
     def render(self, r):
-        return '(IsNA {})'.format(r(self.value))
+        return '(IsNA {})'.format(r(self.eval()))
 
     def __eq__(self, other):
         return isinstance(other, IsNA) and \
-               other.value == self.value
+               other.eval() == self.eval()
 
 
 class If(IR):
@@ -226,7 +226,7 @@ class Let(IR):
     def __init__(self, name, value, body):
         super().__init__(value, body)
         self.name = name
-        self.value = value
+        self.eval() = value
         self.body = body
 
     @typecheck_method(value=IR, body=IR)
@@ -235,7 +235,7 @@ class Let(IR):
         return new_instance(self.name, value, body)
 
     def render(self, r):
-        return '(Let {} {} {})'.format(escape_id(self.name), r(self.value), r(self.body))
+        return '(Let {} {} {})'.format(escape_id(self.name), r(self.eval()), r(self.body))
 
     @property
     def bound_variables(self):
@@ -244,7 +244,7 @@ class Let(IR):
     def __eq__(self, other):
         return isinstance(other, Let) and \
                other.name == self.name and \
-               other.value == self.value and \
+               other.eval() == self.eval() and \
                other.body == self.body
 
 
@@ -1288,19 +1288,19 @@ class Literal(IR):
     def __init__(self, dtype, value):
         super(Literal, self).__init__()
         self.dtype: 'hail.HailType' = dtype
-        self.value = value
+        self.eval() = value
 
     def copy(self):
-        return Literal(self.dtype, self.value)
+        return Literal(self.dtype, self.eval())
 
     def render(self, r):
         return f'(Literal {self.dtype._jtype.parsableString()} ' \
-               f'"{escape_str(self.dtype._to_json(self.value))}")'
+               f'"{escape_str(self.dtype._to_json(self.eval()))}")'
 
     def __eq__(self, other):
         return isinstance(other, Literal) and \
                other.dtype == self.dtype and \
-               other.value == self.value
+               other.eval() == self.eval()
 
 
 class Join(IR):

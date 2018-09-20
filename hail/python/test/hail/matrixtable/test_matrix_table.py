@@ -69,8 +69,8 @@ class Tests(unittest.TestCase):
         ]
 
         for x, t, f in data:
-            self.assertTrue(f(mt.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
-            self.assertTrue(f(ht.annotate_globals(foo=hl.literal(x, t)).foo.value, x), f"{x}, {t}")
+            self.assertTrue(f(mt.annotate_globals(foo=hl.literal(x, t)).foo.eval(), x), f"{x}, {t}")
+            self.assertTrue(f(ht.annotate_globals(foo=hl.literal(x, t)).foo.eval(), x), f"{x}, {t}")
 
     def test_filter(self):
         vds = self.get_vds()
