@@ -484,16 +484,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
 
   def aggregateColsByKey(entryExpr: String, colExpr: String): MatrixTable = {
-    log.info(entryExpr)
-    log.info(colExpr)
     val entriesIR = Parser.parse_value_ir(entryExpr, IRParserEnvironment(matrixType.refMap))
     val colsIR = Parser.parse_value_ir(colExpr, IRParserEnvironment(matrixType.refMap))
     new MatrixTable(hc, MatrixAggregateColsByKey(ast, entriesIR, colsIR))
   }
 
   def aggregateRowsByKey(entryExpr: String, rowExpr: String): MatrixTable = {
-    log.info(entryExpr)
-    log.info(rowExpr)
     val entriesIR = Parser.parse_value_ir(entryExpr, IRParserEnvironment(matrixType.refMap))
     val rowsIR = Parser.parse_value_ir(rowExpr, IRParserEnvironment(matrixType.refMap))
     new MatrixTable(hc, MatrixAggregateRowsByKey(ast, entriesIR, rowsIR))

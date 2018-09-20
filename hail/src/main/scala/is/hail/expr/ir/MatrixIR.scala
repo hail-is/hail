@@ -701,9 +701,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 
     // Iterate through rows and aggregate
     val newRVType = typ.rvRowType
-    val newRowType = typ.rowType
     val newRowKeyType = typ.rowKeyStruct
-    val nKeys = typ.rowKey.length
     val rvType = prev.typ.rvRowType
     val selectIdx = prev.typ.rvdType.kFieldIdx
     val keyOrd = prev.typ.rvdType.kRowOrd
@@ -1124,11 +1122,10 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
       transformInitOp,
       transformSeqOp)
 
-    val (rTypEntry, makeAnnotateEntry) = ir.Compile[Long, Long, Long, Long, Long](
+    val (rTypEntry, makeAnnotateEntry) = ir.Compile[Long, Long, Long, Long](
       "AGGR", aggResultTypeEntry,
       "global", oldGlobalsType,
       "va", oldRVRowType,
-      "newColumnIndices", newColumnIndicesType, // FIXME: Ask amanda why this was added?
       postAggIREntry
     )
     assert(rTypEntry == typ.entryType)
@@ -1210,7 +1207,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
           }
           rvb.endStruct()
           val aggResultOffset = rvb.end()
-          annotateEntry(rv.region, aggResultOffset, false, globalsOffset, false, oldRow, false, mapOffset, false)
+          annotateEntry(rv.region, aggResultOffset, false, globalsOffset, false, oldRow, false)
         }
 
         rvb.start(newRVType)

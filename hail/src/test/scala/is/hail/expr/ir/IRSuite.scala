@@ -653,18 +653,12 @@ class IRSuite extends SparkSuite {
           GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f))))
 
-      val newRowAnn = MakeStruct(FastIndexedSeq(
-        "new_f32"-> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rowType), "row_f32"),
-          F32(-5.2f))))
-      val newColAnn = MakeStruct(FastIndexedSeq(
-        "new_f32"-> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("sa", read.typ.colType), "col_f32"),
-          F32(-5.2f))))
-      val newEntry = MakeStruct(FastIndexedSeq(
-        "new_f32_entry" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("g", read.typ.entryType), "entry_f32"),
-          F32(-5.2f))))
+      val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
+      val collect = ApplyAggOp(I32(0), FastIndexedSeq.empty, None, collectSig)
+
+      val newRowAnn = MakeStruct(FastIndexedSeq("count_row"-> collect))
+      val newColAnn = MakeStruct(FastIndexedSeq("count_col"-> collect))
+      val newEntryAnn = MakeStruct(FastIndexedSeq("count_entry" -> collect))
 
       val xs = Array[MatrixIR](
         read,
@@ -679,8 +673,8 @@ class IRSuite extends SparkSuite {
             GetField(Ref("global", read.typ.globalType), "global_f32"),
             F32(-5.2f))))),
         MatrixCollectColsByKey(read),
-        MatrixAggregateColsByKey(read, newEntry, newColAnn),
-        MatrixAggregateRowsByKey(read, newEntry, newRowAnn),
+        MatrixAggregateColsByKey(read, newEntryAnn, newColAnn),
+        MatrixAggregateRowsByKey(read, newEntryAnn, newRowAnn),
         range,
         vcf,
         bgen,
