@@ -713,6 +713,12 @@ def linear_mixed_model(y,
     `mean_impute` to false if you expect no missing values, both for performance
     and as a sanity check.
 
+    Warning
+    -------
+    If the rows of the matrix table have been filtered to a small fraction,
+    then :meth:`.MatrixTable.repartition` before this method to improve
+    performance.
+
     Parameters
     ----------
     y: :class:`.Float64Expression`
