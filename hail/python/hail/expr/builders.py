@@ -35,7 +35,7 @@ class SwitchBuilder(ConditionalBuilder):
     ...           .when('loss of function', 3)
     ...           .when('LOF', 3)
     ...           .or_missing())
-    >>> expr.value
+    >>> expr.eval()
     3
 
     Notes
@@ -184,7 +184,7 @@ class CaseBuilder(ConditionalBuilder):
     ...           .when(x.length() == 11, 2)
     ...           .when(x == 'secret phrase', 3)
     ...           .default(0))
-    >>> expr.value
+    >>> expr.eval()
     2
 
     Notes

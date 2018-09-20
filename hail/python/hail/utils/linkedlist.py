@@ -8,14 +8,14 @@ class ListIterator(Iterator):
         if self.node is None:
             raise StopIteration
         else:
-            x = self.node.value
+            x = self.node.eval()
             self.node = self.node.prev
             return x
 
 
 class ListNode(object):
     def __init__(self, value, prev):
-        self.value = value
+        self.eval() = value
         self.prev = prev
 
 class LinkedList(Iterable):

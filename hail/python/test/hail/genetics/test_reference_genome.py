@@ -17,7 +17,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(rg.x_contigs, ["X"])
         self.assertListEqual(rg.y_contigs, ["Y"])
         self.assertListEqual(rg.mt_contigs, ["MT"])
-        self.assertEqual(rg.par[0], hl.parse_locus_interval("X:60001-2699521").value)
+        self.assertEqual(rg.par[0], hl.parse_locus_interval("X:60001-2699521").eval())
         self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
@@ -34,7 +34,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(gr2.x_contigs, x_contigs)
         self.assertListEqual(gr2.y_contigs, y_contigs)
         self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, [hl.parse_locus_interval("X:5-1000", gr2).value])
+        self.assertEqual(gr2.par, [hl.parse_locus_interval("X:5-1000", gr2).eval()])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t.all(hl.get_sequence(t.contig, t.pos, reference_genome=gr4) == t.base))
 
         l = hl.locus("a", 7, gr4)
-        self.assertTrue(l.sequence_context(before=3, after=3).value == "TTTCGAA")
+        self.assertTrue(l.sequence_context(before=3, after=3).eval() == "TTTCGAA")
 
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')

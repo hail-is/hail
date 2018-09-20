@@ -515,10 +515,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x == y).value
+        >>> (x == y).eval()
         True
 
-        >>> (x == z).value
+        >>> (x == z).eval()
         False
 
         Notes
@@ -553,10 +553,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x != y).value
+        >>> (x != y).eval()
         False
 
-        >>> (x != z).value
+        >>> (x != z).eval()
         True
 
         Notes
@@ -774,8 +774,7 @@ class Expression(object):
         t = self._to_table(uid)
         return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), []).collect()]
 
-    @property
-    def value(self):
+    def eval(self):
         """Evaluate this expression.
 
         Notes

@@ -173,7 +173,7 @@ def ld_score(entry_expr,
         col_idxs = {i: cols[i] for i in range(len(cols))}
 
         a_tmp = new_temp_file()
-        BlockMatrix.write_from_entry_expr(mt_annotations.value, a_tmp)
+        BlockMatrix.write_from_entry_expr(mt_annotations.eval(), a_tmp)
 
         a = BlockMatrix.read(a_tmp)
         l2 = r2_adj_sparse @ a
