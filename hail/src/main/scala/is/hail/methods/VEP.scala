@@ -81,7 +81,7 @@ object VEP {
   }
   
   def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
-    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
+    assert(ht.key == FastIndexedSeq("locus", "alleles"))
     assert(ht.typ.rowType.size == 2)
 
     val conf = readConfiguration(ht.hc.hadoopConf, config)
