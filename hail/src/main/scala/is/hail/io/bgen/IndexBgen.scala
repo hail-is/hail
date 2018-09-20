@@ -72,9 +72,17 @@ object IndexBgen {
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
+    val rowType = typ.rowType
+    val offsetIdx = rowType.fieldIdx("offset")
+    val (keyType, _) = rowType.select(Array("locus", "alleles"))
+
+    val attributes = Map("reference_genome" -> rg.orNull,
+      "contig_recoding" -> recoding,
+      "skip_invalid_loci" -> skipInvalidLoci)
+
     implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(headers.length))
 
-    val rvdFutures = headers.map { f =>
+    val rvdFutures = headers.zipWithIndex.map { case (f, i) =>
       Future({
         val partition = IndexBgenPartition(
           f.path,
@@ -87,30 +95,18 @@ object IndexBgen {
           sHadoopConfBc)
 
         val crvd = BgenRDD(hc.sc, Array(partition), settings, null)
-        OrderedRVD.coerce(typ, crvd)
+        assert(crvd.getNumPartitions == 1)
+
+        OrderedRVD.coerce(typ, crvd).toRows.foreachPartition({ it =>
+          using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(i), keyType, annotationType, attributes = attributes)) { iw =>
+            it.foreach { row =>
+              iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+            }
+          }
+        })
       })
     }
 
-    val rvds = Await.result(Future.sequence(rvdFutures.toFastIndexedSeq), Duration.Inf)
-
-    val rowType = typ.rowType
-    val offsetIdx = rowType.fieldIdx("offset")
-    val (keyType, kf) = rowType.select(Array("locus", "alleles"))
-
-    val attributes = Map("reference_genome" -> rg.orNull,
-      "contig_recoding" -> recoding,
-      "skip_invalid_loci" -> skipInvalidLoci)
-
-    val unionRVD = RVD.union(rvds)
-    assert(unionRVD.getNumPartitions == files.length)
-
-    unionRVD.toRows.foreachPartition({ it =>
-      val partIdx = TaskContext.get.partitionId()
-      using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
-        it.foreach { row =>
-          iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
-        }
-      }
-    })
+    Await.result(Future.sequence(rvdFutures.toFastIndexedSeq), Duration.Inf)
   }
 }
