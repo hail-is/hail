@@ -82,7 +82,8 @@ object IndexBgen {
 
     val rowType = typ.rowType
     val offsetIdx = rowType.fieldIdx("offset")
-    val (keyType, kf) = rowType.select(Array("locus", "alleles"))
+    val (keyType, _) = rowType.select(Array("locus", "alleles"))
+    val keyOrdering = keyType.ordering
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
@@ -92,22 +93,16 @@ object IndexBgen {
     assert(unionCRVD.getNumPartitions == files.length)
 
     unionCRVD
-      .cmapPartitionsAndContext({ case (consumerCtx, it) =>
-        val producerCtx = consumerCtx.freshContext
-        OrderedRVD.localKeySort(
-          consumerCtx.region,
-          producerCtx.region,
-          consumerCtx,
-          typ,
-          keyType.fieldNames,
-          it.flatMap(_ (producerCtx)))
-      })
       .toRows(rowType)
       .foreachPartition({ it =>
+        val keys = it.map(r => (r.deleteField(offsetIdx), r.getLong(offsetIdx))).toArray
+          .sortWith { case ((k1, _), (k2, _)) => keyOrdering.lt(k1, k2) }
+
         val partIdx = TaskContext.get.partitionId()
+
         using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
-          it.foreach { row =>
-            iw += (row.deleteField(offsetIdx), row.getLong(offsetIdx), Row())
+          keys.foreach { case (k, offset) =>
+            iw += (k, offset, Row())
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")
