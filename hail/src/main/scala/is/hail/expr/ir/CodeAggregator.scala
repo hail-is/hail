@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, UnsafeRow}
+import is.hail.annotations.{Region, SafeRow}
 import is.hail.annotations.aggregators.{KeyedRegionValueAggregator, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag
@@ -134,9 +135,9 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
           TString.getClass, "loadString",
           region, coerce[Long](arg))
       case _ =>
-        Code.invokeScalaObject[Type, Region, Long, AnyRef](
-          UnsafeRow.getClass, "read",
-          mb.getType(kType), region, coerce[Long](arg))
+        Code.invokeScalaObject[PType, Region, Long, AnyRef](
+          SafeRow.getClass, "read",
+          mb.getPType(kType.physicalType), region, coerce[Long](arg))
     }
 
     val wrappedKeys = keys.zipWithIndex.map { case (kType, i) => ms(i).mux(Code._null, wrapArg(kType, vs(i))) }
