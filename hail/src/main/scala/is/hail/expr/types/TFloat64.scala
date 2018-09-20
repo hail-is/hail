@@ -26,6 +26,9 @@ class TFloat64(override val required: Boolean) extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
+  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit =
+    sb.append(cfg.floatFormat.format(a.asInstanceOf[Double]))
+
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =

@@ -656,13 +656,15 @@ class Table(val hc: HailContext, val tir: TableIR) {
     convertType(signature, null, headerBuilder)
     val (names, types, rightAlign) = headerBuilder.result().unzip3
 
+    val sb = new StringBuilder()
+    val config = ShowStrConfig()
     def convertValue(t: Type, v: Annotation, ab: ArrayBuilder[String]) {
       t match {
         case s: TStruct =>
           val r = v.asInstanceOf[Row]
           s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
         case _ =>
-          ab += t.str(v)
+          ab += t.showStr(v, config, sb)
       }
     }
 
@@ -699,7 +701,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       }
     }
 
-    val sb = new StringBuilder()
     sb.clear()
 
     // writes cols [startIndex, endIndex)

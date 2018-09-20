@@ -188,6 +188,26 @@ abstract class Type extends BaseType with Serializable {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
+  final def showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder = null): String = {
+    val sb_ = if (sb == null)
+      new StringBuilder
+    else {
+      sb.clear()
+      sb
+    }
+    _showStrNA(a, cfg, sb_)
+    sb_.result()
+  }
+
+  final def _showStrNA(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
+    if (a == null)
+      sb.append(cfg.missing)
+    else
+      _showStr(a, cfg, sb)
+  }
+
+  def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = sb.append(str(a))
+
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genNonmissingValue: Gen[Annotation] = ???
