@@ -988,11 +988,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.n_partitions(), 3)
 
         glob = ds.globals
-        self.assertEqual(glob.bn.n_populations.value, 2)
-        self.assertEqual(glob.bn.n_samples.value, 20)
-        self.assertEqual(glob.bn.n_variants.value, 25)
-        self.assertEqual(glob.bn.pop_dist.value, [1, 2])
-        self.assertEqual(glob.bn.fst.value, [.02, .06])
+        self.assertEqual(glob.bn.n_populations.eval(), 2)
+        self.assertEqual(glob.bn.n_samples.eval(), 20)
+        self.assertEqual(glob.bn.n_variants.eval(), 25)
+        self.assertEqual(glob.bn.pop_dist.eval(), [1, 2])
+        self.assertEqual(glob.bn.fst.eval(), [.02, .06])
 
     def test_balding_nichols_model_same_results(self):
         hl.set_global_seed(1)

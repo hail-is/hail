@@ -826,7 +826,7 @@ def import_bgen(path,
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                            entry_fields=['dosage'],
     ...                            sample_file="data/example.8bits.sample",
-    ...                            variants=[hl.parse_variant('1:2000:A:G').value])
+    ...                            variants=[hl.parse_variant('1:2000:A:G').eval()])
 
     Load a set of variants specified by a table expression from a BGEN file:
 

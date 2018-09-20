@@ -214,11 +214,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(1.1e-15), 1.1e-15)
 
     def test_bind_multiple(self):
-        self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3).value, 6)
-        self.assertEqual(hl.bind(lambda y: y * 2, 3).value, 6)
+        self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3).eval(), 6)
+        self.assertEqual(hl.bind(lambda y: y * 2, 3).eval(), 6)
 
     def test_bind_placement(self):
-        self.assertEqual((5 / hl.bind(lambda x: x, 5)).value, 1.0)
+        self.assertEqual((5 / hl.bind(lambda x: x, 5)).eval(), 1.0)
 
     def test_matches(self):
         self.assertEqual(hl.eval_expr('\d+'), '\d+')
@@ -228,16 +228,16 @@ class Tests(unittest.TestCase):
 
     def test_first_match_in(self):
         string = hl.literal('1:25-100')
-        self.assertTrue(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)").value == ['1', '25', '100'])
-        self.assertIsNone(string.first_match_in("hello (\w+)!").value)
+        self.assertTrue(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)").eval() == ['1', '25', '100'])
+        self.assertIsNone(string.first_match_in("hello (\w+)!").eval())
 
     def test_cond(self):
         self.assertEqual(hl.eval_expr('A' + hl.cond(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.cond(True, hl.struct(), hl.null(hl.tstruct())).value, hl.utils.Struct())
+        self.assertEqual(hl.cond(True, hl.struct(), hl.null(hl.tstruct())).eval(), hl.utils.Struct())
 
-        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2).value, None)
-        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True).value, 2)
+        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2).eval(), None)
+        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True).eval(), 2)
 
     def test_aggregators(self):
         table = hl.utils.range_table(10)
@@ -511,7 +511,7 @@ class Tests(unittest.TestCase):
         ], hl.tstruct(group=hl.tstr, x=hl.tint32), n_partitions=1)
 
         grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
-        self.assertEqual(grouped_expr, hl.sorted(grouped_expr).value)
+        self.assertEqual(grouped_expr, hl.sorted(grouped_expr).eval())
 
 
     def test_joins_inside_aggregators(self):
@@ -575,8 +575,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval_expr(make_case(-1)), 'D')
         self.assertEqual(hl.eval_expr(make_case(2)), None)
 
-        self.assertEqual(hl.case().when(hl.null(hl.tbool), 1).default(2).value, None)
-        self.assertEqual(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2).value, 2)
+        self.assertEqual(hl.case().when(hl.null(hl.tbool), 1).default(2).eval(), None)
+        self.assertEqual(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2).eval(), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
         self.assertRaises(hl.utils.java.FatalError, lambda: hl.eval_expr(error_case))
@@ -703,28 +703,28 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval_expr(hl.bool(s6)))
 
         s = hl.literal('abcABC123')
-        self.assertEqual(s.lower().value, 'abcabc123')
-        self.assertEqual(s.upper().value, 'ABCABC123')
+        self.assertEqual(s.lower().eval(), 'abcabc123')
+        self.assertEqual(s.upper().eval(), 'ABCABC123')
 
         s_whitespace = hl.literal(' \t 1 2 3 \t\n')
-        self.assertEqual(s_whitespace.strip().value, '1 2 3')
+        self.assertEqual(s_whitespace.strip().eval(), '1 2 3')
 
-        self.assertEqual(s.contains('ABC').value, True)
-        self.assertEqual((~s.contains('ABC')).value, False)
-        self.assertEqual(s.contains('a').value, True)
-        self.assertEqual(s.contains('C123').value, True)
-        self.assertEqual(s.contains('').value, True)
-        self.assertEqual(s.contains('C1234').value, False)
-        self.assertEqual(s.contains(' ').value, False)
+        self.assertEqual(s.contains('ABC').eval(), True)
+        self.assertEqual((~s.contains('ABC')).eval(), False)
+        self.assertEqual(s.contains('a').eval(), True)
+        self.assertEqual(s.contains('C123').eval(), True)
+        self.assertEqual(s.contains('').eval(), True)
+        self.assertEqual(s.contains('C1234').eval(), False)
+        self.assertEqual(s.contains(' ').eval(), False)
 
-        self.assertTrue(s_whitespace.startswith(' \t').value)
-        self.assertTrue(s_whitespace.endswith('\t\n').value)
-        self.assertFalse(s_whitespace.startswith('a').value)
-        self.assertFalse(s_whitespace.endswith('a').value)
+        self.assertTrue(s_whitespace.startswith(' \t').eval())
+        self.assertTrue(s_whitespace.endswith('\t\n').eval())
+        self.assertFalse(s_whitespace.startswith('a').eval())
+        self.assertFalse(s_whitespace.endswith('a').eval())
 
     def test_str_missingness(self):
-        self.assertEqual(hl.str(1).value, '1')
-        self.assertEqual(hl.str(hl.null('int32')).value, None)
+        self.assertEqual(hl.str(1).eval(), '1')
+        self.assertEqual(hl.str(hl.null('int32')).eval(), None)
 
 
     def check_expr(self, expr, expected, expected_type):
@@ -1297,21 +1297,21 @@ class Tests(unittest.TestCase):
         f1 = hl.float64(5.5)
         f_array = hl.array([1.5, 2.5])
 
-        self.assertEqual(hl.int32(b1).value, 1)
-        self.assertEqual(hl.int64(b1).value, 1)
-        self.assertEqual(hl.float32(b1).value, 1.0)
-        self.assertEqual(hl.float64(b1).value, 1.0)
-        self.assertEqual((b1 * b2).value, 0)
-        self.assertEqual((b1 + b2).value, 1)
-        self.assertEqual((b1 - b2).value, 1)
-        self.assertEqual((b1 / b1).value, 1.0)
-        self.assertEqual((f1 * b2).value, 0.0)
-        self.assertEqual((b_array + f1).value, [6.5, 5.5])
-        self.assertEqual((b_array + f_array).value, [2.5, 2.5])
+        self.assertEqual(hl.int32(b1).eval(), 1)
+        self.assertEqual(hl.int64(b1).eval(), 1)
+        self.assertEqual(hl.float32(b1).eval(), 1.0)
+        self.assertEqual(hl.float64(b1).eval(), 1.0)
+        self.assertEqual((b1 * b2).eval(), 0)
+        self.assertEqual((b1 + b2).eval(), 1)
+        self.assertEqual((b1 - b2).eval(), 1)
+        self.assertEqual((b1 / b1).eval(), 1.0)
+        self.assertEqual((f1 * b2).eval(), 0.0)
+        self.assertEqual((b_array + f1).eval(), [6.5, 5.5])
+        self.assertEqual((b_array + f_array).eval(), [2.5, 2.5])
 
     def test_int_typecheck(self):
-        self.assertIsNone(hl.literal(None, dtype='int32').value)
-        self.assertIsNone(hl.literal(None, dtype='int64').value)
+        self.assertIsNone(hl.literal(None, dtype='int32').eval())
+        self.assertIsNone(hl.literal(None, dtype='int64').eval())
 
     def test_is_transition(self):
         self.assertTrue(hl.eval_expr(hl.is_transition("A", "G")))
@@ -1388,7 +1388,7 @@ class Tests(unittest.TestCase):
                 hl.allele_type('A', 'T<ASDASD>[ASDASD['),
                 hl.allele_type('A', '.T'),
                 hl.allele_type('A', 'T.'),
-            )).value,
+            )).eval(),
             (
                 'SNP',
                 'MNP',
@@ -1497,14 +1497,14 @@ class Tests(unittest.TestCase):
         self.check_expr(call_expr.ploidy, 2, tint32)
 
     def test_parse_variant(self):
-        self.assertEqual(hl.parse_variant('1:1:A:T').value,
+        self.assertEqual(hl.parse_variant('1:1:A:T').eval(),
                          hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
     def test_locus_to_global_position(self):
-        self.assertEqual(hl.locus('chr22', 1, 'GRCh38').global_position().value, 2824183054)
+        self.assertEqual(hl.locus('chr22', 1, 'GRCh38').global_position().eval(), 2824183054)
 
     def test_locus_from_global_position(self):
-        self.assertEqual(hl.locus_from_global_position(2824183054, 'GRCh38').value, hl.locus('chr22', 1, 'GRCh38').value)
+        self.assertEqual(hl.locus_from_global_position(2824183054, 'GRCh38').eval(), hl.locus('chr22', 1, 'GRCh38').eval())
 
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval_expr(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
@@ -1546,8 +1546,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(1 <= hl.eval_expr(hl.median([0, 1, 4, 6])) <= 4)
 
         for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
-            self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).value, 24)
-            self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).value, 11)
+            self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]).eval(), 24)
+            self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]).eval(), 11)
 
         self.assertEqual(hl.eval_expr(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
@@ -1637,13 +1637,13 @@ class Tests(unittest.TestCase):
         ds.col_idx.show(3)
 
     def test_or_else_type_conversion(self):
-        self.assertEqual(hl.or_else(0.5, 2).value, 0.5)
+        self.assertEqual(hl.or_else(0.5, 2).eval(), 0.5)
 
     def test_coalesce(self):
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int')).value, None)
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2).value, 2)
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2.5).value, 2.5)
-        self.assertEqual(hl.coalesce(2.5).value, 2.5)
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int')).eval(), None)
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2).eval(), 2)
+        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2.5).eval(), 2.5)
+        self.assertEqual(hl.coalesce(2.5).eval(), 2.5)
         with self.assertRaises(TypeError):
             hl.coalesce(2.5, 'hello')
 
@@ -1676,33 +1676,33 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval_expr_typed(interval.overlaps(hl.interval(5, 9))) == (True, hl.tbool))
 
         li = hl.parse_locus_interval('1:100-110')
-        self.assertEqual(li.value, hl.utils.Interval(hl.genetics.Locus("1", 100),
+        self.assertEqual(li.eval(), hl.utils.Interval(hl.genetics.Locus("1", 100),
                                                      hl.genetics.Locus("1", 110)))
         self.assertTrue(li.dtype.point_type == hl.tlocus())
-        self.assertTrue(li.contains(hl.locus("1", 100)).value)
-        self.assertTrue(li.contains(hl.locus("1", 109)).value)
-        self.assertFalse(li.contains(hl.locus("1", 110)).value)
+        self.assertTrue(li.contains(hl.locus("1", 100)).eval())
+        self.assertTrue(li.contains(hl.locus("1", 109)).eval())
+        self.assertFalse(li.contains(hl.locus("1", 110)).eval())
     
         li2 = hl.parse_locus_interval("1:109-200")
         li3 = hl.parse_locus_interval("1:110-200")
         li4 = hl.parse_locus_interval("1:90-101")
         li5 = hl.parse_locus_interval("1:90-100")
     
-        self.assertTrue(li.overlaps(li2).value)
-        self.assertTrue(li.overlaps(li4).value)
-        self.assertFalse(li.overlaps(li3).value)
-        self.assertFalse(li.overlaps(li5).value)
+        self.assertTrue(li.overlaps(li2).eval())
+        self.assertTrue(li.overlaps(li4).eval())
+        self.assertFalse(li.overlaps(li3).eval())
+        self.assertFalse(li.overlaps(li5).eval())
 
     def test_reference_genome_fns(self):
-        self.assertTrue(hl.is_valid_contig('1', 'GRCh37').value)
-        self.assertFalse(hl.is_valid_contig('chr1', 'GRCh37').value)
-        self.assertFalse(hl.is_valid_contig('1', 'GRCh38').value)
-        self.assertTrue(hl.is_valid_contig('chr1', 'GRCh38').value)
+        self.assertTrue(hl.is_valid_contig('1', 'GRCh37').eval())
+        self.assertFalse(hl.is_valid_contig('chr1', 'GRCh37').eval())
+        self.assertFalse(hl.is_valid_contig('1', 'GRCh38').eval())
+        self.assertTrue(hl.is_valid_contig('chr1', 'GRCh38').eval())
 
-        self.assertTrue(hl.is_valid_locus('1', 325423, 'GRCh37').value)
-        self.assertFalse(hl.is_valid_locus('1', 0, 'GRCh37').value)
-        self.assertFalse(hl.is_valid_locus('1', 249250622, 'GRCh37').value)
-        self.assertFalse(hl.is_valid_locus('chr1', 2645, 'GRCh37').value)
+        self.assertTrue(hl.is_valid_locus('1', 325423, 'GRCh37').eval())
+        self.assertFalse(hl.is_valid_locus('1', 0, 'GRCh37').eval())
+        self.assertFalse(hl.is_valid_locus('1', 249250622, 'GRCh37').eval())
+        self.assertFalse(hl.is_valid_locus('chr1', 2645, 'GRCh37').eval())
 
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
@@ -1778,7 +1778,7 @@ class Tests(unittest.TestCase):
             hl.literal(locus_x_nonpar).in_x_nonpar(),
             ~hl.literal(locus_y_nonpar).in_autosome_or_par(),
             hl.literal(locus_y_nonpar).in_y_nonpar()
-        ])).value)
+        ])).eval())
 
         hr = hl.Call([0, 0])
         het = hl.Call([0, 1])
@@ -1852,14 +1852,14 @@ class Tests(unittest.TestCase):
                               hl.tarray(hl.ttuple(hl.tlocus(), hl.tbool, hl.tcall, hl.tcall, hl.tcall)))
         values = arg_list.map(lambda args: hl.mendel_error_code(*args))
         expr = hl.dict(hl.zip(arg_list, values))
-        results = expr.value
+        results = expr.eval()
         for args, result in results.items():
             self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
 
     def test_min_rep(self):
         def assert_min_reps_to(old, new, pos_change=0):
             self.assertEqual(
-                hl.min_rep(hl.locus('1', 10), old).value,
+                hl.min_rep(hl.locus('1', 10), old).eval(),
                 hl.Struct(locus=hl.Locus('1', 10 + pos_change), alleles=new)
             )
 
@@ -1874,7 +1874,7 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
 
     def assert_evals_to(self, e, v):
-        self.assertEqual(e.value, v)
+        self.assertEqual(e.eval(), v)
 
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
@@ -1907,114 +1907,114 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(s), 3)
 
     def test_uniroot(self):
-        self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).value, 1)
+        self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3).eval(), 1)
 
     def test_chi_squared_test(self):
-        res = hl.chi_squared_test(0, 0, 0, 0).value
+        res = hl.chi_squared_test(0, 0, 0, 0).eval()
         self.assertTrue(math.isnan(res['p_value']))
         self.assertTrue(math.isnan(res['odds_ratio']))
 
-        res = hl.chi_squared_test(51, 43, 22, 92).value
+        res = hl.chi_squared_test(51, 43, 22, 92).eval()
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
         
-        res = hl.chi_squared_test(61, 17493, 95, 84145).value
+        res = hl.chi_squared_test(61, 17493, 95, 84145).eval()
         self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
 
     def test_fisher_exact_test(self):
-        res = hl.fisher_exact_test(0, 0, 0, 0).value
+        res = hl.fisher_exact_test(0, 0, 0, 0).eval()
         self.assertTrue(math.isnan(res['p_value']))
         self.assertTrue(math.isnan(res['odds_ratio']))
         self.assertTrue(math.isnan(res['ci_95_lower']))
         self.assertTrue(math.isnan(res['ci_95_upper']))
 
-        res = hl.fisher_exact_test(51, 43, 22, 92).value
+        res = hl.fisher_exact_test(51, 43, 22, 92).eval()
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
         self.assertAlmostEqual(res['ci_95_lower'], 2.56593733)
         self.assertAlmostEqual(res['ci_95_upper'], 9.67792963)
 
     def test_contingency_table_test(self):
-        res = hl.contingency_table_test(51, 43, 22, 92, 22).value
+        res = hl.contingency_table_test(51, 43, 22, 92, 22).eval()
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
 
-        res = hl.contingency_table_test(51, 43, 22, 92, 23).value
+        res = hl.contingency_table_test(51, 43, 22, 92, 23).eval()
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
     def test_hardy_weinberg_test(self):
-        res = hl.hardy_weinberg_test(1, 2, 1).value
+        res = hl.hardy_weinberg_test(1, 2, 1).eval()
         self.assertAlmostEqual(res['p_value'], 0.65714285)
         self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
 
     def test_pl_to_gp(self):
-        res = hl.pl_to_gp([0, 10, 100]).value
+        res = hl.pl_to_gp([0, 10, 100]).eval()
         self.assertAlmostEqual(res[0], 0.9090909090082644)
         self.assertAlmostEqual(res[1], 0.09090909090082644)
         self.assertAlmostEqual(res[2], 9.090909090082645e-11)
 
     def test_pl_dosage(self):
-        self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]).value, 0.009900990296049406)
-        self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]).value, 0.9900990100009803)
-        self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]).value, 1.980198019704931)
-        self.assertIsNone(hl.pl_dosage([20, hl.null('int'), 100]).value)
+        self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]).eval(), 0.009900990296049406)
+        self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]).eval(), 0.9900990100009803)
+        self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]).eval(), 1.980198019704931)
+        self.assertIsNone(hl.pl_dosage([20, hl.null('int'), 100]).eval())
 
     def test_collection_method_missingness(self):
         a = [1, hl.null('int')]
 
-        self.assertEqual(hl.min(a).value, 1)
-        self.assertIsNone(hl.min(a, filter_missing=False).value)
+        self.assertEqual(hl.min(a).eval(), 1)
+        self.assertIsNone(hl.min(a, filter_missing=False).eval())
 
-        self.assertEqual(hl.max(a).value, 1)
-        self.assertIsNone(hl.max(a, filter_missing=False).value)
+        self.assertEqual(hl.max(a).eval(), 1)
+        self.assertIsNone(hl.max(a, filter_missing=False).eval())
 
-        self.assertEqual(hl.mean(a).value, 1)
-        self.assertIsNone(hl.mean(a, filter_missing=False).value)
+        self.assertEqual(hl.mean(a).eval(), 1)
+        self.assertIsNone(hl.mean(a, filter_missing=False).eval())
 
-        self.assertEqual(hl.product(a).value, 1)
-        self.assertIsNone(hl.product(a, filter_missing=False).value)
+        self.assertEqual(hl.product(a).eval(), 1)
+        self.assertIsNone(hl.product(a, filter_missing=False).eval())
 
-        self.assertEqual(hl.sum(a).value, 1)
-        self.assertIsNone(hl.sum(a, filter_missing=False).value)
+        self.assertEqual(hl.sum(a).eval(), 1)
+        self.assertIsNone(hl.sum(a, filter_missing=False).eval())
 
     def test_literal_with_nested_expr(self):
-        self.assertEqual(hl.literal(hl.set(['A','B'])).value, {'A', 'B'})
-        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).value, {'A', 'B'})
+        self.assertEqual(hl.literal(hl.set(['A','B'])).eval(), {'A', 'B'})
+        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}).eval(), {'A', 'B'})
 
     def test_format(self):
-        self.assertEqual(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114).value, '0.2500 hello 1.140e-01')
-        self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)).value, 'null null')
-        self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).value, '[5,true,[4,5]]')
-        self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).value, '1:356 [9,true,null]')
-        self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").value, "false FALSE true true")
+        self.assertEqual(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114).eval(), '0.2500 hello 1.140e-01')
+        self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)).eval(), 'null null')
+        self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))).eval(), '[5,true,[4,5]]')
+        self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])).eval(), '1:356 [9,true,null]')
+        self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello").eval(), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):
         d = hl.literal({5: 5}, dtype='dict<int64, int64>')
         s = hl.literal({5}, dtype='set<int64>')
 
-        self.assertEqual(d[5].value, 5)
-        self.assertEqual(d.get(5).value, 5)
-        self.assertEqual(d.get(2, 3).value, 3)
-        self.assertTrue(d.contains(5).value)
-        self.assertTrue(~d.contains(2).value)
+        self.assertEqual(d[5].eval(), 5)
+        self.assertEqual(d.get(5).eval(), 5)
+        self.assertEqual(d.get(2, 3).eval(), 3)
+        self.assertTrue(d.contains(5).eval())
+        self.assertTrue(~d.contains(2).eval())
 
-        self.assertTrue(s.contains(5).value)
-        self.assertTrue(~s.contains(2).value)
+        self.assertTrue(s.contains(5).eval())
+        self.assertTrue(~s.contains(2).eval())
 
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]
-        round_trip = hl.literal(a).value
+        round_trip = hl.literal(a).eval()
         self.assertTrue(math.isnan(round_trip[0]))
         self.assertTrue(math.isinf(round_trip[1]))
         self.assertTrue(math.isinf(round_trip[2]))
         self.assertEqual(round_trip[-2:], [0, 1])
 
     def test_approx_equal(self):
-        self.assertTrue(hl.approx_equal(0.25, 0.25000001).value)
-        self.assertTrue(hl.approx_equal(hl.null(hl.tint64), 5).value is None)
-        self.assertFalse(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3).value)
+        self.assertTrue(hl.approx_equal(0.25, 0.25000001).eval())
+        self.assertTrue(hl.approx_equal(hl.null(hl.tint64), 5).eval() is None)
+        self.assertFalse(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3).eval())
 
     def test_issue3729(self):
         t = hl.utils.range_table(10, 3)
@@ -2026,7 +2026,7 @@ class Tests(unittest.TestCase):
 
     def assertValueEqual(self, expr, value, t):
         self.assertEqual(expr.dtype, t)
-        self.assertEqual(expr.value, value)
+        self.assertEqual(expr.eval(), value)
 
     def test_array_fold_and_scan(self):
         self.assertValueEqual(hl.fold(lambda x, y: x + y, 0, [1, 2, 3]), 6, tint32)
@@ -2047,20 +2047,20 @@ class Tests(unittest.TestCase):
         nan = math.nan
         na = hl.null('float64')
 
-        assert hl.is_finite(finite).value == True
-        assert hl.is_finite(infinite).value == False
-        assert hl.is_finite(nan).value == False
-        assert hl.is_finite(na).value == None
+        assert hl.is_finite(finite).eval() == True
+        assert hl.is_finite(infinite).eval() == False
+        assert hl.is_finite(nan).eval() == False
+        assert hl.is_finite(na).eval() == None
 
-        assert hl.is_infinite(finite).value == False
-        assert hl.is_infinite(infinite).value == True
-        assert hl.is_infinite(nan).value == False
-        assert hl.is_infinite(na).value == None
+        assert hl.is_infinite(finite).eval() == False
+        assert hl.is_infinite(infinite).eval() == True
+        assert hl.is_infinite(nan).eval() == False
+        assert hl.is_infinite(na).eval() == None
 
-        assert hl.is_nan(finite).value == False
-        assert hl.is_nan(infinite).value == False
-        assert hl.is_nan(nan).value == True
-        assert hl.is_nan(na).value == None
+        assert hl.is_nan(finite).eval() == False
+        assert hl.is_nan(infinite).eval() == False
+        assert hl.is_nan(nan).eval() == True
+        assert hl.is_nan(na).eval() == None
 
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
