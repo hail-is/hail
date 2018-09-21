@@ -16,7 +16,7 @@ push-letsencrypt-run: build-letsencrypt-run
 	docker tag letsencrypt-run gcr.io/broad-ctsa/letsencrypt-run
 	docker push gcr.io/broad-ctsa/letsencrypt-run
 
-run:
+letsencrypt-run:
 # start service
 	kubectl apply -f service.yaml
 # stop existing site deployment
@@ -52,7 +52,7 @@ run:
 	kubectl delete pod --ignore-not-found=true letsencrypt-run
 
 serve:
-	docker run -p 8000:80 site
+	docker run -it -p 80:80 -p 443:443 -v $(pwd)/letsencrypt:/etc/letsencrypt site
 
 deploy-site:
 	kubectl apply -f service.yaml
