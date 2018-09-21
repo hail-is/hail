@@ -113,6 +113,20 @@ object ContextRDD {
   def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
   type ElementType[C, T] = C => Iterator[T]
+
+  def czipNPartitions[C <: AutoCloseable, T: ClassTag, U: ClassTag](
+    crdds: IndexedSeq[ContextRDD[C, T]],
+    preservesPartitioning: Boolean = false
+  )(f: (C, Array[Iterator[T]]) => Iterator[U]
+  ): ContextRDD[C, U] = {
+    val mkc = crdds.head.mkc
+    def inCtx(f: C => Iterator[U]): Iterator[C => Iterator[U]] = Iterator.single(f)
+    new ContextRDD(
+      MultiWayJoinRDD(crdds.map(_.rdd), preservesPartitioning) { its =>
+        inCtx(ctx => f(ctx, its.map(_.flatMap(_(ctx)))))
+      },
+      mkc)
+  }
 }
 
 class ContextRDD[C <: AutoCloseable, T: ClassTag](
