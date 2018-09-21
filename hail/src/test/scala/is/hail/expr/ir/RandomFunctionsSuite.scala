@@ -59,8 +59,7 @@ class RandomFunctionsSuite extends SparkSuite {
     InsertFields(Ref("row", TableRange(1, 1).typ.rowType),
       FastSeq(
         "pi" -> partitionIdx,
-        "counter" -> counter)),
-    Some(FastIndexedSeq("idx")))
+        "counter" -> counter)))
 
   @BeforeClass def registerFunctions() {
     TestRandomFunctions.registerAll()

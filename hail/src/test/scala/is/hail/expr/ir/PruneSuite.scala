@@ -247,7 +247,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMapRowsMemo() {
-    val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"), Some(FastIndexedSeq()))
+    val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"))
     checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2"), null))
   }
 
@@ -549,7 +549,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMapRowsRebuild() {
-    val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"), Some(FastIndexedSeq()))
+    val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"))
     checkRebuild(tmr, subsetTable(tmr.typ, "row.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
@@ -583,9 +583,9 @@ class PruneSuite extends SparkSuite {
     val mapExpr = InsertFields(Ref("row", tr.typ.rowType),
       FastIndexedSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
     val tfilter = TableFilter(
-      TableMapRows(tr, mapExpr, Some(FastIndexedSeq())),
+      TableMapRows(tr, mapExpr),
       tableRefBoolean(tr.typ, "row.2"))
-    val tmap = TableMapRows(tr, mapExpr, Some(FastIndexedSeq()))
+    val tmap = TableMapRows(tr, mapExpr)
     val tunion = TableUnion(FastIndexedSeq(tfilter, tmap))
     checkRebuild(tunion, subsetTable(tunion.typ, "row.foo"),
       (_: BaseIR, rebuilt: BaseIR) => {

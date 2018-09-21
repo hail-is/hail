@@ -599,8 +599,7 @@ class IRSuite extends SparkSuite {
         TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
-            "b" -> F64(-2.11))),
-          Some(FastIndexedSeq())),
+            "b" -> F64(-2.11)))),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32()))))),

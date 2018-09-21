@@ -503,19 +503,15 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 }
 
-// Must leave key fields unchanged. 'newKey' is used to rename key fields only.
-case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
-  require(newKey.contains(child.typ.key))
+// Must leave key fields unchanged.
+case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
-  val typ: TableType = {
-    val newRowType = newRow.typ.asInstanceOf[TStruct]
-    child.typ.copy(rowType = newRowType, key = newKey.get)
-  }
+  val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
-    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR], newKey)
+    TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -643,11 +639,9 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
       }
     }
 
-    val newRVD = tv.rvd
-      .truncateKey(tv.rvd.typ.key.take(typ.rvdType.key.length))
-      .mapPartitionsWithIndex(typ.rvdType, itF)
-
-    TableValue(typ, tv.globals, newRVD)
+    tv.copy(
+      typ = typ,
+      rvd = tv.rvd.mapPartitionsWithIndex(typ.rvdType, itF))
   }
 }
 

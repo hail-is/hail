@@ -409,7 +409,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     mapRows(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
   def mapRows(newRow: IR): Table =
-    new Table(hc, TableMapRows(tir, newRow, Some(typ.key)))
+    new Table(hc, TableMapRows(tir, newRow))
 
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType, typ.key.length))
@@ -516,7 +516,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
 
-    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten), Some(typ.key)))
+    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
   }
 
   // expandTypes must be called before toDF
