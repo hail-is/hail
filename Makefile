@@ -24,7 +24,7 @@ letsencrypt-run:
 	N=
 	while [[ $$N != 0 ]]; do \
 	  sleep 5; \
-	  N=$(kubectl get pods -l app=site --ignore-not-found=true --no-headers | wc -l | tr -d '[:space:]'); \
+	  N=$$(kubectl get pods -l app=site --ignore-not-found=true --no-headers | wc -l | tr -d '[:space:]'); \
 	  echo N=$$N; \
 	done
 # stop existing letsencrypt-run pod
@@ -32,7 +32,7 @@ letsencrypt-run:
 	N=
 	while [[ $$N != 0 ]]; do \
 	  sleep 5; \
-	  N=$(kubectl get pod --ignore-not-found=true --no-headers letsencrypt-run | wc -l | tr -d '[:space:]'); \
+	  N=$$(kubectl get pod --ignore-not-found=true --no-headers letsencrypt-run | wc -l | tr -d '[:space:]'); \
 	  echo N=$$N; \
 	done
 # run letsencrypt-run pod
@@ -41,7 +41,7 @@ letsencrypt-run:
 	EC=""
 	while [[ $$EC = "" ]]; do \
 	  sleep 5; \
-	  EC=$(kubectl get pod -o "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}" letsencrypt-run); \
+	  EC=$$(kubectl get pod -o "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}" letsencrypt-run); \
 	  echo EC=$$EC; \
 	done
 	kubectl logs letsencrypt-run
