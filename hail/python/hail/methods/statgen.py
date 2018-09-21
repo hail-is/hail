@@ -1713,6 +1713,18 @@ def split_multi(ds, keep_star=False, left_aligned=False):
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl)).drop('old_locus', 'old_alleles')
 
+    Warning
+    -------
+    In order to support a wide variety of data types, this function splits only
+    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
+    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
+    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
+    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
+
+    See Also
+    --------
+    :func:`.split_multi_hts`
+
     Parameters
     ----------
     ds : :class:`.MatrixTable` or :class:`.Table`
