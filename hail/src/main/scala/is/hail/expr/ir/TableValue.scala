@@ -5,7 +5,7 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD}
+import is.hail.rvd.{OrderedRVD, RVDSpec}
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
@@ -13,10 +13,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
-case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
+case class TableValue(typ: TableType, globals: BroadcastRow, rvd: OrderedRVD) {
   require(typ.rowType == rvd.rowType)
-  require(rvd.isInstanceOf[OrderedRVD])
-  require(rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(typ.key))
+  require(rvd.typ.key.startsWith(typ.key))
 
   def rdd: RDD[Row] =
     rvd.toRows
@@ -67,7 +66,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    RVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 

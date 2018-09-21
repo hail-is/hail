@@ -155,7 +155,7 @@ object Table {
       TableValue(
         TableType(signature, FastIndexedSeq(), globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        OrderedRVD.unkeyed(signature, crdd2).toOldStyleRVD))
+        OrderedRVD.unkeyed(signature, crdd2)))
     ).keyBy(key, isSorted)
   }
 
@@ -193,7 +193,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            OrderedRVD.coerce(OrderedRVDType(key, signature), crdd).toOldStyleRVD))
+            OrderedRVD.coerce(OrderedRVDType(key, signature), crdd)))
   )
 
   def typ: TableType = tir.typ
@@ -444,7 +444,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     require(key.nonEmpty)
     val sorted = keyBy(key.toArray)
     sorted.copy2(
-      rvd = sorted.rvd.asInstanceOf[OrderedRVD].groupByKey(name),
+      rvd = sorted.rvd.groupByKey(name),
       signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
   }
 
@@ -505,9 +505,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
-    val orvd = rvd.toOrderedRVD.truncateKey(IndexedSeq())
+    val orvd = rvd.truncateKey(IndexedSeq())
     copy2(
-      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)).toOldStyleRVD,
+      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)),
       signature = newRowType)
   }
 
@@ -736,7 +736,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     sb.result()
   }
 
-  def copy2(rvd: RVD = rvd,
+  def copy2(rvd: OrderedRVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
@@ -751,13 +751,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val intervalType = other.keySignature.types(0).asInstanceOf[TInterval]
     assert(keySignature.size == 1 && keySignature.types(0) == intervalType.pointType)
 
-    val leftORVD = rvd match {
-      case ordered: OrderedRVD => ordered
-      case unordered =>
-        OrderedRVD.coerce(
-          OrderedRVDType(key, signature),
-          unordered)
-    }
+    val leftORVD = rvd
 
     val typOrdering = intervalType.pointType.ordering
 

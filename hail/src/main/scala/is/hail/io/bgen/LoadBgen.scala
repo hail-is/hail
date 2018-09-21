@@ -379,7 +379,6 @@ case class MatrixBGENReader(
       val rvd = variantsTable
         .distinctByKey()
         .rvd
-        .toOrderedRVD
 
       val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds).toRows(rowType)
       assert(repartitioned.getNumPartitions == maybePartitions.length)

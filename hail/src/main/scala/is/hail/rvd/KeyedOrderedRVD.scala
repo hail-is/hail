@@ -127,7 +127,7 @@ class KeyedOrderedRVD(val rvd: OrderedRVD, val key: Int) {
       return OrderedRVD.unkeyed(
         this.realType.rowType,
         ContextRDD.union(
-          rvd.crdd.sparkContext,
+          rvd.sparkContext,
           Seq(this.rvd.crdd, right.rvd.crdd)))
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++

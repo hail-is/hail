@@ -2,13 +2,12 @@ package is.hail.variant.vsm
 
 import is.hail.SparkSuite
 import is.hail.annotations.BroadcastRow
-import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir
 import is.hail.expr.ir.{MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
+import is.hail.rvd.OrderedRVD
 import is.hail.table.Table
-import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
+import is.hail.variant.MatrixTable
 import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

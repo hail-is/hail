@@ -84,7 +84,7 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = mapped2(15, 4).execute(hc).rvd.asInstanceOf[OrderedRVD]
+    val mapped = mapped2(15, 4).execute(hc).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),

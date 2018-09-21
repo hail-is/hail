@@ -92,7 +92,7 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
+  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
@@ -196,11 +196,11 @@ object MatrixTable {
       kt.key,
       kt.signature,
       TStruct.empty())
-    val rvRowType = matrixType.rvRowType
 
+    val rvRowType = matrixType.rvRowType
     val oldRowType = kt.signature
 
-    val rdd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
+    val rvd = kt.rvd.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -217,10 +217,10 @@ object MatrixTable {
       }
     }
 
-    new MatrixTable(kt.hc, matrixType,
-      kt.globals,
-      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd))
+    val colValues =
+      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc)
+
+    new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
   }
 }
 
@@ -455,8 +455,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = matrixType.copy(rowKey = keys)
 
-    copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD.coerce(newMatrixType.orvdType, rvd))
+    copyMT(matrixType = newMatrixType, rvd = rvd.changeKey(keys))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
@@ -880,11 +879,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-    new Table(hc,
-      TableLiteral(
-        TableValue(ttyp,
-          globals,
-          orvd.toOldStyleRVD)))
+    new Table(hc, TableLiteral(TableValue(ttyp, globals, orvd)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
