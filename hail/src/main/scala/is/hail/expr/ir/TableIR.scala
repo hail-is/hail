@@ -505,7 +505,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
 // Must leave key fields unchanged. 'newKey' is used to rename key fields only.
 case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[String]]) extends TableIR {
-  require(newKey.exists(_.length == child.typ.key.length))
+  require(newKey.contains(child.typ.key))
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   val typ: TableType = {
