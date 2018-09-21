@@ -62,7 +62,7 @@ object IndexBgen {
       annotationType
     )
 
-    val typ = new OrderedRVDType(Array("locus", "alleles"), settings.typ)
+    val typ = new OrderedRVDType(settings.typ, Array("locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 

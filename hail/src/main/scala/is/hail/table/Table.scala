@@ -193,7 +193,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            OrderedRVD.coerce(OrderedRVDType(key, signature), crdd)))
+            OrderedRVD.coerce(OrderedRVDType(signature, key), crdd)))
   )
 
   def typ: TableType = tir.typ
@@ -788,7 +788,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key(0))
-    val newOrderedRVType = OrderedRVDType(key, newRowType)
+    val newOrderedRVType = OrderedRVDType(newRowType, key)
     val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
       newOrderedRVType,
       zipRDD

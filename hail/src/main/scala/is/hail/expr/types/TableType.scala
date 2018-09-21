@@ -12,7 +12,7 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  val rvdType = OrderedRVDType(key, rowType)
+  val rvdType = OrderedRVDType(rowType, key)
 
   def env: Env[Type] = {
     Env.empty[Type]

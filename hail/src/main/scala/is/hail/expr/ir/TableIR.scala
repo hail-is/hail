@@ -253,7 +253,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
       new OrderedRVD(
-        new OrderedRVDType(Array("idx"), typ.rowType),
+        OrderedRVDType(typ.rowType, Array("idx")),
         new OrderedRVDPartitioner(Array("idx"), typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -380,9 +380,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
   private val leftRVDType =
-    OrderedRVDType(left.typ.key.take(joinKey), left.typ.rowType)
+    OrderedRVDType(left.typ.rowType, left.typ.key.take(joinKey))
   private val rightRVDType =
-    OrderedRVDType(right.typ.key.take(joinKey), right.typ.rowType)
+    OrderedRVDType(right.typ.rowType, right.typ.key.take(joinKey))
 
   require(leftRVDType.rowType.fieldNames.toSet
     .intersect(rightRVDType.valueType.fieldNames.toSet)
@@ -470,7 +470,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey,
       joinType,
       rvMerger,
-      new OrderedRVDType(newKey, newRowType))
+      OrderedRVDType(newRowType, newKey))
 
     TableValue(typ, newGlobals, joinedRVD)
   }
@@ -645,7 +645,7 @@ case class TableMapRows(child: TableIR, newRow: IR, newKey: Option[IndexedSeq[St
 
     val newRVD = tv.rvd
       .truncateKey(tv.rvd.typ.key.take(typ.rvdType.key.length))
-      .mapPartitionsWithIndexPreservesPartitioning(typ.rvdType, itF)
+      .mapPartitionsWithIndex(typ.rvdType, itF)
 
     TableValue(typ, tv.globals, newRVD)
   }
@@ -736,7 +736,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
     }
 
     val adjKey = prev.rvd.truncateKey(prev.rvd.typ.key.takeWhile(_ != fieldName))
-    val newRVD = adjKey.boundary.mapPartitionsWithIndexPreservesPartitioning(
+    val newRVD = adjKey.boundary.mapPartitionsWithIndex(
       adjKey.typ.copy(rowType = rowType),
       itF)
 
@@ -1039,7 +1039,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val newRVD = prevRVD
       .constrainToOrderedPartitioner(prevRVD.partitioner.strictify)
       .boundary
-      .mapPartitionsWithIndexPreservesPartitioning(newOrvdType, { (i, ctx, it) =>
+      .mapPartitionsWithIndex(newOrvdType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshContext.region
 

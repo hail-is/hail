@@ -6,10 +6,18 @@ import is.hail.rvd.RVDContext
 import org.apache.spark.TaskContext
 import is.hail.utils._
 import is.hail.sparkextras._
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
 class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
+  // Only use on CRDD's whose T is not dependent on the context
+  def clearingRun: RDD[T] =
+    crdd.cmap { (ctx, v) =>
+      ctx.region.clear()
+      v
+    }.run
+
   def writePartitions(path: String,
     stageLocally: Boolean,
     write: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
