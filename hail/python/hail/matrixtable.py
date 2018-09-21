@@ -245,7 +245,7 @@ class GroupedMatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`result`
+        :meth:`.result`
 
         Parameters
         ----------
@@ -301,7 +301,7 @@ class GroupedMatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`result`
+        :meth:`.result`
 
         Parameters
         ----------
@@ -353,7 +353,7 @@ class GroupedMatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`aggregate`, :meth:`result`
+        :meth:`.aggregate`, :meth:`.result`
 
         Parameters
         ----------
@@ -421,7 +421,7 @@ class GroupedMatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`aggregate`
+        :meth:`.aggregate`
 
         Returns
         -------
