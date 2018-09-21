@@ -196,11 +196,11 @@ object MatrixTable {
       kt.key,
       kt.signature,
       TStruct.empty())
-    val rvRowType = matrixType.rvRowType
 
+    val rvRowType = matrixType.rvRowType
     val oldRowType = kt.signature
 
-    val rvd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
+    val rvd = kt.rvd.mapPartitionsPreservesPartitioning(matrixType.orvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -217,10 +217,10 @@ object MatrixTable {
       }
     }
 
-    new MatrixTable(kt.hc, matrixType,
-      kt.globals,
-      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
-      rvd.changeKey(matrixType.rowKey))
+    val colValues =
+      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc)
+
+    new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
   }
 }
 
