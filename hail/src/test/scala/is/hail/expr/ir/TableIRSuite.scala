@@ -269,4 +269,49 @@ class TableIRSuite extends SparkSuite {
     assert(beforeValue.globals.safeValue == after.globals.safeValue)
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
+
+  @Test def testTableMultiWayZipJoin() {
+    val rowSig = TStruct(
+      "id" -> TInt32(),
+      "name" -> TString(),
+      "data" -> TFloat64()
+    )
+    val key = IndexedSeq("id")
+    val d1 = sc.parallelize(Array(
+      Array(0, "a", 0.0),
+      Array(1, "b", 3.14),
+      Array(2, "c", 2.78)).map(Row.fromSeq(_)))
+    val d2 = sc.parallelize(Array(
+      Array(0, "d", 1.1),
+      Array(0, "x", 2.2),
+      Array(2, "v", 7.89)).map(Row.fromSeq(_)))
+    val d3 = sc.parallelize(Array(
+      Array(1, "f", 9.99),
+      Array(2, "g", -1.0),
+      Array(3, "z", 0.01)).map(Row.fromSeq(_)))
+    val t1 = Table(hc, d1, rowSig, key)
+    val t2 = Table(hc, d2, rowSig, key)
+    val t3 = Table(hc, d3, rowSig, key)
+
+    val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
+    val testTable = new Table(hc, testIr)
+
+    val expectedSchema = TStruct(
+      "id" -> TInt32(),
+      "__data" -> TArray(TStruct(
+        "name" -> TString(),
+        "data" -> TFloat64()))
+    )
+    val globalSig = TStruct("__globals" -> TArray(TStruct()))
+    val globalData = Row.fromSeq(Array(IndexedSeq(Array[Any](), Array[Any](), Array[Any]()).map(Row.fromSeq(_))))
+    val expectedData = sc.parallelize(Array(
+        Array(0, IndexedSeq(Row.fromSeq(Array("a", 0.0)),  Row.fromSeq(Array("d", 1.1)),  null)),
+        Array(0, IndexedSeq(null,                          Row.fromSeq(Array("x", 2.2)),  null)),
+        Array(1, IndexedSeq(Row.fromSeq(Array("b", 3.14)), null,                          Row.fromSeq(Array("f",  9.99)))),
+        Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
+        Array(3, IndexedSeq(null,                          null,                          Row.fromSeq(Array("z",  0.01))))
+      ).map(Row.fromSeq(_)))
+    val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
+    assert(testTable.same(expectedTable))
+  }
 }

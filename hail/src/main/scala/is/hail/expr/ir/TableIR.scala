@@ -476,6 +476,93 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
+// Possible TODO: Add ability to join on a prefix, rather than just the full keys
+case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
+  require(children.length > 0, "there must be at least one table as an argument")
+
+  private val first = children.head
+  private val rest = children.tail
+
+  require(
+    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
+    "all keys must be the same type"
+  )
+  require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.globalType == first.typ.globalType),
+    "all globals must have the same type")
+
+  private val rvdType = OrderedRVDType(first.typ.key, first.typ.rowType)
+  private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
+  private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType))
+  private val newRowType = rvdType.kType ++ newValueType
+
+  def typ: TableType = first.typ.copy(
+    rowType = newRowType,
+    globalType = newGlobalType
+  )
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+    TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
+
+
+  def execute(hc: HailContext): TableValue = {
+    val rowType = rvdType.rowType
+    val keyIdx = rvdType.kFieldIdx
+    val valIdx = rvdType.valueFieldIdx
+    val localRVDType = rvdType
+    val localNewRowType = newRowType
+    val rvMerger = { it: Iterator[Array[RegionValue]] =>
+      val rvb = new RegionValueBuilder()
+      val newRegionValue = RegionValue()
+
+      it.map { rvs =>
+        val len = rvs.length
+        val rv = rvs.dropWhile(rv => rv == null).head
+        rvb.set(rv.region)
+        rvb.start(localNewRowType)
+        rvb.startStruct()
+        rvb.addFields(rowType, rv, keyIdx) // Add the key
+        rvb.startArray(len) // add the values
+        var i = 0
+        while (i < len) {
+          val rv = rvs(i)
+          if (rv != null) {
+            rvb.startStruct()
+            rvb.addFields(rowType, rv, valIdx)
+            rvb.endStruct()
+          } else {
+            rvb.setMissing()
+          }
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+
+        newRegionValue.set(rvb.region, rvb.end())
+        newRegionValue
+      }
+    }
+
+    val childValues = children.map(_.execute(hc))
+    val childRVDs = childValues.map(_.rvd.asInstanceOf[OrderedRVD])
+    val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+    val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
+    val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
+    val newORVDType = OrderedRVDType(localRVDType.key, localNewRowType)
+    val orvd = OrderedRVD.alignAndZipNPartitions(repartitionedRVDs, newORVDType) { (ctx, its) =>
+      val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+      rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
+    }
+
+    val newGlobals = BroadcastRow(
+      Row(childValues.map(_.globals.value)),
+      newGlobalType,
+      childValues.head.rvd.sparkContext)
+
+    TableValue(typ, newGlobals, orvd)
+  }
+}
+
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
   require(right.typ.keyType isPrefixOf left.typ.keyType,
     s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
