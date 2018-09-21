@@ -214,7 +214,7 @@ class MatrixAggregateColsByKey(MatrixIR):
         self.col_expr = col_expr
 
     def render(self, r):
-        return '(MatrixAggregateColsByKey {} {})'.format(r(self.child), r(self.entry_expr), r(self.col_expr))
+        return '(MatrixAggregateColsByKey {} {} {})'.format(r(self.child), r(self.entry_expr), r(self.col_expr))
 
 
 class TableToMatrixTable(MatrixIR):
