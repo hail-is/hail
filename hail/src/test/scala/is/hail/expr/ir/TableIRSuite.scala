@@ -47,7 +47,7 @@ class TableIRSuite extends SparkSuite {
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
     val newTable = TableMapRows(t, newRow)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
+    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, row_idx)})
   }
 
   val rowType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
