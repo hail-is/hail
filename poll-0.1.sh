@@ -3,12 +3,12 @@ set -ex
 
 LATEST_SHA=$(gsutil cat \
   gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt 2>/dev/null || true)
-if [ "$LATEST_SHA" = "" ]; then
+if [[ $LATEST_SHA = "" ]]; then
     exit 0
 fi
 
 DEPLOYED_SHA=$(cat /var/www/0.1-deployed-hash.txt || true)
-if [ "$DEPLOYED_SHA" = "$LATEST_SHA" ]; then
+if [[ $DEPLOYED_SHA = $LATEST_SHA ]]; then
     exit 0
 fi
 
