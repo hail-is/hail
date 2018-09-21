@@ -8,7 +8,7 @@ spec:
   containers:
   - name: letsencrypt-run
     command: ["/bin/bash"]
-    args: ["-c", "/etc/init.d/nginx start; rm -rf /etc/letsencrypt/*; sleep 5; certbot -n --test-cert --agree-tos -m cseed@broadinstitute.org -d test.hail.is --nginx"]
+    args: ["-c", "/etc/init.d/nginx start; rm -rf /etc/letsencrypt/*; sleep 5; certbot -n --agree-tos -m cseed@broadinstitute.org -d test.hail.is --nginx"]
     image: gcr.io/broad-ctsa/letsencrypt-run
     ports:
     - containerPort: 80
