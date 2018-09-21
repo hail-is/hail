@@ -40,6 +40,13 @@ class OrderedRVD(
 
   require(typ.kType isIsomorphicTo partitioner.kType)
 
+  def copy(
+    typ: OrderedRVDType = typ,
+    partitioner: OrderedRVDPartitioner = partitioner,
+    crdd: ContextRDD[RVDContext, RegionValue] = crdd
+  ): OrderedRVD =
+    OrderedRVD(typ, partitioner, crdd)
+
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
@@ -51,13 +58,6 @@ class OrderedRVD(
   def boundary: OrderedRVD = OrderedRVD(typ, partitioner, crddBoundary)
 
   // Basic manipulators
-
-  def copy(
-    typ: OrderedRVDType = typ,
-    partitioner: OrderedRVDPartitioner = partitioner,
-    crdd: ContextRDD[RVDContext, RegionValue] = crdd
-  ): OrderedRVD =
-    OrderedRVD(typ, partitioner, crdd)
 
   def cast(newRowType: TStruct): OrderedRVD = {
     val nameMap = rowType.fieldNames.zip(newRowType.fieldNames).toMap
@@ -111,7 +111,7 @@ class OrderedRVD(
       copy(typ = orvdType, partitioner = partitioner.copy(kType = orvdType.kType))
     else {
       val adjustedPartitioner = partitioner.strictify
-      constrainToOrderedPartitioner(adjustedPartitioner)
+      repartition(adjustedPartitioner)
         .copy(typ = orvdType, partitioner = adjustedPartitioner.copy(kType = orvdType.kType))
     }
   }
@@ -123,22 +123,21 @@ class OrderedRVD(
       partitioner = partitioner.coarsen(newKey.length))
   }
 
-  def constrainToOrderedPartitioner(
-    newPartitioner: OrderedRVDPartitioner
+  // WARNING: will drop any data with keys falling outside 'partitioner'.
+  def repartition(
+    newPartitioner: OrderedRVDPartitioner,
+    shuffle: Boolean = false
   ): OrderedRVD = {
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
-    require(newPartitioner.kType isPrefixOf typ.kType)
+    require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType))
 
-    new OrderedRVD(
-      typ.copy(key = typ.key.take(newPartitioner.kType.size)),
-      newPartitioner,
-      RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds))
-  }
-
-  def blockCoalesce(partitionEnds: Array[Int]): OrderedRVD = {
-    assert(partitionEnds.last == partitioner.numPartitions - 1 && partitionEnds(0) >= 0)
-    assert(partitionEnds.zip(partitionEnds.tail).forall { case (i, inext) => i < inext })
-    OrderedRVD(typ, partitioner.coalesceRangeBounds(partitionEnds), crdd.blocked(partitionEnds))
+    if (shuffle)
+      OrderedRVD.shuffle(typ.copy(key = newPartitioner.kType.fieldNames), newPartitioner, crdd)
+    else
+      new OrderedRVD(
+        typ.copy(key = typ.key.take(newPartitioner.kType.size)),
+        newPartitioner,
+        RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds))
   }
 
   def naiveCoalesce(maxPartitions: Int): OrderedRVD = {
@@ -149,7 +148,8 @@ class OrderedRVD(
     val newN = maxPartitions
     val newNParts = partition(n, newN)
     assert(newNParts.forall(_ > 0))
-    blockCoalesce(newNParts.scanLeft(-1)(_ + _).tail)
+    val newPartitioner = partitioner.coalesceRangeBounds(newNParts.scanLeft(-1)(_ + _).tail)
+    repartition(newPartitioner)
   }
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): OrderedRVD = {
@@ -157,14 +157,14 @@ class OrderedRVD(
     val n = crdd.partitions.length
     if (!shuffle && maxPartitions >= n)
       return this
-    if (shuffle) {
+
+    val newPartitioner = if (shuffle) {
       val shuffled = stably(_.coalesce(maxPartitions, shuffle = true))
       val keyInfo = OrderedRVD.getKeyInfo(typ, typ.key.length, OrderedRVD.getKeys(typ, shuffled))
       if (keyInfo.isEmpty)
         return OrderedRVD.empty(sparkContext, typ)
-      val partitioner = OrderedRVD.calculateKeyRanges(
+      OrderedRVD.calculateKeyRanges(
         typ, keyInfo, shuffled.getNumPartitions, typ.key.length)
-      OrderedRVD.shuffle(typ, partitioner, shuffled)
     } else {
 
       val partSize = countPerPartition()
@@ -195,8 +195,10 @@ class OrderedRVD(
       if (newPartEnd.length < maxPartitions)
         warn(s"coalesced to ${ newPartEnd.length } ${ plural(newPartEnd.length, "partition") }, less than requested $maxPartitions")
 
-      blockCoalesce(newPartEnd)
+      partitioner.coalesceRangeBounds(newPartEnd)
     }
+
+    repartition(newPartitioner, shuffle)
   }
 
   // Key-wise operations
@@ -253,7 +255,7 @@ class OrderedRVD(
 
   def distinctByKey(): OrderedRVD = {
     val localType = typ
-    constrainToOrderedPartitioner(partitioner.strictify)
+    repartition(partitioner.strictify)
       .mapPartitions(typ, (ctx, it) =>
         OrderedRVIterator(localType, it, ctx)
           .staircase
@@ -286,6 +288,9 @@ class OrderedRVD(
   }
 
   // Mapping
+
+  // None of the mapping methods may modify values of key fields, so that the
+  // partitioner remains valid.
 
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] =
     crdd.map(f).clearingRun
@@ -1144,7 +1149,7 @@ object OrderedRVD {
             unfixedPartitioner,
             orderPartitions(crdd))
 
-          unfixedRVD.constrainToOrderedPartitioner(newPartitioner)
+          unfixedRVD.repartition(newPartitioner)
         }
       }
 
@@ -1170,7 +1175,7 @@ object OrderedRVD {
             orderPartitions(crdd))
 
           unfixedRVD
-            .constrainToOrderedPartitioner(newPartitioner)
+            .repartition(newPartitioner)
             .localSort(typ.key)
         }
       }

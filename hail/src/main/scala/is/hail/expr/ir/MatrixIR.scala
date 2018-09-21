@@ -690,7 +690,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, expr: IR) extends MatrixIR 
     val colValuesBc = minColValues.broadcast
     val globalsBc = prev.globals.broadcast
     val newRVD = prev.rvd
-      .constrainToOrderedPartitioner(prev.rvd.partitioner.strictify)
+      .repartition(prev.rvd.partitioner.strictify)
       .boundary
       .mapPartitionsWithIndex(typ.orvdType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
@@ -1904,8 +1904,7 @@ case class MatrixAnnotateRowsTable(
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val indexedPartitioner = prevPartitioner.copy(
           kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
-        val oType = joined.typ.copy(key = prevRowKeys ++ Array(indexUID))
-        val rpJoined = OrderedRVD.shuffle(oType, indexedPartitioner, joined.crdd)
+        val rpJoined = joined.repartition(indexedPartitioner, shuffle = true)
 
         val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
 
