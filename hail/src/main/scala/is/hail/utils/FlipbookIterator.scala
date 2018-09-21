@@ -2,6 +2,8 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 /**
   * A StateMachine has the same primary interface as FlipbookIterator, but the
@@ -84,6 +86,65 @@ object FlipbookIterator {
     StagingIterator(sm)
 
   def empty[A] = StagingIterator(StateMachine.terminal[A])
+
+  def multiZipJoin[A: ClassTag](
+    its: IndexedSeq[FlipbookIterator[A]],
+    default: A,
+    ord: (A, A) => Int
+  ): FlipbookIterator[Array[A]] = {
+    val staging = its.map(_.toStagingIterator)
+    val sm = new StateMachine[Array[A]] {
+      private val len = its.length
+      var value: Array[A] = Array.fill(len)(default)
+      var isValid = true
+      var buf = new ArrayBuffer[Int]
+      def advance() {
+        buf.clear()
+        var smallest = -1
+        var i = 0
+        while (i < value.length) {
+          value(i) =  default
+          i += 1
+        }
+
+        i = 0
+        staging.map(_.stage())
+        while (i < its.length) {
+          if (staging(i).isValid) {
+            if (smallest == -1) { // set the minimum
+              smallest = i
+              buf.append(i)
+            } else {
+            // check the current value against the smallest, if they are the same, add
+            // the index to the buffer, if it is greater, do nothing, if it is less,
+            // less, clear the buffer, and set the smallest index
+              val c = ord(staging(smallest).value, staging(i).value)
+              if (c == 0) {
+                buf.append(i)
+              } else if (c > 0) {
+                buf.clear()
+                buf.append(i)
+                smallest = i
+              }
+            }
+          }
+          i += 1
+        }
+
+        if (buf.isEmpty) {
+          isValid = false
+          return
+        }
+
+        for (i <- buf) {
+          value(i) = staging(i).consume()
+        }
+      }
+    }
+
+    sm.advance()
+    FlipbookIterator(sm)
+  }
 }
 
 /**
