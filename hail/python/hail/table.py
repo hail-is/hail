@@ -341,27 +341,13 @@ class Table(ExprContainer):
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
-        elif isinstance(item, slice):
-            s = item
-            if not (s.start is None and s.stop is None and s.step is None):
-                raise ExpressionException(
-                    "Expect unbounded slice syntax ':' to indicate global table join, found unexpected attributes {}".format(
-                        ', '.join(x for x in ['start' if s.start is not None else None,
-                                              'stop' if s.stop is not None else None,
-                                              'step' if s.step is not None else None] if x is not None)
-                    )
-                )
-            warnings.warn('The ht[:] syntax is deprecated, and will be removed before 0.2 release.\n'
-                          '  Use the following instead:\n'
-                          '    ht.index_globals()\n', stacklevel=2)
-            return self.index_globals()
         else:
-            exprs = wrap_to_tuple(item)
-            if all(isinstance(e, Expression) for e in exprs):
-                return self.index(*exprs)
-        raise ValueError(f"'Table.__getitem__' (ht[...]): Usage:\n"
-                         f"  Select a field: ht['Field name']\n"
-                         f"  index shorthand: ht[key]")
+            try:
+                return self.index(*wrap_to_tuple(item))
+            except TypeError as e:
+                raise TypeError(f"Table.__getitem__: invalid index argument(s)\n"
+                                f"  Usage 1: field selection: ht['field']\n"
+                                f"  Usage 2: Left distinct join: ht[ht2.key] or ht[ht2.field1, ht2.field2]") from e
 
     @property
     def key(self) -> StructExpression:
