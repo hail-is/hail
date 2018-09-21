@@ -50,12 +50,12 @@ object ExportVCF {
     }
   }
   
-  def iterableVCF(sb: StringBuilder, t: TIterable, m: Region, length: Int, offset: Long) {
+  def iterableVCF(sb: StringBuilder, t: TIterable, m: Region, length: Int, offset: Long, delim: Char) {
     if (length > 0) {
       var i = 0
       while (i < length) {
         if (i > 0)
-          sb += ','
+          sb += delim
         if (t.isElementDefined(m, offset, i)) {
           val eOffset = t.loadElement(m, offset, length, i)
           strVCF(sb, t.elementType, m, eOffset)
@@ -78,7 +78,7 @@ object ExportVCF {
             sb += ';'
           sb.append(f.name)
           sb += '='
-          iterableVCF(sb, it, m, length, offset)
+          iterableVCF(sb, it, m, length, offset, ',')
           true
         }
       case TBoolean(_) =>
@@ -173,7 +173,7 @@ object ExportVCF {
         case it: TIterable =>
           if (fIsDefined) {
             val fLength = it.loadLength(m, fOffset)
-            iterableVCF(sb, it, m, fLength, fOffset)
+            iterableVCF(sb, it, m, fLength, fOffset, ',')
           } else
             sb += '.'
         case t =>
@@ -380,7 +380,7 @@ object ExportVCF {
           if (filtersLength == 0)
             sb.append("PASS")
           else
-            iterableVCF(sb, TSet(TString()), m, filtersLength, filtersOffset)
+            iterableVCF(sb, TSet(TString()), m, filtersLength, filtersOffset, ';')
         } else
           sb += '.'
 
