@@ -2,6 +2,7 @@
 #define HAIL_NATIVESTATUS_H 1
 
 #include "hail/NativeObj.h"
+#include "hail/hstring.h"
 #include <cstdarg>
 #include <cstdio>
 #include <string>
@@ -12,8 +13,8 @@
 class NativeStatus : public hail::NativeObj {
 public:
   int errno_;
-  std::string msg_;
-  std::string location_;
+  hail::hstring msg_;
+  hail::hstring location_;
   
 public:
   inline NativeStatus() : errno_(0) { }

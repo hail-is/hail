@@ -5,23 +5,22 @@
 
 namespace hail {
 
-void set_test_msg(const std::string& msg) {
-  fprintf(stderr, "DEBUG: Logging set_test_msg ...\n");
+void set_test_msg(const char* msg) {
   UpcallEnv e;
   e.set_test_msg(msg);
 }
 
-void info(const std::string& msg) {
+void info(const char* msg) {
   UpcallEnv e;
   e.info(msg);
 }
 
-void warn(const std::string& msg) {
+void warn(const char* msg) {
   UpcallEnv e;
   e.warn(msg);
 }
 
-void error(const std::string& msg) {
+void error(const char* msg) {
   UpcallEnv e;
   e.error(msg);
 }

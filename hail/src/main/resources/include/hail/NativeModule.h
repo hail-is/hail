@@ -3,6 +3,7 @@
 
 #include "hail/NativeObj.h"
 #include "hail/NativeStatus.h"
+#include "hail/hstring.h"
 #include <jni.h>
 #include <cstdint>
 #include <string>
@@ -18,11 +19,11 @@ public:
 public:
   State build_state_;
   State load_state_;
-  std::string key_;
+  hail::hstring key_;
   bool is_global_;
   void* dlopen_handle_;
-  std::string lib_name_;
-  std::string new_name_;
+  hail::hstring lib_name_;
+  hail::hstring new_name_;
   
 public:
   NativeModule(const char* options, const char* source, const char* include);
