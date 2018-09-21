@@ -405,26 +405,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def unkey(): Table = keyBy(FastIndexedSeq())
 
-  def select(expr: String, newKey: java.util.ArrayList[String], preservedKeyFields: java.lang.Integer): Table =
-    select(expr, newKey.asScala.toFastIndexedSeq, preservedKeyFields.toInt)
+  def mapRows(expr: String): Table =
+    mapRows(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
-  def select(expr: String, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
-    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
-    select(ir, newKey, preservedKeyFields)
-  }
-
-  def select(newRow: IR, newKey: IndexedSeq[String], preservedKeyFields: Int): Table = {
-    val preservedKeyOld = typ.key.take(preservedKeyFields)
-    val preservedKeyNew = newKey.take(preservedKeyFields)
-    val shortenedKey = if (typ.key != preservedKeyOld) TableKeyBy(tir, preservedKeyOld) else tir
-    val mapped = TableMapRows(shortenedKey, newRow, Some(preservedKeyNew))
-    val lengthenedKey =
-      if (preservedKeyNew != newKey)
-        TableKeyBy(mapped, newKey, isSorted = preservedKeyFields > 0)
-      else
-        mapped
-    new Table(hc, lengthenedKey)
-  }
+  def mapRows(newRow: IR): Table =
+    new Table(hc, TableMapRows(tir, newRow, Some(typ.key)))
 
   def join(other: Table, joinType: String): Table =
     new Table(hc, TableJoin(this.tir, other.tir, joinType, typ.key.length))
