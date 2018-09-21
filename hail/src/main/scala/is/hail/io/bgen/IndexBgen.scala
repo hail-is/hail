@@ -3,11 +3,10 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.expr.types.TStruct
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
-import is.hail.sparkextras.ContextRDD
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.TaskContext
+import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
@@ -57,52 +56,51 @@ object IndexBgen {
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       NoEntries,
-      RowFields(false, false, true),
+      RowFields(false, false, true, true),
       referenceGenome,
       annotationType
     )
 
-    val typ = new OrderedRVDType(settings.typ, Array("locus", "alleles"))
+    val typ = new OrderedRVDType(settings.typ, Array("file_idx", "locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    val crvds = headers.map { f =>
-      val partition = IndexBgenPartition(
+    val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
+      IndexBgenPartition(
         f.path,
         f.compressed,
         skipInvalidLoci,
         recoding,
         f.dataStart,
         f.fileByteSize,
-        0,
+        i,
         sHadoopConfBc)
-
-      BgenRDD(hc.sc, Array(partition), settings, null)
     }
 
     val rowType = typ.rowType
     val offsetIdx = rowType.fieldIdx("offset")
-    val (keyType, _) = rowType.select(Array("locus", "alleles"))
-    val keyOrdering = keyType.ordering
+    val fileIdxIdx = rowType.fieldIdx("file_idx")
+    val (keyType, _) = rowType.select(Array("file_idx", "locus", "alleles"))
+    val (indexKeyType, _) = keyType.select(Array("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
-    val unionCRVD = ContextRDD.union(hc.sc, crvds)
-    assert(unionCRVD.getNumPartitions == files.length)
+    val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
+    val partitioner = new OrderedRVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
+    val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    unionCRVD
-      .toRows(rowType)
+    OrderedRVD
+      .coerce(typ, crvd)
+      .constrainToOrderedPartitioner(partitioner)
+      .toRows
       .foreachPartition({ it =>
-        val keys = it.map(r => (r.deleteField(offsetIdx), r.getLong(offsetIdx))).toArray
-          .sortWith { case ((k1, _), (k2, _)) => keyOrdering.lt(k1, k2) }
-
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), keyType, annotationType, attributes = attributes)) { iw =>
-          keys.foreach { case (k, offset) =>
-            iw += (k, offset, Row())
+        using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType, attributes = attributes)) { iw =>
+          it.foreach { r =>
+            iw += (r.deleteFields(Array(offsetIdx, fileIdxIdx)), r.getLong(offsetIdx), Row())
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")

@@ -377,6 +377,7 @@ class HailContext private(val sc: SparkContext,
       includeRsid,
       includeVarid,
       includeOffset = false,
+      includeFileIdx = false,
       includeGT,
       includeGP,
       includeDosage

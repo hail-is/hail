@@ -26,7 +26,8 @@ final case class EntriesWithFields (
 sealed case class RowFields (
   varid: Boolean,
   rsid: Boolean,
-  offset: Boolean
+  offset: Boolean,
+  fileIdx: Boolean
 )
 
 case class BgenSettings(
@@ -46,6 +47,7 @@ case class BgenSettings(
     rowFields.rsid,
     rowFields.varid,
     rowFields.offset,
+    rowFields.fileIdx,
     includeGT,
     includeGP,
     includeDosage
