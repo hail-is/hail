@@ -178,6 +178,16 @@ object Table {
     }
     return true
   }
+
+    def multiWayZipJoin(tables: java.util.ArrayList[Table], fieldName: String, globalName: String): Table = {
+      val tabs = tables.asScala.toFastIndexedSeq
+      new Table(
+        tabs.head.hc,
+        TableMultiWayZipJoin(
+          tabs.map(_.tir),
+          fieldName,
+          globalName))
+    }
 }
 
 class Table(val hc: HailContext, val tir: TableIR) {

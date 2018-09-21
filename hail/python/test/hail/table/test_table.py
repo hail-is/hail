@@ -373,6 +373,47 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    def test_multi_way_zip_join(self):
+        d1 = [{"id": 0, "name": "a", "data": 0.0},
+              {"id": 1, "name": "b", "data": 3.14},
+              {"id": 2, "name": "c", "data": 2.78}]
+        d2 = [{"id": 0, "name": "d", "data": 1.1},
+              {"id": 0, "name": "x", "data": 2.2},
+              {"id": 2, "name": "v", "data": 7.89}]
+        d3 = [{"id": 1, "name": "f", "data":  9.99},
+              {"id": 2, "name": "g", "data": -1.0},
+              {"id": 3, "name": "z", "data":  0.01}]
+        s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
+        ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
+        joined = hl.Table._multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
+                                          {"name": "d", "data": 1.1},
+                                          None]},
+                     {"id": 0, "__data": [None,
+                                          {"name": "x", "data": 2.2},
+                                          None]},
+                     {"id": 1, "__data": [{"name": "b", "data": 3.14},
+                                          None,
+                                          {"name": "f", "data":  9.99}]},
+                     {"id": 2, "__data": [{"name": "c", "data": 2.78},
+                                          {"name": "v", "data": 7.89},
+                                          {"name": "g", "data": -1.0}]},
+                     {"id": 3, "__data": [None,
+                                          None,
+                                          {"name": "z", "data":  0.01}]}]
+        expected = hl.Table.parallelize(
+            dexpected,
+            schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
+            key='id')
+        self.assertTrue(expected._same(joined))
+
+        expected2 = expected.transmute(data=expected['__data'])
+        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        self.assertTrue(expected2._same(joined_same_name))
+
+        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        self.assertEqual(joined_nothing._force_count(), 5)
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
