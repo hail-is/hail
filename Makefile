@@ -51,6 +51,9 @@ run:
 # cleanup
 	kubectl delete pod --ignore-not-found=true letsencrypt-run
 
+serve:
+	docker run -p 8000:80 site
+
 deploy-site:
 	kubectl apply -f service.yaml
 	kubectl apply -f site-deployment.yaml
