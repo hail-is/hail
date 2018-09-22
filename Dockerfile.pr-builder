@@ -36,7 +36,7 @@ RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http
 RUN apt-get install \
      apt-transport-https \
      ca-certificates \
-     gnupg2 \
+     dirmngr gnupg-l10n gnupg gpgv \
      software-properties-common && \
   curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
   add-apt-repository \
