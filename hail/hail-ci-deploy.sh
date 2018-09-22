@@ -1,14 +1,22 @@
 #!/bin/bash
 set -ex
 
+ROOT=$(cd .. && pwd)
+
 SPARK_VERSION=2.2.0
 BRANCH=devel
 CLOUDTOOLS_VERSION=2
 HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
 SHA=$(git rev-parse --short=12 HEAD)
 
-if [[ "${SHA}" == "$(gsutil cat ${HASH_TARGET})" ]]
-then
+DEPLOYED_SHA=$(gsutil cat ${HASH_TARGET})
+
+if [[ $SHA == $DEPLOYED_SHA ]]; then
+    exit 0
+fi
+
+NEEDS_REDEPLOY=$(cd $ROOT && python needs-redeploy.py $DEPLOYED_SHA hail)
+if [[ $NEEDS_REDEPLOY = no ]]; then
     exit 0
 fi
 
