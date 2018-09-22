@@ -1,6 +1,5 @@
+#!/bin/bash
 set -ex
-
-cd batch
 
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key.json
@@ -13,6 +12,11 @@ SHA=$(git rev-parse --short=12 HEAD)
 DEPLOYED_SHA=$(kubectl get --selector=app=batch deployments -o "jsonpath={.items[*].metadata.labels.hail\.is/sha}")
 
 if [[ "$SHA" == "$DEPLOYED_SHA" ]]; then
+    exit 0
+fi
+
+NEEDS_REDEPLOY=$(cd $ROOT && python needs-redeploy.py $DEPLOYED_SHA batch)
+if [[ $NEEDS_REDEPLOY = no ]]; then
     exit 0
 fi
 
