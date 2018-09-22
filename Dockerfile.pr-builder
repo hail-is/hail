@@ -1,4 +1,4 @@
-# 4.5.4 comes with Python 3.6.4
+1;95;0c# 4.5.4 comes with Python 3.6.4
 FROM continuumio/miniconda3:4.5.4
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
@@ -34,7 +34,7 @@ RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http
 # install docker
 # FIXME combine with above apt-get
 RUN apt-get update && \
-  apt-get install \
+  apt-get -y install \
      apt-transport-https \
      ca-certificates \
      dirmngr gnupg-l10n gnupg gpgv \
@@ -43,7 +43,7 @@ RUN apt-get update && \
   add-apt-repository \
    "deb [arch=amd64] https://download.docker.com/linux/debian$(lsb_release -cs)stable" && \
   apt-get update && \
-  apt-get install docker-ce && \
+  apt-get -y install docker-ce && \
   rm -rf /var/lib/apt/lists/*
 
 # this seems easier than getting the keys right for apt
