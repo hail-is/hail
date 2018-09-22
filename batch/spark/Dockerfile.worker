@@ -1,6 +1,0 @@
-FROM spark
-
-EXPOSE 8080
-EXPOSE 7077
-
-ENTRYPOINT ["/spark-2.2.0-bin-hadoop2.7/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-m:7077"]
