@@ -15,7 +15,7 @@ if [[ $SHA == $DEPLOYED_SHA ]]; then
     exit 0
 fi
 
-NEEDS_REDEPLOY=$(cd $ROOT && python needs-redeploy.py $DEPLOYED_SHA hail)
+NEEDS_REDEPLOY=$(cd $ROOT && python project-changed.py $DEPLOYED_SHA hail)
 if [[ $NEEDS_REDEPLOY = no ]]; then
     exit 0
 fi

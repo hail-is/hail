@@ -2,10 +2,9 @@ import sys
 import subprocess
 
 if len(sys.argv) != 3:
-    sys.stderr.write(f'''usage: {sys.argv[0]} <deployed-hash> <project>
+    sys.stderr.write(f'''usage: {sys.argv[0]} <orig-hash> <project>
 
-outputs 'yes' if <project> deployed as <deployed-hash> needs be
-redeployed, else 'no'.
+outputs 'yes' if <project> changed in HEAD compared to <orig-hash> else 'no'.
 ''')
     exit(1)
 
@@ -18,14 +17,14 @@ projects = {
     'scorecard': 'scorecard/'
 }
 
-deployed_hash = sys.argv[1]
+orig_hash = sys.argv[1]
 target_project = sys.argv[2]
 
 if target_project not in projects:
     sys.stderr.write(f'unknown project: {target_project}\n')
     exit(1)
 
-cmd = ['git', 'diff', '--name-only', deployed_hash]
+cmd = ['git', 'diff', '--name-only', orig_hash]
 proc = subprocess.run(cmd, stdout=subprocess.PIPE, encoding='utf-8')
 if proc.returncode != 0:
     sys.stderr.write(f"command exited with return code {proc.returncode}: {' '.join(cmd)}")
