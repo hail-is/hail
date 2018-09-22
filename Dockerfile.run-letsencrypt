@@ -11,5 +11,4 @@ RUN apt-get update -y
 RUN apt-get install -y python-certbot-nginx
 
 RUN rm -f /etc/nginx/sites-enabled/default
-ADD test.hail.is.conf.run /etc/nginx/conf.d/test.hail.is.conf
-ADD index.html /var/www/html/index.html
+ADD run-letsencrypt.nginx.conf /etc/nginx/conf.d/run-letsencrypt.conf

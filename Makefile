@@ -1,22 +1,24 @@
-build: build-site build-letsencrypt-run
+SHELL=/bin/bash
+
+build: build-site build-run-letsencrypt
 
 build-site:
 	docker build -t site .
 
-build-letsencrypt-run:
-	docker build -t letsencrypt-run . -f Dockerfile.run
+build-run-letsencrypt:
+	docker build -t run-letsencrypt . -f Dockerfile.run-letsencrypt
 
-push: push-site push-letsencrypt-run
+push: push-site push-run-letsencrypt
 
 push-site: build-site
 	docker tag site gcr.io/broad-ctsa/site
 	docker push gcr.io/broad-ctsa/site
 
-push-letsencrypt-run: build-letsencrypt-run
-	docker tag letsencrypt-run gcr.io/broad-ctsa/letsencrypt-run
-	docker push gcr.io/broad-ctsa/letsencrypt-run
+push-run-letsencrypt: build-run-letsencrypt
+	docker tag run-letsencrypt gcr.io/broad-ctsa/run-letsencrypt
+	docker push gcr.io/broad-ctsa/run-letsencrypt
 
-letsencrypt-run:
+run-letsencrypt:
 # start service
 	kubectl apply -f service.yaml
 # stop existing site deployment
@@ -27,33 +29,35 @@ letsencrypt-run:
 	  N=$$(kubectl get pods -l app=site --ignore-not-found=true --no-headers | wc -l | tr -d '[:space:]'); \
 	  echo N=$$N; \
 	done
-# stop existing letsencrypt-run pod
-	kubectl delete pod --ignore-not-found=true letsencrypt-run
+# stop existing run-letsencrypt pod
+	kubectl delete pod --ignore-not-found=true run-letsencrypt
 	N=
 	while [[ $$N != 0 ]]; do \
 	  sleep 5; \
-	  N=$$(kubectl get pod --ignore-not-found=true --no-headers letsencrypt-run | wc -l | tr -d '[:space:]'); \
+	  N=$$(kubectl get pod --ignore-not-found=true --no-headers run-letsencrypt | wc -l | tr -d '[:space:]'); \
 	  echo N=$$N; \
 	done
-# run letsencrypt-run pod
-	kubectl create -f letsencrypt-run-pod.yaml
-	echo "Waiting for letsencrypt-run to complete..."
+# run run-letsencrypt pod
+	kubectl create -f run-letsencrypt-pod.yaml
+	echo "Waiting for run-letsencrypt to complete..."
 	EC=""
 	while [[ $$EC = "" ]]; do \
 	  sleep 5; \
-	  EC=$$(kubectl get pod -o "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}" letsencrypt-run); \
+	  EC=$$(kubectl get pod -o "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}" run-letsencrypt); \
 	  echo EC=$$EC; \
 	done
-	kubectl logs letsencrypt-run
+	kubectl logs run-letsencrypt
 	if [[ $$EC != 0 ]]; then \
 	  exit $$EC; \
 	fi
 # cleanup
-	kubectl delete pod --ignore-not-found=true letsencrypt-run
+	kubectl delete pod --ignore-not-found=true run-letsencrypt
 
 serve:
 	docker run -it -p 80:80 -p 443:443 -v $$(pwd)/letsencrypt:/etc/letsencrypt site
 
 deploy-site:
 	kubectl apply -f service.yaml
+	kubectl delete --ignore-not-found=true -f site-deployment.yaml
+	sleep 5
 	kubectl apply -f site-deployment.yaml

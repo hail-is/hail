@@ -18,8 +18,7 @@ ENV PATH $PATH:/google-cloud-sdk/bin
 
 RUN rm -f /etc/nginx/sites-enabled/default
 
-ADD test.hail.is.conf /etc/nginx/conf.d/test.hail.is.conf
-ADD index.html /var/www/html/index.html
+ADD hail.nginx.conf /etc/nginx/conf.d/hail.conf
 
 ADD poll-0.1.sh .
 ADD poll-devel.sh .
