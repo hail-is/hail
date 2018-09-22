@@ -16,11 +16,6 @@ class RichRow(r: Row) {
     new RowWithDeletedField(r, i)
   }
 
-  def deleteFields(indices: Array[Int]): Row = {
-    require(indices.forall(i => i >= 0 && i < r.length))
-    new RowWithDeletedFields(r, indices)
-  }
-
   def append(a: Any): Row = {
     val ab = new ArrayBuilder[Any]()
     ab ++= r.toSeq
@@ -40,16 +35,6 @@ class RichRow(r: Row) {
     require(newSize <= r.size)
     Row.fromSeq(Array.tabulate(newSize){ i => r.get(i) })
   }
-}
-
-class RowWithDeletedFields(parent: Row, deleteIdxs: Array[Int]) extends Row {
-  val idxMap = (0 until length).map(i => (i, i + deleteIdxs.count(idx => idx <= i))).toMap
-
-  override def length: Int = parent.length - deleteIdxs.length
-
-  override def get(i: Int): Any = parent.get(idxMap(i))
-
-  override def copy(): Row = this
 }
 
 class RowWithDeletedField(parent: Row, deleteIdx: Int) extends Row {

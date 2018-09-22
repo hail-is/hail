@@ -78,6 +78,8 @@ object IndexBgen {
     }
 
     val rowType = typ.rowType
+    val locusIdx = rowType.fieldIdx("locus")
+    val allelesIdx = rowType.fieldIdx("alleles")
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
     val (keyType, _) = rowType.select(Array("file_idx", "locus", "alleles"))
@@ -100,7 +102,8 @@ object IndexBgen {
 
         using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType, attributes = attributes)) { iw =>
           it.foreach { r =>
-            iw += (r.deleteFields(Array(offsetIdx, fileIdxIdx)), r.getLong(offsetIdx), Row())
+            assert(r.getInt(fileIdxIdx) == partIdx)
+            iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")
