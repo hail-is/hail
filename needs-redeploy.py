@@ -35,7 +35,6 @@ def get_project(line):
     for project, prefix in projects.items():
         if line.startswith(prefix):
             return project
-
     return None
 
 for line in proc.stdout.split('\n'):
