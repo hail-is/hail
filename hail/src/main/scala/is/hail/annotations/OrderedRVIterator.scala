@@ -4,11 +4,9 @@ import is.hail.rvd.{RVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
-import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object OrderedRVIterator {
-  def multiZipJoin[A: ClassTag](
+  def multiZipJoin(
     its: IndexedSeq[OrderedRVIterator]
   ): Iterator[Array[RegionValue]] = {
     require(its.length > 0)
