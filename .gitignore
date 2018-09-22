@@ -9,5 +9,3 @@ hail.iml
 hail.log
 out/
 target
-*.pyc
-scorecard/secrets/
