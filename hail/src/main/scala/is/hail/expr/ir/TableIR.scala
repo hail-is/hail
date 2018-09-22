@@ -544,15 +544,18 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     }
 
     val childValues = children.map(_.execute(hc))
-    val childRVDs = childValues.map(_.rvd.asInstanceOf[OrderedRVD])
+    val childRVDs = childValues.map(_.rvd)
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
     val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
     val newORVDType = OrderedRVDType(localNewRowType, localRVDType.key)
-    val orvd = OrderedRVD.alignAndZipNPartitions(repartitionedRVDs, newORVDType) { (ctx, its) =>
-      val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
-      rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
-    }
+    val orvd = OrderedRVD(
+      typ = newORVDType,
+      partitioner = newPartitioner,
+      crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd)) { (ctx, its) =>
+        val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+        rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
+      })
 
     val newGlobals = BroadcastRow(
       Row(childValues.map(_.globals.value)),
