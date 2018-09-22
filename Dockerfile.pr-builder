@@ -31,6 +31,20 @@ RUN apt-get update && apt-get -y install \
 RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
     Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
 
+# install docker
+# FIXME combine with above apt-get
+RUN apt-get install \
+     apt-transport-https \
+     ca-certificates \
+     gnupg2 \
+     software-properties-common && \
+  curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
+  add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/debian$(lsb_release -cs)stable" && \
+  apt-get update && \
+  apt-get install docker-ce && \
+  rm -rf /var/lib/apt/lists/*
+
 # this seems easier than getting the keys right for apt
 #
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
