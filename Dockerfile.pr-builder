@@ -33,7 +33,8 @@ RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http
 
 # install docker
 # FIXME combine with above apt-get
-RUN apt-get install \
+RUN apt-get update && \
+  apt-get install \
      apt-transport-https \
      ca-certificates \
      dirmngr gnupg-l10n gnupg gpgv \
