@@ -1,4 +1,4 @@
-1;95;0c# 4.5.4 comes with Python 3.6.4
+# 4.5.4 comes with Python 3.6.4
 FROM continuumio/miniconda3:4.5.4
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
@@ -37,7 +37,7 @@ RUN apt-get update && \
   apt-get -y install \
      apt-transport-https \
      ca-certificates \
-     dirmngr gnupg-l10n gnupg gpgv \
+     gnupg2 \
      software-properties-common && \
   curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
   add-apt-repository \
