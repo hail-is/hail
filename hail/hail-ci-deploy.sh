@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-ROOT=(cd .. && pwd)
+ROOT=$(cd .. && pwd)
 
 SPARK_VERSION=2.2.0
 BRANCH=devel
