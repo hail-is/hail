@@ -1,4 +1,4 @@
-# 4.5.4 comes with python3.6.4
+# 4.5.4 comes with Python 3.6.4
 FROM continuumio/miniconda:4.5.4
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
