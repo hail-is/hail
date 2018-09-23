@@ -2,10 +2,10 @@ import sys
 import subprocess
 
 if len(sys.argv) != 3:
-    sys.stderr.write(f'''usage: {sys.argv[0]} <orig-hash> <project>
+    sys.stderr.write('''usage: {} <orig-hash> <project>
 
 outputs 'yes' if <project> changed in HEAD compared to <orig-hash> else 'no'.
-''')
+    ''', sys.argv[0])
     exit(1)
 
 # TODO dependencies
