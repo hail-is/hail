@@ -9,10 +9,10 @@ USER root
 # - r-cran-ncdf4, r-cran-rnetcdf, libcurl4-openssl-dev, and libxml2-dve are
 # - depenendencies for the three biolite packages
 RUN apt-get update && \
-  apt -y install gnupg2 lsb-release curl \
+  apt-get -y install gnupg2 lsb-release curl apt-transport-https && \
   curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
   echo \
-   "deb [arch=amd64] https://download.docker.com/linux/debian stretch stable" \
+   "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     >>/etc/apt/sources.list && \
   apt-get update && \
   apt-get -y install \
