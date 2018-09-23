@@ -21,7 +21,7 @@ orig_hash = sys.argv[1]
 target_project = sys.argv[2]
 
 if target_project not in projects:
-    sys.stderr.write(f'unknown project: {target_project}\n')
+    sys.stderr.write('unknown project: {}\n'.format(target_project))
     exit(1)
 
 cmd = ['git', 'diff', '--name-only', orig_hash]
