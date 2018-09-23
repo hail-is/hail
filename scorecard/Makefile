@@ -1,3 +1,5 @@
+.PHONY: build push run-docker run deploy
+
 build:
 	docker build . -t scorecard
 
