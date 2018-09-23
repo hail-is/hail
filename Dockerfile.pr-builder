@@ -33,15 +33,15 @@ RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http
 
 # install docker
 # FIXME combine with above apt-get
-RUN apt-get update && \
+RUN apt-get update &&\
   apt-get -y install \
      apt-transport-https \
      ca-certificates \
-     gnupg2 \
-     software-properties-common && \
+     gnupg2 && \
   curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
-  add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/debian$(lsb_release -cs)stable" && \
+  echo \
+   "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+    >>/etc/apt/sources.list && \
   apt-get update && \
   apt-get -y install docker-ce && \
   rm -rf /var/lib/apt/lists/*
