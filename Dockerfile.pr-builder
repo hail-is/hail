@@ -1,5 +1,4 @@
-# 4.5.4 comes with Python 3.6.4
-FROM continuumio/miniconda:4.5.4
+FROM debian:9.5
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
@@ -9,10 +8,16 @@ USER root
 #
 # - r-cran-ncdf4, r-cran-rnetcdf, libcurl4-openssl-dev, and libxml2-dve are
 # - depenendencies for the three biolite packages
-RUN apt-get update && apt-get -y install \
+RUN apt-get update && \
+  apt-get -y install gnupg2 lsb-release curl apt-transport-https && \
+  curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
+  echo \
+   "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+    >>/etc/apt/sources.list && \
+  apt-get update && \
+  apt-get -y install \
     bash \
     cmake \
-    curl \
     g++ \
     git \
     libnlopt-dev \
@@ -26,7 +31,15 @@ RUN apt-get update && apt-get -y install \
     r-cran-rnetcdf \
     libcurl4-openssl-dev \
     libxml2-dev \
-    && rm -rf /var/lib/apt/lists/*
+    wget \
+    docker-ce \
+    python3 && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN wget https://repo.anaconda.com/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O miniconda.sh && \
+  /bin/bash miniconda.sh -b -p /opt/conda && \
+  rm miniconda.sh
+ENV PATH $PATH:/opt/conda/bin
 
 RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
     Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'

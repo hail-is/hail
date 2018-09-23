@@ -2,11 +2,10 @@ import sys
 import subprocess
 
 if len(sys.argv) != 3:
-    sys.stderr.write(f'''usage: {sys.argv[0]} <deployed-hash> <project>
+    sys.stderr.write('''usage: {} <orig-hash> <project>
 
-outputs 'yes' if <project> deployed as <deployed-hash> needs be
-redeployed, else 'no'.
-''')
+outputs 'yes' if <project> changed in HEAD compared to <orig-hash> else 'no'.
+    ''', sys.argv[0])
     exit(1)
 
 # TODO dependencies
@@ -18,17 +17,17 @@ projects = {
     'scorecard': 'scorecard/'
 }
 
-deployed_hash = sys.argv[1]
+orig_hash = sys.argv[1]
 target_project = sys.argv[2]
 
 if target_project not in projects:
-    sys.stderr.write(f'unknown project: {target_project}\n')
+    sys.stderr.write('unknown project: {}\n'.format(target_project))
     exit(1)
 
-cmd = ['git', 'diff', '--name-only', deployed_hash]
-proc = subprocess.run(cmd, stdout=subprocess.PIPE, encoding='utf-8')
+cmd = ['git', 'diff', '--name-only', orig_hash]
+proc = subprocess.run(cmd, stdout=subprocess.PIPE)
 if proc.returncode != 0:
-    sys.stderr.write(f"command exited with return code {proc.returncode}: {' '.join(cmd)}")
+    sys.stderr.write('command exited with return code {}: {}'.format(proc.returncode, ' '.join(cmd)))
     exit(1)
 
 def get_project(line):
@@ -37,7 +36,7 @@ def get_project(line):
             return project
     return None
 
-for line in proc.stdout.split('\n'):
+for line in proc.stdout.decode('utf-8').split('\n'):
     line = line.strip()
     if not line:
         continue
