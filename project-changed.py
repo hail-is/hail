@@ -27,7 +27,7 @@ if target_project not in projects:
 cmd = ['git', 'diff', '--name-only', orig_hash]
 proc = subprocess.run(cmd, stdout=subprocess.PIPE, encoding='utf-8')
 if proc.returncode != 0:
-    sys.stderr.write(f"command exited with return code {proc.returncode}: {' '.join(cmd)}")
+    sys.stderr.write('command exited with return code {}: {}'.format(proc.returncode, ' '.join(cmd)))
     exit(1)
 
 def get_project(line):
