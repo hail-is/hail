@@ -10,4 +10,6 @@ for project in $PROJECTS; do
 	    (cd $project && /bin/bash hail-ci-build.sh)
 	fi
     fi
-fi
+done
+
+    
