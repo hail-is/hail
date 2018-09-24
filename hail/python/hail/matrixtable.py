@@ -236,7 +236,7 @@ class GroupedMatrixTable(ExprContainer):
         per cohort as a new column field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate_cols(mean_height = agg.stats(dataset.pheno.height).mean)
+        ...                          .aggregate_cols(mean_height = agg.mean(dataset.pheno.height))
         ...                          .result())
 
         Notes
@@ -271,7 +271,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._col_fields if self._col_fields is not None else {}
         for k, e in named_exprs.items():
             if k in existing_fields or k in new_fields:
-                raise ExpressionException("GroupedMatrixTable.aggregate_cols cannot assign duplicate field '{}'".format(k))
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_cols cannot assign duplicate field '{repr(k)}'")
             analyze('GroupedMatrixTable.aggregate_cols', e, self._parent._global_indices, {self._parent._col_axis})
             new_fields[k] = e
 
@@ -327,7 +327,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._row_fields if self._row_fields is not None else {}
         for k, e in named_exprs.items():
             if k in existing_fields or k in new_fields:
-                raise ExpressionException("GroupedMatrixTable.aggregate_rows cannot assign duplicate field '{}'".format(k))
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_rows cannot assign duplicate field '{repr(k)}'")
             analyze('GroupedMatrixTable.aggregate_rows', e, self._parent._global_indices, {self._parent._row_axis})
             new_fields[k] = e
 
@@ -385,7 +385,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._entry_fields if self._entry_fields is not None else {}
         for k, e in named_exprs.items():
             if k in fixed_fields or k in new_fields:
-                raise ExpressionException("GroupedMatrixTable.aggregate_entries cannot assign duplicate field '{}'".format(k))
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_entries cannot assign duplicate field '{repr(k)}'")
             analyze('GroupedMatrixTable.aggregate_entries', e, self._fixed_indices(), {self._parent._row_axis, self._parent._col_axis})
             new_fields[k] = e
 
@@ -428,6 +428,9 @@ class GroupedMatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Aggregated matrix table.
         """
+        if self._col_keys is None and self._row_keys is None:
+            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
+
         group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
         entry_exprs = dict(self._entry_fields) if self._entry_fields is not None else {}
         row_exprs = dict(self._row_fields) if self._row_fields is not None else {}
@@ -445,12 +448,11 @@ class GroupedMatrixTable(ExprContainer):
             keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateColsByKey(str(hl.struct(**entry_exprs)._ir),
                                                                str(hl.struct(**col_exprs)._ir)))
-        elif self._row_keys is not None:
+        else:
+            assert self._row_keys is not None
             keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
             mt = MatrixTable(keyed_mt._jvds.aggregateRowsByKey(str(hl.struct(**entry_exprs)._ir),
                                                                str(hl.struct(**row_exprs)._ir)))
-        else:
-            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
 
         return cleanup(mt)
 
