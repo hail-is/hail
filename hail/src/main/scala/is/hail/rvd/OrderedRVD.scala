@@ -12,7 +12,7 @@ import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
@@ -80,10 +80,10 @@ class OrderedRVD(
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
     stabilize(codec)
 
-  def keyedEncodedRDD(codec: CodecSpec): RDD[(Any, Array[Byte])] = {
+  def keyedEncodedRDD(codec: CodecSpec, key: IndexedSeq[String] = typ.key): RDD[(Any, Array[Byte])] = {
     val enc = codec.buildEncoder(rowType)
-    val kFieldIdx = typ.kFieldIdx
-    val rowPType = typ.rowType.physicalType
+    val kFieldIdx = typ.copy(key = key).kFieldIdx
+    val rowPType = rowType.physicalType
 
     crdd.mapPartitions { it =>
       it.map { rv =>
@@ -130,9 +130,34 @@ class OrderedRVD(
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType))
 
-    if (shuffle)
-      OrderedRVD.shuffle(typ.copy(key = newPartitioner.kType.fieldNames), newPartitioner, crdd)
-    else
+    if (shuffle) {
+      val newType = typ.copy(key = newPartitioner.kType.fieldNames)
+
+      val rowPType = rowType.physicalType
+      val kOrdering = newType.kType.ordering
+
+      val partBc = newPartitioner.broadcast(crdd.sparkContext)
+      val codec = OrderedRVD.wireCodec
+
+      val filtered: OrderedRVD = filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
+        val ur = new UnsafeRow(rowPType, null, 0)
+        val key = new KeyedRow(ur, newType.kFieldIdx)
+        (ur, key)
+      }, { case ((ur, key), rv) =>
+        ur.set(rv)
+        partBc.value.rangeTree.contains(kOrdering, key)
+      })
+
+      val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
+        filtered.keyedEncodedRDD(codec, newType.key),
+        newPartitioner.sparkPartitioner(crdd.sparkContext)
+      ).setKeyOrdering(kOrdering.toOrdering)
+
+      val shuffledCRDD = codec.decodeRDD(typ.rowType, shuffled.map(_._2))
+
+      OrderedRVD(newType, newPartitioner, shuffledCRDD)
+
+    } else
       new OrderedRVD(
         typ.copy(key = typ.key.take(newPartitioner.kType.size)),
         newPartitioner,
@@ -584,7 +609,10 @@ class OrderedRVD(
 
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(OrderedRVD.wireCodec, p).map(
-      RegionValue.fromBytes(OrderedRVD.wireCodec.buildDecoder(rowType, rowType), region, RegionValue(region)))
+      RegionValue.fromBytes(
+        OrderedRVD.wireCodec.buildDecoder(rowType, rowType),
+        region,
+        RegionValue(region)))
 
   // Collecting
 
@@ -1188,52 +1216,6 @@ object OrderedRVD {
     val samples = pInfo.flatMap(_.samples)
 
     OrderedRVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions, partitionKey)
-  }
-
-  // Shuffles the data in 'crdd', producing an OrderedRVD with 'partitioner'.
-  // WARNING: will drop any data with keys falling outside 'partitioner'.
-  private def shuffle(
-    typ: OrderedRVDType,
-    partitioner: OrderedRVDPartitioner,
-    crdd: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = {
-    require(typ.kType isIsomorphicTo partitioner.kType)
-
-    val localType = typ
-    val rowPType = typ.rowType.physicalType
-    val kOrdering = typ.kType.ordering
-
-    val partBc = partitioner.broadcast(crdd.sparkContext)
-    val enc = OrderedRVD.wireCodec.buildEncoder(localType.rowType)
-    val dec = OrderedRVD.wireCodec.buildDecoder(localType.rowType, localType.rowType)
-
-    val shuffledCRDD = crdd
-      .mapPartitions { it =>
-        val ur = new UnsafeRow(rowPType, null, 0)
-        val key = new KeyedRow(ur, typ.kFieldIdx)
-        it.filter { rv =>
-          ur.set(rv)
-          partBc.value.rangeTree.contains(kOrdering, key)
-        }
-      }
-      .mapPartitions { it =>
-        it.map { rv =>
-          val keys: Any = SafeRow.selectFields(rowPType, rv)(localType.kFieldIdx)
-          val bytes = rv.toBytes(enc)
-          (keys, bytes)
-        }
-      }
-      .shuffle(partitioner.sparkPartitioner(crdd.sparkContext), typ.kType.ordering.toOrdering)
-      .cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val region = ctx.region
-        val rv = RegionValue(region)
-        it.map { case (k, bytes) =>
-          assert(partBc.value.contains(i, k))
-          RegionValue.fromBytes(dec, region, rv)(bytes)
-        }
-      }
-
-    OrderedRVD(typ, partitioner, shuffledCRDD)
   }
 
   def apply(
