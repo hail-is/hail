@@ -2,6 +2,8 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: site-deployment
+  labels:
+    hail.is/sha: @sha@
 spec:
   selector:
     matchLabels:
@@ -11,10 +13,11 @@ spec:
     metadata:
       labels:
         app: site
+        hail.is/sha: @sha@
     spec:
       containers:
       - name: site
-        image: gcr.io/broad-ctsa/site
+        image: @image@
         ports:
         - containerPort: 80
         - containerPort: 443
