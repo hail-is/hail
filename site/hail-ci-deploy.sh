@@ -24,9 +24,3 @@ if [[ $(git cat-file -t "$DEPLOYED_SHA" 2>/dev/null || true) == commit ]]; then
 fi
 
 make push-site deploy-site
-
-sed -e "s,@sha@,$SHA," \
-    -e "s,@image@,$(cat batch-image)," \
-    < site-deployment.yaml.in > site-deployment.yaml
-
-kubectl apply -f site-deployment.yaml
