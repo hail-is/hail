@@ -7,7 +7,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.broadcast.Broadcast
 
-class OrderedRVDPartitioner(
+class RVDPartitioner(
   val kType: TStruct,
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
@@ -35,14 +35,14 @@ class OrderedRVDPartitioner(
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-  require(OrderedRVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
+  require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
-    OrderedRVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
+    RVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
-  def strictify: OrderedRVDPartitioner = extendKey(kType)
+  def strictify: RVDPartitioner = extendKey(kType)
 
   val numPartitions: Int = rangeBounds.length
 
@@ -54,7 +54,7 @@ class OrderedRVDPartitioner(
     })
 
   override def equals(other: Any): Boolean = other match {
-    case that: OrderedRVDPartitioner =>
+    case that: RVDPartitioner =>
       this.kType == that.kType && this.rangeBounds == that.rangeBounds
     case _ => false
   }
@@ -62,8 +62,8 @@ class OrderedRVDPartitioner(
   def coarsenedRangeBounds(newKeyLen: Int): IndexedSeq[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
-  def coarsen(newKeyLen: Int): OrderedRVDPartitioner =
-    new OrderedRVDPartitioner(
+  def coarsen(newKeyLen: Int): RVDPartitioner =
+    new RVDPartitioner(
       kType.truncate(newKeyLen),
       coarsenedRangeBounds(newKeyLen)
     )
@@ -71,15 +71,15 @@ class OrderedRVDPartitioner(
   // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
   // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still
   // adjusts 'rangeBounds'.
-  def extendKey(newKType: TStruct): OrderedRVDPartitioner = {
+  def extendKey(newKType: TStruct): RVDPartitioner = {
     require(kType isPrefixOf newKType)
-    OrderedRVDPartitioner.generate(newKType, rangeBounds)
+    RVDPartitioner.generate(newKType, rangeBounds)
   }
 
   def subdivide(
     cutPoints: IndexedSeq[IntervalEndpoint],
     allowedOverlap: Int = kType.size
-  ): OrderedRVDPartitioner = {
+  ): RVDPartitioner = {
     require(cutPoints.forall { case IntervalEndpoint(row, _) =>
       kType.relaxedTypeCheck(row)
     })
@@ -106,10 +106,10 @@ class OrderedRVDPartitioner(
       } yield interval
     }
 
-    new OrderedRVDPartitioner(kType, newBounds, allowedOverlap)
+    new RVDPartitioner(kType, newBounds, allowedOverlap)
   }
 
-  def intersect(other: OrderedRVDPartitioner): OrderedRVDPartitioner = {
+  def intersect(other: RVDPartitioner): RVDPartitioner = {
     require(kType isIsomorphicTo other.kType)
 
     val kord = kType.ordering
@@ -133,7 +133,7 @@ class OrderedRVDPartitioner(
       else
         ab += leader.next()
     }
-    new OrderedRVDPartitioner(kType, ab.result())
+    new RVDPartitioner(kType, ab.result())
   }
 
   def range: Option[Interval] = rangeTree.root.map(_.range)
@@ -184,7 +184,7 @@ class OrderedRVDPartitioner(
   def getSafePartitionKeyRange(key: Any): Range =
     Range(getSafePartitionLowerBound(key), getSafePartitionUpperBound(key))
 
-  def rename(nameMap: Map[String, String]): OrderedRVDPartitioner = new OrderedRVDPartitioner(
+  def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(
     kType.rename(nameMap),
     rangeBounds,
     allowedOverlap
@@ -193,10 +193,10 @@ class OrderedRVDPartitioner(
   def copy(
     kType: TStruct = kType,
     rangeBounds: IndexedSeq[Interval] = rangeBounds
-  ): OrderedRVDPartitioner =
-    new OrderedRVDPartitioner(kType, rangeBounds)
+  ): RVDPartitioner =
+    new RVDPartitioner(kType, rangeBounds)
 
-  def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): OrderedRVDPartitioner = {
+  def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
       rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))
     }
@@ -204,9 +204,9 @@ class OrderedRVDPartitioner(
   }
 
   @transient
-  @volatile var partitionerBc: Broadcast[OrderedRVDPartitioner] = _
+  @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
 
-  def broadcast(sc: SparkContext): Broadcast[OrderedRVDPartitioner] = {
+  def broadcast(sc: SparkContext): Broadcast[RVDPartitioner] = {
     if (partitionerBc == null) {
       synchronized {
         if (partitionerBc == null)
@@ -231,26 +231,26 @@ class OrderedRVDPartitioner(
   }
 }
 
-object OrderedRVDPartitioner {
-  def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(typ.kType, Array.empty[Interval])
+object RVDPartitioner {
+  def empty(typ: RVDType): RVDPartitioner = {
+    new RVDPartitioner(typ.kType, Array.empty[Interval])
   }
 
-  def unkeyed(numPartitions: Int): OrderedRVDPartitioner = {
-    new OrderedRVDPartitioner(
+  def unkeyed(numPartitions: Int): RVDPartitioner = {
+    new RVDPartitioner(
       TStruct.empty(),
       Array.fill(numPartitions)(Interval(Row(), Row(), true, true)),
       0)
   }
 
-  def generate(kType: TStruct, intervals: IndexedSeq[Interval]): OrderedRVDPartitioner =
+  def generate(kType: TStruct, intervals: IndexedSeq[Interval]): RVDPartitioner =
     generate(kType.fieldNames, kType, intervals)
 
   def generate(
     partitionKey: IndexedSeq[String],
     kType: TStruct,
     intervals: IndexedSeq[Interval]
-  ): OrderedRVDPartitioner = {
+  ): RVDPartitioner = {
     require(intervals.forall { case Interval(l, r, _, _) =>
       kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
     })
@@ -263,7 +263,7 @@ object OrderedRVDPartitioner {
     kType: TStruct,
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int
-  ): OrderedRVDPartitioner = {
+  ): RVDPartitioner = {
     val kord = kType.ordering
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
@@ -288,17 +288,17 @@ object OrderedRVDPartitioner {
         ab.result()
       }
 
-    new OrderedRVDPartitioner(kType, rangeBounds, allowedOverlap)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
   }
 
   def fromKeySamples(
-    typ: OrderedRVDType,
+    typ: RVDType,
     min: Any,
     max: Any,
     keys: IndexedSeq[Any],
     nPartitions: Int,
     partitionKey: Int
-  ): OrderedRVDPartitioner = {
+  ): RVDPartitioner = {
     require(nPartitions > 0)
     require(typ.kType.relaxedTypeCheck(min))
     require(typ.kType.relaxedTypeCheck(max))
@@ -311,7 +311,7 @@ object OrderedRVDPartitioner {
     }.toFastIndexedSeq
 
     val interval = Interval(min, max, true, true)
-    new OrderedRVDPartitioner(
+    new RVDPartitioner(
       typ.kType,
       FastIndexedSeq(interval)
     ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))

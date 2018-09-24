@@ -7,7 +7,7 @@ import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -971,8 +971,8 @@ case class MatrixVCFReader(
     }
   }
 
-  private lazy val coercer = OrderedRVD.makeCoercer(
-    fullType.orvdType,
+  private lazy val coercer = RVD.makeCoercer(
+    fullType.rvdType,
     1,
     parseLines(
       () => ()
@@ -1003,9 +1003,9 @@ case class MatrixVCFReader(
     val nSamples = localSampleIDs.length
 
     val rvd = if (mr.dropRows)
-      OrderedRVD.empty(sc, requestedType.orvdType)
+      RVD.empty(sc, requestedType.rvdType)
     else
-      coercer.coerce(requestedType.orvdType, parseLines { () =>
+      coercer.coerce(requestedType.rvdType, parseLines { () =>
         new ParseLineContext(formatSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
         val vc = c.codec.decode(l.line)

@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
 import is.hail.expr.types.Type
 
-case class OrderedRVPartitionInfo(
+case class RVDPartitionInfo(
   partitionIndex: Int,
   size: Int,
   min: Any,
@@ -20,20 +20,20 @@ case class OrderedRVPartitionInfo(
   }
 }
 
-object OrderedRVPartitionInfo {
+object RVDPartitionInfo {
   final val UNSORTED = 0
   final val TSORTED = 1
   final val KSORTED = 2
 
   def apply(
-    typ: OrderedRVDType,
+    typ: RVDType,
     partitionKey: Int,
     sampleSize: Int,
     partitionIndex: Int,
     it: Iterator[RegionValue],
     seed: Int,
     producerContext: RVDContext
-  ): OrderedRVPartitionInfo = {
+  ): RVDPartitionInfo = {
     using(RVDContext.default) { localctx =>
       val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
       val minF = WritableRegionValue(typ.kType, localctx.freshRegion)
@@ -97,7 +97,7 @@ object OrderedRVPartitionInfo {
 
       val safe: RegionValue => Any = SafeRow(kPType, _)
 
-      OrderedRVPartitionInfo(partitionIndex, i,
+      RVDPartitionInfo(partitionIndex, i,
         safe(minF.value), safe(maxF.value),
         Array.tabulate[Any](math.min(i, sampleSize))(i => safe(samples(i).value)),
         sortedness)

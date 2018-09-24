@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.RVD
 import is.hail.table.{Ascending, SortField, Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -95,7 +95,7 @@ class PruneSuite extends SparkSuite {
     mType,
     BroadcastRow(Row(1, 1.0), mType.globalType, sc),
     BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
-    OrderedRVD.empty(sc, mType.orvdType)))
+    RVD.empty(sc, mType.rvdType)))
 
   val mr = MatrixRead(mat.typ, false, false,
     new MatrixReader {

@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.ir.{AggSignature, BaseIR, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.RVDType
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -91,7 +91,7 @@ object Parser extends JavaTokenParsers {
 
   def parseStructType(code: String): TStruct = parse(struct_expr, code)
 
-  def parseOrderedRVDType(code: String): OrderedRVDType = parse(ordered_rvd_type_expr, code)
+  def parseRVDType(code: String): RVDType = parse(rvd_type_expr, code)
 
   def parseTableType(code: String): TableType = parse(table_type_expr, code)
 
@@ -299,10 +299,10 @@ object Parser extends JavaTokenParsers {
     _.toArray
   }
 
-  def ordered_rvd_type_expr: Parser[OrderedRVDType] =
-    (("OrderedRVDType" ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
+  def rvd_type_expr: Parser[RVDType] =
+    ((("RVDType" | "OrderedRVDType") ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case partitionKey ~ restKey ~ rowType =>
-      OrderedRVDType(rowType, partitionKey ++ restKey)
+      RVDType(rowType, partitionKey ++ restKey)
     }
 
   def table_type_expr: Parser[TableType] =

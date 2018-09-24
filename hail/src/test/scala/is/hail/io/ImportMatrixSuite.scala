@@ -6,7 +6,7 @@ import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.variant.{ReferenceGenome$, MatrixTable, VSMSubgen}
 import org.apache.spark.SparkException

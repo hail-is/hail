@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
@@ -448,12 +448,12 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nirvanaORVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
+    val nirvanaRVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
 
-    val nirvanaRowType = nirvanaORVDType.rowType
+    val nirvanaRowType = nirvanaRVDType.rowType
 
-    val nirvanaRVD: OrderedRVD = OrderedRVD(
-      nirvanaORVDType,
+    val nirvanaRVD: RVD = RVD(
+      nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region

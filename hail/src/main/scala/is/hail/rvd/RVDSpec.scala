@@ -23,7 +23,7 @@ object RVDSpec {
     override val typeHintFieldName = "name"
   } +
     new TStructSerializer +
-    new OrderedRVDTypeSerializer
+    new RVDTypeSerializer
 
   def read(hc: HailContext, path: String): RVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
@@ -82,7 +82,7 @@ object RVDSpec {
 }
 
 abstract class RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row]
 
@@ -98,8 +98,8 @@ case class UnpartitionedRVDSpec(
   rowType: TStruct,
   codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD =
-    OrderedRVD.unkeyed(
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD =
+    RVD.unkeyed(
       requestedType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
 
@@ -108,21 +108,21 @@ case class UnpartitionedRVDSpec(
 }
 
 case class OrderedRVDSpec(
-  orvdType: OrderedRVDType,
+  rvdType: RVDType,
   codecSpec: CodecSpec,
   partFiles: Array[String],
   jRangeBounds: JValue) extends RVDSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
-    val requestedORVDType = orvdType.copy(rowType = requestedType)
-    assert(requestedORVDType.kType == orvdType.kType)
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
+    val requestedRVDType = rvdType.copy(rowType = requestedType)
+    assert(requestedRVDType.kType == rvdType.kType)
 
-    val rangeBoundsType = TArray(TInterval(requestedORVDType.kType))
-    OrderedRVD(requestedORVDType,
-      new OrderedRVDPartitioner(requestedORVDType.kType,
+    val rangeBoundsType = TArray(TInterval(requestedRVDType.kType))
+    RVD(requestedRVDType,
+      new RVDPartitioner(requestedRVDType.kType,
         JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]]),
-      hc.readRows(path, orvdType.rowType, codecSpec, partFiles, requestedType))
+      hc.readRows(path, rvdType.rowType, codecSpec, partFiles, requestedType))
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
-    RVDSpec.readLocal(hc, path, orvdType.rowType, codecSpec, partFiles, requestedType)
+    RVDSpec.readLocal(hc, path, rvdType.rowType, codecSpec, partFiles, requestedType)
 }

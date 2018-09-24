@@ -5,7 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.io.compress.LZ4Utils
 import is.hail.nativecode._
-import is.hail.rvd.{OrderedRVDPartitioner, OrderedRVDSpec, RVDContext, RVDSpec, UnpartitionedRVDSpec}
+import is.hail.rvd.{RVDPartitioner, OrderedRVDSpec, RVDContext, RVDSpec, UnpartitionedRVDSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -1612,7 +1612,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     path: String,
     t: MatrixType,
     codecSpec: CodecSpec,
-    partitioner: OrderedRVDPartitioner,
+    partitioner: RVDPartitioner,
     stageLocally: Boolean
   ): Array[Long] = {
     val sc = crdd.sparkContext
@@ -1722,7 +1722,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = OrderedRVDSpec(t.rowORVDType,
+    val rowsSpec = OrderedRVDSpec(t.rowRVDType,
       codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))

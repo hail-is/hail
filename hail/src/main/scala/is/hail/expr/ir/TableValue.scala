@@ -5,7 +5,7 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{OrderedRVD, RVDSpec}
+import is.hail.rvd.{RVD, RVDSpec}
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
@@ -13,7 +13,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
-case class TableValue(typ: TableType, globals: BroadcastRow, rvd: OrderedRVD) {
+case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
   require(rvd.typ.key.startsWith(typ.key))
 

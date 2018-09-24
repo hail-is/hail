@@ -1,14 +1,14 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.rvd.{OrderedRVDType, RVDContext}
+import is.hail.rvd.{RVDType, RVDContext}
 
 object SortedDistinctRowIterator {
-  def transformer(ort: OrderedRVDType): (RVDContext, Iterator[RegionValue]) => SortedDistinctRowIterator =
+  def transformer(ort: RVDType): (RVDContext, Iterator[RegionValue]) => SortedDistinctRowIterator =
     (ctx, it) => new SortedDistinctRowIterator(ort, it, ctx)
 }
 
-class SortedDistinctRowIterator(ort: OrderedRVDType, it: Iterator[RegionValue], ctx: RVDContext) extends Iterator[RegionValue] {
+class SortedDistinctRowIterator(ort: RVDType, it: Iterator[RegionValue], ctx: RVDContext) extends Iterator[RegionValue] {
   private val bit = it.buffered
   private val wrv: WritableRegionValue = WritableRegionValue(ort.rowType, ctx.freshRegion)
 

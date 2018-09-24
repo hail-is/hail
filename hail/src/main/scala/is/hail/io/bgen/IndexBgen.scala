@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.expr.types.TStruct
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.{Partition, TaskContext}
@@ -61,7 +61,7 @@ object IndexBgen {
       annotationType
     )
 
-    val typ = new OrderedRVDType(settings.typ, Array("file_idx", "locus", "alleles"))
+    val typ = RVDType(settings.typ, Array("file_idx", "locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -90,10 +90,10 @@ object IndexBgen {
       "skip_invalid_loci" -> skipInvalidLoci)
 
     val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
-    val partitioner = new OrderedRVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
+    val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    OrderedRVD
+    RVD
       .coerce(typ, crvd)
       .repartition(partitioner)
       .toRows

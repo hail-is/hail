@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVDSpec, _}
+import is.hail.rvd.{RVD, RVDType, RVDSpec, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -18,9 +18,9 @@ case class MatrixValue(
   typ: MatrixType,
   globals: BroadcastRow,
   colValues: BroadcastIndexedSeq,
-  rvd: OrderedRVD) {
+  rvd: RVD) {
 
-    assert(rvd.typ == typ.orvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.orvdType}")
+    assert(rvd.typ == typ.rvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.rvdType}")
 
     def sparkContext: SparkContext = rvd.sparkContext
 
@@ -175,12 +175,12 @@ case class MatrixValue(
       }
     }
 
-    def rowsRVD(): OrderedRVD = {
+    def rowsRVD(): RVD = {
       val localRowType = typ.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       rvd.mapPartitions(
-        OrderedRVDType(typ.rowType, typ.rowKey)
+        RVDType(typ.rowType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -201,25 +201,25 @@ case class MatrixValue(
       }
     }
 
-    def colsRVD(): OrderedRVD = {
+    def colsRVD(): RVD = {
       val hc = HailContext.get
       val signature = typ.colType
 
-      OrderedRVD.coerce(
+      RVD.coerce(
         typ.colsTableType.rvdType,
         ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
           .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
       )
     }
 
-    def entriesRVD(): OrderedRVD = {
+    def entriesRVD(): RVD = {
       val resultStruct = typ.entriesTableType.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       val localEntriesType = typ.entryArrayType
       val localColType = typ.colType
       val localEntryType = typ.entryType
-      val localOrvdType = typ.orvdType
+      val localRVDType = typ.rvdType
       val localNCols = nCols
 
       val localSortedColValues = sortedColValues.broadcast
@@ -242,7 +242,7 @@ case class MatrixValue(
 
             val colsNewToOldIdx = localSortedColsToOldIdx.value.asInstanceOf[IndexedSeq[Int]]
 
-            OrderedRVIterator(localOrvdType, it, ctx).staircase.flatMap { step =>
+            OrderedRVIterator(localRVDType, it, ctx).staircase.flatMap { step =>
               rowBuffer.clear()
               rowBuffer ++= step
               (0 until localNCols).iterator.flatMap { i =>
@@ -307,7 +307,7 @@ case class MatrixValue(
         newMatrixType,
         newGlobals,
         newColValues,
-        rvd.mapPartitions(newMatrixType.orvdType) { it =>
+        rvd.mapPartitions(newMatrixType.rvdType) { it =>
 
           val pc = makePartitionContext()
 

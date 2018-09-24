@@ -5,7 +5,7 @@ import java.util
 import is.hail.annotations._
 import is.hail.expr.types._
 import org.apache.spark.storage.StorageLevel
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
 import is.hail.variant._
 import is.hail.utils._
@@ -223,7 +223,7 @@ object LocalLDPrune {
     r2
   }
 
-  private def pruneLocal(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRVD = {
+  private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
     val localRowType = inputRDD.typ.rowType
 
     inputRDD.mapPartitions(inputRDD.typ, { (ctx, it) =>

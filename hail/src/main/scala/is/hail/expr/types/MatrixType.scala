@@ -3,7 +3,7 @@ package is.hail.expr.types
 import is.hail.annotations.Annotation
 import is.hail.expr.Parser
 import is.hail.expr.ir.Env
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.RVDType
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -79,9 +79,9 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def orvdType: OrderedRVDType = OrderedRVDType(rvRowType, rowKey)
+  def rvdType: RVDType = RVDType(rvRowType, rowKey)
 
-  def rowORVDType: OrderedRVDType = OrderedRVDType(rowType, rowKey)
+  def rowRVDType: RVDType = RVDType(rowType, rowKey)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,

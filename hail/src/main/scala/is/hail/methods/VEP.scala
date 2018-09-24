@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
@@ -186,12 +186,12 @@ object VEP {
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepORVDType = prev.typ.copy(rowType = prev.rowType ++ TStruct("vep" -> vepType))
+    val vepRVDType = prev.typ.copy(rowType = prev.rowType ++ TStruct("vep" -> vepType))
 
-    val vepRowType = vepORVDType.rowType
+    val vepRowType = vepRVDType.rowType
 
-    val vepRVD: OrderedRVD = OrderedRVD(
-      vepORVDType,
+    val vepRVD: RVD = RVD(
+      vepRVDType,
       prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region

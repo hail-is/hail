@@ -1,13 +1,13 @@
 package is.hail.annotations
 
-import is.hail.rvd.{OrderedRVDType, RVDContext}
+import is.hail.rvd.{RVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
 import scala.collection.mutable
 
 case class OrderedRVIterator(
-  t: OrderedRVDType,
+  t: RVDType,
   iterator: Iterator[RegionValue],
   ctx: RVDContext
 ) {
@@ -29,7 +29,7 @@ case class OrderedRVIterator(
       other.iterator.toFlipbookIterator,
       leftDefault = null,
       rightDefault = null,
-      OrderedRVDType.selectUnsafeOrdering(
+      RVDType.selectUnsafeOrdering(
         t.rowType, t.kFieldIdx, other.t.rowType, other.t.kFieldIdx)
         .compare
     )

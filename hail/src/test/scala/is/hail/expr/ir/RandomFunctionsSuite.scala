@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.RVD
 import is.hail.TestUtils._
 import is.hail.table.Table
 import is.hail.utils._
