@@ -1037,7 +1037,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val newOrvdType = prevRVD.typ.copy(rowType = newRowType)
 
     val newRVD = prevRVD
-      .constrainToOrderedPartitioner(prevRVD.partitioner.strictify)
+      .repartition(prevRVD.partitioner.strictify)
       .boundary
       .mapPartitionsWithIndex(newOrvdType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()

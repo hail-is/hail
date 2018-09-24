@@ -507,7 +507,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     val orvd = rvd.truncateKey(IndexedSeq())
     copy2(
-      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)),
+      rvd = orvd.changeType(newRowType),
       signature = newRowType)
   }
 
@@ -789,7 +789,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key(0))
     val newOrderedRVType = OrderedRVDType(newRowType, key)
-    val newRVD = leftORVD.zipPartitionsPreservesPartitioning(
+    val newRVD = leftORVD.zipPartitions(
       newOrderedRVType,
       zipRDD
     ) { (it, intervals) =>
