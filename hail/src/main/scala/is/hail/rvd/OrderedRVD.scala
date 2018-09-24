@@ -16,7 +16,6 @@ import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
-import scala.collection.mutable
 import scala.language.existentials
 import scala.reflect.ClassTag
 
@@ -293,21 +292,14 @@ class OrderedRVD(
     require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
 
     val localTyp = typ
-    val sortedRDD = crdd.cmapPartitionsAndContext { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
-      OrderedRVD.localKeySort(
-        consumerCtx.region,
-        producerCtx.region,
-        consumerCtx,
-        localTyp,
-        newKey,
-        it.flatMap(_ (producerCtx)))
+    val sortedRDD = boundary.crdd.cmapPartitions { (consumerCtx, it) =>
+      OrderedRVIterator(localTyp, it, consumerCtx).localKeySort(newKey)
     }
 
-    val (newKType, _) = typ.rowType.select(newKey)
+    val newType = typ.copy(key = newKey)
     new OrderedRVD(
-      typ.copy(key = newKey),
-      partitioner.copy(kType = newKType),
+      newType,
+      partitioner.copy(kType = newType.kType),
       sortedRDD)
   }
 
@@ -963,57 +955,6 @@ object OrderedRVD {
       OrderedRVDType(rowType),
       OrderedRVDPartitioner.unkeyed(crdd.getNumPartitions),
       crdd)
-
-  /**
-    * Precondition: the iterator is sorted by 'typ.key'.  We lazily sort each
-    * block of 'typ.key'-equivalent elements by 'newKey'.
-    */
-  def localKeySort(
-    consumerRegion: Region,
-    producerRegion: Region,
-    ctx: RVDContext,
-    typ: OrderedRVDType,
-    newKey: IndexedSeq[String],
-    // it: Iterator[RegionValue[rowType]]
-    it: Iterator[RegionValue]
-  ): Iterator[RegionValue] = {
-    require(newKey startsWith typ.key)
-    require(newKey.forall(typ.rowType.fieldNames.contains))
-
-    new Iterator[RegionValue] {
-      private val bit = it.buffered
-
-      private val q = new mutable.PriorityQueue[RegionValue]()(
-        typ.copy(key = newKey).kInRowOrd.reverse)
-
-      private val rvb = new RegionValueBuilder(consumerRegion)
-      private val rv = RegionValue()
-
-      def hasNext: Boolean = bit.hasNext || q.nonEmpty
-
-      def next(): RegionValue = {
-        if (q.isEmpty) {
-          do {
-            val rv = bit.next()
-            val r = ctx.freshRegion
-            rvb.set(r)
-            rvb.start(typ.rowType)
-            rvb.addRegionValue(typ.rowType, rv)
-            q.enqueue(RegionValue(rvb.region, rvb.end()))
-            producerRegion.clear()
-          } while (bit.hasNext && typ.kInRowOrd.compare(q.head, bit.head) == 0)
-        }
-
-        rvb.set(consumerRegion)
-        rvb.start(typ.rowType)
-        val fromQueue = q.dequeue()
-        rvb.addRegionValue(typ.rowType, fromQueue)
-        ctx.closeChild(fromQueue.region)
-        rv.set(consumerRegion, rvb.end())
-        rv
-      }
-    }
-  }
 
   def getKeys(
     typ: OrderedRVDType,
