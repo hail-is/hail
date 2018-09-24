@@ -473,7 +473,7 @@ class GroupedMatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`aggregate_entries`, :meth:`result
+        :meth:`aggregate_entries`, :meth:`result`
 
         Parameters
         ----------
