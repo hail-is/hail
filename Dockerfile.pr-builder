@@ -48,7 +48,8 @@ RUN Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http
 #
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
-    mv /root/google-cloud-sdk /
+    mv /root/google-cloud-sdk / && \
+    /google-cloud-sdk/bin/gcloud components install beta
 ENV PATH $PATH:/google-cloud-sdk/bin
 
 RUN wget -O  /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/v1.11.3/bin/linux/amd64/kubectl && \
