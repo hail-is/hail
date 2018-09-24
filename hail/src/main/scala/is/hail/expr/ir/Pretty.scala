@@ -260,7 +260,6 @@ object Pretty {
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
-            case TableMapRows(_, _, newKey) => prettyIdentifiersOpt(newKey)
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
               prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, field) => field

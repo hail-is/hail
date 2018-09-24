@@ -80,16 +80,13 @@ class TableKeyBy(TableIR):
 
 
 class TableMapRows(TableIR):
-    def __init__(self, child, new_row, new_key):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.new_key = new_key
 
     def render(self, r):
-        return '(TableMapRows {} {} {})'.format(
-            ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
-            r(self.child), r(self.new_row))
+        return '(TableMapRows {} {})'.format(r(self.child), r(self.new_row))
 
 
 class TableRead(TableIR):

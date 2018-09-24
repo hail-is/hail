@@ -35,7 +35,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
-    val newTable = TableMapRows(t, newRow, Some(FastIndexedSeq()))
+    val newTable = TableMapRows(t, newRow)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx})
   }
@@ -45,7 +45,7 @@ class TableIRSuite extends SparkSuite {
     val oldRow = Ref("row", t.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
-    val newTable = TableMapRows(t, newRow, Some(FastIndexedSeq()))
+    val newTable = TableMapRows(t, newRow)
     val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx)})
   }
@@ -254,8 +254,7 @@ class TableIRSuite extends SparkSuite {
         TableMapRows(
           TableRange(50000, 1),
           InsertFields(row,
-            FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx")))),
-          Some(IndexedSeq("idx"))),
+            FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx"))))),
         FastIndexedSeq("k"))
 
     TableJoin(t1, t2, "left").execute(hc).rvd.count()

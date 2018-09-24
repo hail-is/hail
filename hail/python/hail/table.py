@@ -423,7 +423,12 @@ class Table(ExprContainer):
         jt = self._jt
         if preserved_key != list(self.key):
             jt = jt.keyBy(preserved_key)
-        jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key))
+        name_map = {old_name: new_name for (old_name, new_name) in zip(preserved_key, preserved_key_new)}
+        name_map_inv = {new_name: old_name for (old_name, new_name) in zip(preserved_key, preserved_key_new)}
+        row = StructExpression._from_fields({name_map_inv.get(n, n): e for (n, e) in row._fields.items()})
+        jt = jt.mapRows(str(row._ir))
+        if preserved_key != preserved_key_new:
+            jt = jt.rename(name_map, {})
         if new_key != preserved_key_new:
             jt = jt.keyBy(new_key)
         return Table(jt)
@@ -1364,9 +1369,9 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = list(left.key)
-                    left = Table(left.key_by()._jt.select(str(Apply('annotate',
+                    left = Table(left.key_by()._jt.mapRows(str(Apply('annotate',
                                                              left._row._ir,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ir)), [], 0)
+                                                             hl.struct(**dict(zip(uids, exprs)))._ir)))
                                  ).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
