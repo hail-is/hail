@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+source activate hail-batch
+
 # run the server in the background with in-cluster config
 python batch/server.py &
 
