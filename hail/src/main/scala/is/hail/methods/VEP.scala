@@ -52,8 +52,12 @@ object VEP {
   }
 
   def variantFromInput(input: String): (Locus, IndexedSeq[String]) = {
-    val a = input.split("\t")
-    (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
+    try {
+      val a = input.split("\t")
+      (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
+    } catch {
+      case e: Throwable => fatal(s"VEP returned invalid variant '$input'", e)
+    }
   }
 
   def getCSQHeaderDefinition(cmd: Array[String], confEnv: Map[String, String]): Option[String] = {
