@@ -16,12 +16,7 @@ from hail.utils.misc import *
 
 
 class GroupedMatrixTable(ExprContainer):
-    """Matrix table grouped by row or column that can be aggregated into a new matrix table.
-
-    The main operation on a grouped matrix table is :meth:`.GroupedMatrixTable.aggregate`.
-
-    A grouped matrix table with a non-trivial grouping cannot be grouped again.
-    """
+    """Matrix table grouped by row or column that can be aggregated into a new matrix table."""
 
     def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None, entry_fields=None, row_fields=None, col_fields=None):
         super(GroupedMatrixTable, self).__init__()
@@ -74,7 +69,7 @@ class GroupedMatrixTable(ExprContainer):
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
     def group_rows_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
-        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`.
+        """Group rows.
 
         Examples
         --------
@@ -98,7 +93,7 @@ class GroupedMatrixTable(ExprContainer):
         Returns
         -------
         :class:`.GroupedMatrixTable`
-        Grouped matrix. Can be used to call :meth:`.GroupedMatrixTable.aggregate`.
+            Grouped matrix. Can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
         if self._row_keys:
             raise NotImplementedError("GroupedMatrixTable is already grouped by rows.")
@@ -133,7 +128,7 @@ class GroupedMatrixTable(ExprContainer):
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
     def group_cols_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
-        """Group columns, used with :meth:`.GroupedMatrixTable.aggregate`.
+        """Group columns.
 
         Examples
         --------

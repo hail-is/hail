@@ -975,8 +975,10 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
       i += 1
     }
 
-    Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
+    val rvb = new RegionValueBuilder()
+    
+    val newColValues = Region.scoped { region =>
+      rvb.set(region)
 
       val globals = {
         rvb.start(oldGlobalsType)
@@ -1004,15 +1006,10 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
       makeInitCol(0)(region, rvAggsCol, globals, false)
       makeSeqCol(0)(region, rvAggsCol, globals, false, cols, false, colIndices, false)
-    }
 
-    val rvb = new RegionValueBuilder()
-    val annotateF = makeAnnotateCol(0)
+      val annotateF = makeAnnotateCol(0)
 
-    val mapF = (a: Annotation, i: Int) => {
-      Region.scoped { region =>
-        rvb.set(region)
-
+      val mapF = (a: Annotation, i: Int) => {
         val aggResults = {
           rvb.start(aggResultTypeCol)
           rvb.startStruct()
@@ -1022,12 +1019,6 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
             j += 1
           }
           rvb.endStruct()
-          rvb.end()
-        }
-
-        val globals = {
-          rvb.start(oldGlobalsType)
-          rvb.addAnnotation(oldGlobalsType, oldGlobalsBc.value)
           rvb.end()
         }
 
@@ -1050,9 +1041,9 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
         SafeRow(typ.colType.physicalType, region, result)
       }
-    }
 
-    val newColValues = BroadcastIndexedSeq(keys.zipWithIndex.map { case (k, i) => mapF(k, i) }, TArray(typ.colType), hc.sc)
+      BroadcastIndexedSeq(keys.zipWithIndex.map { case (k, idx) => mapF(k, idx) }, TArray(typ.colType), hc.sc)
+    }
 
     // Entry aggregations
 
