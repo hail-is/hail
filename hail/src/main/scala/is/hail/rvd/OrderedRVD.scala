@@ -99,7 +99,7 @@ class OrderedRVD(
     changeKey(newKey, newKey.length)
 
   def changeKey(newKey: IndexedSeq[String], partitionKey: Int): OrderedRVD =
-    OrderedRVD.coerce(typ.copy(key = newKey), partitionKey, this.crdd, None)
+    OrderedRVD.coerce(typ.copy(key = newKey), partitionKey, this.crdd)
 
   def extendKeyPreservesPartitioning(newKey: IndexedSeq[String]): OrderedRVD = {
     require(newKey startsWith typ.key)
@@ -571,10 +571,10 @@ class OrderedRVD(
   }
 
   def forall(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).run.forall(x => x)
+    crdd.map(p).clearingRun.forall(x => x)
 
   def exists(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).run.exists(x => x)
+    crdd.map(p).clearingRun.exists(x => x)
 
   def count(): Long =
     crdd.cmapPartitions { (ctx, it) =>
@@ -1005,30 +1005,30 @@ object OrderedRVD {
   def coerce(
     typ: OrderedRVDType,
     crdd: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, crdd, None)
+  ): OrderedRVD = coerce(typ, typ.key.length, crdd)
 
   def coerce(
     typ: OrderedRVDType,
     crdd: ContextRDD[RVDContext, RegionValue],
     fastKeys: ContextRDD[RVDContext, RegionValue]
-  ): OrderedRVD = coerce(typ, crdd, Some(fastKeys))
+  ): OrderedRVD = coerce(typ, typ.key.length, crdd, fastKeys)
 
   def coerce(
     typ: OrderedRVDType,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
+    partitionKey: Int,
+    crdd: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = {
-    val keys = fastKeys.getOrElse(getKeys(typ, crdd))
-    makeCoercer(typ, keys).coerce(typ, crdd)
+    val keys = getKeys(typ, crdd)
+    makeCoercer(typ, partitionKey, keys).coerce(typ, crdd)
   }
 
   def coerce(
     typ: OrderedRVDType,
     partitionKey: Int,
     crdd: ContextRDD[RVDContext, RegionValue],
-    fastKeys: Option[ContextRDD[RVDContext, RegionValue]]
+    keys: ContextRDD[RVDContext, RegionValue]
   ): OrderedRVD = {
-    val keys = fastKeys.getOrElse(getKeys(typ, crdd))
+    val keys = getKeys(typ, crdd)
     makeCoercer(typ, partitionKey, keys).coerce(typ, crdd)
   }
 
