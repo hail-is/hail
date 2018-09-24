@@ -95,7 +95,7 @@ object IndexBgen {
 
     OrderedRVD
       .coerce(typ, crvd)
-      .constrainToOrderedPartitioner(partitioner)
+      .repartition(partitioner)
       .toRows
       .foreachPartition({ it =>
         val partIdx = TaskContext.get.partitionId()
