@@ -1,0 +1,64 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: hail-ci-deployment
+spec:
+  selector:
+    matchLabels:
+      app: hail-ci
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: hail-ci
+    spec:
+      containers:
+        - name: hail-ci
+          image: gcr.io/broad-ctsa/hail-ci:8770aea785c291cf7dfdc5fe1f993206ad3ab3f4335f8ca812955b99ddf80072
+          env:
+            - name: SELF_HOSTNAME
+              value: http://hail-ci
+            - name: BATCH_SERVER_URL
+              value: http://batch
+            - name: WATCHED_TARGETS
+              value: '[["hail-is/hail:master", true], ["hail-is/hail:0.1", true], ["hail-is/hail:bgen-changes", false], ["hail-is/batch:master", true], ["Nealelab/cloudtools:master", true]]'
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - mountPath: /hail-ci/oauth-token
+              readOnly: true
+              name: hail-ci-0-1-github-oauth-token
+            - mountPath: /hail-ci/gcloud-token
+              readOnly: true
+              name: hail-ci-0-1-service-account-key
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            # failure if CI is busy for > 120 seconds
+            failureThreshold: 12
+      volumes:
+        - name: hail-ci-0-1-service-account-key
+          secret:
+            secretName: hail-ci-0-1-service-account-key
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hail-ci
+  labels:
+    app: hail-ci
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: hail-ci
+  loadBalancerIP: 104.198.57.66 # hail-ci-0-1
+  type: LoadBalancer
