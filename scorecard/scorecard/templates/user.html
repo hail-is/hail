@@ -1,0 +1,107 @@
+<html lang="en">
+<head>
+    <title>Scorecard: User {{ user }}</title>
+    <style type="text/css">
+      td { padding: 0 20px 0 0; }
+      th { padding: 0 20px 0 0; }
+
+      #avatar {
+          float: left;
+          width: 44px;
+          height: 44px;
+          margin: 0 8px 0 0;
+          border-radius: 3px;
+      }
+      .grid-container {
+          display: inline-grid;
+          grid-template-columns: auto auto;
+      }
+    body {
+        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+    }
+
+    </style>
+</head>
+<body>
+<div class="grid-container">
+    <div class="grid-item">
+        <p><img id="avatar" src="https://github.com/{{ user }}.png?s=88"></p>
+    </div>
+
+    <div class="grid-item">
+        <p>Welcome to Scorecard, {{ user }}!</p>
+
+        <h3>Needs Review</h3>
+        {% if user_data['NEEDS_REVIEW'] %}
+        <table>
+            <tbody>
+            {% for pr in user_data['NEEDS_REVIEW'] %}
+            <tr>
+                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
+                <td><a href="https://github.com/{{ user }}">{{ pr.user }}</a></td>
+                <td>{{ pr.title }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No reviews needed.</p>
+        {% endif %}
+
+        <h3>Changes Requested</h3>
+        {% if user_data['CHANGES_REQUESTED'] %}
+        <table>
+            <tbody>
+            {% for pr in user_data['CHANGES_REQUESTED'] %}
+            <tr>
+                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
+                <td>{{ pr.title }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No changes requested.</p>
+        {% endif %}
+
+        <h3>Failing tests</h3>
+        {% if user_data['FAILING'] %}
+        <table>
+            <tbody>
+            {% for pr in user_data['FAILING'] %}
+            <tr>
+                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
+                <td>{{ pr.title }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No failing builds.</p>
+        {% endif %}
+
+
+        <h3>Issues</h3>
+        {% if user_data['ISSUES'] %}
+        <table>
+            <tbody>
+            {% for issue in user_data['ISSUES'] %}
+            <tr>
+                <td><a href="{{ issue.html_url }}">{{ issue.id }}</a></td>
+                <td>{{ issue.title }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No issues.</p>
+        {% endif %}
+
+        <p>
+            <small>last updated {{ updated }}</small>
+        </p>
+    </div>
+</div>
+
+</body>
+</html>
