@@ -112,45 +112,92 @@ class AggFunc(object):
         if group._aggregations:
             raise ExpressionException("'group_by' does not support an already-aggregated expression as the argument to 'group'")
 
-        if isinstance(agg_expr._ir, ApplyScanOp):
+        scanops = agg_expr._ir.search(lambda x: isinstance(x, ApplyScanOp))
+        aggops = agg_expr._ir.search(lambda x: isinstance(x, ApplyAggOp))
+
+        if scanops:
             if not self._as_scan:
                 raise TypeError("'agg.group_by' requires a non-scan aggregation expression (agg.*) as the argument to 'agg_expr'")
-        elif isinstance(agg_expr._ir, ApplyAggOp):
+        elif aggops:
             if self._as_scan:
                 raise TypeError("'scan.group_by' requires a scan aggregation expression (scan.*) as the argument to 'agg_expr'")
-        elif not isinstance(agg_expr._ir, ApplyAggOp) and not isinstance(agg_expr._ir, ApplyScanOp):
+        elif not scanops and not aggops:
             raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
 
-        ir = agg_expr._ir
-        agg_sig = ir.agg_sig
-        a = ir.a
+        if scanops and aggops:
+            raise TypeError("'group_by' cannot have both a scan aggregation and a non-scan aggregation")
 
-        new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
-                                    agg_sig.ctor_arg_types,
-                                    agg_sig.initop_arg_types,
-                                    [group.dtype] + agg_sig.seqop_arg_types)
+        keyed_agg_ops = []
+        key = Env.get_uid()
+        key_typ = group.dtype
 
-        def rewrite_a(ir):
-            if isinstance(ir, SeqOp):
+        def rewrite_base_apply_agg_op(ir):
+            if isinstance(ir, BaseApplyAggOp):
+                rewritten_ir = ir.map_ir(rewrite_base_apply_agg_op)
+
+                seq_op = rewritten_ir.search(lambda x: isinstance(x, SeqOp))
+                assert len(seq_op) == 1
+
+                new_agg_sig = seq_op[0].agg_sig
+                j_agg_sig = Env.hail().expr.Parser.parseAggSignature(str(new_agg_sig))
+
+                return_typ = HailType._from_java(Env.hail().expr.ir.AggOpRegistry.getType(j_agg_sig))
+
+                name = Env.get_uid()
+
+                keyed_agg_ops.append((name,
+                                              rewritten_ir.__class__(rewritten_ir.a,
+                                                                     rewritten_ir.constructor_args,
+                                                                     rewritten_ir.init_op_args,
+                                                                     new_agg_sig),
+                                              return_typ))
+
+                return Apply('get', Ref(name, return_typ), Ref(key, key_typ))
+            elif isinstance(ir, SeqOp):
+                agg_sig = ir.agg_sig
+                new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
+                                            agg_sig.ctor_arg_types,
+                                            agg_sig.initop_arg_types,
+                                            [group.dtype] + agg_sig.seqop_arg_types)
                 return SeqOp(ir.i, [group._ir] + ir.args, new_agg_sig)
             else:
-                return ir.map_ir(rewrite_a)
+                return ir.map_ir(rewrite_base_apply_agg_op)
 
-        new_a = rewrite_a(a)
+        lifted_agg_op_ir = rewrite_base_apply_agg_op(agg_expr._ir)
 
-        if isinstance(agg_expr._ir, ApplyAggOp):
-            ir = ApplyAggOp(new_a,
-                            ir.constructor_args,
-                            ir.init_op_args,
-                            new_agg_sig)
+        n_agg_ops = len(keyed_agg_ops)
+        assert n_agg_ops != 0
+
+        # Get keys to map over
+        if len(keyed_agg_ops) == 1:
+            first = keyed_agg_ops[0]
+            keys = Apply('keys', Ref(first[0], first[2])) # already sorted
         else:
-            assert isinstance(agg_expr._ir, ApplyScanOp)
-            ir = ApplyScanOp(new_a,
-                             ir.constructor_args,
-                             ir.init_op_args,
-                             new_agg_sig)
+            def key_set(agg_ops, idx):
+                name, ir, typ = agg_ops[idx]
+                if idx != n_agg_ops - 1:
+                    return Apply("union", Apply("keySet", Ref(name, typ)), key_set(agg_ops, idx + 1))
+                else:
+                    return Apply("keySet", Ref(name, typ))
 
-        return construct_expr(ir,
+            keys = ArraySort(ToArray(key_set(keyed_agg_ops, 0)),
+                             ascending=TrueIR(),
+                             on_key=False)
+
+        # Rewrite ir as a map values
+        def rewrite_ir(agg_ops, idx):
+            if idx != n_agg_ops:
+                name, ir, typ = agg_ops[idx]
+                return Let(name, ir, rewrite_ir(agg_ops, idx + 1))
+            else:
+                map_values_ir = ToDict(ArrayMap(keys,
+                                                key,
+                                                MakeTuple([Ref(key, key_typ), lifted_agg_op_ir])))
+                return map_values_ir
+
+        new_ir = rewrite_ir(keyed_agg_ops, 0)
+
+        return construct_expr(new_ir,
                               hl.tdict(group.dtype, agg_expr.dtype),
                               agg_expr._indices,
                               agg_expr._aggregations)

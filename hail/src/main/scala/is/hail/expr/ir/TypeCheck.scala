@@ -172,13 +172,13 @@ object TypeCheck {
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(a.typ == TVoid)
-        assert(x.typ == AggOp.getType(aggSig))
+        assert(x.typ == AggOpRegistry.getType(aggSig))
       case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
         check(a)
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(a.typ == TVoid)
-        assert(x.typ == AggOp.getType(aggSig))
+        assert(x.typ == AggOpRegistry.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>

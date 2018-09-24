@@ -38,7 +38,7 @@ final case class TakeBy() extends AggOp { }
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
 
-object AggOp {
+object AggOpRegistry {
 
   def get(aggSig: AggSignature): BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator } =
     getOption(aggSig).getOrElse(incompatible(aggSig))

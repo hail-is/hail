@@ -28,11 +28,10 @@ case class KeyedRegionValueAggregator(
     val m2 = rva2.asInstanceOf[KeyedRegionValueAggregator].m
     m2.asScala.foreach { case (k, agg2) =>
       val agg = m.get(k)
-        if (agg == null)
-          m.put(k, agg2)
-        else {
-          agg.combOp(agg2)
-        }
+      if (agg == null)
+        m.put(k, agg2)
+      else
+        agg.combOp(agg2)
     }
   }
 
