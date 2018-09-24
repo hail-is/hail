@@ -11,11 +11,11 @@ build-run-letsencrypt:
 
 push: push-site push-run-letsencrypt
 
-push-site: IMAGE=gcr.io/broad-ctsa/site:$(shell docker images -q --no-trunc batch-pr-builder | sed -e 's,[^:]*:,,')
-site-image push-site: build-site
-	echo $IMAGE > site-image
-	docker tag site $IMAGE
-	docker push $IMAGE
+push-site: IMAGE = gcr.io/broad-ctsa/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
+push-site: build-site
+	echo $(IMAGE) > site-image
+	docker tag site $(IMAGE)
+	docker push $(IMAGE)
 
 push-run-letsencrypt: build-run-letsencrypt
 	docker tag run-letsencrypt gcr.io/broad-ctsa/run-letsencrypt
@@ -29,7 +29,7 @@ serve:
 
 deploy-site:
 	kubectl apply -f service.yaml
-	sed -e "s,@sha@,$SHA," \
-	  -e "s,@image@,$(cat batch-image)," \
+	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
+	  -e "s,@image@,$(shell cat site-image)," \
 	  < site-deployment.yaml.in > site-deployment.yaml
 	kubectl apply -f site-deployment.yaml
