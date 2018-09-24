@@ -838,6 +838,7 @@ def import_bgen(path,
     ...                            variants=variants.v)
 
     Load a set of variants specified by a table keyed by 'locus' and 'alleles' from a BGEN file:
+
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                            entry_fields=['dosage'],
     ...                            sample_file="data/example.8bits.sample",
