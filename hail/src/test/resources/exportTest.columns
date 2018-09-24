@@ -1,0 +1,4 @@
+COL1	definition of col 1
+AF	va.qc.AF
+EXPR1	v.start + g.gq - 100
+STRING	va.filters.mkString("\t")

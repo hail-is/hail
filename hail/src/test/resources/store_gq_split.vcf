@@ -1,0 +1,11 @@
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S	T
+22	16050036	.	A	C	-10.00	.	.	GT:AD:DP:GQ:PL	./.	./.
+22	16050612	.	C	G	-10.00	.	.	GT:AD:DP:GQ:PL	0/1:1,1:2:27:16,0,31	0/0:5,0:5:15:0,15,173
+22	16051453	.	A	C	-10.00	.	.	GT:AD:DP:GQ:PL	0/0:6,0:6:37:0,18,137	0/1:3,4:7:52:80,0,84
+22	16051453	.	A	G	-10.00	.	.	GT:AD:DP:GQ:PL	0/0:6,0:6:37:0,18,137	0/0:7,0:7:52:0,89,185

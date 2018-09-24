@@ -1,0 +1,12 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=LowQual,Description="Low quality">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GTA,Number=1,Type=String,Description="Genotype Autocall">
+##FORMAT=<ID=GTZ,Number=1,Type=String,Description="Genotype zCall">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	C1046::HG02024	C1046::HG02025
+X	16050036	.	A	C	19961.13	.	.	GT:GTA:GTZ:AD:DP:GQ:PL	0/0:./.:0/1:10,0:10:44:0,44,180	1:.:0:0,6:7:70:70,0
+X	16061250	.	T	A,C	547794.46	.	.	GT:GTA:GTZ:AD:DP:GQ:PL	2/2:2/1:1/1:0,0,11:11:33:396,402,411,33,33,0	2:.:1:0,0,9:9:24:24,40,0

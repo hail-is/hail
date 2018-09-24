@@ -1,0 +1,7 @@
+browser position 20:1-18000000
+browser hide all
+track name="BedTest"
+itemRgb="On"
+20    1          14000000  gene1
+20    17000000   18000000  gene2
+

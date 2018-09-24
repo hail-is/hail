@@ -1,0 +1,12 @@
+*~
+*.o
+.*.crc
+.gradle/
+.idea/
+.pytest_cache/
+build/
+hail.iml
+hail.log
+out/
+target
+

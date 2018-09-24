@@ -1,0 +1,11 @@
+Fam0 Indiv0 0 0 1 0
+Fam1 Son1 Dad1 Mom1 1 1
+Fam1 Dtr1 Dad1 Mom1 2 2
+Fam1 Dad1 0 0 1 0
+Fam1 Mom1 0 0 2 0
+Fam2 Son2 Dad2 Mom2 1 2
+Fam2 Dad2 0 0 1 2
+Fam2 Mom2 0 0 2 1
+Fam3 Son3 Dad3 0 2 0
+Fam3 Dad3 0 0 2 2
+Fam4 Indiv4 0 0 1 1

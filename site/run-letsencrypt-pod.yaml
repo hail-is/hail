@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-letsencrypt
+  labels:
+    app: site
+spec:
+  containers:
+  - name: run-letsencrypt
+    command: ["/bin/bash"]
+# --test-cert for testing
+    args: ["-c", "/etc/init.d/nginx start; sleep 5; rm -rf /etc/letsencrypt/*; certbot --cert-name hail.is -n --agree-tos -m cseed@broadinstitute.org -d hail.is -d www.hail.is -d ci.hail.is -d ci2.hail.is -d scorecard.hail.is -d test.hail.is --nginx; cat /etc/nginx/conf.d/run-letsencrypt.conf"]
+    image: gcr.io/broad-ctsa/run-letsencrypt
+    ports:
+    - containerPort: 80
+    volumeMounts:
+      - mountPath: /etc/letsencrypt
+        name: letsencrypt-certs
+  restartPolicy: Never
+  volumes:
+    - name: letsencrypt-certs
+      persistentVolumeClaim:
+        claimName: letsencrypt-certs

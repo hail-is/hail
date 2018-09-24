@@ -1,0 +1,5 @@
+Newton	A	C	D	1	1
+Turing	B	C	D	2	2
+0	C	0	0	0	0
+0	D	0	0	0	-9
+0	E	0	0	0	non-numeric

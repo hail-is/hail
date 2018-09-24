@@ -1,0 +1,153 @@
+# Hail Python Docs Style Guide
+
+## Build Dependencies
+ - [pandoc](http://pandoc.org/installing.html)
+ - [sphinx v1.5.4](http://www.sphinx-doc.org/)
+ - [nbsphinx](http://nbsphinx.readthedocs.io/)
+ - [read the docs Sphinx theme v0.1.9](https://github.com/snide/sphinx_rtd_theme)
+ - matplotlib
+ - pandas
+ - numpy
+ - seaborn
+
+## Function Documentation Structure
+ - Description
+ - Examples
+ - Notes (if needed)
+ - Other subsections (if needed)
+ - Annotations (if needed)
+ - Parameter Specification
+
+### Description
+ - Start with a short description
+
+### Examples
+ - Create an examples section with this structure:
+
+    ```
+    **Examples**
+
+    Short description of example 1:
+
+    >>> python code example
+
+    Short description of example 2:
+
+    >>> python code example
+    ```
+
+ - The first example should be the most common use case.
+ - Try to keep example descriptions short and concise.
+
+### Additional Information
+ - This is not required. If needed use the heading `**Notes**`. Additional subsections can be added.
+ - Put short python expressions or code snippets and Hail expressions
+   in double-``.
+
+### Annotations
+ - For commands that create annotations, have "Annotations" section that lists the annotations.  Use a bulleted list with the following format:
+
+       ```
+       **Annotations**
+
+        - **annotation** (*Type*) -- description
+       ```
+
+### Parameter and Return Type Specification
+ - Use :param:, :rtype: (if not None), :return:.
+ - :return: gives a short description of what is being returned. Example: `A VariantDataset that has been annotated.`
+
+### General Style
+ - links: `this is a description <with a url>`_.
+ - subsections: use `**`, we'll look into something better
+ - All function/command references should use a Sphinx directive to link ```:py:meth:`~hail.VariantDataset.vep````.
+
+## Code Examples
+ - All examples are automatically tested with the [Sphinx doctest extension](http://www.sphinx-doc.org/en/stable/ext/doctest.html) to make sure they run with no errors. The content of the result is not checked.
+ - All input files required must be placed in `python/hail/docs/data`. When referencing the files in the code example, the input directory is `data/` and the output directory is `output/`.
+ - Each command should start with `>>>`. If the command statement is on multiple lines, use `...` for each subsequent line.
+ - To skip execution of a command, see the `vep` example in `dataset.py`. Please try not to use this unless absolutely necessary.
+ - The HailContext `hc` is in scope and the following import statements have been run:
+
+    ```
+    from hail import *
+    from hail.genetics import *
+    from hail.expr import *
+    from hail.stats import *
+    ```
+
+ - Make sure you do not assign a result to the protected variable names `vds` in `dataset.py` and `kt1`, `kt2` in keytable.py.
+ - Variables not specified in the module-level docstring will not be available in the scope for other functions. Try not to add global variables unless absolutely necessary.
+ - Example VDS files that currently exist in `python/hail/docs/data` were generated as follows:
+
+    **example1.vds**
+
+    ```
+    >>> (hc.import("src/test/resources/sample.vcf.bgz")
+    ...    .downsample_variants(10)
+    ...    .annotate_variants_expr('va.useInKinship = pcoin(0.9),
+                                    va.panel_maf = 0.1,
+                                    va.anno1 = 5,
+                                    va.anno2 = 0,
+                                    va.consequence = "LOF",
+                                    va.gene = "A",
+                                    va.score = 5.0')
+    ...    .split_multi()
+    ...    .variant_qc()
+    ...    .sample_qc()
+    ...    .annotate_samples_expr('sa.isCase = true,
+                                   sa.pheno.isCase = pcoin(0.5),
+                                   sa.pheno.isFemale = pcoin(0.5),
+                                   sa.pheno.age=rnorm(65, 10),
+                                   sa.cov.PC1 = rnorm(0,1),
+                                   sa.pheno.height = rnorm(70, 10),
+                                   sa.cov1 = rnorm(0, 1),
+                                   sa.cov2 = rnorm(0,1),
+                                   sa.pheno.bloodPressure= rnorm(120,20),
+                                   sa.pheno.cohortName = "cohort1"')
+    ...    .write("python/hail/docs/data/example.vds", overwrite=True))
+    ```
+
+    **example2.vds**
+
+    ```
+    >>> (hc.import("src/test/resources/sample.vcf.bgz")
+    ...    .downsample_variants(5)
+    ...    .annotate_variants_expr('va.anno1 = 5,
+                                    va.toKeep1 = true,
+                                    va.toKeep2 = false,
+                                    va.toKeep3 = true')
+    ...    .split_multi()
+    ...    .write("python/hail/docs/data/example2.vds", overwrite=True))
+    ```
+
+    **example_lmmreg.vds**
+
+    ```
+    >>> (hc.import_vcf('src/test/resources/sample.vcf')
+    ...    .split_multi()
+    ...    .variant_qc()
+    ...    .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
+    ...    .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
+    ...    .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
+    ...    .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
+    ...    .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+    ...    .write("python/hail/docs/data/example_lmmreg.vds", overwrite=True))
+
+
+    **example_burden.vds**
+
+    ```
+    >>> (hc.import_vcf('python/hail/docs/data/example_burden.vcf')
+    ...    .annotate_samples_table('python/hail/docs/data/example_burden.tsv', 'Sample', root = 'sa.burden',
+    ...      config = TextTableConfig(impute=True))
+    ...    .annotate_variants_expr('va.weight = v.start.toDouble')
+    ...    .variant_qc()
+    ...    .annotate_variants_intervals('python/hail/docs/data/genes.interval_list', 'va.genes', all=True)
+    ...    .annotate_variants_intervals('python/hail/docs/data/gene.interval_list', 'va.gene', all=False)
+    ...    .write('python/hail/docs/data/example_burden.vds', overwrite=True))
+    ```
+
+## Tutorial Setup
+
+If building the docs on your local computer, use `-Dtutorial.home=/path/hail-tutorial-files/` to specify where the tutorial files have been previously downloaded to avoid downloading the files using `wget` each time.
