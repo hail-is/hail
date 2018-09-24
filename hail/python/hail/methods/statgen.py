@@ -1833,7 +1833,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         PID: str,
       }
 
-    For other entry fields, use :func:`.split_multi`.
+    For other entry fields, write your own splitting logic using
+    :meth:`.MatrixTable.annotate_entries`.
 
     Examples
     --------
