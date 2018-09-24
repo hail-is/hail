@@ -1791,7 +1791,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             def error_on_moved(v):
                 return (hl.case()
                         .when(v.locus == old_row.locus, new_struct(v, i))
-                        .or_error("Found non-left-aligned variant in SplitMulti"))
+                        .or_error("Found non-left-aligned variant in split_multi"))
             return hl.bind(error_on_moved,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
         return split_rows(hl.sorted(kept_alleles.map(make_struct)), False)
@@ -1832,7 +1832,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         PID: str,
       }
 
-    For other entry fields, use :class:`.SplitMulti`.
+    For other entry fields, write your own splitting logic using
+    :meth:`.MatrixTable.annotate_entries`.
 
     Examples
     --------
@@ -1937,6 +1938,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
        splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
        with ``a_index = 2``.
+
+    See Also
+    --------
+    :func:`.split_multi`
 
     Parameters
     ----------
