@@ -1614,7 +1614,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     copyMT(
-      rvd = rvd.copy(typ = newType.orvdType, crdd = newRDD),
+      rvd = OrderedRVD(newType.orvdType, rvd.partitioner, newRDD),
       matrixType = newType)
   }
 }

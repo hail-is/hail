@@ -1898,21 +1898,18 @@ case class MatrixAnnotateRowsTable(
         val left = sortedTL.rvd
         val right = tv.rvd
         val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
-        val prevPartitioner = prev.rvd.partitioner
 
         // At this point 'joined' is sorted by the foreign key, so need to resort by row key
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
-        val indexedPartitioner = prevPartitioner.copy(
-          kType = TStruct((prevRowKeys ++ Array(indexUID)).map(fieldName => fieldName -> joined.typ.rowType.field(fieldName).typ): _*))
-        val rpJoined = joined.repartition(indexedPartitioner, shuffle = true)
+        val extendedKey = prev.rvd.typ.key ++ Array(indexUID)
+        val rpJoined = joined.repartition(
+          prev.rvd.partitioner.extendKey(joined.typ.copy(key = extendedKey).kType),
+          shuffle = true)
 
-        val indexedMtRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
-
-        val mtOType = indexedMtRVD.typ.copy(key = indexedMtRVD.typ.key ++ Array(indexUID))
         // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
-        val newRVD = indexedMtRVD.copy(typ = mtOType, partitioner = indexedPartitioner)
+        val newRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
+          .extendKeyPreservesPartitioning(prev.rvd.typ.key ++ Array(indexUID))
           .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
-          .copy(partitioner = prevPartitioner)
         MatrixValue(typ, prev.globals, prev.colValues, newRVD)
 
       // annotateRowsTable using key

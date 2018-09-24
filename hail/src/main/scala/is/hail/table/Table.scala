@@ -507,7 +507,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     val orvd = rvd.truncateKey(IndexedSeq())
     copy2(
-      rvd = orvd.copy(typ = orvd.typ.copy(rowType = newRowType)),
+      rvd = orvd.changeType(newRowType),
       signature = newRowType)
   }
 

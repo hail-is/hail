@@ -40,13 +40,6 @@ class OrderedRVD(
 
   require(typ.kType isIsomorphicTo partitioner.kType)
 
-  def copy(
-    typ: OrderedRVDType = typ,
-    partitioner: OrderedRVDPartitioner = partitioner,
-    crdd: ContextRDD[RVDContext, RegionValue] = crdd
-  ): OrderedRVD =
-    OrderedRVD(typ, partitioner, crdd)
-
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
@@ -64,6 +57,12 @@ class OrderedRVD(
     val newTyp = OrderedRVDType(newRowType, typ.key.map(nameMap))
     val newPartitioner = partitioner.rename(nameMap)
     new OrderedRVD(newTyp, newPartitioner, crdd)
+  }
+
+  // Change the row type to a physically equivalent type.
+  def changeType(newRowType: TStruct): OrderedRVD = {
+    require(typ.key.forall(newRowType.fieldNames.contains))
+    copy(typ = typ.copy(rowType = newRowType))
   }
 
   // Exporting
@@ -882,6 +881,13 @@ class OrderedRVD(
 
   // Private
 
+  private[rvd] def copy(
+    typ: OrderedRVDType = typ,
+    partitioner: OrderedRVDPartitioner = partitioner,
+    crdd: ContextRDD[RVDContext, RegionValue] = crdd
+  ): OrderedRVD =
+    OrderedRVD(typ, partitioner, crdd)
+
   private[rvd] def destabilize(
     stable: RDD[Array[Byte]],
     codec: CodecSpec = OrderedRVD.memoryCodec
@@ -900,7 +906,7 @@ class OrderedRVD(
   private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
     crdd.boundary
 
-  private def keyBy(key: Int = typ.key.length): KeyedOrderedRVD =
+  private[rvd] def keyBy(key: Int = typ.key.length): KeyedOrderedRVD =
     new KeyedOrderedRVD(this, key)
 
   private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
