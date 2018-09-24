@@ -176,6 +176,7 @@ object CompileDecoder {
     val csettings = mb.getArg[BgenSettings](4).load()
     val srvb = new StagedRegionValueBuilder(mb, settings.pType)
     val offset = mb.newLocal[Long]
+    val fileIdx = mb.newLocal[Int]
     val varid = mb.newLocal[String]
     val rsid = mb.newLocal[String]
     val contig = mb.newLocal[String]
@@ -207,6 +208,7 @@ object CompileDecoder {
     val d2 = mb.newLocal[Int]
     val c = Code(
       offset := cbfis.invoke[Long]("getPosition"),
+      fileIdx := cp.invoke[Int]("index"),
       if (settings.rowFields.varid) {
         varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
@@ -284,6 +286,9 @@ object CompileDecoder {
       else Code._empty,
       if (settings.rowFields.offset)
         Code(srvb.addLong(offset), srvb.advance())
+      else Code._empty,
+      if (settings.rowFields.fileIdx)
+        Code(srvb.addInt(fileIdx), srvb.advance())
       else Code._empty,
       dataSize := cbfis.invoke[Int]("readInt"),
       settings.entries match {

@@ -289,6 +289,7 @@ object MatrixBGENReader {
     includeRsid: Boolean = true,
     includeVarid: Boolean = true,
     includeOffset: Boolean = true,
+    includeFileIdx: Boolean = true,
     includeGT: Boolean = true,
     includeGP: Boolean = true,
     includeDosage: Boolean = true
@@ -298,7 +299,8 @@ object MatrixBGENReader {
       (true, "alleles" -> TArray(TString())),
       (includeRsid, "rsid" -> TString()),
       (includeVarid, "varid" -> TString()),
-      (includeOffset, "offset" -> TInt64()))
+      (includeOffset, "offset" -> TInt64()),
+      (includeFileIdx, "file_idx" -> TInt32()))
       .withFilter(_._1).map(_._2)
 
     val typedEntryFields: Array[(String, Type)] = Array(
@@ -407,13 +409,14 @@ case class MatrixBGENReader(
     val includeLid = requestedRowType.hasField("varid")
     val includeRsid = requestedRowType.hasField("rsid")
     val includeOffset = requestedRowType.hasField("offset")
+    val includeFileIdx = requestedRowType.hasField("file_idx")
 
     assert(requestedType.rowKeyStruct == indexKeyType)
 
     val settings = BgenSettings(
       nSamples,
       EntriesWithFields(includeGT, includeGP, includeDosage),
-      RowFields(includeLid, includeRsid, includeOffset),
+      RowFields(includeLid, includeRsid, includeOffset, includeFileIdx),
       referenceGenome,
       indexAnnotationType)
 
