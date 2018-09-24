@@ -2762,7 +2762,7 @@ class MatrixTable(ExprContainer):
         k_ref = Ref(keys, key_struct.dtype)
         fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
         row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
-        return MatrixTable(self._jvds.selectRows(str(row_ir), new_key))
+        return MatrixTable(self._jvds.keyRowsBy([]).selectRows(str(row_ir), None).keyRowsBy(new_key))
 
     @typecheck_method(caller=str,
                       col=expr_struct(),

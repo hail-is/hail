@@ -1134,6 +1134,7 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
 }
 
 case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]) extends MatrixIR {
+  assert(newKey.isEmpty)
 
   def children: IndexedSeq[BaseIR] = Array(child, newRow)
 

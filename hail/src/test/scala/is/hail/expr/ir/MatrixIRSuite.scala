@@ -90,12 +90,14 @@ class MatrixIRSuite extends SparkSuite {
     val i = end - start
     val baseRange = MatrixTable.range(hc, i, 5, Some(math.min(4, i))).ast
     val row = Ref("va", baseRange.typ.rvRowType)
-    MatrixMapRows(baseRange,
-      InsertFields(
-        row,
-        FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start))),
-      Some(FastIndexedSeq("row_idx") ->
-        FastIndexedSeq.empty))
+    MatrixKeyRowsBy(
+      MatrixMapRows(
+        MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
+        InsertFields(
+          row,
+          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start))),
+        None),
+      FastIndexedSeq("row_idx"))
   }
 
   @DataProvider(name = "unionRowsData")

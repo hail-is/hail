@@ -167,7 +167,7 @@ class MatrixFilterEntries(MatrixIR):
         return '(MatrixFilterEntries {} {})'.format(r(self.child), r(self.pred))
 
 class MatrixKeyRowsBy(MatrixIR):
-    def __init__(self, child, keys, is_sorted):
+    def __init__(self, child, keys, is_sorted=False):
         super().__init__()
         self.child = child
         self.keys = keys
