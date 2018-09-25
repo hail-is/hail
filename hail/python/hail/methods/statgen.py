@@ -438,8 +438,8 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
-    The resulting variant annotations depend on the test statistic as shown
-    in the tables below.
+    The structure of the emitted row field depends on the test statistic as
+    shown in the tables below.
 
     ========== ======================= ======= ============================================
     Test       Field                   Type    Value
@@ -461,11 +461,11 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     ========== ======================= ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
-    each row using Newton iteration and only emits the above annotations
+    each row using Newton iteration and only emits the above fields
     when the maximum likelihood estimate of the coefficients converges. The
     Firth test uses a modified form of Newton iteration. To help diagnose
-    convergence issues, Hail also emits three variant annotations which
-    summarize the iterative fitting process:
+    convergence issues, Hail also emits three fields which summarize the
+    iterative fitting process:
 
     ================ ========================= ======= ===============================
     Test             Field                     Type    Value
@@ -1693,9 +1693,8 @@ def split_multi(ds, keep_star=False, left_aligned=False):
     Example
     -------
 
-    :func:`.split_multi_hts`, which splits
-    multiallelic variants for the HTS genotype schema and updates
-    the genotype annotations by downcoding the genotype, is
+    :func:`.split_multi_hts`, which splits multiallelic variants for the HTS
+    genotype schema and updates the entry fields by downcoding the genotype, is
     implemented as:
 
     >>> sm = hl.split_multi(ds)
