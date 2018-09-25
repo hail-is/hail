@@ -162,7 +162,12 @@ object VEP {
                       null
                   }
                   val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
-                  val vepv@(vepLocus, vepAlleles) = variantFromInput(inputQuery(a).asInstanceOf[String])
+                  val variantString = inputQuery(a).asInstanceOf[String]
+                  if (variantString == null)
+                    fatal(s"VEP generated null variant string" +
+                      s"\n  json:   $s" +
+                      s"\n  parsed: $a")
+                  val vepv@(vepLocus, vepAlleles) = variantFromInput(variantString)
 
                   nonStarToOriginalVariant.get(vepv) match {
                     case Some(v@(locus, alleles)) =>
