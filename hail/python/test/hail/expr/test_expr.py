@@ -214,11 +214,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(1.1e-15), 1.1e-15)
 
     def test_bind_multiple(self):
-        self.assertEqual(hl.bind(lambda x, y: x * y, 2, 3), 6)
-        self.assertEqual(hl.bind(lambda y: y * 2, 3), 6)
+        self.assertEqual(hl.eval(hl.bind(lambda x, y: x * y, 2, 3)), 6)
+        self.assertEqual(hl.eval(hl.bind(lambda y: y * 2, 3)), 6)
 
     def test_bind_placement(self):
-        self.assertEqual(5 / hl.bind(lambda x: x, 5), 1.0)
+        self.assertEqual(hl.eval(5 / hl.bind(lambda x: x, 5)), 1.0)
 
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
@@ -228,16 +228,15 @@ class Tests(unittest.TestCase):
 
     def test_first_match_in(self):
         string = hl.literal('1:25-100')
-        self.assertTrue(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)") == ['1', '25', '100'])
+        self.assertTrue(hl.eval(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)")) == ['1', '25', '100'])
         self.assertIsNone(hl.eval(string.first_match_in("hello (\w+)!")))
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.cond(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.cond(True, hl.struct(), hl.null(hl.tstruct())), hl.utils.Struct())
-
-        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2), None)
-        self.assertEqual(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True), 2)
+        self.assertEqual(hl.eval(hl.cond(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
 
     def test_aggregators(self):
         table = hl.utils.range_table(10)
@@ -575,8 +574,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(make_case(-1)), 'D')
         self.assertEqual(hl.eval(make_case(2)), None)
 
-        self.assertEqual(hl.case().when(hl.null(hl.tbool), 1).default(2), None)
-        self.assertEqual(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2), 2)
+        self.assertEqual(hl.eval(hl.case().when(hl.null(hl.tbool), 1).default(2)), None)
+        self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
         self.assertRaises(hl.utils.java.FatalError, lambda: hl.eval(error_case))
@@ -709,13 +708,13 @@ class Tests(unittest.TestCase):
         s_whitespace = hl.literal(' \t 1 2 3 \t\n')
         self.assertEqual(hl.eval(s_whitespace.strip()), '1 2 3')
 
-        self.assertEqual(s.contains('ABC'), True)
-        self.assertEqual(~s.contains('ABC'), False)
-        self.assertEqual(s.contains('a'), True)
-        self.assertEqual(s.contains('C123'), True)
-        self.assertEqual(s.contains(''), True)
-        self.assertEqual(s.contains('C1234'), False)
-        self.assertEqual(s.contains(' '), False)
+        self.assertEqual(hl.eval(s.contains('ABC')), True)
+        self.assertEqual(hl.eval(~s.contains('ABC')), False)
+        self.assertEqual(hl.eval(s.contains('a')), True)
+        self.assertEqual(hl.eval(s.contains('C123')), True)
+        self.assertEqual(hl.eval(s.contains('')), True)
+        self.assertEqual(hl.eval(s.contains('C1234')), False)
+        self.assertEqual(hl.eval(s.contains(' ')), False)
 
         self.assertTrue(hl.eval(s_whitespace.startswith(' \t')))
         self.assertTrue(hl.eval(s_whitespace.endswith('\t\n')))
@@ -724,7 +723,7 @@ class Tests(unittest.TestCase):
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
-        self.assertEqual(hl.str(hl.null('int32')), None)
+        self.assertEqual(hl.eval(hl.str(hl.null('int32'))), None)
 
 
     def check_expr(self, expr, expected, expected_type):
@@ -1301,13 +1300,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.int64(b1)), 1)
         self.assertEqual(hl.eval(hl.float32(b1)), 1.0)
         self.assertEqual(hl.eval(hl.float64(b1)), 1.0)
-        self.assertEqual(b1 * b2, 0)
-        self.assertEqual(b1 + b2, 1)
-        self.assertEqual(b1 - b2, 1)
-        self.assertEqual(b1 / b1, 1.0)
-        self.assertEqual(f1 * b2, 0.0)
-        self.assertEqual(b_array + f1, [6.5, 5.5])
-        self.assertEqual(b_array + f_array, [2.5, 2.5])
+        self.assertEqual(hl.eval(b1 * b2), 0)
+        self.assertEqual(hl.eval(b1 + b2), 1)
+        self.assertEqual(hl.eval(b1 - b2), 1)
+        self.assertEqual(hl.eval(b1 / b1), 1.0)
+        self.assertEqual(hl.eval(f1 * b2), 0.0)
+        self.assertEqual(hl.eval(b_array + f1), [6.5, 5.5])
+        self.assertEqual(hl.eval(b_array + f_array), [2.5, 2.5])
 
     def test_int_typecheck(self):
         self.assertIsNone(hl.eval(hl.literal(None, dtype='int32')))
@@ -1497,14 +1496,15 @@ class Tests(unittest.TestCase):
         self.check_expr(call_expr.ploidy, 2, tint32)
 
     def test_parse_variant(self):
-        self.assertEqual(hl.parse_variant('1:1:A:T'),
+        self.assertEqual(hl.eval(hl.parse_variant('1:1:A:T')),
                          hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))
 
     def test_locus_to_global_position(self):
-        self.assertEqual(hl.locus('chr22', 1, 'GRCh38').global_position(), 2824183054)
+        self.assertEqual(hl.eval(hl.locus('chr22', 1, 'GRCh38').global_position()), 2824183054)
 
     def test_locus_from_global_position(self):
-        self.assertEqual(hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'), hl.locus('chr22', 1, 'GRCh38')))
+        self.assertEqual(hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38')),
+                         hl.eval(hl.locus('chr22', 1, 'GRCh38')))
 
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
@@ -1546,8 +1546,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4)
 
         for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
-            self.assertEqual(hl.product([f(x) for x in [1, 4, 6]]), 24)
-            self.assertEqual(hl.sum([f(x) for x in [1, 4, 6]]), 11)
+            self.assertEqual(hl.eval(hl.product([f(x) for x in [1, 4, 6]])), 24)
+            self.assertEqual(hl.eval(hl.sum([f(x) for x in [1, 4, 6]])), 11)
 
         self.assertEqual(hl.eval(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
 
@@ -1637,12 +1637,12 @@ class Tests(unittest.TestCase):
         ds.col_idx.show(3)
 
     def test_or_else_type_conversion(self):
-        self.assertEqual(hl.or_else(0.5, 2), 0.5)
+        self.assertEqual(hl.eval(hl.or_else(0.5, 2)), 0.5)
 
     def test_coalesce(self):
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int')), None)
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2), 2)
-        self.assertEqual(hl.coalesce(hl.null('int'), hl.null('int'), 2.5), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int'))), None)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2)), 2)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2.5)), 2.5)
         self.assertEqual(hl.eval(hl.coalesce(2.5)), 2.5)
         with self.assertRaises(TypeError):
             hl.coalesce(2.5, 'hello')
@@ -1907,7 +1907,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(s), 3)
 
     def test_uniroot(self):
-        self.assertAlmostEqual(hl.uniroot(lambda x: x - 1, 0, 3), 1)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3)), 1)
 
     def test_chi_squared_test(self):
         res = hl.eval(hl.chi_squared_test(0, 0, 0, 0))
@@ -1956,9 +1956,9 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res[2], 9.090909090082645e-11)
 
     def test_pl_dosage(self):
-        self.assertAlmostEqual(hl.pl_dosage([0, 20, 100]), 0.009900990296049406)
-        self.assertAlmostEqual(hl.pl_dosage([20, 0, 100]), 0.9900990100009803)
-        self.assertAlmostEqual(hl.pl_dosage([20, 100, 0]), 1.980198019704931)
+        self.assertAlmostEqual(hl.eval(hl.pl_dosage([0, 20, 100])), 0.009900990296049406)
+        self.assertAlmostEqual(hl.eval(hl.pl_dosage([20, 0, 100])), 0.9900990100009803)
+        self.assertAlmostEqual(hl.eval(hl.pl_dosage([20, 100, 0])), 1.980198019704931)
         self.assertIsNone(hl.eval(hl.pl_dosage([20, hl.null('int'), 100])))
 
     def test_collection_method_missingness(self):
@@ -1980,23 +1980,23 @@ class Tests(unittest.TestCase):
         self.assertIsNone(hl.eval(hl.sum(a, filter_missing=False)))
 
     def test_literal_with_nested_expr(self):
-        self.assertEqual(hl.literal(hl.set(['A','B'])), {'A', 'B'})
-        self.assertEqual(hl.literal({hl.str('A'), hl.str('B')}), {'A', 'B'})
+        self.assertEqual(hl.eval(hl.literal(hl.set(['A','B']))), {'A', 'B'})
+        self.assertEqual(hl.eval(hl.literal({hl.str('A'), hl.str('B')})), {'A', 'B'})
 
     def test_format(self):
-        self.assertEqual(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114), '0.2500 hello 1.140e-01')
-        self.assertEqual(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32)), 'null null')
-        self.assertEqual(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5]))), '[5,true,[4,5]]')
-        self.assertEqual(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)])), '1:356 [9,true,null]')
-        self.assertEqual(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello"), "false FALSE true true")
+        self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
+        self.assertEqual(hl.eval(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32))), 'null null')
+        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))), '[5,true,[4,5]]')
+        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 [9,true,null]')
+        self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello")), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):
         d = hl.literal({5: 5}, dtype='dict<int64, int64>')
         s = hl.literal({5}, dtype='set<int64>')
 
-        self.assertEqual(d[5], 5)
+        self.assertEqual(hl.eval(d[5]), 5)
         self.assertEqual(hl.eval(d.get(5)), 5)
-        self.assertEqual(d.get(2, 3), 3)
+        self.assertEqual(hl.eval(d.get(2, 3)), 3)
         self.assertTrue(hl.eval(d.contains(5)))
         self.assertTrue(hl.eval(~d.contains(2)))
 
@@ -2013,7 +2013,7 @@ class Tests(unittest.TestCase):
 
     def test_approx_equal(self):
         self.assertTrue(hl.eval(hl.approx_equal(0.25, 0.25000001)))
-        self.assertTrue(hl.approx_equal(hl.null(hl.tint64), 5) is None)
+        self.assertTrue(hl.eval(hl.approx_equal(hl.null(hl.tint64), 5)) is None)
         self.assertFalse(hl.eval(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3)))
 
     def test_issue3729(self):

@@ -291,7 +291,7 @@ def bind(f: Callable, *exprs):
     Examples
     --------
 
-    >>> hl.eval(add_one = hl.bind(lambda x: x + 1, 1))
+    >>> hl.eval(hl.bind(lambda x: x + 1, 1))
     2
 
     :func:`.bind` also can take multiple arguments:
