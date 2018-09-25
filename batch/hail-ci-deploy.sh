@@ -1,7 +1,5 @@
 set -ex
 
-cd batch
-
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key.json
 
