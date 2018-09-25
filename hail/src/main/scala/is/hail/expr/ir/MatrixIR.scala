@@ -1022,12 +1022,18 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
           rvb.end()
         }
 
+        val colKeys = {
+          rvb.start(newColKeyType)
+          rvb.addAnnotation(newColKeyType, a)
+          rvb.end()
+        }
+
         val colValues = annotateF(region, aggResults, false, globals, false)
 
         val result = {
           rvb.start(newColType)
           rvb.startStruct()
-          rvb.addAnnotation(newColKeyType, a)
+          rvb.addAllFields(newColKeyType, region, colKeys)
           rvb.addAllFields(newColValueType, region, colValues)
           rvb.endStruct()
           rvb.end()
