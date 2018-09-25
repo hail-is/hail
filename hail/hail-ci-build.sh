@@ -12,6 +12,12 @@ gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
     --key-file=/secrets/hail-ci-0-1.key
 
+COMPILE_LOG="build/compilation.log"
+SCALA_TEST_LOG="build/scala-test.log"
+PYTHON_TEST_LOG="build/python-test.log"
+DOCTEST_LOG="build/doctest.log"
+GCP_LOG="build/gcp.log"
+
 on_exit() {
     trap "" INT TERM
     set +e
@@ -20,6 +26,11 @@ on_exit() {
     mkdir -p ${ARTIFACTS}
     cp build/libs/hail-all-spark.jar ${ARTIFACTS}/hail-all-spark.jar
     cp build/distributions/hail-python.zip ${ARTIFACTS}/hail-python.zip
+    cp ${COMPILE_LOG} ${ARTIFACTS}
+    cp ${SCALA_TEST_LOG} ${ARTIFACTS}
+    cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
+    cp ${DOCTEST_LOG} ${ARTIFACTS}
+    cp ${GCP_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/tests ${ARTIFACTS}/test-report
     cat <<EOF > ${ARTIFACTS}/index.html
@@ -30,6 +41,11 @@ on_exit() {
 <li><a href='hail-all-spark.jar'>hail-all-spark.jar</a></li>
 <li><a href='hail-python.zip'>hail-python.zip</a></li>
 <li><a href='www/index.html'>www/index.html</a></li>
+<li><a href='Compilation log'>${COMPILE_LOG}</a></li>
+<li><a href='Scala test log'>${SCALA_TEST_LOG}</a></li>
+<li><a href='Python test log'>${PYTHON_TEST_LOG}</a></li>
+<li><a href='Doctest log'>${DOCTEST_LOG}</a></li>
+<li><a href='GCP log'>${GCP_LOG}</a></li>
 <li><a href='test-report/index.html'>test-report/index.html</a></li>
 </ul>
 </body>
@@ -44,29 +60,50 @@ trap on_exit EXIT
 # TERM is received ensures the EXIT handler is called.
 trap "exit 42" INT TERM
 
-GRADLE_OPTS=-Xmx2048m ./gradlew testAll makeDocs archiveZip --gradle-user-home /gradle-cache
+export GRADLE_OPTS="-Xmx2048m --gradle-user-home /gradle-cache"
 
-time gsutil cp \
-     build/libs/hail-all-spark.jar \
-     gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar
+./gradlew shadowJar archiveZip | tee ${COMPILE_LOG}
 
-time gsutil cp \
-     build/distributions/hail-python.zip \
-     gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip
+test_project() {
 
-time cluster start ${CLUSTER_NAME} \
-     --version devel \
-     --spark 2.2.0 \
-     --max-idle 40m \
-     --bucket=hail-ci-0-1-dataproc-staging-bucket \
-     --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
-     --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
-     --vep
+    ./gradlew test | tee ${SCALA_TEST_LOG}
+    ./gradlew testPython | tee ${PYTHON_TEST_LOG}
+    ./gradlew doctest | tee ${DOCTEST_LOG}
+}
 
-time cluster submit ${CLUSTER_NAME} \
-     cluster-sanity-check.py
+test_gcp() {
+    time gsutil cp \
+         build/libs/hail-all-spark.jar \
+         gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar
 
-time cluster submit ${CLUSTER_NAME} \
-     cluster-vep-check.py
+    time gsutil cp \
+         build/distributions/hail-python.zip \
+         gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip
 
-time cluster stop ${CLUSTER_NAME}
+    time cluster start ${CLUSTER_NAME} \
+         --version devel \
+         --spark 2.2.0 \
+         --max-idle 40m \
+         --bucket=hail-ci-0-1-dataproc-staging-bucket \
+         --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
+         --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
+         --vep
+
+    time cluster submit ${CLUSTER_NAME} \
+         cluster-sanity-check.py
+
+    time cluster submit ${CLUSTER_NAME} \
+         cluster-vep-check.py
+
+    time cluster stop ${CLUSTER_NAME} --async
+}
+
+test_project &
+TEST_PROJECT_PID=$!
+
+test_gcp | tee ${GCP_LOG} &
+TEST_GCP_PID=$!
+
+for pid in "$TEST_PROJECT_PID $TEST_GCP_PID"; do
+    wait $pid;
+done
