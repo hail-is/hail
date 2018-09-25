@@ -1143,32 +1143,17 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
       val fo = f.typ.ordering
-      (i, if (so == Ascending) fo else fo.reverse)
-    }
+      if (so == Ascending) fo else fo.reverse
+    }.toArray
 
-    val ord: Ordering[Annotation] = new Ordering[Annotation] {
-      def compare(a: Annotation, b: Annotation): Int = {
-        var i = 0
-        while (i < sortColIndexOrd.length) {
-          val (fi, ford) = sortColIndexOrd(i)
-          val c = ford.compare(
-            a.asInstanceOf[Row].get(fi),
-            b.asInstanceOf[Row].get(fi))
-          if (c != 0) return c
-          i += 1
-        }
-
-        0
-      }
-    }
+    val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 
     val act = implicitly[ClassTag[Annotation]]
 
-    // FIXME: uses SafeRow, very bad!!!
-    val rdd = prev.rdd.sortBy(identity[Annotation], ascending = true)(ord, act)
-    val rvd = ContextRDD.weaken[RVDContext](rdd)
-      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
-    TableValue(typ, prev.globals, RVD.unkeyed(rowType, rvd))
+    val codec = RVD.wireCodec
+    val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+    val orderedCRDD = codec.decodeRDD(rowType, rdd.map(_._2))
+    TableValue(typ, prev.globals, RVD.unkeyed(rowType, orderedCRDD))
   }
 }
 
