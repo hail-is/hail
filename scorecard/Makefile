@@ -3,7 +3,7 @@
 build:
 	docker build . -t scorecard
 
-push-site: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
+push: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
 push: build
 	echo $(IMAGE) > scorecard-image
 	docker tag scorecard $(IMAGE)
@@ -18,5 +18,5 @@ run:
 deploy:
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat scorecard-image)," \
-	  < site-deployment.yaml.in > site-deployment.yaml
+	  < deployment.yaml.in > deployment.yaml
 	kubectl apply -f deployment.yaml
