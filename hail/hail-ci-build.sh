@@ -11,6 +11,8 @@ time pip install -U cloudtools
 gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
     --key-file=/secrets/hail-ci-0-1.key
+    
+mkdir -p build
 
 COMPILE_LOG="build/compilation.log"
 SCALA_TEST_LOG="build/scala-test.log"
