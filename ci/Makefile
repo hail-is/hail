@@ -12,7 +12,7 @@ update-conda-env:
 HAIL_CI_IMAGE_SHORT_NAME = hail-ci
 
 latest-hail-ci-image:
-	docker build . -t ${HAIL_CI_IMAGE_SHORT_NAME}
+	cd ../ && docker build . -t ${HAIL_CI_IMAGE_SHORT_NAME} -f ci/Dockerfile
 
 hail-ci-image: HASH = $(shell docker images -q --no-trunc ${HAIL_CI_IMAGE_SHORT_NAME} | head -n 1 | sed -e 's,[^:]*:,,')
 hail-ci-image: latest-hail-ci-image
