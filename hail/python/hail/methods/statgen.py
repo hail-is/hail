@@ -439,7 +439,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
     The structure of the emitted row field depends on the test statistic as
-    shownin the tables below.
+    shown in the tables below.
 
     ========== ======================= ======= ============================================
     Test       Field                   Type    Value
