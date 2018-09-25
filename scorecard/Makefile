@@ -3,7 +3,7 @@
 build:
 	docker build . -t scorecard
 
-push-site: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
+push-site: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
 push: build
 	echo $(IMAGE) > scorecard-image
 	docker tag scorecard $(IMAGE)
