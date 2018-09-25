@@ -84,6 +84,7 @@ COPY batch/environment.yml batch/environment.yml
 COPY ci/environment.yml ci/environment.yml
 
 RUN useradd --create-home --shell /bin/bash hail && \
+    usermod -a -G docker hail && \
     chown -R hail:hail /hail /gradle-cache
 USER hail
 
