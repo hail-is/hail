@@ -774,22 +774,6 @@ class Expression(object):
         t = self._to_table(uid).key_by()
         return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
 
-    def eval(self):
-        """Evaluate this expression.
-
-        Notes
-        -----
-        This expression must have no indices, but can refer to the
-        globals of a :class:`.hail.Table` or
-        :class:`.hail.MatrixTable`.
-
-        Returns
-        -------
-            The value of this expression.
-
-        """
-        return hl.eval(self)
-
     def _aggregation_method(self):
         src = self._indices.source
         assert src is not None
