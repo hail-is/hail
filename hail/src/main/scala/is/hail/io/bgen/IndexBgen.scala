@@ -93,9 +93,8 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    RVD
-      .coerce(typ, crvd)
-      .repartition(partitioner)
+    RVD.unkeyed(rowType, crvd)
+      .repartition(partitioner, shuffle = true)
       .toRows
       .foreachPartition({ it =>
         val partIdx = TaskContext.get.partitionId()
