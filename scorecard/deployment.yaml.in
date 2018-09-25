@@ -2,6 +2,8 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: scorecard-deployment
+  labels:
+    hail.is/sha: @sha@
 spec:
   selector:
     matchLabels:
@@ -11,10 +13,11 @@ spec:
     metadata:
       labels:
         app: scorecard
+        hail.is/sha: @sha@
     spec:
       containers:
       - name: scorecard
-        image: gcr.io/broad-ctsa/scorecard
+        image: @image@
         ports:
         - containerPort: 5000
         volumeMounts:

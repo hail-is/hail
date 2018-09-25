@@ -3,9 +3,11 @@
 build:
 	docker build . -t scorecard
 
+push: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
 push: build
-	docker tag scorecard gcr.io/broad-ctsa/scorecard
-	docker push gcr.io/broad-ctsa/scorecard
+	echo $(IMAGE) > scorecard-image
+	docker tag scorecard $(IMAGE)
+	docker push $(IMAGE)
 
 run-docker:
 	docker run -i -p 5000:5000 -v secrets:/secrets -t scorecard
@@ -14,6 +16,7 @@ run:
 	GITHUB_TOKEN_PATH=secrets/scorecard-github-access-token.txt python scorecard/scorecard.py
 
 deploy:
-	kubectl delete -f deployment.yaml
-	sleep 5
-	kubectl create -f deployment.yaml
+	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
+	  -e "s,@image@,$(shell cat scorecard-image)," \
+	  < deployment.yaml.in > deployment.yaml
+	kubectl apply -f deployment.yaml
