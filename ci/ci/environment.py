@@ -14,7 +14,7 @@ BATCH_SERVER_URL = os.environ.get('BATCH_SERVER_URL',
 REFRESH_INTERVAL_IN_SECONDS = \
     int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 60))
 
-CONTEXT = f'hail-ci-0-1-{INSTANCE_ID}'
+CONTEXT = f'hail-ci-0-1'
 
 try:
     WATCHED_TARGETS = [
