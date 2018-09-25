@@ -28,6 +28,7 @@ object RVDSpec {
   def read(hc: HailContext, path: String): RVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
     val jv = hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+        .transformField { case ("orvdType", value) => ("rvdType", value) }
     jv.extract[RVDSpec]
   }
 
