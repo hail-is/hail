@@ -1,7 +1,10 @@
-from hail.utils.java import Env
+from hail.utils.java import Env, info
+from hail.utils import local_path_uri
 from hail.typecheck import *
 import io
 import json
+import os
+import sys
 from typing import Dict, List
 
 @typecheck(path=str,
@@ -237,3 +240,42 @@ def hadoop_ls(path: str) -> List[Dict]:
     """
     r = Env.jutils().ls(path, Env.hc()._jhc)
     return json.loads(r)
+
+
+def copy_log(path: str) -> None:
+    """Attempt to copy the session log to a hadoop-API-compatible location.
+
+    Examples
+    --------
+    Specify a manual path:
+
+    >>> hl.copy_log('gs://my-bucket/analysis-10-jan19.log')  # DOCTEST: +SKIP
+    INFO: copying log to 'gs://my-bucket/analysis-10-jan19.log'...
+
+    Copy to a directory:
+
+    >>> hl.copy_log('gs://my-bucket/')  # DOCTEST: +SKIP
+    INFO: copying log to 'gs://my-bucket/hail-20180924-2018-devel-46e5fad57524.log'...
+
+    Notes
+    -----
+    Since Hail cannot currently log directly to distributed file systems, this
+    function is provided as a utility for offloading logs from ephemeral nodes.
+
+    If `path` is a directory, then the log file will be copied using its
+    base name to the directory (e.g. ``/home/hail.log`` would be copied as
+    ``gs://my-bucket/hail.log`` if `path` is ``gs://my-bucket``.
+
+    Parameters
+    ----------
+    path: :obj:`str`
+    """
+    log = Env.hc()._log
+    try:
+        if hadoop_is_dir(path):
+            _, tail = os.path.split(log)
+            path = os.path.join(path, tail)
+        info(f"copying log to {repr(path)}...")
+        hadoop_copy(local_path_uri(Env.hc()._log), path)
+    except Exception as e:
+        sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
