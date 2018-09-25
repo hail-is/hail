@@ -14,7 +14,8 @@ projects = {
     'batch': 'batch/',
     'ci': 'ci/',
     'site': 'site/',
-    'scorecard': 'scorecard/'
+    'scorecard': 'scorecard/',
+    'cloudtools': 'cloudtools/'
 }
 
 orig_hash = sys.argv[1]
