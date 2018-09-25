@@ -41,11 +41,11 @@ on_exit() {
 <li><a href='hail-all-spark.jar'>hail-all-spark.jar</a></li>
 <li><a href='hail-python.zip'>hail-python.zip</a></li>
 <li><a href='www/index.html'>www/index.html</a></li>
-<li><a href='Compilation log'>${COMPILE_LOG}</a></li>
-<li><a href='Scala test log'>${SCALA_TEST_LOG}</a></li>
-<li><a href='Python test log'>${PYTHON_TEST_LOG}</a></li>
-<li><a href='Doctest log'>${DOCTEST_LOG}</a></li>
-<li><a href='GCP log'>${GCP_LOG}</a></li>
+<li><a href='compilation.log'>Compilation log</a></li>
+<li><a href='scala-test.log'>Scala test log></a/li>
+<li><a href='python-test.log'>Python test log</a></li>
+<li><a href='doctest.log'>Doctest log></a/li>
+<li><a href='gcp.log'>GCP log</a></li>
 <li><a href='test-report/index.html'>test-report/index.html</a></li>
 </ul>
 </body>
@@ -63,12 +63,13 @@ trap "exit 42" INT TERM
 export GRADLE_OPTS="-Xmx2048m"
 export GRADLE_USER_HOME="/gradle-cache"
 
-./gradlew shadowJar archiveZip | tee ${COMPILE_LOG}
+echo "Compiling..."
+./gradlew shadowJar archiveZip > ${COMPILE_LOG}
 
 test_project() {
-    ./gradlew test | tee ${SCALA_TEST_LOG}
-    ./gradlew testPython | tee ${PYTHON_TEST_LOG}
-    ./gradlew doctest | tee ${DOCTEST_LOG}
+    ./gradlew test > ${SCALA_TEST_LOG}
+    ./gradlew testPython > ${PYTHON_TEST_LOG}
+    ./gradlew doctest > ${DOCTEST_LOG}
 }
 
 test_gcp() {
@@ -101,7 +102,7 @@ test_gcp() {
 test_project &
 TEST_PROJECT_PID=$!
 
-test_gcp | tee ${GCP_LOG} &
+test_gcp > ${GCP_LOG} &
 TEST_GCP_PID=$!
 
 for pid in "$TEST_PROJECT_PID $TEST_GCP_PID"; do
