@@ -88,7 +88,7 @@ object LocalLDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rvRowType)
+    val hcView = HardCallView(rvRowType.physicalType)
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
@@ -291,7 +291,7 @@ class LocalLDPruneSuite extends SparkSuite {
         val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LocalLDPruneSuite.rvRowType)
+        val view = HardCallView(LocalLDPruneSuite.rvRowType.physicalType)
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
