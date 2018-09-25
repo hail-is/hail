@@ -159,9 +159,8 @@ class PRS(object):
             self._set(pr.source.ref, pr.target.ref, pr.build_it())
 
     _deploy_secrets = {
-        Repo('hail-is', 'hail'): f'ci-deploy-{VERSION}--hail-is-hail-service-account-key',
-        Repo('Nealelab', 'cloudtools'): f'ci-deploy-{VERSION}--nealelab-cloudtools',
-        Repo('hail-is', 'batch'): 'gcr-push-service-account-key'
+        Repo('hail-is', 'hail'): f'hail-ci-deploy-hail-is-hail',
+        Repo('Nealelab', 'cloudtools'): f'ci-deploy-{VERSION}--nealelab-cloudtools'
     }
 
     def try_deploy(self, target_ref):
