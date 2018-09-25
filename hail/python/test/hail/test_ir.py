@@ -228,5 +228,5 @@ class ValueTests(unittest.TestCase):
                 ir.InsertFields(
                     ir.Ref("global", hl.tstruct()),
                     [("foo", row_v)]))
-            new_globals = hl.Table._from_ir(map_globals_ir).globals.eval()
+            new_globals = hl.eval(hl.Table._from_ir(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))

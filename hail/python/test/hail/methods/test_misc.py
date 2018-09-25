@@ -111,12 +111,12 @@ class Tests(unittest.TestCase):
                               hl.parse_locus_interval('20:10644700-10644705')])
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').eval(),
+        intervals = hl.array([hl.eval(hl.parse_locus_interval('20:10639222-10644700')),
                               hl.parse_locus_interval('20:10644700-10644705')])
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
-        intervals = [hl.parse_locus_interval('[20:10019093-10026348]').eval(),
-                     hl.parse_locus_interval('[20:17705793-17716416]').eval()]
+        intervals = [hl.eval(hl.parse_locus_interval('[20:10019093-10026348]')),
+                     hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
     def test_table_filter_intervals(self):
@@ -133,12 +133,12 @@ class Tests(unittest.TestCase):
                               hl.parse_locus_interval('20:10644700-10644705')])
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 3)
 
-        intervals = hl.array([hl.parse_locus_interval('20:10639222-10644700').eval(),
+        intervals = hl.array([hl.eval(hl.parse_locus_interval('20:10639222-10644700')),
                               hl.parse_locus_interval('20:10644700-10644705')])
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 3)
 
-        intervals = [hl.parse_locus_interval('[20:10019093-10026348]').eval(),
-                     hl.parse_locus_interval('[20:17705793-17716416]').eval()]
+        intervals = [hl.eval(hl.parse_locus_interval('[20:10019093-10026348]')),
+                     hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 4)
 
     def test_filter_intervals_compound_key(self):

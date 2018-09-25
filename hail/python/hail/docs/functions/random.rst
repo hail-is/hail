@@ -18,19 +18,19 @@ a random number generated with the function :func:`.rand_unif`:
 The value of `x` will not change, although other calls to :func:`.rand_unif`
 will generate different values:
 
-    >>> x.eval()
+    >>> hl.eval(x)
     0.5562065047992025
 
-    >>> x.eval()
+    >>> hl.eval(x)
     0.5562065047992025
 
-    >>> hl.rand_unif(0, 1).eval()
+    >>> hl.eval(hl.rand_unif(0, 1))
     0.4678132874101748
 
-    >>> hl.rand_unif(0, 1).eval()
+    >>> hl.eval(hl.rand_unif(0, 1))
     0.9097632224065403
 
-    >>> hl.array([x, x, x]).eval()
+    >>> hl.eval(hl.array([x, x, x]))
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
 
 If the three values in the last expression should be distinct, three separate
@@ -39,7 +39,7 @@ calls to :func:`.rand_unif` should be made:
     >>> a = hl.rand_unif(0, 1)
     >>> b = hl.rand_unif(0, 1)
     >>> c = hl.rand_unif(0, 1)
-    >>> hl.array([a, b, c]).eval()
+    >>> hl.eval(hl.array([a, b, c]))
     [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
 
 Within the rows of a :class:`.Table`, the same expression will yield a
@@ -69,10 +69,10 @@ All random functions can take a specified seed as an argument. This guarantees
 that multiple invocations of the same function within the same context will
 return the same result, e.g.
 
-    >>> hl.rand_unif(0, 1, seed=0).eval()
+    >>> hl.eval(hl.rand_unif(0, 1, seed=0))
     0.5488135008937808
 
-    >>> hl.rand_unif(0, 1, seed=0).eval()
+    >>> hl.eval(hl.rand_unif(0, 1, seed=0))
     0.5488135008937808
 
 This does not guarantee the same behavior across different contexts; e.g., the
@@ -107,11 +107,11 @@ seed globally for all subsequent Hail operations, and a pipeline will be
 guaranteed to have the same results if the global seed is set right beforehand:
 
     >>> hl.set_global_seed(0)
-    >>> hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]).eval()
+    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
     [0.6830630912401323, 0.4035978197966855]
 
     >>> hl.set_global_seed(0)
-    >>> hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]).eval()
+    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
     [0.6830630912401323, 0.4035978197966855]
 
 

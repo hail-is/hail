@@ -515,10 +515,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x == y).eval()
+        >>> hl.eval(x == y)
         True
 
-        >>> (x == z).eval()
+        >>> hl.eval(x == z)
         False
 
         Notes
@@ -553,10 +553,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x != y).eval()
+        >>> hl.eval(x != y)
         False
 
-        >>> (x != z).eval()
+        >>> hl.eval(x != z)
         True
 
         Notes
@@ -788,7 +788,7 @@ class Expression(object):
             The value of this expression.
 
         """
-        return hl.eval_expr(self)
+        return hl.eval(self)
 
     def _aggregation_method(self):
         src = self._indices.source

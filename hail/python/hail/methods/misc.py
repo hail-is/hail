@@ -337,7 +337,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         else:
             return interval
 
-    intervals = [wrap_input(x)._jrep for x in intervals.eval()]
+    intervals = [wrap_input(x)._jrep for x in hl.eval(intervals)]
     if isinstance(ds, MatrixTable):
         jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jvds, intervals, keep)
         return MatrixTable(jmt)

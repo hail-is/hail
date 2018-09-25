@@ -62,7 +62,7 @@ To peek at the value of this computation, there are two options:
 :meth:`.Expression.show`, which prints a human-readable representation of an
 expression.
 
-    >>> z.eval()
+    >>> hl.eval(z)
     11
     >>> z.show()
     +--------+
@@ -156,7 +156,7 @@ and ``~``.
 
 Remember that you can use :meth:`.Expression.eval` to evaluate the expression.
 
-    >>> (~s1).eval()
+    >>> hl.eval(~s1)
     True
 
 .. caution::
@@ -229,7 +229,7 @@ missing as well.
 
 >>> y = hl.null(hl.tint32)
 >>> result = hl.case().when(y > 0, 1).default(-1)
->>> result.eval()
+>>> hl.eval(result)
 
 The value of ``result`` will be missing, not ``1`` or ``-1``, because the
 discriminant, ``y``, is missing.
@@ -283,7 +283,7 @@ we define ``cnull`` to be a missing value with type :class:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
 
     >>> cnull = hl.null('call')
-    >>> cnull.is_het().eval()
+    >>> hl.eval(cnull.is_het())
     None
 
 Functions
