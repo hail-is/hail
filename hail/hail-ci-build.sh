@@ -60,12 +60,12 @@ trap on_exit EXIT
 # TERM is received ensures the EXIT handler is called.
 trap "exit 42" INT TERM
 
-export GRADLE_OPTS="-Xmx2048m --gradle-user-home /gradle-cache"
+export GRADLE_OPTS="-Xmx2048m"
+export GRADLE_USER_HOME="/gradle-cache"
 
 ./gradlew shadowJar archiveZip | tee ${COMPILE_LOG}
 
 test_project() {
-
     ./gradlew test | tee ${SCALA_TEST_LOG}
     ./gradlew testPython | tee ${PYTHON_TEST_LOG}
     ./gradlew doctest | tee ${DOCTEST_LOG}
