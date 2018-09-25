@@ -1,12 +1,15 @@
-import hail
-from hail.utils.java import Env, joption, error
-from hail.typecheck import enumeration, typecheck, nullable
-import difflib
-from collections import defaultdict, Counter, OrderedDict
 import atexit
+import datetime
+import difflib
 import shutil
 import tempfile
+from collections import defaultdict, Counter, OrderedDict
 from random import Random
+
+import hail
+from hail.typecheck import enumeration, typecheck, nullable
+from hail.utils.java import Env, joption, error
+
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
@@ -379,3 +382,10 @@ class HailSeedGenerator(object):
 
     def next_seed(self):
         return self.generator.randint(0, (1 << 63) - 1)
+
+
+def timestamp_path(base, suffix=''):
+    return ''.join([base,
+                    '-',
+                    datetime.datetime.now().strftime("%Y%m%d-%H%M"),
+                    suffix])

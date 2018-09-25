@@ -15,7 +15,7 @@ class HailContext(object):
                       app_name=str,
                       master=nullable(str),
                       local=str,
-                      log=str,
+                      log=nullable(str),
                       quiet=bool,
                       append=bool,
                       min_block_size=int,
@@ -25,7 +25,7 @@ class HailContext(object):
                       idempotent=bool,
                       global_seed=nullable(int))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
-                 log='hail.log', quiet=False, append=False,
+                 log=None, quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False,
                  global_seed=6348563392232659379):
@@ -55,6 +55,14 @@ class HailContext(object):
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
 
+        version = read_version_info()
+        hail.__version__ = version
+
+        if log is None:
+            log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+                                            suffix=f'-{version}.log')
+        self._log = log
+
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
         # if idempotent:
@@ -80,15 +88,14 @@ class HailContext(object):
         self._default_ref = None
         Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
 
-        version = self._jhc.version()
-        hail.__version__ = version
+        jar_version = self._jhc.version()
 
-        if not os.getenv('HAIL_IGNORE_PYTHON_VERSION'):
-            py_version = read_version_info()
-            if py_version != version:
-                raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                                   f"  JAR:    {version}\n"
-                                   f"  Python: {py_version}")
+        if jar_version != version:
+            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
+                   f"  JAR:    {jar_version}\n"
+                   f"  Python: {version}")
+
+
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -110,6 +117,7 @@ class HailContext(object):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
                                  '  during the beta period. We recommend pulling\n'
                                  '  the latest changes weekly.\n')
+            sys.stderr.write(f'LOGGING: writing to {log}\n')
 
         install_exception_handler()
         Env.set_seed(global_seed)
@@ -135,7 +143,7 @@ class HailContext(object):
            app_name=str,
            master=nullable(str),
            local=str,
-           log=str,
+           log=nullable(str),
            quiet=bool,
            append=bool,
            min_block_size=int,
@@ -145,7 +153,7 @@ class HailContext(object):
            idempotent=bool,
            global_seed=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
-         log='hail.log', quiet=False, append=False,
+         log=None, quiet=False, append=False,
          min_block_size=1, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379):
