@@ -101,7 +101,6 @@ on_exit() {
 <td>${PYTHON_TEST_STATUS}</td>
 <td><a href='python-test-log'>PyTest log</a></td>
 </tr>
-</tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
 <td><a href='doctest-log'>Doctest log</a/td>
