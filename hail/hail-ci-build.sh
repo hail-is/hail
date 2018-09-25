@@ -14,11 +14,27 @@ gcloud auth activate-service-account \
     
 mkdir -p build
 
-COMPILE_LOG="build/compilation.log"
-SCALA_TEST_LOG="build/scala-test.log"
-PYTHON_TEST_LOG="build/python-test.log"
-DOCTEST_LOG="build/doctest.log"
-GCP_LOG="build/gcp.log"
+COMPILE_LOG="build/compilation-log"
+SCALA_TEST_LOG="build/scala-test-log"
+PYTHON_TEST_LOG="build/python-test-log"
+DOCTEST_LOG="build/doctest-log"
+DOCS_LOG="build/docs-log"
+GCP_LOG="build/gcp-log"
+
+COMP_SUCCESS="build/_COMP_SUCCESS"
+SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
+PYTHON_TEST_SUCCESS="build/_PYTHON_TEST_SUCCESS"
+DOCTEST_SUCCESS="build/_DOCTEST_SUCCESS"
+DOCS_SUCCESS="build/_DOCS_SUCCESS"
+GCP_SUCCESS="build/_GCP_SUCCESS"
+
+SUCCESS='<span style="color:green;font-weight:bold">SUCCESS</span>'
+FAILURE='<span style="color:red;font-weight:bold">FAILURE</span>'
+
+get_status() {
+    if [ -e $1 ]; then echo ${SUCCESS}; else echo ${FAILURE}; fi
+}
+
 
 on_exit() {
     trap "" INT TERM
@@ -35,22 +51,85 @@ on_exit() {
     cp ${GCP_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/tests ${ARTIFACTS}/test-report
+
+    COMP_STATUS=$(get_status ${COMP_SUCCESS})
+    SCALA_TEST_STATUS=$(get_status ${SCALA_TEST_SUCCESS})
+    PYTHON_TEST_STATUS=$(get_status ${PYTHON_TEST_SUCCESS})
+    DOCTEST_STATUS=$(get_status ${DOCTEST_SUCCESS})
+    DOCS_STATUS=$(get_status ${DOCS_SUCCESS})
+    GCP_STATUS=$(get_status ${GCP_SUCCESS})
+
     cat <<EOF > ${ARTIFACTS}/index.html
 <html>
-<body>
-<h1>$(git rev-parse HEAD)</h1>
-<ul>
-<li><a href='hail-all-spark.jar'>hail-all-spark.jar</a></li>
-<li><a href='hail-python.zip'>hail-python.zip</a></li>
-<li><a href='www/index.html'>www/index.html</a></li>
-<li><a href='compilation.log'>Compilation log</a></li>
-<li><a href='scala-test.log'>Scala test log></a/li>
-<li><a href='python-test.log'>Python test log</a></li>
-<li><a href='doctest.log'>Doctest log></a/li>
-<li><a href='gcp.log'>GCP log</a></li>
-<li><a href='test-report/index.html'>test-report/index.html</a></li>
-</ul>
-</body>
+<head>
+<style type="text/css">
+    body {
+        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+    }
+</style>
+</head>
+<h2>$(git rev-parse HEAD)</h2>
+<h3>Code artifacts</h3>
+<table>
+<tbody>
+<tr>
+<td>${COMP_STATUS}</td>
+<td><a href='compilation-log'>Compilation log</a></td>
+</tr>
+<tr>
+<td>${COMP_STATUS}</td>
+<td><a href='hail-all-spark.jar'>hail-all-spark.jar</a></td>
+</tr>
+<tr>
+<td>${COMP_STATUS}</td>
+<td><a href='hail-python.zip'>hail-python.zip</a></td>
+</tr>
+</tbody>
+</table>
+<h3>Tests</h3>
+<table>
+<tbody>
+<tr>
+<td>${SCALA_TEST_STATUS}</td>
+<td><a href='scala-test-log'>Scala test log</a/td>
+</tr>
+<tr>
+<td>${SCALA_TEST_STATUS}</td>
+<td><a href='test-report/index.html'>TestNG report</a></td>
+</tr>
+<tr>
+<td>${PYTHON_TEST_STATUS}</td>
+<td><a href='python-test-log'>PyTest log</a></td>
+</tr>
+</tr>
+<tr>
+<td>${DOCTEST_STATUS}</td>
+<td><a href='doctest-log'>Doctest log</a/td>
+</tr>
+</tbody>
+</table>
+<h3>Docs</h3>
+<table>
+<tbody>
+<tr>
+<td>${DOCS_STATUS}</td>
+<td><a href='docs-log'>Docs build log</a/td>
+</tr>
+<tr>
+<td>${DOCS_STATUS}</td>
+<td><a href='www/index.html'>Generated website</a></td>
+</tr>
+</tbody>
+</table>
+<h3>Cloud test</h3>
+<table>
+<tbody>
+<tr>
+<td>${GCP_STATUS}</td>
+<td><a href='gcp-log'>GCP log</a></td>
+</tr>
+</tbody>
+</table>
 </html>
 EOF
     time gcloud dataproc clusters delete ${CLUSTER_NAME} --async
@@ -67,11 +146,17 @@ export GRADLE_USER_HOME="/gradle-cache"
 
 echo "Compiling..."
 ./gradlew shadowJar archiveZip > ${COMPILE_LOG}
+touch ${COMP_SUCCESS}
 
 test_project() {
     ./gradlew test > ${SCALA_TEST_LOG}
+    touch ${SCALA_TEST_SUCCESS}
     ./gradlew testPython > ${PYTHON_TEST_LOG}
+    touch ${PYTHON_TEST_SUCCESS}
     ./gradlew doctest > ${DOCTEST_LOG}
+    touch ${DOCTEST_SUCCESS}
+    ./gradlew makeDocs > ${DOCS_LOG}
+    touch ${DOCS_SUCCESS}
 }
 
 test_gcp() {
@@ -99,6 +184,7 @@ test_gcp() {
          cluster-vep-check.py
 
     time cluster stop ${CLUSTER_NAME} --async
+    touch ${GCP_SUCCESS}
 }
 
 test_project &

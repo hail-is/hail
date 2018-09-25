@@ -364,4 +364,8 @@ class LocalLDPruneSuite extends SparkSuite {
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }
+
+  @Test def testDummy() {
+    fatal("BYE BYE")
+  }
 }
