@@ -256,7 +256,9 @@ abstract class Type extends BaseType with Serializable {
   final def unary_-(): Type = setRequired(false)
 
   final def setRequired(required: Boolean): Type = {
-    this match {
+    if (this.required == required)
+      this
+    else this match {
       case TBinary(_) => TBinary(required)
       case TBoolean(_) => TBoolean(required)
       case TInt32(_) => TInt32(required)
