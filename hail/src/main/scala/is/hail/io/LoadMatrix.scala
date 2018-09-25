@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, RVDContext}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -230,7 +230,7 @@ object LoadMatrix {
            """.stripMargin)
   }
 
-  def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (OrderedRVDPartitioner, Array[Int]) = {
+  def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (RVDPartitioner, Array[Int]) = {
     var includesStart = true
     val keepPartitions = new ArrayBuilder[Int]()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
@@ -243,7 +243,7 @@ object LoadMatrix {
       interval
     }
     val ranges = rangeBoundIntervals
-    (new OrderedRVDPartitioner(Array(kType.fieldNames(0)), kType, ranges), keepPartitions.result())
+    (new RVDPartitioner(Array(kType.fieldNames(0)), kType, ranges), keepPartitions.result())
   }
 
   def verifyRowFields(fieldNames: Array[String], fieldTypes: Map[String, Type]): TStruct = {
@@ -386,16 +386,16 @@ object LoadMatrix {
         }
       }
 
-    val orderedRVD = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.kType)
-      OrderedRVD(matrixType.orvdType, partitioner, rdd.subsetPartitions(keepPartitions))
+    val rvd = if (useIndex) {
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.rvdType.kType)
+      RVD(matrixType.rvdType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
-      OrderedRVD.coerce(matrixType.orvdType, rdd)
+      RVD.coerce(matrixType.rvdType, rdd)
 
     new MatrixTable(hc,
       matrixType,
       BroadcastRow(Row(), matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.sc),
-      orderedRVD)
+      rvd)
   }
 }

@@ -7,10 +7,10 @@ import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class OrderedRVDPartitionerSuite extends TestNGSuite {
+class RVDPartitionerSuite extends TestNGSuite {
   val kType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
   val partitioner =
-    new OrderedRVDPartitioner(kType,
+    new RVDPartitioner(kType,
       Array(
         Interval(Row(1, 0), Row(4, 3), true, false),
         Interval(Row(4, 3), Row(7, 9), true, false),
@@ -18,7 +18,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     )
 
   @Test def testExtendKey() {
-    val p = new OrderedRVDPartitioner(TStruct(("A", TInt32()), ("B", TInt32())),
+    val p = new RVDPartitioner(TStruct(("A", TInt32()), ("B", TInt32())),
       Array(
         Interval(Row(1, 0), Row(4, 3), true, true),
         Interval(Row(4, 3), Row(4, 3), true, true),
@@ -101,7 +101,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 2), Row(11, 0, 15), false, true),
         Interval(Row(11, 0, 15), Row(11, 0, 20), true, false))
 
-    val p3 = OrderedRVDPartitioner.generate(Array("A", "B", "C"), kType, intervals)
+    val p3 = RVDPartitioner.generate(Array("A", "B", "C"), kType, intervals)
     assert(p3.satisfiesAllowedOverlap(2))
     assert(p3.rangeBounds sameElements
       Array(
@@ -112,7 +112,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 15), Row(11, 0, 20), false, false))
     )
 
-    val p2 = OrderedRVDPartitioner.generate(Array("A", "B"), kType, intervals)
+    val p2 = RVDPartitioner.generate(Array("A", "B"), kType, intervals)
     assert(p2.satisfiesAllowedOverlap(1))
     assert(p2.rangeBounds sameElements
       Array(
@@ -122,7 +122,7 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 2), Row(11, 0, 20), false, false))
     )
 
-    val p1 = OrderedRVDPartitioner.generate(Array("A"), kType, intervals)
+    val p1 = RVDPartitioner.generate(Array("A"), kType, intervals)
     assert(p1.satisfiesAllowedOverlap(0))
     assert(p1.rangeBounds sameElements
       Array(
@@ -137,27 +137,27 @@ class OrderedRVDPartitionerSuite extends TestNGSuite {
     val intervals1 = Array(Interval(Row(), Row(), true, true))
     val intervals5 = Array.fill(5)(Interval(Row(), Row(), true, true))
 
-    val p5 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals5)
+    val p5 = RVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals5)
     assert(p5.rangeBounds sameElements intervals1)
 
-    val p1 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals1)
+    val p1 = RVDPartitioner.generate(IndexedSeq(), TStruct.empty(), intervals1)
     assert(p1.rangeBounds sameElements intervals1)
 
-    val p0 = OrderedRVDPartitioner.generate(IndexedSeq(), TStruct.empty(), IndexedSeq())
+    val p0 = RVDPartitioner.generate(IndexedSeq(), TStruct.empty(), IndexedSeq())
     assert(p0.rangeBounds.isEmpty)
   }
 
   @Test def testIntersect() {
     val kType = TStruct(("key", TInt32()))
     val left =
-      new OrderedRVDPartitioner(kType,
+      new RVDPartitioner(kType,
         Array(
           Interval(Row(1), Row(10), true, false),
           Interval(Row(12), Row(13), true, false),
           Interval(Row(14), Row(19), true, false))
       )
     val right =
-      new OrderedRVDPartitioner(kType,
+      new RVDPartitioner(kType,
         Array(
           Interval(Row(1), Row(4), true, false),
           Interval(Row(4), Row(5), true, false),

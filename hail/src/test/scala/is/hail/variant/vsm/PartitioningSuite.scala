@@ -5,7 +5,7 @@ import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
 import is.hail.expr.ir.{MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
 import is.hail.testUtils._
@@ -29,7 +29,7 @@ class PartitioningSuite extends SparkSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), IndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
-      typ, BroadcastRow(Row.empty, TStruct.empty(), sc), OrderedRVD.empty(sc, typ.rvdType)))
+      typ, BroadcastRow(Row.empty, TStruct.empty(), sc), RVD.empty(sc, typ.rvdType)))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     MatrixAnnotateRowsTable(ir.MatrixRead(rangeReader.fullType, false, false, rangeReader), t, "foo", None)
       .execute(hc).rvd.count()
@@ -37,22 +37,22 @@ class PartitioningSuite extends SparkSuite {
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val orvdType = mt.matrixType.orvdType
+    val rvdType = mt.matrixType.rvdType
 
-    mt.rvd.orderedJoinDistinct(OrderedRVD.empty(hc.sc, orvdType), "left", (_, it) => it.map(_._1), orvdType).count()
-    mt.rvd.orderedJoinDistinct(OrderedRVD.empty(hc.sc, orvdType), "inner", (_, it) => it.map(_._1), orvdType).count()
+    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "left", (_, it) => it.map(_._1), rvdType).count()
+    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "inner", (_, it) => it.map(_._1), rvdType).count()
   }
 
   @Test def testEmptyRDDOrderedJoin() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val orvdType = mt.matrixType.orvdType
+    val rvdType = mt.matrixType.rvdType
 
     val nonEmptyRVD = mt.rvd
-    val emptyRVD = OrderedRVD.empty(hc.sc, orvdType)
+    val emptyRVD = RVD.empty(hc.sc, rvdType)
 
-    emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), orvdType).count()
-    emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), orvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), orvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), orvdType).count()
+    emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
+    emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
+    nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
+    nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
   }
 }

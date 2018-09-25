@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -154,7 +154,7 @@ object LoadPlink {
       rowKey = Array("locus", "alleles"),
       entryType = TStruct("GT" -> TCall()))
 
-    val kType = matrixType.orvdType.kType
+    val kType = matrixType.rvdType.kType
     val rvRowType = matrixType.rvRowType
 
     val fastKeys = crdd.cmapPartitions { (ctx, it) =>
@@ -215,7 +215,7 @@ object LoadPlink {
     new MatrixTable(hc, matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
       BroadcastIndexedSeq(sampleAnnotations, TArray(matrixType.colType), sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd2, fastKeys))
+      RVD.coerce(matrixType.rvdType, rdd2, fastKeys))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -169,7 +169,7 @@ class TableIRSuite extends SparkSuite {
 //      Interval(Row(0, 0), Row(10), true, false),
 //      Interval(Row(10), Row(44, 0), true, true)),
 //    IndexedSeq(Interval(Row(), Row(), true, true))
-  ).map(new OrderedRVDPartitioner(kType, _))
+  ).map(new RVDPartitioner(kType, _))
 
   val rightPartitioners = Array(
     IndexedSeq(
@@ -181,7 +181,7 @@ class TableIRSuite extends SparkSuite {
 //      Interval(Row(0, 0), Row(10), true, false),
 //      Interval(Row(10), Row(44, 0), true, true)),
 //    IndexedSeq(Interval(Row(), Row(), true, true))
-  ).map(new OrderedRVDPartitioner(kType, _))
+  ).map(new RVDPartitioner(kType, _))
 
   val joinTypes = Array(
     ("outer", (row: Row) => true),
@@ -203,8 +203,8 @@ class TableIRSuite extends SparkSuite {
 
   @Test(dataProvider = "join")
   def testTableJoin(
-    leftPart: OrderedRVDPartitioner,
-    rightPart: OrderedRVDPartitioner,
+    leftPart: RVDPartitioner,
+    rightPart: RVDPartitioner,
     joinType: String,
     pred: Row => Boolean,
     leftProject: Set[Int],

@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType, RVDContext}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 class OrderedDependency[T](
-    oldPartitionerBc: Broadcast[OrderedRVDPartitioner],
+    oldPartitionerBc: Broadcast[RVDPartitioner],
     newIntervalListBc: Broadcast[IndexedSeq[Interval]],
     rdd: RDD[T]
 ) extends NarrowDependency[T](rdd) {
@@ -19,7 +19,7 @@ class OrderedDependency[T](
 }
 
 object RepartitionedOrderedRDD2 {
-  def apply(prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[RVDContext, RegionValue] =
+  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[RVDContext, RegionValue] =
     ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
 }
 
@@ -28,12 +28,12 @@ object RepartitionedOrderedRDD2 {
   * Assumes new key type is a prefix of old key type, so no reordering is
   * needed.
   */
-class RepartitionedOrderedRDD2 private (prev: OrderedRVD, newRangeBounds: IndexedSeq[Interval])
+class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[RVDContext, RegionValue] = prev.boundary.crdd
-  val typ: OrderedRVDType = prev.typ
-  val oldPartitionerBc: Broadcast[OrderedRVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
+  val typ: RVDType = prev.typ
+  val oldPartitionerBc: Broadcast[RVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
   val newRangeBoundsBc: Broadcast[IndexedSeq[Interval]] = prevCRDD.sparkContext.broadcast(newRangeBounds)
 
   require(newRangeBounds.forall{i => typ.kType.relaxedTypeCheck(i.start) && typ.kType.relaxedTypeCheck(i.end)})

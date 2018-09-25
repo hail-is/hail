@@ -155,7 +155,7 @@ object Table {
       TableValue(
         TableType(signature, FastIndexedSeq(), globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        OrderedRVD.unkeyed(signature, crdd2)))
+        RVD.unkeyed(signature, crdd2)))
     ).keyBy(key, isSorted)
   }
 
@@ -193,7 +193,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            OrderedRVD.coerce(OrderedRVDType(signature, key), crdd)))
+            RVD.coerce(RVDType(signature, key), crdd)))
   )
 
   def typ: TableType = tir.typ
@@ -490,9 +490,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     }
 
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
-    val orvd = rvd.truncateKey(IndexedSeq())
+    val newRVD = rvd.truncateKey(IndexedSeq())
     copy2(
-      rvd = orvd.changeType(newRowType),
+      rvd = newRVD.changeType(newRowType),
       signature = newRowType)
   }
 
@@ -721,7 +721,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     sb.result()
   }
 
-  def copy2(rvd: OrderedRVD = rvd,
+  def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
@@ -736,7 +736,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val intervalType = other.keySignature.types(0).asInstanceOf[TInterval]
     assert(keySignature.size == 1 && keySignature.types(0) == intervalType.pointType)
 
-    val leftORVD = rvd
+    val leftRVD = rvd
 
     val typOrdering = intervalType.pointType.ordering
 
@@ -745,7 +745,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
     val newRowType = newRowPType.virtualType
 
-    val partBc = hc.sc.broadcast(leftORVD.partitioner)
+    val partBc = hc.sc.broadcast(leftRVD.partitioner)
     val rightSignature = other.signature.physicalType
     val rightKeyFieldIdx = other.keyFieldIdx(0)
     val rightValueFieldIdx = other.valueFieldIdx
@@ -773,9 +773,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val localRVRowType = signature.physicalType
     val pkIndex = signature.fieldIdx(key(0))
-    val newOrderedRVType = OrderedRVDType(newRowType, key)
-    val newRVD = leftORVD.zipPartitions(
-      newOrderedRVType,
+    val newRVDType = RVDType(newRowType, key)
+    val newRVD = leftRVD.zipPartitions(
+      newRVDType,
       zipRDD
     ) { (it, intervals) =>
       val intervalAnnotations: Array[(Interval, Any)] =

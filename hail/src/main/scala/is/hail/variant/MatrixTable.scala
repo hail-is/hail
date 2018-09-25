@@ -92,7 +92,7 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): OrderedRVD = {
+  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
@@ -142,7 +142,7 @@ object MatrixTable {
     val ds = new MatrixTable(hc, matrixType,
       BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType,
+      RVD.coerce(matrixType.rvdType,
         ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
           val region = ctx.region
           val rvb = new RegionValueBuilder(region)
@@ -200,7 +200,7 @@ object MatrixTable {
     val rvRowType = matrixType.rvRowType
     val oldRowType = kt.signature
 
-    val rvd = kt.rvd.mapPartitions(matrixType.orvdType) { it =>
+    val rvd = kt.rvd.mapPartitions(matrixType.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -361,7 +361,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     matrixType: MatrixType,
     globals: BroadcastRow,
     colValues: BroadcastIndexedSeq,
-    rvd: OrderedRVD) =
+    rvd: RVD) =
     this(hc, MatrixLiteral(MatrixValue(matrixType, globals, colValues, rvd)))
 
   def requireRowKeyVariant(method: String) {
@@ -415,7 +415,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   lazy val value: MatrixValue = {
     val opt = LiftLiterals(ir.Optimize(ast)).asInstanceOf[MatrixIR]
     val v = opt.execute(hc)
-    assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
+    assert(v.rvd.typ == matrixType.rvdType, s"\n${ v.rvd.typ }\n${ matrixType.rvdType }")
     v
   }
 
@@ -516,7 +516,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
-  def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
+  def rvdLeftJoinDistinctAndInsert(right: RVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
 
     val valueType = if (product)
@@ -578,7 +578,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       right.typ.key.length,
       "left",
       joiner,
-      newMatrixType.orvdType
+      newMatrixType.rvdType
     )
 
     copyMT(matrixType = newMatrixType, rvd = joinedRVD)
@@ -624,7 +624,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def nPartitions: Int = rvd.getNumPartitions
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    orderedRVDLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
+    rvdLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
   def count(): (Long, Long) = (countRows(), countCols())
 
@@ -808,7 +808,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.orvdType))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.rvdType))
   }
 
   def makeTable(separator: String = "."): Table = {
@@ -835,7 +835,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
     val localEntryType = matrixType.entryType
 
-    val orvd = rvd.mapPartitions(ttyp.rvdType) { it =>
+    val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       val fullRow = new UnsafeRow(localRVRowType.physicalType)
@@ -879,7 +879,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-    new Table(hc, TableLiteral(TableValue(ttyp, globals, orvd)))
+    new Table(hc, TableLiteral(TableValue(ttyp, globals, newRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
@@ -979,7 +979,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = rvd.cast(newRVRowType).asInstanceOf[OrderedRVD]
+    val newRVD = rvd.cast(newRVRowType).asInstanceOf[RVD]
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }
@@ -1121,7 +1121,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def copy2(rvd: OrderedRVD = rvd,
+  def copy2(rvd: RVD = rvd,
     colValues: BroadcastIndexedSeq = colValues,
     colKey: IndexedSeq[String] = colKey,
     globals: BroadcastRow = globals,
@@ -1141,12 +1141,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       globals, colValues, rvd)
   }
 
-  def copyMT(rvd: OrderedRVD = rvd,
+  def copyMT(rvd: RVD = rvd,
     matrixType: MatrixType = matrixType,
     globals: BroadcastRow = globals,
     colValues: BroadcastIndexedSeq = colValues): MatrixTable = {
-    assert(rvd.typ == matrixType.orvdType,
-      s"mismatch in orvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.orvdType }")
+    assert(rvd.typ == matrixType.rvdType,
+      s"mismatch in rvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.rvdType }")
     new MatrixTable(hc,
       matrixType, globals, colValues, rvd)
   }
@@ -1489,7 +1489,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
     val locusIndex = localRVRowType.fieldIdx("locus")
     val keyOrdering = matrixType.rowKeyStruct.ordering
-    val localKeyFieldIdx = matrixType.orvdType.kFieldIdx
+    val localKeyFieldIdx = matrixType.rvdType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
     val entryArrayType = matrixType.entryArrayType
@@ -1614,7 +1614,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     copyMT(
-      rvd = OrderedRVD(newType.orvdType, rvd.partitioner, newRDD),
+      rvd = RVD(newType.rvdType, rvd.partitioner, newRDD),
       matrixType = newType)
   }
 }

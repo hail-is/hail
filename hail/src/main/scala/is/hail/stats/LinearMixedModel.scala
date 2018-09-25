@@ -6,7 +6,7 @@ import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilde
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct, TableType}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
@@ -32,16 +32,13 @@ object LinearMixedModel {
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
   
-  def toTable(hc: HailContext,
-    orderedRVDPartitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): Table = {
-    
+  def toTable(hc: HailContext, partitioner: RVDPartitioner, rdd: RDD[RegionValue]): Table = {
     val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
     
-    val orderedRVD = OrderedRVD(OrderedRVDType(typ.rowType, Array("idx")),
-      orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
+    val rvd = RVD(RVDType(typ.rowType, Array("idx")),
+      partitioner, ContextRDD.weaken[RVDContext](rdd))
     
-    new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), orderedRVD)))
+    new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), rvd)))
   }
 }
 
@@ -123,7 +120,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       }
     }
     
-    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
+    LinearMixedModel.toTable(hc, pa_t.partitioner(), rdd)
   }
   
   def fitFullRank(pa_t: RowMatrix): Table = {
@@ -186,6 +183,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       }
     }
     
-    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
+    LinearMixedModel.toTable(hc, pa_t.partitioner(), rdd)
   }
 }

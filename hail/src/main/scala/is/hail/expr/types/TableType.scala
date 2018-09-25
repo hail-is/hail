@@ -2,7 +2,7 @@ package is.hail.expr.types
 
 import is.hail.expr.Parser
 import is.hail.expr.ir._
-import is.hail.rvd.OrderedRVDType
+import is.hail.rvd.RVDType
 import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
@@ -12,7 +12,7 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  val rvdType = OrderedRVDType(rowType, key)
+  val rvdType = RVDType(rowType, key)
 
   def env: Env[Type] = {
     Env.empty[Type]

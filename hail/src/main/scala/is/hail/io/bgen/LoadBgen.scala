@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.io._
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.table.Table
 import is.hail.utils._
@@ -371,7 +371,7 @@ case class MatrixBGENReader(
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
   val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(sc, fileMetadata, blockSizeInMB, nPartitions, indexKeyType)
-  val partitioner = new OrderedRVDPartitioner(indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
+  val partitioner = new RVDPartitioner(indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
 
   val (partitions, variants) = includedVariants match {
     case Some(variantsTable) =>
@@ -424,9 +424,9 @@ case class MatrixBGENReader(
     assert(mr.typ.rowKeyStruct == indexKeyType)
 
     val rvd = if (mr.dropRows)
-      OrderedRVD.empty(sc, requestedType.orvdType)
+      RVD.empty(sc, requestedType.rvdType)
     else
-      new OrderedRVD(requestedType.orvdType,
+      new RVD(requestedType.rvdType,
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 

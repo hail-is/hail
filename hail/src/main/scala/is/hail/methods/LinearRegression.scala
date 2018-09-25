@@ -67,7 +67,7 @@ object LinearRegression {
     val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
 
     val newRDD2 = vsm.rvd.boundary.mapPartitions(
-      newMatrixType.orvdType, { (ctx, it) =>
+      newMatrixType.rvdType, { (ctx, it) =>
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
 

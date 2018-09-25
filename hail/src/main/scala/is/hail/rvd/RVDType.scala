@@ -8,13 +8,13 @@ import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
-class OrderedRVDTypeSerializer extends CustomSerializer[OrderedRVDType](format => ( {
-  case JString(s) => Parser.parseOrderedRVDType(s)
+class RVDTypeSerializer extends CustomSerializer[RVDType](format => ( {
+  case JString(s) => Parser.parseRVDType(s)
 }, {
-  case orvdType: OrderedRVDType => JString(orvdType.toString)
+  case rvdType: RVDType => JString(rvdType.toString)
 }))
 
-final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexedSeq())
+final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexedSeq())
   extends Serializable {
 
   val keySet: Set[String] = key.toSet
@@ -29,20 +29,20 @@ final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = Fast
 
   val kOrd: UnsafeOrdering = kType.physicalType.unsafeOrdering(missingGreatest = true)
   val kInRowOrd: UnsafeOrdering =
-    OrderedRVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
+    RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
   val kRowOrd: UnsafeOrdering =
-    OrderedRVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
+    RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
 
-  def kComp(other: OrderedRVDType): UnsafeOrdering =
-    OrderedRVDType.selectUnsafeOrdering(
+  def kComp(other: RVDType): UnsafeOrdering =
+    RVDType.selectUnsafeOrdering(
       this.rowType,
       this.kFieldIdx,
       other.rowType,
       other.kFieldIdx,
       true)
 
-  def joinComp(other: OrderedRVDType): UnsafeOrdering =
-    OrderedRVDType.selectUnsafeOrdering(
+  def joinComp(other: RVDType): UnsafeOrdering =
+    RVDType.selectUnsafeOrdering(
       this.rowType,
       this.kFieldIdx,
       other.rowType,
@@ -58,14 +58,14 @@ final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = Fast
       kRowOrd.compare(wrv.value, rv)
   }
 
-  def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {
+  def insert(typeToInsert: Type, path: List[String]): (RVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
 
     val (newRowPType, inserter) = rowType.physicalType.unsafeInsert(typeToInsert.physicalType, path)
     val newRowType = newRowPType.virtualType
 
-    (OrderedRVDType(newRowType.asInstanceOf[TStruct], key), inserter)
+    (RVDType(newRowType.asInstanceOf[TStruct], key), inserter)
   }
 
   def toJSON: JValue =
@@ -76,7 +76,7 @@ final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = Fast
 
   override def toString: String = {
     val sb = new StringBuilder()
-    sb.append("OrderedRVDType{key:[[")
+    sb.append("RVDType{key:[[")
     if (key.nonEmpty) {
       key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     }
@@ -87,7 +87,7 @@ final case class OrderedRVDType(rowType: TStruct, key: IndexedSeq[String] = Fast
   }
 }
 
-object OrderedRVDType {
+object RVDType {
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
     t2: TStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
     require(fields1.length == fields2.length)

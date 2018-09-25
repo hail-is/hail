@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
 import is.hail.utils.{Interval, IntervalTree}
 import is.hail.variant.MatrixTable
@@ -16,8 +16,8 @@ object MatrixFilterIntervals {
 
 object TableFilterIntervals {
   def apply(ht: Table, jintervals: java.util.ArrayList[Interval], keep: Boolean): Table = {
-    val orvd = ht.value.rvd
-    val intervals = IntervalTree(orvd.typ.kType.ordering, jintervals.asScala.toArray)
-    ht.copy2(rvd = orvd.filterIntervals(intervals, keep))
+    val rvd = ht.value.rvd
+    val intervals = IntervalTree(rvd.typ.kType.ordering, jintervals.asScala.toArray)
+    ht.copy2(rvd = rvd.filterIntervals(intervals, keep))
   }
 }
