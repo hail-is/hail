@@ -266,7 +266,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._col_fields if self._col_fields is not None else {}
         for k, e in named_exprs.items():
             if k in existing_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_cols cannot assign duplicate field '{repr(k)}'")
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_cols cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_cols', e, self._parent._global_indices, {self._parent._col_axis})
             new_fields[k] = e
 
@@ -322,7 +322,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._row_fields if self._row_fields is not None else {}
         for k, e in named_exprs.items():
             if k in existing_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_rows cannot assign duplicate field '{repr(k)}'")
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_rows cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_rows', e, self._parent._global_indices, {self._parent._row_axis})
             new_fields[k] = e
 
@@ -380,7 +380,7 @@ class GroupedMatrixTable(ExprContainer):
         new_fields = self._entry_fields if self._entry_fields is not None else {}
         for k, e in named_exprs.items():
             if k in fixed_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_entries cannot assign duplicate field '{repr(k)}'")
+                raise ExpressionException(f"GroupedMatrixTable.aggregate_entries cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_entries', e, self._fixed_indices(), {self._parent._row_axis, self._parent._col_axis})
             new_fields[k] = e
 

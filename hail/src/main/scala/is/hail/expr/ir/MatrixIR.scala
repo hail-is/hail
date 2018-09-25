@@ -1009,7 +1009,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
       val annotateF = makeAnnotateCol(0)
 
-      val mapF = (a: Annotation, i: Int) => {
+      BroadcastIndexedSeq(keys.zipWithIndex.map { case (a: Annotation, i: Int) =>
         val aggResults = {
           rvb.start(aggResultTypeCol)
           rvb.startStruct()
@@ -1022,27 +1022,19 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
           rvb.end()
         }
 
-        val colKeys = {
-          rvb.start(newColKeyType)
-          rvb.addAnnotation(newColKeyType, a)
-          rvb.end()
-        }
-
         val colValues = annotateF(region, aggResults, false, globals, false)
 
         val result = {
           rvb.start(newColType)
           rvb.startStruct()
-          rvb.addAllFields(newColKeyType, region, colKeys)
+          rvb.addAnnotation(newColKeyType, a)
           rvb.addAllFields(newColValueType, region, colValues)
           rvb.endStruct()
           rvb.end()
         }
 
         SafeRow(typ.colType.physicalType, region, result)
-      }
-
-      BroadcastIndexedSeq(keys.zipWithIndex.map { case (k, idx) => mapF(k, idx) }, TArray(typ.colType), hc.sc)
+      }, TArray(typ.colType), hc.sc)
     }
 
     // Entry aggregations
