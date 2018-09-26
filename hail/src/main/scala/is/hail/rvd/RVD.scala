@@ -1175,23 +1175,6 @@ object RVD {
       })
   }
 
-  def alignAndZipNPartitions(
-    rvds: IndexedSeq[RVD],
-    newTyp: RVDType
-  )(zipper: (RVDContext, Array[Iterator[RegionValue]]) => Iterator[RegionValue]
-  ): RVD = {
-    val first = rvds.head
-    require(newTyp.kType isIsomorphicTo first.typ.kType)
-    require(rvds.forall(_.typ.kType isIsomorphicTo first.typ.kType))
-
-    val crdds = rvds.map(RepartitionedOrderedRDD2(_, first.partitioner.rangeBounds).boundary)
-
-    RVD(
-      typ = newTyp,
-      partitioner = first.partitioner,
-      crdd = ContextRDD.czipNPartitions(crdds)(zipper))
-  }
-
   def apply(
     typ: RVDType,
     partitioner: RVDPartitioner,
