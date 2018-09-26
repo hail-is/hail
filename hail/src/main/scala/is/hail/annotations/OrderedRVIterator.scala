@@ -4,6 +4,7 @@ import is.hail.rvd.{RVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
+import scala.collection.mutable
 
 object OrderedRVIterator {
   def multiZipJoin(

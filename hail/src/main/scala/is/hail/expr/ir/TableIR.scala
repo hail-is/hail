@@ -491,7 +491,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  private val rvdType = OrderedRVDType(first.typ.rowType, first.typ.key)
+  private val rvdType = RVDType(first.typ.rowType, first.typ.key)
   private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
   private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType))
   private val newRowType = rvdType.kType ++ newValueType
@@ -546,11 +546,11 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val childValues = children.map(_.execute(hc))
     val childRVDs = childValues.map(_.rvd)
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-    val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
-    val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
-    val newORVDType = OrderedRVDType(localNewRowType, localRVDType.key)
-    val orvd = OrderedRVD(
-      typ = newORVDType,
+    val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
+    val repartitionedRVDs = childRVDs.map(_.repartition(newPartitioner))
+    val newRVDType = RVDType(localNewRowType, localRVDType.key)
+    val rvd = RVD(
+      typ = newRVDType,
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
@@ -562,7 +562,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       newGlobalType,
       childValues.head.rvd.sparkContext)
 
-    TableValue(typ, newGlobals, orvd)
+    TableValue(typ, newGlobals, rvd)
   }
 }
 
