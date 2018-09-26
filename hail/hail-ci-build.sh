@@ -194,13 +194,6 @@ test_gcp() {
     touch ${GCP_SUCCESS}
 }
 
-test_project &
-TEST_PROJECT_PID=$!
+test_project
 
-test_gcp > ${GCP_LOG} &
-TEST_GCP_PID=$!
-
-for pid in "$TEST_PROJECT_PID $TEST_GCP_PID"; do
-    wait $pid & RET="$!";
-    if [ ${RET} != "0" ]; then exit ${RET}; fi
-done
+test_gcp > ${GCP_LOG}
