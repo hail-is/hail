@@ -196,14 +196,20 @@ test_gcp() {
 
 test_project &
 PID1=$!
+echo "test_project PID is ${PID1}"
 
 test_gcp > ${GCP_LOG} &
 PID2=$!
 
+echo "test_gcp PID is ${PID2}"
+
 # collect parallel processes and fail if any fail
-for pid in "${PID1} ${PID2}"; do
-    wait pid
-    if [ "$?" != "0" ]; then
+for pid in "${PID1}" "${PID2}"; do
+    echo "waiting on PID ${pid}..."
+    wait $pid
+    status="$?"
+    if [ "${status}" != "0" ]; then
+        echo "PID {pid} failed!"
         exit 1
     fi
 done
