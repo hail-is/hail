@@ -897,8 +897,4 @@ class AggregatorsSuite {
       None,
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
   }
-
-  @Test def testDummy() {
-    fatal("bye")
-  }
 }
