@@ -4,6 +4,7 @@ Core language functions
 
 .. autosummary::
 
+    eval
     literal
     cond
     switch
@@ -19,6 +20,7 @@ Core language functions
     range
 
 
+.. autofunction:: eval
 .. autofunction:: literal
 .. autofunction:: cond
 .. autofunction:: switch

@@ -515,10 +515,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x == y).value
+        >>> hl.eval(x == y)
         True
 
-        >>> (x == z).value
+        >>> hl.eval(x == z)
         False
 
         Notes
@@ -553,10 +553,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x != y).value
+        >>> hl.eval(x != y)
         False
 
-        >>> (x != z).value
+        >>> hl.eval(x != z)
         True
 
         Notes
@@ -773,23 +773,6 @@ class Expression(object):
         uid = Env.get_uid()
         t = self._to_table(uid).key_by()
         return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
-
-    @property
-    def value(self):
-        """Evaluate this expression.
-
-        Notes
-        -----
-        This expression must have no indices, but can refer to the
-        globals of a :class:`.hail.Table` or
-        :class:`.hail.MatrixTable`.
-
-        Returns
-        -------
-            The value of this expression.
-
-        """
-        return hl.eval_expr(self)
 
     def _aggregation_method(self):
         src = self._indices.source

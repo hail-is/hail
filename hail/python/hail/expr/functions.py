@@ -32,10 +32,10 @@ def null(t: Union[HailType, str]):
     Examples
     --------
 
-    >>> hl.null(hl.tarray(hl.tstr)).value
+    >>> hl.eval(hl.null(hl.tarray(hl.tstr)))
     None
 
-    >>> hl.null('array<str>').value
+    >>> hl.eval(hl.null('array<str>'))
     None
 
     Notes
@@ -122,7 +122,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                         .format(dtype)) from e
 
     if wrapper['has_expr']:
-        return literal(to_expr(x, dtype).value, dtype)
+        return literal(hl.eval(to_expr(x, dtype)), dtype)
 
     if x is None:
         return hl.null(dtype)
@@ -162,11 +162,11 @@ def cond(condition,
     --------
 
     >>> x = 5
-    >>> hl.cond(x < 2, 'Hi', 'Bye').value
+    >>> hl.eval(hl.cond(x < 2, 'Hi', 'Bye'))
     'Bye'
 
     >>> a = hl.literal([1, 2, 3, 4])
-    >>> hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0).value
+    >>> hl.eval(hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0))
     [2.0, 4.0, 6.0, 8.0]
 
     Notes
@@ -228,7 +228,7 @@ def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
     ...                  .when(hl.len(x) == 11, 2)
     ...                  .when(x == 'secret phrase', 3)
     ...                  .default(0))
-    >>> expr.value
+    >>> hl.eval(expr)
     2
 
     Parameters
@@ -264,7 +264,7 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
     ...                  .when('loss of function', 3)
     ...                  .when('LOF', 3)
     ...                  .or_missing())
-    >>> expr.value
+    >>> hl.eval(expr)
     3
 
     See Also
@@ -291,12 +291,12 @@ def bind(f: Callable, *exprs):
     Examples
     --------
 
-    >>> add_one = hl.bind(lambda x: x + 1, 1).value
+    >>> hl.eval(hl.bind(lambda x: x + 1, 1))
     2
 
     :func:`.bind` also can take multiple arguments:
 
-    >>> hl.bind(lambda x, y: x / y, x, x).value
+    >>> hl.eval(hl.bind(lambda x, y: x / y, x, x))
     1.0
 
     Parameters
@@ -338,10 +338,10 @@ def chi_squared_test(c1, c2, c3, c4) -> StructExpression:
     Examples
     --------
 
-    >>> hl.chi_squared_test(10, 10, 10, 10).value
+    >>> hl.eval(hl.chi_squared_test(10, 10, 10, 10))
     Struct(p_value=1.0, odds_ratio=1.0)
 
-    >>> hl.chi_squared_test(51, 43, 22, 92).value
+    >>> hl.eval(hl.chi_squared_test(51, 43, 22, 92))
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
     Notes
@@ -379,10 +379,10 @@ def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     Examples
     --------
 
-    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=22).value
+    >>> hl.eval(hl.contingency_table_test(51, 43, 22, 92, min_cell_count=22))
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
-    >>> hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23).value
+    >>> hl.eval(hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23))
     Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967)
 
     Notes
@@ -424,7 +424,7 @@ def dict(collection) -> DictExpression:
     Examples
     --------
 
-    >>> hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]).value
+    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))
     {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -459,7 +459,7 @@ def dbeta(x, a, b) -> Float64Expression:
     Examples
     --------
 
-    >> hl.dbeta(.2, 5, 20).value
+    >>> hl.eval(hl.dbeta(.2, 5, 20))
     4.900377563180943
 
     Parameters
@@ -488,7 +488,7 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.dpois(5, 3).value
+    >>> hl.eval(hl.dpois(5, 3))
     0.10081881344492458
 
     Parameters
@@ -515,7 +515,7 @@ def exp(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.exp(2).value
+    >>> hl.eval(hl.exp(2))
     7.38905609893065
 
     Parameters
@@ -537,11 +537,11 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     Examples
     --------
 
-    >>> hl.fisher_exact_test(10, 10, 10, 10).value
+    >>> hl.eval(hl.fisher_exact_test(10, 10, 10, 10))
     Struct(p_value=1.0000000000000002, odds_ratio=1.0,
            ci_95_lower=0.24385796914260355, ci_95_upper=4.100747675033819)
 
-    >>> hl.fisher_exact_test(51, 43, 22, 92).value
+    >>> hl.eval(hl.fisher_exact_test(51, 43, 22, 92))
     Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967,
            ci_95_lower=2.5659373368248444, ci_95_upper=9.677929632035475)
 
@@ -586,7 +586,7 @@ def floor(x):
     Examples
     --------
 
-    >>> hl.floor(3.1).value
+    >>> hl.eval(hl.floor(3.1))
     3.0
 
     Parameters
@@ -607,7 +607,7 @@ def ceil(x):
     Examples
     --------
 
-    >>> hl.ceil(3.1).value
+    >>> hl.eval(hl.ceil(3.1))
     4.0
 
     Parameters
@@ -628,10 +628,10 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     Examples
     --------
 
-    >>> hl.hardy_weinberg_test(250, 500, 250).value
+    >>> hl.eval(hl.hardy_weinberg_test(250, 500, 250))
     Struct(het_freq_hwe=0.5002501250625313, p_value=0.9747844394217698)
 
-    >>> hl.hardy_weinberg_test(37, 200, 85).value
+    >>> hl.eval(hl.hardy_weinberg_test(37, 200, 85))
     Struct(het_freq_hwe=0.48964964307448583, p_value=1.1337210383168987e-06)
 
     Notes
@@ -674,7 +674,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     Examples
     --------
 
-    >>> hl.locus("1", 10000).value
+    >>> hl.eval(hl.locus("1", 10000))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Parameters
@@ -703,13 +703,13 @@ def locus_from_global_position(global_pos,
 
     Examples
     --------
-    >>> hl.locus_from_global_position(0).value
+    >>> hl.eval(hl.locus_from_global_position(0))
     Locus(contig=1, position=1, reference_genome=GRCh37)
 
-    >>> hl.locus_from_global_position(2824183054).value
+    >>> hl.eval(hl.locus_from_global_position(2824183054))
     Locus(contig=21, position=42584230, reference_genome=GRCh37)
 
-    >>> hl.locus_from_global_position(2824183054, 'GRCh38').value
+    >>> hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'))
     Locus(contig=22, position=1, reference_genome=GRCh38)
 
     Parameters
@@ -735,7 +735,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     Examples
     --------
 
-    >>> hl.parse_locus("1:10000").value
+    >>> hl.eval(hl.parse_locus("1:10000"))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Notes
@@ -765,7 +765,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     Examples
     --------
 
-    >>> hl.parse_variant('1:100000:A:T,C').value
+    >>> hl.eval(hl.parse_variant('1:100000:A:T,C'))
     Struct(locus=Locus('1', 100000), alleles=['A', 'T', 'C'])
 
     Notes
@@ -801,7 +801,7 @@ def gp_dosage(gp) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.gp_dosage([0.0, 0.5, 0.5]).value
+    >>> hl.eval(hl.gp_dosage([0.0, 0.5, 0.5]))
     1.5
 
     Notes
@@ -846,7 +846,7 @@ def pl_dosage(pl) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.pl_dosage([5, 10, 100]).value
+    >>> hl.eval(hl.pl_dosage([5, 10, 100]))
     0.24025307377482674
 
     Parameters
@@ -868,7 +868,7 @@ def pl_to_gp(pl, _cache_size=2048) -> ArrayNumericExpression:
 
     Examples
     --------
-    >>> hl.pl_to_gp([0, 10, 100]).value
+    >>> hl.eval(hl.pl_to_gp([0, 10, 100]))
     [0.9090909090082644, 0.09090909090082644, 9.090909090082645e-11]
 
     Notes
@@ -900,10 +900,10 @@ def interval(start,
     Examples
     --------
 
-    >>> hl.interval(5, 100).value
+    >>> hl.eval(hl.interval(5, 100))
     Interval(start=5, end=100)
 
-    >>> hl.interval(hl.locus("1", 100), hl.locus("1", 1000)).value
+    >>> hl.eval(hl.interval(hl.locus("1", 100), hl.locus("1", 1000)))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
              end=Locus(contig=1, position=1000, reference_genome=GRCh37))
 
@@ -945,7 +945,7 @@ def locus_interval(contig,
     Examples
     --------
 
-    >>> hl.locus_interval("1", 100, 1000).value
+    >>> hl.eval(hl.locus_interval("1", 100, 1000))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
              end=Locus(contig=1, position=1000, reference_genome=GRCh37))
 
@@ -981,11 +981,11 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     Examples
     --------
 
-    >>> hl.parse_locus_interval('1:1000-2000').value
+    >>> hl.eval(hl.parse_locus_interval('1:1000-2000'))
     Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
              end=Locus(contig=1, position=2000, reference_genome=GRCh37))
 
-    >>> hl.parse_locus_interval('1:start-10M').value
+    >>> hl.eval(hl.parse_locus_interval('1:start-10M'))
     Interval(start=Locus(contig=1, position=0, reference_genome=GRCh37),
              end=Locus(contig=1, position=10000000, reference_genome=GRCh37))
 
@@ -1050,7 +1050,7 @@ def call(*alleles, phased=False) -> CallExpression:
     Examples
     --------
 
-    >>> hl.call(1, 0).value
+    >>> hl.eval(hl.call(1, 0))
     Call(alleles=[1, 0], phased=False)
 
     Parameters
@@ -1076,7 +1076,7 @@ def unphased_diploid_gt_index_call(gt_index) -> CallExpression:
     Examples
     --------
 
-    >>> hl.unphased_diploid_gt_index_call(4).value
+    >>> hl.eval(hl.unphased_diploid_gt_index_call(4))
     Call(alleles=[1, 2], phased=False)
 
     Parameters
@@ -1098,7 +1098,7 @@ def parse_call(s) -> CallExpression:
     Examples
     --------
 
-    >>> hl.parse_call('0|2').value
+    >>> hl.eval(hl.parse_call('0|2'))
     Call([0, 2], phased=True)
 
     Notes
@@ -1138,13 +1138,13 @@ def is_defined(expression) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_defined(5).value
+    >>> hl.eval(hl.is_defined(5))
     True
 
-    >>> hl.is_defined(hl.null(hl.tstr)).value
+    >>> hl.eval(hl.is_defined(hl.null(hl.tstr)))
     False
 
-    >>> hl.is_defined(hl.null(hl.tbool) & True).value
+    >>> hl.eval(hl.is_defined(hl.null(hl.tbool) & True))
     False
 
     Parameters
@@ -1167,13 +1167,13 @@ def is_missing(expression) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_missing(5).value
+    >>> hl.eval(hl.is_missing(5))
     False
 
-    >>> hl.is_missing(hl.null(hl.tstr)).value
+    >>> hl.eval(hl.is_missing(hl.null(hl.tstr)))
     True
 
-    >>> hl.is_missing(hl.null(hl.tbool) & True).value
+    >>> hl.eval(hl.is_missing(hl.null(hl.tbool) & True))
     True
 
     Parameters
@@ -1196,13 +1196,13 @@ def is_nan(x) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_nan(0).value
+    >>> hl.eval(hl.is_nan(0))
     False
 
-    >>> hl.is_nan(hl.literal(0) / 0).value
+    >>> hl.eval(hl.is_nan(hl.literal(0) / 0))
     True
 
-    >>> hl.is_nan(hl.literal(0) / hl.null(hl.tfloat64)).value
+    >>> hl.eval(hl.is_nan(hl.literal(0) / hl.null(hl.tfloat64)))
     None
 
     Notes
@@ -1229,16 +1229,16 @@ def is_finite(x) -> BooleanExpression:
 
     Examples
     --------
-    >>> hl.is_finite(0).value
+    >>> hl.eval(hl.is_finite(0))
     True
 
-    >>> hl.is_finite(float('nan')).value
+    >>> hl.eval(hl.is_finite(float('nan')))
     False
 
-    >>> hl.is_finite(float('inf')).value
+    >>> hl.eval(hl.is_finite(float('inf')))
     False
 
-    >>> hl.is_finite(hl.null('float32')).value
+    >>> hl.eval(hl.is_finite(hl.null('float32')))
     None
 
     Notes
@@ -1261,16 +1261,16 @@ def is_infinite(x) -> BooleanExpression:
 
     Examples
     --------
-    >>> hl.is_infinite(0).value
+    >>> hl.eval(hl.is_infinite(0))
     False
 
-    >>> hl.is_infinite(float('nan')).value
+    >>> hl.eval(hl.is_infinite(float('nan')))
     False
 
-    >>> hl.is_infinite(float('inf')).value
+    >>> hl.eval(hl.is_infinite(float('inf')))
     True
 
-    >>> hl.is_infinite(hl.null('float32')).value
+    >>> hl.eval(hl.is_infinite(hl.null('float32')))
     None
 
     Notes
@@ -1295,10 +1295,10 @@ def json(x) -> StringExpression:
     Examples
     --------
 
-    >>> hl.json([1,2,3,4,5]).value
+    >>> hl.eval(hl.json([1,2,3,4,5]))
     '[1,2,3,4,5]'
 
-    >>> hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})).value
+    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
     '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1321,13 +1321,13 @@ def log(x, base=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.log(10).value
+    >>> hl.eval(hl.log(10))
     2.302585092994046
 
-    >>> hl.log(10, 10).value
+    >>> hl.eval(hl.log(10, 10))
     1.0
 
-    >>> hl.log(1024, 2).value
+    >>> hl.eval(hl.log(1024, 2))
     10.0
 
     Notes
@@ -1357,10 +1357,10 @@ def log10(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.log10(1000).value
+    >>> hl.eval(hl.log10(1000))
     3.0
 
-    >>> hl.log10(0.0001123).value
+    >>> hl.eval(hl.log10(0.0001123))
     -3.949620243738542
 
     Parameters
@@ -1383,7 +1383,7 @@ def coalesce(*args):
 
     >>> x1 = hl.null('int')
     >>> x2 = 2
-    >>> hl.coalesce(x1, x2).value
+    >>> hl.eval(hl.coalesce(x1, x2))
     2
 
     Notes
@@ -1424,10 +1424,10 @@ def or_else(a, b):
     Examples
     --------
 
-    >>> hl.or_else(5, 7).value
+    >>> hl.eval(hl.or_else(5, 7))
     5
 
-    >>> hl.or_else(hl.null(hl.tint32), 7).value
+    >>> hl.eval(hl.or_else(hl.null(hl.tint32), 7))
     7
 
     See Also
@@ -1458,10 +1458,10 @@ def or_missing(predicate, value):
     Examples
     --------
 
-    >>> hl.or_missing(True, 5).value
+    >>> hl.eval(hl.or_missing(True, 5))
     5
 
-    >>> hl.or_missing(False, 5).value
+    >>> hl.eval(hl.or_missing(False, 5))
     None
 
     Parameters
@@ -1487,7 +1487,7 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.binom_test(5, 10, 0.5, 'less').value
+    >>> hl.eval(hl.binom_test(5, 10, 0.5, 'less'))
     0.6230468749999999
 
     With alternative ``less``, the p-value is the probability of at most `x`
@@ -1529,7 +1529,7 @@ def pchisqtail(x, df) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.pchisqtail(5, 1).value
+    >>> hl.eval(hl.pchisqtail(5, 1))
     0.025347318677468304
 
     Parameters
@@ -1552,13 +1552,13 @@ def pnorm(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.pnorm(0).value
+    >>> hl.eval(hl.pnorm(0))
     0.5
 
-    >>> hl.pnorm(1).value
+    >>> hl.eval(hl.pnorm(1))
     0.8413447460685429
 
-    >>> hl.pnorm(2).value
+    >>> hl.eval(hl.pnorm(2))
     0.9772498680518208
 
     Notes
@@ -1583,7 +1583,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.ppois(2, 1).value
+    >>> hl.eval(hl.ppois(2, 1))
     0.9196986029286058
 
     Notes
@@ -1617,7 +1617,7 @@ def qchisqtail(p, df) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.qchisqtail(0.01, 1).value
+    >>> hl.eval(hl.qchisqtail(0.01, 1))
     6.634896601021213
 
     Notes
@@ -1646,7 +1646,7 @@ def qnorm(p) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.qnorm(0.90).value
+    >>> hl.eval(hl.qnorm(0.90))
     1.2815515655446008
 
     Notes
@@ -1673,7 +1673,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.qpois(0.99, 1).value
+    >>> hl.eval(hl.qpois(0.99, 1))
     4
 
     Notes
@@ -1705,10 +1705,10 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.range(0, 10).value
+    >>> hl.eval(hl.range(0, 10))
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-    >>> hl.range(0, 10, step=3).value
+    >>> hl.eval(hl.range(0, 10, step=3))
     [0, 3, 6, 9]
 
     Notes
@@ -1738,10 +1738,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.rand_bool(0.5).value
+    >>> hl.eval(hl.rand_bool(0.5))
     True
 
-    >>> hl.rand_bool(0.5).value
+    >>> hl.eval(hl.rand_bool(0.5))
     False
 
     Parameters
@@ -1766,10 +1766,10 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.rand_norm().value
+    >>> hl.eval(hl.rand_norm())
     1.5388475315213386
 
-    >>> hl.rand_norm().value
+    >>> hl.eval(hl.rand_norm())
     -0.3006188509144124
 
     Parameters
@@ -1797,10 +1797,10 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.rand_pois(1).value
+    >>> hl.eval(hl.rand_pois(1))
     2.0
 
-    >>> hl.rand_pois(1).value
+    >>> hl.eval(hl.rand_pois(1))
     3.0
 
     Parameters
@@ -1825,10 +1825,10 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.rand_unif(0, 1).value
+    >>> hl.eval(hl.rand_unif(0, 1))
     0.7983073825816226
 
-    >>> hl.rand_unif(0, 1).value
+    >>> hl.eval(hl.rand_unif(0, 1))
     0.5161799497741769
 
     Parameters
@@ -1868,10 +1868,10 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.rand_beta(0, 1).value
+    >>> hl.eval(hl.rand_beta(0, 1))
     0.6696807666871818
 
-    >>> hl.rand_beta(0, 1).value
+    >>> hl.eval(hl.rand_beta(0, 1))
     0.8512985039011525
 
     Parameters
@@ -1910,10 +1910,10 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.rand_gamma(1, 1).value
+    >>> hl.eval(hl.rand_gamma(1, 1))
     2.3915947710237537
 
-    >>> hl.rand_gamma(1, 1).value
+    >>> hl.eval(hl.rand_gamma(1, 1))
     0.1339939936379711
 
     Parameters
@@ -1949,10 +1949,10 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.rand_cat([0, 1.7, 2]).value
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
     2
 
-    >>> hl.rand_cat([0, 1.7, 2]).value
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
     1
 
     Parameters
@@ -1977,10 +1977,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.rand_dirichlet([1, 1, 1]).value
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
     [0.4630197581640282,0.18207753442497876,0.3549027074109931]
 
-    >>> hl.rand_dirichlet([1, 1, 1]).value
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
     [0.20851948405364765,0.7873859423649898,0.004094573581362475]
 
     Parameters
@@ -2008,7 +2008,7 @@ def sqrt(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.sqrt(3).value
+    >>> hl.eval(hl.sqrt(3))
     1.7320508075688772
 
     Notes
@@ -2064,7 +2064,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_snp('A', 'T').value
+    >>> hl.eval(hl.is_snp('A', 'T'))
     True
 
     Parameters
@@ -2088,7 +2088,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_mnp('AA', 'GT').value
+    >>> hl.eval(hl.is_mnp('AA', 'GT'))
     True
 
     Parameters
@@ -2112,10 +2112,10 @@ def is_transition(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_transition('A', 'T').value
+    >>> hl.eval(hl.is_transition('A', 'T'))
     False
 
-    >>> hl.is_transition('AAA', 'AGA').value
+    >>> hl.eval(hl.is_transition('AAA', 'AGA'))
     True
 
     Parameters
@@ -2139,10 +2139,10 @@ def is_transversion(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_transversion('A', 'T').value
+    >>> hl.eval(hl.is_transversion('A', 'T'))
     True
 
-    >>> hl.is_transversion('AAA', 'AGA').value
+    >>> hl.eval(hl.is_transversion('AAA', 'AGA'))
     False
 
     Parameters
@@ -2174,7 +2174,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_insertion('A', 'ATT').value
+    >>> hl.eval(hl.is_insertion('A', 'ATT'))
     True
 
     Parameters
@@ -2198,7 +2198,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_deletion('ATT', 'A').value
+    >>> hl.eval(hl.is_deletion('ATT', 'A'))
     True
 
     Parameters
@@ -2222,7 +2222,7 @@ def is_indel(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_indel('ATT', 'A').value
+    >>> hl.eval(hl.is_indel('ATT', 'A'))
     True
 
     Parameters
@@ -2248,7 +2248,7 @@ def is_star(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_deletion('A', '*').value
+    >>> hl.eval(hl.is_deletion('A', '*'))
     True
 
     Parameters
@@ -2272,7 +2272,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_deletion('ATT', 'GCA').value
+    >>> hl.eval(hl.is_deletion('ATT', 'GCA'))
     True
 
     Parameters
@@ -2300,7 +2300,7 @@ def is_strand_ambiguous(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_strand_ambiguous('A', 'T').value
+    >>> hl.eval(hl.is_strand_ambiguous('A', 'T'))
     True
 
     Parameters
@@ -2325,10 +2325,10 @@ def allele_type(ref, alt)-> StringExpression:
     Examples
     --------
 
-    >>> hl.allele_type('A', 'T').value
+    >>> hl.eval(hl.allele_type('A', 'T'))
     'SNP'
 
-    >>> hl.allele_type('ATT', 'A').value
+    >>> hl.eval(hl.allele_type('ATT', 'A'))
     'Deletion'
 
     Notes
@@ -2364,10 +2364,10 @@ def hamming(s1, s2) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.hamming('ATATA', 'ATGCA').value
+    >>> hl.eval(hl.hamming('ATATA', 'ATGCA'))
     2
 
-    >>> hl.hamming('abcdefg', 'zzcdefz').value
+    >>> hl.eval(hl.hamming('abcdefg', 'zzcdefz'))
     3
 
     Notes
@@ -2396,10 +2396,10 @@ def entropy(s) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.entropy('ac').value
+    >>> hl.eval(hl.entropy('ac'))
     1.0
 
-    >>> hl.entropy('accctg').value
+    >>> hl.eval(hl.entropy('accctg'))
     1.79248
 
     Notes
@@ -2432,7 +2432,7 @@ def str(x) -> StringExpression:
     Examples
     --------
 
-    >>> hl.str(hl.struct(a=5, b=7)).value
+    >>> hl.eval(hl.str(hl.struct(a=5, b=7)))
     '{"a": 5, "b": 7}'
 
     Parameters
@@ -2457,7 +2457,7 @@ def downcode(c, i) -> CallExpression:
     --------
     Preserve the third allele and downcode all other alleles to reference.
 
-    >>> hl.downcode(hl.call(1, 2), 2).value
+    >>> hl.eval(hl.downcode(hl.call(1, 2), 2))
     Call(alleles=[0, 2], phased=False)
 
     Parameters
@@ -2482,7 +2482,7 @@ def gq_from_pl(pl) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.gq_from_pl([0, 69, 1035]).value
+    >>> hl.eval(hl.gq_from_pl([0, 69, 1035]))
     69
 
     Parameters
@@ -2503,7 +2503,7 @@ def triangle(n) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.triangle(3).value
+    >>> hl.eval(hl.triangle(3))
     6
 
     Notes
@@ -2532,10 +2532,10 @@ def filter(f: Callable, collection):
     >>> a = [1, 2, 3, 4]
     >>> s = {'Alice', 'Bob', 'Charlie'}
 
-    >>> hl.filter(lambda x: x % 2 == 0, a).value
+    >>> hl.eval(hl.filter(lambda x: x % 2 == 0, a))
     [2, 4]
 
-    >>> hl.filter(lambda x: ~(x[-1] == 'e'), s).value
+    >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))
     {'Bob'}
 
     Notes
@@ -2571,10 +2571,10 @@ def any(f: Callable, collection) -> BooleanExpression:
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.any(lambda x: x[-1] == 'x', a).value
+    >>> hl.eval(hl.any(lambda x: x[-1] == 'x', a))
     True
 
-    >>> hl.any(lambda x: x % 4 == 0, s).value
+    >>> hl.eval(hl.any(lambda x: x % 4 == 0, s))
     False
 
     Notes
@@ -2609,10 +2609,10 @@ def all(f: Callable, collection) -> BooleanExpression:
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.all(lambda x: hl.len(x) > 3, a).value
+    >>> hl.eval(hl.all(lambda x: hl.len(x) > 3, a))
     False
 
-    >>> hl.all(lambda x: x < 10, s).value
+    >>> hl.eval(hl.all(lambda x: x < 10, s))
     True
 
     Notes
@@ -2647,10 +2647,10 @@ def find(f: Callable, collection):
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.find(lambda x: x[-1] == 'x', a).value
+    >>> hl.eval(hl.find(lambda x: x[-1] == 'x', a))
     'fox'
 
-    >>> hl.find(lambda x: x % 4 == 0, s).value
+    >>> hl.eval(hl.find(lambda x: x % 4 == 0, s))
     None
 
     Notes
@@ -2687,7 +2687,7 @@ def flatmap(f: Callable, collection):
 
     >>> a = [[0, 1], [1, 2], [4, 5, 6, 7]]
 
-    >>> hl.flatmap(lambda x: x[1:], a).value
+    >>> hl.eval(hl.flatmap(lambda x: x[1:], a))
     [1, 2, 5, 6, 7]
 
     Parameters
@@ -2723,7 +2723,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.group_by(lambda x: hl.len(x), a).value
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -2752,7 +2752,7 @@ def fold(f: Callable, zero, collection) -> Expression:
     --------
     >>> a = [0, 1, 2]
 
-    >>> hl.fold(lambda i, j: i + j, 0, a).value
+    >>> hl.eval(hl.fold(lambda i, j: i + j, 0, a))
     3
 
     Parameters
@@ -2781,7 +2781,7 @@ def array_scan(f: Callable, zero, a) -> ArrayExpression:
     --------
     >>> a = [0, 1, 2]
 
-    >>> hl.array_scan(lambda i, j: i + j, 0, a).value
+    >>> hl.eval(hl.array_scan(lambda i, j: i + j, 0, a))
     [0, 0, 1, 3]
 
     Parameters
@@ -2807,10 +2807,10 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.zip([1], [10, 20], [100, 200, 300]).value
+    >>> hl.eval(hl.zip([1], [10, 20], [100, 200, 300]))
     [(1, 10, 100)]
 
-    >>> hl.zip([1], [10, 20], [100, 200, 300], fill_missing=True).value
+    >>> hl.eval(hl.zip([1], [10, 20], [100, 200, 300], fill_missing=True))
     [(1, 10, 100), (None, 20, 200), (None, None, 300)]
 
     Notes
@@ -2858,7 +2858,7 @@ def zip_with_index(a):
     Examples
     --------
 
-    >>> hl.zip_with_index(['A', 'B', 'C']).value
+    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C']))
     [(0, 'A'), (1, 'B'), (2, 'C')]
 
     Parameters
@@ -2882,7 +2882,7 @@ def map(f: Callable, collection):
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.map(lambda x: hl.len(x), a).value
+    >>> hl.eval(hl.map(lambda x: hl.len(x), a))
     [3, 5, 5, 3]
 
     Parameters
@@ -2910,13 +2910,13 @@ def len(x) -> Int32Expression:
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.len(a).value
+    >>> hl.eval(hl.len(a))
     4
 
-    >>> hl.len(s).value
+    >>> hl.eval(hl.len(s))
     6
 
-    >>> hl.len("12345").value
+    >>> hl.eval(hl.len("12345"))
     5
 
     Parameters
@@ -2944,12 +2944,12 @@ def max(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Take the maximum value of an array:
 
-    >>> hl.max([1, 3, 5, 6, 7, 9]).value
+    >>> hl.eval(hl.max([1, 3, 5, 6, 7, 9]))
     9
 
     Take the maximum value of values:
 
-    >>> hl.max(1, 50, 2).value
+    >>> hl.eval(hl.max(1, 50, 2))
     50
 
     Notes
@@ -3001,12 +3001,12 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Take the minimum value of an array:
 
-    >>> hl.min([2, 3, 5, 6, 7, 9]).value
+    >>> hl.eval(hl.min([2, 3, 5, 6, 7, 9]))
     2
 
     Take the minimum value:
 
-    >>> hl.min(12, 50, 2).value
+    >>> hl.eval(hl.min(12, 50, 2))
     2
 
     Notes
@@ -3055,10 +3055,10 @@ def abs(x):
     Examples
     --------
 
-    >>> hl.abs(-5).value
+    >>> hl.eval(hl.abs(-5))
     5
 
-    >>> hl.abs([1.0, -2.5, -5.1]).value
+    >>> hl.eval(hl.abs([1.0, -2.5, -5.1]))
     [1.0, 2.5, 5.1]
 
     Parameters
@@ -3082,16 +3082,16 @@ def sign(x):
     Examples
     --------
 
-    >>> hl.sign(-1.23).value
+    >>> hl.eval(hl.sign(-1.23))
     -1.0
 
-    >>> hl.sign([-4, 0, 5]).value
+    >>> hl.eval(hl.sign([-4, 0, 5]))
     [-1, 0, 1]
 
-    >>> hl.sign([0.0, 3.14]).value
+    >>> hl.eval(hl.sign([0.0, 3.14]))
     [0.0, 1.0]
 
-    >>> hl.sign(float('nan')).value  # doctest: +SKIP
+    >>> hl.eval(hl.sign(float('nan')))  # doctest: +SKIP
     nan
 
     Notes
@@ -3122,7 +3122,7 @@ def mean(collection, filter_missing: bool = True) -> Float64Expression:
 
     >>> a = [1, 3, 5, 6, 7, 9]
 
-    >>> hl.mean(a).value
+    >>> hl.eval(hl.mean(a))
     5.2
 
     Note
@@ -3153,7 +3153,7 @@ def median(collection) -> NumericExpression:
 
     >>> a = [1, 3, 5, 6, 7, 9]
 
-    >>> hl.median(a).value
+    >>> hl.eval(hl.median(a))
     5
 
     Note
@@ -3182,7 +3182,7 @@ def product(collection, filter_missing: bool = True) -> NumericExpression:
 
     >>> a = [1, 3, 5, 6, 7, 9]
 
-    >>> hl.product(a).value
+    >>> hl.eval(hl.product(a))
     5670
 
     Note
@@ -3213,7 +3213,7 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
     --------
     >>> a = [1, 3, 5, 6, 7, 9]
 
-    >>> hl.sum(a).value
+    >>> hl.eval(hl.sum(a))
     31
 
     Note
@@ -3244,7 +3244,7 @@ def cumulative_sum(a, filter_missing: bool = True) -> ArrayNumericExpression:
     --------
     >>> a = [1, 3, 5, 6, 7, 9]
 
-    >>> hl.cumulative_sum(a).value
+    >>> hl.eval(hl.cumulative_sum(a))
     [1, 4, 9, 15, 22, 31]
 
     Note
@@ -3276,7 +3276,7 @@ def struct(**kwargs) -> StructExpression:
     --------
 
     >>> s = hl.struct(a=5, b='Foo')
-    >>> s.a.value
+    >>> hl.eval(s.a)
     5
 
     Returns
@@ -3294,10 +3294,10 @@ def tuple(iterable: Iterable) -> TupleExpression:
     --------
 
     >>> t = hl.tuple([1, 2, '3'])
-    >>> t.value
+    >>> hl.eval(t)
     (1, 2, '3')
 
-    >>> t[2].value
+    >>> hl.eval(t[2])
     '3'
 
     Parameters
@@ -3341,7 +3341,7 @@ def empty_set(t: Union[HailType, str]) -> SetExpression:
     Examples
     --------
 
-    >>> hl.empty_set(hl.tstr).value
+    >>> hl.eval(hl.empty_set(hl.tstr))
     set()
 
     Parameters
@@ -3365,7 +3365,7 @@ def array(collection) -> ArrayExpression:
 
     >>> s = {'Bob', 'Charlie', 'Alice'}
 
-    >>> hl.array(s).value
+    >>> hl.eval(hl.array(s))
     ['Charlie', 'Alice', 'Bob']
 
     Parameters
@@ -3392,7 +3392,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.empty_array(hl.tint32).value
+    >>> hl.eval(hl.empty_array(hl.tint32))
     []
 
     Parameters
@@ -3417,7 +3417,7 @@ def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str])
     Examples
     --------
 
-    >>> hl.empty_dict(hl.tstr, hl.tint32).value
+    >>> hl.eval(hl.empty_dict(hl.tstr, hl.tint32))
     {}
 
     Parameters
@@ -3442,7 +3442,7 @@ def flatten(collection):
 
     >>> a = [[1, 2], [2, 3]]
 
-    >>> hl.flatten(a).value
+    >>> hl.eval(hl.flatten(a))
     [1, 2, 2, 3]
 
     Parameters
@@ -3467,7 +3467,7 @@ def delimit(collection, delimiter=',') -> StringExpression:
 
     >>> a = ['Bob', 'Charlie', 'Alice', 'Bob', 'Bob']
 
-    >>> hl.delimit(a).value
+    >>> hl.eval(hl.delimit(a))
     'Bob,Charlie,Alice,Bob,Bob'
 
     Notes
@@ -3506,13 +3506,13 @@ def sorted(collection,
 
     >>> a = ['Charlie', 'Alice', 'Bob']
 
-    >>> hl.sorted(a).value
+    >>> hl.eval(hl.sorted(a))
     ['Alice', 'Bob', 'Charlie']
 
-    >>> hl.sorted(a, reverse=False).value
+    >>> hl.eval(hl.sorted(a, reverse=False))
     ['Charlie', 'Bob', 'Alice']
 
-    >>> hl.sorted(a, key=lambda x: hl.len(x)).value
+    >>> hl.eval(hl.sorted(a, key=lambda x: hl.len(x)))
     ['Bob', 'Alice', 'Charlie']
 
     Notes
@@ -3552,13 +3552,13 @@ def argmin(array, unique: bool = False) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.argmin([0.2, 0.3, 0.6]).value
+    >>> hl.eval(hl.argmin([0.2, 0.3, 0.6]))
     0
 
-    >>> hl.argmin([0.4, 0.2, 0.2]).value
+    >>> hl.eval(hl.argmin([0.4, 0.2, 0.2]))
     1
 
-    >>> hl.argmin([0.4, 0.2, 0.2], unique=True).value
+    >>> hl.eval(hl.argmin([0.4, 0.2, 0.2], unique=True))
     None
 
     Notes
@@ -3597,13 +3597,13 @@ def argmax(array, unique: bool = False) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.argmax([0.2, 0.2, 0.6]).value
+    >>> hl.eval(hl.argmax([0.2, 0.2, 0.6]))
     2
 
-    >>> hl.argmax([0.4, 0.4, 0.2]).value
+    >>> hl.eval(hl.argmax([0.4, 0.4, 0.2]))
     0
 
-    >>> hl.argmax([0.4, 0.4, 0.2], unique=True).value
+    >>> hl.eval(hl.argmax([0.4, 0.4, 0.2], unique=True))
     None
 
     Notes
@@ -3642,13 +3642,13 @@ def float64(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.float64('1.1').value
+    >>> hl.eval(hl.float64('1.1'))
     1.1
 
-    >>> hl.float64(1).value
+    >>> hl.eval(hl.float64(1))
     1.0
 
-    >>> hl.float64(True).value
+    >>> hl.eval(hl.float64(True))
     1.0
 
     Parameters
@@ -3671,13 +3671,13 @@ def float32(x) -> Float32Expression:
     Examples
     --------
 
-    >>> hl.float32('1.1').value
+    >>> hl.eval(hl.float32('1.1'))
     1.1
 
-    >>> hl.float32(1).value
+    >>> hl.eval(hl.float32(1))
     1.0
 
-    >>> hl.float32(True).value
+    >>> hl.eval(hl.float32(True))
     1.0
 
     Parameters
@@ -3700,13 +3700,13 @@ def int64(x) -> Int64Expression:
     Examples
     --------
 
-    >>> hl.int64('1').value
+    >>> hl.eval(hl.int64('1'))
     1
 
-    >>> hl.int64(1.5).value
+    >>> hl.eval(hl.int64(1.5))
     1
 
-    >>> hl.int64(True).value
+    >>> hl.eval(hl.int64(True))
     1
 
     Parameters
@@ -3730,13 +3730,13 @@ def int32(x) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.int32('1').value
+    >>> hl.eval(hl.int32('1'))
     1
 
-    >>> hl.int32(1.5).value
+    >>> hl.eval(hl.int32(1.5))
     1
 
-    >>> hl.int32(True).value
+    >>> hl.eval(hl.int32(True))
     1
 
     Parameters
@@ -3759,13 +3759,13 @@ def int(x) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.int('1').value
+    >>> hl.eval(hl.int('1'))
     1
 
-    >>> hl.int(1.5).value
+    >>> hl.eval(hl.int(1.5))
     1
 
-    >>> hl.int(True).value
+    >>> hl.eval(hl.int(True))
     1
 
     Note
@@ -3790,13 +3790,13 @@ def float(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.float('1.1').value
+    >>> hl.eval(hl.float('1.1'))
     1.1
 
-    >>> hl.float(1).value
+    >>> hl.eval(hl.float(1))
     1.0
 
-    >>> hl.float(True).value
+    >>> hl.eval(hl.float(True))
     1.0
 
     Note
@@ -3821,10 +3821,10 @@ def bool(x) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.bool('TRUE').value
+    >>> hl.eval(hl.bool('TRUE'))
     True
 
-    >>> hl.bool(1.5).value
+    >>> hl.eval(hl.bool(1.5))
     True
 
     Notes
@@ -3864,7 +3864,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
-    >>> hl.get_sequence('1', 45323, 'GRCh37').value # doctest: +SKIP
+    >>> hl.eval(hl.get_sequence('1', 45323, 'GRCh37')) # doctest: +SKIP
     "T"
 
     Notes
@@ -3909,10 +3909,10 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.is_valid_contig('1', 'GRCh37').value
+    >>> hl.eval(hl.is_valid_contig('1', 'GRCh37'))
     True
 
-    >>> hl.is_valid_contig('chr1', 'GRCh37').value
+    >>> hl.eval(hl.is_valid_contig('chr1', 'GRCh37'))
     False
 
     Parameters
@@ -3935,10 +3935,10 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     Examples
     --------
 
-    >>> hl.is_valid_locus('1', 324254, 'GRCh37').value
+    >>> hl.eval(hl.is_valid_locus('1', 324254, 'GRCh37'))
     True
 
-    >>> hl.is_valid_locus('chr1', 324254, 'GRCh37').value
+    >>> hl.eval(hl.is_valid_locus('chr1', 324254, 'GRCh37'))
     False
 
     Parameters
@@ -3963,10 +3963,10 @@ def mendel_error_code(locus, is_female, father, mother, child):
     >>> child2 = hl.call(0, 0)  # Mendel error
     >>> locus = hl.locus('2', 2000000)
 
-    >>> hl.mendel_error_code(locus, True, father, mother, child1).value
+    >>> hl.eval(hl.mendel_error_code(locus, True, father, mother, child1))
     None
 
-    >>> hl.mendel_error_code(locus, True, father, mother, child2).value
+    >>> hl.eval(hl.mendel_error_code(locus, True, father, mother, child2))
     7
 
     Note
@@ -4072,10 +4072,10 @@ def min_rep(locus, alleles):
     Examples
     --------
 
-    >>> hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']).value
+    >>> hl.eval(hl.min_rep(hl.locus('1', 100000), ['TAA', 'TA']))
     Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['TA', 'T'])
 
-    >>> hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']).value
+    >>> hl.eval(hl.min_rep(hl.locus('1', 100000), ['AATAA', 'AACAA']))
     Struct(locus=Locus(contig=1, position=100002, reference_genome=GRCh37), alleles=['T', 'C'])
 
     Notes
@@ -4110,13 +4110,13 @@ def liftover(x, dest_reference_genome, min_match=0.95):
     Lift over the locus coordinates from reference genome ``'GRCh37'`` to
     ``'GRCh38'``:
 
-    >>> hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38').value # doctest: +SKIP
+    >>> hl.eval(hl.liftover(hl.locus('1', 1034245, 'GRCh37'), 'GRCh38')) # doctest: +SKIP
     Locus(contig='chr1', position=1098865, reference_genome='GRCh38')
 
     Lift over the locus interval coordinates from reference genome ``'GRCh37'``
     to ``'GRCh38'``:
 
-    >>> hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38').value # doctest: +SKIP
+    >>> hl.eval(hl.liftover(hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'), 'GRCh38')) # doctest: +SKIP
     Interval(Locus(contig='chr20', position=79360, reference_genome='GRCh38'),
              Locus(contig='chr20', position=101815, reference_genome='GRCh38'),
              True,
@@ -4178,7 +4178,7 @@ def uniroot(f: Callable, min, max):
     Examples
     --------
 
-    >>> hl.uniroot(lambda x: x - 1, -5, 5).value
+    >>> hl.eval(hl.uniroot(lambda x: x - 1, -5, 5))
     1.0
 
     Notes
@@ -4215,13 +4215,13 @@ def format(f, *args):
     Examples
     --------
 
-    >>> hl.format('%.3e', 0.09345332).value
+    >>> hl.eval(hl.format('%.3e', 0.09345332))
     '9.345e-02'
 
-    >>> hl.format('%.4f', hl.null(hl.tfloat64)).value
+    >>> hl.eval(hl.format('%.4f', hl.null(hl.tfloat64)))
     'null'
 
-    >>> hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True).value
+    >>> hl.eval(hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True))
     'hello [3,1:2453] true'
 
     Notes
@@ -4253,10 +4253,10 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
 
     Examples
     --------
-    >>> hl.approx_equal(0.25, 0.2500001).value
+    >>> hl.eval(hl.approx_equal(0.25, 0.2500001))
     True
 
-    >>> hl.approx_equal(0.25, 0.251, tolerance=1e-3, absolute=True).value
+    >>> hl.eval(hl.approx_equal(0.25, 0.251, tolerance=1e-3, absolute=True))
     False
 
     Parameters

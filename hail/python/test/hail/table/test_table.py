@@ -340,12 +340,12 @@ class Tests(unittest.TestCase):
 
         kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
-        self.assertEqual(kt.foo.value, 5)
+        self.assertEqual(hl.eval(kt.foo), 5)
 
         kt2 = hl.utils.range_table(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt.index_globals().foo)
-        self.assertEqual(kt2.globals.kt_foo.value, 5)
+        self.assertEqual(hl.eval(kt2.globals.kt_foo), 5)
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -556,7 +556,9 @@ class Tests(unittest.TestCase):
         t = t.annotate(a=hl.set(['a', 'b', 'c']))
         t = t.explode('a')
         self.assertEqual(set(t.collect()),
-                         {hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value})
+                         hl.eval(hl.set([hl.struct(idx=0, a='a'),
+                                         hl.struct(idx=0, a='b'),
+                                         hl.struct(idx=0, a='c')])))
 
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
