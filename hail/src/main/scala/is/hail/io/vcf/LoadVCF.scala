@@ -668,7 +668,7 @@ object LoadVCF {
 
   def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
-    val isCall = id == "GT" || callFields.contains(id)
+    val isCall = id == "GT" || id == "PGT" || callFields.contains(id)
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt32()
