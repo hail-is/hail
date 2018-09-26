@@ -401,55 +401,11 @@ class Table(ExprContainer):
         return self._jt.forceCount()
 
     @typecheck_method(caller=str,
-                      row=expr_struct(),
-                      new_keys=oneof(exactly("default"), sequenceof(str)))
-    def _select(self, caller, row, new_keys="default"):
-        if new_keys == "default":
-            new_key = list(self.key.keys())
-            preserved_key = preserved_key_new = new_key
-        else:
-            key_struct = hl.struct(**{name: row[name] for name in new_keys})
-            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
-
+                      row=expr_struct())
+    def _select(self, caller, row):
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
-        return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
-
-    @typecheck_method(row=expr_struct(),
-                      preserved_key=sequenceof(str),
-                      preserved_key_new=sequenceof(str),
-                      new_key=sequenceof(str))
-    def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
-        jt = self._jt
-        if preserved_key != list(self.key):
-            jt = jt.keyBy(preserved_key)
-        name_map = {old_name: new_name for (old_name, new_name) in zip(preserved_key, preserved_key_new)}
-        name_map_inv = {new_name: old_name for (old_name, new_name) in zip(preserved_key, preserved_key_new)}
-        row = StructExpression._from_fields({name_map_inv.get(n, n): e for (n, e) in row._fields.items()})
-        jt = jt.mapRows(str(row._ir))
-        if preserved_key != preserved_key_new:
-            jt = jt.rename(name_map, {})
-        if new_key != preserved_key_new:
-            jt = jt.keyBy(new_key)
-        return Table(jt)
-
-    @typecheck_method(key_struct=expr_struct())
-    def _preserved_key_pairs(self, key_struct):
-        def is_copy(ir, name, indices):
-            return (indices.source is self and
-                    isinstance(ir, GetField) and
-                    ir.name == name and
-                    isinstance(ir.o, TopLevelReference) and
-                    ir.o.name == 'row')
-        preserved_key_pairs =\
-            list(map(lambda pair: (pair[1]._ir.name, pair[0]),
-                     itertools.takewhile(
-                         lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
-                         zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-        (preserved_key, preserved_key_new) =\
-            (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else ([], [])
-        new_key = list(key_struct.keys())
-        return preserved_key, preserved_key_new, new_key
+        return cleanup(Table(base._jt.mapRows(str(row._ir))))
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
@@ -500,9 +456,8 @@ class Table(ExprContainer):
             table = table.key_by(*key)
         return table
 
-    @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), exactly([])),
-                      named_keys=expr_any
-                      )
+    @typecheck_method(keys=oneof(str, expr_any),
+                      named_keys=expr_any)
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
 
@@ -552,19 +507,18 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
-        if len(named_keys) == 0 and (len(keys) == 0 or (len(keys) == 1 and keys[0] is None)):
-            return Table(self._jt.unkey())
+        key_fields = get_select_exprs("Table.key_by",
+                                      keys, named_keys, self._row_indices,
+                                      protect_keys=False)
 
-        if len(named_keys) == 0 and (len(keys) == 1 and isinstance(keys[0], list) and keys[0] == []):
-            key_fields = dict()
-        else:
-            key_fields = get_select_exprs("Table.key_by",
-                                          keys, named_keys, self._row_indices,
-                                          protect_keys=False)
+        new_row = self.row.annotate(**key_fields)
+        base, cleanup = self._process_joins(new_row)
 
-        return self._select("Table.key_by",
-                            self.row.annotate(**key_fields),
-                            new_keys=list(key_fields.keys()))
+        return cleanup(Table(
+            base._jt
+                .keyBy([])
+                .mapRows(str(new_row._ir))
+                .keyBy(list(key_fields))))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.

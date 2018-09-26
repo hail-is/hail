@@ -771,8 +771,8 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid)
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), []).collect()]
+        t = self._to_table(uid).key_by()
+        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
 
     @property
     def value(self):

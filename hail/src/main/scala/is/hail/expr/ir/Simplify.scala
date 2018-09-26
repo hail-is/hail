@@ -208,7 +208,28 @@ object Simplify {
       case t@TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition(t) =>
         TableKeyBy(child, keys, false)
 
+      case t@TableKeyBy(TableKeyBy(child, _, _), keys, false) if canRepartition(t) =>
+        TableKeyBy(child, keys, false)
+
+      case t@TableKeyBy(TableKeyBy(child, _, true), keys, true) if canRepartition(t) =>
+        TableKeyBy(child, keys, true)
+
+      // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
+      case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
+        TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted)
+
       case TableMapRows(child, Ref("row", _)) => child
+
+      case TableMapRows(child, MakeStruct(fields))
+      if fields.length == child.typ.rowType.size
+        && fields.zip(child.typ.rowType.fields).forall { case ((_, ir), field) =>
+          ir == GetField(Ref("row", field.typ), field.name)
+      } =>
+        val renamedPairs = for {
+          (oldName, (newName, _)) <- child.typ.rowType.fieldNames zip fields
+          if oldName != newName
+        } yield oldName -> newName
+        TableRename(child, Map(renamedPairs: _*), Map.empty)
 
       case TableMapGlobals(child, Ref("global", _)) => child
 

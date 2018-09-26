@@ -395,6 +395,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def keyBy(keys: java.util.ArrayList[String]): Table =
     keyBy(keys.asScala.toFastIndexedSeq)
 
+  def keyBy(keys: java.util.ArrayList[String], isSorted: Boolean): Table =
+    keyBy(keys.asScala.toFastIndexedSeq, isSorted)
+
   def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
 
