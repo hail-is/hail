@@ -42,7 +42,7 @@
       xhr.responseType = 'json'
       xhr.addEventListener("load", make_table);
       xhr.addEventListener("error", function () { alert("xml http request failed" + xhr.response); } );
-      xhr.open("GET", "http://ci2.hail.is/status");
+      xhr.open("GET", "https://ci.hail.is/status");
       xhr.send();
     </script>
     <style>
