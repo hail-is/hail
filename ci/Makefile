@@ -15,7 +15,7 @@ build-hail-ci:
 push-hail-ci: IMAGE = gcr.io/broad-ctsa/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
 push-hail-ci: build-hail-ci
 	docker tag hail-ci ${IMAGE}
-	docker push ${IAMGE}
+	docker push ${IMAGE}
 	echo ${IMAGE} > hail-ci-image
 	echo built ${IMAGE}
 
