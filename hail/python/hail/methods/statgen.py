@@ -1758,6 +1758,10 @@ def split_multi(ds, keep_star=False, left_aligned=False):
         if isinstance(ds, MatrixTable):
             mt = (ds.annotate_rows(**{new_id: expr})
                   .explode_rows(new_id))
+            if rekey:
+                mt = mt.key_rows_by()
+            else:
+                mt = mt.key_rows_by('locus')
             new_row_expr = mt._rvrow.annotate(locus=mt[new_id]['locus'],
                                               alleles=mt[new_id]['alleles'],
                                               a_index=mt[new_id]['a_index'],
@@ -1765,6 +1769,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                                               old_locus=mt.locus,
                                               old_alleles=mt.alleles).drop(new_id)
 
+            mt = mt._select_rows('split_multi', new_row_expr)
             return mt._select_rows('split_multi',
                                    new_row_expr,
                                    new_key=['locus', 'alleles'])

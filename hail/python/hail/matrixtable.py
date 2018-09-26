@@ -605,15 +605,18 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
 
-        keys = get_select_exprs("MatrixTable.key_rows_by",
+        key_fields = get_select_exprs("MatrixTable.key_rows_by",
                              keys, named_keys, self._row_indices,
                              protect_keys=False)
 
-        row = self._rvrow.annotate(**keys)
+        new_row = self._rvrow.annotate(**key_fields)
+        base, cleanup = self._process_joins(new_row)
 
-        return self._select_rows("MatrixTable.key_rows_by",
-                                 row,
-                                 list(keys.keys()))
+        return cleanup(MatrixTable(
+            self._jvds
+                .keyRowsBy([])
+                .selectRows(str(new_row._ir), None)
+                .keyRowsBy(list(key_fields))))
 
     def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
@@ -2750,6 +2753,7 @@ class MatrixTable(ExprContainer):
                       row=expr_struct(),
                       new_key=nullable(sequenceof(str)))
     def _select_rows(self, caller, row, new_key=None):
+        assert(new_key is None)
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
 
