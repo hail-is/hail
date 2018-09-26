@@ -77,7 +77,7 @@ on_exit() {
 </style>
 </head>
 <h2>$(git rev-parse HEAD)</h2>
-<h3>Code artifacts</h3>
+<h3>Compilation</h3>
 <table>
 <tbody>
 <tr>
