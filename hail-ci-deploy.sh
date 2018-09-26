@@ -14,6 +14,8 @@ for project in $PROJECTS; do
                 if [[ $(git cat-file -t "$DEPLOYED_SHA" 2>/dev/null || true) == commit ]]; then
                     CHANGED=$(python3 project-changed.py $DEPLOYED_SHA hail)
                 fi
+            else
+                CHANGED=no
             fi
         fi
         
