@@ -209,7 +209,7 @@ for pid in "${PID1}" "${PID2}"; do
     wait $pid
     status="$?"
     if [ "${status}" != "0" ]; then
-        echo "PID {pid} failed!"
+        echo "PID ${pid} failed!"
         exit 1
     fi
 done
