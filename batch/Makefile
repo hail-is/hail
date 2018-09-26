@@ -20,9 +20,9 @@ push: push-batch push-batch-test
 
 push-batch: IMAGE="gcr.io/broad-ctsa/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')"
 push-batch: build-batch
-	echo $(IMAGE) > batch-image
 	docker tag batch $(IMAGE)
 	docker push $(IMAGE)
+	echo $(IMAGE) > batch-image
 
 push-batch-test: IMAGE="gcr.io/broad-ctsa/batch-test:$(shell docker images -q --no-trunc batch-test | sed -e 's,[^:]*:,,')"
 push-batch-test: build-batch-test

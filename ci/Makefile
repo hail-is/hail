@@ -1,5 +1,5 @@
-.PHONY: run hail-ci-image restart-proxy restart-batch-proxy restart-all-proxies
-.PHONY: setup-conda-env push-hail-ci-image test-locally
+.PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
+.PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -9,20 +9,15 @@ setup-conda-env:
 update-conda-env:
 	conda env update --name hail-ci -f environment.yml
 
-HAIL_CI_IMAGE_SHORT_NAME = hail-ci
+build-hail-ci:
+	cd ../ && docker build . -t hail-ci -f ci/Dockerfile
 
-latest-hail-ci-image:
-	cd ../ && docker build . -t ${HAIL_CI_IMAGE_SHORT_NAME} -f ci/Dockerfile
-
-hail-ci-image: HASH = $(shell docker images -q --no-trunc ${HAIL_CI_IMAGE_SHORT_NAME} | head -n 1 | sed -e 's,[^:]*:,,')
-hail-ci-image: latest-hail-ci-image
-	docker tag ${HAIL_CI_IMAGE_SHORT_NAME} ${HAIL_CI_IMAGE_SHORT_NAME}:${HASH}
-
-push-hail-ci-image: HASH = $(shell docker images -q --no-trunc ${HAIL_CI_IMAGE_SHORT_NAME} | head -n 1 | sed -e 's,[^:]*:,,')
-push-hail-ci-image: hail-ci-image
-	docker tag hail-ci:${HASH} gcr.io/broad-ctsa/hail-ci:${HASH}
-	docker push gcr.io/broad-ctsa/hail-ci:${HASH}
-	echo built gcr.io/broad-ctsa/${HAIL_CI_IMAGE_SHORT_NAME}:${HASH}
+push-hail-ci: IMAGE = gcr.io/broad-ctsa/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
+push-hail-ci: build-hail-ci
+	docker tag hail-ci ${IMAGE}
+	docker push ${IAMGE}
+	echo ${IMAGE} > hail-ci-image
+	echo built ${IMAGE}
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
@@ -71,3 +66,9 @@ test-locally: restart-all-proxies
 	SELF_HOSTNAME=http://35.232.159.176:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	source activate hail-ci && ./test-locally.sh
+
+deploy:
+	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
+	  -e "s,@image@,$(shell cat hail-ci-image)," \
+	  < deployment.yaml.in > deployment.yaml
+	kubectl apply -f deployment.yaml

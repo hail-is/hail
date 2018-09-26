@@ -15,3 +15,5 @@ hail-is/
 oauth-token
 proxy.log
 proxy.pid
+/hail-ci-image
+/deployment.yaml
