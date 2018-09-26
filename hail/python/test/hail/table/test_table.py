@@ -251,7 +251,7 @@ class Tests(unittest.TestCase):
     def test_transmute_key(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{idx: int32, y: int32}'))
-        ht = ht.key_by(None)
+        ht = ht.key_by()
         self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{y: int32}'))
 
     def test_select(self):
@@ -401,12 +401,12 @@ class Tests(unittest.TestCase):
 
         ktd = kt.drop('idx')
         self.assertEqual(set(ktd.row), {'foo', 'sq', 'bar'})
-        ktd = ktd.key_by(None).drop('foo')
+        ktd = ktd.key_by().drop('foo')
         self.assertEqual(list(ktd.key), [])
 
         self.assertEqual(set(kt.drop(kt['idx']).row), {'foo', 'sq', 'bar'})
 
-        d = kt.key_by(None).drop(*list(kt.row))
+        d = kt.key_by().drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
         self.assertEqual(list(d.key), [])
 
@@ -622,8 +622,8 @@ class Tests(unittest.TestCase):
         t3 = t3.key_by(idx = t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
-        self.assertTrue(t1.key_by(None).union(t2.key_by(None), t3.key_by(None))
-                        ._same(hl.utils.range_table(15).key_by(None)))
+        self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
+                        ._same(hl.utils.range_table(15).key_by()))
 
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)

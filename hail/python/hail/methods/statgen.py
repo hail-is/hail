@@ -1772,6 +1772,10 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
                   .explode(new_id))
+            if rekey:
+                ht = ht.key_by()
+            else:
+                ht = ht.key_by('locus')
             new_row_expr = ht.row.annotate(locus=ht[new_id]['locus'],
                                            alleles=ht[new_id]['alleles'],
                                            a_index=ht[new_id]['a_index'],
@@ -1779,10 +1783,14 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                                            old_locus=ht.locus,
                                            old_alleles=ht.alleles).drop(new_id)
 
-            return ht._select_scala(new_row_expr,
-                                    preserved_key=['locus'] if not rekey else [],
-                                    preserved_key_new=['locus'] if not rekey else [],
-                                    new_key=['locus', 'alleles'])
+            ht = ht._select('split_multi', new_row_expr)
+            if rekey:
+                return ht.key_by('locus', 'alleles')
+            else:
+                return Table(ht._jt.keyBy(
+                    ['locus', 'alleles'],
+                    True # isSorted
+                ))
 
 
     if left_aligned:
