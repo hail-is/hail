@@ -60,8 +60,8 @@ class Batch(object):
         self.id = id
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, attributes=None, callback=None):
-        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, attributes, self.id, callback)
+                   resources=None, tolerations=None, volumes=None, security_context=None, attributes=None, callback=None):
+        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, self.id, callback)
 
     def status(self):
         return self.client._get_batch(self.id)
