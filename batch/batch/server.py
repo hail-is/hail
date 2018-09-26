@@ -119,7 +119,8 @@ class Job(object):
             metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id),
                                                 labels = {
                                                     'app': 'batch-job',
-                                                    'hail.is/batch-instance': instance_id
+                                                    'hail.is/batch-instance': instance_id,
+                                                    'uuid': uuid.uuid4().hex
                                                 }),
             spec = pod_spec)
 
