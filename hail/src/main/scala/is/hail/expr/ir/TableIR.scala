@@ -752,7 +752,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd)))
+      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length))
   }
 }
 
@@ -1179,6 +1179,9 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
 case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String]) extends TableIR {
   require(rowMap.keys.forall(child.typ.rowType.hasField))
   require(globalMap.keys.forall(child.typ.globalType.hasField))
+
+  def rowF(old: String): String = rowMap.getOrElse(old, old)
+  def globalF(old: String): String = globalMap.getOrElse(old, old)
 
   def typ: TableType = child.typ.copy(
     rowType = child.typ.rowType.rename(rowMap),

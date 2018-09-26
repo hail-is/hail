@@ -507,27 +507,18 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
-        if len(named_keys) == 0 and (len(keys) == 1 and isinstance(keys[0], list) and keys[0] == []):
-            key_fields = dict()
-        else:
-            key_fields = get_select_exprs("Table.key_by",
-                                          keys, named_keys, self._row_indices,
-                                          protect_keys=False)
+        key_fields = get_select_exprs("Table.key_by",
+                                      keys, named_keys, self._row_indices,
+                                      protect_keys=False)
 
-        if all(isinstance(ir, GetField) and ir.o == TopLevelReference('row')
-               for ir in map(lambda e: e._ir, key_fields.values())):
-            # avoid creating a 'TableMapRows' node if all keys are existing fields
-            name_map = {expr._ir.name: new_name for (new_name, expr) in key_fields.items()}
-            return Table(self._jt.rename(name_map, {}).keyBy(list(key_fields)))
-        else:
-            new_row = self.row.annotate(**key_fields)
-            base, cleanup = self._process_joins(new_row)
+        new_row = self.row.annotate(**key_fields)
+        base, cleanup = self._process_joins(new_row)
 
-            return cleanup(Table(
-                base._jt
-                    .keyBy([])
-                    .mapRows(str(new_row._ir))
-                    .keyBy(list(key_fields))))
+        return cleanup(Table(
+            base._jt
+                .keyBy([])
+                .mapRows(str(new_row._ir))
+                .keyBy(list(key_fields))))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
