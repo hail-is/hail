@@ -194,10 +194,10 @@ test_gcp() {
     touch ${GCP_SUCCESS}
 }
 
-test_project
+test_project &
 PID1=$!
 
-test_gcp > ${GCP_LOG}
+test_gcp > ${GCP_LOG} &
 PID2=$!
 
 # collect parallel processes and fail if any fail
