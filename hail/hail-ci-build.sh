@@ -35,9 +35,9 @@ SKIPPED='<span style="color:gray;font-weight:bold">SKIPPED</span>'
 get_status() {
     FILE_LOC=$1
     DEPENDENCY=$2
-    if [ ${DEPENDENCY} != ${SUCCESS} ]; then
+    if [ -n "${DEPENDENCY}" ] && [ "${DEPENDENCY}" != "${SUCCESS}" ]; then
         echo ${SKIPPED};
-    elif [ -e $1 ]; then
+    elif [ -e ${FILE_LOC} ]; then
         echo ${SUCCESS};
     else echo ${FAILURE};
     fi
@@ -201,5 +201,6 @@ test_gcp > ${GCP_LOG} &
 TEST_GCP_PID=$!
 
 for pid in "$TEST_PROJECT_PID $TEST_GCP_PID"; do
-    wait $pid;
+    wait $pid & RET="$!";
+    if [ ${RET} != "0" ]; then exit ${RET}; fi
 done
