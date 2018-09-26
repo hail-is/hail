@@ -9,9 +9,9 @@ html {
 
 #body {
   color: #444;
-  font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
-  font-size: 12px;
-  line-height: 1.7;
+  font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
   padding: 1em;
   padding-top: 0px;
   margin: auto;
