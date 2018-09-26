@@ -60,12 +60,12 @@ on_exit() {
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/tests ${ARTIFACTS}/test-report
 
-    COMP_STATUS=$(get_status ${COMP_SUCCESS})
-    SCALA_TEST_STATUS=$(get_status ${SCALA_TEST_SUCCESS})
-    PYTHON_TEST_STATUS=$(get_status ${PYTHON_TEST_SUCCESS} ${SCALA_TEST_STATUS})
-    DOCTEST_STATUS=$(get_status ${DOCTEST_SUCCESS} ${PYTHON_TEST_STATUS})
-    DOCS_STATUS=$(get_status ${DOCS_SUCCESS} ${DOCTEST_STATUS})
-    GCP_STATUS=$(get_status ${GCP_SUCCESS})
+    COMP_STATUS=$(get_status "${COMP_SUCCESS}")
+    SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}")
+    PYTHON_TEST_STATUS=$(get_status "${PYTHON_TEST_SUCCESS}" "${SCALA_TEST_STATUS}")
+    DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
+    DOCS_STATUS=$(get_status "${DOCS_SUCCESS}" "${DOCTEST_STATUS}")
+    GCP_STATUS=$(get_status "${GCP_SUCCESS}")
 
     cat <<EOF > ${ARTIFACTS}/index.html
 <html>
