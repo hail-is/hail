@@ -1,3 +1,5 @@
+#!/bin/sh
+
 hailcipod () {
     set -ex
     PODS=$(kubectl get pods -l app=hail-ci --no-headers)
@@ -23,4 +25,3 @@ joblogs () {
     shift
     kubectl logs $POD $@
 }
-
