@@ -42,4 +42,3 @@ spec:
     targetPort: 5000
   selector:
     app: scorecard
-  type: LoadBalancer
