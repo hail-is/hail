@@ -2,6 +2,10 @@
 
 :tocdepth: 1
 
+.. warning::
+    All functionality described on this page is experimental.
+    Datasets and method are subject to change.
+
 This page describes genetic datasets that have already been imported into
 Hail-friendly formats and are available for use through Hail's
 :meth:`.load_dataset` function.
