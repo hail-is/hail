@@ -42,5 +42,4 @@ spec:
     targetPort: 5000
   selector:
     app: scorecard
-  loadBalancerIP: 35.202.189.158 # scorecard
   type: LoadBalancer
