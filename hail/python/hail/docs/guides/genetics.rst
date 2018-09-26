@@ -165,6 +165,57 @@ Pruning Variants in Linkage Disequilibrium
             dataset, rather than on the biallelic dataset, so that the biallelic dataset
             does not need to be recomputed.
 
+Analysis
+~~~~~~~~
+
+Linear Regression Stratified by Group
+.....................................
+
+:**tags**: Linear Regression
+
+:**description**: Compute linear regression statistics stratified by group such as 'male' and 'female'.
+
+:**code**:
+
+    Approach #1: Use the :func:`.linear_regression` method for each group
+
+    >>> female_pheno = hl.case()
+    ...                  .when(mt.pheno.is_female, mt.pheno.height)
+    ...                  .or_missing()
+    >>> mt_linreg = hl.linear_regression(y = female_pheno, x = [1, mt.GT.n_alt_alleles()], root='linreg_female')
+    >>> male_pheno = hl.case()
+    ...                .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
+    ...                .or_missing()
+    >>> mt_linreg = hl.linear_regression(y = male_pheno, x = [1, mt_linreg.GT.n_alt_alleles()], root='linreg_male')
+
+    Approach #2: Use the :func:`.aggregators.linreg` and :func:`.aggregators.group_by` aggregators
+
+    >>> mt_linreg = mt.annotate_rows(linreg = hl.agg.group_by(mt.pheno.is_female,
+    ...                                                       hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()])))
+
+:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`, :func:`.aggregators.group_by`
+
+:**understanding**:
+
+        .. container:: toggle
+
+        .. container:: toggle-content
+
+            We have presented two ways to compute linear regression statistics for each value of a grouping
+            variable. The first approach utilizes the :func:`.linear_regression` method and must be called
+            separately for each group even though it can compute statistics for multiple phenotypes
+            simultaneously. This is because the :func:`.linear_regression` method drops samples that have
+            more than one missing value across all phenotypes, such as when the groups are mutually
+            exclusive such as 'Male' and 'Female'. Note that the expressions for `female_pheno` and
+            `male_pheno` cannot be computed at the same time because they are inputs to two different
+            matrix tables. Lastly, the argument to `root` must be specified for both cases -- otherwise
+            the output for the 'Male' grouping will overwrite the 'Female' output.
+
+            The second approach uses the :func:`.aggregators.linreg` and :func:`.aggregators.group_by`
+            aggregators. The aggregation expression generates a dictionary where the keys are the grouping
+            variables and the values are the linear regression statistics for that group. The result of the
+            aggregation expression is then used to annotate the matrix table.
+
 PLINK Conversions
 ~~~~~~~~~~~~~~~~~
 
