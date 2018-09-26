@@ -30,9 +30,17 @@ GCP_SUCCESS="build/_GCP_SUCCESS"
 
 SUCCESS='<span style="color:green;font-weight:bold">SUCCESS</span>'
 FAILURE='<span style="color:red;font-weight:bold">FAILURE</span>'
+SKIPPED='<span style="color:gray;font-weight:bold">SKIPPED</span>'
 
 get_status() {
-    if [ -e $1 ]; then echo ${SUCCESS}; else echo ${FAILURE}; fi
+    FILE_LOC=$1
+    DEPENDENCY=$2
+    if [ ${DEPENDENCY} != ${SUCCESS} ]; then
+        echo ${SKIPPED};
+    elif [ -e $1 ]; then
+        echo ${SUCCESS};
+    else echo ${FAILURE};
+    fi
 }
 
 
@@ -54,9 +62,9 @@ on_exit() {
 
     COMP_STATUS=$(get_status ${COMP_SUCCESS})
     SCALA_TEST_STATUS=$(get_status ${SCALA_TEST_SUCCESS})
-    PYTHON_TEST_STATUS=$(get_status ${PYTHON_TEST_SUCCESS})
-    DOCTEST_STATUS=$(get_status ${DOCTEST_SUCCESS})
-    DOCS_STATUS=$(get_status ${DOCS_SUCCESS})
+    PYTHON_TEST_STATUS=$(get_status ${PYTHON_TEST_SUCCESS} ${SCALA_TEST_STATUS})
+    DOCTEST_STATUS=$(get_status ${DOCTEST_SUCCESS} ${PYTHON_TEST_STATUS})
+    DOCS_STATUS=$(get_status ${DOCS_SUCCESS} ${DOCTEST_STATUS})
     GCP_STATUS=$(get_status ${GCP_SUCCESS})
 
     cat <<EOF > ${ARTIFACTS}/index.html
@@ -91,7 +99,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
-<td><a href='scala-test-log'>Scala test log</a/td>
+<td><a href='scala-test-log'>Scala test log</a></td>
 </tr>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
