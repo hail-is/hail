@@ -60,8 +60,8 @@ class Batch(object):
         self.id = id
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, attributes=None, callback=None):
-        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, attributes, self.id, callback)
+                   resources=None, tolerations=None, volumes=None, security_context=None, attributes=None, callback=None):
+        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, self.id, callback)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -84,7 +84,7 @@ class BatchClient(object):
             url = 'http://batch'
         self.url = url
 
-    def _create_job(self, image, command, args, env, ports, resources, tolerations, volumes, attributes, batch_id, callback):
+    def _create_job(self, image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, batch_id, callback):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -128,6 +128,8 @@ class BatchClient(object):
             spec['volumes'] = [v['volume'] for v in volumes]
         if tolerations:
             spec['tolerations'] = tolerations
+        if security_context:
+            spec['securityContext'] = security_context
 
         j = api.create_job(self.url, spec, attributes, batch_id, callback)
         return Job(self, j['id'], j.get('attributes'))
@@ -168,9 +170,10 @@ class BatchClient(object):
                    resources=None,
                    tolerations=None,
                    volumes=None,
+                   security_context=None,
                    attributes=None,
                    callback=None):
-        return self._create_job(image, command, args, env, ports, resources, tolerations, volumes, attributes, None, callback)
+        return self._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, None, callback)
 
     def create_batch(self, attributes=None):
         b = api.create_batch(self.url, attributes)

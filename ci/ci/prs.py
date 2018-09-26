@@ -229,13 +229,16 @@ class PRS(object):
                     'cpu': '3.7',
                     'memory': '4G'
                 }},
+                volumes=volumes,
                 tolerations=[{
                     'key': 'preemptible',
                     'value': 'true'
                 }],
-                callback=SELF_HOSTNAME + '/deploy_build_done',
+                security_context={
+                    'fsGroup': 412,
+                },
                 attributes=attributes,
-                volumes=volumes)
+                callback=SELF_HOSTNAME + '/deploy_build_done')
             log.info(f'deploying {target_ref.short_str()} in job {job.id}')
             self.deploy_jobs[target_ref] = job
         except Exception as e:
