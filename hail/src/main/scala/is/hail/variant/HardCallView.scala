@@ -14,17 +14,14 @@ final class ArrayGenotypeView(rvType: PStruct) {
   private val tg = tgs.elementType.asInstanceOf[PStruct]
 
   private def lookupField(name: String, expected: PType): (Boolean, Int) = {
-    if (tg != null) {
-      tg.selfField(name) match {
-        case Some(f) =>
-          if (f.typ == expected)
-            (true, f.index)
-          else
-            (false, 0)
-        case None => (false, 0)
-      }
-    } else
-      (false, 0)
+    tg.selfField(name) match {
+      case Some(f) =>
+        if (f.typ == expected)
+          (true, f.index)
+        else
+          (false, 0)
+      case None => (false, 0)
+    }
   }
 
   private val (gtExists, gtIndex) = lookupField("GT", PCall())
@@ -87,17 +84,14 @@ final class HardCallView(rvType: PStruct, callField: String) {
   private val tg = tgs.elementType.asInstanceOf[PStruct]
 
   private def lookupField(name: String, expected: PType): (Boolean, Int) = {
-    if (tg != null) {
-      tg.selfField(name) match {
-        case Some(f) =>
-          if (f.typ == expected)
-            (true, f.index)
-          else
-            (false, 0)
-        case None => (false, 0)
-      }
-    } else
-      (false, 0)
+    tg.selfField(name) match {
+      case Some(f) =>
+        if (f.typ == expected)
+          (true, f.index)
+        else
+          (false, 0)
+      case None => (false, 0)
+    }
   }
 
   private val (gtExists, gtIndex) = lookupField(callField, PCall())
