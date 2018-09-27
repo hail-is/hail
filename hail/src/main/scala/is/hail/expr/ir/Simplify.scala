@@ -235,6 +235,12 @@ object Simplify {
 
       case MatrixMapRows(child, Ref("va", _)) => child
 
+      case t@MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, _), keys, false) if canRepartition(t) =>
+        MatrixKeyRowsBy(child, keys, false)
+
+      case t@MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, true), keys, true) if canRepartition(t) =>
+        MatrixKeyRowsBy(child, keys, true)
+
       case MatrixMapCols(child, Ref("sa", _), None) => child
 
       case x@MatrixMapEntries(child, Ref("g", _)) =>
