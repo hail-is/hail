@@ -135,8 +135,7 @@ class IRSuite extends SparkSuite {
   val f64na = NA(TFloat64())
   val bna = NA(TBoolean())
 
-  @Test def testApplyUnaryPrimOp() {
-    // Negate
+  @Test def testApplyUnaryPrimOpNegate() {
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), I32(5)), -5)
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), i32na), null)
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), I64(5)), -5L)
@@ -145,15 +144,15 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), f32na), null)
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), F64(5)), -5D)
     assertEvalsTo(ApplyUnaryPrimOp(Negate(), f64na), null)
+  }
 
-    // Bang
+  @Test def testApplyUnaryPrimOpBang() {
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
   }
 
-  @Test def testApplyBinaryPrimOp() {
-    // Add
+  @Test def testApplyBinaryPrimOpAdd() {
     assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), I32(3)), 8)
     assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, I32(3)), null)
@@ -173,8 +172,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), f64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, F64(3)), null)
     assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, f64na), null)
+  }
 
-    // Subtract
+  @Test def testApplyBinaryPrimOpSubtract() {
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), I32(3)), 2)
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, I32(3)), null)
@@ -194,8 +194,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), f64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, F64(3)), null)
     assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, f64na), null)
+  }
 
-    // Multiply
+  @Test def testApplyBinaryPrimOpMultiply() {
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), I32(3)), 15)
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, I32(3)), null)
@@ -215,8 +216,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), f64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, F64(3)), null)
     assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, f64na), null)
+  }
 
-    // FloatingPointDivide
+  @Test def testApplyBinaryPrimOpFloatingPointDivide() {
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), I32(2)), 2.5F)
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, I32(2)), null)
@@ -236,8 +238,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), f64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, F64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, f64na), null)
+  }
 
-    // RoundToNegInfDivide
+  @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), I32(2)), 2)
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, I32(2)), null)
