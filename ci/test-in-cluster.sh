@@ -11,7 +11,7 @@ kubectl expose pod $POD_NAME --name $SERVICE_NAME \
 
 cleanup() {
     set +e
-    trap - INT TERM
+    trap "" INT TERM
     kubectl delete service $SERVICE_NAME
 }
 trap cleanup EXIT
