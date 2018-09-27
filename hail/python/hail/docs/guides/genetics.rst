@@ -168,12 +168,87 @@ Pruning Variants in Linkage Disequilibrium
 Analysis
 ~~~~~~~~
 
-Linear Regression Stratified by Group
-.....................................
+Linear Regression
+.................
+
+Single Phenotype
+++++++++++++++++
 
 :**tags**: Linear Regression
 
-:**description**: Compute linear regression statistics stratified by group such as 'male' and 'female'.
+:**description**: Compute linear regression statistics for a single phenotype.
+
+:**code**:
+
+    Approach #1: Use the :func:`.linear_regression` method
+
+    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=[1, mt.GT.n_alt_alleles()])
+
+    Approach #2: Use the :func:`.aggregators.linreg` aggregator
+
+    >>> mt_linreg = mt.annotate_rows(linreg=hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()]))
+
+:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
+
+:**understanding**:
+
+    .. container:: toggle
+
+        .. container:: toggle-content
+
+            The :func:`.linear_regression` method is more efficient than using the :func:`.aggregators.linreg`
+            aggregator. However, the :func:`.aggregators.linreg` aggregator is more flexible (multiple covariates
+            can vary by entry) and returns a richer set of statistics.
+
+
+Multiple Phenotypes
++++++++++++++++++++
+
+:**tags**: Linear Regression
+
+:**description**: Compute linear regression statistics for multiple phenotypes.
+
+:**code**:
+
+    Approach #1: Use the :func:`.linear_regression` method for all phenotypes simulatenously
+
+    >>> mt_linreg = hl.linear_regression(y=[mt.pheno.height, mt.pheno.blood_pressure],
+    ...                                  x=[1, mt.GT.n_alt_alleles()])
+
+    Approach #2: Use the :func:`.linear_regression` method for each phenotype sequentially
+
+    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=[1, mt.GT.n_alt_alleles()])
+    >>> mt_linreg = hl.linear_regression(y=mt_linreg.pheno.blood_pressure,
+    ...                                  x=[1, mt_linreg.GT.n_alt_alleles()])
+
+    Approach #3: Use the :func:`.aggregators.linreg` aggregator
+
+    >>> mt_linreg = mt.annotate_rows(linreg_height=hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()]),
+    ...                              linreg_bp=hl.agg.linreg(mt.pheno.blood_pressure, [1, mt.GT.n_alt_alleles()]))
+
+:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
+
+:**understanding**:
+
+        .. container:: toggle
+
+        .. container:: toggle-content
+
+            The :func:`.linear_regression` method is more efficient than using the :func:`.aggregators.linreg`
+            aggregator, especially when analyzing many phenotypes. However, the :func:`.aggregators.linreg`
+            aggregator is more flexible (multiple covariates can vary by entry) and returns a richer set of
+            statistics. If the phenotypes being analyzed have different patterns of missingness, you should
+            **not** use the :func:`.linear_regression` method for all phenotypes simulatenously (Approach #1).
+            This is because the :func:`.linear_regression` method drops samples that have a missing value for
+            any of the phenotypes
+
+
+Stratified by Group
++++++++++++++++++++
+
+:**tags**: Linear Regression
+
+:**description**: Compute linear regression statistics for a single phenotype stratified by group.
 
 :**code**:
 
@@ -182,18 +257,19 @@ Linear Regression Stratified by Group
     >>> female_pheno = hl.case()
     ...                  .when(mt.pheno.is_female, mt.pheno.height)
     ...                  .or_missing()
-    >>> mt_linreg = hl.linear_regression(y = female_pheno, x = [1, mt.GT.n_alt_alleles()], root='linreg_female')
+    >>> mt_linreg = hl.linear_regression(y=female_pheno, x=[1, mt.GT.n_alt_alleles()], root='linreg_female')
     >>> male_pheno = hl.case()
     ...                .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
     ...                .or_missing()
-    >>> mt_linreg = hl.linear_regression(y = male_pheno, x = [1, mt_linreg.GT.n_alt_alleles()], root='linreg_male')
+    >>> mt_linreg = hl.linear_regression(y=male_pheno, x=[1, mt_linreg.GT.n_alt_alleles()], root='linreg_male')
 
-    Approach #2: Use the :func:`.aggregators.linreg` and :func:`.aggregators.group_by` aggregators
+    Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
 
-    >>> mt_linreg = mt.annotate_rows(linreg = hl.agg.group_by(mt.pheno.is_female,
-    ...                                                       hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()])))
+    >>> mt_linreg = mt.annotate_rows(
+    ...     linreg=hl.agg.group_by(mt.pheno.is_female,
+    ...                            hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()])))
 
-:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`, :func:`.aggregators.group_by`
+:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.group_by`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
@@ -204,17 +280,23 @@ Linear Regression Stratified by Group
             We have presented two ways to compute linear regression statistics for each value of a grouping
             variable. The first approach utilizes the :func:`.linear_regression` method and must be called
             separately for each group even though it can compute statistics for multiple phenotypes
-            simultaneously. This is because the :func:`.linear_regression` method drops samples that have
-            more than one missing value across all phenotypes, such as when the groups are mutually
-            exclusive such as 'Male' and 'Female'. Note that the expressions for `female_pheno` and
-            `male_pheno` cannot be computed at the same time because they are inputs to two different
-            matrix tables. Lastly, the argument to `root` must be specified for both cases -- otherwise
-            the output for the 'Male' grouping will overwrite the 'Female' output.
+            simultaneously. This is because the :func:`.linear_regression` method drops samples that have a
+            missing value for any of the phenotypes. When the groups are mutually exclusive,
+            such as 'Male' and 'Female', no samples remain! Note that we cannot define `male_pheno = ~female_pheno`
+            because we subsequently need `male_pheno` to be an expression on the `mt_linreg` matrix table
+            rather than `mt`. Lastly, the argument to `root` must be specified for both cases -- otherwise
+            the 'Male' output will overwrite the 'Female' output.
 
-            The second approach uses the :func:`.aggregators.linreg` and :func:`.aggregators.group_by`
-            aggregators. The aggregation expression generates a dictionary where the keys are the grouping
-            variables and the values are the linear regression statistics for that group. The result of the
-            aggregation expression is then used to annotate the matrix table.
+            The second approach uses the :func:`.aggregators.group_by` and :func:`.aggregators.linreg`
+            aggregators. The aggregation expression generates a dictionary where a key is a group
+            (value of the grouping variable) and the corresponding value is the linear regression statistics
+            for those samples in the group. The result of the aggregation expression is then used to annotate
+            the matrix table.
+
+            The :func:`.linear_regression` method is more efficient than the :func:`.aggregators.linreg`
+            aggregator, but the :func:`.aggregators.linreg` aggregator is more flexible (multiple covariates
+            can be vary by entry) and returns a richer set of statistics.
+
 
 PLINK Conversions
 ~~~~~~~~~~~~~~~~~
