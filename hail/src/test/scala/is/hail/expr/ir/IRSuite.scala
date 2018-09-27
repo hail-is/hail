@@ -129,6 +129,136 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(IsNA(I32(5)), false)
   }
 
+  val i32na = NA(TInt32())
+  val i64na = NA(TInt64())
+  val f32na = NA(TFloat32())
+  val f64na = NA(TFloat64())
+  val bna = NA(TBoolean())
+
+  @Test def testApplyUnaryPrimOp() {
+    // Negate
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I32(5)), -5)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I64(5)), -5L)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i64na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F32(5)), -5F)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F64(5)), -5D)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f64na), null)
+
+    // Bang
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
+  }
+
+  @Test def testApplyBinaryPrimOp() {
+    // Add
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), I32(3)), 8)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), I64(3)), 8L)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), F32(3)), 8F)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), F64(3)), 8D)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, f64na), null)
+
+    // Subtract
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), I32(3)), 2)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), I64(3)), 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), F32(3)), 2F)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), F64(3)), 2D)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, f64na), null)
+
+    // Multiply
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), I32(3)), 15)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), I64(3)), 15L)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), F32(3)), 15F)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), F64(3)), 15D)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, f64na), null)
+
+    // FloatingPointDivide
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), I32(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), I64(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), F32(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, F32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), F64(2)), 2.5D)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, F64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, f64na), null)
+
+    // RoundToNegInfDivide
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), I32(2)), 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), I64(2)), 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), F32(2)), 2F)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, F32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), F64(2)), 2D)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, F64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, f64na), null)
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
