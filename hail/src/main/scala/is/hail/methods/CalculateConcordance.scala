@@ -113,8 +113,8 @@ object CalculateConcordance {
     val sampleResults = join.mapPartitions { it =>
       val comb = Array.fill(nSamples)(new ConcordanceCombiner)
 
-      val lview = HardCallView(leftRowType)
-      val rview = HardCallView(rightRowType)
+      val lview = HardCallView(leftRowPType)
+      val rview = HardCallView(rightRowPType)
 
       it.foreach { jrv =>
         val lrv = jrv.rvLeft
@@ -170,8 +170,8 @@ object CalculateConcordance {
 
       val lur = new UnsafeRow(leftRowPType)
       val rur = new UnsafeRow(rightRowPType)
-      val lview = HardCallView(leftRowType)
-      val rview = HardCallView(rightRowType)
+      val lview = HardCallView(leftRowPType)
+      val rview = HardCallView(rightRowPType)
 
       it.map { jrv =>
         comb.reset()

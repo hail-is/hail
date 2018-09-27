@@ -278,6 +278,7 @@ object LocalLDPrune {
     val nSamples = mt.numCols
     
     val fullRowType = mt.rvRowType
+    val fullRowPType = fullRowType.physicalType
 
     val locusIndex = mt.rvRowType.fieldIdx("locus")
     val allelesIndex = mt.rvRowType.fieldIdx("alleles")
@@ -288,7 +289,7 @@ object LocalLDPrune {
 
     val standardizedRDD = mt.rvd
       .mapPartitions(typ.copy(rowType = bpvType))({ it =>
-        val hcView = new HardCallView(fullRowType, callField)
+        val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         val newRV = RegionValue(region)

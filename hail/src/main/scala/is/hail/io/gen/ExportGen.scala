@@ -40,7 +40,7 @@ object ExportGen {
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
-      val gpView = new ArrayGenotypeView(fullRowType)
+      val gpView = new ArrayGenotypeView(fullRowType.physicalType)
       val v = new RegionValueVariant(fullRowType)
       val va = new GenAnnotationView(fullRowType)
 

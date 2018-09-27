@@ -87,7 +87,7 @@ object ExportPlink {
         hConf.writeFile(bedPartPath) { bedOS =>
           val v = new RegionValueVariant(fullRowType)
           val a = new BimAnnotationView(fullRowType)
-          val hcv = HardCallView(fullRowType)
+          val hcv = HardCallView(fullRowType.physicalType)
           val bp = new BitPacker(2, bedOS)
 
           it.foreach { rv =>
