@@ -14,7 +14,7 @@ object OrderedRVIterator {
     val first = its(0)
     val flipbooks = its.map(_.iterator.toFlipbookIterator)
     FlipbookIterator.multiZipJoin(
-      flipbooks,
+      flipbooks.toArray,
       null,
       first.t.joinComp(first.t).compare
     )

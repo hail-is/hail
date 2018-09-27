@@ -88,7 +88,7 @@ object FlipbookIterator {
   def empty[A] = StagingIterator(StateMachine.terminal[A])
 
   def multiZipJoin[A: ClassTag](
-    its: IndexedSeq[FlipbookIterator[A]],
+    its: Array[FlipbookIterator[A]],
     default: A,
     ord: (A, A) => Int
   ): FlipbookIterator[Array[A]] = {
