@@ -1,9 +1,11 @@
 #!/usr/bin/python
 import os
 import json
+import subprocess as sp
 from subprocess import check_output, call
 
 import sys
+print('python version is {}'.format(sys.version_info))
 if sys.version_info >= (3,0):
     # Python 3 check_output returns a byte string
     decode_f = lambda x: x.decode()
@@ -27,24 +29,44 @@ role = get_metadata('dataproc-role')
 if role == 'Master':
     # additional packages to install
     conda_pkgs = [
-        'mkl',
-        'numpy',
-        'scipy',
-        'pandas'
+        'mkl<2020',
+        'numpy<2',
+        'scipy<2',
+        # pandas uses minor version for backwards incompatible changes
+        # https://pandas.pydata.org/pandas-docs/version/0.22/whatsnew.html
+        'pandas<0.24'
     ]
     pip_pkgs = [
-        'matplotlib',
-        'seaborn',
+        'seaborn<0.10',
         'decorator==4.2.1',
-        'parsimonious',
+        'parsimonious<0.9',
+        'ipywidgets<8',
+        'jupyter_console<5',
+        'nbconvert<6',
+        'notebook<6',
+        'qtconsole<5',
         'jupyter',
-        'lxml',
-        'jupyter-spark',
-        'bokeh',
-        'ipywidgets',
+        'lxml<5',
+        'jupyter-spark<0.5',
+        'bokeh<0.14',
         'google-cloud==0.32.0',
-        'jgscm'
+        'jgscm<0.2'
     ]
+    if sys.version_info < (3,5):
+        pip_pkgs.extend([
+            'matplotlib<3',
+            # ipython 6 requires python>=3.3
+            'ipython<6',
+            # the jupyter metapackage has no version dependencies, so it always
+            # pulls latest ipykernel, ipykernel >=5 requires python>=3.4
+            'ipykernel<5',
+        ])
+    else:
+        pip_pkgs.extend([
+            'matplotlib<4',
+            'ipython<7',
+            'ipykernel<6',
+        ])
 
     # add user-requested packages
     try:
@@ -54,16 +76,39 @@ if role == 'Master':
     else:
         pip_pkgs.extend(user_pkgs.split(','))
 
-    call('/opt/conda/bin/conda update setuptools', shell=True)
-    for pkg in conda_pkgs:
-        call('/opt/conda/bin/conda install {}'.format(pkg), shell=True)
-    for pkg in pip_pkgs:
-        call('/opt/conda/bin/pip install {}'.format(pkg), shell=True)
+    print('conda packages are {}'.format(conda_pkgs))
+    print('pip packages are {}'.format(pip_pkgs))
+
+    try:
+        check_output(['/opt/conda/bin/conda', 'update', 'setuptools'])
+    except sp.CalledProcessError as e:
+        print(e.output)
+        raise e
+
+    command = ['/opt/conda/bin/conda', 'install']
+    command.extend(conda_pkgs)
+    try:
+        check_output(command)
+    except sp.CalledProcessError as e:
+        print(e.output)
+        raise e
+
+    command = ['/opt/conda/bin/pip', 'install']
+    command.extend(pip_pkgs)
+    try:
+        check_output(command)
+    except sp.CalledProcessError as e:
+        print(e.output)
+        raise e
 
     py4j = decode_f(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
 
+    print('getting metadata')
+
     jar_path = get_metadata('JAR')
     zip_path = get_metadata('ZIP')
+
+    print('copying jar and zip')
 
     call(['gsutil', 'cp', jar_path, '/home/hail/hail.jar'])
     call(['gsutil', 'cp', zip_path, '/home/hail/hail.zip'])
@@ -77,6 +122,8 @@ if role == 'Master':
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/bin/python'
     }
 
+    print('setting environment')
+
     for e, value in env_to_set.items():
         call('echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value), shell=True)
 
@@ -87,6 +134,8 @@ if role == 'Master':
         'spark.driver.extraClassPath=/home/hail/hail.jar',
         'spark.executor.extraClassPath=./hail.jar'
     ]
+
+    print('setting spark-defaults.conf')
 
     for c in conf_to_set:
         call('echo "{}" >> /etc/spark/conf/spark-defaults.conf'.format(c), shell=True)
