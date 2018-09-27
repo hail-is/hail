@@ -154,13 +154,7 @@ object VEP {
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  val jv = try {
-                    JsonMethods.parse(s)
-                  } catch {
-                    case _: JsonParseException =>
-                      log.warn(s"vep: failed to parse json: $s")
-                      null
-                  }
+                  val jv = JsonMethods.parse(s)
                   val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
                   val variantString = inputQuery(a).asInstanceOf[String]
                   if (variantString == null)
