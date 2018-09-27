@@ -324,7 +324,7 @@ object Simplify {
       case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterCols(child, _)) => MatrixRowsTable(child)
-      case MatrixRowsTable(MatrixAggregateColsByKey(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixAggregateColsByKey(child, _, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
@@ -346,7 +346,7 @@ object Simplify {
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
-      case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
 
       case TableHead(TableMapRows(child, newRow), n) =>
         TableMapRows(TableHead(child, n), newRow)

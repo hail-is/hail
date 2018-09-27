@@ -672,6 +672,13 @@ class IRSuite extends SparkSuite {
           GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f))))
 
+      val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
+      val collect = ApplyAggOp(I32(0), FastIndexedSeq.empty, None, collectSig)
+
+      val newRowAnn = MakeStruct(FastIndexedSeq("count_row"-> collect))
+      val newColAnn = MakeStruct(FastIndexedSeq("count_col"-> collect))
+      val newEntryAnn = MakeStruct(FastIndexedSeq("count_entry" -> collect))
+
       val xs = Array[MatrixIR](
         read,
         MatrixFilterRows(read, b),
@@ -685,8 +692,8 @@ class IRSuite extends SparkSuite {
             GetField(Ref("global", read.typ.globalType), "global_f32"),
             F32(-5.2f))))),
         MatrixCollectColsByKey(read),
-        MatrixAggregateColsByKey(read, newCol),
-        MatrixAggregateRowsByKey(read, newRow),
+        MatrixAggregateColsByKey(read, newEntryAnn, newColAnn),
+        MatrixAggregateRowsByKey(read, newEntryAnn, newRowAnn),
         range,
         vcf,
         bgen,
