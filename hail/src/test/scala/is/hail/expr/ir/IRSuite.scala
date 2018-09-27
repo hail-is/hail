@@ -186,6 +186,16 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
   }
 
+  @Test def testGetTupleElement() {
+    val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
+    val na = NA(TTuple(TInt32(), TString()))
+
+    assertEvalsTo(GetTupleElement(t, 0), 5)
+    assertEvalsTo(GetTupleElement(t, 1), "abc")
+    assertEvalsTo(GetTupleElement(t, 2), null)
+    assertEvalsTo(GetTupleElement(na, 0), null)
+  }
+
   @Test def testArrayRef() {
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(0)), 5)
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32())), TArray(TInt32())), I32(1)), null)
@@ -442,6 +452,15 @@ class IRSuite extends SparkSuite {
         FastSeq("b", "a")),
       Row(0.0, 6))
 
+  }
+
+  @Test def testGetField() {
+    val s = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc")))
+    val na = NA(TStruct("a" -> TInt64(), "b" -> TString()))
+
+    assertEvalsTo(GetField(s, "a"), null)
+    assertEvalsTo(GetField(s, "b"), "abc")
+    assertEvalsTo(GetField(na, "a"), null)
   }
 
   @Test def testTableCount() {
