@@ -2,7 +2,6 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 /**
@@ -97,7 +96,7 @@ object FlipbookIterator {
       private val len = its.length
       var value: Array[A] = Array.fill(len)(default)
       var isValid = true
-      var buf = new ArrayBuffer[Int]
+      var buf = new ArrayBuilder[Int](len)
       def advance() {
         buf.clear()
         var smallest = -1
@@ -108,22 +107,22 @@ object FlipbookIterator {
         }
 
         i = 0
-        staging.map(_.stage())
+        staging.foreach(_.stage())
         while (i < its.length) {
           if (staging(i).isValid) {
             if (smallest == -1) { // set the minimum
               smallest = i
-              buf.append(i)
+              buf += i
             } else {
             // check the current value against the smallest, if they are the same, add
             // the index to the buffer, if it is greater, do nothing, if it is less,
             // less, clear the buffer, and set the smallest index
               val c = ord(staging(smallest).value, staging(i).value)
               if (c == 0) {
-                buf.append(i)
+                buf += i
               } else if (c > 0) {
                 buf.clear()
-                buf.append(i)
+                buf += i
                 smallest = i
               }
             }
@@ -136,8 +135,9 @@ object FlipbookIterator {
           return
         }
 
-        for (i <- buf) {
-          value(i) = staging(i).consume()
+        i = 0; while (i < buf.length) {
+          value(buf(i)) = staging(buf(i)).consume
+          i += 1
         }
       }
     }
