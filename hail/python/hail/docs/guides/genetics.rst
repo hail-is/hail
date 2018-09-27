@@ -210,7 +210,7 @@ Multiple Phenotypes
 
 :**code**:
 
-    Approach #1: Use the :func:`.linear_regression` method for all phenotypes simulatenously
+    Approach #1: Use the :func:`.linear_regression` method for all phenotypes simultaneously
 
     >>> mt_linreg = hl.linear_regression(y=[mt.pheno.height, mt.pheno.blood_pressure],
     ...                                  x=[1, mt.GT.n_alt_alleles()])
@@ -237,11 +237,10 @@ Multiple Phenotypes
             The :func:`.linear_regression` method is more efficient than using the :func:`.aggregators.linreg`
             aggregator, especially when analyzing many phenotypes. However, the :func:`.aggregators.linreg`
             aggregator is more flexible (multiple covariates can vary by entry) and returns a richer set of
-            statistics. If the phenotypes being analyzed have different patterns of missingness, you should
-            **not** use the :func:`.linear_regression` method for all phenotypes simulatenously (Approach #1).
-            This is because the :func:`.linear_regression` method drops samples that have a missing value for
-            any of the phenotypes. Approach #2 will do two passes over the data while Approach #3 will do one
-            pass over the data and compute the regression statistics for each phenotype simultaneously.
+            statistics. The :func:`.linear_regression` method drops samples that have a missing value for
+            any of the phenotypes. Therefore, Approach #1 may not be suitable for phenotypes with differential
+            patterns of missingness. Approach #2 will do two passes over the data while Approaches #1 and #3 will
+            do one pass over the data and compute the regression statistics for each phenotype simultaneously.
 
 
 Stratified by Group
@@ -295,9 +294,9 @@ Stratified by Group
             the matrix table.
 
             The :func:`.linear_regression` method is more efficient than the :func:`.aggregators.linreg`
-            aggregator, but the :func:`.aggregators.linreg` aggregator is more flexible (multiple covariates
-            can be vary by entry) and returns a richer set of statistics.
-
+            aggregator and can be extended to multiple phenotypes, but the :func:`.aggregators.linreg`
+            aggregator is more flexible (multiple covariates can be vary by entry) and returns a richer
+            set of statistics.
 
 PLINK Conversions
 ~~~~~~~~~~~~~~~~~
