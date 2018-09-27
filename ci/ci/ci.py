@@ -101,11 +101,11 @@ def github_pull_request_review():
             prs.review(gh_pr, state)
         else:
             # FIXME: track all reviewers, then we don't need to talk to github
-            reviews = get_reviews(gh_pr.target_ref.repo, gh_pr.number)
-            log.info(reviews)
-            real_state = review_status(reviews)
-            log.info(real_state)
-            prs.review(gh_pr, real_state)
+            prs.review(
+                gh_pr,
+                review_status(
+                    get_reviews(gh_pr.target_ref.repo,
+                                gh_pr.number)))
     elif action == 'dismissed':
         # FIXME: track all reviewers, then we don't need to talk to github
         prs.review(
