@@ -443,10 +443,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def keyRowsBy(keys: java.util.ArrayList[String]): MatrixTable =
-    keyRowsBy(keys.asScala.toFastIndexedSeq)
+    keyRowsBy(keys.asScala.toFastIndexedSeq, false)
 
-  def keyRowsBy(keys: IndexedSeq[String]): MatrixTable = {
-    new MatrixTable(hc, MatrixKeyRowsBy(ast, keys))
+  def keyRowsBy(keys: java.util.ArrayList[String], isSorted: Boolean): MatrixTable =
+    keyRowsBy(keys.asScala.toFastIndexedSeq, isSorted)
+
+  def keyRowsBy(keys: IndexedSeq[String], isSorted: Boolean): MatrixTable = {
+    new MatrixTable(hc, MatrixKeyRowsBy(ast, keys, isSorted))
   }
 //  def keyRowsBy(keys: java.util.ArrayList[String], partitionKeys: java.util.ArrayList[String]): MatrixTable =
 //    keyRowsBy(keys.asScala.toArray, partitionKeys.asScala.toArray)

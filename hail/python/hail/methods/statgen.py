@@ -1770,9 +1770,13 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                                               old_alleles=mt.alleles).drop(new_id)
 
             mt = mt._select_rows('split_multi', new_row_expr)
-            return mt._select_rows('split_multi',
-                                   new_row_expr,
-                                   new_key=['locus', 'alleles'])
+            if rekey:
+                return mt.key_rows_by('locus', 'alleles')
+            else:
+                return MatrixTable(mt._jvds.keyRowsBy(
+                    ['locus', 'alleles'],
+                    True # isSorted
+                ))
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})

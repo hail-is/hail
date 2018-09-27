@@ -2389,9 +2389,13 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(*all_exprs)
         jmt = base._jvds
 
+        if row_key is not None:
+            jmt = jmt.keyRowsBy([])
         row_struct = hl.struct(**row_exprs)
         analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        jmt = jmt.selectRows(str(row_struct._ir), row_key)
+        jmt = jmt.selectRows(str(row_struct._ir), None)
+        if row_key is not None:
+            jmt = jmt.keyRowsBy(row_key)
 
         col_struct = hl.struct(**col_exprs)
         analyze("MatrixTable.select_cols", col_struct, self._col_indices)
