@@ -240,7 +240,8 @@ Multiple Phenotypes
             statistics. If the phenotypes being analyzed have different patterns of missingness, you should
             **not** use the :func:`.linear_regression` method for all phenotypes simulatenously (Approach #1).
             This is because the :func:`.linear_regression` method drops samples that have a missing value for
-            any of the phenotypes
+            any of the phenotypes. Approach #2 will do two passes over the data while Approach #3 will do one
+            pass over the data and compute the regression statistics for each phenotype simultaneously.
 
 
 Stratified by Group
