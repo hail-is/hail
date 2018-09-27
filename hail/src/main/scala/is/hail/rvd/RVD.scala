@@ -124,7 +124,8 @@ class RVD(
   // WARNING: will drop any data with keys falling outside 'partitioner'.
   def repartition(
     newPartitioner: RVDPartitioner,
-    shuffle: Boolean = false
+    shuffle: Boolean = false,
+    filter: Boolean = true
   ): RVD = {
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType))
@@ -138,14 +139,14 @@ class RVD(
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val codec = RVD.wireCodec
 
-      val filtered: RVD = filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
+      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
         val ur = new UnsafeRow(rowPType, null, 0)
         val key = new KeyedRow(ur, newType.kFieldIdx)
         (ur, key)
       }, { case ((ur, key), rv) =>
         ur.set(rv)
         partBc.value.rangeTree.contains(kOrdering, key)
-      })
+      }) else this
 
       val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
         filtered.keyedEncodedRDD(codec, newType.key),
@@ -1136,7 +1137,7 @@ object RVD {
 
         def _coerce(typ: RVDType, crdd: CRDD): RVD = {
           RVD.unkeyed(typ.rowType, crdd)
-            .repartition(newPartitioner, shuffle = true)
+            .repartition(newPartitioner, shuffle = true, filter = false)
         }
       }
     }

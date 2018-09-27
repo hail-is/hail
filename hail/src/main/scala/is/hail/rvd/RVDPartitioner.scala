@@ -136,7 +136,7 @@ class RVDPartitioner(
     new RVDPartitioner(kType, ab.result())
   }
 
-  def range: Option[Interval] = rangeTree.root.map(_.range)
+  def range: Option[Interval] = Option(rangeTree.root).map(_.range)
 
   def contains(index: Int, key: Any): Boolean = {
     require(kType.isComparableAt(key))
@@ -223,9 +223,9 @@ class RVDPartitioner(
       def numPartitions: Int = selfBc.value.numPartitions
 
       def getPartition(key: Any): Int = {
-        val range = selfBc.value.getSafePartitionKeyRange(key)
-        assert(range.size == 1)
-        range.start
+        val value = selfBc.value
+        val tree = value.rangeTree
+        tree.querySingleValue(value.kType.ordering, key)
       }
     }
   }
