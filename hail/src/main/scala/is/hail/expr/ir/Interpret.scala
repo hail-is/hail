@@ -268,18 +268,17 @@ object Interpret {
         if (cValue == null)
           null
         else {
-          val nSmaller = cValue match {
+          cValue match {
             case s: Set[_] =>
               assert(!onKey)
-              s.count(elem.typ.ordering.lteq(_, eValue))
+              s.count(elem.typ.ordering.lt(_, eValue))
             case d: Map[_, _] =>
               assert(onKey)
-              d.count { case (k, _) => elem.typ.ordering.lteq(k, eValue) }
+              d.count { case (k, _) => elem.typ.ordering.lt(k, eValue) }
             case a: IndexedSeq[_] =>
               assert(!onKey)
-              a.count(elem.typ.ordering.lteq(_, eValue))
+              a.count(elem.typ.ordering.lt(_, eValue))
           }
-          Integer.max(0, nSmaller - 1)
         }
 
       case GroupByKey(collection) =>

@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.{TDict, TInt32}

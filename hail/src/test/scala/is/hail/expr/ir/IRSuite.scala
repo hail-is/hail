@@ -3,12 +3,10 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.{IRParserEnvironment, Parser}
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
-import is.hail.io.vcf.LoadVCF
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -368,6 +366,20 @@ class IRSuite extends SparkSuite {
       FastIndexedSeq(-7, 2, null))
   }
 
+  @Test def testToDict() {
+    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
+
+    val a = MakeArray(FastIndexedSeq(
+      MakeTuple(FastIndexedSeq(I32(5), Str("a"))),
+      MakeTuple(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
+      MakeTuple(FastIndexedSeq(NA(TInt32()), Str("b"))),
+      MakeTuple(FastIndexedSeq(I32(3), NA(TString()))),
+      NA(TTuple(FastIndexedSeq(TInt32(), TString()))) // missing value
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))
+
+    assertEvalsTo(ToDict(a), Map(5 -> "a", (null, "b"), 3 -> null))
+  }
+
   @Test def testToArrayFromDict() {
     val t = TDict(TInt32(), TString())
     assertEvalsTo(ToArray(NA(t)), null)
@@ -422,6 +434,66 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(invoke("contains", In(0, t), I32(3)),
       FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
       false)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionArray() {
+    val na = NA(TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
+
+    val awoutna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4)), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(-1), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, NA(TInt32()), onKey = false), 3)
+
+    val awna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), NA(TInt32())), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awna, NA(TInt32()), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3)
+
+    val awdups = MakeArray(FastIndexedSeq(I32(0), I32(0), I32(2), I32(4), I32(4), NA(TInt32())), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionSet() {
+    val na = NA(TSet(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
+
+    val swoutna = ToSet(MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), I32(4)), TArray(TInt32())))
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(-1), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(1), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(2), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(3), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(4), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(5), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, NA(TInt32()), onKey = false), 3)
+
+    val swna = ToSet(MakeArray(FastIndexedSeq(I32(0), I32(2), I32(2), I32(4), NA(TInt32())), TArray(TInt32())))
+    assertEvalsTo(LowerBoundOnOrderedCollection(swna, NA(TInt32()), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swna, I32(5), onKey = false), 3)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionDict() {
+    val na = NA(TDict(TInt32(), TString()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = true), null)
+
+    val dwna = TestUtils.IRDict((1, 3), (3, null), (null, 5))
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(-1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(2), onKey = true), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(3), onKey = true), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(5), onKey = true), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, NA(TInt32()), onKey = true), 2)
+
+    val dwoutna = TestUtils.IRDict((1, 3), (3, null))
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(-1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(4), onKey = true), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32()), onKey = true), 2)
   }
 
   @Test def testArrayMap() {
