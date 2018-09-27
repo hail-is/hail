@@ -182,7 +182,9 @@ Single Phenotype
 
     Approach #1: Use the :func:`.linear_regression` method
 
-    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=[1, mt.GT.n_alt_alleles()])
+    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height,
+    ...                                  x=mt.GT.n_alt_alleles(),
+    ...                                  covariates=[1])
 
     Approach #2: Use the :func:`.aggregators.linreg` aggregator
 
@@ -213,13 +215,15 @@ Multiple Phenotypes
     Approach #1: Use the :func:`.linear_regression` method for all phenotypes simultaneously
 
     >>> mt_linreg = hl.linear_regression(y=[mt.pheno.height, mt.pheno.blood_pressure],
-    ...                                  x=[1, mt.GT.n_alt_alleles()])
+    ...                                  x=mt.GT.n_alt_alleles(),
+    ...                                  covariates=[1])
 
     Approach #2: Use the :func:`.linear_regression` method for each phenotype sequentially
 
-    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=[1, mt.GT.n_alt_alleles()])
+    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=mt.GT.n_alt_alleles(), covariates=[1])
     >>> mt_linreg = hl.linear_regression(y=mt_linreg.pheno.blood_pressure,
-    ...                                  x=[1, mt_linreg.GT.n_alt_alleles()])
+    ...                                  x=mt_linreg.GT.n_alt_alleles(),
+    ...                                  covariates=[1])
 
     Approach #3: Use the :func:`.aggregators.linreg` aggregator
 
@@ -257,11 +261,11 @@ Stratified by Group
     >>> female_pheno = hl.case()
     ...                  .when(mt.pheno.is_female, mt.pheno.height)
     ...                  .or_missing()
-    >>> mt_linreg = hl.linear_regression(y=female_pheno, x=[1, mt.GT.n_alt_alleles()], root='linreg_female')
+    >>> mt_linreg = hl.linear_regression(y=female_pheno, x=mt.GT.n_alt_alleles(), covariates=[1], root='linreg_female')
     >>> male_pheno = hl.case()
     ...                .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
     ...                .or_missing()
-    >>> mt_linreg = hl.linear_regression(y=male_pheno, x=[1, mt_linreg.GT.n_alt_alleles()], root='linreg_male')
+    >>> mt_linreg = hl.linear_regression(y=male_pheno, x=mt_linreg.GT.n_alt_alleles(), covariates=[1], root='linreg_male')
 
     Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
 
