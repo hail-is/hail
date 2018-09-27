@@ -95,12 +95,6 @@ def github_pull_request_review():
     action = d['action']
     gh_pr = GitHubPR.from_gh_json(d['pull_request'])
 
-    log.info(json.dumps({
-        'action': action,
-        'pull_request': gh_pr.to_json(),
-        'reivew': d['review']
-    }))
-
     if action == 'submitted':
         state = d['review']['state'].lower()
         if state == 'changes_requested':
