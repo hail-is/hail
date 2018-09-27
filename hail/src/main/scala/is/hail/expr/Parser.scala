@@ -649,12 +649,8 @@ object Parser extends JavaTokenParsers {
       "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir ^^ { case key ~ isSorted ~ child =>
         ir.MatrixKeyRowsBy(child, key, isSorted)
       } |
-      "MatrixMapRows" ~> string_literals_opt ~ string_literals_opt ~ matrix_ir ~ ir_value_expr ^^ { case newKey ~ newPartitionKey ~ child ~ newRow =>
-        val newKPK = ((newKey, newPartitionKey): @unchecked) match {
-          case (Some(k), Some(pk)) => Some((k, pk))
-          case (None, None) => None
-        }
-        ir.MatrixMapRows(child, newRow, newKPK)
+      "MatrixMapRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newRow =>
+        ir.MatrixMapRows(child, newRow)
       } |
       "MatrixMapEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newEntries => ir.MatrixMapEntries(child, newEntries) } |
       "MatrixMapGlobals" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newGlobals => ir.MatrixMapGlobals(child, newGlobals) } |

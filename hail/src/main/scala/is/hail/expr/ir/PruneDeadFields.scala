@@ -390,7 +390,7 @@ object PruneDeadFields {
           colType = requestedType.colType,
           globalType = requestedType.globalType
         ), memo)
-      case MatrixMapRows(child, newRow, newKey) =>
+      case MatrixMapRows(child, newRow) =>
         val irDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val depMod = child.typ.copy(rvRowType = TStruct(irDep.rvRowType.fields.map { f =>
           if (f.name == MatrixType.entriesIdentifier)
@@ -851,14 +851,9 @@ object PruneDeadFields {
       case MatrixMapEntries(child, newEntries) =>
         val child2 = rebuild(child, memo)
         MatrixMapEntries(child2, rebuild(newEntries, child2.typ, memo))
-      case MatrixMapRows(child, newRow, newKey) =>
+      case MatrixMapRows(child, newRow) =>
         var child2 = rebuild(child, memo)
-        if (newKey.isDefined)
-          child2 = upcast(child2,
-            memo.lookup(child).asInstanceOf[MatrixType],
-            upcastCols = false,
-            upcastGlobals = false)
-        MatrixMapRows(child2, rebuild(newRow, child2.typ, memo), newKey)
+        MatrixMapRows(child2, rebuild(newRow, child2.typ, memo))
       case MatrixMapCols(child, newCol, newKey) =>
         // FIXME account for key
         val child2 = rebuild(child, memo)
@@ -1068,7 +1063,7 @@ object PruneDeadFields {
         mt = MatrixMapEntries(mt, upcast(Ref("g", mt.typ.entryType), rType.entryType))
 
       if (upcastRows && mt.typ.rowType != rType.rowType)
-        mt = MatrixMapRows(mt, upcast(Ref("va", mt.typ.rvRowType), rType.rvRowType), None)
+        mt = MatrixMapRows(mt, upcast(Ref("va", mt.typ.rvRowType), rType.rvRowType))
 
       if (upcastCols && mt.typ.colType != rType.colType)
         mt = MatrixMapCols(mt, upcast(Ref("sa", mt.typ.colType), rType.colType), None)

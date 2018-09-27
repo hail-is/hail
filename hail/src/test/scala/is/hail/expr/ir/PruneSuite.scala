@@ -330,10 +330,11 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixMapRowsMemo() {
-    val mmr = MatrixMapRows(mat, matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"),
-      Some(IndexedSeq(), IndexedSeq()))
+    val mmr = MatrixMapRows(
+      MatrixKeyRowsBy(mat, IndexedSeq.empty),
+      matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"))
     checkMemo(mmr, subsetMatrixTable(mmr.typ, "sa.c3", "va.foo"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "sa.c3"), null))
+      Array(subsetMatrixTable(mat.typ.copy(rowKey = IndexedSeq.empty), "global.g1", "sa.c2", "va.r2", "g.e2", "sa.c3"), null))
   }
 
   @Test def testMatrixMapGlobalsMemo() {
@@ -620,13 +621,14 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixMapRowsRebuild() {
-    val mmr = MatrixMapRows(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2"),
-      Some(FastIndexedSeq("foo"), FastIndexedSeq()))
+    val mmr = MatrixMapRows(
+      MatrixKeyRowsBy(mr, IndexedSeq.empty),
+      matrixRefStruct(mr.typ, "sa.c2", "va.r2"))
     checkRebuild(mmr, subsetMatrixTable(mmr.typ, "global.g1", "g.e1", "va.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mmr = r.asInstanceOf[MatrixMapRows]
         TypeCheck(mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ), None)
-        mmr.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
+        mmr.child.asInstanceOf[MatrixKeyRowsBy].child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
   }

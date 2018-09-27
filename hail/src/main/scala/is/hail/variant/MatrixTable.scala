@@ -621,9 +621,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     selectRows(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
 
   def selectRows(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    require(newKey.isEmpty)
     val rowsIR = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapRows(ast, rowsIR, newKey.map(a => (a, FastIndexedSeq()))))
+    new MatrixTable(hc, MatrixMapRows(ast, rowsIR))
   }
 
   def selectEntries(expr: String): MatrixTable = {

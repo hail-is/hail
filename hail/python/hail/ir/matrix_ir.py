@@ -180,17 +180,13 @@ class MatrixKeyRowsBy(MatrixIR):
             r(self.child))
 
 class MatrixMapRows(MatrixIR):
-    def __init__(self, child, new_row, new_key):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.new_key = new_key
 
     def render(self, r):
-        return '(MatrixMapRows {} {} {} {})'.format(
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[0]) + ')' if self.new_key is not None else 'None',
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[1]) + ')' if self.new_key is not None else 'None',
-            r(self.child), r(self.new_row))
+        return '(MatrixMapRows {} {})'.format(r(self.child), r(self.new_row))
 
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_row):

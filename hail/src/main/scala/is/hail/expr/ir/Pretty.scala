@@ -211,8 +211,6 @@ object Pretty {
             case MatrixKeyRowsBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
-            case MatrixMapRows(_, _, newKey) =>
-              prettyStringsOpt(newKey.map(_._1)) + " " + prettyStringsOpt(newKey.map(_._2))
             case TableImport(paths, _, _) =>
               if (paths.length == 1)
                 paths.head

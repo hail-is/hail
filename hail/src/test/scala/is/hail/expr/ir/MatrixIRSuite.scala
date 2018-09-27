@@ -26,7 +26,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx })
   }
@@ -37,7 +37,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx) })
   }
@@ -48,7 +48,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
   }
@@ -95,8 +95,7 @@ class MatrixIRSuite extends SparkSuite {
         MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
         InsertFields(
           row,
-          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start))),
-        None),
+          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
       FastIndexedSeq("row_idx"))
   }
 
@@ -140,7 +139,7 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 5, 2, None).ast
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)), None)
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
@@ -263,8 +262,7 @@ class MatrixIRSuite extends SparkSuite {
     val withEntries = MatrixMapEntries(range, MakeStruct(FastIndexedSeq("x" -> 2)))
     val m = MatrixAggregateColsByKey(
       MatrixMapRows(withEntries,
-        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1)),
-        None),
+        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1))),
       MakeStruct(FastIndexedSeq("foo" -> IRAggCount)))
     assert(m.execute(hc).rowsRVD().count() == 3)
   }

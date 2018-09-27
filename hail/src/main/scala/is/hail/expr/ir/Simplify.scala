@@ -233,7 +233,7 @@ object Simplify {
 
       case TableMapGlobals(child, Ref("global", _)) => child
 
-      case MatrixMapRows(child, Ref("va", _), None) => child
+      case MatrixMapRows(child, Ref("va", _)) => child
 
       case MatrixMapCols(child, Ref("sa", _), None) => child
 
@@ -343,7 +343,7 @@ object Simplify {
           mct,
           Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
       case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
-      case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)

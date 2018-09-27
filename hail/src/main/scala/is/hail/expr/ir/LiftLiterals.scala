@@ -77,11 +77,11 @@ object LiftLiterals {
 
   def apply(ir: BaseIR): BaseIR = {
     MapIR.mapBaseIR(ir, {
-      case MatrixMapRows(child, newRow, newKey) =>
+      case MatrixMapRows(child, newRow) =>
         val literals = getLiterals(newRow)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
-          MatrixMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType, literals), newKey),
+          MatrixMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixMapEntries(child, newEntries) =>
         val literals = getLiterals(newEntries)

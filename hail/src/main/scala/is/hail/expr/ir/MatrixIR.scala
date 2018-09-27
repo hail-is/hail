@@ -1133,14 +1133,13 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
   }
 }
 
-case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq[String], IndexedSeq[String])]) extends MatrixIR {
-  assert(newKey.isEmpty)
+case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapRows = {
     assert(newChildren.length == 2)
-    MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
+    MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
   val newRVRow = newRow.typ.asInstanceOf[TStruct].fieldOption(MatrixType.entriesIdentifier) match {
@@ -1153,8 +1152,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
   }
 
   val typ: MatrixType = {
-    val newRowKey = newKey.map { case (pk, k) => pk ++ k }.getOrElse(child.typ.rowKey)
-    child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct], rowKey = newRowKey)
+    child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct])
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -1343,13 +1341,9 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR, newKey: Option[(IndexedSeq
       }
     }
 
-    val newRVD = if (newKey.isDefined) {
-      prev.rvd.mapPartitionsWithIndex(RVDType(typ.rvRowType), mapPartitionF).changeKey(typ.rowKey)
-    } else {
-      prev.rvd.mapPartitionsWithIndex(typ.rvdType, mapPartitionF)
-    }
-
-    prev.copy(typ = typ, rvd = newRVD)
+    prev.copy(
+      typ = typ,
+      rvd = prev.rvd.mapPartitionsWithIndex(typ.rvdType, mapPartitionF))
   }
 }
 
@@ -1897,13 +1891,13 @@ case class MatrixAnnotateRowsTable(
         // has matrix row key and foreign join key
         val mrt = Optimize(
           MatrixRowsTable(
-          MatrixMapRows(
-            child,
-            MakeStruct(
-              prevRowKeys.zip(
-                prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
-              ) ++ newKeyUIDs.zip(newKeys)),
-            None))).execute(hc)
+            MatrixMapRows(
+              child,
+              MakeStruct(
+                prevRowKeys.zip(
+                  prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
+                ) ++ newKeyUIDs.zip(newKeys))))
+        ).execute(hc)
         val indexedRVD1 = mrt.rvd
           .zipWithIndex(indexUID, Some(partitionCounts))
         val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
