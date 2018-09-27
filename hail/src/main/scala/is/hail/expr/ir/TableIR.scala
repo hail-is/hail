@@ -1152,7 +1152,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
     val codec = RVD.wireCodec
     val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
-    val orderedCRDD = codec.decodeRDD(rowType, rdd.map(_._2))
+    val orderedCRDD = codec.decodeRDD(rowType.physicalType, rdd.map(_._2))
     TableValue(typ, prev.globals, RVD.unkeyed(rowType, orderedCRDD))
   }
 }
