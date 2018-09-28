@@ -16,6 +16,7 @@ import org.json4s.jackson.JsonMethods
 import org.apache.hadoop
 
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 
 case class VEPConfiguration(
   command: Array[String],
@@ -136,7 +137,7 @@ object VEP {
 
             val kt = jt
               .filter(s => !s.isEmpty && s(0) != '#')
-              .map { s =>
+              .flatMap { s =>
                 if (csq) {
                   val vepv@(vepLocus, vepAlleles) = variantFromInput(s)
                   nonStarToOriginalVariant.get(vepv) match {
@@ -149,12 +150,12 @@ object VEP {
                           warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
                           null
                       }
-                      (Annotation(locus, alleles), a)
+                      Some((Annotation(locus, alleles), a))
                     case None =>
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  val jv = JsonMethods.parse(s)
+                  Try(JsonMethods.parse(s)).map {jv =>
                   val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
                   val variantString = inputQuery(a).asInstanceOf[String]
                   if (variantString == null)
@@ -169,6 +170,11 @@ object VEP {
                     case None =>
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
+                } match {
+                    case Success(kv) => Some(kv)
+                    case Failure(e) =>
+                      log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
+                      None}
                 }
               }
 
