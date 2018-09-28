@@ -258,13 +258,13 @@ Stratified by Group
 
     Approach #1: Use the :func:`.linear_regression` method for each group
 
-    >>> female_pheno = hl.case()
-    ...                  .when(mt.pheno.is_female, mt.pheno.height)
-    ...                  .or_missing()
+    >>> female_pheno = (hl.case()
+    ...                   .when(mt.pheno.is_female, mt.pheno.height)
+    ...                   .or_missing())
     >>> mt_linreg = hl.linear_regression(y=female_pheno, x=mt.GT.n_alt_alleles(), covariates=[1], root='linreg_female')
-    >>> male_pheno = hl.case()
-    ...                .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
-    ...                .or_missing()
+    >>> male_pheno = (hl.case()
+    ...                 .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
+    ...                 .or_missing())
     >>> mt_linreg = hl.linear_regression(y=male_pheno, x=mt_linreg.GT.n_alt_alleles(), covariates=[1], root='linreg_male')
 
     Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
