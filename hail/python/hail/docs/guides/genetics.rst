@@ -188,7 +188,8 @@ Single Phenotype
 
     Approach #2: Use the :func:`.aggregators.linreg` aggregator
 
-    >>> mt_linreg = mt.annotate_rows(linreg=hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()]))
+    >>> mt_linreg = mt.annotate_rows(linreg=hl.agg.linreg(y=mt.pheno.height,
+    ...                                                   x=[1, mt.GT.n_alt_alleles()]))
 
 :**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
 
@@ -220,21 +221,27 @@ Multiple Phenotypes
 
     Approach #2: Use the :func:`.linear_regression` method for each phenotype sequentially
 
-    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height, x=mt.GT.n_alt_alleles(), covariates=[1])
+    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height,
+    ...                                  x=mt.GT.n_alt_alleles(),
+    ...                                  covariates=[1])
+
     >>> mt_linreg = hl.linear_regression(y=mt_linreg.pheno.blood_pressure,
     ...                                  x=mt_linreg.GT.n_alt_alleles(),
     ...                                  covariates=[1])
 
     Approach #3: Use the :func:`.aggregators.linreg` aggregator
 
-    >>> mt_linreg = mt.annotate_rows(linreg_height=hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()]),
-    ...                              linreg_bp=hl.agg.linreg(mt.pheno.blood_pressure, [1, mt.GT.n_alt_alleles()]))
+    >>> mt_linreg = mt.annotate_rows(
+    ...     linreg_height=hl.agg.linreg(y=mt.pheno.height,
+    ...                                 x=[1, mt.GT.n_alt_alleles()]),
+    ...     linreg_bp=hl.agg.linreg(y=mt.pheno.blood_pressure,
+    ...                             x=[1, mt.GT.n_alt_alleles()]))
 
 :**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
-        .. container:: toggle
+    .. container:: toggle
 
         .. container:: toggle-content
 
@@ -261,23 +268,33 @@ Stratified by Group
     >>> female_pheno = (hl.case()
     ...                   .when(mt.pheno.is_female, mt.pheno.height)
     ...                   .or_missing())
-    >>> mt_linreg = hl.linear_regression(y=female_pheno, x=mt.GT.n_alt_alleles(), covariates=[1], root='linreg_female')
+
+    >>> mt_linreg = hl.linear_regression(y=female_pheno,
+    ...                                  x=mt.GT.n_alt_alleles(),
+    ...                                  covariates=[1],
+    ...                                  root='linreg_female')
+
     >>> male_pheno = (hl.case()
     ...                 .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
     ...                 .or_missing())
-    >>> mt_linreg = hl.linear_regression(y=male_pheno, x=mt_linreg.GT.n_alt_alleles(), covariates=[1], root='linreg_male')
+
+    >>> mt_linreg = hl.linear_regression(y=male_pheno,
+    ...                                  x=mt_linreg.GT.n_alt_alleles(),
+    ...                                  covariates=[1],
+    ...                                  root='linreg_male')
 
     Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
 
     >>> mt_linreg = mt.annotate_rows(
     ...     linreg=hl.agg.group_by(mt.pheno.is_female,
-    ...                            hl.agg.linreg(mt.pheno.height, [1, mt.GT.n_alt_alleles()])))
+    ...                            hl.agg.linreg(y=mt.pheno.height,
+    ...                                          x=[1, mt.GT.n_alt_alleles()])))
 
 :**dependencies**: :func:`.linear_regression`, :func:`.aggregators.group_by`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
-        .. container:: toggle
+    .. container:: toggle
 
         .. container:: toggle-content
 
