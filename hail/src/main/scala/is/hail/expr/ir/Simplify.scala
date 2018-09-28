@@ -214,6 +214,8 @@ object Simplify {
       case t@TableKeyBy(TableKeyBy(child, _, true), keys, true) if canRepartition(t) =>
         TableKeyBy(child, keys, true)
 
+      case TableKeyBy(child, key, _) if key == child.typ.key => child
+
       // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
       case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
         TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted)
