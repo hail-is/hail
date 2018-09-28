@@ -1,17 +1,27 @@
 #!/usr/bin/python
-import os
 import json
+import os
 import subprocess as sp
-from subprocess import check_output, call
-
 import sys
-print('python version is {}'.format(sys.version_info))
+from subprocess import check_output
+
 if sys.version_info >= (3,0):
     # Python 3 check_output returns a byte string
     decode_f = lambda x: x.decode()
 else:
     # In Python 2, bytes and str are the same
     decode_f = lambda x: x
+
+if sys.version_info >= (3,7):
+    def safe_call(*args):
+        sp.run(args, capture_output=True, check=True)
+else:
+    def safe_call(*args):
+        try:
+            sp.check_output(args, stderr=sp.STDOUT)
+        except sp.CalledProcessError as e:
+            print(decode_f(e.output))
+            raise e
 
 def get_metadata(key):
     return decode_f(check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]))
@@ -76,30 +86,17 @@ if role == 'Master':
     else:
         pip_pkgs.extend(user_pkgs.split(','))
 
+    safe_call('/opt/conda/bin/conda', 'update', 'setuptools')
+
     print('conda packages are {}'.format(conda_pkgs))
-    print('pip packages are {}'.format(pip_pkgs))
-
-    try:
-        check_output(['/opt/conda/bin/conda', 'update', 'setuptools'])
-    except sp.CalledProcessError as e:
-        print(e.output)
-        raise e
-
     command = ['/opt/conda/bin/conda', 'install']
     command.extend(conda_pkgs)
-    try:
-        check_output(command)
-    except sp.CalledProcessError as e:
-        print(e.output)
-        raise e
+    safe_call(*command)
 
+    print('pip packages are {}'.format(pip_pkgs))
     command = ['/opt/conda/bin/pip', 'install']
     command.extend(pip_pkgs)
-    try:
-        check_output(command)
-    except sp.CalledProcessError as e:
-        print(e.output)
-        raise e
+    safe_call(*command)
 
     py4j = decode_f(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
 
@@ -109,9 +106,8 @@ if role == 'Master':
     zip_path = get_metadata('ZIP')
 
     print('copying jar and zip')
-
-    call(['gsutil', 'cp', jar_path, '/home/hail/hail.jar'])
-    call(['gsutil', 'cp', zip_path, '/home/hail/hail.zip'])
+    safe_call('gsutil', 'cp', jar_path, '/home/hail/hail.jar')
+    safe_call('gsutil', 'cp', zip_path, '/home/hail/hail.zip')
 
     env_to_set = {
         'PYTHONHASHSEED': '0',
@@ -125,7 +121,8 @@ if role == 'Master':
     print('setting environment')
 
     for e, value in env_to_set.items():
-        call('echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value), shell=True)
+        safe_call('/bin/sh', '-c',
+                   'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
 
     conf_to_set = [
         'spark.jars=/home/hail/hail.jar',
@@ -138,7 +135,7 @@ if role == 'Master':
     print('setting spark-defaults.conf')
 
     for c in conf_to_set:
-        call('echo "{}" >> /etc/spark/conf/spark-defaults.conf'.format(c), shell=True)
+        safe_call('/bin/sh', '-c', 'echo "{}" >> /etc/spark/conf/spark-defaults.conf'.format(c))
 
     # modify custom Spark conf file to reference Hail jar and zip
 
@@ -175,11 +172,11 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     # setup jupyter-spark extension
-    call(['/opt/conda/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark'])
-    call(['/opt/conda/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark'])
-    call(['/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark'])
-    call(['/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension'])
-    
+    safe_call('/opt/conda/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
+
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'w') as f:
         opts = [
@@ -200,6 +197,6 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     # add Jupyter service to autorun and start it
-    call(['systemctl', 'daemon-reload'])
-    call(['systemctl', 'enable', 'jupyter'])
-    call(['service', 'jupyter', 'start'])
+    safe_call('systemctl', 'daemon-reload')
+    safe_call('systemctl', 'enable', 'jupyter')
+    safe_call('service', 'jupyter', 'start')

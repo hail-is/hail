@@ -1,6 +1,4 @@
-import os
-from subprocess import Popen, check_call
-
+from .safe_call import safe_call
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
@@ -40,7 +38,7 @@ def main(args):
     connect_port = dataproc_ports[service]
 
     # open SSH tunnel to master node
-    cmd = [
+    safe_call(
         'gcloud',
         'compute',
         'ssh',
@@ -50,17 +48,13 @@ def main(args):
         '--ssh-flag=-N',
         '--ssh-flag=-f',
         '--ssh-flag=-n'
-    ]
-    with open(os.devnull, 'w') as f:
-        check_call(cmd, stdout=f, stderr=f)
+    )
 
     # open Chrome with SOCKS proxy configuration
-    cmd = [
+    safe_call(
         r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         'http://localhost:{}'.format(connect_port),
         '--proxy-server=socks5://localhost:{}'.format(args.port),
         '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
         '--user-data-dir=/tmp/'
-    ]
-    with open(os.devnull, 'w') as f:
-        Popen(cmd, stdout=f, stderr=f)
+    )
