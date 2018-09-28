@@ -129,7 +129,7 @@ class PRS(object):
         assert isinstance(target, FQRef)
         ready_to_merge = self.ready_to_merge(target)
         if len(ready_to_merge) != 0:
-            log.info(f'merging {ready_to_merge.short_str()}')
+            log.info(f'merging {ready_to_merge[-1].short_str()}')
             pr = ready_to_merge[-1]
             self.merge(pr)
         else:
