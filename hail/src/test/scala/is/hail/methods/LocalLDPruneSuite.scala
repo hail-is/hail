@@ -72,7 +72,7 @@ object LocalLDPruneSuite {
 
   // expecting iterable of Genotype with htsjdk schema
   def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
+    val bpvv = new BitPackedVectorView(bitPackedVectorViewType.physicalType)
     toBitPackedVectorRegionValue(gs, nSamples) match {
       case Some(rv) =>
         bpvv.setRegion(rv)
@@ -327,7 +327,7 @@ class LocalLDPruneSuite extends SparkSuite {
       val t = BitPackedVectorView.rvRowType(
         +TLocus(ReferenceGenome.GRCh37),
         +TArray(+TString()))
-      val bpv = new BitPackedVectorView(t)
+      val bpv = new BitPackedVectorView(t.physicalType)
       r.appendInt(0xbeef)
       rvb.start(t)
       rvb.startStruct()

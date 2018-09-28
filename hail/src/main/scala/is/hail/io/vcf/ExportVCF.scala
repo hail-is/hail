@@ -333,7 +333,7 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val fullRowType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType.physicalType
     val localEntriesIndex = vsm.entriesIndex
     val localEntriesType = vsm.matrixType.entryArrayType
 

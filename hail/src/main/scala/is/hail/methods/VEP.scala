@@ -105,7 +105,7 @@ object VEP {
 
     val localBlockSize = blockSize
 
-    val localRowType = ht.typ.rowType
+    val localRowType = ht.typ.rowType.physicalType
     val rowKeyOrd = ht.typ.keyType.ordering
 
     val prev = ht.value.rvd
