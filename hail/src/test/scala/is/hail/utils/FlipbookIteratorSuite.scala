@@ -276,7 +276,7 @@ class FlipbookIteratorSuite extends SparkSuite {
     val one = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val two = makeTestIterator(2, 3, 4, 5, 5, 6, 1000, 1000)
     val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)
-    val its = IndexedSeq(one, two, three)
+    val its: Array[FlipbookIterator[Box[Int]]] = Array(one, two, three)
     val zipped = FlipbookIterator.multiZipJoin(its, Box(0), boxIntOrd(missingValue = 1000))
 
     val it = Iterator(
