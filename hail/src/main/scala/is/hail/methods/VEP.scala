@@ -155,14 +155,8 @@ object VEP {
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  val jv = try {
-                    JsonMethods.parse(s)
-                  } catch {
-                    case e: JsonParseException =>
-                      log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
-                      null
-                  }
-                  if (jv != null) {
+                  try {
+                    val jv = JsonMethods.parse(s)
                     val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
@@ -177,7 +171,11 @@ object VEP {
                       case None =>
                         fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                     }
-                  } else None
+                  } catch {
+                    case e: JsonParseException =>
+                      log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
+                      None
+                  }
                 }
               }
 
