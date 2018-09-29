@@ -66,7 +66,7 @@ object VEP {
     val pb = new ProcessBuilder(cmd.toList.asJava)
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
-    
+
     val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
@@ -84,7 +84,7 @@ object VEP {
       None
     }
   }
-  
+
   def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
     assert(ht.key == FastIndexedSeq("locus", "alleles"))
     assert(ht.typ.rowType.size == 2)
@@ -99,7 +99,7 @@ object VEP {
         s)
 
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, conf.env) else None
-    
+
     val inputQuery = vepSignature.query("input")
 
     val csqRegex = "CSQ=[^;^\\t]+".r
@@ -155,26 +155,29 @@ object VEP {
                       fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                   }
                 } else {
-                  Try(JsonMethods.parse(s)).map {jv =>
-                  val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
-                  val variantString = inputQuery(a).asInstanceOf[String]
-                  if (variantString == null)
-                    fatal(s"VEP generated null variant string" +
-                      s"\n  json:   $s" +
-                      s"\n  parsed: $a")
-                  val vepv@(vepLocus, vepAlleles) = variantFromInput(variantString)
-
-                  nonStarToOriginalVariant.get(vepv) match {
-                    case Some(v@(locus, alleles)) =>
-                      (Annotation(locus, alleles), a)
-                    case None =>
-                      fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
-                  }
-                } match {
-                    case Success(kv) => Some(kv)
-                    case Failure(e) =>
+                  val jv = try {
+                    JsonMethods.parse(s)
+                  } catch {
+                    case e: JsonParseException =>
                       log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
-                      None}
+                      null
+                  }
+                  if (jv != null) {
+                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
+                    val variantString = inputQuery(a).asInstanceOf[String]
+                    if (variantString == null)
+                      fatal(s"VEP generated null variant string" +
+                        s"\n  json:   $s" +
+                        s"\n  parsed: $a")
+                    val vepv@(vepLocus, vepAlleles) = variantFromInput(variantString)
+
+                    nonStarToOriginalVariant.get(vepv) match {
+                      case Some(v@(locus, alleles)) =>
+                        Some((Annotation(locus, alleles), a))
+                      case None =>
+                        fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                    }
+                  } else None
                 }
               }
 
@@ -220,7 +223,7 @@ object VEP {
         (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))
       else
         (Row(), TStruct())
-    
+
     new Table(ht.hc, TableLiteral(TableValue(
       TableType(vepRowType, FastIndexedSeq("locus", "alleles"), globalType),
       BroadcastRow(globalValue, globalType, ht.hc.sc),
