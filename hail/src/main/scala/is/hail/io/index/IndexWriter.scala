@@ -53,8 +53,8 @@ class IndexWriter(
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
 
   private val codecSpec = CodecSpec.default
-  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
-  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
+  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ.physicalType)(trackedOS)
+  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)(trackedOS)
 
   private def height: Int = internalNodeBuilders.length + 1 // have one leaf node layer
 
