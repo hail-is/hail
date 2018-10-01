@@ -107,8 +107,8 @@ def dictKVMismatches(actual, kvs):
 
 REPO_NAME = os.environ['REPO_NAME']
 FQ_REPO = 'hail-ci-test/' + os.environ['REPO_NAME']
-DELAY_IN_SECONDS = 5
-MAX_POLLS = 20
+DELAY_IN_SECONDS = 15
+MAX_POLLS = 30
 
 
 def test_pull_request_comment_does_not_overwrite_approval():
