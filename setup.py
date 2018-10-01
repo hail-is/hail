@@ -15,6 +15,9 @@ setup(name='cloudtools',
       ],
       keywords='google cloud dataproc spark jupyter hail notebook ipython',
       packages=['cloudtools'],
+      install_requires=[
+          'statistics;python_version<"3.4"',
+      ],
       entry_points={
 	  'console_scripts': [
 	      'cluster = cloudtools.__main__:main'

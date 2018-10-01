@@ -7,6 +7,7 @@ from cloudtools import diagnose
 from cloudtools import stop
 from cloudtools import list_clusters
 from cloudtools import modify
+from cloudtools import describe
 from cloudtools import __version__
 
 
@@ -38,6 +39,10 @@ def main():
                                     help='Modify active Dataproc clusters.',
                                     description='Modify active Dataproc clusters.')
 
+    describe_parser = subs.add_parser('describe',
+                                      help='Gather information about a hail file (including the schema)',
+                                      description='Gather information about a hail file (including the schema)')
+
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
 
@@ -57,6 +62,9 @@ def main():
 
     modify_parser.set_defaults(module='modify')
     modify.init_parser(modify_parser)
+
+    describe_parser.set_defaults(module='describe')
+    describe.init_parser(describe_parser)
 
     if len(sys.argv) == 1:
         main_parser.print_help()
@@ -84,6 +92,9 @@ def main():
 
     elif args.module == 'modify':
         modify.main(args)
+
+    elif args.module == 'describe':
+        describe.main(args)
 
 
 if __name__ == '__main__':
