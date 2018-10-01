@@ -646,12 +646,8 @@ object Parser extends JavaTokenParsers {
       "MatrixFilterRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterRows(child, pred) } |
       "MatrixFilterEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterEntries(child, pred) } |
       "MatrixMapCols" ~> string_literals_opt ~ matrix_ir ~ ir_value_expr ^^ { case newKey ~ child ~ newCol => ir.MatrixMapCols(child, newCol, newKey) } |
-      "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir ^^ { case key ~ isSorted ~ child =>
-        ir.MatrixKeyRowsBy(child, key, isSorted)
-      } |
-      "MatrixMapRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newRow =>
-        ir.MatrixMapRows(child, newRow)
-      } |
+      "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir ^^ { case key ~ isSorted ~ child => ir.MatrixKeyRowsBy(child, key, isSorted) } |
+      "MatrixMapRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newRow => ir.MatrixMapRows(child, newRow) } |
       "MatrixMapEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newEntries => ir.MatrixMapEntries(child, newEntries) } |
       "MatrixMapGlobals" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newGlobals => ir.MatrixMapGlobals(child, newGlobals) } |
       "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ~ ir_value_expr ^^ { case child ~ entryExpr ~ colExpr => ir.MatrixAggregateColsByKey(child, entryExpr, colExpr) } |
