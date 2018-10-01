@@ -451,29 +451,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def keyRowsBy(keys: IndexedSeq[String], isSorted: Boolean): MatrixTable = {
     new MatrixTable(hc, MatrixKeyRowsBy(ast, keys, isSorted))
   }
-//  def keyRowsBy(keys: java.util.ArrayList[String], partitionKeys: java.util.ArrayList[String]): MatrixTable =
-//    keyRowsBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
-//
-//  def keyRowsBy(keys: Array[String], partitionKeys: Array[String]): MatrixTable = {
-//    require(keys.nonEmpty)
-//    require(partitionKeys.nonEmpty)
-//    val rowFields = rowType.fieldNames.toSet
-//    assert(keys.forall(rowFields.contains), s"${ keys.filter(k => !rowFields.contains(k)).mkString(", ") }")
-//    assert(partitionKeys.length <= keys.length)
-//    assert(keys.zip(partitionKeys).forall { case (k, pk) => k == pk })
-//
-//    val newMatrixType = matrixType.copy(rowKey = keys)
-//
-//    copyMT(matrixType = newMatrixType, rvd = rvd.changeKey(keys))
-//  }
-//
-//  def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
-//
-//  def keyColsBy(keys: String*): MatrixTable = {
-//    val colFields = colType.fieldNames.toSet
-//    assert(keys.forall(colFields.contains))
-//    copyMT(matrixType = matrixType.copy(colKey = keys.toArray[String]))
-//  }
 
   def stringSampleIds: IndexedSeq[String] = {
     assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)

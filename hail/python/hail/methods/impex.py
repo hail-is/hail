@@ -112,7 +112,6 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     """
 
     require_biallelic(dataset, 'export_gen')
-    require_row_key_variant(dataset, 'export_gen')
 
     if gp is None:
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
