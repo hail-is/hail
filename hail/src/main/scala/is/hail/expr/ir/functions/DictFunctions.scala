@@ -25,7 +25,7 @@ object DictFunctions extends RegistryFunctions {
         NA(default.typ),
         If(ArrayLen(ToArray(dict)).ceq(0),
           default,
-          If(ApplyComparisonOp(EQ(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
+          If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
             GetField(ArrayRef(ToArray(dict), i), "value"),
             default))))
 

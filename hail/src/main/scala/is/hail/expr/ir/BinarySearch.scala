@@ -18,8 +18,6 @@ class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
     val findMB = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
     val mk2l = findMB.newLocal[Boolean]
     val mk2l1 = mb.newLocal[Boolean]
-    val v2l = findMB.newLocal[Long]
-    val v2l1 = mb.newLocal[Long]
 
     val comp: CodeOrdering.F[Int] = {
       case (r1: Code[Region],

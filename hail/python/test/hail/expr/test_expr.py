@@ -630,12 +630,15 @@ class Tests(unittest.TestCase):
         self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval(list(a)))
 
     def test_dict_get(self):
-        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.null(hl.tint32)})
+        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.null(hl.tint32), hl.null(hl.tstr): 5})
         self.assertEqual(hl.eval(d.get('a')), 1)
         self.assertEqual(hl.eval(d['a']), 1)
         self.assertEqual(hl.eval(d.get('b')), 2)
         self.assertEqual(hl.eval(d['b']), 2)
         self.assertEqual(hl.eval(d.get('c')), None)
+        self.assertEqual(hl.eval(d.get(hl.null(hl.tstr))), 5)
+        self.assertEqual(hl.eval(d[hl.null(hl.tstr)]), 5)
+
         self.assertEqual(hl.eval(d.get('c', 5)), 5)
         self.assertEqual(hl.eval(d.get('a', 5)), 1)
 
