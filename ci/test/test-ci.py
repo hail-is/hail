@@ -102,478 +102,447 @@ def dictKVMismatches(actual, kvs):
     return errors
 
 
-class NoCleanUpTemporaryDirectory(object):
-    def __init__(self, f):
-        self.f = f
-
-    def __enter__(self):
-        return self.f
-
-    def __exit__(self, a, b, c):
-        return
-
-i = 0
-
-def tempdir():
-    in_cluster = os.environ.get("IN_CLUSTER")
-    if in_cluster and in_cluster == "true":
-        # for some reason, pytest does not work in a k8s pod using a temporary
-        # directory that is deleted when the test finishes
-        global i
-        path = f'/tmp/hail-ci-{INSTANCE_ID}-{i}'
-        i = i + 1
-        os.mkdir(path)
-        return NoCleanUpTemporaryDirectory(path)
-    else:
-        return tempfile.TemporaryDirectory()
-
-
 ###############################################################################
 
 
-class TestCILocally(unittest.TestCase):
-    def test_pull_request_comment_does_not_overwrite_approval(self):
-        data = pkg_resources.resource_string(
-            inspect.getmodule(self).__name__,
-            'comment-after-approve-pull-request-review.json')
-        reviews = json.loads(data)
-
-        from github import overall_review_state
-
-        review_state = overall_review_state(reviews)
-
-        assert review_state['state'] == 'approved'
-        assert review_state['reviews']['cseed'] == 'APPROVED'
-        assert 'tpoterba' not in review_state['reviews']
+REPO_NAME = os.environ['REPO_NAME']
+FQ_REPO = 'hail-ci-test/' + os.environ['REPO_NAME']
+DELAY_IN_SECONDS = 5
+MAX_POLLS = 20
 
 
-class TestCIAgainstGitHub(unittest.TestCase):
-    repo_name = os.environ['REPO_NAME']
-    fq_repo = 'hail-ci-test/' + os.environ['REPO_NAME']
+def test_pull_request_comment_does_not_overwrite_approval():
+    data = pkg_resources.resource_string(
+        __name__,
+        'comment-after-approve-pull-request-review.json')
+    reviews = json.loads(data)
 
-    def get_pr(self, source_ref):
-        status = ci_get('/status', status_code=200)
-        assert 'prs' in status
-        assert '_watched_targets' in status
-        all_prs = [PR.from_json(x) for x in status['prs']]
-        prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
-        assert len(prs) == 1, [str(x.source.ref) for x in all_prs]
-        return prs[0]
+    from github import overall_review_state
 
-    DELAY_IN_SECONDS = 5
-    MAX_POLLS = 20
+    review_state = overall_review_state(reviews)
 
-    def poll_github_until_merged(self,
-                                 pr_number,
-                                 delay_in_seconds=DELAY_IN_SECONDS,
-                                 max_polls=MAX_POLLS):
-        r, status_code = get_repo(
-            self.fq_repo,
+    assert review_state['state'] == 'approved'
+    assert review_state['reviews']['cseed'] == 'APPROVED'
+    assert 'tpoterba' not in review_state['reviews']
+
+
+def get_pr(source_ref):
+    status = ci_get('/status', status_code=200)
+    assert 'prs' in status
+    assert '_watched_targets' in status
+    all_prs = [PR.from_json(x) for x in status['prs']]
+    prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
+    assert len(prs) == 1, [str(x.source.ref) for x in all_prs]
+    return prs[0]
+
+
+def poll_github_until_merged(pr_number,
+                             delay_in_seconds=DELAY_IN_SECONDS,
+                             max_polls=MAX_POLLS):
+    r, status_code = get_repo(
+        FQ_REPO,
+        f'pulls/{pr_number}/merge',
+        # 204 NO CONTENT means merged, 404 means not merged
+        status_code=[204, 404],
+        json_response=False,
+        token=oauth_tokens['user1'])
+    polls = 0
+    while status_code != 204 and polls < max_polls:
+        time.sleep(delay_in_seconds)
+        polls = polls + 1
+        _, status_code = get_repo(
+            FQ_REPO,
             f'pulls/{pr_number}/merge',
             # 204 NO CONTENT means merged, 404 means not merged
             status_code=[204, 404],
             json_response=False,
             token=oauth_tokens['user1'])
-        polls = 0
-        while status_code != 204 and polls < max_polls:
-            time.sleep(delay_in_seconds)
-            polls = polls + 1
-            _, status_code = get_repo(
-                self.fq_repo,
-                f'pulls/{pr_number}/merge',
-                # 204 NO CONTENT means merged, 404 means not merged
-                status_code=[204, 404],
-                json_response=False,
-                token=oauth_tokens['user1'])
-        assert polls < max_polls, f'{polls} {max_polls}'
-        assert status_code == 204
+    assert polls < max_polls, f'{polls} {max_polls}'
+    assert status_code == 204
 
-    def poll_until_finished_pr(self,
-                               source_ref,
-                               delay_in_seconds=DELAY_IN_SECONDS,
-                               max_polls=MAX_POLLS):
-        return self.poll_pr(
-            source_ref,
-            lambda pr: pr.is_running() or pr.is_pending_build(),
-            delay_in_seconds=delay_in_seconds,
-            max_polls=max_polls)
 
-    def poll_until_running_pr(self,
-                              source_ref,
-                              delay_in_seconds=DELAY_IN_SECONDS,
-                              max_polls=MAX_POLLS):
-        return self.poll_pr(
-            source_ref,
-            lambda pr: pr.is_pending_build(),
-            delay_in_seconds=delay_in_seconds,
-            max_polls=max_polls)
+def poll_until_finished_pr(source_ref,
+                           delay_in_seconds=DELAY_IN_SECONDS,
+                           max_polls=MAX_POLLS):
+    return poll_pr(
+        source_ref,
+        lambda pr: pr.is_running() or pr.is_pending_build(),
+        delay_in_seconds=delay_in_seconds,
+        max_polls=max_polls)
 
-    def poll_pr(self,
-                source_ref,
-                poll_until_false,
-                delay_in_seconds=DELAY_IN_SECONDS,
-                max_polls=MAX_POLLS):
-        pr = self.get_pr(source_ref)
-        polls = 0
-        while poll_until_false(pr):
-            assert polls < max_polls
-            time.sleep(delay_in_seconds)
-            pr = self.get_pr(source_ref)
-            polls = polls + 1
-        return pr
 
-    def poll_until_pr_exists(self,
-                             source_ref,
+def poll_until_running_pr(source_ref,
+                          delay_in_seconds=DELAY_IN_SECONDS,
+                          max_polls=MAX_POLLS):
+    return poll_pr(
+        source_ref,
+        lambda pr: pr.is_pending_build(),
+        delay_in_seconds=delay_in_seconds,
+        max_polls=max_polls)
+
+
+def poll_pr(source_ref,
+            poll_until_false,
+            delay_in_seconds=DELAY_IN_SECONDS,
+            max_polls=MAX_POLLS):
+    pr = get_pr(source_ref)
+    polls = 0
+    while poll_until_false(pr):
+        assert polls < max_polls
+        time.sleep(delay_in_seconds)
+        pr = get_pr(source_ref)
+        polls = polls + 1
+    return pr
+
+
+def poll_until_pr_exists_and(source_ref,
+                             poll_until_true,
                              delay_in_seconds=DELAY_IN_SECONDS,
                              max_polls=MAX_POLLS):
-        return self.poll_until_pr_exists(source_ref,
-                                         lambda x: True,
-                                         delay_in_seconds,
-                                         max_polls)
+    prs = []
+    polls = 0
+    while (len(prs) == 0
+           or not poll_until_true(prs[0])) and polls < max_polls:
+        time.sleep(delay_in_seconds)
+        status = ci_get('/status', status_code=200)
+        assert 'prs' in status
+        assert '_watched_targets' in status
+        all_prs = [PR.from_json(x) for x in status['prs']]
+        prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
+        assert len(prs) <= 1, [str(x.source.ref) for x in all_prs]
+        polls = polls + 1
+    assert len(prs) == 1
+    return prs[0]
 
-    def poll_until_pr_exists_and(self,
-                                 source_ref,
-                                 poll_until_true,
-                                 delay_in_seconds=DELAY_IN_SECONDS,
-                                 max_polls=MAX_POLLS):
-        prs = []
-        polls = 0
-        while (len(prs) == 0
-               or not poll_until_true(prs[0])) and polls < max_polls:
-            time.sleep(delay_in_seconds)
-            status = ci_get('/status', status_code=200)
-            assert 'prs' in status
-            assert '_watched_targets' in status
-            all_prs = [PR.from_json(x) for x in status['prs']]
-            prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
-            assert len(prs) <= 1, [str(x.source.ref) for x in all_prs]
-            polls = polls + 1
-        assert len(prs) == 1
-        return prs[0]
 
-    def test_pull_request_trigger(self):
-        BRANCH_NAME = 'test_pull_request_trigger'
-        with tempdir() as d:
-            pr_number = None
-            try:
-                status = ci_get('/status', status_code=200)
-                self.assertIn('_watched_targets', status)
-                self.assertEqual(status['_watched_targets'],
-                                 [[{'repo': {
-                                     'name': self.repo_name,
-                                     'owner': 'hail-ci-test'},
-                                    'name': 'master'}, True]])
-                os.chdir(d)
-                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
-                os.chdir(self.repo_name)
-                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
-                call(['git', 'config', 'user.name', 'ci-automated-tests'])
-                call(['git', 'remote', '-v'])
+def test_pull_request_trigger(tmpdir):
+    BRANCH_NAME = 'test_pull_request_trigger'
+    pr_number = None
+    try:
+        status = ci_get('/status', status_code=200)
+        assert '_watched_targets' in status
+        assert status['_watched_targets'] == [[{
+            'repo': {
+                'name': REPO_NAME,
+                'owner': 'hail-ci-test'},
+            'name': 'master'}, True]]
+        os.chdir(tmpdir)
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        os.chdir(REPO_NAME)
+        call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+        call(['git', 'config', 'user.name', 'ci-automated-tests'])
+        call(['git', 'remote', '-v'])
 
-                call(['git', 'checkout', '-b', BRANCH_NAME])
-                call(['git', 'commit', '--allow-empty', '-m', 'foo'])
-                call(['git', 'push', 'origin', BRANCH_NAME])
-                source_sha = self.rev_parse(BRANCH_NAME)
-                target_sha = self.rev_parse('master')
-                data = post_repo(
-                    self.fq_repo,
-                    'pulls',
-                    json={
-                        "title": "foo",
-                        "head": BRANCH_NAME,
-                        "base": "master"
-                    },
-                    status_code=201,
-                    token=oauth_tokens['user1'])
-                pr_number = str(data['number'])
-                time.sleep(7)
-                pr = self.poll_until_finished_pr(BRANCH_NAME)
-                assertDictHasKVs(
-                    pr.to_json(),
-                    {
-                        "target": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": "master"
-                            },
-                            "sha": target_sha
-                        },
-                        "source": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": BRANCH_NAME
-                            },
-                            "sha": source_sha
-                        },
-                        "review": "pending",
-                        "build": {
-                            "type": "Mergeable",
-                            "target_sha": target_sha
-                        },
-                        "number": pr_number
-                    })
-            finally:
-                call(['git', 'push', 'origin', ':' + BRANCH_NAME])
-                if pr_number is not None:
-                    patch_repo(
-                        self.fq_repo,
-                        f'pulls/{pr_number}',
-                        json={"state": "closed"},
-                        status_code=200,
-                        token=oauth_tokens['user1'])
-
-    def create_pull_request(self, title, ref, base="master"):
-        return post_repo(
-            self.fq_repo,
+        call(['git', 'checkout', '-b', BRANCH_NAME])
+        call(['git', 'commit', '--allow-empty', '-m', 'foo'])
+        call(['git', 'push', 'origin', BRANCH_NAME])
+        source_sha = rev_parse(BRANCH_NAME)
+        target_sha = rev_parse('master')
+        data = post_repo(
+            FQ_REPO,
             'pulls',
             json={
-                "title": title,
-                "head": ref,
-                "base": base
+                "title": "foo",
+                "head": BRANCH_NAME,
+                "base": "master"
             },
             status_code=201,
             token=oauth_tokens['user1'])
+        pr_number = str(data['number'])
+        time.sleep(7)
+        pr = poll_until_finished_pr(BRANCH_NAME)
+        assertDictHasKVs(
+            pr.to_json(),
+            {
+                "target": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": "master"
+                    },
+                    "sha": target_sha
+                },
+                "source": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": BRANCH_NAME
+                    },
+                    "sha": source_sha
+                },
+                "review": "pending",
+                "build": {
+                    "type": "Mergeable",
+                    "target_sha": target_sha
+                },
+                "number": pr_number
+            })
+    finally:
+        call(['git', 'push', 'origin', ':' + BRANCH_NAME])
+        if pr_number is not None:
+            patch_repo(
+                FQ_REPO,
+                f'pulls/{pr_number}',
+                json={"state": "closed"},
+                status_code=200,
+                token=oauth_tokens['user1'])
 
-    def create_and_push_empty_commit(self, source_ref, target_ref='master'):
-        call(['git', 'checkout', target_ref])
-        call(['git', 'checkout', '-b', source_ref])
-        return self.push_empty_commit(source_ref)
 
-    def push_empty_commit(self, ref):
-        call(['git', 'checkout', ref])
-        call(['git', 'commit', '--allow-empty', '-m' 'foo'])
-        return self.push(ref)
+def create_pull_request(title, ref, base="master"):
+    return post_repo(
+        FQ_REPO,
+        'pulls',
+        json={
+            "title": title,
+            "head": ref,
+            "base": base
+        },
+        status_code=201,
+        token=oauth_tokens['user1'])
 
-    def push(self, ref):
-        call(['git', 'push', 'origin', ref])
-        return self.rev_parse(ref)
 
-    def approve(self, pr_number, sha):
-        return post_repo(
-            self.fq_repo,
+def create_and_push_empty_commit(source_ref, target_ref='master'):
+    call(['git', 'checkout', target_ref])
+    call(['git', 'checkout', '-b', source_ref])
+    return push_empty_commit(source_ref)
+
+
+def push_empty_commit(ref):
+    call(['git', 'checkout', ref])
+    call(['git', 'commit', '--allow-empty', '-m' 'foo'])
+    return push(ref)
+
+
+def push(ref):
+    call(['git', 'push', 'origin', ref])
+    return rev_parse(ref)
+
+
+def approve(pr_number, sha):
+    return post_repo(
+        FQ_REPO,
+        f'pulls/{pr_number}/reviews',
+        json={
+            "commit_id": sha,
+            "event": "APPROVE"
+        },
+        status_code=200,
+        token=oauth_tokens['user2'])
+
+
+def rev_parse(ref):
+    return run(
+        ['git', 'rev-parse', ref],
+        stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
+
+def test_push_while_building(tmpdir):
+    BRANCH_NAME = 'test_push_while_building'
+    SLOW_BRANCH_NAME = 'test_push_while_building_slow'
+    pr_number = {}
+    source_sha = {}
+    gh_pr = {}
+    pr = {}
+    try:
+        status = ci_get('/status', status_code=200)
+        assert '_watched_targets' in status
+        assert status['_watched_targets'] == [[{
+            'repo': {
+                'name': REPO_NAME,
+                'owner': 'hail-ci-test'},
+            'name': 'master'}, True]]
+        os.chdir(tmpdir)
+
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        os.chdir(REPO_NAME)
+        call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+        call(['git', 'config', 'user.name', 'ci-automated-tests'])
+        call(['git', 'remote', '-v'])
+
+        # start slow branch
+        call(['git', 'checkout', 'master'])
+        first_target_sha = rev_parse('master')
+        call(['git', 'checkout', '-b', SLOW_BRANCH_NAME])
+        with open('hail-ci-build.sh', 'w') as f:
+            f.write('sleep 45')
+        call(['git', 'add', 'hail-ci-build.sh'])
+        call(['git', 'commit', '-m', 'foo'])
+        source_sha[SLOW_BRANCH_NAME] = push(SLOW_BRANCH_NAME)
+        gh_pr[SLOW_BRANCH_NAME] = create_pull_request(
+            'foo',
+            SLOW_BRANCH_NAME)
+        pr_number[SLOW_BRANCH_NAME] = gh_pr[SLOW_BRANCH_NAME]['number']
+
+        # get details on first job of slow branch
+        pr[SLOW_BRANCH_NAME] = poll_until_pr_exists_and(
+            SLOW_BRANCH_NAME,
+            lambda x: x.is_running())
+        assertDictHasKVs(
+            pr[SLOW_BRANCH_NAME].to_json(),
+            {
+                "target": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": "master"
+                    },
+                    "sha": first_target_sha
+                },
+                "source": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": SLOW_BRANCH_NAME
+                    },
+                    "sha": source_sha[SLOW_BRANCH_NAME]
+                },
+                "review": "pending",
+                "build": {
+                    "type": "Building",
+                    "target_sha": first_target_sha
+                },
+                "number": str(pr_number[SLOW_BRANCH_NAME])
+            })
+        first_slow_job_id = pr[SLOW_BRANCH_NAME].build.job.id
+        assert first_slow_job_id is not None
+
+        # start fast branch
+        source_sha[BRANCH_NAME] = create_and_push_empty_commit(
+            BRANCH_NAME)
+        gh_pr[BRANCH_NAME] = create_pull_request(
+            'foo',
+            BRANCH_NAME)
+        pr_number[BRANCH_NAME] = gh_pr[BRANCH_NAME]['number']
+        approve(pr_number[BRANCH_NAME], source_sha[BRANCH_NAME])
+
+        poll_github_until_merged(pr_number[BRANCH_NAME])
+
+        call(['git', 'fetch', 'origin'])
+        second_target_sha = rev_parse('origin/master')
+
+        time.sleep(10)  # allow deploy job to run
+
+        deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'], stdout=subprocess.PIPE)
+        deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
+        assert f'commit {second_target_sha}' in deploy_artifact
+
+        time.sleep(5)  # allow github push notification to be sent
+
+        pr[SLOW_BRANCH_NAME] = poll_until_finished_pr(
+            SLOW_BRANCH_NAME)
+        assertDictHasKVs(
+            pr[SLOW_BRANCH_NAME].to_json(),
+            {
+                "target": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": "master"
+                    },
+                    "sha": second_target_sha
+                },
+                "source": {
+                    "ref": {
+                        "repo": {
+                            "owner": "hail-ci-test",
+                            "name": REPO_NAME
+                        },
+                        "name": SLOW_BRANCH_NAME
+                    },
+                    "sha": source_sha[SLOW_BRANCH_NAME]
+                },
+                "review": "pending",
+                "build": {
+                    "type": "Mergeable",
+                    "target_sha": second_target_sha
+                },
+                "number": str(pr_number[SLOW_BRANCH_NAME])
+            })
+    finally:
+        call(['git', 'push', 'origin', ':' + SLOW_BRANCH_NAME])
+        call(['git', 'push', 'origin', ':' + BRANCH_NAME])
+        for pr_number in pr_number.values():
+            patch_repo(
+                FQ_REPO,
+                f'pulls/{pr_number}',
+                json={"state": "closed"},
+                status_code=200,
+                token=oauth_tokens['user1'])
+
+
+def test_merges_approved_pr(tmpdir):
+    BRANCH_NAME = 'test_merges_approved_pr'
+    pr_number = None
+    try:
+        status = ci_get('/status', status_code=200)
+        assert '_watched_targets' in status
+        assert status['_watched_targets'] == [[{
+            'repo': {
+                'name': REPO_NAME,
+                'owner': 'hail-ci-test'},
+            'name': 'master'}, True]]
+        os.chdir(tmpdir)
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        os.chdir(REPO_NAME)
+        call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
+        call(['git', 'config', 'user.name', 'ci-automated-tests'])
+        call(['git', 'remote', '-v'])
+
+        call(['git', 'checkout', '-b', BRANCH_NAME])
+        call(['git', 'commit', '--allow-empty', '-m', 'foo'])
+        call(['git', 'push', 'origin', BRANCH_NAME])
+        source_sha = rev_parse(BRANCH_NAME)
+        gh_pr = post_repo(
+            FQ_REPO,
+            'pulls',
+            json={
+                "title": "foo",
+                "head": BRANCH_NAME,
+                "base": "master"
+            },
+            status_code=201)
+        pr_number = str(gh_pr['number'])
+        post_repo(
+            FQ_REPO,
             f'pulls/{pr_number}/reviews',
             json={
-                "commit_id": sha,
+                "commit_id": source_sha,
                 "event": "APPROVE"
             },
             status_code=200,
             token=oauth_tokens['user2'])
+        get_repo(
+            FQ_REPO,
+            f'pulls/{pr_number}/reviews',
+            status_code=200,
+            token=oauth_tokens['user1'])
+        time.sleep(7)
+        poll_github_until_merged(pr_number)
 
-    def rev_parse(self, ref):
-        return run(
-            ['git', 'rev-parse', ref],
-            stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+        call(['git', 'fetch', 'origin'])
+        merged_sha = rev_parse('origin/master')
 
-    def test_push_while_building(self):
-        BRANCH_NAME = 'test_push_while_building'
-        SLOW_BRANCH_NAME = 'test_push_while_building_slow'
-        with tempdir() as d:
-            pr_number = {}
-            source_sha = {}
-            gh_pr = {}
-            pr = {}
-            try:
-                status = ci_get('/status', status_code=200)
-                assert '_watched_targets' in status
-                assert status['_watched_targets'] == [[{
-                    'repo': {
-                        'name': self.repo_name,
-                        'owner': 'hail-ci-test'},
-                    'name': 'master'}, True]]
-                os.chdir(d)
+        # deploy job takes some time
+        time.sleep(7)
 
-                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
-                os.chdir(self.repo_name)
-                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
-                call(['git', 'config', 'user.name', 'ci-automated-tests'])
-                call(['git', 'remote', '-v'])
-
-                # start slow branch
-                call(['git', 'checkout', 'master'])
-                first_target_sha = self.rev_parse('master')
-                call(['git', 'checkout', '-b', SLOW_BRANCH_NAME])
-                with open('hail-ci-build.sh', 'w') as f:
-                    f.write('sleep 45')
-                call(['git', 'add', 'hail-ci-build.sh'])
-                call(['git', 'commit', '-m', 'foo'])
-                source_sha[SLOW_BRANCH_NAME] = self.push(SLOW_BRANCH_NAME)
-                gh_pr[SLOW_BRANCH_NAME] = self.create_pull_request(
-                    'foo',
-                    SLOW_BRANCH_NAME)
-                pr_number[SLOW_BRANCH_NAME] = gh_pr[SLOW_BRANCH_NAME]['number']
-
-                # get details on first job of slow branch
-                pr[SLOW_BRANCH_NAME] = self.poll_until_pr_exists_and(
-                    SLOW_BRANCH_NAME,
-                    lambda x: x.is_running())
-                assertDictHasKVs(
-                    pr[SLOW_BRANCH_NAME].to_json(),
-                    {
-                        "target": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": "master"
-                            },
-                            "sha": first_target_sha
-                        },
-                        "source": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": SLOW_BRANCH_NAME
-                            },
-                            "sha": source_sha[SLOW_BRANCH_NAME]
-                        },
-                        "review": "pending",
-                        "build": {
-                            "type": "Building",
-                            "target_sha": first_target_sha
-                        },
-                        "number": str(pr_number[SLOW_BRANCH_NAME])
-                    })
-                first_slow_job_id = pr[SLOW_BRANCH_NAME].build.job.id
-                assert first_slow_job_id is not None
-
-                # start fast branch
-                source_sha[BRANCH_NAME] = self.create_and_push_empty_commit(
-                    BRANCH_NAME)
-                gh_pr[BRANCH_NAME] = self.create_pull_request(
-                    'foo',
-                    BRANCH_NAME)
-                pr_number[BRANCH_NAME] = gh_pr[BRANCH_NAME]['number']
-                self.approve(pr_number[BRANCH_NAME], source_sha[BRANCH_NAME])
-
-                self.poll_github_until_merged(pr_number[BRANCH_NAME])
-
-                call(['git', 'fetch', 'origin'])
-                second_target_sha = self.rev_parse('origin/master')
-
-                time.sleep(10)  # allow deploy job to run
-
-                deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'], stdout=subprocess.PIPE)
-                deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
-                assert f'commit {second_target_sha}' in deploy_artifact
-
-                time.sleep(5)  # allow github push notification to be sent
-
-                pr[SLOW_BRANCH_NAME] = self.poll_until_finished_pr(
-                    SLOW_BRANCH_NAME)
-                assertDictHasKVs(
-                    pr[SLOW_BRANCH_NAME].to_json(),
-                    {
-                        "target": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": "master"
-                            },
-                            "sha": second_target_sha
-                        },
-                        "source": {
-                            "ref": {
-                                "repo": {
-                                    "owner": "hail-ci-test",
-                                    "name": self.repo_name
-                                },
-                                "name": SLOW_BRANCH_NAME
-                            },
-                            "sha": source_sha[SLOW_BRANCH_NAME]
-                        },
-                        "review": "pending",
-                        "build": {
-                            "type": "Mergeable",
-                            "target_sha": second_target_sha
-                        },
-                        "number": str(pr_number[SLOW_BRANCH_NAME])
-                    })
-            finally:
-                call(['git', 'push', 'origin', ':' + SLOW_BRANCH_NAME])
-                call(['git', 'push', 'origin', ':' + BRANCH_NAME])
-                for pr_number in pr_number.values():
-                    patch_repo(
-                        self.fq_repo,
-                        f'pulls/{pr_number}',
-                        json={"state": "closed"},
-                        status_code=200,
-                        token=oauth_tokens['user1'])
-
-    def test_merges_approved_pr(self):
-        BRANCH_NAME = 'test_merges_approved_pr'
-        with tempdir() as d:
-            pr_number = None
-            try:
-                status = ci_get('/status', status_code=200)
-                self.assertIn('_watched_targets', status)
-                assert status['_watched_targets'] == [[{
-                    'repo': {
-                        'name': self.repo_name,
-                        'owner': 'hail-ci-test'},
-                    'name': 'master'}, True]]
-                os.chdir(d)
-                call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{self.repo_name}.git'])
-                os.chdir(self.repo_name)
-                call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
-                call(['git', 'config', 'user.name', 'ci-automated-tests'])
-                call(['git', 'remote', '-v'])
-
-                call(['git', 'checkout', '-b', BRANCH_NAME])
-                call(['git', 'commit', '--allow-empty', '-m', 'foo'])
-                call(['git', 'push', 'origin', BRANCH_NAME])
-                source_sha = self.rev_parse(BRANCH_NAME)
-                gh_pr = post_repo(
-                    self.fq_repo,
-                    'pulls',
-                    json={
-                        "title": "foo",
-                        "head": BRANCH_NAME,
-                        "base": "master"
-                    },
-                    status_code=201)
-                pr_number = str(gh_pr['number'])
-                post_repo(
-                    self.fq_repo,
-                    f'pulls/{pr_number}/reviews',
-                    json={
-                        "commit_id": source_sha,
-                        "event": "APPROVE"
-                    },
-                    status_code=200,
-                    token=oauth_tokens['user2'])
-                get_repo(
-                    self.fq_repo,
-                    f'pulls/{pr_number}/reviews',
-                    status_code=200,
-                    token=oauth_tokens['user1'])
-                time.sleep(7)
-                self.poll_github_until_merged(pr_number)
-
-                call(['git', 'fetch', 'origin'])
-                merged_sha = self.rev_parse('origin/master')
-
-                # deploy job takes some time
-                time.sleep(7)
-
-                deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{merged_sha}'], stdout=subprocess.PIPE, check=True)
-                deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
-                assert f'commit {merged_sha}' in deploy_artifact
-            finally:
-                call(['git', 'push', 'origin', ':' + BRANCH_NAME])
-                if pr_number is not None:
-                    patch_repo(
-                        self.fq_repo,
-                        f'pulls/{pr_number}',
-                        json={"state": "closed"},
-                        status_code=200)
+        deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{merged_sha}'], stdout=subprocess.PIPE, check=True)
+        deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
+        assert f'commit {merged_sha}' in deploy_artifact
+    finally:
+        call(['git', 'push', 'origin', ':' + BRANCH_NAME])
+        if pr_number is not None:
+            patch_repo(
+                FQ_REPO,
+                f'pulls/{pr_number}',
+                json={"state": "closed"},
+                status_code=200)
