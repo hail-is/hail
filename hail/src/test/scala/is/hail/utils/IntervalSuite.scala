@@ -27,10 +27,13 @@ class IntervalSuite extends TestNGSuite {
     SetIntervalTree(Array[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
         SetIntervalTree(Array(i1).zipWithIndex) +:
-          test_intervals.map { i2 =>
-            SetIntervalTree(Array(i1, i2).zipWithIndex)
+          test_intervals.flatMap { i2 =>
+            if (i1.end <= i2.start)
+              Some(SetIntervalTree(Array(i1, i2).zipWithIndex))
+            else
+              None
           }
-      } :+ SetIntervalTree(test_intervals.toArray.zipWithIndex)
+      }
 
 
   @Test def interval_agrees_with_set_interval_greater_than_point() {
@@ -151,8 +154,8 @@ class IntervalSuite extends TestNGSuite {
     for (set_itree <- test_itrees) {
       val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
-      assertEquals(itree.isEmpty(pord), set_itree.definitelyEmpty())
-      assertEquals(atree.isEmpty(pord), set_itree.definitelyEmpty())
+      assertEquals(itree.isEmpty, set_itree.definitelyEmpty())
+      assertEquals(atree.isEmpty, set_itree.definitelyEmpty())
     }
   }
 

@@ -136,7 +136,7 @@ class RVDPartitioner(
     new RVDPartitioner(kType, ab.result())
   }
 
-  def range: Option[Interval] = Option(rangeTree.root).map(_.range)
+  def range: Option[Interval] = rangeTree.range
 
   def contains(index: Int, key: Any): Boolean = {
     require(kType.isComparableAt(key))
