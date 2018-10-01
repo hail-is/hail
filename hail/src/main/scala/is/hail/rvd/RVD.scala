@@ -11,7 +11,7 @@ import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
-import org.apache.spark.SparkContext
+import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -171,7 +171,7 @@ class RVD(
         newPartitioner.sparkPartitioner(crdd.sparkContext)
       ).setKeyOrdering(kOrdering.toOrdering)
 
-      val shuffledCRDD = codec.decodeRDD(localRowPType, shuffled.map(_._2))
+      val shuffledCRDD = codec.decodeRDD(localRowPType, shuffled.values)
 
       RVD(newType, newPartitioner, shuffledCRDD)
 
@@ -915,6 +915,49 @@ class RVD(
       partitioner = left.partitioner,
       crdd = left.crddBoundary.czipPartitions(
         RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey)).boundary
+      )(zipper))
+  }
+
+  def intervalAlignAndZipPartitions(
+    newTyp: RVDType,
+    that: RVD
+  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
+  ): RVD = {
+    require(that.rowType.fieldByName(that.typ.key(0)).typ.asInstanceOf[TInterval].pointType == rowType.fieldByName(typ.key(0)).typ)
+
+    val partBc = partitioner.broadcast(sparkContext)
+    val rightTyp = that.typ
+    val enc = RVD.wireCodec.buildEncoder(that.rowPType)
+    val partitionKeyedIntervals = that.boundary.crdd
+      .flatMap { rv =>
+        val r = SafeRow(rightTyp.rowType.physicalType, rv)
+        val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
+        if (interval != null) {
+          val wrappedInterval = interval.copy(
+            start = Row(interval.start),
+            end = Row(interval.end))
+          val bytes = rv.toBytes(enc)
+          partBc.value.getPartitionRange(wrappedInterval).map(i => ((i, interval), bytes))
+        } else
+          Iterator()
+      }.clearingRun
+
+    val nParts = getNumPartitions
+    val intervalOrd = rightTyp.kType.types(0).ordering.toOrdering.asInstanceOf[Ordering[Interval]]
+    val sorted: RDD[((Int, Interval), Array[Byte])] = new ShuffledRDD(
+      partitionKeyedIntervals,
+      new Partitioner {
+        def getPartition(key: Any): Int = key.asInstanceOf[(Int, Interval)]._1
+
+        def numPartitions: Int = nParts
+      }
+    ).setKeyOrdering(Ordering.by[(Int, Interval), Interval](_._2)(intervalOrd))
+
+    RVD(
+      typ = newTyp,
+      partitioner = partitioner,
+      crdd = crddBoundary.czipPartitions(
+        RVD.wireCodec.decodeRDD(that.rowPType, sorted.values).boundary
       )(zipper))
   }
 

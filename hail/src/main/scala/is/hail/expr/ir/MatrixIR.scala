@@ -3,11 +3,9 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
-import is.hail.expr.{Parser, TableAnnotationImpex, ir}
-import is.hail.io._
+import is.hail.expr.ir
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
@@ -15,7 +13,6 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.Partitioner
 import org.apache.spark.sql.Row
 import org.json4s._
 
@@ -1997,74 +1994,31 @@ case class MatrixAnnotateRowsTable(
         if table.typ.keyType.size == 1
         && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))
       =>
-        val typOrdering = child.typ.rowKeyStruct.types(0).ordering
-
-        val typToInsert: Type = table.typ.valueType
-
-        val (newRVPType, ins) = child.typ.rvRowType.physicalType.unsafeStructInsert(typToInsert.physicalType, List(root))
+        val (newRVPType, ins) =
+          child.typ.rvRowType.physicalType.unsafeStructInsert(table.typ.valueType.physicalType, List(root))
         val newRVType = newRVPType.virtualType
 
-        val partBc = hc.sc.broadcast(prev.rvd.partitioner)
-        val tableRowType = table.typ.rowType.physicalType
-        val tableKeyIdx = table.typ.keyFieldIdx(0)
-        val tableValueIndex = table.typ.valueFieldIdx
-        val partitionKeyedIntervals = tv.rvd.boundary.crdd
-          .flatMap { rv =>
-            val r = SafeRow(tableRowType, rv)
-            val interval = r.getAs[Interval](tableKeyIdx)
-            if (interval != null) {
-              val wrappedInterval = interval.copy(
-                start = Row(interval.start),
-                end = Row(interval.end))
-              partBc.value.getPartitionRange(wrappedInterval).map(i => (i, r))
-            } else
-              Iterator()
-          }
+        val rightTyp = table.typ
+        val leftRVDType = child.typ.rvdType
 
-        val nParts = prev.rvd.getNumPartitions
-        val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
-          def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-          def numPartitions: Int = nParts
-        }).values
-
-        val rvRowType = child.typ.rvRowType.physicalType
-        val kIndex = rvRowType.fieldIdx(child.typ.rowKey(0))
-        val newMatrixType = child.typ.copy(rvRowType = newRVType)
-        val newRVD = prev.rvd.zipPartitions(
-          newMatrixType.rvdType,
-          zipRDD
-        ) { case (it, intervals) =>
-          val intervalAnnotations: Array[(Interval, Any)] =
-            intervals.map { r =>
-              val interval = r.getAs[Interval](tableKeyIdx)
-              (interval, Row.fromSeq(tableValueIndex.map(r.get)))
-            }.toArray
-
-          val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
-
+        val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
           val rvb = new RegionValueBuilder()
           val rv2 = RegionValue()
+          OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
+            OrderedRVIterator(rightTyp.rvdType, intervals, ctx)
+          )
+            .map { case Muple(rv, i) =>
+              rvb.set(rv.region)
+              rvb.start(newRVType)
+              ins(rv.region, rv.offset, rvb, () => rvb.selectRegionValue(rightTyp.rowType, rightTyp.valueFieldIdx, i))
+              rv2.set(rv.region, rvb.end())
 
-          it.map { rv =>
-            val ur = new UnsafeRow(rvRowType, rv)
-            val k0 = ur.get(kIndex)
-            val queries = iTree.queryValues(typOrdering, k0)
-            val value: Annotation = if (queries.isEmpty)
-              null
-            else
-              queries(0)
-
-            rvb.set(rv.region)
-            rvb.start(newRVType)
-
-            ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
-
-            rv2.set(rv.region, rvb.end())
-
-            rv2
-          }
+              rv2
+            }
         }
+
+        val newMatrixType = child.typ.copy(rvRowType = newRVType)
+        val newRVD = prev.rvd.intervalAlignAndZipPartitions(newMatrixType.rvdType, tv.rvd)(zipper)
         prev.copy(typ = typ, rvd = newRVD)
 
       // annotateRowsTable using non-key MT fields

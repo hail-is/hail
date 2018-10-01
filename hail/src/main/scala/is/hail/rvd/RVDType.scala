@@ -49,6 +49,48 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
       other.kFieldIdx,
       false)
 
+  def intervalJoinComp(other: RVDType): UnsafeOrdering = {
+    require(other.key.length == 1)
+    require(other.rowType.fieldByName(other.key(0)).typ.asInstanceOf[TInterval].pointType == rowType.fieldByName(key(0)).typ)
+
+    new UnsafeOrdering {
+      val t1 = rowType
+      val t2 = other.rowType
+      val t1p = t1.physicalType
+      val t2p = t2.physicalType
+      val f1 = kFieldIdx(0)
+      val f2 = other.kFieldIdx(0)
+      val intervalType = t2.types(f2).asInstanceOf[TInterval]
+      val pord = t1p.types(f1).unsafeOrdering(intervalType.pointType.physicalType)
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+
+        val leftDefined = rowType.isFieldDefined(r1, o1, f1)
+        val rightDefined = other.rowType.isFieldDefined(r2, o2, f2)
+
+        if (leftDefined && rightDefined) {
+          val k1 = t1.loadField(r1, o1, f1)
+          val k2 = t2.loadField(r2, o2, f2)
+          if (intervalType.startDefined(r2, k2)) {
+            val c = pord.compare(r1, k1, r2, intervalType.loadStart(r2, k2))
+            if (c < 0 || (c == 0 && !intervalType.includesStart(r2, k2))) {
+              -1
+            } else {
+              if (intervalType.endDefined(r2, k2)) {
+                val c = pord.compare(r1, k1, r2, intervalType.loadEnd(r2, k2))
+                if (c < 0 || (c == 0 && intervalType.includesEnd(r2, k2)))
+                  0
+                else 1
+              } else 0
+            }
+          } else -1
+        } else if (leftDefined != rightDefined) {
+          if (leftDefined) -1 else 1
+        } else 0
+      }
+    }
+  }
+
+
   def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
     val wrv = WritableRegionValue(kType, region)
     def setFiniteValue(representative: RegionValue) {

@@ -54,6 +54,16 @@ case class OrderedRVIterator(
       this.t.joinComp(other.t).compare
     )
 
+  def leftIntervalJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
+    iterator.toFlipbookIterator.leftJoinDistinct(
+      other.iterator.toFlipbookIterator,
+      this.t.kRowOrdView(ctx.freshRegion),
+      other.t.kRowOrdView(ctx.freshRegion),
+      null,
+      null,
+      this.t.intervalJoinComp(other.t).compare
+    )
+
   def innerJoin(
     other: OrderedRVIterator,
     rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
