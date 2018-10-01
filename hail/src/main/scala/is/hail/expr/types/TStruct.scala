@@ -53,8 +53,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val fieldIdx: Map[String, Int] =
-    fields.map(f => (f.name, f.index)).toMap
+  val fieldIdx: ReadOnlyMap[String, Int] =
+    new ReadOnlyMutableMap(toMapFast(fields)(_.name, _.index))
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
@@ -260,6 +260,25 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       }
     }
     newStruct -> annotator
+  }
+
+  def insertFields(fieldsToInsert: TraversableOnce[(String, Type)]): TStruct = {
+    val ab = new ArrayBuilder[Field](fields.length)
+    var i = 0
+    while (i < fields.length) {
+      ab += fields(i)
+      i += 1
+    }
+    val it = fieldsToInsert.toIterator
+    while (it.hasNext) {
+      val (name, typ) = it.next
+      if (fieldIdx.contains(name)) {
+        val j = fieldIdx(name)
+        ab(j) = Field(name, typ, j)
+      } else
+        ab += Field(name, typ, ab.length)
+    }
+    TStruct(ab.result(), required)
   }
 
   def rename(m: Map[String, String]): TStruct = {

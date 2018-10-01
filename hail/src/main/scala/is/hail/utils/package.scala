@@ -624,6 +624,34 @@ package object utils extends Logging
       s
   }
 
+  trait ReadOnlyMap[K, V] extends (K => V) {
+    def apply(k: K): V
+    def contains(k: K): Boolean
+    def get(k: K): Option[V]
+    def getOrElse(k: K, v: V): V
+  }
+
+  class ReadOnlyMutableMap[K, V](m: mutable.Map[K, V]) extends ReadOnlyMap[K, V] {
+    def contains(k: K): Boolean = m.contains(k)
+    def get(k: K): Option[V] = m.get(k)
+    def apply(k: K): V = m(k)
+    def getOrElse(k: K, v: V): V = if (m.contains(k)) m(k) else v
+  }
+
+  def toMapFast[T, K, V](
+	  ts: TraversableOnce[T]
+  )(key: T => K,
+    value: T => V
+  ): mutable.Map[K, V] = {
+    val it = ts.toIterator
+    val m = mutable.Map[K, V]()
+    while (it.hasNext) {
+      val t = it.next
+      m.put(key(t), value(t))
+    }
+    m
+  }
+
   def toMapIfUnique[K, K2, V](
     kvs: Traversable[(K, V)]
   )(keyBy: K => K2
