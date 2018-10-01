@@ -1,8 +1,6 @@
 # Hail
 
-[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-
-[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
+Hail is an open-source, scalable framework for exploring and analyzing genomic data. 
 
 The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Since then, Hail has expanded to enable analysis of large-scale datasets beyond the field of genomics. 
 
@@ -63,13 +61,13 @@ There are many ways to get in touch with the Hail team if you need help using Ha
 
 - chat with the Hail team in our [Zulip chatroom](https://hail.zulipchat.com).
 - post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests, or to share your Hail-powered science 
-- please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues)
+- please report any suspected bugs as [GitHub issues](https://github.com/hail-is/hail/issues)
 
 Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the Discussion Forum. We recommend creating an account on the Discussion Forum so that you can subscribe to these updates.
 
 ### Contribute
 
-Hail is committed to open-source development. If you'd like to contribute to the development of methods or infrastructure, please: 
+Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
 - see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
