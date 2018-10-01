@@ -24,6 +24,12 @@ class UpcallConfig {
   // InputBuffer methods
   jmethodID InputBuffer_close_; // close()
   jmethodID InputBuffer_readToEndOfBlock_;
+
+  jmethodID OutputStream_write_;
+  jmethodID OutputStream_flush_;
+  jmethodID OutputBlockBuffer_writeBlock_;
+  jmethodID Iterator_next_;
+  jmethodID Iterator_hasNext_;
   
   UpcallConfig();
 };
@@ -33,6 +39,8 @@ class UpcallEnv {
   const UpcallConfig* config_; // once-per-session jobject/classID/methodID's
   JNIEnv* env_;
   bool did_attach_;
+  jbyteArray buf_ = nullptr;
+  int buf_size_ = -1;
   
  public:
   // Constructor ensures thread is attached to JavaVM, and gets a JNIEnv 
@@ -56,6 +64,8 @@ class UpcallEnv {
   // InputBuffer
   void InputBuffer_close(jobject obj);
   int32_t InputBuffer_readToEndOfBlock(jobject obj, void* toAddr, jbyteArray buf, int32_t off, int32_t n);
+
+  jbyteArray getBuffer(int size);
 
 };
 

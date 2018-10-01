@@ -35,6 +35,19 @@ UpcallConfig::UpcallConfig() {
   auto cl2 = env->FindClass("is/hail/io/InputBuffer");
   InputBuffer_close_ = env->GetMethodID(cl2, "close", "()V");
   InputBuffer_readToEndOfBlock_ = env->GetMethodID(cl2, "readToEndOfBlock", "(J[BII)I");
+  // OutputStream methods
+  auto cl3 = env->FindClass("java/io/OutputStream");
+  OutputStream_write_ = env->GetMethodID(cl3, "write", "([BII)V");
+  OutputStream_flush_ = env->GetMethodID(cl3, "flush", "()V");
+  // OutputStream methods
+  auto cl4 = env->FindClass("is/hail/io/OutputBlockBuffer");
+  OutputBlockBuffer_writeBlock_ = env->GetMethodID(cl4, "writeBlock", "([BI)V");
+  // RegionValueIterator methods
+  auto cl5 = env->FindClass("is/hail/nativecode/RegionValueIterator");
+  Iterator_next_ = env->GetMethodID(cl5, "next", "()J");
+  Iterator_hasNext_ = env->GetMethodID(cl5, "hasNext", "()Z");
+
+
 }
 
 namespace {
@@ -123,6 +136,14 @@ int32_t UpcallEnv::InputBuffer_readToEndOfBlock(
 ) {
   return env_->CallIntMethod(obj, config_->InputBuffer_readToEndOfBlock_,
                              (jlong)toAddr, buf, (jint)off, (jint)n);
+}
+
+jbyteArray UpcallEnv::getBuffer(int size) {
+  if (buf_size_ < size) {
+    buf_ = env_->NewByteArray(size);
+    buf_size_ = size;
+  }
+  return buf_;
 }
 
 } // namespace hail

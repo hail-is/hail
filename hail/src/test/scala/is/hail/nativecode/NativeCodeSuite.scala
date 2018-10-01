@@ -1,16 +1,15 @@
 package is.hail.nativecode
 
 import is.hail.SparkSuite
-import is.hail.annotations._
-import is.hail.check.Gen
-import is.hail.check.Prop.forAll
-import is.hail.expr._
+import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.nativecode._
-import org.apache.spark.SparkException
+import is.hail.io._
+import is.hail.table.Table
 import org.testng.annotations.Test
 import is.hail.utils._
-import is.hail.testUtils._
+import org.apache.spark.sql.Row
+
+import java.io.File
 
 class NativeCodeSuite extends SparkSuite {
 
@@ -216,6 +215,144 @@ class NativeCodeSuite extends SparkSuite {
     assert(testPlus(st, holder.get(), 0, 44) == 1044)
     assert(testPlus(st, holder.get(), 1, 55) == 2055)
     testPlus.close()
+  }
+
+  @Test def testWrite() = {
+    val sb = new StringBuilder()
+    sb.append(
+      """#include "hail/hail.h"
+        |#include "hail/ObjectArray.h"
+        |#include "hail/Upcalls.h"
+        |#include "hail/encoder_test.h"
+        |#include <cstdio>
+        |
+        |NAMESPACE_HAIL_MODULE_BEGIN
+        |
+        |class ObjectHolder : public NativeObj {
+        | public:
+        |  ObjectArrayPtr objects_;
+        |
+        |  ObjectHolder(ObjectArray* objects) :
+        |    objects_(std::dynamic_pointer_cast<ObjectArray>(objects->shared_from_this())) {
+        |  }
+        |};
+        |
+        |NativeObjPtr makeObjectHolder(NativeStatus*, long objects) {
+        |  return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(objects));
+        |}
+        |
+        |long testWrite(NativeStatus* st, long holder) {
+        |  UpcallEnv up;
+        |  JNIEnv* env = up.env();
+        |  auto h = reinterpret_cast<ObjectHolder*>(holder);
+        |  auto os = h->objects_->at(0);
+        |  auto it = h->objects_->at(1);
+        |  return write_rows(os, it);
+        |}
+        |
+        |NAMESPACE_HAIL_MODULE_END
+        |""".stripMargin
+    )
+
+    val rows = Literal(
+      TArray(TStruct("a"->TInt32(), "b"->TString(), "c"->TArray(TFloat64()))),
+      FastIndexedSeq(
+        Row(null, null, null),
+        Row(-1, "abcdefg", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, "", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, null, FastIndexedSeq(null, null, null)),
+        Row(5, "", FastIndexedSeq(null, null, null, null, null, null, 0.5, null, null, null, null, null))
+      ))
+
+    val t = new Table(hc, TableParallelize(rows, Some(2)))
+    t.write("/tmp/test.ht", overwrite=true)
+
+    val dir = new File("/tmp/test.ht/rows/parts")
+    val paths = dir.listFiles().map(_.toString).filter(_.startsWith("/tmp/test.ht/rows/parts/part-"))
+
+    paths.foreach(hc.hadoopConf.delete(_, recursive = false))
+
+    val hconf = new SerializableHadoopConfiguration(hc.hadoopConf)
+
+    t.tir.execute(hc).rvd.mapPartitionsWithIndex { (i, it) =>
+      val st = new NativeStatus()
+      val mod = new NativeModule("", sb.toString())
+      val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
+      val testWrite = mod.findLongFuncL1(st, "testWrite")
+      mod.close()
+
+      val fos = hconf.value.unsafeWriter(paths(i))
+      val buffer = new LZ4OutputBlockBuffer(32 * 1024, new StreamBlockOutputBuffer(fos))
+      val objArray = new ObjectArray(buffer, new RegionValueIterator(it))
+      val holder = new NativePtr(makeObjectHolder, st, objArray.get())
+      objArray.close()
+      testWrite(st, holder.get())
+      testWrite.close()
+      fos.flush()
+      fos.close()
+      Iterator.single("foo")
+    }.collect()
+
+    val res = Table.read(hc, "/tmp/test.ht")
+
+//    println(res.showString())
+
+    assert(res.same(t))
+  }
+
+  @Test def testWrite2() = {
+    val f = new NativeFile()
+    f.include(""""hail/hail.h"""")
+    f.include(""""hail/ObjectArray.h"""")
+    f.include(""""hail/Upcalls.h"""")
+    f.include(""""hail/encoder_test.h"""")
+    f.include("<cstdio>")
+
+    val w = f.addFunction("testWrite", "long", Array("st" -> "NativeStatus *", "holder" -> "long"))
+    val up = w.newRef("up", "UpcallEnv")
+    val env = w.newRef("env", "JNIEnv *", NCode("up.env()"))
+    val h = w.newRef("h", init=NCode("reinterpret_cast<ObjectHolder*>(holder)"))
+    val os = w.newRef("os", init=NCode("h->objects_->at(0)"))
+    val it = w.newRef("it", init=NCode("h->objects_->at(1)"))
+    w.emit(NCode("return write_rows(os, it)"))
+
+    val rows = Literal(
+      TArray(TStruct("a"->TInt32(), "b"->TString(), "c"->TArray(TFloat64()))),
+      FastIndexedSeq(
+        Row(null, null, null),
+        Row(-1, "abcdefg", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, "", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, null, FastIndexedSeq(null, null, null)),
+        Row(5, "", FastIndexedSeq(null, null, null, null, null, null, 0.5, null, null, null, null, null))
+      ))
+
+    val t = new Table(hc, TableParallelize(rows, Some(2)))
+    t.write("/tmp/test.ht", overwrite=true)
+
+    val dir = new File("/tmp/test.ht/rows/parts")
+    val paths = dir.listFiles().map(_.toString).filter(_.startsWith("/tmp/test.ht/rows/parts/part-"))
+
+    paths.foreach(hc.hadoopConf.delete(_, recursive = false))
+
+    val hconf = new SerializableHadoopConfiguration(hc.hadoopConf)
+
+    t.tir.execute(hc).rvd.mapPartitionsWithIndex { (i, it) =>
+
+      val fos = hconf.value.unsafeWriter(paths(i))
+      val buffer = new LZ4OutputBlockBuffer(32 * 1024, new StreamBlockOutputBuffer(fos))
+      val partF = f.build("testWrite")
+
+      partF(Array(buffer, new RegionValueIterator(it)))
+      fos.flush()
+      fos.close()
+      Iterator.single("foo")
+    }.collect()
+
+    val res = Table.read(hc, "/tmp/test.ht")
+
+    println(res.showString())
+
+    assert(res.same(t))
   }
 
 }

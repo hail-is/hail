@@ -25,6 +25,8 @@ trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
+
+  def buildNativeOutputBuffer(out: OutputStream): OutputBuffer
 }
 
 final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -37,6 +39,8 @@ final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
+
+  def buildNativeOutputBuffer(out: OutputStream):
 }
 
 trait BlockBufferSpec extends Serializable {
