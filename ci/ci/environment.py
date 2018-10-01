@@ -42,7 +42,7 @@ except FileNotFoundError as e:
         "containing a string that is passed to `/bin/sh -c'") from e
 try:
     with open('oauth-token/oauth-token', 'r') as f:
-        oauth_token = f.read()
+        oauth_token = f.read().strip()
 except FileNotFoundError as e:
     raise ValueError(
         "working directory must contain `oauth-token/oauth-token' "

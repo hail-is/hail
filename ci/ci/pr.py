@@ -413,7 +413,6 @@ class PR(object):
     def update_from_github_review_state(self, review):
         if self.review != review:
             log.info(f'review state changing from {self.review} to {review} {self.short_str()}')
-            # FIXME: start merge flow if approved and success
             return self.copy(review=review)
         else:
             return self

@@ -129,11 +129,14 @@ class PRS(object):
         assert isinstance(target, FQRef)
         ready_to_merge = self.ready_to_merge(target)
         if len(ready_to_merge) != 0:
+            log.info(f'merging {ready_to_merge[-1].short_str()}')
             pr = ready_to_merge[-1]
             self.merge(pr)
         else:
+            log.info(f'nothing ready to merge for {target.short_str()}')
             self.build_next(target)
         if self.is_deployable_target_ref(target):
+            log.info(f'deploying {target.short_str()}')
             self.try_deploy(target)
         else:
             log.info(f'not deploying target {target.short_str()}')
@@ -239,7 +242,7 @@ class PRS(object):
                 },
                 attributes=attributes,
                 callback=SELF_HOSTNAME + '/deploy_build_done')
-            log.info(f'deploying {target_ref.short_str()} in job {job.id}')
+            log.info(f'deploying {target_ref.short_str()}:{latest_sha} in job {job.id}')
             self.deploy_jobs[target_ref] = job
         except Exception as e:
             log.exception(f'could not start deploy job due to {e}')
@@ -365,17 +368,6 @@ class PRS(object):
         assert source.sha == pr.source.sha, f'{source} {pr}'
         assert target.sha == pr.target.sha, f'{target} {pr}'
         self._set(source.ref, target.ref, pr.refresh_from_batch_job(job))
-
-    def refresh_from_github_build_status(self, gh_pr, status):
-        assert isinstance(gh_pr, GitHubPR), gh_pr
-        pr = self._get(gh_pr.source.ref, gh_pr.target_ref)
-        if pr is None:
-            log.warning(
-                f'found new PR during GitHub build status update {gh_pr.short_str()}')
-            pr = gh_pr.to_PR()
-        self._set(gh_pr.source.ref,
-                  gh_pr.target_ref,
-                  pr.update_from_github_status(status))
 
     def build(self, source, target):
         assert isinstance(source, FQRef)

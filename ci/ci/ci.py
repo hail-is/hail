@@ -45,6 +45,10 @@ def status():
 @app.route('/push', methods=['POST'])
 def github_push():
     d = request.json
+    if 'zen' in d:
+        log.info(f'received zen: {d["zen"]}')
+        return '', 200
+
     ref = d['ref']
     if ref.startswith('refs/heads'):
         target_ref = FQRef(Repo.from_gh_json(d['repository']), ref[11:])
@@ -61,6 +65,10 @@ def github_push():
 @app.route('/pull_request', methods=['POST'])
 def github_pull_request():
     d = request.json
+    if 'zen' in d:
+        log.info(f'received zen: {d["zen"]}')
+        return '', 200
+
     assert 'action' in d, d
     assert 'pull_request' in d, d
     action = d['action']
@@ -80,8 +88,13 @@ def github_pull_request():
 @app.route('/pull_request_review', methods=['POST'])
 def github_pull_request_review():
     d = request.json
+    if 'zen' in d:
+        log.info(f'received zen: {d["zen"]}')
+        return '', 200
+
     action = d['action']
     gh_pr = GitHubPR.from_gh_json(d['pull_request'])
+
     if action == 'submitted':
         state = d['review']['state'].lower()
         if state == 'changes_requested':
@@ -238,8 +251,6 @@ def refresh_github_state():
                 pulls_by_target[gh_pr.target_ref].append(gh_pr)
             refresh_pulls(target_repo, pulls_by_target)
             refresh_reviews(pulls_by_target)
-            # FIXME: I can't fit build state json in the status description
-            # refresh_statuses(pulls_by_target)
         except Exception as e:
             log.exception(
                 f'could not refresh state for {target_repo.short_str()} due to {e}')
@@ -262,7 +273,6 @@ def refresh_pulls(target_repo, pulls_by_target):
             log.info(f'for {target_ref.short_str()}, forgetting {[x.short_str() for x in dead_prs]}')
             for source_ref in dead_prs:
                 prs.forget(source_ref, target_ref)
-    return pulls_by_target
 
 
 def refresh_reviews(pulls_by_target):
@@ -274,18 +284,6 @@ def refresh_reviews(pulls_by_target):
                 status_code=200)
             state = overall_review_state(reviews)['state']
             prs.review(gh_pr, state)
-
-
-def refresh_statuses(pulls_by_target):
-    for pulls in pulls_by_target.values():
-        for gh_pr in pulls:
-            statuses = get_repo(
-                gh_pr.target_ref.repo.qname,
-                'commits/' + gh_pr.source.sha + '/statuses',
-                status_code=200)
-            prs.refresh_from_github_build_status(
-                gh_pr,
-                build_state_from_gh_json(statuses))
 
 
 @app.route('/heal', methods=['POST'])

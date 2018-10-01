@@ -1,5 +1,6 @@
 .PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
+.PHONY: test-in-cluster
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -48,24 +49,29 @@ restart-batch-proxy:
                          | head -n 1))
 	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
 
+PROXY_IP=35.239.252.237
+
 run-local: HAIL_CI_REMOTE_PORT = 3000
 run-local: restart-all-proxies
-	SELF_HOSTNAME=http://35.232.159.176:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	source activate hail-ci && python ci/ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
 run-local-for-tests: restart-all-proxies
-	SELF_HOSTNAME=http://35.232.159.176:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
 	source activate hail-ci && pip install ./batch && python ci/ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: restart-all-proxies
-	SELF_HOSTNAME=http://35.232.159.176:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	source activate hail-ci && ./test-locally.sh
+	./test-locally.sh
+
+test-in-cluster:
+	./test-in-cluster.sh
 
 deploy:
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
