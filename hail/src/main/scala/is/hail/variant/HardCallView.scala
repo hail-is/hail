@@ -2,34 +2,29 @@ package is.hail.variant
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 
 object ArrayGenotypeView {
-  val tArrayFloat64 = TArray(TFloat64())
+  val tArrayFloat64 = PArray(PFloat64())
 }
 
-final class ArrayGenotypeView(rvType: TStruct) {
+final class ArrayGenotypeView(rvType: PStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val tgs = rvType.types(entriesIndex).asInstanceOf[TArray]
-  private val tg = tgs.elementType match {
-    case tg: TStruct => tg
-    case _ => null
+  private val tgs = rvType.types(entriesIndex).asInstanceOf[PArray]
+  private val tg = tgs.elementType.asInstanceOf[PStruct]
+
+  private def lookupField(name: String, expected: PType): (Boolean, Int) = {
+    tg.selfField(name) match {
+      case Some(f) =>
+        if (f.typ == expected)
+          (true, f.index)
+        else
+          (false, 0)
+      case None => (false, 0)
+    }
   }
 
-  private def lookupField(name: String, expected: Type): (Boolean, Int) = {
-    if (tg != null) {
-      tg.selfField(name) match {
-        case Some(f) =>
-          if (f.typ == expected)
-            (true, f.index)
-          else
-            (false, 0)
-        case None => (false, 0)
-      }
-    } else
-      (false, 0)
-  }
-
-  private val (gtExists, gtIndex) = lookupField("GT", TCall())
+  private val (gtExists, gtIndex) = lookupField("GT", PCall())
   private val (gpExists, gpIndex) = lookupField("GP", ArrayGenotypeView.tArrayFloat64)
   private var m: Region = _
   private var gsOffset: Long = _
@@ -78,31 +73,28 @@ final class ArrayGenotypeView(rvType: TStruct) {
 
 
 object HardCallView {
-  def apply(rowSignature: TStruct): HardCallView = {
+  def apply(rowSignature: PStruct): HardCallView = {
     new HardCallView(rowSignature, "GT")
   }
 }
 
-final class HardCallView(rvType: TStruct, callField: String) {
+final class HardCallView(rvType: PStruct, callField: String) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
-  private val tgs = rvType.types(entriesIndex).asInstanceOf[TArray]
-  private val tg = tgs.elementType.asInstanceOf[TStruct]
+  private val tgs = rvType.types(entriesIndex).asInstanceOf[PArray]
+  private val tg = tgs.elementType.asInstanceOf[PStruct]
 
-  private def lookupField(name: String, expected: Type): (Boolean, Int) = {
-    if (tg != null) {
-      tg.selfField(name) match {
-        case Some(f) =>
-          if (f.typ == expected)
-            (true, f.index)
-          else
-            (false, 0)
-        case None => (false, 0)
-      }
-    } else
-      (false, 0)
+  private def lookupField(name: String, expected: PType): (Boolean, Int) = {
+    tg.selfField(name) match {
+      case Some(f) =>
+        if (f.typ == expected)
+          (true, f.index)
+        else
+          (false, 0)
+      case None => (false, 0)
+    }
   }
 
-  private val (gtExists, gtIndex) = lookupField(callField, TCall())
+  private val (gtExists, gtIndex) = lookupField(callField, PCall())
 
   private var m: Region = _
   private var gsOffset: Long = _

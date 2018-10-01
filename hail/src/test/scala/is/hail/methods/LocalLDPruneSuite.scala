@@ -72,7 +72,7 @@ object LocalLDPruneSuite {
 
   // expecting iterable of Genotype with htsjdk schema
   def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
+    val bpvv = new BitPackedVectorView(bitPackedVectorViewType.physicalType)
     toBitPackedVectorRegionValue(gs, nSamples) match {
       case Some(rv) =>
         bpvv.setRegion(rv)
@@ -88,7 +88,7 @@ object LocalLDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rvRowType)
+    val hcView = HardCallView(rvRowType.physicalType)
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
@@ -291,7 +291,7 @@ class LocalLDPruneSuite extends SparkSuite {
         val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LocalLDPruneSuite.rvRowType)
+        val view = HardCallView(LocalLDPruneSuite.rvRowType.physicalType)
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
@@ -327,7 +327,7 @@ class LocalLDPruneSuite extends SparkSuite {
       val t = BitPackedVectorView.rvRowType(
         +TLocus(ReferenceGenome.GRCh37),
         +TArray(+TString()))
-      val bpv = new BitPackedVectorView(t)
+      val bpv = new BitPackedVectorView(t.physicalType)
       r.appendInt(0xbeef)
       rvb.start(t)
       rvb.startStruct()

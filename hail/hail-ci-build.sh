@@ -27,10 +27,12 @@ PYTHON_TEST_SUCCESS="build/_PYTHON_TEST_SUCCESS"
 DOCTEST_SUCCESS="build/_DOCTEST_SUCCESS"
 DOCS_SUCCESS="build/_DOCS_SUCCESS"
 GCP_SUCCESS="build/_GCP_SUCCESS"
+GCP_STOPPED="build/_GCP_STOPPED"
 
 SUCCESS='<span style="color:green;font-weight:bold">SUCCESS</span>'
 FAILURE='<span style="color:red;font-weight:bold">FAILURE</span>'
 SKIPPED='<span style="color:gray;font-weight:bold">SKIPPED</span>'
+STOPPED='<span style="color:gray;font-weight:bold">STOPPED</span>'
 
 get_status() {
     FILE_LOC=$1
@@ -65,7 +67,7 @@ on_exit() {
     PYTHON_TEST_STATUS=$(get_status "${PYTHON_TEST_SUCCESS}" "${SCALA_TEST_STATUS}")
     DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
     DOCS_STATUS=$(get_status "${DOCS_SUCCESS}" "${DOCTEST_STATUS}")
-    GCP_STATUS=$(get_status "${GCP_SUCCESS}")
+    GCP_STATUS=$(if [ -e ${GCP_STOPPED} ]; then echo "${STOPPED}"; else get_status "${GCP_SUCCESS}"; fi)
 
     cat <<EOF > ${ARTIFACTS}/index.html
 <html>
@@ -194,6 +196,23 @@ test_gcp() {
     touch ${GCP_SUCCESS}
 }
 
-test_project
+test_project &
+PID1=$!
 
-test_gcp > ${GCP_LOG}
+test_gcp > ${GCP_LOG} &
+PID2=$!
+
+wait $PID1
+if [ "$?" != "0" ]; then
+    echo "test_project failed!"
+    if [ -ne ${GCP_SUCCESS} ]; then
+        touch ${GCP_STOPPED}
+    fi
+    exit 1
+fi
+
+wait $PID2
+if [ "$?" != "0" ]; then
+    echo "test_gcp failed!"
+    exit 1
+fi

@@ -399,19 +399,21 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixAggregateRowsByKeyMemo() {
     val magg = MatrixAggregateRowsByKey(mat,
-      matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"))
+      matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"),
+      matrixRefStruct(mat.typ, "va.r3", "global.g1"))
     checkMemo(magg,
-      subsetMatrixTable(magg.typ, "sa.c3", "g.foo"),
-      Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2"), null)
+      subsetMatrixTable(magg.typ, "sa.c3", "g.foo", "va.foo"),
+      Array(subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2", "global.g1", "va.r3"), null, null)
     )
   }
 
   @Test def testMatrixAggregateColsByKeyMemo() {
     val magg = MatrixAggregateColsByKey(mat,
-      matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"))
+      matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2"),
+      matrixRefStruct(mat.typ, "sa.c3", "global.g1"))
     checkMemo(magg,
-      subsetMatrixTable(magg.typ, "va.r3", "g.foo"),
-      Array(subsetMatrixTable(mat.typ, "sa.c2", "va.r2", "va.r3", "g.e2"), null))
+      subsetMatrixTable(magg.typ, "va.r3", "g.foo", "sa.foo"),
+      Array(subsetMatrixTable(mat.typ, "sa.c2", "va.r2", "va.r3", "g.e2", "global.g1", "sa.c3"), null, null))
   }
 
   val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
@@ -668,22 +670,22 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixAggregateRowsByKeyRebuild() {
-    val ma = MatrixAggregateRowsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"))
+    val ma = MatrixAggregateRowsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"), matrixRefStruct(mr.typ, "va.r2"))
     checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateRowsByKey]
-        TypeCheck(ma.expr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
   }
 
   @Test def testMatrixAggregateColsByKeyRebuild() {
-    val ma = MatrixAggregateColsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"))
+    val ma = MatrixAggregateColsByKey(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2", "g.e1"), matrixRefStruct(mr.typ, "sa.c2"))
     checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateColsByKey]
-        TypeCheck(ma.aggIR, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )

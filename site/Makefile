@@ -32,4 +32,6 @@ deploy-site:
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat site-image)," \
 	  < site-deployment.yaml.in > site-deployment.yaml
-	kubectl apply -f site-deployment.yaml
+	kubectl delete -f site-deployment.yaml
+	sleep 5
+	kubectl create -f site-deployment.yaml

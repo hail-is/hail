@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
@@ -339,7 +340,7 @@ object Nirvana {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: Type)(w: (String) => Unit, v: (Locus, Array[String])) {
+  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])) {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()
@@ -399,7 +400,7 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = ht.typ.rowType
+    val localRowType = ht.typ.rowType.physicalType
     val localBlockSize = blockSize
 
     val rowKeyOrd = ht.typ.keyType.ordering
@@ -448,7 +449,7 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nirvanaRVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
+    val nirvanaRVDType = prev.typ.copy(rowType = ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 
