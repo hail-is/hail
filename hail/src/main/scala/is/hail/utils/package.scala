@@ -631,7 +631,8 @@ package object utils extends Logging
     def getOrElse(k: K, v: V): V
   }
 
-  class ReadOnlyMutableMap[K, V](m: mutable.Map[K, V]) extends ReadOnlyMap[K, V] {
+  class ReadOnlyMutableMap[K, V](m: mutable.Map[K, V])
+      extends ReadOnlyMap[K, V] with Serializable {
     def contains(k: K): Boolean = m.contains(k)
     def get(k: K): Option[V] = m.get(k)
     def apply(k: K): V = m(k)
