@@ -53,8 +53,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val fieldIdx: ReadOnlyMap[String, Int] =
-    new ReadOnlyMutableMap(toMapFast(fields)(_.name, _.index))
+  val fieldIdx: collection.Map[String, Int] =
+    toMapFast(fields)(_.name, _.index)
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
