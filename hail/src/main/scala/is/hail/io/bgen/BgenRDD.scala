@@ -83,8 +83,8 @@ private class BgenRDD(
   sc: SparkContext,
   parts: Array[Partition],
   settings: BgenSettings,
-  variants: RDD[Row]
-) extends RDD[RVDContext => Iterator[RegionValue]](sc, if (variants == null) Nil else Seq(new OneToOneDependency(variants))) {
+  keys: RDD[Row]
+) extends RDD[RVDContext => Iterator[RegionValue]](sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
   private[this] val f = CompileDecoder(settings)
   private[this] val indexBuilder = IndexReaderBuilder(settings)
 
@@ -94,18 +94,18 @@ private class BgenRDD(
     Iterator.single { (ctx: RVDContext) =>
       split match {
         case p: IndexBgenPartition =>
-          assert(variants == null)
+          assert(keys == null)
           new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
           context.addTaskCompletionListener { context =>
             index.close()
           }
-          if (variants == null)
+          if (keys == null)
             new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(), index).flatten
           else {
-            val variantIterator = variants.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(), index, variantIterator).flatten
+            val keyIterator = keys.iterator(p.filterPartition, context)
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(), index, keyIterator).flatten
           }
       }
     }

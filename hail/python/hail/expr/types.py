@@ -234,7 +234,6 @@ class HailType(object):
         """
         f(self, obj)
 
-
 hail_type = oneof(HailType, transformed((str, dtype)))
 
 
@@ -850,6 +849,11 @@ class tstruct(HailType, Mapping):
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
+
+    def _is_prefix_of(self, other):
+        return (isinstance(other, tstruct) and
+                len(self._fields) <= len(other._fields) and
+                all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
 class ttuple(HailType):
     """Hail type for tuples.
