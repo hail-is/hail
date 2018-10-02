@@ -249,12 +249,12 @@ def copy_log(path: str) -> None:
     --------
     Specify a manual path:
 
-    >>> hl.copy_log('gs://my-bucket/analysis-10-jan19.log')  # DOCTEST: +SKIP
+    >>> hl.copy_log('gs://my-bucket/analysis-10-jan19.log')  # doctest: +SKIP
     INFO: copying log to 'gs://my-bucket/analysis-10-jan19.log'...
 
     Copy to a directory:
 
-    >>> hl.copy_log('gs://my-bucket/')  # DOCTEST: +SKIP
+    >>> hl.copy_log('gs://my-bucket/')  # doctest: +SKIP
     INFO: copying log to 'gs://my-bucket/hail-20180924-2018-devel-46e5fad57524.log'...
 
     Notes

@@ -40,7 +40,7 @@ object RVDSpec {
       val f = path + "/parts/" + p
       hConf.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
-          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
+          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType.physicalType, requestedType.physicalType))(ctx, in)
             .map { rv =>
               val r = SafeRow(requestedType.physicalType, rv.region, rv.offset)
               ctx.region.clear()
@@ -66,7 +66,7 @@ object RVDSpec {
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType.physicalType))(ctx,
             rows.iterator.map { a =>
               rvb.start(rowType)
               rvb.addAnnotation(rowType, a)

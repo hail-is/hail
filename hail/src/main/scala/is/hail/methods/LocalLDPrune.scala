@@ -4,6 +4,7 @@ import java.util
 
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -17,7 +18,7 @@ object BitPackedVectorView {
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required)
 }
 
-class BitPackedVectorView(rvRowType: TStruct) {
+class BitPackedVectorView(rvRowType: PStruct) {
   val vView = new RegionValueVariant(rvRowType)
 
   // All types are required!
@@ -225,12 +226,13 @@ object LocalLDPrune {
 
   private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
     val localRowType = inputRDD.typ.rowType
+    val localRowPType = localRowType.physicalType
 
     inputRDD.mapPartitions(inputRDD.typ, { (ctx, it) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
-      val bpvv = new BitPackedVectorView(localRowType)
-      val bpvvPrev = new BitPackedVectorView(localRowType)
+      val bpvv = new BitPackedVectorView(localRowPType)
+      val bpvvPrev = new BitPackedVectorView(localRowPType)
       val rvb = new RegionValueBuilder()
 
       it.filter { rv =>
@@ -278,6 +280,7 @@ object LocalLDPrune {
     val nSamples = mt.numCols
     
     val fullRowType = mt.rvRowType
+    val fullRowPType = fullRowType.physicalType
 
     val locusIndex = mt.rvRowType.fieldIdx("locus")
     val allelesIndex = mt.rvRowType.fieldIdx("alleles")
@@ -288,7 +291,7 @@ object LocalLDPrune {
 
     val standardizedRDD = mt.rvd
       .mapPartitions(typ.copy(rowType = bpvType))({ it =>
-        val hcView = new HardCallView(fullRowType, callField)
+        val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
         val newRV = RegionValue(region)

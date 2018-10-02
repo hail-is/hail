@@ -382,7 +382,7 @@ case class MatrixBGENReader(
         .distinctByKey()
         .rvd
 
-      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds).toRows(rowType)
+      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds).toRows(rowType.physicalType)
       assert(repartitioned.getNumPartitions == maybePartitions.length)
 
       (maybePartitions.zipWithIndex.map { case (p, i) =>

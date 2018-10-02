@@ -13,8 +13,8 @@ mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 # copy website content
 cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
 
-pandoc -s ../README.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/README.html
-xsltproc --html -o build/www/index.html www/readme-to-index.xslt build/tmp/README.html
+pandoc -s www/landing.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/landing.html
+xsltproc --html -o build/www/index.html www/readme-to-index.xslt build/tmp/landing.html
 
 pandoc -s www/jobs.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/jobs.html
 xsltproc --html -o build/www/jobs.html www/jobs.xslt build/tmp/jobs.html

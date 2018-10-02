@@ -2,6 +2,8 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: hail-ci-deployment
+  labels:
+    hail.is/sha: @sha@
 spec:
   selector:
     matchLabels:
@@ -11,10 +13,11 @@ spec:
     metadata:
       labels:
         app: hail-ci
+        hail.is/sha: @sha@
     spec:
       containers:
         - name: hail-ci
-          image: gcr.io/broad-ctsa/hail-ci:102b3c13a57d1eefd5f91558b72b8cabc9d01cef89aa6f38a5bcd7fba834672c
+          image: @image@
           env:
             - name: SELF_HOSTNAME
               value: http://hail-ci
@@ -55,10 +58,9 @@ metadata:
     app: hail-ci
 spec:
   ports:
-    - port: 80
+    - name: http
+      port: 80
       protocol: TCP
       targetPort: 5000
   selector:
     app: hail-ci
-  loadBalancerIP: 104.198.57.66 # hail-ci-0-1
-  type: LoadBalancer

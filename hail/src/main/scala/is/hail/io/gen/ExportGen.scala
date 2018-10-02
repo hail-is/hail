@@ -3,6 +3,7 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.{TString, TStruct}
 import is.hail.io.plink.BimAnnotationView
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
@@ -36,7 +37,7 @@ object ExportGen {
       }.toArray)
 
     val localNSamples = mv.nCols
-    val fullRowType = mv.typ.rvRowType
+    val fullRowType = mv.typ.rvRowType.physicalType
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
@@ -104,7 +105,7 @@ object ExportGen {
   }
 }
 
-class GenAnnotationView(rowType: TStruct) extends View {
+class GenAnnotationView(rowType: PStruct) extends View {
   private val rsidField = rowType.fieldByName("rsid")
   private val varidField = rowType.fieldByName("varid")
 

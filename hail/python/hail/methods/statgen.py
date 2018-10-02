@@ -1836,7 +1836,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         GQ: int32,
         PL: array<int32>,
         PGT: call,
-        PID: str,
+        PID: str
       }
 
     For other entry fields, write your own splitting logic using
@@ -1865,7 +1865,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
       A   C   0/0:13,2:15:45:0,45,99
       A   T   0/1:9,6:15:50:50,0,99
 
-    Each multiallelic `GT` field is downcoded once for each alternate allele. A
+    Each multiallelic `GT` or `PGT` field is downcoded once for each alternate allele. A
     call for an alternate allele maps to 1 in the biallelic variant
     corresponding to itself and 0 otherwise. For example, in the example above,
     0/2 maps to 0/0 and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
@@ -1984,7 +1984,28 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
 
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
-    entry_fields = set(ds.entry)
+
+    entry_fields = ds.entry
+
+    expected_field_types = {
+        'GT': hl.tcall,
+        'AD': hl.tarray(hl.tint),
+        'DP': hl.tint,
+        'GQ': hl.tint,
+        'PL': hl.tarray(hl.tint),
+        'PGT': hl.tcall,
+        'PID': hl.tstr
+    }
+
+    bad_fields = []
+    for field in entry_fields:
+        if field in expected_field_types and entry_fields[field].dtype != expected_field_types[field]:
+            bad_fields.append((field, entry_fields[field].dtype, expected_field_types[field]))
+
+    if bad_fields:
+        msg = '\n  '.join([f"'{x[0]}'\tfound: {x[1]}\texpected: {x[2]}" for x in bad_fields])
+        raise TypeError("'split_multi_hts': Found invalid types for the following fields:\n  " + msg)
+
     update_entries_expression = {}
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)

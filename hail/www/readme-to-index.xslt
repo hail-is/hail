@@ -6,16 +6,6 @@
     <xsl:template match="h1[@id='hail']">
     </xsl:template>
 
-    <xsl:template match="a[contains(@href, 'badge')]">
-    </xsl:template>
-
-    <xsl:template match="a[contains(@href, 'buildTypeStatusDiv')]">
-    </xsl:template>
-
-    <xsl:template match="a[@href = 'https://hail.is']">
-        Hail
-    </xsl:template>
-
     <xsl:template name="page-title">Hail</xsl:template>
     <xsl:template name="meta-description">
         <meta name="description" content="Hail Overview"/>

@@ -826,7 +826,7 @@ def import_bgen(path,
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                            entry_fields=['dosage'],
     ...                            sample_file="data/example.8bits.sample",
-    ...                            variants=[hl.parse_variant('1:2000:A:G').value])
+    ...                            variants=[hl.eval(hl.parse_variant('1:2000:A:G'))])
 
     Load a set of variants specified by a table expression from a BGEN file:
 
@@ -1725,7 +1725,7 @@ def import_vcf(path,
                header_file=None,
                min_partitions=None,
                drop_samples=False,
-               call_fields=[],
+               call_fields=['PGT'],
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
@@ -1828,8 +1828,8 @@ def import_vcf(path,
         If ``True``, create sites-only dataset. Don't load sample IDs or
         entries.
     call_fields : :obj:`list` of :obj:`str`
-        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is loaded as
-        a call automatically.
+        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is
+        loaded as a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)

@@ -160,6 +160,9 @@ class TableIRTests(unittest.TestCase):
                       reference_genome=hail.get_reference('GRCh37'),
                       contig_recoding={'01': '1'})
 
+        collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp(ir.I32(0), [], None, collect_sig))])
+
         matrix_read = ir.MatrixRead(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
         table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
@@ -170,8 +173,8 @@ class TableIRTests(unittest.TestCase):
                 ir.LocalizeEntries(matrix_read, '__entries'),
                 ir.MatrixColsTable(matrix_read),
                 '__entries'),
-            ir.MatrixAggregateRowsByKey(matrix_read, ir.MakeStruct([('x', ir.I32(2))])),
-            ir.MatrixAggregateColsByKey(matrix_read, ir.MakeStruct([('x', ir.I32(2))])),
+            ir.MatrixAggregateRowsByKey(matrix_read, collect, collect),
+            ir.MatrixAggregateColsByKey(matrix_read, collect, collect),
             ir.MatrixRange(1, 1, 10),
             ir.MatrixImportVCF([resource('sample.vcf')], False, False, None, None, False, ['GT'],
                                hail.get_reference('GRCh37'), {}, True, False),
@@ -228,5 +231,5 @@ class ValueTests(unittest.TestCase):
                 ir.InsertFields(
                     ir.Ref("global", hl.tstruct()),
                     [("foo", row_v)]))
-            new_globals = hl.Table._from_ir(map_globals_ir).globals.value
+            new_globals = hl.eval(hl.Table._from_ir(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))

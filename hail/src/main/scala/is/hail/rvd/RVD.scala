@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PInt64
+import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -47,6 +47,8 @@ class RVD(
 
   def rowType: TStruct = typ.rowType
 
+  def rowPType: PStruct = rowType.physicalType
+
   def boundary: RVD = RVD(typ, partitioner, crddBoundary)
 
   // Basic manipulators
@@ -72,7 +74,7 @@ class RVD(
   }
 
   def stabilize(codec: CodecSpec = RVD.memoryCodec): RDD[Array[Byte]] = {
-    val enc = codec.buildEncoder(rowType)
+    val enc = codec.buildEncoder(rowPType)
     crdd.mapPartitions(_.map(_.toBytes(enc))).clearingRun
   }
 
@@ -80,13 +82,13 @@ class RVD(
     stabilize(codec)
 
   def keyedEncodedRDD(codec: CodecSpec, key: IndexedSeq[String] = typ.key): RDD[(Any, Array[Byte])] = {
-    val enc = codec.buildEncoder(rowType)
+    val enc = codec.buildEncoder(rowPType)
     val kFieldIdx = typ.copy(key = key).kFieldIdx
-    val rowPType = rowType.physicalType
 
+    val localRowPType = rowPType
     crdd.mapPartitions { it =>
       it.map { rv =>
-        val keys: Any = SafeRow.selectFields(rowPType, rv)(kFieldIdx)
+        val keys: Any = SafeRow.selectFields(localRowPType, rv)(kFieldIdx)
         val bytes = rv.toBytes(enc)
         (keys, bytes)
       }
@@ -124,7 +126,8 @@ class RVD(
   // WARNING: will drop any data with keys falling outside 'partitioner'.
   def repartition(
     newPartitioner: RVDPartitioner,
-    shuffle: Boolean = false
+    shuffle: Boolean = false,
+    filter: Boolean = true
   ): RVD = {
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType))
@@ -132,27 +135,27 @@ class RVD(
     if (shuffle) {
       val newType = typ.copy(key = newPartitioner.kType.fieldNames)
 
-      val rowPType = rowType.physicalType
+      val localRowPType = rowPType
       val kOrdering = newType.kType.ordering
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val codec = RVD.wireCodec
 
-      val filtered: RVD = filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
-        val ur = new UnsafeRow(rowPType, null, 0)
+      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
+        val ur = new UnsafeRow(localRowPType, null, 0)
         val key = new KeyedRow(ur, newType.kFieldIdx)
         (ur, key)
       }, { case ((ur, key), rv) =>
         ur.set(rv)
         partBc.value.rangeTree.contains(kOrdering, key)
-      })
+      }) else this
 
       val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
         filtered.keyedEncodedRDD(codec, newType.key),
         newPartitioner.sparkPartitioner(crdd.sparkContext)
       ).setKeyOrdering(kOrdering.toOrdering)
 
-      val shuffledCRDD = codec.decodeRDD(typ.rowType, shuffled.map(_._2))
+      val shuffledCRDD = codec.decodeRDD(localRowPType, shuffled.map(_._2))
 
       RVD(newType, newPartitioner, shuffledCRDD)
 
@@ -381,7 +384,7 @@ class RVD(
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
     assert(!typ.key.contains(name))
 
-    val (newRowPType, ins) = rowType.physicalType.unsafeStructInsert(PInt64(), List(name))
+    val (newRowPType, ins) = rowPType.unsafeStructInsert(PInt64(), List(name))
     val newRowType = newRowPType.virtualType
 
     val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
@@ -469,11 +472,11 @@ class RVD(
   def filterToIntervals(intervals: IntervalTree[_]): RVD = {
     val kOrdering = typ.kType.ordering
     val intervalsBc = crdd.sparkContext.broadcast(intervals)
-    val rowType = typ.rowType.physicalType
+    val localRowPType = rowPType
     val kRowFieldIdx = typ.kFieldIdx
 
     val pred: (RegionValue) => Boolean = (rv: RegionValue) => {
-      val ur = new UnsafeRow(rowType, rv)
+      val ur = new UnsafeRow(localRowPType, rv)
       val key = Row.fromSeq(
         kRowFieldIdx.map(i => ur.get(i)))
       intervalsBc.value.contains(kOrdering, key)
@@ -602,20 +605,20 @@ class RVD(
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
       RegionValue.fromBytes(
-        RVD.wireCodec.buildDecoder(rowType, rowType),
+        RVD.wireCodec.buildDecoder(rowPType, rowPType),
         region,
         RegionValue(region)))
 
   // Collecting
 
   def collect(codec: CodecSpec): Array[Row] = {
-    val dec = codec.buildDecoder(rowType, rowType)
+    val dec = codec.buildDecoder(rowPType, rowPType)
     val encodedData = collectAsBytes(codec)
     Region.scoped { region =>
       encodedData.iterator
         .map(RegionValue.fromBytes(dec, region, RegionValue(region)))
         .map { rv =>
-          val row = SafeRow(rowType.physicalType, rv)
+          val row = SafeRow(rowPType, rv)
           region.clear()
           row
         }.toArray
@@ -634,8 +637,8 @@ class RVD(
   def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
 
   def persist(level: StorageLevel): RVD = {
-    val localRowType = rowType
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowType, localRowType)
+    val localRowPType = rowPType
+    val makeDec = RVD.memoryCodec.buildDecoder(localRowPType, localRowPType)
 
     val persistedRDD = stabilize().persist(level)
 
@@ -665,7 +668,7 @@ class RVD(
   def storageLevel: StorageLevel = StorageLevel.NONE
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(path, rowType, stageLocally, codecSpec)
+    val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
     rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
     partitionCounts
   }
@@ -912,7 +915,7 @@ class RVD(
     stable: RDD[Array[Byte]],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
-    val dec = codec.buildDecoder(rowType, rowType)
+    val dec = codec.buildDecoder(rowPType, rowPType)
     ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
       it.map(RegionValue.fromBytes(dec, ctx.region, rv))
@@ -1136,7 +1139,7 @@ object RVD {
 
         def _coerce(typ: RVDType, crdd: CRDD): RVD = {
           RVD.unkeyed(typ.rowType, crdd)
-            .repartition(newPartitioner, shuffle = true)
+            .repartition(newPartitioner, shuffle = true, filter = false)
         }
       }
     }
@@ -1165,7 +1168,7 @@ object RVD {
     codec: CodecSpec,
     rdd: RDD[Array[Byte]]
   ): RVD = {
-    val dec = codec.buildDecoder(typ.rowType, typ.rowType)
+    val dec = codec.buildDecoder(typ.rowType.physicalType, typ.rowType.physicalType)
     apply(
       typ,
       partitioner,

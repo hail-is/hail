@@ -215,8 +215,9 @@ object IBD {
     val nSamples = vds.numCols
 
     val rowType = vds.rvRowType
+    val rowPType = rowType.physicalType
     val unnormalizedIbse = vds.rvd.mapPartitions { it =>
-      val view = HardCallView(rowType)
+      val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
         ibsForGenotypes(view, computeMaf.map(f => f(rv)))
@@ -226,7 +227,7 @@ object IBD {
     val ibse = unnormalizedIbse.normalized
 
     val chunkedGenotypeMatrix = vds.rvd.mapPartitions { it =>
-      val view = HardCallView(rowType)
+      val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
         Array.tabulate[Byte](view.getLength) { i =>

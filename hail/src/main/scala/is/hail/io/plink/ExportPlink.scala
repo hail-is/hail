@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -74,7 +75,7 @@ object ExportPlink {
     val d = digitsNeeded(nPartitions)
 
     val nSamples = mv.colValues.value.length
-    val fullRowType = mv.typ.rvRowType
+    val fullRowType = mv.typ.rvRowType.physicalType
 
     val nRecordsWritten = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
@@ -119,7 +120,7 @@ object ExportPlink {
   }
 }
 
-class BimAnnotationView(rowType: TStruct) extends View {
+class BimAnnotationView(rowType: PStruct) extends View {
   private val varidField = rowType.fieldByName("varid")
   private val cmPosField = rowType.fieldByName("cm_position")
 

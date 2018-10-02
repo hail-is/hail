@@ -254,7 +254,7 @@ class OrderingSuite extends TestNGSuite {
 
       if (dict.nonEmpty) {
         val testKey2 = dict.keys.toSeq.head
-        val expected2 = if (testKey2 == null) null else dict(testKey2)
+        val expected2 = dict(testKey2)
         assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
           IndexedSeq(dict -> tdict,
             testKey2 -> -tdict.keyType),

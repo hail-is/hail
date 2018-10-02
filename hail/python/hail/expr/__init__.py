@@ -1,5 +1,5 @@
 from .types import *
-from .expressions import eval_expr, eval_expr_typed
+from .expressions import eval, eval_typed
 from .functions import *
 __all__ = ['HailType',
            'dtype',
@@ -20,8 +20,8 @@ __all__ = ['HailType',
            'tlocus',
            'tcall',
            'hts_entry_schema',
-           'eval_expr',
-           'eval_expr_typed',
+           'eval',
+           'eval_typed',
            'literal',
            'chi_squared_test',
            'cond',

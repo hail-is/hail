@@ -1,8 +1,6 @@
 # Hail
 
-[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-
-[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
+Hail is an open-source, scalable framework for exploring and analyzing genomic data. 
 
 The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Since then, Hail has expanded to enable analysis of large-scale datasets beyond the field of genomics. 
 
@@ -30,14 +28,14 @@ For genomics applications, Hail can:
 
 Hail's functionality is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](https://spark.apache.org/docs/latest/index.html)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster. 
 
-Users can script pipelines or explore data interactively in [Jupyter notebooks](http://jupyter.org/) that combine Hail's methods, PySpark's scalable [SQL](https://spark.apache.org/docs/latest/sql-programming-guide.html) and [machine learning algorithms](https://spark.apache.org/docs/latest/ml-guide.html), and Python libraries like [pandas](http://pandas.pydata.org/)'s [scikit-learn](http://scikit-learn.org/stable/) and [Matplotlib](https://matplotlib.org/). Hail also provides a flexible domain language to express complex quality control and analysis pipelines with concise, readable code.
+Users can script pipelines or explore data interactively in [Jupyter notebooks](http://jupyter.org/) that combine Hail's methods, PySpark's scalable [SQL](https://spark.apache.org/docs/latest/sql-programming-guide.html) and [machine learning algorithms](https://spark.apache.org/docs/latest/ml-guide.html), and Python libraries like [pandas](http://pandas.pydata.org/), [scikit-learn](http://scikit-learn.org/stable/) and inline plotting.
 
 To learn more, you can view our talks at [Spark Summit East 2017](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West 2017](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/).
 
 ### Getting Started
 
 There are currently two versions of Hail: `0.1` (stable) and `0.2 beta` (development).
-We recommend that new users install `0.2 beta`, since this version is already radically improved from `0.1`,
+We **strongly** recommend that new users install `0.2 beta`, since this version is already radically improved from `0.1`,
  the file format is stable, and the interface is nearly stable.
 
 To get started using Hail `0.2 beta` on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
@@ -61,13 +59,13 @@ There are many ways to get in touch with the Hail team if you need help using Ha
 
 - chat with the Hail team in our [Zulip chatroom](https://hail.zulipchat.com).
 - post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests, or to share your Hail-powered science 
-- please report any suspected bugs to [GitHub issues](https://github.com/hail-is/hail/issues)
+- please report any suspected bugs as [GitHub issues](https://github.com/hail-is/hail/issues)
 
 Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the Discussion Forum. We recommend creating an account on the Discussion Forum so that you can subscribe to these updates.
 
 ### Contribute
 
-Hail is committed to open-source development. If you'd like to contribute to the development of methods or infrastructure, please: 
+Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
 - see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)

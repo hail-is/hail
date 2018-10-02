@@ -23,6 +23,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
+    eval
     literal
     cond
     switch

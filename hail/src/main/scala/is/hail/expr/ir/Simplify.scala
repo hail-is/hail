@@ -214,6 +214,8 @@ object Simplify {
       case t@TableKeyBy(TableKeyBy(child, _, true), keys, true) if canRepartition(t) =>
         TableKeyBy(child, keys, true)
 
+      case TableKeyBy(child, key, _) if key == child.typ.key => child
+
       // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
       case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
         TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted)
@@ -324,7 +326,7 @@ object Simplify {
       case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixFilterCols(child, _)) => MatrixRowsTable(child)
-      case MatrixRowsTable(MatrixAggregateColsByKey(child, _)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixAggregateColsByKey(child, _, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
 
@@ -346,7 +348,7 @@ object Simplify {
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
-      case MatrixColsTable(MatrixAggregateRowsByKey(child, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
 
       case TableHead(TableMapRows(child, newRow), n) =>
         TableMapRows(TableHead(child, n), newRow)
