@@ -89,6 +89,7 @@ class DictFunctionsSuite extends TestNGSuite {
   }
 
   val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
+  val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32())
 
   @Test def dictGet() {
@@ -100,8 +101,10 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("get", d, 4, -7), -7)
     assertEvalsTo(invoke("get", d, 5, 50), null)
     assertEvalsTo(invoke("get", d, na, 50), 5)
+    assertEvalsTo(invoke("get", dwoutna, na, 50), 50)
     assertEvalsTo(invoke("get", d, 100, 50), 50)
     assertEvalsTo(invoke("get", d, 100, na), null)
+    assertEvalsTo(invoke("get", dwoutna, 100, 50), 50)
 
     assertEvalsTo(invoke("get", IRDict(), 100, na), null)
     assertEvalsTo(invoke("get", IRDict(), 100, 50), 50)
@@ -123,6 +126,7 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("contains", d, 4), false)
     assertEvalsTo(invoke("contains", d, 5), true)
     assertEvalsTo(invoke("contains", d, 100), false)
+    assertEvalsTo(invoke("contains", dwoutna, 100), false)
     assertEvalsTo(invoke("contains", d, na), true)
 
     assert(eval(invoke("contains", IRDict(), 100)) == false)

@@ -39,9 +39,14 @@ class SetFunctionsSuite extends TestNGSuite {
 
   @Test def contains() {
     val s = IRSet(3, null, 7)
+    val swoutna = IRSet(3, 7)
+
     assertEvalsTo(invoke("contains", s, I32(3)), true)
     assertEvalsTo(invoke("contains", s, I32(4)), false)
+    assertEvalsTo(invoke("contains", s, I32(10)), false)
+    assertEvalsTo(invoke("contains", swoutna, I32(10)), false)
     assertEvalsTo(invoke("contains", s, NA(TInt32())), true)
+    assertEvalsTo(invoke("contains", swoutna, NA(TInt32())), false)
     assertEvalsTo(invoke("contains", IRSet(3, 7), NA(TInt32())), false)
     assert(eval(invoke("contains", IRSet(), 3)) == false)
   }
