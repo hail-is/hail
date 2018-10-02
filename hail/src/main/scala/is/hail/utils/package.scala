@@ -640,7 +640,7 @@ package object utils extends Logging
   }
 
   def toMapFast[T, K, V](
-	  ts: TraversableOnce[T]
+    ts: TraversableOnce[T]
   )(key: T => K,
     value: T => V
   ): mutable.Map[K, V] = {
