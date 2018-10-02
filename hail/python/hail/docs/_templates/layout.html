@@ -40,6 +40,16 @@
     {% endif %}
 
   {% endif %}
+  
+  <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
+  <script type='javascript'>
+    function search() {
+      var search = $('[name=q]')
+      search.val('')
+      search.focus()
+    }
+    Mousetrap.bind('/', search)
+  </script>
 
   {# RTD hosts this file, so just load on non RTD builds #}
   {% if not READTHEDOCS %}
