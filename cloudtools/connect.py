@@ -1,3 +1,4 @@
+import subprocess as sp
 from .safe_call import safe_call
 
 def init_parser(parser):
@@ -38,8 +39,8 @@ def main(args):
     connect_port = dataproc_ports[service]
 
     # open SSH tunnel to master node
-    safe_call(
-        'gcloud',
+    sp.check_call(
+        ['gcloud',
         'compute',
         'ssh',
         '{}-m'.format(args.name),
@@ -47,7 +48,8 @@ def main(args):
         '--ssh-flag=-D {}'.format(args.port),
         '--ssh-flag=-N',
         '--ssh-flag=-f',
-        '--ssh-flag=-n'
+        '--ssh-flag=-n'],
+        stderr=sp.STDOUT
     )
 
     # open Chrome with SOCKS proxy configuration
